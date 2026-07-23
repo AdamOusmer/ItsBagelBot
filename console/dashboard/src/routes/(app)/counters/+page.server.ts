@@ -1,24 +1,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
-import {
-  listCounters,
-  createCounter,
-  setCounter,
-  renameCounter,
-  deleteCounter,
-  deleteCounterEntry,
-  counterEntries,
-  getCounter
-} from '$lib/server/loyalty-store';
-import {
-  UserError,
-  normalizeName,
-  namedValue,
-  bucketTarget,
-  bucketLabel,
-  resolveAddTarget
-} from '$lib/server/counter-form';
+import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { UserError, normalizeName } from '$lib/server/counter-form';
+import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -125,33 +110,11 @@ export const actions: Actions = {
   }),
 
   // Absolute value for a channel counter; on entry scopes value 0 doubles as
-  // the reset (the service deletes every stored bucket). An optional target
-  // (viewer_id and/or command) instead writes that one stored bucket.
-  set: mutate('set', async (uid, f) => {
-    const nv = namedValue(f);
-    const target = bucketTarget(f);
-    if (!nv || !target) return null;
-    const found = await setCounter(uid, nv.name, nv.value, target);
-    if (!found) throw new Error('unknown counter');
-    return `${nv.name}${bucketLabel(target)}=${nv.value}`;
-  }),
+  // the reset. An optional target (viewer_id and/or command) writes one bucket.
+  set: mutate('set', runSet),
 
-  // addEntry writes one bucket of an entry-scoped counter from the inspector's
-  // manual add. The counter's own scope gates which target parts are required
-  // (resolveAddTarget), so a malformed post can never fall through to the
-  // untargeted "reset everything" set.
-  addEntry: mutate('addEntry', async (uid, f) => {
-    const nv = namedValue(f);
-    if (!nv) return null;
-    const counter = await getCounter(uid, nv.name);
-    if (!counter || counter.scope === 'channel') return null;
-    const login = String(f.get('username') ?? '').trim().replace(/^@/, '').toLowerCase();
-    const target = await resolveAddTarget(counter.scope, login, normalizeName(f.get('command')));
-    if (!target) return null;
-    const found = await setCounter(uid, nv.name, nv.value, target);
-    if (!found) throw new Error('unknown counter');
-    return `${nv.name}[${target.viewerId || target.command}]=${nv.value}`;
-  }),
+  // Manual add of one bucket to an entry-scoped counter.
+  addEntry: mutate('addEntry', runAddEntry),
 
   rename: mutate('rename', async (uid, f) => {
     const name = normalizeName(f.get('name'));
@@ -170,17 +133,6 @@ export const actions: Actions = {
     return name;
   }),
 
-  // deleteEntry removes one stored bucket of an entry-scoped counter, addressed
-  // by viewer_id and/or command. A bucket must be targeted; an address with
-  // neither is rejected here (and again by the service) so this can never wipe
-  // the whole counter.
-  deleteEntry: mutate('deleteEntry', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
-    const target = bucketTarget(f);
-    if (!name || !target) return null;
-    if (!target.viewerId && !target.command) return null;
-    const found = await deleteCounterEntry(uid, name, target);
-    if (!found) throw new Error('unknown counter');
-    return `${name}${bucketLabel(target)} removed`;
-  })
+  // Remove one stored bucket of an entry-scoped counter.
+  deleteEntry: mutate('deleteEntry', runDeleteEntry)
 };
