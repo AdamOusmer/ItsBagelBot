@@ -107,7 +107,7 @@
       </div>
       <!-- kind="reply": built-in replies are expanded by a bare token replacer
            (e.g. clipExpand) — only def.previewSamples substitute, no dynamic
-           tokens, no slash-verb routing. -->
+           tokens. Leading slash-verbs still route (outgress sendBotLine). -->
       <ChatPreview
         kind="reply"
         dynamic={false}

@@ -15,9 +15,8 @@
   //
   //   kind="reply" — module replies (alerts, triggers, rewards, built-ins,
   //   gateway commands): ONLY the tokens in `samples` (plus the dynamic set
-  //   unless dynamic={false}), one plain message, no slash-verb actions —
-  //   those surfaces never run Translate, so "/announce hi" is sent, and
-  //   shown, as literal text.
+  //   unless dynamic={false}), one message. A leading slash-verb routes the
+  //   same as a command line — the pipeline translates every emitted output.
   import {
     rehearseCommand,
     rehearseReply,

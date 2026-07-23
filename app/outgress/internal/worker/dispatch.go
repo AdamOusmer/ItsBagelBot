@@ -62,6 +62,64 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 	return act.Run(ctx, payload)
 }
 
+// sendBotLine routes one synthetic bot line, honoring a leading slash-verb
+// the same way sesame's pipeline does for module outputs: outgress.CutSlash
+// owns the grammar, so "/announce hi" becomes a native announcement, "/pin"
+// a pin, "/shoutout <target>" a shoutout, and anything else (including /me,
+// which Twitch chat renders itself) a plain chat line. A routed action with
+// no usable payload (empty announce/pin message, shoutout without a target)
+// is dropped rather than sent for Twitch to reject.
+func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {
+	sc, ok := outgress.CutSlash(text)
+	if !ok {
+		return w.sendBotChat(ctx, broadcasterID, text)
+	}
+	switch sc.Type {
+	case outgress.TypeShoutout:
+		if sc.To == "" {
+			return nil
+		}
+		return w.processPayload(ctx, &outgress.Message{
+			Type:          outgress.TypeShoutout,
+			BroadcasterID: broadcasterID,
+			To:            sc.To,
+			Payload:       []byte("{}"),
+		})
+	case outgress.TypeAnnounce:
+		if sc.Text == "" {
+			return nil
+		}
+		body, err := sonic.Marshal(struct {
+			Message string `json:"message"`
+		}{sc.Text})
+		if err != nil {
+			return err
+		}
+		return w.processPayload(ctx, &outgress.Message{
+			Type:          outgress.TypeAnnounce,
+			BroadcasterID: broadcasterID,
+			Color:         sc.Color,
+			Payload:       body,
+		})
+	default: // TypePin: the pin action sends the message first, then pins it.
+		if sc.Text == "" {
+			return nil
+		}
+		body, err := sonic.Marshal(struct {
+			BroadcasterID string `json:"broadcaster_id"`
+			Message       string `json:"message"`
+		}{broadcasterID, sc.Text})
+		if err != nil {
+			return err
+		}
+		return w.processPayload(ctx, &outgress.Message{
+			Type:          outgress.TypePin,
+			BroadcasterID: broadcasterID,
+			Payload:       body,
+		})
+	}
+}
+
 // sendBotChat routes one synthetic bot chat line (a clip reply, the reauth
 // beacon) through the ordinary chat action — registry route defaults, bot
 // sender injection, per-channel chat rate bucket — exactly as if a lane job

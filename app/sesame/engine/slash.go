@@ -1,61 +1,38 @@
 package engine
 
 import (
-	"strings"
-
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 )
 
 // Translate inspects out.Text for a leading slash-verb and, when it finds a
 // known one, rewrites the Output in place: it sets the outgress Type (and Color
-// or To where the verb carries one) and strips the verb prefix from Text. A
-// command author writes the verb the same way they would in chat (e.g.
+// or To where the verb carries one) and strips the verb prefix from Text. An
+// author writes the verb the same way they would in chat (e.g.
 // "/announce hello"), and the engine turns it into the right outgress action.
 //
-// Recognized verbs:
+// The verb grammar lives in outgress.CutSlash — the single owner shared with
+// outgress's own synthetic sends — see its doc for the recognized verbs. /me
+// is a plain passthrough: Twitch chat interprets the leading "/me" itself, so
+// the verb is NOT stripped and the output stays chat.
 //
-//   - /announce[blue|green|orange|purple] -> TypeAnnounce, that color (plain
-//     /announce is "primary"); the verb is stripped from Text.
-//   - /shoutout <target> -> TypeShoutout; the first token (leading '@' stripped)
-//     becomes To and is removed from Text.
-//   - /pin <message> -> TypePin; the verb is stripped from Text. Outgress sends
-//     the message first, then pins it until the current stream ends.
-//   - /me -> left as a plain chat line; the verb is NOT stripped (Twitch chat
-//     interprets the leading "/me" itself).
-//
-// Anything else is left unchanged.
+// Only a chat output is translated. That makes the call idempotent — an
+// already-routed action (announce/shoutout/pin) is never re-parsed — so it is
+// safe both in the custom-command path (which translates per line before
+// batching) and centrally in the pipeline's emit, where EVERY module output
+// passes through it.
 func Translate(out *module.Output) {
-	text := out.Text
-
-	// /announce family. Order matters: the colored variants are prefixes of the
-	// bare verb's namespace, so check the longer forms first.
-	if color, rest, ok := matchAnnounce(text); ok {
-		out.Type = outgress.TypeAnnounce
-		out.Color = color
-		out.Text = rest
+	if out.Type != outgress.TypeChat {
 		return
 	}
-
-	// /shoutout <target>
-	if rest, ok := cutVerb(text, "/shoutout"); ok {
-		rest = strings.TrimLeft(rest, " ")
-		target, remainder, _ := strings.Cut(rest, " ")
-		target = strings.TrimPrefix(target, "@")
-		out.Type = outgress.TypeShoutout
-		out.To = target
-		out.Text = strings.TrimLeft(remainder, " ")
+	sc, ok := outgress.CutSlash(out.Text)
+	if !ok {
 		return
 	}
-
-	// /pin <message>
-	if rest, ok := cutVerb(text, "/pin"); ok {
-		out.Type = outgress.TypePin
-		out.Text = rest
-		return
-	}
-
-	// /me is a plain passthrough: leave Type=chat and keep the verb in Text.
+	out.Type = sc.Type
+	out.Color = sc.Color
+	out.To = sc.To
+	out.Text = sc.Text
 }
 
 // isEmptyAction reports whether a translated output carries no usable payload, so
@@ -70,41 +47,4 @@ func isEmptyAction(out *module.Output) bool {
 	default:
 		return false
 	}
-}
-
-// matchAnnounce reports whether text leads with an /announce verb. It returns
-// the announce color and the text with the verb (and one following space)
-// stripped.
-func matchAnnounce(text string) (color, rest string, ok bool) {
-	type variant struct {
-		verb  string
-		color string
-	}
-	// Longest verbs first so "/announceblue" is not mistaken for "/announce".
-	for _, v := range []variant{
-		{"/announceblue", "blue"},
-		{"/announcegreen", "green"},
-		{"/announceorange", "orange"},
-		{"/announcepurple", "purple"},
-		{"/announce", "primary"},
-	} {
-		if r, matched := cutVerb(text, v.verb); matched {
-			return v.color, r, true
-		}
-	}
-	return "", "", false
-}
-
-// cutVerb matches verb either as the whole string or as a "verb " prefix. On a
-// match it returns the remainder with the single separating space removed (empty
-// when the text was exactly the verb). A "verb" followed by a non-space (e.g.
-// "/announceblue" when matching "/announce") is not a match.
-func cutVerb(text, verb string) (rest string, ok bool) {
-	if text == verb {
-		return "", true
-	}
-	if strings.HasPrefix(text, verb+" ") {
-		return text[len(verb)+1:], true
-	}
-	return "", false
 }

@@ -126,10 +126,17 @@ describe('rehearseReply', () => {
     expect(line.segments.at(-1)?.kind).toBe('unknown');
   });
 
-  test('never routes slash verbs — reply surfaces skip Translate', () => {
+  test('routes slash verbs like any emitted output', () => {
     const [line] = rehearseReply('/announce big news', {});
-    expect(line.mode).toBe('chat');
-    expect(textOf(line.segments)).toBe('/announce big news');
+    expect(line.mode).toBe('announce');
+    expect(line.color).toBe('primary');
+    expect(textOf(line.segments)).toBe('big news');
+  });
+
+  test('routes verbs after expansion, matching the emit order', () => {
+    const [line] = rehearseReply('{opener} everyone', { opener: '/pin welcome' });
+    expect(line.mode).toBe('pin');
+    expect(textOf(line.segments)).toBe('welcome everyone');
   });
 
   test('is a single message: no multi-line fan-out', () => {

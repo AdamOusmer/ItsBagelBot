@@ -260,3 +260,41 @@ func TestProcessPublishErrorNacks(t *testing.T) {
 	err := p.Process(chatMsg(t, "standard", "hi"))
 	assert.Error(t, err) // publish failure DOES nack
 }
+
+// The emit path translates a leading slash-verb for EVERY module output — a
+// module reply "/announcegreen …" leaves the pipeline as a native announce
+// action, not a chat line carrying the verb as text.
+func TestEmitTranslatesSlashVerbOnModulePath(t *testing.T) {
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/announcegreen big news"))
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, outgress.TypeAnnounce, pub.got[0].msg.Type)
+	assert.Equal(t, "green", pub.got[0].msg.Color)
+
+	var inner struct {
+		Message string `json:"message"`
+	}
+	require.NoError(t, sonic.Unmarshal(pub.got[0].msg.Payload, &inner))
+	assert.Equal(t, "big news", inner.Message)
+}
+
+// A translated action with no usable payload (here a /shoutout without a
+// target) is dropped at emit instead of being sent for Twitch to reject.
+func TestEmitDropsEmptySlashAction(t *testing.T) {
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/shoutout"))
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+	assert.Empty(t, pub.got)
+}
+
+// /me stays a plain chat line with the verb kept in the text: Twitch chat
+// itself renders the action, so the pipeline must not strip it.
+func TestEmitLeavesMePassthrough(t *testing.T) {
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/me waves"))
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
+	assert.Equal(t, "/me waves", chatMessageText(t, pub.got[0].msg))
+}

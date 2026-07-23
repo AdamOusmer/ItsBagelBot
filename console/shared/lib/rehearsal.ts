@@ -9,19 +9,20 @@
 //   - emit order + line cap: app/sesame/engine/dispatch.go (emitResponse)
 //
 // The bot has exactly two expansion behaviors, so there are exactly two
-// rehearsals:
+// rehearsals. Slash-verbs route on EVERY path — the pipeline's emit (and
+// outgress's sendBotLine for the clip reply) translates a leading /announce,
+// /shoutout, /pin after expansion — so both rehearsals render the native
+// action; they differ only in tokens and fan-out:
 //
 //   rehearseCommand — custom "!command" responses. The engine expands the
 //   whole template first, then splits it into lines (cap 5, one chat message
-//   each), then translates a leading slash-verb per line into a native Twitch
-//   action (/announce, /shoutout, /pin, /me).
+//   each), then translates each line's leading slash-verb.
 //
 //   rehearseReply — module replies (alerts, trigger words, channel-point
 //   rewards, built-ins, gateway commands). Each module expands ONLY its own
 //   token map — most fall back to the shared dynamic tokens ({random},
-//   {choice:…}), a few (govee, clip) do not — and emits one plain chat
-//   message. Reply surfaces never run Translate: a literal "/announce hi"
-//   is sent as plain text, and the rehearsal shows it that way.
+//   {choice:…}), a few (govee, clip) do not — and emits one message, whose
+//   leading slash-verb routes the same way.
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
 
@@ -68,12 +69,13 @@ export function rehearseCommand(response: string, overrides?: Record<string, str
   const samples = { ...COMMAND_SAMPLES, ...(overrides ?? {}) };
   return responseLines(response)
     .slice(0, RESPONSE_MAX_LINES)
-    .map((line) => rehearseCommandLine(line, samples));
+    .map((line) => rehearseLine(line, (key) => resolveCommandToken(key, samples)));
 }
 
-/** Rehearse a module reply: one plain chat message, the module's own tokens
- * plus (unless dynamic=false — govee and clip use a bare string replacer)
- * the shared dynamic tokens. No slash-verb routing, ever. */
+/** Rehearse a module reply: one message, the module's own tokens plus
+ * (unless dynamic=false — govee and clip use a bare string replacer) the
+ * shared dynamic tokens. A leading slash-verb routes exactly like a command
+ * line: the pipeline translates every emitted output. */
 export function rehearseReply(
   response: string,
   samples: Record<string, string> = {},
@@ -84,11 +86,14 @@ export function rehearseReply(
   if (text === '') return [];
   const resolve = (key: string) =>
     key in samples ? samples[key] : dynamic ? resolveDynamic(key) : null;
-  return [{ mode: 'chat', segments: expandSegments(text, resolve) }];
+  return [rehearseLine(text, resolve)];
 }
 
-function rehearseCommandLine(line: string, samples: Record<string, string>): RehearsedLine {
-  const segments = expandSegments(line, (key) => resolveCommandToken(key, samples));
+/** One chat message: expand tokens, then route the leading slash-verb over
+ * the EXPANDED text — the engine's order, so a verb minted by a token (e.g.
+ * {choice:/pin a,/pin b}) still routes. */
+function rehearseLine(line: string, resolve: Resolve): RehearsedLine {
+  const segments = expandSegments(line, resolve);
   const expanded = segments.map((s) => s.text).join('');
   const action = parseSlash(expanded);
   return {
