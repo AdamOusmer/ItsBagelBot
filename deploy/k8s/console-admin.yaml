@@ -61,11 +61,25 @@ spec:
               app: console-admin
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          # Scope the hard rule to the incoming ReplicaSet. With maxSurge=1
+          # the first new pod may share a host with an old pod, while the
+          # second new pod is forced onto the other normal node.
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: console-admin
       affinity:
+        # Admin has no worker-pool toleration today; make that placement
+        # contract explicit so a future broad toleration cannot move both
+        # operator replicas away from node2/node3.
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/pool
+                    operator: NotIn
+                    values: ["worker-pool"]
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
