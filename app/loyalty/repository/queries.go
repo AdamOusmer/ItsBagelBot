@@ -351,6 +351,39 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, ta
 	})
 }
 
+// CounterEntryDelete removes one stored bucket of an entry-scoped counter,
+// addressed like a targeted set (a viewer for the viewer scopes, a command
+// bucket for command scope). It refuses an untargeted call so it can never
+// become an accidental whole-counter reset — that is CounterSet's job. A
+// missing counter, a non-entry scope, or an untargeted address is
+// (false, nil); an already-absent bucket is (true, nil), since the goal state
+// (no such bucket) holds either way. The worker's live Valkey view converges
+// the same way a delete does: TTL expiry, or re-seed on the next cold read.
+func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name string, target SetTarget) (bool, error) {
+	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
+	if err != nil || !found {
+		return found, err
+	}
+	if !entryScoped(row.Scope) {
+		return false, nil
+	}
+	entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
+	if !targeted {
+		return false, nil
+	}
+	return true, db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.CounterEntry.Delete().
+			Where(
+				counterentry.UserIDEQ(userID),
+				counterentry.NameEQ(row.Name),
+				counterentry.CommandEQ(cmd),
+				counterentry.ViewerIDEQ(entryViewer),
+			).
+			Exec(ctx)
+		return err
+	})
+}
+
 // normalizeLogin canonicalizes a carried viewer login the way BalanceAdjust
 // does its target: bare, lower-cased, clamped to the column width.
 func normalizeLogin(login string) string {

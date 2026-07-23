@@ -575,6 +575,12 @@
     "toastSet": "Counter updated.",
     "toastReset": "Counter reset.",
     "toastDeleted": "Counter deleted.",
+    "colActions": "Actions",
+    "remove": "Remove",
+    "entryDeleteAria": "Remove {name}",
+    "entryDeleteTitle": "Remove this value?",
+    "entryDeleteBody": "The stored value for {name} is removed. A future bump recreates it from zero. This cannot be undone.",
+    "toastEntryRemoved": "Value removed.",
     "toastFailed": "That didn’t work. Try again."
   },
   "timers": {

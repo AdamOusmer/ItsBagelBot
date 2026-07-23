@@ -38,6 +38,7 @@ type loyaltyRPC struct {
 //	<prefix>.counter.set    {user_id, name, value[, viewer_id, command]} -> {found}
 //	<prefix>.counter.rename {user_id, name, new_name}       -> {found}
 //	<prefix>.counter.delete {user_id, name}                 -> {}
+//	<prefix>.counter.entry.delete {user_id, name, viewer_id|command} -> {found}
 //	<prefix>.counter.list   {user_id}                       -> {counters}
 //	<prefix>.counter.entries {user_id, name, limit}         -> {entries, found}
 //
@@ -59,6 +60,7 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 		{"counter.set", l.handleCounterSet},
 		{"counter.rename", l.handleCounterRename},
 		{"counter.delete", l.handleCounterDelete},
+		{"counter.entry.delete", l.handleCounterEntryDelete},
 		{"counter.list", l.handleCounterList},
 		{"counter.entries", l.handleCounterEntries},
 	}
@@ -271,6 +273,20 @@ func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Req
 	}
 	err := l.repo.CounterDelete(ctx, userID, req.Name)
 	return l.foundReply("loyalty counter.delete", true, err)
+}
+
+// handleCounterEntryDelete removes one stored bucket of an entry-scoped
+// counter, addressed by viewer_id and/or command; found=false means no such
+// counter, a non-entry scope, or an untargeted address (which is refused so it
+// can never become a whole-counter reset).
+func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, viewerID, ok, reply := parseIDs(req, true)
+	if !ok {
+		return reply
+	}
+	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command}
+	found, err := l.repo.CounterEntryDelete(ctx, userID, req.Name, target)
+	return l.foundReply("loyalty counter.entry.delete", found, err)
 }
 
 func (l *loyaltyRPC) handleCounterList(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

@@ -337,6 +337,30 @@
     }
   }
 
+  // The bucket's human label for confirm copy and aria: the viewer for the
+  // viewer scopes, the command for command scope.
+  function entryLabel(e: CounterEntryView): string {
+    return e.viewerName || e.viewerLogin || e.command || e.viewerId;
+  }
+
+  // --- Per-entry delete (entry scopes; confirmed; wraps ?/deleteEntry) ---------
+  let entryDeleteTarget = $state<CounterEntryView | null>(null);
+  let entryDeleteForm = $state<HTMLFormElement | null>(null);
+  let entryDeleting = $state(false);
+  const entryDeleteSubmit: SubmitFunction = () => {
+    entryDeleting = true;
+    return async ({ result }) => {
+      entryDeleting = false;
+      entryDeleteTarget = null;
+      if (result.type === 'success' && payloadOf(result)?.ok) {
+        toast('ok', t('counters.toastEntryRemoved'));
+        await invalidateAll();
+        return;
+      }
+      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+    };
+  };
+
   // --- Delete (optimistic removal, confirmed + named; wraps ?/delete) ----------
   let deleteTarget = $state<CounterDef | null>(null);
   let deleteForm = $state<HTMLFormElement | null>(null);
@@ -539,6 +563,7 @@
                           {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
                           {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
                           <th scope="col" class="r">{t('counters.colValue')}</th>
+                          <th scope="col" class="act"><span class="sr-only">{t('counters.colActions')}</span></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -577,6 +602,16 @@
                                   <span class="entry-slot" aria-hidden="true"></span>
                                 {/if}
                               </span>
+                            </td>
+                            <td class="act">
+                              {#if entryEditable(selected.scope, e)}
+                                <MiniButton
+                                  icon="trash"
+                                  class="entry-del"
+                                  aria-label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
+                                  onclick={() => (entryDeleteTarget = e)}
+                                />
+                              {/if}
                             </td>
                           </tr>
                         {/each}
@@ -692,6 +727,30 @@
   <input type="hidden" name="value" value="0" />
 </form>
 
+<!-- Remove one stored bucket: confirmed + named. The command field carries ""
+     for the viewer scope; the viewer_id is blanked for the pooled command
+     bucket (viewer 0), so the post always names exactly one bucket. -->
+<ConfirmDialog
+  open={entryDeleteTarget !== null}
+  title={t('counters.entryDeleteTitle')}
+  body={t('counters.entryDeleteBody', { name: entryDeleteTarget ? entryLabel(entryDeleteTarget) : '' })}
+  confirmLabel={t('counters.remove')}
+  cancelLabel={t('common.cancel')}
+  danger
+  busy={entryDeleting}
+  onCancel={() => (entryDeleteTarget = null)}
+  onConfirm={() => entryDeleteForm?.requestSubmit()}
+/>
+<form method="POST" action="?/deleteEntry" use:enhance={entryDeleteSubmit} bind:this={entryDeleteForm} hidden>
+  <input type="hidden" name="name" value={selected?.name ?? ''} />
+  <input
+    type="hidden"
+    name="viewer_id"
+    value={entryDeleteTarget && entryDeleteTarget.viewerId !== '0' ? entryDeleteTarget.viewerId : ''}
+  />
+  <input type="hidden" name="command" value={entryDeleteTarget?.command ?? ''} />
+</form>
+
 <style>
   .toolbar-search { width: 220px; max-width: 100%; }
   .toolbar-search :global(.si) { width: 100%; }
@@ -797,6 +856,10 @@
      never drifts with content. */
   .tbl th.r,
   .tbl td.r { width: 128px; }
+  /* Trailing per-bucket delete column. */
+  .tbl th.act,
+  .tbl td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
+  .tbl :global(.entry-del:hover) { color: #cf8a78; }
 
   /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
      save check toggles visibility inside its always-reserved slot, so the

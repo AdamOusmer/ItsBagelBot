@@ -7,6 +7,7 @@ import {
   setCounter,
   renameCounter,
   deleteCounter,
+  deleteCounterEntry,
   counterEntries,
   getCounter,
   resolveViewerId
@@ -185,5 +186,21 @@ export const actions: Actions = {
     if (!name) return null;
     await deleteCounter(uid, name);
     return name;
+  }),
+
+  // deleteEntry removes one stored bucket of an entry-scoped counter, addressed
+  // by viewer_id and/or command. A bucket must be targeted; an address with
+  // neither is rejected here (and again by the service) so this can never wipe
+  // the whole counter.
+  deleteEntry: mutate('deleteEntry', async (uid, f) => {
+    const name = normalizeName(f.get('name'));
+    if (!name) return null;
+    const viewerId = String(f.get('viewer_id') ?? '').trim();
+    if (viewerId && !/^\d+$/.test(viewerId)) return null;
+    const command = normalizeName(f.get('command'));
+    if (!viewerId && !command) return null;
+    const found = await deleteCounterEntry(uid, name, { viewerId, command });
+    if (!found) throw new Error('unknown counter');
+    return `${name}[${viewerId || command}] removed`;
   })
 };

@@ -155,6 +155,19 @@ export async function deleteCounter(userId: string, name: string): Promise<void>
   await callLoyalty('counter.delete', { user_id: userId, name });
 }
 
+// deleteCounterEntry removes one stored bucket of an entry-scoped counter,
+// addressed by viewer and/or command; false means no such counter (or the
+// address was untargeted, which the service refuses).
+export async function deleteCounterEntry(userId: string, name: string, target: CounterTarget): Promise<boolean> {
+  const reply = await callLoyalty('counter.entry.delete', {
+    user_id: userId,
+    name,
+    viewer_id: target.viewerId || undefined,
+    command: target.command || undefined
+  });
+  return reply.found === true;
+}
+
 // counterEntries lists an entry-scoped counter's buckets, highest first.
 export async function counterEntries(userId: string, name: string, limit = 25): Promise<CounterEntryView[]> {
   const reply = await callLoyalty('counter.entries', { user_id: userId, name, limit });

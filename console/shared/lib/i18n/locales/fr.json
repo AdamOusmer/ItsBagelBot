@@ -575,6 +575,12 @@
     "toastSet": "Compteur mis à jour.",
     "toastReset": "Compteur réinitialisé.",
     "toastDeleted": "Compteur supprimé.",
+    "colActions": "Actions",
+    "remove": "Retirer",
+    "entryDeleteAria": "Retirer {name}",
+    "entryDeleteTitle": "Retirer cette valeur ?",
+    "entryDeleteBody": "La valeur enregistrée pour {name} est supprimée. Un futur incrément la recréera à zéro. Irréversible.",
+    "toastEntryRemoved": "Valeur retirée.",
     "toastFailed": "Ça n’a pas fonctionné. Réessayez."
   },
   "timers": {
