@@ -6,6 +6,7 @@ import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
 import Brackets from '../components/ui/Brackets.astro'
+import ReadingProgress from '../components/ui/ReadingProgress.astro'
 import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations } from '../i18n/ui';
 
 interface Props {
@@ -224,6 +225,7 @@ const contentSecurityPolicy = [
         <slot/>
     </main>
     <Nav/>
+    <ReadingProgress/>
     <Brackets/>
     <Footer/>
     <Cursor/>
