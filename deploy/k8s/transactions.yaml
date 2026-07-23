@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per node; 3 schedulable nodes incl worker1 (tolerates worker-pool); node3 decommissioned
+  replicas: 3 # one per hot-path node: node2, node3, worker1
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -52,12 +52,15 @@ spec:
           tolerationSeconds: 60
       topologySpreadConstraints:
         - maxSkew: 1
+          minDomains: 3
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: transactions
-      # DaemonSet placement keeps one transactions pod per schedulable node.
+      # Three replicas and three eligible domains keep one transactions pod
+      # per hot-path node after every ReplicaSet rollout.
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

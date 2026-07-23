@@ -52,12 +52,15 @@ spec:
           tolerationSeconds: 60
       topologySpreadConstraints:
         - maxSkew: 1
+          minDomains: 3
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
               app: notifications
-      # DaemonSet placement keeps one notifications pod per schedulable node.
+      # Three replicas and three eligible domains keep one notifications pod
+      # per hot-path node after every ReplicaSet rollout.
       # Resolve external hosts without the cluster search-domain fan-out
       # (ndots:1) and serialize A/AAAA to dodge the conntrack race; cap any
       # DNS stall well under a few seconds.

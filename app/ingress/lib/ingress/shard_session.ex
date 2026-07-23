@@ -142,6 +142,16 @@ defmodule Ingress.ShardSession do
     {:reply, :ok, state}
   end
 
+  # A steady-state rebalance uses the same make-before-break handoff as a
+  # planned drain, but unlike a drain it can roll back when the successor does
+  # not bind. Registration must happen inside this process because Horde
+  # associates the name with the caller.
+  @impl true
+  def handle_call(:reclaim_name, _from, state) do
+    result = Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil)
+    {:reply, result, state}
+  end
+
   # The other copy of this shard is bound but lost the registry merge; it is
   # taking the registration over and asks us to stand down. If we bound
   # concurrently (race between the merge and this message), keep serving:
