@@ -162,19 +162,8 @@ func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string
 // are cosmetic, the entries themselves are the answer, so a read failure
 // returns an empty map.
 func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.CounterEntry) map[uint64]string {
-	seen := map[uint64]struct{}{}
-	ids := make([]uint64, 0, len(rows))
-	for _, e := range rows {
-		if e.ViewerID == 0 || e.ViewerLogin != "" {
-			continue
-		}
-		if _, dup := seen[e.ViewerID]; !dup {
-			seen[e.ViewerID] = struct{}{}
-			ids = append(ids, e.ViewerID)
-		}
-	}
-
 	logins := map[uint64]string{}
+	ids := legacyViewerIDs(rows)
 	if len(ids) == 0 {
 		return logins
 	}
@@ -192,6 +181,23 @@ func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.C
 		}
 	}
 	return logins
+}
+
+// legacyViewerIDs returns the distinct viewers in rows whose bucket carries no
+// stored login yet — the only ones that still need a balance-row lookup.
+func legacyViewerIDs(rows []*ent.CounterEntry) []uint64 {
+	seen := map[uint64]struct{}{}
+	ids := make([]uint64, 0, len(rows))
+	for _, e := range rows {
+		if e.ViewerID == 0 || e.ViewerLogin != "" {
+			continue
+		}
+		if _, dup := seen[e.ViewerID]; !dup {
+			seen[e.ViewerID] = struct{}{}
+			ids = append(ids, e.ViewerID)
+		}
+	}
+	return ids
 }
 
 // entryTarget resolves how a read or write addresses one of row's entry

@@ -10,7 +10,8 @@ import {
   deleteCounterEntry,
   counterEntries,
   getCounter,
-  resolveViewerId
+  resolveViewerId,
+  type CounterTarget
 } from '$lib/server/loyalty-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
@@ -122,6 +123,25 @@ function mutate(op: string, run: Mutation) {
   };
 }
 
+// resolveAddTarget turns the manual-add form into a bucket target for one
+// entry-scoped counter. Command scope keys on the command alone; the viewer
+// scopes resolve the typed username to its Twitch id (throwing when no such
+// account) and stamp the login. Returns null when the form lacks the key part
+// the scope needs — the caller maps that to a validation failure.
+async function resolveAddTarget(
+  scope: CounterScope,
+  login: string,
+  command: string
+): Promise<CounterTarget | null> {
+  if (scope === 'command') {
+    return command ? { viewerId: '', command, viewerLogin: '' } : null;
+  }
+  if (!login) return null;
+  const viewerId = await resolveViewerId(login);
+  if (!viewerId) throw new UserError('unknown_user');
+  return { viewerId, command, viewerLogin: login };
+}
+
 export const actions: Actions = {
   create: mutate('create', async (uid, f) => {
     const name = normalizeName(f.get('name'));
@@ -148,10 +168,9 @@ export const actions: Actions = {
   }),
 
   // addEntry writes one bucket of an entry-scoped counter from the inspector's
-  // manual add. A typed username resolves to its Twitch id (the bucket key)
-  // through outgress and the login is stamped for display; the counter's own
-  // scope gates which target parts are required, so a malformed post can never
-  // fall through to the untargeted "reset everything" set.
+  // manual add. The counter's own scope gates which target parts are required
+  // (resolveAddTarget), so a malformed post can never fall through to the
+  // untargeted "reset everything" set.
   addEntry: mutate('addEntry', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     const value = Math.trunc(Number(f.get('value')));
@@ -159,16 +178,11 @@ export const actions: Actions = {
     const counter = await getCounter(uid, name);
     if (!counter || counter.scope === 'channel') return null;
     const login = String(f.get('username') ?? '').trim().replace(/^@/, '').toLowerCase();
-    const command = normalizeName(f.get('command'));
-    if (counter.scope === 'command' ? !command : !login) return null;
-    let viewerId = '';
-    if (login) {
-      viewerId = await resolveViewerId(login);
-      if (!viewerId) throw new UserError('unknown_user');
-    }
-    const found = await setCounter(uid, name, value, { viewerId, command, viewerLogin: login });
+    const target = await resolveAddTarget(counter.scope, login, normalizeName(f.get('command')));
+    if (!target) return null;
+    const found = await setCounter(uid, name, value, target);
     if (!found) throw new Error('unknown counter');
-    return `${name}[${viewerId || command}]=${value}`;
+    return `${name}[${target.viewerId || target.command}]=${value}`;
   }),
 
   rename: mutate('rename', async (uid, f) => {

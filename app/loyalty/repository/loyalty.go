@@ -181,28 +181,34 @@ func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
 	}
 	r.mu.Lock()
 	for _, b := range dto.Bumps {
-		key, scope, ok := bumpTarget(dto.UserID, b)
-		if !ok {
-			continue
-		}
-		sum := r.bumpPend[key]
-		if sum == nil {
-			sum = &bumpSum{scope: scope}
-			r.bumpPend[key] = sum
-		}
-		sum.delta += b.Delta
-		if key.viewerID != 0 {
-			if b.ViewerLogin != "" {
-				sum.login = b.ViewerLogin
-			}
-			if b.ViewerName != "" {
-				sum.name = b.ViewerName
-			}
+		if key, scope, ok := bumpTarget(dto.UserID, b); ok {
+			r.foldBump(key, scope, b)
 		}
 	}
 	overflow := len(r.bumpPend) >= flushMaxKeys
 	r.mu.Unlock()
 	r.maybeFlush(overflow)
+}
+
+// foldBump accumulates one usable bump into its pending sum, refreshing the
+// viewer identity for the viewer-keyed scopes (empty fields keep the stored
+// one). The caller holds r.mu.
+func (r *Loyalty) foldBump(key bumpKey, scope string, b data.CounterBumpEntry) {
+	sum := r.bumpPend[key]
+	if sum == nil {
+		sum = &bumpSum{scope: scope}
+		r.bumpPend[key] = sum
+	}
+	sum.delta += b.Delta
+	if key.viewerID == 0 {
+		return
+	}
+	if b.ViewerLogin != "" {
+		sum.login = b.ViewerLogin
+	}
+	if b.ViewerName != "" {
+		sum.name = b.ViewerName
+	}
 }
 
 // bumpTarget maps one wire bump to its accumulator key per its scope, or
