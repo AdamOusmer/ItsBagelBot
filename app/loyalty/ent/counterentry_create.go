@@ -54,6 +54,34 @@ func (_c *CounterEntryCreate) SetViewerID(v uint64) *CounterEntryCreate {
 	return _c
 }
 
+// SetViewerLogin sets the "viewer_login" field.
+func (_c *CounterEntryCreate) SetViewerLogin(v string) *CounterEntryCreate {
+	_c.mutation.SetViewerLogin(v)
+	return _c
+}
+
+// SetNillableViewerLogin sets the "viewer_login" field if the given value is not nil.
+func (_c *CounterEntryCreate) SetNillableViewerLogin(v *string) *CounterEntryCreate {
+	if v != nil {
+		_c.SetViewerLogin(*v)
+	}
+	return _c
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (_c *CounterEntryCreate) SetViewerName(v string) *CounterEntryCreate {
+	_c.mutation.SetViewerName(v)
+	return _c
+}
+
+// SetNillableViewerName sets the "viewer_name" field if the given value is not nil.
+func (_c *CounterEntryCreate) SetNillableViewerName(v *string) *CounterEntryCreate {
+	if v != nil {
+		_c.SetViewerName(*v)
+	}
+	return _c
+}
+
 // SetValue sets the "value" field.
 func (_c *CounterEntryCreate) SetValue(v int64) *CounterEntryCreate {
 	_c.mutation.SetValue(v)
@@ -161,6 +189,16 @@ func (_c *CounterEntryCreate) check() error {
 	if _, ok := _c.mutation.ViewerID(); !ok {
 		return &ValidationError{Name: "viewer_id", err: errors.New(`ent: missing required field "CounterEntry.viewer_id"`)}
 	}
+	if v, ok := _c.mutation.ViewerLogin(); ok {
+		if err := counterentry.ViewerLoginValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_login", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_login": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.ViewerName(); ok {
+		if err := counterentry.ViewerNameValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_name": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Value(); !ok {
 		return &ValidationError{Name: "value", err: errors.New(`ent: missing required field "CounterEntry.value"`)}
 	}
@@ -209,6 +247,14 @@ func (_c *CounterEntryCreate) createSpec() (*CounterEntry, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ViewerID(); ok {
 		_spec.SetField(counterentry.FieldViewerID, field.TypeUint64, value)
 		_node.ViewerID = value
+	}
+	if value, ok := _c.mutation.ViewerLogin(); ok {
+		_spec.SetField(counterentry.FieldViewerLogin, field.TypeString, value)
+		_node.ViewerLogin = value
+	}
+	if value, ok := _c.mutation.ViewerName(); ok {
+		_spec.SetField(counterentry.FieldViewerName, field.TypeString, value)
+		_node.ViewerName = value
 	}
 	if value, ok := _c.mutation.Value(); ok {
 		_spec.SetField(counterentry.FieldValue, field.TypeInt64, value)
@@ -279,6 +325,42 @@ func (u *CounterEntryUpsert) SetName(v string) *CounterEntryUpsert {
 // UpdateName sets the "name" field to the value that was provided on create.
 func (u *CounterEntryUpsert) UpdateName() *CounterEntryUpsert {
 	u.SetExcluded(counterentry.FieldName)
+	return u
+}
+
+// SetViewerLogin sets the "viewer_login" field.
+func (u *CounterEntryUpsert) SetViewerLogin(v string) *CounterEntryUpsert {
+	u.Set(counterentry.FieldViewerLogin, v)
+	return u
+}
+
+// UpdateViewerLogin sets the "viewer_login" field to the value that was provided on create.
+func (u *CounterEntryUpsert) UpdateViewerLogin() *CounterEntryUpsert {
+	u.SetExcluded(counterentry.FieldViewerLogin)
+	return u
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (u *CounterEntryUpsert) ClearViewerLogin() *CounterEntryUpsert {
+	u.SetNull(counterentry.FieldViewerLogin)
+	return u
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (u *CounterEntryUpsert) SetViewerName(v string) *CounterEntryUpsert {
+	u.Set(counterentry.FieldViewerName, v)
+	return u
+}
+
+// UpdateViewerName sets the "viewer_name" field to the value that was provided on create.
+func (u *CounterEntryUpsert) UpdateViewerName() *CounterEntryUpsert {
+	u.SetExcluded(counterentry.FieldViewerName)
+	return u
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (u *CounterEntryUpsert) ClearViewerName() *CounterEntryUpsert {
+	u.SetNull(counterentry.FieldViewerName)
 	return u
 }
 
@@ -374,6 +456,48 @@ func (u *CounterEntryUpsertOne) SetName(v string) *CounterEntryUpsertOne {
 func (u *CounterEntryUpsertOne) UpdateName() *CounterEntryUpsertOne {
 	return u.Update(func(s *CounterEntryUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetViewerLogin sets the "viewer_login" field.
+func (u *CounterEntryUpsertOne) SetViewerLogin(v string) *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.SetViewerLogin(v)
+	})
+}
+
+// UpdateViewerLogin sets the "viewer_login" field to the value that was provided on create.
+func (u *CounterEntryUpsertOne) UpdateViewerLogin() *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.UpdateViewerLogin()
+	})
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (u *CounterEntryUpsertOne) ClearViewerLogin() *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.ClearViewerLogin()
+	})
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (u *CounterEntryUpsertOne) SetViewerName(v string) *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.SetViewerName(v)
+	})
+}
+
+// UpdateViewerName sets the "viewer_name" field to the value that was provided on create.
+func (u *CounterEntryUpsertOne) UpdateViewerName() *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.UpdateViewerName()
+	})
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (u *CounterEntryUpsertOne) ClearViewerName() *CounterEntryUpsertOne {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.ClearViewerName()
 	})
 }
 
@@ -640,6 +764,48 @@ func (u *CounterEntryUpsertBulk) SetName(v string) *CounterEntryUpsertBulk {
 func (u *CounterEntryUpsertBulk) UpdateName() *CounterEntryUpsertBulk {
 	return u.Update(func(s *CounterEntryUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetViewerLogin sets the "viewer_login" field.
+func (u *CounterEntryUpsertBulk) SetViewerLogin(v string) *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.SetViewerLogin(v)
+	})
+}
+
+// UpdateViewerLogin sets the "viewer_login" field to the value that was provided on create.
+func (u *CounterEntryUpsertBulk) UpdateViewerLogin() *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.UpdateViewerLogin()
+	})
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (u *CounterEntryUpsertBulk) ClearViewerLogin() *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.ClearViewerLogin()
+	})
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (u *CounterEntryUpsertBulk) SetViewerName(v string) *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.SetViewerName(v)
+	})
+}
+
+// UpdateViewerName sets the "viewer_name" field to the value that was provided on create.
+func (u *CounterEntryUpsertBulk) UpdateViewerName() *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.UpdateViewerName()
+	})
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (u *CounterEntryUpsertBulk) ClearViewerName() *CounterEntryUpsertBulk {
+	return u.Update(func(s *CounterEntryUpsert) {
+		s.ClearViewerName()
 	})
 }
 

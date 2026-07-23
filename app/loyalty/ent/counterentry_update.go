@@ -42,6 +42,46 @@ func (_u *CounterEntryUpdate) SetNillableName(v *string) *CounterEntryUpdate {
 	return _u
 }
 
+// SetViewerLogin sets the "viewer_login" field.
+func (_u *CounterEntryUpdate) SetViewerLogin(v string) *CounterEntryUpdate {
+	_u.mutation.SetViewerLogin(v)
+	return _u
+}
+
+// SetNillableViewerLogin sets the "viewer_login" field if the given value is not nil.
+func (_u *CounterEntryUpdate) SetNillableViewerLogin(v *string) *CounterEntryUpdate {
+	if v != nil {
+		_u.SetViewerLogin(*v)
+	}
+	return _u
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (_u *CounterEntryUpdate) ClearViewerLogin() *CounterEntryUpdate {
+	_u.mutation.ClearViewerLogin()
+	return _u
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (_u *CounterEntryUpdate) SetViewerName(v string) *CounterEntryUpdate {
+	_u.mutation.SetViewerName(v)
+	return _u
+}
+
+// SetNillableViewerName sets the "viewer_name" field if the given value is not nil.
+func (_u *CounterEntryUpdate) SetNillableViewerName(v *string) *CounterEntryUpdate {
+	if v != nil {
+		_u.SetViewerName(*v)
+	}
+	return _u
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (_u *CounterEntryUpdate) ClearViewerName() *CounterEntryUpdate {
+	_u.mutation.ClearViewerName()
+	return _u
+}
+
 // SetValue sets the "value" field.
 func (_u *CounterEntryUpdate) SetValue(v int64) *CounterEntryUpdate {
 	_u.mutation.ResetValue()
@@ -123,6 +163,16 @@ func (_u *CounterEntryUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ViewerLogin(); ok {
+		if err := counterentry.ViewerLoginValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_login", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_login": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ViewerName(); ok {
+		if err := counterentry.ViewerNameValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_name": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -140,6 +190,18 @@ func (_u *CounterEntryUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(counterentry.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ViewerLogin(); ok {
+		_spec.SetField(counterentry.FieldViewerLogin, field.TypeString, value)
+	}
+	if _u.mutation.ViewerLoginCleared() {
+		_spec.ClearField(counterentry.FieldViewerLogin, field.TypeString)
+	}
+	if value, ok := _u.mutation.ViewerName(); ok {
+		_spec.SetField(counterentry.FieldViewerName, field.TypeString, value)
+	}
+	if _u.mutation.ViewerNameCleared() {
+		_spec.ClearField(counterentry.FieldViewerName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Value(); ok {
 		_spec.SetField(counterentry.FieldValue, field.TypeInt64, value)
@@ -181,6 +243,46 @@ func (_u *CounterEntryUpdateOne) SetNillableName(v *string) *CounterEntryUpdateO
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetViewerLogin sets the "viewer_login" field.
+func (_u *CounterEntryUpdateOne) SetViewerLogin(v string) *CounterEntryUpdateOne {
+	_u.mutation.SetViewerLogin(v)
+	return _u
+}
+
+// SetNillableViewerLogin sets the "viewer_login" field if the given value is not nil.
+func (_u *CounterEntryUpdateOne) SetNillableViewerLogin(v *string) *CounterEntryUpdateOne {
+	if v != nil {
+		_u.SetViewerLogin(*v)
+	}
+	return _u
+}
+
+// ClearViewerLogin clears the value of the "viewer_login" field.
+func (_u *CounterEntryUpdateOne) ClearViewerLogin() *CounterEntryUpdateOne {
+	_u.mutation.ClearViewerLogin()
+	return _u
+}
+
+// SetViewerName sets the "viewer_name" field.
+func (_u *CounterEntryUpdateOne) SetViewerName(v string) *CounterEntryUpdateOne {
+	_u.mutation.SetViewerName(v)
+	return _u
+}
+
+// SetNillableViewerName sets the "viewer_name" field if the given value is not nil.
+func (_u *CounterEntryUpdateOne) SetNillableViewerName(v *string) *CounterEntryUpdateOne {
+	if v != nil {
+		_u.SetViewerName(*v)
+	}
+	return _u
+}
+
+// ClearViewerName clears the value of the "viewer_name" field.
+func (_u *CounterEntryUpdateOne) ClearViewerName() *CounterEntryUpdateOne {
+	_u.mutation.ClearViewerName()
 	return _u
 }
 
@@ -278,6 +380,16 @@ func (_u *CounterEntryUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ViewerLogin(); ok {
+		if err := counterentry.ViewerLoginValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_login", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_login": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ViewerName(); ok {
+		if err := counterentry.ViewerNameValidator(v); err != nil {
+			return &ValidationError{Name: "viewer_name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_name": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -312,6 +424,18 @@ func (_u *CounterEntryUpdateOne) sqlSave(ctx context.Context) (_node *CounterEnt
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(counterentry.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ViewerLogin(); ok {
+		_spec.SetField(counterentry.FieldViewerLogin, field.TypeString, value)
+	}
+	if _u.mutation.ViewerLoginCleared() {
+		_spec.ClearField(counterentry.FieldViewerLogin, field.TypeString)
+	}
+	if value, ok := _u.mutation.ViewerName(); ok {
+		_spec.SetField(counterentry.FieldViewerName, field.TypeString, value)
+	}
+	if _u.mutation.ViewerNameCleared() {
+		_spec.ClearField(counterentry.FieldViewerName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Value(); ok {
 		_spec.SetField(counterentry.FieldValue, field.TypeInt64, value)

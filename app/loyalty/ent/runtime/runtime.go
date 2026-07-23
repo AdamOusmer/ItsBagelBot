@@ -110,12 +110,20 @@ func init() {
 	counterentry.DefaultCommand = counterentryDescCommand.Default.(string)
 	// counterentry.CommandValidator is a validator for the "command" field. It is called by the builders before save.
 	counterentry.CommandValidator = counterentryDescCommand.Validators[0].(func(string) error)
+	// counterentryDescViewerLogin is the schema descriptor for viewer_login field.
+	counterentryDescViewerLogin := counterentryFields[4].Descriptor()
+	// counterentry.ViewerLoginValidator is a validator for the "viewer_login" field. It is called by the builders before save.
+	counterentry.ViewerLoginValidator = counterentryDescViewerLogin.Validators[0].(func(string) error)
+	// counterentryDescViewerName is the schema descriptor for viewer_name field.
+	counterentryDescViewerName := counterentryFields[5].Descriptor()
+	// counterentry.ViewerNameValidator is a validator for the "viewer_name" field. It is called by the builders before save.
+	counterentry.ViewerNameValidator = counterentryDescViewerName.Validators[0].(func(string) error)
 	// counterentryDescValue is the schema descriptor for value field.
-	counterentryDescValue := counterentryFields[4].Descriptor()
+	counterentryDescValue := counterentryFields[6].Descriptor()
 	// counterentry.DefaultValue holds the default value on creation for the value field.
 	counterentry.DefaultValue = counterentryDescValue.Default.(int64)
 	// counterentryDescUpdatedAt is the schema descriptor for updated_at field.
-	counterentryDescUpdatedAt := counterentryFields[5].Descriptor()
+	counterentryDescUpdatedAt := counterentryFields[7].Descriptor()
 	// counterentry.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	counterentry.DefaultUpdatedAt = counterentryDescUpdatedAt.Default.(func() time.Time)
 	// counterentry.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -49,7 +49,8 @@ func TestRecordBumpsFoldsAndValidates(t *testing.T) {
 	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
 		{Name: "!Deaths", Delta: 1}, // normalized to "deaths"
 		{Name: "deaths", Delta: 2},  // folds with the one above
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1},                         // viewer scope
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},     // viewer scope, identity carried
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},     // folds; name fills in, login kept
 		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},                                      // viewer scope without viewer: dropped
 		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2}, // command normalized
 		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},                  // pooled command scope
@@ -73,8 +74,10 @@ func TestRecordBumpsFoldsAndValidates(t *testing.T) {
 	assert.Equal(t, data.CounterScopeChannel, deaths.scope)
 	hugs := bumps[bumpKey{userID: 1, name: "hugs", viewerID: 7}]
 	require.NotNil(t, hugs)
-	assert.Equal(t, int64(1), hugs.delta)
+	assert.Equal(t, int64(2), hugs.delta)
 	assert.Equal(t, data.CounterScopeViewer, hugs.scope)
+	assert.Equal(t, "cool", hugs.login)
+	assert.Equal(t, "Cool", hugs.name)
 	uses := bumps[bumpKey{userID: 1, name: "uses", command: "hug", viewerID: 7}]
 	require.NotNil(t, uses)
 	assert.Equal(t, int64(2), uses.delta)

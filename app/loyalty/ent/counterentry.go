@@ -25,6 +25,10 @@ type CounterEntry struct {
 	Command string `json:"command,omitempty"`
 	// ViewerID holds the value of the "viewer_id" field.
 	ViewerID uint64 `json:"viewer_id,omitempty"`
+	// ViewerLogin holds the value of the "viewer_login" field.
+	ViewerLogin string `json:"viewer_login,omitempty"`
+	// ViewerName holds the value of the "viewer_name" field.
+	ViewerName string `json:"viewer_name,omitempty"`
 	// Value holds the value of the "value" field.
 	Value int64 `json:"value,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -39,7 +43,7 @@ func (*CounterEntry) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case counterentry.FieldID, counterentry.FieldUserID, counterentry.FieldViewerID, counterentry.FieldValue:
 			values[i] = new(sql.NullInt64)
-		case counterentry.FieldName, counterentry.FieldCommand:
+		case counterentry.FieldName, counterentry.FieldCommand, counterentry.FieldViewerLogin, counterentry.FieldViewerName:
 			values[i] = new(sql.NullString)
 		case counterentry.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -87,6 +91,18 @@ func (_m *CounterEntry) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field viewer_id", values[i])
 			} else if value.Valid {
 				_m.ViewerID = uint64(value.Int64)
+			}
+		case counterentry.FieldViewerLogin:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field viewer_login", values[i])
+			} else if value.Valid {
+				_m.ViewerLogin = value.String
+			}
+		case counterentry.FieldViewerName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field viewer_name", values[i])
+			} else if value.Valid {
+				_m.ViewerName = value.String
 			}
 		case counterentry.FieldValue:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -147,6 +163,12 @@ func (_m *CounterEntry) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("viewer_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ViewerID))
+	builder.WriteString(", ")
+	builder.WriteString("viewer_login=")
+	builder.WriteString(_m.ViewerLogin)
+	builder.WriteString(", ")
+	builder.WriteString("viewer_name=")
+	builder.WriteString(_m.ViewerName)
 	builder.WriteString(", ")
 	builder.WriteString("value=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Value))

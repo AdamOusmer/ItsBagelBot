@@ -53,8 +53,8 @@ func (f *fakeLoyalty) Earn(broadcasterID, viewerID uint64, login, name string, p
 	f.earns = append(f.earns, earnCall{broadcasterID, viewerID, login, name, points, watchSeconds})
 }
 
-func (f *fakeLoyalty) CounterBump(_ context.Context, broadcasterID uint64, name string, viewerID uint64, command string, delta int64) (int64, error) {
-	f.bumps = append(f.bumps, bumpCall{broadcasterID, engine.NormalizeCounterName(name), viewerID, command, delta})
+func (f *fakeLoyalty) CounterBump(_ context.Context, broadcasterID uint64, name string, viewer engine.Viewer, command string, delta int64) (int64, error) {
+	f.bumps = append(f.bumps, bumpCall{broadcasterID, engine.NormalizeCounterName(name), viewer.ID, command, delta})
 	f.bumpVal += delta
 	return f.bumpVal, nil
 }

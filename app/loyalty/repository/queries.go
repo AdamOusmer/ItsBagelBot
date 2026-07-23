@@ -135,8 +135,10 @@ func clampLimit(limit int) int {
 }
 
 // CounterEntries lists an entry-scoped counter's stored buckets, highest
-// value first, with each viewer's login resolved from their balance row (the
-// dashboard's per-counter leaderboard).
+// value first (the dashboard's per-counter leaderboard). Each bucket carries
+// its own stored viewer identity (refreshed by the bump flushes); the login
+// map fills the gap for legacy rows written before identity was stored, from
+// the viewer's balance row when they have one.
 func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string, limit int) ([]*ent.CounterEntry, map[uint64]string, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -155,20 +157,16 @@ func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string
 	return rows, r.viewerLogins(ctx, userID, rows), nil
 }
 
-// viewerLogins resolves the display login for each distinct viewer in rows
-// from their balance row. Best-effort: logins are cosmetic, the entries
-// themselves are the answer, so a read failure returns an empty map.
+// viewerLogins resolves the display login of each distinct viewer whose row
+// carries no stored identity yet, from their balance row. Best-effort: logins
+// are cosmetic, the entries themselves are the answer, so a read failure
+// returns an empty map.
 func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.CounterEntry) map[uint64]string {
-	seen := map[uint64]struct{}{}
-	ids := make([]uint64, 0, len(rows))
-	for _, e := range rows {
-		if _, dup := seen[e.ViewerID]; !dup {
-			seen[e.ViewerID] = struct{}{}
-			ids = append(ids, e.ViewerID)
-		}
-	}
-
 	logins := map[uint64]string{}
+	ids := legacyViewerIDs(rows)
+	if len(ids) == 0 {
+		return logins
+	}
 	bals, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Balance, error) {
 		return r.client.Balance.Query().
 			Where(balance.UserIDEQ(userID), balance.ViewerIDIn(ids...)).
@@ -183,6 +181,23 @@ func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.C
 		}
 	}
 	return logins
+}
+
+// legacyViewerIDs returns the distinct viewers in rows whose bucket carries no
+// stored login yet — the only ones that still need a balance-row lookup.
+func legacyViewerIDs(rows []*ent.CounterEntry) []uint64 {
+	seen := map[uint64]struct{}{}
+	ids := make([]uint64, 0, len(rows))
+	for _, e := range rows {
+		if e.ViewerID == 0 || e.ViewerLogin != "" {
+			continue
+		}
+		if _, dup := seen[e.ViewerID]; !dup {
+			seen[e.ViewerID] = struct{}{}
+			ids = append(ids, e.ViewerID)
+		}
+	}
+	return ids
 }
 
 // entryTarget resolves how a read or write addresses one of row's entry
@@ -290,12 +305,21 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	})
 }
 
+// SetTarget addresses one stored bucket of an entry-scoped counter (a viewer
+// for the viewer scopes, a command bucket for command scope). ViewerLogin
+// optionally stamps the bucket's display identity — the dashboard's manual
+// add knows the typed username; a later bump refreshes it like any other.
+type SetTarget struct {
+	ViewerID    uint64
+	Command     string
+	ViewerLogin string
+}
+
 // CounterSet writes an absolute value. Channel/bot scope sets the row value.
-// For the entry scopes, a targeted set (a viewer for the viewer scopes, a
-// command bucket for command scope) upserts that bucket; an untargeted set
+// For the entry scopes, a targeted set upserts that bucket; an untargeted set
 // resets the whole counter (deletes every entry), the "!counter reset"
 // semantics. A missing counter is (false, nil).
-func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, viewerID uint64, command string, value int64) (bool, error) {
+func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, target SetTarget, value int64) (bool, error) {
 	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
 	if err != nil || !found {
 		return found, err
@@ -307,23 +331,73 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, vi
 				SetValue(value).
 				Exec(ctx)
 		}
-		entryViewer, cmd, targeted := entryTarget(row, viewerID, command)
+		entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
 		if !targeted {
 			_, err := r.client.CounterEntry.Delete().
 				Where(counterentry.UserIDEQ(userID), counterentry.NameEQ(row.Name)).
 				Exec(ctx)
 			return err
 		}
+		login := normalizeLogin(target.ViewerLogin)
 		return r.client.CounterEntry.Create().
 			SetUserID(userID).
 			SetName(row.Name).
 			SetCommand(cmd).
 			SetViewerID(entryViewer).
+			SetViewerLogin(login).
 			SetValue(value).
 			OnConflict(entsql.ConflictColumns(counterentry.FieldUserID, counterentry.FieldName, counterentry.FieldCommand, counterentry.FieldViewerID)).
-			UpdateValue().
+			Update(func(u *ent.CounterEntryUpsert) {
+				u.UpdateValue()
+				if login != "" {
+					u.UpdateViewerLogin()
+				}
+			}).
 			Exec(ctx)
 	})
+}
+
+// CounterEntryDelete removes one stored bucket of an entry-scoped counter,
+// addressed like a targeted set (a viewer for the viewer scopes, a command
+// bucket for command scope). It refuses an untargeted call so it can never
+// become an accidental whole-counter reset — that is CounterSet's job. A
+// missing counter, a non-entry scope, or an untargeted address is
+// (false, nil); an already-absent bucket is (true, nil), since the goal state
+// (no such bucket) holds either way. The worker's live Valkey view converges
+// the same way a delete does: TTL expiry, or re-seed on the next cold read.
+func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name string, target SetTarget) (bool, error) {
+	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
+	if err != nil || !found {
+		return found, err
+	}
+	if !entryScoped(row.Scope) {
+		return false, nil
+	}
+	entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
+	if !targeted {
+		return false, nil
+	}
+	return true, db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := r.client.CounterEntry.Delete().
+			Where(
+				counterentry.UserIDEQ(userID),
+				counterentry.NameEQ(row.Name),
+				counterentry.CommandEQ(cmd),
+				counterentry.ViewerIDEQ(entryViewer),
+			).
+			Exec(ctx)
+		return err
+	})
+}
+
+// normalizeLogin canonicalizes a carried viewer login the way BalanceAdjust
+// does its target: bare, lower-cased, clamped to the column width.
+func normalizeLogin(login string) string {
+	l := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
+	if len(l) > maxCounterName {
+		l = l[:maxCounterName]
+	}
+	return l
 }
 
 // CounterRename moves a counter and its entry buckets to a new name, in one

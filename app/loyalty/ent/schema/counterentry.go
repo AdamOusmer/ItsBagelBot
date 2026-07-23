@@ -31,6 +31,12 @@ func (CounterEntry) Fields() []ent.Field {
 
 		field.Uint64("viewer_id").Immutable(),
 
+		// Display identity of the bucket's viewer, refreshed opportunistically
+		// from whichever bump last carried it (same contract as Balance).
+		// Always "" for the pooled command scope (viewer_id 0).
+		field.String("viewer_login").Optional().MaxLen(64),
+		field.String("viewer_name").Optional().MaxLen(64),
+
 		field.Int64("value").Default(0),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),

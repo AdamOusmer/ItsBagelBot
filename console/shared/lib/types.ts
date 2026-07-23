@@ -1406,6 +1406,7 @@ export interface CounterDef {
 export interface CounterEntryView {
   viewerId: string;
   viewerLogin: string;
+  viewerName: string;
   command: string;
   value: number;
 }

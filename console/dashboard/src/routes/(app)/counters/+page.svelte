@@ -15,22 +15,22 @@
     Button,
     Field,
     ConfirmDialog,
+    MiniButton,
     toast,
     getI18n,
     COUNTER_SCOPES,
     type CounterDef,
+    type CounterEntryView,
     type CounterScope
   } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local source of truth, reseeded when a fresh SSR load lands. Optimistic
-  // stepper writes mutate this list without a reload; create/set/delete resync
-  // through invalidateAll (which swaps `data` and re-seeds here). The shape and
-  // the ?c= entries contract are exactly what +page.server.ts's load returns.
+  // Local source of truth, reseeded when a fresh SSR load lands. create / set /
+  // delete resync through invalidateAll (which swaps `data` and re-seeds here).
+  // The shape and the ?c= entries contract are exactly what the load returns.
   // svelte-ignore state_referenced_locally
   let items = $state<CounterDef[]>(data.counters ?? []);
   // svelte-ignore state_referenced_locally
@@ -45,29 +45,6 @@
   type ActionResult = { ok?: boolean; error?: string };
   function payloadOf(result: { type: string; data?: unknown }): ActionResult | undefined {
     return result.type === 'success' || result.type === 'failure' ? (result.data as ActionResult) : undefined;
-  }
-
-  // --- Per-row save-state machine (mirrors the commands deck) -----------------
-  let rowStatus = $state<Record<string, SaveState>>({});
-  const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
-  function clearTimers(name: string) {
-    for (const h of statusTimers.get(name) ?? []) clearTimeout(h);
-    statusTimers.delete(name);
-  }
-  function setStatus(name: string, s: SaveState) {
-    clearTimers(name);
-    rowStatus = { ...rowStatus, [name]: s };
-  }
-  function ackSaved(name: string) {
-    setStatus(name, 'saved');
-    statusTimers.set(name, [
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'live' }), 2500),
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 7000)
-    ]);
-  }
-  function flagError(name: string) {
-    setStatus(name, 'error');
-    statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 4000)]);
   }
 
   // --- Search + scope filter + sorted rows ------------------------------------
@@ -95,13 +72,18 @@
     viewer_command: t('counters.scopeViewerCommand')
   };
 
-  // --- Optimistic +/- stepper (channel scope), wrapping main's ?/set action ---
-  // set is absolute server-side, so a +1 posts (value + 1). Optimistic locally,
-  // rolled back with a toast on failure.
-  async function postSet(name: string, value: number): Promise<ActionResult | null> {
+  // postSet writes an absolute value for one stored bucket of an entry-scoped
+  // counter (the inspector's per-entry edit), wrapping main's ?/set action.
+  async function postSet(
+    name: string,
+    value: number,
+    target?: { viewerId?: string; command?: string }
+  ): Promise<ActionResult | null> {
     const body = new FormData();
     body.set('name', name);
     body.set('value', String(value));
+    if (target?.viewerId && target.viewerId !== '0') body.set('viewer_id', target.viewerId);
+    if (target?.command) body.set('command', target.command);
     return fetch('?/set', { method: 'POST', body })
       .then(async (res) => {
         const r = deserialize(await res.text());
@@ -110,19 +92,12 @@
       .catch(() => null);
   }
 
-  async function step(c: CounterDef, delta: number) {
-    const before = c.value;
-    const next = before + delta;
-    items = items.map((x) => (x.name === c.name ? { ...x, value: next } : x));
-    setStatus(c.name, 'saving');
-    const payload = await postSet(c.name, next);
-    if (payload?.ok) {
-      ackSaved(c.name);
-    } else {
-      items = items.map((x) => (x.name === c.name ? { ...x, value: before } : x));
-      flagError(c.name);
-      toast('err', payload?.error ?? t('counters.toastFailed'));
-    }
+  // focusSelect opens a field ready to overtype: the channel value editor's
+  // whole point is correcting a number, so the current value lands focused and
+  // selected. (Enter submits the surrounding form by default.)
+  function focusSelect(node: HTMLInputElement) {
+    node.focus();
+    node.select();
   }
 
   // --- Inspector: new counter, or an existing one's value / entries ----------
@@ -168,6 +143,9 @@
     }
     nameError = '';
     renameValue = '';
+    addUser = '';
+    addCommand = '';
+    addValue = 0;
     expanded = c.name;
     if (c.scope === 'channel') {
       setValue = c.value;
@@ -283,6 +261,106 @@
     };
   };
 
+  // --- Manual bucket add (entry scopes; wraps ?/addEntry) ---------------------
+  // The typed username resolves to its Twitch id server-side; the scope decides
+  // which fields the form shows (viewer, command, or both).
+  let addUser = $state('');
+  let addCommand = $state('');
+  let addValue = $state(0);
+  let adding = $state(false);
+  const addSubmit: SubmitFunction = (input) => {
+    const scope = selected?.scope;
+    const missing = scope === 'command' ? !normCounterName(addCommand) : !addUser.trim();
+    if (!scope || missing) {
+      input.cancel();
+      return;
+    }
+    adding = true;
+    return async ({ result }) => {
+      adding = false;
+      if (result.type === 'success' && payloadOf(result)?.ok) {
+        toast('ok', t('counters.toastAdded'));
+        addUser = '';
+        addCommand = '';
+        addValue = 0;
+        await invalidateAll();
+        return;
+      }
+      const err = payloadOf(result)?.error;
+      toast('err', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
+    };
+  };
+
+  // --- Per-entry value edit (entry scopes; wraps ?/set with a bucket target) --
+  // Drafts are keyed by (viewer, command) bucket and hold the raw input text;
+  // a row is dirty once the parsed draft differs from the stored value. Saving
+  // posts a targeted set and resyncs through invalidateAll.
+  let entryEdits = $state<Record<string, string>>({});
+  let entrySaving = $state<string | null>(null);
+
+  function entryKey(e: CounterEntryView): string {
+    return e.viewerId + ':' + e.command;
+  }
+
+  // A bucket is editable only when the service can address it: the command
+  // bucket for command scope, the viewer for the viewer scopes. An untargeted
+  // set would reset the whole counter, so unaddressable rows stay read-only.
+  function entryEditable(scope: CounterScope, e: CounterEntryView): boolean {
+    return scope === 'command' ? e.command !== '' : e.viewerId !== '0';
+  }
+
+  function entryDraftValue(e: CounterEntryView): number | null {
+    const raw = entryEdits[entryKey(e)];
+    if (raw === undefined || raw.trim() === '') return null;
+    const n = Math.trunc(Number(raw));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function entryDirty(e: CounterEntryView): boolean {
+    const n = entryDraftValue(e);
+    return n !== null && n !== e.value;
+  }
+
+  async function saveEntry(c: CounterDef, e: CounterEntryView) {
+    const key = entryKey(e);
+    const next = entryDraftValue(e);
+    if (next === null || next === e.value || entrySaving !== null) return;
+    entrySaving = key;
+    const payload = await postSet(c.name, next, { viewerId: e.viewerId, command: e.command });
+    entrySaving = null;
+    if (payload?.ok) {
+      toast('ok', t('counters.toastSet'));
+      delete entryEdits[key];
+      await invalidateAll();
+    } else {
+      toast('err', payload?.error ?? t('counters.toastFailed'));
+    }
+  }
+
+  // The bucket's human label for confirm copy and aria: the viewer for the
+  // viewer scopes, the command for command scope.
+  function entryLabel(e: CounterEntryView): string {
+    return e.viewerName || e.viewerLogin || e.command || e.viewerId;
+  }
+
+  // --- Per-entry delete (entry scopes; confirmed; wraps ?/deleteEntry) ---------
+  let entryDeleteTarget = $state<CounterEntryView | null>(null);
+  let entryDeleteForm = $state<HTMLFormElement | null>(null);
+  let entryDeleting = $state(false);
+  const entryDeleteSubmit: SubmitFunction = () => {
+    entryDeleting = true;
+    return async ({ result }) => {
+      entryDeleting = false;
+      entryDeleteTarget = null;
+      if (result.type === 'success' && payloadOf(result)?.ok) {
+        toast('ok', t('counters.toastEntryRemoved'));
+        await invalidateAll();
+        return;
+      }
+      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+    };
+  };
+
   // --- Delete (optimistic removal, confirmed + named; wraps ?/delete) ----------
   let deleteTarget = $state<CounterDef | null>(null);
   let deleteForm = $state<HTMLFormElement | null>(null);
@@ -312,22 +390,19 @@
 </script>
 
 {#snippet renameBlock()}
-  <!-- The input joins the hidden ?/rename form via form=, so it can sit
-       inside the set form without nesting forms. The button stays outside
-       Field so the label wraps exactly one control. -->
+  <!-- The input joins the hidden ?/rename form via form=, so it can sit inside
+       the set form without nesting forms. The section head already says
+       "Rename", so the field carries only its placeholder (sr-only label). -->
   <div class="rename-row">
-    <div class="rename-field">
-      <Field label={t('counters.rename')}>
-        <input
-          class="search"
-          name="new_name"
-          form="counter-rename-form"
-          placeholder={t('counters.renamePh')}
-          maxlength="64"
-          bind:value={renameValue}
-        />
-      </Field>
-    </div>
+    <input
+      class="search rename-input"
+      name="new_name"
+      form="counter-rename-form"
+      placeholder={t('counters.renamePh')}
+      aria-label={t('counters.rename')}
+      maxlength="64"
+      bind:value={renameValue}
+    />
     <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
       {t('counters.rename')}
     </Button>
@@ -369,20 +444,17 @@
   <div class="deck {expanded !== null ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
-        <ul class="list" aria-label={t('counters.listTitle')}>
+        <div class="list" role="list" aria-label={t('counters.listTitle')}>
           {#each rows as c, i (c.name)}
             <CounterRow
               counter={c}
               index={i + 1}
-              status={rowStatus[c.name] ?? 'idle'}
               expanded={expanded === c.name}
               onExpand={() => openCounter(c)}
               onDelete={() => (deleteTarget = c)}
-              onIncrement={() => step(c, 1)}
-              onDecrement={() => step(c, -1)}
             />
           {/each}
-        </ul>
+        </div>
       {:else if items.length === 0}
         <EmptyState icon="list" title={t('counters.emptyTitle')} body={t('counters.emptySub')}>
           <Button variant="primary" icon="plus" onclick={openNew}>{t('counters.create')}</Button>
@@ -427,8 +499,10 @@
                   {/each}
                 </select>
               </Field>
-              <p class="hint">{t('counters.scopeHint')}</p>
-              <p class="hint">{t('counters.scopeLocked')}</p>
+              <div class="hints">
+                <p class="hint">{t('counters.scopeHint')}</p>
+                <p class="hint">{t('counters.scopeLocked')}</p>
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -441,14 +515,18 @@
           <form method="POST" action="?/set" class="ins-form" novalidate use:enhance={setSubmit}>
             <input type="hidden" name="name" value={selected.name} />
             <Scroller fill padding="16px">
-              <div class="identity">
-                <span class="id-name">{selected.name}</span>
-                <span class="id-tag">{scopeTag[selected.scope]}</span>
+              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
+
+              <div class="sec">
+                <Field label={t('counters.colValue')}>
+                  <input class="search num big-num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
+                </Field>
               </div>
-              <Field label={t('counters.colValue')}>
-                <input class="search num" type="number" name="value" step="1" bind:value={setValue} />
-              </Field>
-              {@render renameBlock()}
+
+              <div class="sec sec-util">
+                <span class="sec-head">{t('counters.rename')}</span>
+                {@render renameBlock()}
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -458,49 +536,137 @@
             </div>
           </form>
         {:else if selected}
+          {@const showViewer = selected.scope !== 'command'}
+          {@const showSource = selected.scope !== 'viewer'}
           <div class="ins-form">
             <Scroller fill padding="16px">
-              <div class="identity">
-                <span class="id-name">{selected.name}</span>
-                <span class="id-tag">{scopeTag[selected.scope]}</span>
-              </div>
-              {@render renameBlock()}
-              <p class="hint">{t('counters.resetHint')}</p>
-              {#if !entriesReady}
-                <p class="hint" role="status">{t('common.loading')}</p>
-              {:else if (data.entries ?? []).length === 0}
-                <p class="hint">{t('counters.entriesEmpty')}</p>
-              {:else}
-                <!-- Command scope pools every viewer, so its buckets have no
-                     viewer column; the viewer scopes lead with it. -->
-                <div class="tbl-wrap">
-                  <table class="tbl">
-                    <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
-                    <thead>
-                      <tr>
-                        {#if selected.scope !== 'command'}
-                          <th scope="col">{t('counters.colViewer')}</th>
-                        {/if}
-                        <th scope="col">{t('counters.colSource')}</th>
-                        <th scope="col" class="r">{t('counters.colValue')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
-                        <tr>
-                          {#if selected.scope !== 'command'}
-                            <th scope="row">{e.viewerLogin || e.viewerId}</th>
-                            <td class="mut">{e.command || '·'}</td>
-                          {:else}
-                            <th scope="row">{e.command || '·'}</th>
-                          {/if}
-                          <td class="r">{e.value.toLocaleString()}</td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
+              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
+
+              <!-- Values lead: the stored buckets are the point of this panel. -->
+              <div class="sec">
+                <div class="sec-head-row">
+                  <span class="sec-head">{t('counters.valuesTitle')}</span>
+                  {#if entriesReady && (data.entries ?? []).length}
+                    <span class="sec-count">{(data.entries ?? []).length}</span>
+                  {/if}
                 </div>
-              {/if}
+                {#if !entriesReady}
+                  <p class="hint" role="status">{t('common.loading')}</p>
+                {:else if (data.entries ?? []).length === 0}
+                  <p class="hint">{t('counters.entriesEmpty')}</p>
+                {:else}
+                  <div class="tbl-wrap">
+                    <table class="tbl">
+                      <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
+                      <thead>
+                        <tr>
+                          {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
+                          {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
+                          <th scope="col" class="r">{t('counters.colValue')}</th>
+                          <th scope="col" class="act"><span class="sr-only">{t('counters.colActions')}</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
+                          <tr>
+                            {#if showViewer}<th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>{/if}
+                            {#if showSource}<td class="mut">{e.command || '·'}</td>{/if}
+                            <!-- Value cell is always a 2-track grid (number box |
+                                 28px save slot) so the number's right edge is
+                                 invariant: the save check toggles visibility, it
+                                 is never inserted into or removed from the flow.
+                                 Read-only buckets fill the same tracks. -->
+                            <td class="r">
+                              <span class="entry-edit">
+                                {#if entryEditable(selected.scope, e)}
+                                  <input
+                                    class="search num entry-num"
+                                    type="number"
+                                    step="1"
+                                    aria-label={t('counters.colValue')}
+                                    value={entryEdits[entryKey(e)] ?? e.value}
+                                    oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
+                                    onkeydown={(ev) => {
+                                      if (ev.key === 'Enter') void saveEntry(selected, e);
+                                    }}
+                                  />
+                                  <MiniButton
+                                    icon="check"
+                                    class={entryDirty(e) ? 'entry-check' : 'entry-check is-off'}
+                                    aria-label={t('counters.set')}
+                                    disabled={!entryDirty(e) || entrySaving !== null}
+                                    onclick={() => saveEntry(selected, e)}
+                                  />
+                                {:else}
+                                  <span class="entry-ro">{e.value.toLocaleString()}</span>
+                                  <span class="entry-slot" aria-hidden="true"></span>
+                                {/if}
+                              </span>
+                            </td>
+                            <td class="act">
+                              {#if entryEditable(selected.scope, e)}
+                                <MiniButton
+                                  icon="trash"
+                                  class="entry-del"
+                                  aria-label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
+                                  onclick={() => (entryDeleteTarget = e)}
+                                />
+                              {/if}
+                            </td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Add a value: the username resolves to its Twitch id on save;
+                   the counter's scope decides which key fields show. -->
+              <div class="sec">
+                <span class="sec-head">{t('counters.addTitle')}</span>
+                <form method="POST" action="?/addEntry" class="add" novalidate use:enhance={addSubmit}>
+                  <input type="hidden" name="name" value={selected.name} />
+                  {#if showViewer}
+                    <Field label={t('counters.addUser')}>
+                      <input
+                        class="search"
+                        name="username"
+                        placeholder={t('counters.addUserPh')}
+                        maxlength="32"
+                        bind:value={addUser}
+                      />
+                    </Field>
+                  {/if}
+                  {#if showSource}
+                    <Field label={t('counters.addCommand')}>
+                      <input
+                        class="search"
+                        name="command"
+                        placeholder={t('counters.addCommandPh')}
+                        maxlength="64"
+                        bind:value={addCommand}
+                      />
+                    </Field>
+                  {/if}
+                  <div class="add-foot">
+                    <div class="add-val">
+                      <Field label={t('counters.colValue')}>
+                        <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
+                      </Field>
+                    </div>
+                    <Button variant="secondary" type="submit" icon="plus" loading={adding}>
+                      {t('counters.add')}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Rename is a rare utility; keep it out of the way at the bottom. -->
+              <div class="sec sec-util">
+                <span class="sec-head">{t('counters.rename')}</span>
+                {@render renameBlock()}
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -561,19 +727,43 @@
   <input type="hidden" name="value" value="0" />
 </form>
 
+<!-- Remove one stored bucket: confirmed + named. The command field carries ""
+     for the viewer scope; the viewer_id is blanked for the pooled command
+     bucket (viewer 0), so the post always names exactly one bucket. -->
+<ConfirmDialog
+  open={entryDeleteTarget !== null}
+  title={t('counters.entryDeleteTitle')}
+  body={t('counters.entryDeleteBody', { name: entryDeleteTarget ? entryLabel(entryDeleteTarget) : '' })}
+  confirmLabel={t('counters.remove')}
+  cancelLabel={t('common.cancel')}
+  danger
+  busy={entryDeleting}
+  onCancel={() => (entryDeleteTarget = null)}
+  onConfirm={() => entryDeleteForm?.requestSubmit()}
+/>
+<form method="POST" action="?/deleteEntry" use:enhance={entryDeleteSubmit} bind:this={entryDeleteForm} hidden>
+  <input type="hidden" name="name" value={selected?.name ?? ''} />
+  <input
+    type="hidden"
+    name="viewer_id"
+    value={entryDeleteTarget && entryDeleteTarget.viewerId !== '0' ? entryDeleteTarget.viewerId : ''}
+  />
+  <input type="hidden" name="command" value={entryDeleteTarget?.command ?? ''} />
+</form>
+
 <style>
   .toolbar-search { width: 220px; max-width: 100%; }
   .toolbar-search :global(.si) { width: 100%; }
 
-  .rename-row { display: flex; align-items: flex-end; gap: 8px; }
-  .rename-field { flex: 1; min-width: 0; }
+  .rename-row { display: flex; align-items: center; gap: 8px; }
+  .rename-input { flex: 1; min-width: 0; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list { list-style: none; margin: 0; padding: 0; }
+  .list { margin: 0; padding: 0; }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
   /* The inspector body fills the surface below its head: the Scroller scrolls and
@@ -599,18 +789,51 @@
     color: #cf8a78;
   }
 
-  .identity { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
-  .id-name { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .id-tag {
+  /* Scope subtitle: the InspectorSurface title already names the counter, so
+     the panel body opens with just the scope in plain language, not a second
+     copy of the name. */
+  .ins-sub {
+    margin: 0 0 16px;
     font-family: var(--bb-font-body);
-    font-size: 11px;
+    font-size: 12px;
+    color: var(--bb-muted);
+  }
+
+  /* Sections: each block of the inspector, divided by a hairline so values,
+     add and rename read as distinct groups rather than one form dump. */
+  .sec { padding: 0 0 16px; }
+  .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
+  /* The rename utility sits quieter than the sections above it. */
+  .sec-util :global(.search) { font-size: 12.5px; }
+
+  .sec-head {
+    display: block;
+    margin: 0 0 10px;
+    font-family: var(--bb-font-body);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    font-weight: 600;
+  }
+  .sec-head-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .sec-head-row .sec-head { margin: 0; }
+  .sec-count {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
     color: var(--bb-muted);
     border: 1px solid var(--bb-border);
     border-radius: 999px;
-    padding: 2px 8px;
+    padding: 1px 7px;
+    font-variant-numeric: tabular-nums;
   }
 
-  .hint { margin: 0 0 12px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  /* The channel value is the point of that panel, so it gets a larger box. */
+  .big-num :global(.num),
+  .ins-form :global(.big-num) { font-size: 16px; max-width: 160px; }
+
+  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .hints { display: flex; flex-direction: column; gap: 8px; }
 
   .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
@@ -629,6 +852,52 @@
   .tbl th[scope='row'] { text-align: left; font-weight: 600; }
   .tbl .r { text-align: right; }
   .tbl .mut { color: var(--bb-muted); }
+  /* Fixed value column so every value cell is the same box and the right edge
+     never drifts with content. */
+  .tbl th.r,
+  .tbl td.r { width: 128px; }
+  /* Trailing per-bucket delete column. */
+  .tbl th.act,
+  .tbl td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
+  .tbl :global(.entry-del:hover) { color: #cf8a78; }
+
+  /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
+     save check toggles visibility inside its always-reserved slot, so the
+     number's position is invariant whether the row is dirty, clean or
+     read-only. */
+  .entry-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px;
+    align-items: center;
+    gap: 6px;
+    justify-items: end;
+  }
+  .tbl :global(.entry-num) {
+    width: 90px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .tbl :global(.entry-num)::-webkit-outer-spin-button,
+  .tbl :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .entry-ro {
+    width: 90px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--bb-white);
+  }
+  .entry-slot { width: 28px; height: 28px; }
+  .tbl :global(.entry-check.is-off) { visibility: hidden; }
+
+  /* Add a value: key fields stack full-width (the panel is only 420px, so a
+     side-by-side row would cramp), then the value + Add button share the last
+     line, button riding the field baseline. */
+  .add :global(.field) { margin-bottom: 12px; }
+  .add-foot { display: flex; align-items: flex-end; gap: 10px; }
+  .add-val { flex: none; }
+  .add-val :global(.num) { width: 96px; }
+  .add-foot :global(.btn) { margin-bottom: 2px; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }
