@@ -233,12 +233,13 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		return nil
 	}
 	viewerID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+	viewer := Viewer{ID: viewerID, Login: c.Env.ChatterUserLogin, Name: c.Env.ChatterUserName}
 	counters := make(map[string]string, len(names))
 	for _, name := range names {
 		if strings.HasPrefix(name, botCounterTokenPrefix) {
 			continue // bot counters are admin-only; the token stays visible
 		}
-		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewerID, command, 1)
+		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewer, command, 1)
 		if err != nil {
 			p.log.Warn("counter token bump failed",
 				zap.Uint64("broadcaster_id", c.BroadcasterID),

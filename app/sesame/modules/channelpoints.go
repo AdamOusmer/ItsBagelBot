@@ -179,7 +179,8 @@ func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b 
 		return ""
 	}
 	viewerID, _ := strconv.ParseUint(ev.UserID, 10, 64)
-	value, err := d.Loyalty.CounterBump(ctx, c.BroadcasterID, b.Counter, viewerID, ev.Reward.Title, 1)
+	viewer := engine.Viewer{ID: viewerID, Login: ev.UserLogin, Name: ev.UserName}
+	value, err := d.Loyalty.CounterBump(ctx, c.BroadcasterID, b.Counter, viewer, ev.Reward.Title, 1)
 	if err != nil {
 		if d.Log != nil {
 			d.Log.Warn("channelpoints: counter bump failed",

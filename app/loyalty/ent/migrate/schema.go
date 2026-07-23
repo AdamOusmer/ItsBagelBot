@@ -68,6 +68,8 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 64},
 		{Name: "command", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "viewer_id", Type: field.TypeUint64},
+		{Name: "viewer_login", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "viewer_name", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "value", Type: field.TypeInt64, Default: 0},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

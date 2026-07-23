@@ -1,7 +1,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
-import { listCounters, createCounter, setCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
+import { UserError, normalizeName } from '$lib/server/counter-form';
+import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -33,23 +35,14 @@ function demoCounters(): CounterDef[] {
 function demoEntries(name: string): CounterEntryView[] {
   if (name === 'raids') {
     return [
-      { viewerId: '0', viewerLogin: '', command: 'raid', value: 41 },
-      { viewerId: '0', viewerLogin: '', command: 'so', value: 12 }
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'raid', value: 41 },
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'so', value: 12 }
     ];
   }
   return [
-    { viewerId: '101', viewerLogin: 'sesame_sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
-    { viewerId: '102', viewerLogin: 'bagel_fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
+    { viewerId: '101', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
+    { viewerId: '102', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
   ];
-}
-
-// normalizeName mirrors the loyalty service: bare key, lower-cased, no "!".
-function normalizeName(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .replace(/^!/, '')
-    .toLowerCase()
-    .slice(0, 64);
 }
 
 // The optional ?c=<name> selects one entry-scoped counter whose stored values
@@ -97,6 +90,7 @@ function mutate(op: string, run: Mutation) {
     try {
       detail = await run(uid, f);
     } catch (e) {
+      if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
       logger.error({ err: e }, `[counters] ${op} failed`);
       return fail(400, { ok: false, error: `${op} failed` });
     }
@@ -116,15 +110,11 @@ export const actions: Actions = {
   }),
 
   // Absolute value for a channel counter; on entry scopes value 0 doubles as
-  // the reset (the service deletes every stored bucket).
-  set: mutate('set', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
-    const value = Math.trunc(Number(f.get('value')));
-    if (!name || !Number.isFinite(value)) return null;
-    const found = await setCounter(uid, name, value);
-    if (!found) throw new Error('unknown counter');
-    return `${name}=${value}`;
-  }),
+  // the reset. An optional target (viewer_id and/or command) writes one bucket.
+  set: mutate('set', runSet),
+
+  // Manual add of one bucket to an entry-scoped counter.
+  addEntry: mutate('addEntry', runAddEntry),
 
   rename: mutate('rename', async (uid, f) => {
     const name = normalizeName(f.get('name'));
@@ -141,5 +131,8 @@ export const actions: Actions = {
     if (!name) return null;
     await deleteCounter(uid, name);
     return name;
-  })
+  }),
+
+  // Remove one stored bucket of an entry-scoped counter.
+  deleteEntry: mutate('deleteEntry', runDeleteEntry)
 };

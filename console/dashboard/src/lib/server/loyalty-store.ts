@@ -37,6 +37,7 @@ interface CounterWire {
 interface EntryWire {
   viewer_id: string;
   viewer_login?: string;
+  viewer_name?: string;
   command?: string;
   value: number;
 }
@@ -98,11 +99,49 @@ export async function createCounter(userId: string, name: string, scope: Counter
   return { name: c.name, scope: toScope(c.scope), value: c.value };
 }
 
-// setCounter writes an absolute channel value; on entry-scoped counters a zero
-// resets every stored bucket (the service's reset semantics).
-export async function setCounter(userId: string, name: string, value: number): Promise<boolean> {
-  const reply = await callLoyalty('counter.set', { user_id: userId, name, value });
+// CounterTarget addresses one stored bucket of an entry-scoped counter: the
+// viewer for the viewer scopes, the command bucket for the command scopes.
+// viewerLogin optionally stamps the bucket's display identity (the manual
+// add knows the typed username; bumps refresh it later like any other).
+export interface CounterTarget {
+  viewerId?: string;
+  command?: string;
+  viewerLogin?: string;
+}
+
+// setCounter writes an absolute value. Untargeted it sets a channel counter's
+// value — and on entry-scoped counters a zero resets every stored bucket (the
+// service's reset semantics). With a target it upserts that one bucket.
+export async function setCounter(userId: string, name: string, value: number, target: CounterTarget = {}): Promise<boolean> {
+  const reply = await callLoyalty('counter.set', {
+    user_id: userId,
+    name,
+    value,
+    viewer_id: target.viewerId || undefined,
+    command: target.command || undefined,
+    viewer_login: target.viewerLogin || undefined
+  });
   return reply.found === true;
+}
+
+// getCounter reads one counter's definition (the scope gate for targeted
+// writes); null when it does not exist.
+export async function getCounter(userId: string, name: string): Promise<CounterDef | null> {
+  const reply = await callLoyalty('counter.get', { user_id: userId, name });
+  if (reply.found !== true || !reply.counter) return null;
+  return { name: reply.counter.name, scope: toScope(reply.counter.scope), value: reply.counter.value };
+}
+
+// resolveViewerId resolves a Twitch username to its id through outgress (the
+// authenticated Get Users behind the accountage verb); '' when no such user.
+export async function resolveViewerId(login: string): Promise<string> {
+  const reply = await rpc<{ target_id?: string; user_found?: boolean; error?: string }>(
+    `${SUB.outgressRpc}.accountage.get`,
+    { target_login: login },
+    4000
+  );
+  if (reply.error || reply.user_found !== true) return '';
+  return reply.target_id ?? '';
 }
 
 // renameCounter moves a counter (and its stored buckets) to a new name;
@@ -116,12 +155,26 @@ export async function deleteCounter(userId: string, name: string): Promise<void>
   await callLoyalty('counter.delete', { user_id: userId, name });
 }
 
+// deleteCounterEntry removes one stored bucket of an entry-scoped counter,
+// addressed by viewer and/or command; false means no such counter (or the
+// address was untargeted, which the service refuses).
+export async function deleteCounterEntry(userId: string, name: string, target: CounterTarget): Promise<boolean> {
+  const reply = await callLoyalty('counter.entry.delete', {
+    user_id: userId,
+    name,
+    viewer_id: target.viewerId || undefined,
+    command: target.command || undefined
+  });
+  return reply.found === true;
+}
+
 // counterEntries lists an entry-scoped counter's buckets, highest first.
 export async function counterEntries(userId: string, name: string, limit = 25): Promise<CounterEntryView[]> {
   const reply = await callLoyalty('counter.entries', { user_id: userId, name, limit });
   return (reply.entries ?? []).map((e) => ({
     viewerId: e.viewer_id,
     viewerLogin: e.viewer_login ?? '',
+    viewerName: e.viewer_name ?? '',
     command: e.command ?? '',
     value: e.value
   }));

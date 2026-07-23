@@ -22,6 +22,10 @@ const (
 	FieldCommand = "command"
 	// FieldViewerID holds the string denoting the viewer_id field in the database.
 	FieldViewerID = "viewer_id"
+	// FieldViewerLogin holds the string denoting the viewer_login field in the database.
+	FieldViewerLogin = "viewer_login"
+	// FieldViewerName holds the string denoting the viewer_name field in the database.
+	FieldViewerName = "viewer_name"
 	// FieldValue holds the string denoting the value field in the database.
 	FieldValue = "value"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -37,6 +41,8 @@ var Columns = []string{
 	FieldName,
 	FieldCommand,
 	FieldViewerID,
+	FieldViewerLogin,
+	FieldViewerName,
 	FieldValue,
 	FieldUpdatedAt,
 }
@@ -64,6 +70,10 @@ var (
 	DefaultCommand string
 	// CommandValidator is a validator for the "command" field. It is called by the builders before save.
 	CommandValidator func(string) error
+	// ViewerLoginValidator is a validator for the "viewer_login" field. It is called by the builders before save.
+	ViewerLoginValidator func(string) error
+	// ViewerNameValidator is a validator for the "viewer_name" field. It is called by the builders before save.
+	ViewerNameValidator func(string) error
 	// DefaultValue holds the default value on creation for the "value" field.
 	DefaultValue int64
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -98,6 +108,16 @@ func ByCommand(opts ...sql.OrderTermOption) OrderOption {
 // ByViewerID orders the results by the viewer_id field.
 func ByViewerID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldViewerID, opts...).ToFunc()
+}
+
+// ByViewerLogin orders the results by the viewer_login field.
+func ByViewerLogin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldViewerLogin, opts...).ToFunc()
+}
+
+// ByViewerName orders the results by the viewer_name field.
+func ByViewerName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldViewerName, opts...).ToFunc()
 }
 
 // ByValue orders the results by the value field.

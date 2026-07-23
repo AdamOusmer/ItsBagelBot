@@ -60,8 +60,13 @@ type CounterBumpEntry struct {
 	Name     string `json:"name"`
 	Scope    string `json:"scope,omitempty"` // CounterScopeChannel when empty
 	ViewerID uint64 `json:"viewer_id,omitempty"`
-	Command  string `json:"command,omitempty"`
-	Delta    int64  `json:"delta"`
+	// Display identity of the bumping viewer, carried when the source event
+	// knew it (viewer scopes only) so the service can store a readable name
+	// next to the bucket without ever resolving ids itself.
+	ViewerLogin string `json:"viewer_login,omitempty"`
+	ViewerName  string `json:"viewer_name,omitempty"`
+	Command     string `json:"command,omitempty"`
+	Delta       int64  `json:"delta"`
 }
 
 // CounterBumpedDTO reports one broadcaster's counter deltas for a flush window.
