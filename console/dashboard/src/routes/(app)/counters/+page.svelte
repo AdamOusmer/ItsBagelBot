@@ -23,16 +23,14 @@
     type CounterEntryView,
     type CounterScope
   } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local source of truth, reseeded when a fresh SSR load lands. Optimistic
-  // stepper writes mutate this list without a reload; create/set/delete resync
-  // through invalidateAll (which swaps `data` and re-seeds here). The shape and
-  // the ?c= entries contract are exactly what +page.server.ts's load returns.
+  // Local source of truth, reseeded when a fresh SSR load lands. create / set /
+  // delete resync through invalidateAll (which swaps `data` and re-seeds here).
+  // The shape and the ?c= entries contract are exactly what the load returns.
   // svelte-ignore state_referenced_locally
   let items = $state<CounterDef[]>(data.counters ?? []);
   // svelte-ignore state_referenced_locally
@@ -47,29 +45,6 @@
   type ActionResult = { ok?: boolean; error?: string };
   function payloadOf(result: { type: string; data?: unknown }): ActionResult | undefined {
     return result.type === 'success' || result.type === 'failure' ? (result.data as ActionResult) : undefined;
-  }
-
-  // --- Per-row save-state machine (mirrors the commands deck) -----------------
-  let rowStatus = $state<Record<string, SaveState>>({});
-  const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
-  function clearTimers(name: string) {
-    for (const h of statusTimers.get(name) ?? []) clearTimeout(h);
-    statusTimers.delete(name);
-  }
-  function setStatus(name: string, s: SaveState) {
-    clearTimers(name);
-    rowStatus = { ...rowStatus, [name]: s };
-  }
-  function ackSaved(name: string) {
-    setStatus(name, 'saved');
-    statusTimers.set(name, [
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'live' }), 2500),
-      setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 7000)
-    ]);
-  }
-  function flagError(name: string) {
-    setStatus(name, 'error');
-    statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 4000)]);
   }
 
   // --- Search + scope filter + sorted rows ------------------------------------
@@ -97,10 +72,8 @@
     viewer_command: t('counters.scopeViewerCommand')
   };
 
-  // --- Optimistic +/- stepper (channel scope), wrapping main's ?/set action ---
-  // set is absolute server-side, so a +1 posts (value + 1). Optimistic locally,
-  // rolled back with a toast on failure. target addresses one stored bucket of
-  // an entry-scoped counter (the inspector's per-entry edit).
+  // postSet writes an absolute value for one stored bucket of an entry-scoped
+  // counter (the inspector's per-entry edit), wrapping main's ?/set action.
   async function postSet(
     name: string,
     value: number,
@@ -119,19 +92,12 @@
       .catch(() => null);
   }
 
-  async function step(c: CounterDef, delta: number) {
-    const before = c.value;
-    const next = before + delta;
-    items = items.map((x) => (x.name === c.name ? { ...x, value: next } : x));
-    setStatus(c.name, 'saving');
-    const payload = await postSet(c.name, next);
-    if (payload?.ok) {
-      ackSaved(c.name);
-    } else {
-      items = items.map((x) => (x.name === c.name ? { ...x, value: before } : x));
-      flagError(c.name);
-      toast('err', payload?.error ?? t('counters.toastFailed'));
-    }
+  // focusSelect opens a field ready to overtype: the channel value editor's
+  // whole point is correcting a number, so the current value lands focused and
+  // selected. (Enter submits the surrounding form by default.)
+  function focusSelect(node: HTMLInputElement) {
+    node.focus();
+    node.select();
   }
 
   // --- Inspector: new counter, or an existing one's value / entries ----------
@@ -457,20 +423,17 @@
   <div class="deck {expanded !== null ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
-        <ul class="list" aria-label={t('counters.listTitle')}>
+        <div class="list" role="list" aria-label={t('counters.listTitle')}>
           {#each rows as c, i (c.name)}
             <CounterRow
               counter={c}
               index={i + 1}
-              status={rowStatus[c.name] ?? 'idle'}
               expanded={expanded === c.name}
               onExpand={() => openCounter(c)}
               onDelete={() => (deleteTarget = c)}
-              onIncrement={() => step(c, 1)}
-              onDecrement={() => step(c, -1)}
             />
           {/each}
-        </ul>
+        </div>
       {:else if items.length === 0}
         <EmptyState icon="list" title={t('counters.emptyTitle')} body={t('counters.emptySub')}>
           <Button variant="primary" icon="plus" onclick={openNew}>{t('counters.create')}</Button>
@@ -534,7 +497,7 @@
                 <span class="id-tag">{scopeTag[selected.scope]}</span>
               </div>
               <Field label={t('counters.colValue')}>
-                <input class="search num" type="number" name="value" step="1" bind:value={setValue} />
+                <input class="search num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
               </Field>
               {@render renameBlock()}
             </Scroller>
@@ -625,9 +588,14 @@
                           {:else}
                             <th scope="row">{e.command || '·'}</th>
                           {/if}
+                          <!-- The value cell is always a 2-track grid (number
+                               box | 28px save slot) so the number's right edge
+                               is invariant: the save check toggles visibility,
+                               it is never inserted into or removed from the
+                               flow. Read-only buckets fill the same tracks. -->
                           <td class="r">
-                            {#if entryEditable(selected.scope, e)}
-                              <span class="entry-edit">
+                            <span class="entry-edit">
+                              {#if entryEditable(selected.scope, e)}
                                 <input
                                   class="search num entry-num"
                                   type="number"
@@ -639,18 +607,18 @@
                                     if (ev.key === 'Enter') void saveEntry(selected, e);
                                   }}
                                 />
-                                {#if entryDirty(e)}
-                                  <MiniButton
-                                    icon="check"
-                                    aria-label={t('counters.set')}
-                                    disabled={entrySaving !== null}
-                                    onclick={() => saveEntry(selected, e)}
-                                  />
-                                {/if}
-                              </span>
-                            {:else}
-                              {e.value.toLocaleString()}
-                            {/if}
+                                <MiniButton
+                                  icon="check"
+                                  class={entryDirty(e) ? 'entry-check' : 'entry-check is-off'}
+                                  aria-label={t('counters.set')}
+                                  disabled={!entryDirty(e) || entrySaving !== null}
+                                  onclick={() => saveEntry(selected, e)}
+                                />
+                              {:else}
+                                <span class="entry-ro">{e.value.toLocaleString()}</span>
+                                <span class="entry-slot" aria-hidden="true"></span>
+                              {/if}
+                            </span>
                           </td>
                         </tr>
                       {/each}
@@ -730,7 +698,7 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list { list-style: none; margin: 0; padding: 0; }
+  .list { margin: 0; padding: 0; }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
   /* The inspector body fills the surface below its head: the Scroller scrolls and
@@ -786,11 +754,39 @@
   .tbl th[scope='row'] { text-align: left; font-weight: 600; }
   .tbl .r { text-align: right; }
   .tbl .mut { color: var(--bb-muted); }
+  /* Fixed value column so every value cell is the same box and the right edge
+     never drifts with content. */
+  .tbl th.r,
+  .tbl td.r { width: 128px; }
 
-  /* Per-entry edit: a compact right-aligned input; the save check only
-     appears once the draft differs from the stored value. */
-  .entry-edit { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
-  .tbl :global(.entry-num) { width: 90px; text-align: right; }
+  /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
+     save check toggles visibility inside its always-reserved slot, so the
+     number's position is invariant whether the row is dirty, clean or
+     read-only. */
+  .entry-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px;
+    align-items: center;
+    gap: 6px;
+    justify-items: end;
+  }
+  .tbl :global(.entry-num) {
+    width: 90px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .tbl :global(.entry-num)::-webkit-outer-spin-button,
+  .tbl :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .entry-ro {
+    width: 90px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--bb-white);
+  }
+  .entry-slot { width: 28px; height: 28px; }
+  .tbl :global(.entry-check.is-off) { visibility: hidden; }
 
   /* Manual bucket add: key fields flex, the value stays compact, the button
      rides the baseline like the rename row. */
