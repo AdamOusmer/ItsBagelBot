@@ -1,8 +1,9 @@
 ---
 /**
- * LegalShell — legal pages that respect the reader. A thin reading-progress
- * bar, a sticky scrollspy table of contents (desktop), and a "plain words"
- * one-liner on every section so nobody has to parse legalese to get the gist.
+ * LegalShell — legal pages that respect the reader. A sticky scrollspy table
+ * of contents (desktop) and a "plain words" one-liner on every section so
+ * nobody has to parse legalese to get the gist. (The reading-progress bar is
+ * site-wide now: ui/ReadingProgress, mounted in Layout.)
  * Pages pass sections (id, heading, plain) and the rendered body of each
  * section as a Content component (from a markdown content collection).
  */
@@ -28,10 +29,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 ---
 
 <div class="lshell" data-legal>
-    <div class="lshell__progress" aria-hidden="true">
-        <span class="lshell__progress-fill" data-legal-progress></span>
-    </div>
-
     <div class="lshell__grid">
         <nav class="lshell__toc" aria-label={labels.toc}>
             <span class="lshell__toc-label">{labels.toc}</span>
@@ -69,29 +66,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
         max-width: var(--content-max, 1200px);
         margin: 0 auto;
         padding: 0 24px 96px;
-    }
-
-    /* ── Reading progress ── */
-
-    .lshell__progress {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        z-index: 90;
-        background: transparent;
-        pointer-events: none;
-    }
-
-    .lshell__progress-fill {
-        display: block;
-        height: 100%;
-        width: 100%;
-        background: linear-gradient(90deg, var(--green-glow, #52b788), var(--tan, #c9a87c));
-        transform: scaleX(var(--read, 0));
-        transform-origin: left;
-        box-shadow: 0 0 12px rgba(201, 168, 124, 0.5);
     }
 
     /* ── Layout ── */
@@ -258,13 +232,11 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 </style>
 
 <script>
-    /* Reading progress + TOC scrollspy. One shared scroll listener per page. */
+    /* TOC scrollspy. One shared scroll listener per page. */
     function setupLegal(root: HTMLElement) {
         if (root.dataset.legalReady === 'true') return;
         root.dataset.legalReady = 'true';
 
-        const fill = root.querySelector<HTMLElement>('[data-legal-progress]');
-        const article = root.querySelector<HTMLElement>('.lshell__content');
         const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-legal-section]'));
         const links = new Map(
             Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-legal-link]'))
@@ -275,12 +247,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 
         function update() {
             ticking = false;
-            if (article && fill) {
-                const rect = article.getBoundingClientRect();
-                const total = rect.height - window.innerHeight;
-                const read = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 1;
-                fill.style.setProperty('--read', read.toFixed(4));
-            }
 
             /* Current section: the last one whose top passed the upper third */
             let currentId = sections[0]?.id;
