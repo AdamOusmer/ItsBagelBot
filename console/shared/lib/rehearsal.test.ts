@@ -17,9 +17,11 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
     ]);
   });
 
-  test('keys are case-sensitive, exactly like the engine', () => {
-    // expandCommand matches "user", not "User": the bot leaves {User} literal.
-    expect(expandSegments('{User}', resolve)).toEqual([{ text: '{User}', kind: 'unknown' }]);
+  test('token names are case-insensitive, payloads keep their case', () => {
+    // module.Expand lowercases the name before the resolver sees it.
+    expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
+    const choice = expandSegments('{CHOICE:Hi,Yo}', (k) => (k === 'choice:Hi,Yo' ? 'Hi' : null));
+    expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
 
   test('any brace span is a token — unknown ones stay literal but marked', () => {

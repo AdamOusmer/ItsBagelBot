@@ -201,11 +201,43 @@ func clipReplyText(meta clipMeta, clipURL string) string {
 // the same palette applies; {clipper}/{title} read more naturally for a clip.
 func clipExpand(meta clipMeta, clipURL string) string {
 	title := strings.TrimSpace(meta.Title)
-	return strings.NewReplacer(
-		"{clip}", clipURL,
-		"{user}", meta.Clipper,
-		"{clipper}", meta.Clipper,
-		"{target}", title,
-		"{title}", title,
-	).Replace(strings.TrimSpace(meta.Reply))
+	tokens := map[string]string{
+		"clip":    clipURL,
+		"user":    meta.Clipper,
+		"clipper": meta.Clipper,
+		"target":  title,
+		"title":   title,
+	}
+	return expandTokens(strings.TrimSpace(meta.Reply), tokens)
+}
+
+// expandTokens is a single-pass {key} substitution mirroring sesame's
+// module.Expand semantics (outgress does not import sesame packages): token
+// names are case-insensitive, an unknown token stays literal (braces and
+// all), and a '{' with no closing brace is copied through to the end.
+func expandTokens(tmpl string, tokens map[string]string) string {
+	var b strings.Builder
+	b.Grow(len(tmpl))
+	for i := 0; i < len(tmpl); {
+		open := strings.IndexByte(tmpl[i:], '{')
+		if open < 0 {
+			b.WriteString(tmpl[i:])
+			break
+		}
+		open += i
+		end := strings.IndexByte(tmpl[open:], '}')
+		if end < 0 {
+			b.WriteString(tmpl[i:])
+			break
+		}
+		end += open
+		b.WriteString(tmpl[i:open])
+		if val, ok := tokens[strings.ToLower(tmpl[open+1:end])]; ok {
+			b.WriteString(val)
+		} else {
+			b.WriteString(tmpl[open : end+1])
+		}
+		i = end + 1
+	}
+	return b.String()
 }

@@ -104,10 +104,13 @@ function rehearseCommandLine(line: string, samples: Record<string, string>): Reh
 
 type Resolve = (key: string) => string | null;
 
-/** Single-pass {key} scan mirroring Go's Expand: case-SENSITIVE keys, any
- * text up to the next '}' is the key, a '{' with no closing brace is copied
- * literally through to the end. A resolved key becomes a highlighted sample;
- * an unresolved one stays literal (braces and all), marked unknown. */
+/** Single-pass {key} scan mirroring Go's Expand: any text up to the next '}'
+ * is the key, a '{' with no closing brace is copied literally through to the
+ * end. Token names are case-insensitive like the engine — the name (before
+ * the first ':') is lowercased before resolution, payloads keep their case —
+ * so every resolver matches lowercase names only. A resolved key becomes a
+ * highlighted sample; an unresolved one stays literal (braces and all),
+ * marked unknown. */
 export function expandSegments(text: string, resolve: Resolve): Seg[] {
   const out: Seg[] = [];
   let plainFrom = 0;
@@ -120,11 +123,19 @@ export function expandSegments(text: string, resolve: Resolve): Seg[] {
     const end = text.indexOf('}', i + 1);
     if (end < 0) break; // no closing brace: the rest is literal
     pushPlain(out, text.slice(plainFrom, i));
-    out.push(tokenSeg(text.slice(i, end + 1), resolve(text.slice(i + 1, end))));
+    out.push(tokenSeg(text.slice(i, end + 1), resolve(normalizeKey(text.slice(i + 1, end)))));
     plainFrom = i = end + 1;
   }
   pushPlain(out, text.slice(plainFrom));
   return out.filter((s) => s.text !== '');
+}
+
+/** module.Expand's normalizeKey mirror: lowercase the token name (before the
+ * first ':'), keep any payload's case ({CHOICE:Hi,Yo} → choice:Hi,Yo). */
+function normalizeKey(key: string): string {
+  const colon = key.indexOf(':');
+  if (colon < 0) return key.toLowerCase();
+  return key.slice(0, colon).toLowerCase() + key.slice(colon);
 }
 
 function pushPlain(out: Seg[], text: string): void {

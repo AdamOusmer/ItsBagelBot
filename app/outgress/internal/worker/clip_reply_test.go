@@ -64,3 +64,15 @@ func TestClipExpand(t *testing.T) {
 		t.Errorf("clipExpand = %q, want %q", got, want)
 	}
 }
+
+func TestClipExpandCaseInsensitive(t *testing.T) {
+	got := clipExpand(clipMeta{
+		Clipper: "viewer",
+		Title:   "sick play",
+		Reply:   "{Clipper} clipped {TITLE} → {Clip} {broken",
+	}, testClipURL)
+	want := "viewer clipped sick play → " + testClipURL + " {broken"
+	if got != want {
+		t.Errorf("clipExpand case-insensitive = %q, want %q", got, want)
+	}
+}
