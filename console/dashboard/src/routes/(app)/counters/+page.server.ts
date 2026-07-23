@@ -123,6 +123,22 @@ function mutate(op: string, run: Mutation) {
   };
 }
 
+// bucketTarget reads the optional (viewer_id, command) that address one stored
+// bucket. Returns null only when viewer_id is present but malformed; an empty
+// target is valid (an untargeted channel set / reset).
+function bucketTarget(f: FormData): CounterTarget | null {
+  const viewerId = String(f.get('viewer_id') ?? '').trim();
+  if (viewerId && !/^\d+$/.test(viewerId)) return null;
+  return { viewerId, command: normalizeName(f.get('command')) };
+}
+
+// bucketLabel renders the audit-line suffix for a targeted write; '' when the
+// write is untargeted (the whole counter).
+function bucketLabel(t: CounterTarget): string {
+  if (!t.viewerId && !t.command) return '';
+  return `[${t.viewerId}${t.command ? ':' + t.command : ''}]`;
+}
+
 // resolveAddTarget turns the manual-add form into a bucket target for one
 // entry-scoped counter. Command scope keys on the command alone; the viewer
 // scopes resolve the typed username to its Twitch id (throwing when no such
@@ -158,13 +174,11 @@ export const actions: Actions = {
     const name = normalizeName(f.get('name'));
     const value = Math.trunc(Number(f.get('value')));
     if (!name || !Number.isFinite(value)) return null;
-    const viewerId = String(f.get('viewer_id') ?? '').trim();
-    if (viewerId && !/^\d+$/.test(viewerId)) return null;
-    const command = normalizeName(f.get('command'));
-    const found = await setCounter(uid, name, value, { viewerId, command });
+    const target = bucketTarget(f);
+    if (!target) return null;
+    const found = await setCounter(uid, name, value, target);
     if (!found) throw new Error('unknown counter');
-    const bucket = viewerId || command ? `[${viewerId}${command ? ':' + command : ''}]` : '';
-    return `${name}${bucket}=${value}`;
+    return `${name}${bucketLabel(target)}=${value}`;
   }),
 
   // addEntry writes one bucket of an entry-scoped counter from the inspector's
@@ -209,12 +223,10 @@ export const actions: Actions = {
   deleteEntry: mutate('deleteEntry', async (uid, f) => {
     const name = normalizeName(f.get('name'));
     if (!name) return null;
-    const viewerId = String(f.get('viewer_id') ?? '').trim();
-    if (viewerId && !/^\d+$/.test(viewerId)) return null;
-    const command = normalizeName(f.get('command'));
-    if (!viewerId && !command) return null;
-    const found = await deleteCounterEntry(uid, name, { viewerId, command });
+    const target = bucketTarget(f);
+    if (!target || (!target.viewerId && !target.command)) return null;
+    const found = await deleteCounterEntry(uid, name, target);
     if (!found) throw new Error('unknown counter');
-    return `${name}[${viewerId || command}] removed`;
+    return `${name}${bucketLabel(target)} removed`;
   })
 };
