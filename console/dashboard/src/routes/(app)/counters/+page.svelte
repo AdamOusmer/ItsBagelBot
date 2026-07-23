@@ -366,22 +366,19 @@
 </script>
 
 {#snippet renameBlock()}
-  <!-- The input joins the hidden ?/rename form via form=, so it can sit
-       inside the set form without nesting forms. The button stays outside
-       Field so the label wraps exactly one control. -->
+  <!-- The input joins the hidden ?/rename form via form=, so it can sit inside
+       the set form without nesting forms. The section head already says
+       "Rename", so the field carries only its placeholder (sr-only label). -->
   <div class="rename-row">
-    <div class="rename-field">
-      <Field label={t('counters.rename')}>
-        <input
-          class="search"
-          name="new_name"
-          form="counter-rename-form"
-          placeholder={t('counters.renamePh')}
-          maxlength="64"
-          bind:value={renameValue}
-        />
-      </Field>
-    </div>
+    <input
+      class="search rename-input"
+      name="new_name"
+      form="counter-rename-form"
+      placeholder={t('counters.renamePh')}
+      aria-label={t('counters.rename')}
+      maxlength="64"
+      bind:value={renameValue}
+    />
     <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
       {t('counters.rename')}
     </Button>
@@ -478,8 +475,10 @@
                   {/each}
                 </select>
               </Field>
-              <p class="hint">{t('counters.scopeHint')}</p>
-              <p class="hint">{t('counters.scopeLocked')}</p>
+              <div class="hints">
+                <p class="hint">{t('counters.scopeHint')}</p>
+                <p class="hint">{t('counters.scopeLocked')}</p>
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -492,14 +491,18 @@
           <form method="POST" action="?/set" class="ins-form" novalidate use:enhance={setSubmit}>
             <input type="hidden" name="name" value={selected.name} />
             <Scroller fill padding="16px">
-              <div class="identity">
-                <span class="id-name">{selected.name}</span>
-                <span class="id-tag">{scopeTag[selected.scope]}</span>
+              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
+
+              <div class="sec">
+                <Field label={t('counters.colValue')}>
+                  <input class="search num big-num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
+                </Field>
               </div>
-              <Field label={t('counters.colValue')}>
-                <input class="search num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
-              </Field>
-              {@render renameBlock()}
+
+              <div class="sec sec-util">
+                <span class="sec-head">{t('counters.rename')}</span>
+                {@render renameBlock()}
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -509,123 +512,126 @@
             </div>
           </form>
         {:else if selected}
+          {@const showViewer = selected.scope !== 'command'}
+          {@const showSource = selected.scope !== 'viewer'}
           <div class="ins-form">
             <Scroller fill padding="16px">
-              <div class="identity">
-                <span class="id-name">{selected.name}</span>
-                <span class="id-tag">{scopeTag[selected.scope]}</span>
-              </div>
-              {@render renameBlock()}
+              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
 
-              <!-- Manual bucket add: the username resolves to its Twitch id on
-                   save; the counter's scope decides which key fields show. -->
-              <form method="POST" action="?/addEntry" class="add-form" novalidate use:enhance={addSubmit}>
-                <input type="hidden" name="name" value={selected.name} />
-                <div class="add-row">
-                  {#if selected.scope !== 'command'}
-                    <div class="add-field">
-                      <Field label={t('counters.addUser')}>
-                        <input
-                          class="search"
-                          name="username"
-                          placeholder={t('counters.addUserPh')}
-                          maxlength="32"
-                          bind:value={addUser}
-                        />
-                      </Field>
-                    </div>
+              <!-- Values lead: the stored buckets are the point of this panel. -->
+              <div class="sec">
+                <div class="sec-head-row">
+                  <span class="sec-head">{t('counters.valuesTitle')}</span>
+                  {#if entriesReady && (data.entries ?? []).length}
+                    <span class="sec-count">{(data.entries ?? []).length}</span>
                   {/if}
-                  {#if selected.scope !== 'viewer'}
-                    <div class="add-field">
-                      <Field label={t('counters.addCommand')}>
-                        <input
-                          class="search"
-                          name="command"
-                          placeholder={t('counters.addCommandPh')}
-                          maxlength="64"
-                          bind:value={addCommand}
-                        />
-                      </Field>
-                    </div>
-                  {/if}
-                  <div class="add-val">
-                    <Field label={t('counters.colValue')}>
-                      <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
-                    </Field>
-                  </div>
-                  <Button variant="ghost" type="submit" icon="plus" loading={adding}>
-                    {t('counters.add')}
-                  </Button>
                 </div>
-              </form>
-
-              <p class="hint">{t('counters.resetHint')}</p>
-              {#if !entriesReady}
-                <p class="hint" role="status">{t('common.loading')}</p>
-              {:else if (data.entries ?? []).length === 0}
-                <p class="hint">{t('counters.entriesEmpty')}</p>
-              {:else}
-                <!-- Command scope pools every viewer, so its buckets have no
-                     viewer column; the viewer scopes lead with it. -->
-                <div class="tbl-wrap">
-                  <table class="tbl">
-                    <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
-                    <thead>
-                      <tr>
-                        {#if selected.scope !== 'command'}
-                          <th scope="col">{t('counters.colViewer')}</th>
-                        {/if}
-                        <th scope="col">{t('counters.colSource')}</th>
-                        <th scope="col" class="r">{t('counters.colValue')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
+                {#if !entriesReady}
+                  <p class="hint" role="status">{t('common.loading')}</p>
+                {:else if (data.entries ?? []).length === 0}
+                  <p class="hint">{t('counters.entriesEmpty')}</p>
+                {:else}
+                  <div class="tbl-wrap">
+                    <table class="tbl">
+                      <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
+                      <thead>
                         <tr>
-                          {#if selected.scope !== 'command'}
-                            <th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>
-                            <td class="mut">{e.command || '·'}</td>
-                          {:else}
-                            <th scope="row">{e.command || '·'}</th>
-                          {/if}
-                          <!-- The value cell is always a 2-track grid (number
-                               box | 28px save slot) so the number's right edge
-                               is invariant: the save check toggles visibility,
-                               it is never inserted into or removed from the
-                               flow. Read-only buckets fill the same tracks. -->
-                          <td class="r">
-                            <span class="entry-edit">
-                              {#if entryEditable(selected.scope, e)}
-                                <input
-                                  class="search num entry-num"
-                                  type="number"
-                                  step="1"
-                                  aria-label={t('counters.colValue')}
-                                  value={entryEdits[entryKey(e)] ?? e.value}
-                                  oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
-                                  onkeydown={(ev) => {
-                                    if (ev.key === 'Enter') void saveEntry(selected, e);
-                                  }}
-                                />
-                                <MiniButton
-                                  icon="check"
-                                  class={entryDirty(e) ? 'entry-check' : 'entry-check is-off'}
-                                  aria-label={t('counters.set')}
-                                  disabled={!entryDirty(e) || entrySaving !== null}
-                                  onclick={() => saveEntry(selected, e)}
-                                />
-                              {:else}
-                                <span class="entry-ro">{e.value.toLocaleString()}</span>
-                                <span class="entry-slot" aria-hidden="true"></span>
-                              {/if}
-                            </span>
-                          </td>
+                          {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
+                          {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
+                          <th scope="col" class="r">{t('counters.colValue')}</th>
                         </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {/if}
+                      </thead>
+                      <tbody>
+                        {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
+                          <tr>
+                            {#if showViewer}<th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>{/if}
+                            {#if showSource}<td class="mut">{e.command || '·'}</td>{/if}
+                            <!-- Value cell is always a 2-track grid (number box |
+                                 28px save slot) so the number's right edge is
+                                 invariant: the save check toggles visibility, it
+                                 is never inserted into or removed from the flow.
+                                 Read-only buckets fill the same tracks. -->
+                            <td class="r">
+                              <span class="entry-edit">
+                                {#if entryEditable(selected.scope, e)}
+                                  <input
+                                    class="search num entry-num"
+                                    type="number"
+                                    step="1"
+                                    aria-label={t('counters.colValue')}
+                                    value={entryEdits[entryKey(e)] ?? e.value}
+                                    oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
+                                    onkeydown={(ev) => {
+                                      if (ev.key === 'Enter') void saveEntry(selected, e);
+                                    }}
+                                  />
+                                  <MiniButton
+                                    icon="check"
+                                    class={entryDirty(e) ? 'entry-check' : 'entry-check is-off'}
+                                    aria-label={t('counters.set')}
+                                    disabled={!entryDirty(e) || entrySaving !== null}
+                                    onclick={() => saveEntry(selected, e)}
+                                  />
+                                {:else}
+                                  <span class="entry-ro">{e.value.toLocaleString()}</span>
+                                  <span class="entry-slot" aria-hidden="true"></span>
+                                {/if}
+                              </span>
+                            </td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Add a value: the username resolves to its Twitch id on save;
+                   the counter's scope decides which key fields show. -->
+              <div class="sec">
+                <span class="sec-head">{t('counters.addTitle')}</span>
+                <form method="POST" action="?/addEntry" class="add" novalidate use:enhance={addSubmit}>
+                  <input type="hidden" name="name" value={selected.name} />
+                  {#if showViewer}
+                    <Field label={t('counters.addUser')}>
+                      <input
+                        class="search"
+                        name="username"
+                        placeholder={t('counters.addUserPh')}
+                        maxlength="32"
+                        bind:value={addUser}
+                      />
+                    </Field>
+                  {/if}
+                  {#if showSource}
+                    <Field label={t('counters.addCommand')}>
+                      <input
+                        class="search"
+                        name="command"
+                        placeholder={t('counters.addCommandPh')}
+                        maxlength="64"
+                        bind:value={addCommand}
+                      />
+                    </Field>
+                  {/if}
+                  <div class="add-foot">
+                    <div class="add-val">
+                      <Field label={t('counters.colValue')}>
+                        <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
+                      </Field>
+                    </div>
+                    <Button variant="secondary" type="submit" icon="plus" loading={adding}>
+                      {t('counters.add')}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Rename is a rare utility; keep it out of the way at the bottom. -->
+              <div class="sec sec-util">
+                <span class="sec-head">{t('counters.rename')}</span>
+                {@render renameBlock()}
+              </div>
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
@@ -690,8 +696,8 @@
   .toolbar-search { width: 220px; max-width: 100%; }
   .toolbar-search :global(.si) { width: 100%; }
 
-  .rename-row { display: flex; align-items: flex-end; gap: 8px; }
-  .rename-field { flex: 1; min-width: 0; }
+  .rename-row { display: flex; align-items: center; gap: 8px; }
+  .rename-input { flex: 1; min-width: 0; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {
@@ -724,18 +730,51 @@
     color: #cf8a78;
   }
 
-  .identity { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
-  .id-name { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .id-tag {
+  /* Scope subtitle: the InspectorSurface title already names the counter, so
+     the panel body opens with just the scope in plain language, not a second
+     copy of the name. */
+  .ins-sub {
+    margin: 0 0 16px;
     font-family: var(--bb-font-body);
-    font-size: 11px;
+    font-size: 12px;
+    color: var(--bb-muted);
+  }
+
+  /* Sections: each block of the inspector, divided by a hairline so values,
+     add and rename read as distinct groups rather than one form dump. */
+  .sec { padding: 0 0 16px; }
+  .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
+  /* The rename utility sits quieter than the sections above it. */
+  .sec-util :global(.search) { font-size: 12.5px; }
+
+  .sec-head {
+    display: block;
+    margin: 0 0 10px;
+    font-family: var(--bb-font-body);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    font-weight: 600;
+  }
+  .sec-head-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .sec-head-row .sec-head { margin: 0; }
+  .sec-count {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
     color: var(--bb-muted);
     border: 1px solid var(--bb-border);
     border-radius: 999px;
-    padding: 2px 8px;
+    padding: 1px 7px;
+    font-variant-numeric: tabular-nums;
   }
 
-  .hint { margin: 0 0 12px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  /* The channel value is the point of that panel, so it gets a larger box. */
+  .big-num :global(.num),
+  .ins-form :global(.big-num) { font-size: 16px; max-width: 160px; }
+
+  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .hints { display: flex; flex-direction: column; gap: 8px; }
 
   .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
@@ -788,12 +827,14 @@
   .entry-slot { width: 28px; height: 28px; }
   .tbl :global(.entry-check.is-off) { visibility: hidden; }
 
-  /* Manual bucket add: key fields flex, the value stays compact, the button
-     rides the baseline like the rename row. */
-  .add-form { margin: 0 0 14px; }
-  .add-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
-  .add-field { flex: 1; min-width: 130px; }
-  .add-val :global(.num) { width: 90px; }
+  /* Add a value: key fields stack full-width (the panel is only 420px, so a
+     side-by-side row would cramp), then the value + Add button share the last
+     line, button riding the field baseline. */
+  .add :global(.field) { margin-bottom: 12px; }
+  .add-foot { display: flex; align-items: flex-end; gap: 10px; }
+  .add-val { flex: none; }
+  .add-val :global(.num) { width: 96px; }
+  .add-foot :global(.btn) { margin-bottom: 2px; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }

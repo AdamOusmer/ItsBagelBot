@@ -556,6 +556,7 @@
     "deleteTitle": "Delete this counter?",
     "deleteBody": "“{name}” and all its stored values are removed. Commands that bump it will recreate it from zero. This cannot be undone.",
     "entriesTitle": "Top values: {name}",
+    "valuesTitle": "Stored values",
     "entriesEmpty": "Nothing recorded yet for this counter.",
     "colViewer": "Viewer",
     "colSource": "Command / reward",

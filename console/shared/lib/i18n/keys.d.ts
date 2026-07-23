@@ -365,6 +365,7 @@ export type KnownMessageKey =
   | 'counters.toastRenamed'
   | 'counters.toastReset'
   | 'counters.toastSet'
+  | 'counters.valuesTitle'
   | 'counters.viewEntries'
   | 'goodbye.cta'
   | 'goodbye.eyebrow'

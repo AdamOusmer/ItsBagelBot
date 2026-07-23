@@ -556,6 +556,7 @@
     "deleteTitle": "Supprimer ce compteur ?",
     "deleteBody": "« {name} » et toutes ses valeurs sont supprimés. Les commandes qui l’incrémentent le recréeront à zéro. Irréversible.",
     "entriesTitle": "Meilleures valeurs : {name}",
+    "valuesTitle": "Valeurs enregistrées",
     "entriesEmpty": "Rien d’enregistré pour ce compteur.",
     "colViewer": "Viewer",
     "colSource": "Commande / récompense",
