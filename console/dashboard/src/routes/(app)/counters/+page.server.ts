@@ -123,6 +123,15 @@ function mutate(op: string, run: Mutation) {
   };
 }
 
+// namedValue reads the (name, integer value) pair the value-writing actions
+// share; null when either is missing or non-numeric.
+function namedValue(f: FormData): { name: string; value: number } | null {
+  const name = normalizeName(f.get('name'));
+  const value = Math.trunc(Number(f.get('value')));
+  if (!name || !Number.isFinite(value)) return null;
+  return { name, value };
+}
+
 // bucketTarget reads the optional (viewer_id, command) that address one stored
 // bucket. Returns null only when viewer_id is present but malformed; an empty
 // target is valid (an untargeted channel set / reset).
@@ -171,14 +180,12 @@ export const actions: Actions = {
   // the reset (the service deletes every stored bucket). An optional target
   // (viewer_id and/or command) instead writes that one stored bucket.
   set: mutate('set', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
-    const value = Math.trunc(Number(f.get('value')));
-    if (!name || !Number.isFinite(value)) return null;
+    const nv = namedValue(f);
     const target = bucketTarget(f);
-    if (!target) return null;
-    const found = await setCounter(uid, name, value, target);
+    if (!nv || !target) return null;
+    const found = await setCounter(uid, nv.name, nv.value, target);
     if (!found) throw new Error('unknown counter');
-    return `${name}${bucketLabel(target)}=${value}`;
+    return `${nv.name}${bucketLabel(target)}=${nv.value}`;
   }),
 
   // addEntry writes one bucket of an entry-scoped counter from the inspector's
@@ -186,17 +193,16 @@ export const actions: Actions = {
   // (resolveAddTarget), so a malformed post can never fall through to the
   // untargeted "reset everything" set.
   addEntry: mutate('addEntry', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
-    const value = Math.trunc(Number(f.get('value')));
-    if (!name || !Number.isFinite(value)) return null;
-    const counter = await getCounter(uid, name);
+    const nv = namedValue(f);
+    if (!nv) return null;
+    const counter = await getCounter(uid, nv.name);
     if (!counter || counter.scope === 'channel') return null;
     const login = String(f.get('username') ?? '').trim().replace(/^@/, '').toLowerCase();
     const target = await resolveAddTarget(counter.scope, login, normalizeName(f.get('command')));
     if (!target) return null;
-    const found = await setCounter(uid, name, value, target);
+    const found = await setCounter(uid, nv.name, nv.value, target);
     if (!found) throw new Error('unknown counter');
-    return `${name}[${target.viewerId || target.command}]=${value}`;
+    return `${nv.name}[${target.viewerId || target.command}]=${nv.value}`;
   }),
 
   rename: mutate('rename', async (uid, f) => {
@@ -222,9 +228,9 @@ export const actions: Actions = {
   // the whole counter.
   deleteEntry: mutate('deleteEntry', async (uid, f) => {
     const name = normalizeName(f.get('name'));
-    if (!name) return null;
     const target = bucketTarget(f);
-    if (!target || (!target.viewerId && !target.command)) return null;
+    if (!name || !target) return null;
+    if (!target.viewerId && !target.command) return null;
     const found = await deleteCounterEntry(uid, name, target);
     if (!found) throw new Error('unknown counter');
     return `${name}${bucketLabel(target)} removed`;
