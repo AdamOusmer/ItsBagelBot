@@ -1,0 +1,714 @@
+{
+  "name": "BagelBot Fleet",
+  "description": "Fleet health: APM golden signals, NATS transactions, Kubernetes, logs, Valkey.",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Fleet Overview",
+      "widgets": [
+        {
+          "title": "Services reporting (connected agents, 30 min)",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Metric SELECT uniqueCount(appName) AS 'Services' WHERE metricName LIKE 'apm.service.%' AND (appName LIKE 'ItsBagelBot-%' OR appName IN ('console-admin','console-dashboard')) SINCE 30 minutes ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Throughput (txn/min) by service",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 5,
+            "height": 3,
+            "row": 1,
+            "width": 8
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT rate(count(*), 1 minute) FACET appName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Avg transaction time (ms) \u2014 all transaction types",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT average(duration*1000) FACET appName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "p95 transaction time (ms)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT percentile(duration*1000, 95) FACET appName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Error rate %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT percentage(count(*), WHERE error IS true) FACET appName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Errors by service and message (1 day)",
+          "visualization": {
+            "id": "viz.table"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM TransactionError SELECT count(*) FACET appName, `error.message` SINCE 1 day ago LIMIT 20"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions & NATS",
+      "widgets": [
+        {
+          "title": "Slowest transactions (1 day)",
+          "visualization": {
+            "id": "viz.table"
+          },
+          "layout": {
+            "column": 1,
+            "height": 4,
+            "row": 1,
+            "width": 12
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT average(duration*1000) AS 'avg ms', percentile(duration*1000, 95) AS 'p95 ms', count(*) AS 'calls' FACET appName, name SINCE 1 day ago LIMIT 30"
+              }
+            ]
+          }
+        },
+        {
+          "title": "RPC handler latency (ms)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 5,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT average(duration*1000) WHERE name LIKE '%rpc %' FACET name TIMESERIES SINCE 1 day ago LIMIT 15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Consumer latency (ms)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 5,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT average(duration*1000) WHERE name LIKE '%consume %' FACET name TIMESERIES SINCE 1 day ago LIMIT 15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "JetStream delivery wait (ms)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 8,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Transaction SELECT average(messaging.queue_ms) WHERE messaging.queue_ms IS NOT NULL FACET appName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "NATS server msg rate (needs nats scrape rollout)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 8,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Metric SELECT rate(sum(gnatsd_varz_in_msgs), 1 second) AS 'in/s', rate(sum(gnatsd_varz_out_msgs), 1 second) AS 'out/s' TIMESERIES SINCE 6 hours ago"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Kubernetes",
+      "widgets": [
+        {
+          "title": "Pods not ready",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sPodSample SELECT uniqueCount(podName) WHERE isReady = 0 AND status NOT IN ('Succeeded','Failed') SINCE 10 minutes ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Containers waiting",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 5,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sContainerSample SELECT uniqueCount(podName) WHERE status = 'Waiting' SINCE 10 minutes ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Container restarts (1h)",
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "layout": {
+            "column": 9,
+            "height": 3,
+            "row": 1,
+            "width": 4
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sContainerSample SELECT sum(restartCountDelta) SINCE 1 hour ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Node CPU utilization %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sNodeSample SELECT average(allocatableCpuCoresUtilization) FACET nodeName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Node memory utilization %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sNodeSample SELECT average(allocatableMemoryUtilization) FACET nodeName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Container CPU utilization % (vs limit)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sContainerSample SELECT average(cpuCoresUtilization) FACET containerName TIMESERIES SINCE 1 day ago LIMIT 15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Container memory working set %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sContainerSample SELECT average(memoryWorkingSetUtilization) FACET containerName TIMESERIES SINCE 1 day ago LIMIT 15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Container CPU throttling %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 10,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sContainerSample SELECT sum(containerCpuCfsThrottledPeriodsDelta) / sum(containerCpuCfsPeriodsDelta) * 100 FACET containerName TIMESERIES SINCE 1 day ago LIMIT 15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Node filesystem utilization %",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 10,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM K8sNodeSample SELECT average(fsCapacityUtilization) FACET nodeName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logs",
+      "widgets": [
+        {
+          "title": "Log volume by container",
+          "visualization": {
+            "id": "viz.area"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 1,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Log SELECT count(*) FACET container_name TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Error/critical/fatal logs",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 1,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Log SELECT count(*) WHERE level IN ('error','critical','fatal') FACET container_name TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Warnings",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Log SELECT count(*) WHERE level = 'warning' FACET container_name TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Security findings (falco / crowdsec)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Log SELECT count(*) WHERE security_source IS NOT NULL FACET security_source TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Latest errors",
+          "visualization": {
+            "id": "viz.table"
+          },
+          "layout": {
+            "column": 1,
+            "height": 4,
+            "row": 7,
+            "width": 12
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM Log SELECT container_name, message WHERE level IN ('error','critical','fatal') SINCE 1 day ago LIMIT 50"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Valkey",
+      "widgets": [
+        {
+          "title": "Valkey nodes",
+          "visualization": {
+            "id": "viz.table"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 1,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT latest(cluster.role) AS 'role', latest(net.connectedClients) AS 'clients', latest(system.usedMemoryBytes)/1e6 AS 'mem MB', latest(system.maxmemoryBytes)/1e6 AS 'maxmemory MB' FACET entityName SINCE 30 minutes ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Commands/s",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 1,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT average(net.commandsProcessedPerSecond) FACET entityName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Keyspace hits vs misses /s",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT average(db.keyspaceHitsPerSecond) AS 'hits', average(db.keyspaceMissesPerSecond) AS 'misses' TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Memory used (bytes)",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 4,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT average(system.usedMemoryBytes) FACET entityName TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Network I/O bytes/s",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 1,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT average(net.inputBytesPerSecond) AS 'in', average(net.outputBytesPerSecond) AS 'out' TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Blocked clients / rejected connections",
+          "visualization": {
+            "id": "viz.line"
+          },
+          "layout": {
+            "column": 7,
+            "height": 3,
+            "row": 7,
+            "width": 6
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  3823179
+                ],
+                "query": "FROM RedisSample SELECT average(net.blockedClients) AS 'blocked', average(net.rejectedConnectionsPerSecond) AS 'rejected/s' TIMESERIES SINCE 1 day ago"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

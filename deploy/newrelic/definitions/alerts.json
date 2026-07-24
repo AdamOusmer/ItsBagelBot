@@ -1,0 +1,883 @@
+{
+  "account_id": 3823179,
+  "policies": {
+    "Golden Signals": {
+      "incidentPreference": "PER_CONDITION_AND_TARGET"
+    },
+    "Kubernetes alert policy": {
+      "incidentPreference": "PER_CONDITION"
+    }
+  },
+  "conditions": [
+    {
+      "policy": "Golden Signals",
+      "name": "High Application Error percentage",
+      "enabled": true,
+      "type": "baseline",
+      "nrql": "FROM Metric SELECT count(apm.service.error.count) / count(apm.service.transaction.duration) as 'Error Rate' WHERE appName LIKE '%' FACET entity.guid, appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "baselineDirection": "UPPER_ONLY"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "High Application Response Time",
+      "enabled": true,
+      "type": "baseline",
+      "nrql": "SELECT average(newrelic.goldenmetrics.apm.application.responseTimeMs) FROM Metric FACET entity.guid, appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "baselineDirection": "UPPER_ONLY"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "High CPU",
+      "enabled": true,
+      "type": "static",
+      "nrql": "SELECT average(`host.cpuPercent`) FROM Metric FACET entity.guid, host.hostname",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 85.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "Interaction to next paint (75 percentile) (s)",
+      "enabled": true,
+      "type": "baseline",
+      "nrql": "SELECT percentile(interactionToNextPaint, 75) FROM PageViewTiming WHERE entityGuid IN ('MzgyMzE3OXxCUk9XU0VSfEFQUExJQ0FUSU9OfDExMDM1MDIwODk') FACET appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "baselineDirection": "UPPER_ONLY"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "Largest contentful paint (75 percentile) (s)",
+      "enabled": true,
+      "type": "baseline",
+      "nrql": "SELECT percentile(largestContentfulPaint, 75) FROM PageViewTiming WHERE entityGuid IN ('MzgyMzE3OXxCUk9XU0VSfEFQUExJQ0FUSU9OfDExMDM1MDIwODk') FACET appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "baselineDirection": "UPPER_ONLY"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "Low Application Throughput",
+      "enabled": false,
+      "type": "baseline",
+      "nrql": "SELECT average(`newrelic.goldenmetrics.apm.application.throughput`) FROM Metric FACET entity.guid, appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 600,
+        "openViolationOnExpiration": true
+      },
+      "baselineDirection": "LOWER_ONLY"
+    },
+    {
+      "policy": "Golden Signals",
+      "name": "Pageload time (s)",
+      "enabled": true,
+      "type": "baseline",
+      "nrql": "SELECT average(duration) FROM PageView WHERE entityGuid IN ('MzgyMzE3OXxCUk9XU0VSfEFQUExJQ0FUSU9OfDExMDM1MDIwODk') FACET appName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 3.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 120,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": false,
+        "expirationDuration": null,
+        "openViolationOnExpiration": false
+      },
+      "baselineDirection": "UPPER_ONLY"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Container cpu throttling is high",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sContainerSample select sum(containerCpuCfsThrottledPeriodsDelta) / sum(containerCpuCfsPeriodsDelta) * 100 where clusterName in ('bagelbot') facet containerName, podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Container high cpu utilization",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sContainerSample select average(cpuCoresUtilization) where clusterName in ('bagelbot') facet containerName, podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Container high memory utilization",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sContainerSample select average(memoryWorkingSetUtilization) where clusterName in ('bagelbot') facet containerName, podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Container is Restarting",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sContainerSample select sum(restartCountDelta) where clusterName in ('bagelbot') FACET containerName, podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 900,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Container is Waiting",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sContainerSample select uniqueCount(podName) WHERE status = 'Waiting' and clusterName in ('bagelbot') FACET containerName, podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Daemonset is missing Pods",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sDaemonsetSample select latest(podsMissing) where clusterName in ('bagelbot') facet daemonsetName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Deployment is missing Pods",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sDeploymentSample select latest(podsMissing) where clusterName in ('bagelbot') facet deploymentName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Etcd file descriptor utilization is high",
+      "enabled": false,
+      "type": "static",
+      "nrql": "from K8sEtcdSample select max(processFdsUtilization) where clusterName in ('YOUR_CLUSTER_NAME') facet displayName, clusterName",
+      "terms": [
+        {
+          "operator": "BELOW",
+          "priority": "CRITICAL",
+          "threshold": 1.0,
+          "thresholdDuration": 60,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Etcd has no leader",
+      "enabled": false,
+      "type": "static",
+      "nrql": "from K8sEtcdSample select min(etcdServerHasLeader) where clusterName in ('YOUR_CLUSTER_NAME') facet displayName, clusterName",
+      "terms": [
+        {
+          "operator": "BELOW",
+          "priority": "CRITICAL",
+          "threshold": 1.0,
+          "thresholdDuration": 60,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "HPA current replicas < desired replicas",
+      "enabled": true,
+      "type": "static",
+      "nrql": "FROM K8sHpaSample select latest(desiredReplicas - currentReplicas) where clusterName in ('bagelbot') facet displayName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "WARNING",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "HPA has reached maximum replicas",
+      "enabled": true,
+      "type": "static",
+      "nrql": "FROM K8sHpaSample select latest(maxReplicas - currentReplicas) where clusterName in ('bagelbot') facet displayName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "EQUALS",
+          "priority": "WARNING",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Job Failed",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sJobSample select uniqueCount(jobName) where failed = 'true' and clusterName in ('bagelbot') facet jobName, namespaceName, clusterName, failedPodsReason",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "WARNING",
+          "threshold": 0.0,
+          "thresholdDuration": 60,
+          "thresholdOccurrences": "AT_LEAST_ONCE"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "More than 5 pods failing in namespace",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sPodSample select uniqueCount(podName) where clusterName in ('bagelbot') and status = 'Failed' facet namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 5.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node Pod count nearing capacity",
+      "enabled": true,
+      "type": "static",
+      "nrql": "FROM K8sPodSample, K8sNodeSample select ceil(filter(uniqueCount(podName), where status = 'Running') / latest(capacityPods) * 100) as 'Pod Capacity %' where nodeName != '' and nodeName is not null and clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "WARNING",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node allocatable cpu utilization is high",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sNodeSample select average(allocatableCpuCoresUtilization) where clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 900,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node allocatable memory utilization is high",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sNodeSample select average(allocatableMemoryUtilization) where clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 900,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node is not ready",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sNodeSample select latest(condition.Ready) where clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "BELOW",
+          "priority": "CRITICAL",
+          "threshold": 1.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node is unschedulable",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sNodeSample select latest(unschedulable) where clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "WARNING",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 900,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Node root file system capacity utilization is high",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sNodeSample select average(fsCapacityUtilization) where clusterName in ('bagelbot') facet nodeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 90.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 300,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 900,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Persistent Volume has errors",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sPersistentVolumeSample select uniqueCount(volumeName) where statusPhase in ('Failed','Pending') and clusterName in ('bagelbot') facet volumeName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Pod cannot be scheduled",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sPodSample select latest(isScheduled) where clusterName in ('bagelbot') facet podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "BELOW",
+          "priority": "CRITICAL",
+          "threshold": 1.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Pod is not ready",
+      "enabled": true,
+      "type": "static",
+      "nrql": "FROM K8sPodSample select latest(isReady) where status not in ('Failed', 'Succeeded') and clusterName in ('bagelbot') facet podName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "BELOW",
+          "priority": "CRITICAL",
+          "threshold": 1.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    },
+    {
+      "policy": "Kubernetes alert policy",
+      "name": "Statefulset is missing Pods",
+      "enabled": true,
+      "type": "static",
+      "nrql": "from K8sStatefulsetSample select latest(podsMissing) where clusterName in ('bagelbot') facet statefulsetName, namespaceName, clusterName",
+      "terms": [
+        {
+          "operator": "ABOVE",
+          "priority": "CRITICAL",
+          "threshold": 0.0,
+          "thresholdDuration": 300,
+          "thresholdOccurrences": "ALL"
+        }
+      ],
+      "signal": {
+        "aggregationDelay": 60,
+        "aggregationMethod": "EVENT_FLOW",
+        "aggregationWindow": 60,
+        "fillOption": "NONE",
+        "fillValue": null
+      },
+      "expiration": {
+        "closeViolationsOnExpiration": true,
+        "expirationDuration": 300,
+        "openViolationOnExpiration": false
+      },
+      "valueFunction": "SINGLE_VALUE"
+    }
+  ]
+}
