@@ -102,7 +102,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1784818338-f6836a499ad9@sha256:c1f10715661984817a24664ef40b4f921fd29cfc77907b070fe9d946e8086d81 # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1784861881-e9af4ba89ef8@sha256:be1c8b1e5e2006f60e69d4422baa8baaa7206660e97f4af8ef881ddba01843c1 # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
