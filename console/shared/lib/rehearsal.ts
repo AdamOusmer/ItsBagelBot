@@ -49,15 +49,15 @@ export interface RehearsedLine {
   segments: Seg[];
 }
 
-/** Sample values for exactly the tokens expandCommand resolves — nothing
+/** Sample values for the canonical tokens expandCommand resolves — nothing
  * more, so the rehearsal never substitutes a token the bot would leave
- * literal. {target} is the dashboard-facing alias of {touser}. */
+ * literal. {sender} and {target} are engine aliases (resolveCommandToken maps
+ * them to {user}/{touser}), so they are intentionally absent: an override of
+ * the canonical token covers its alias too. */
 export const COMMAND_SAMPLES: Record<string, string> = {
   user: 'sesame_sam',
-  sender: 'sesame_sam',
   args: 'aaaa',
   touser: 'ferret_king',
-  target: 'ferret_king',
   channel: 'bagel_bakery'
 };
 
@@ -153,9 +153,13 @@ function tokenSeg(span: string, value: string | null): Seg {
 }
 
 /** expandCommand's lookup order: named tokens, then {counter:…}, then the
- * dynamic set. null = the bot leaves the token literal. */
+ * dynamic set. null = the bot leaves the token literal. {sender} and {target}
+ * are aliases of {user}/{touser} — expandCommand resolves each pair to the
+ * same value — so they canonicalize before lookup, letting a single override
+ * of {user}/{touser} cover its alias. */
 function resolveCommandToken(key: string, samples: Record<string, string>): string | null {
-  if (key in samples) return samples[key];
+  const canonical = key === 'sender' ? 'user' : key === 'target' ? 'touser' : key;
+  if (canonical in samples) return samples[canonical];
   if (key.startsWith('counter:')) return resolveCounter(key.slice('counter:'.length));
   return resolveDynamic(key);
 }

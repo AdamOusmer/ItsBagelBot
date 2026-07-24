@@ -49,6 +49,11 @@ describe('rehearseCommand', () => {
     expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(4);
   });
 
+  test('{sender}/{target} are aliases; an override of the canonical covers them', () => {
+    const [line] = rehearseCommand('{sender} waves at {target}', { user: 'maya_live', touser: 'alex' });
+    expect(textOf(line.segments)).toBe('maya_live waves at alex');
+  });
+
   test('alert-only tokens do NOT expand in a command (the bot leaves them literal)', () => {
     const [line] = rehearseCommand('{bits} {viewers} {raider}');
     expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
@@ -137,6 +142,14 @@ describe('rehearseReply', () => {
     const [line] = rehearseReply('{opener} everyone', { opener: '/pin welcome' });
     expect(line.mode).toBe('pin');
     expect(textOf(line.segments)).toBe('welcome everyone');
+  });
+
+  test('/me renders as an italic action on reply surfaces too', () => {
+    // The bot sends "/me …" as plain chat (Twitch renders the action itself);
+    // the rehearsal shows the rendered form: me mode, verb stripped.
+    const [line] = rehearseReply('/me thanks {user} warmly', { user: 'sam' });
+    expect(line.mode).toBe('me');
+    expect(textOf(line.segments)).toBe('thanks sam warmly');
   });
 
   test('is a single message: no multi-line fan-out', () => {
