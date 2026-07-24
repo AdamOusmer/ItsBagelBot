@@ -27,7 +27,13 @@ topologies =
           strategy: Cluster.Strategy.Kubernetes.DNS,
           config: [
             service: headless,
-            application_name: System.get_env("BAGELBOT_K8S_APP_NAME", "ingress")
+            application_name: System.get_env("BAGELBOT_K8S_APP_NAME", "ingress"),
+            # Error-tolerant resolver: on a transient DNS failure it replays the
+            # last good pod-IP set as a synthetic success, so a resolver error
+            # never disconnects live peers (which would split the Horde cluster).
+            # A genuine membership change is a successful lookup with a different
+            # set and passes through untouched. See Ingress.ClusterResolver.
+            resolver: &Ingress.ClusterResolver.resolve/1
           ]
         ]
       ]
