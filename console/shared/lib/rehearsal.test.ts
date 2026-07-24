@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { expandSegments, rehearseCommand, rehearseReply, type Seg } from './rehearsal';
+import { expandSegments, rehearseCommand, rehearseReply, type Seg, type Token } from './rehearsal';
 
 /** The rehearsed chat text of a line: what the bot would actually send. */
 function textOf(segments: Seg[]): string {
@@ -7,7 +7,7 @@ function textOf(segments: Seg[]): string {
 }
 
 describe('token expansion (module/vars.go Expand mirror)', () => {
-  const resolve = (key: string) => (key === 'user' ? 'sam' : null);
+  const resolve = (token: Token) => (token.name === 'user' ? 'sam' : null);
 
   test('substitutes known tokens and marks them as samples', () => {
     expect(expandSegments('hi {user}!', resolve)).toEqual([
@@ -20,7 +20,7 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   test('token names are case-insensitive, payloads keep their case', () => {
     // module.Expand lowercases the name before the resolver sees it.
     expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
-    const choice = expandSegments('{CHOICE:Hi,Yo}', (k) => (k === 'choice:Hi,Yo' ? 'Hi' : null));
+    const choice = expandSegments('{CHOICE:Hi,Yo}', (t) => (t.key === 'choice:Hi,Yo' ? 'Hi' : null));
     expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
 

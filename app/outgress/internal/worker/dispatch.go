@@ -74,50 +74,78 @@ func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) er
 	if !ok {
 		return w.sendBotChat(ctx, broadcasterID, text)
 	}
+	msg, err := slashMessage(broadcasterID, sc)
+	if err != nil || msg == nil {
+		return err
+	}
+	return w.processPayload(ctx, msg)
+}
+
+// slashMessage builds the outgress message for a routed slash action. It
+// returns a nil message (and nil error) when the action carries no usable
+// payload — an /announce or /pin with no text, a /shoutout with no target —
+// so the caller drops it instead of sending a call Twitch would reject.
+func slashMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
 	switch sc.Type {
 	case outgress.TypeShoutout:
-		if sc.To == "" {
-			return nil
-		}
-		return w.processPayload(ctx, &outgress.Message{
-			Type:          outgress.TypeShoutout,
-			BroadcasterID: broadcasterID,
-			To:            sc.To,
-			Payload:       []byte("{}"),
-		})
+		return shoutoutMessage(broadcasterID, sc), nil
 	case outgress.TypeAnnounce:
-		if sc.Text == "" {
-			return nil
-		}
-		body, err := sonic.Marshal(struct {
-			Message string `json:"message"`
-		}{sc.Text})
-		if err != nil {
-			return err
-		}
-		return w.processPayload(ctx, &outgress.Message{
-			Type:          outgress.TypeAnnounce,
-			BroadcasterID: broadcasterID,
-			Color:         sc.Color,
-			Payload:       body,
-		})
-	default: // TypePin: the pin action sends the message first, then pins it.
-		if sc.Text == "" {
-			return nil
-		}
-		body, err := sonic.Marshal(struct {
-			BroadcasterID string `json:"broadcaster_id"`
-			Message       string `json:"message"`
-		}{broadcasterID, sc.Text})
-		if err != nil {
-			return err
-		}
-		return w.processPayload(ctx, &outgress.Message{
-			Type:          outgress.TypePin,
-			BroadcasterID: broadcasterID,
-			Payload:       body,
-		})
+		return announceMessage(broadcasterID, sc)
+	default:
+		return pinMessage(broadcasterID, sc)
 	}
+}
+
+// shoutoutMessage builds the Send a Shoutout job: the target rides a dedicated
+// field, so the body is empty.
+func shoutoutMessage(broadcasterID string, sc outgress.SlashCommand) *outgress.Message {
+	if sc.To == "" {
+		return nil
+	}
+	return &outgress.Message{
+		Type:          outgress.TypeShoutout,
+		BroadcasterID: broadcasterID,
+		To:            sc.To,
+		Payload:       []byte("{}"),
+	}
+}
+
+func announceMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
+	if sc.Text == "" {
+		return nil, nil
+	}
+	body, err := sonic.Marshal(struct {
+		Message string `json:"message"`
+	}{sc.Text})
+	if err != nil {
+		return nil, err
+	}
+	return &outgress.Message{
+		Type:          outgress.TypeAnnounce,
+		BroadcasterID: broadcasterID,
+		Color:         sc.Color,
+		Payload:       body,
+	}, nil
+}
+
+// pinMessage builds the pin job, whose action sends the message first and then
+// pins it until the current stream ends.
+func pinMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
+	if sc.Text == "" {
+		return nil, nil
+	}
+	body, err := sonic.Marshal(struct {
+		BroadcasterID string `json:"broadcaster_id"`
+		Message       string `json:"message"`
+	}{broadcasterID, sc.Text})
+	if err != nil {
+		return nil, err
+	}
+	return &outgress.Message{
+		Type:          outgress.TypePin,
+		BroadcasterID: broadcasterID,
+		Payload:       body,
+	}, nil
 }
 
 // sendBotChat routes one synthetic bot chat line (a clip reply, the reauth
