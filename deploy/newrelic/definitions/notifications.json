@@ -1,0 +1,59 @@
+{
+  "account_id": 3823179,
+  "destinations": [
+    {
+      "name": "Email ousmera03@gmail.com",
+      "type": "EMAIL",
+      "properties": [{ "key": "email", "value": "ousmera03@gmail.com" }]
+    },
+    {
+      "name": "Email contact@adam-ousmer.dev",
+      "type": "EMAIL",
+      "properties": [{ "key": "email", "value": "contact@adam-ousmer.dev" }]
+    },
+    {
+      "name": "Discord alerts webhook",
+      "type": "WEBHOOK",
+      "properties": [{ "key": "url", "secretRef": "DISCORD_ALERT_WEBHOOK_URL" }]
+    }
+  ],
+  "channels": [
+    {
+      "name": "Email ousmera03@gmail.com",
+      "type": "EMAIL",
+      "destination": "Email ousmera03@gmail.com",
+      "product": "IINT",
+      "properties": []
+    },
+    {
+      "name": "Email contact@adam-ousmer.dev",
+      "type": "EMAIL",
+      "destination": "Email contact@adam-ousmer.dev",
+      "product": "IINT",
+      "properties": []
+    },
+    {
+      "name": "Discord alerts",
+      "type": "WEBHOOK",
+      "destination": "Discord alerts webhook",
+      "product": "IINT",
+      "payloadTemplateFile": "discord_payload.json.tmpl"
+    }
+  ],
+  "workflow": {
+    "name": "BagelBot alerts",
+    "enabled": true,
+    "mutingRulesHandling": "NOTIFY_ALL_ISSUES",
+    "issuesFilter": {
+      "name": "all-priorities",
+      "predicates": [
+        {
+          "attribute": "priority",
+          "operator": "EQUAL",
+          "values": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+        }
+      ]
+    },
+    "channels": ["Email ousmera03@gmail.com", "Email contact@adam-ousmer.dev", "Discord alerts"]
+  }
+}
