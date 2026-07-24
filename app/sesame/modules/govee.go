@@ -184,12 +184,23 @@ const defaultGoveeReply = "@{user} set the lights to {color}!"
 
 // renderGoveeReply fills the reply template's {user} and {color} tokens for one
 // redemption, falling back to defaultGoveeReply when the template is blank.
+// Expansion goes through module.ExpandString so token names are
+// case-insensitive; anything else stays literal (no dynamic tokens here).
 func renderGoveeReply(tmpl string, ev redemptionEvent, color string) string {
 	if strings.TrimSpace(tmpl) == "" {
 		tmpl = defaultGoveeReply
 	}
 	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	return strings.NewReplacer("{user}", user, "{color}", color).Replace(tmpl)
+	return module.ExpandString(tmpl, func(key string) (string, bool) {
+		switch key {
+		case "user":
+			return user, true
+		case "color":
+			return color, true
+		default:
+			return "", false
+		}
+	})
 }
 
 // decodeGoveeRedemption decodes the module config and the redemption event, and

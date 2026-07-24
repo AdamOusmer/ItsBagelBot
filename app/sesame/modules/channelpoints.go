@@ -248,7 +248,12 @@ func expandReward(tmpl string, ev redemptionEvent, counterValue string, points i
 		case "user":
 			return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
 		case "input":
-			return ev.UserInput, true
+			// {input} is viewer-typed text. With slash-verbs now routed on
+			// every emit path, a template leading with {input} must not let a
+			// redeemer mint /announce (or any verb) as the bot: strip a
+			// leading slash/space run, mirroring the engine's sanitizeVar for
+			// command {args}. Non-leading slashes (URLs) are untouched.
+			return strings.TrimLeft(ev.UserInput, " /"), true
 		case "reward":
 			return ev.Reward.Title, true
 		case "cost":

@@ -12,8 +12,11 @@
  * the rehearsal and a single action card — one primary CTA, the chat-paste
  * path secondary beneath it.
  *
- * The rehearsal is a straight port of the dashboard inspector's ChatPreview
- * (console/dashboard/src/lib/components/commands/ChatPreview.svelte): same
+ * The rehearsal SHARES the dashboard's logic rather than copying it: the
+ * client script imports the engine mirror from console/shared/lib/rehearsal.ts
+ * (aliased as `@bagel/rehearsal` in astro.config.mjs) — the same module the
+ * dashboard inspector's ChatPreview uses — so the slash-verb grammar and token
+ * expansion here always match the bot. Only the rendering is local: same
  * typing beat, same staggered reply-in animation, same announcement /
  * shoutout / pin / me styling and sample-value highlights — the builder is
  * meant to feel like the dashboard reaching out onto the marketing site.
@@ -186,11 +189,16 @@ for (const surface of data.surfaces) {
         ui: Record<string, string> & { recipes: { label: string; text: string }[] };
     };
 
-    // --- Slash-verb parse, same tables as the dashboard's ChatPreview (which
-    // itself mirrors app/sesame/engine/slash.go). ---------------------------
-    type Mode = 'chat' | 'announce' | 'shoutout' | 'pin' | 'me';
-    type Parsed = { mode: Mode; body: string; verb?: string; color?: string; target?: string };
+    // The rehearsal logic is NOT reimplemented here. `@bagel/rehearsal` is the
+    // dashboard's own engine mirror (console/shared/lib/rehearsal.ts, aliased
+    // in astro.config.mjs): it owns the slash-verb grammar and token expansion,
+    // so the builder can never drift from the bot. This file only turns the
+    // RehearsedLine[] it returns into DOM. The sample values stay local, in
+    // src/i18n/builder.ts, and ride in as the `samples` argument.
+    import { rehearseCommand, rehearseReply, type RehearsedLine, type Seg } from '@bagel/rehearsal';
 
+    // Announcement accent colors — presentation only, keyed by the color the
+    // shared parse reports.
     const ACCENT: Record<string, string> = {
         primary: 'var(--tan-light)',
         blue: '#4a9eff',
@@ -199,43 +207,9 @@ for (const surface of data.surfaces) {
         purple: '#c77dff',
     };
 
-    const ANNOUNCE: [string, string][] = [
-        ['/announceblue', 'blue'],
-        ['/announcegreen', 'green'],
-        ['/announceorange', 'orange'],
-        ['/announcepurple', 'purple'],
-        ['/announce', 'primary'],
-    ];
-
-    function cutVerb(text: string, verb: string): string | null {
-        if (text === verb) return '';
-        if (text.startsWith(verb + ' ')) return text.slice(verb.length + 1);
-        return null;
-    }
-
-    function parseLine(text: string): Parsed {
-        for (const [verb, color] of ANNOUNCE) {
-            const rest = cutVerb(text, verb);
-            if (rest !== null) return { mode: 'announce', body: rest, verb, color };
-        }
-        const so = cutVerb(text, '/shoutout');
-        if (so !== null) {
-            const trimmed = so.replace(/^ +/, '');
-            const sp = trimmed.indexOf(' ');
-            const rawTarget = sp === -1 ? trimmed : trimmed.slice(0, sp);
-            const remainder = sp === -1 ? '' : trimmed.slice(sp + 1).replace(/^ +/, '');
-            return { mode: 'shoutout', body: remainder, verb: '/shoutout', target: rawTarget.replace(/^@/, '') };
-        }
-        const pin = cutVerb(text, '/pin');
-        if (pin !== null) return { mode: 'pin', body: pin, verb: '/pin' };
-        const me = cutVerb(text, '/me');
-        if (me !== null) return { mode: 'me', body: me, verb: '/me' };
-        return { mode: 'chat', body: text };
-    }
-
-    function verbLabelOf(p: Parsed): string {
-        if (p.mode === 'announce') return p.color === 'primary' ? '/announce' : `/announce (${p.color})`;
-        return p.verb ?? '';
+    function verbLabelOf(view: RehearsedLine): string {
+        if (view.mode === 'announce') return view.color === 'primary' ? '/announce' : `/announce (${view.color})`;
+        return view.verb ?? '';
     }
 
     function initBuilder(root: HTMLElement) {
@@ -313,46 +287,36 @@ for (const surface of data.surfaces) {
             return raw;
         };
 
-        // --- Token substitution: known tokens become highlighted samples,
-        // unknown {tokens} stay marked, exactly like the dashboard rehearsal.
-        type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
-        const rint = (lo: number, hi: number) => String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+        // --- Sample values handed to the shared rehearsal ---------------------
+        // The catalog's own tokens, keyed without braces. Dynamic and
+        // {counter:…} forms are deliberately left out: the shared logic
+        // resolves those itself (deterministically, so the preview doesn't
+        // re-roll on every keystroke), exactly as the dashboard does.
+        const RESOLVED_BY_CORE = /^(random(:|$)|choice:|counter:)/;
 
-        function resolveToken(body: string): string | null {
-            const samples = new Map(current().vars.map((x) => [x.token.slice(1, -1), x.sample]));
-            if (samples.has(body)) return samples.get(body)!;
-            // Aliases the bot honors but the palette hides for clarity.
-            if (body === 'sender' && samples.has('user')) return samples.get('user')!;
-            if (body === 'target' && samples.has('touser')) return samples.get('touser')!;
-            if (body === 'touser' && samples.has('target')) return samples.get('target')!;
-            if (body === 'random') return rint(1, 100);
-            const rand = body.match(/^random:(-?\d+)-(-?\d+)$/);
-            if (rand) {
-                const lo = parseInt(rand[1], 10);
-                const hi = parseInt(rand[2], 10);
-                return hi >= lo ? rint(lo, hi) : null;
+        function sampleMap(): Record<string, string> {
+            const samples: Record<string, string> = {};
+            for (const item of current().vars) {
+                const key = item.token.slice(1, -1);
+                if (!RESOLVED_BY_CORE.test(key)) samples[key] = item.sample;
             }
-            if (body.startsWith('choice:')) {
-                const options = body.slice(7).split(',').map((o) => o.trim()).filter(Boolean);
-                return options.length ? options[Math.floor(Math.random() * options.length)] : null;
-            }
-            if (mode === 'custom' && body.startsWith('counter:') && body.length > 'counter:'.length) return '128';
-            return null;
+            return samples;
         }
 
-        function segmentsOf(body: string): Seg[] {
-            const out: Seg[] = [];
-            const re = /\{([a-z_]+(?:\.[a-z_]+)?(?::[^{}]*)?)\}/gi;
-            let last = 0;
-            for (const m of body.matchAll(re)) {
-                if (m.index! > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
-                const value = resolveToken(m[1]);
-                if (value !== null) out.push({ text: value, kind: 'sample' });
-                else out.push({ text: m[0], kind: 'unknown' });
-                last = m.index! + m[0].length;
-            }
-            if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
-            return out;
+        // A surface resolves the dynamic tokens when its module falls back to
+        // module.ParseDynamic — which the catalog encodes by offering them in
+        // the palette. The odd one out is the !clip reply: outgress expands it
+        // with a bare token replacer, so {random} there stays literal.
+        const surfaceIsDynamic = () => current().vars.some((x) => /^\{(random|choice)/.test(x.token));
+
+        // Custom commands fan out to one message per line (cap 5) and route a
+        // slash-verb per line; a module reply is a single message. Both share
+        // the same expansion and verb grammar.
+        function rehearse(): RehearsedLine[] {
+            const source = lines().join('\n');
+            return mode === 'custom'
+                ? rehearseCommand(source, sampleMap())
+                : rehearseReply(source, sampleMap(), { dynamic: surfaceIsDynamic() });
         }
 
         // --- Rehearsal DOM (ported ChatPreview markup, textContent only) -----
@@ -394,7 +358,7 @@ for (const surface of data.surfaces) {
             return el('span', inline ? 'via inline' : 'via', `Twitch ${label}`);
         }
 
-        function botLine(view: Parsed & { segments: Seg[] }, index: number): HTMLElement {
+        function botLine(view: RehearsedLine, index: number): HTMLElement {
             const line = el('div', 'line bot');
             line.style.setProperty('--reply-delay', `${index * 140}ms`);
             if (view.mode !== 'chat') line.classList.add('special');
@@ -478,17 +442,14 @@ for (const surface of data.surfaces) {
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
 
-            const out = lines().slice(0, data.limits.linesMax);
-            if (out.length === 0) {
+            const views = rehearse();
+            if (views.length === 0) {
                 const line = el('div', 'line bot');
                 line.append(botName(), el('span', 'msg empty', ui.nothingToSay));
                 chat.append(line);
                 return;
             }
-            out.forEach((raw, i) => {
-                const parsed = parseLine(raw);
-                chat.append(botLine({ ...parsed, segments: segmentsOf(parsed.body) }, i));
-            });
+            views.forEach((view, i) => chat.append(botLine(view, i)));
         }
 
         function renderTyping() {

@@ -261,6 +261,17 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if o == nil || o.Type == "" {
 			return
 		}
+		// Slash-verbs route on EVERY path, not just custom commands: a module
+		// reply (alert, trigger word, reward, gateway) leading with /announce,
+		// /shoutout or /pin becomes that native action here. Translate is a
+		// no-op on non-chat outputs, so the command path's per-line translation
+		// is never re-parsed. A translated action with no usable payload (an
+		// /announce with no message, a /shoutout with no target, an empty chat
+		// line) is dropped instead of sending a call Twitch would reject.
+		Translate(o)
+		if isEmptyAction(o) {
+			return
+		}
 		if p.floorSuppressed(o) {
 			return
 		}

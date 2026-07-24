@@ -164,11 +164,13 @@ func clipID(body io.Reader) (string, error) {
 }
 
 // sendClipReply posts the chat line announcing a freshly created clip through
-// the normal chat action (registry route, rate buckets, sender-id injection).
-// Its error is only for the caller to log; the clip already exists, so the
-// caller must not redeliver on a reply failure.
+// the normal actions (registry route, rate buckets, sender-id injection). The
+// reply goes through sendBotLine, so a custom template leading with a
+// slash-verb (/announce, /pin, …) becomes that native action, exactly like
+// every sesame-emitted reply. Its error is only for the caller to log; the
+// clip already exists, so the caller must not redeliver on a reply failure.
 func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
-	return w.sendBotChat(ctx, broadcasterID, clipReplyText(meta, clipURL))
+	return w.sendBotLine(ctx, broadcasterID, clipReplyText(meta, clipURL))
 }
 
 // clipReplyText composes the chat line for a new clip. When the broadcaster set
@@ -200,12 +202,48 @@ func clipReplyText(meta clipMeta, clipURL string) string {
 // them). The {user} and {target} aliases match the standard command tokens so
 // the same palette applies; {clipper}/{title} read more naturally for a clip.
 func clipExpand(meta clipMeta, clipURL string) string {
-	title := strings.TrimSpace(meta.Title)
-	return strings.NewReplacer(
-		"{clip}", clipURL,
-		"{user}", meta.Clipper,
-		"{clipper}", meta.Clipper,
-		"{target}", title,
-		"{title}", title,
-	).Replace(strings.TrimSpace(meta.Reply))
+	// The title is viewer-typed (!clip <title>). The reply now routes leading
+	// slash-verbs, so a template starting with {title}/{target} must not let
+	// a viewer mint /announce as the bot: strip a leading slash/space run,
+	// mirroring sesame's sanitizeVar for command {args}.
+	title := strings.TrimLeft(strings.TrimSpace(meta.Title), " /")
+	tokens := map[string]string{
+		"clip":    clipURL,
+		"user":    meta.Clipper,
+		"clipper": meta.Clipper,
+		"target":  title,
+		"title":   title,
+	}
+	return expandTokens(strings.TrimSpace(meta.Reply), tokens)
+}
+
+// expandTokens is a single-pass {key} substitution mirroring sesame's
+// module.Expand semantics (outgress does not import sesame packages): token
+// names are case-insensitive, an unknown token stays literal (braces and
+// all), and a '{' with no closing brace is copied through to the end.
+func expandTokens(tmpl string, tokens map[string]string) string {
+	var b strings.Builder
+	b.Grow(len(tmpl))
+	for i := 0; i < len(tmpl); {
+		open := strings.IndexByte(tmpl[i:], '{')
+		if open < 0 {
+			b.WriteString(tmpl[i:])
+			break
+		}
+		open += i
+		end := strings.IndexByte(tmpl[open:], '}')
+		if end < 0 {
+			b.WriteString(tmpl[i:])
+			break
+		}
+		end += open
+		b.WriteString(tmpl[i:open])
+		if val, ok := tokens[strings.ToLower(tmpl[open+1:end])]; ok {
+			b.WriteString(val)
+		} else {
+			b.WriteString(tmpl[open : end+1])
+		}
+		i = end + 1
+	}
+	return b.String()
 }

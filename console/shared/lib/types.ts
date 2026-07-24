@@ -56,10 +56,10 @@ export interface BuiltinCommandDef {
   description: string; // longer copy for the inspector
   // usage lists example invocations shown in the inspector.
   usage: string[];
-  // preview is the bot REPLY template, rendered through ChatPreview so the
-  // inspector shows the same rehearsal as a custom command (viewer line + the
-  // ItsBagelBot name/logo). previewArgs is what the viewer types after the
-  // trigger; previewSamples fills tokens ChatPreview does not know by default.
+  // preview is the bot REPLY template, rendered through ChatPreview (as a
+  // reply rehearsal: only previewSamples substitute — built-in replies are
+  // bare token replacers with no dynamic tokens or slash-verb routing).
+  // previewArgs is what the viewer types after the trigger.
   preview: string;
   previewArgs?: string;
   previewSamples?: Record<string, string>;
@@ -126,7 +126,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     // = the title argument (standard command token).
     preview: '{user} clipped: {target} → {clip}',
     previewArgs: 'That is amazing',
-    previewSamples: { target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
+    previewSamples: { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
@@ -308,10 +308,10 @@ export interface ModuleReply {
   command?: string;
   // previewArgs is what the sample viewer types after the trigger.
   previewArgs?: string;
-  // previewSamples maps this reply's tokens to sample values. When command is
-  // set the preview substitutes ONLY these (samplesOnly): sesame expands only
-  // the module's own tokens here, so the generic {user}/{random} samples would
-  // preview values the bot will never produce.
+  // previewSamples maps this reply's tokens to sample values. The rehearsal
+  // (kind="reply") substitutes ONLY these plus the shared dynamic tokens:
+  // sesame expands only the module's own token map here, so the generic
+  // command samples would preview values the bot will never produce.
   previewSamples?: Record<string, string>;
   // tokens is the editor's insert palette (without braces), replacing the
   // default command tokens with the ones this reply actually supports.
@@ -679,7 +679,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on raid',
         messageKey: 'message',
         defaultMessage:
-          'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}'
+          'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}',
+        // Tokens the shoutout module resolves (app/sesame/modules/shoutout.go).
+        tokens: ['raider', 'raider.login', 'viewers'],
+        previewSamples: { raider: 'CrustyCrumbs', 'raider.login': 'crustycrumbs', viewers: '42' }
       }
     ],
     settings: [
@@ -708,7 +711,10 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on follow',
         enableKey: 'followEnabled',
         messageKey: 'followMessage',
-        defaultMessage: 'Thank you for following the channel, {user}!'
+        defaultMessage: 'Thank you for following the channel, {user}!',
+        // Per-alert tokens/samples mirror the maps in app/sesame/modules/alerts.go.
+        tokens: ['user'],
+        previewSamples: { user: 'sesame_sam' }
       },
       {
         key: 'sub',
@@ -717,7 +723,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on subscribe',
         enableKey: 'subEnabled',
         messageKey: 'subMessage',
-        defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!'
+        defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!',
+        tokens: ['user', 'tier'],
+        previewSamples: { user: 'sesame_sam', tier: '1000' }
       },
       {
         key: 'gift',
@@ -737,7 +745,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on cheer',
         enableKey: 'cheerEnabled',
         messageKey: 'cheerMessage',
-        defaultMessage: 'Thank you for the {bits} bits, {user}!'
+        defaultMessage: 'Thank you for the {bits} bits, {user}!',
+        tokens: ['user', 'bits'],
+        previewSamples: { user: 'sesame_sam', bits: '500' }
       },
       {
         key: 'raid',
@@ -746,7 +756,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         event: 'on raid',
         enableKey: 'raidEnabled',
         messageKey: 'raidMessage',
-        defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!'
+        defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!',
+        tokens: ['user', 'viewers'],
+        previewSamples: { user: 'CrustyCrumbs', viewers: '42' }
       },
       {
         key: 'ads',
@@ -756,7 +768,9 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         enableKey: 'adsEnabled',
         messageKey: 'adsMessage',
         defaultOff: true,
-        defaultMessage: "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!"
+        defaultMessage: "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!",
+        tokens: ['duration'],
+        previewSamples: { duration: '90' }
       }
     ]
   },

@@ -1,9 +1,16 @@
 {
   "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@bagel/rehearsal": ["../console/shared/lib/rehearsal.ts"]
+    }
+  },
   "include": [
     ".astro/types.d.ts",
     "**/*",
-    "./worker-configuration.d.ts"
+    "./worker-configuration.d.ts",
+    "../console/shared/lib/rehearsal.ts"
   ],
   "exclude": [
     "dist"

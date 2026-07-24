@@ -64,3 +64,30 @@ func TestClipExpand(t *testing.T) {
 		t.Errorf("clipExpand = %q, want %q", got, want)
 	}
 }
+
+func TestClipExpandCaseInsensitive(t *testing.T) {
+	got := clipExpand(clipMeta{
+		Clipper: "viewer",
+		Title:   "sick play",
+		Reply:   "{Clipper} clipped {TITLE} → {Clip} {broken",
+	}, testClipURL)
+	want := "viewer clipped sick play → " + testClipURL + " {broken"
+	if got != want {
+		t.Errorf("clipExpand case-insensitive = %q, want %q", got, want)
+	}
+}
+
+// The viewer-typed title cannot mint a slash-verb through a template that
+// leads with {title}/{target}: leading slashes/spaces are stripped, while
+// non-leading slashes (URLs) survive.
+func TestClipExpandSanitizesLeadingSlashTitle(t *testing.T) {
+	got := clipExpand(clipMeta{
+		Clipper: "viewer",
+		Title:   " /announce pwned",
+		Reply:   "{title} clipped by {clipper}",
+	}, testClipURL)
+	want := "announce pwned clipped by viewer"
+	if got != want {
+		t.Errorf("clipExpand sanitized = %q, want %q", got, want)
+	}
+}

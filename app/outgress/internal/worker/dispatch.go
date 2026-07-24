@@ -62,6 +62,84 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 	return act.Run(ctx, payload)
 }
 
+// sendBotLine routes one synthetic bot line, honoring a leading slash-verb
+// the same way sesame's pipeline does for module outputs: outgress.CutSlash
+// owns the grammar, so "/announce hi" becomes a native announcement, "/pin"
+// a pin, "/shoutout <target>" a shoutout, and anything else (including /me,
+// which Twitch chat renders itself) a plain chat line. A routed action with
+// no usable payload (empty announce/pin message, shoutout without a target)
+// is dropped rather than sent for Twitch to reject.
+func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {
+	sc, ok := outgress.CutSlash(text)
+	if !ok {
+		return w.sendBotChat(ctx, broadcasterID, text)
+	}
+	msg, err := slashMessage(broadcasterID, sc)
+	if err != nil || msg == nil {
+		return err
+	}
+	return w.processPayload(ctx, msg)
+}
+
+// slashMessage builds the outgress message for a routed slash action. It
+// returns a nil message (and nil error) when the action carries no usable
+// payload — an /announce or /pin with no text, a /shoutout with no target —
+// so the caller drops it instead of sending a call Twitch would reject.
+func slashMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
+	if sc.Type == outgress.TypeShoutout {
+		return shoutoutMessage(broadcasterID, sc), nil
+	}
+	return textActionMessage(broadcasterID, sc)
+}
+
+// shoutoutMessage builds the Send a Shoutout job: the target rides a dedicated
+// field, so the body is empty.
+func shoutoutMessage(broadcasterID string, sc outgress.SlashCommand) *outgress.Message {
+	if sc.To == "" {
+		return nil
+	}
+	return &outgress.Message{
+		Type:          outgress.TypeShoutout,
+		BroadcasterID: broadcasterID,
+		To:            sc.To,
+		Payload:       []byte("{}"),
+	}
+}
+
+// textActionMessage builds the /announce and /pin jobs, which share everything
+// but their body. Color is empty for a pin (CutSlash sets it only on an
+// announce), so it can be assigned unconditionally.
+func textActionMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
+	if sc.Text == "" {
+		return nil, nil
+	}
+	body, err := textActionBody(broadcasterID, sc)
+	if err != nil {
+		return nil, err
+	}
+	return &outgress.Message{
+		Type:          sc.Type,
+		BroadcasterID: broadcasterID,
+		Color:         sc.Color,
+		Payload:       body,
+	}, nil
+}
+
+// textActionBody marshals the body Twitch wants: an announcement carries only
+// the message, while a pin reuses the Send Chat Message body because the pin
+// action posts the line first and then pins it for the current stream.
+func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, error) {
+	if sc.Type == outgress.TypeAnnounce {
+		return sonic.Marshal(struct {
+			Message string `json:"message"`
+		}{sc.Text})
+	}
+	return sonic.Marshal(struct {
+		BroadcasterID string `json:"broadcaster_id"`
+		Message       string `json:"message"`
+	}{broadcasterID, sc.Text})
+}
+
 // sendBotChat routes one synthetic bot chat line (a clip reply, the reauth
 // beacon) through the ordinary chat action — registry route defaults, bot
 // sender injection, per-channel chat rate bucket — exactly as if a lane job
