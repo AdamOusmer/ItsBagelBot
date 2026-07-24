@@ -104,10 +104,10 @@ const COUNTER_SAMPLE = '42';
  * (Expansion per line equals whole-template expansion: no token value can
  * carry a newline, so line boundaries never move.) */
 export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {
-  const samples: Samples = { ...COMMAND_SAMPLES, ...(overrides ?? {}) };
+  const resolve = commandResolver({ ...COMMAND_SAMPLES, ...(overrides ?? {}) });
   return responseLines(response)
     .slice(0, RESPONSE_MAX_LINES)
-    .map((line) => rehearseLine(line, (token) => resolveCommandToken(token, samples)));
+    .map((line) => rehearseLine(line, resolve));
 }
 
 /** Rehearse a module reply: one message, the module's own tokens plus
@@ -119,10 +119,9 @@ export function rehearseReply(
   samples: Samples = {},
   opts: { dynamic?: boolean } = {}
 ): RehearsedLine[] {
-  const dynamic = opts.dynamic ?? true;
   const text = responseLines(response).join(' ');
   if (text === '') return [];
-  return [rehearseLine(text, (token) => resolveReplyToken(token, samples, dynamic))];
+  return [rehearseLine(text, replyResolver(samples, opts.dynamic ?? true))];
 }
 
 /** One chat message: expand tokens, then route the leading slash-verb over
@@ -192,64 +191,51 @@ function parseToken(span: string): Token {
 
 /** expandCommand's lookup order: named tokens (aliases folded in), then
  * {counter:…}, then the dynamic set. */
-function resolveCommandToken(token: Token, samples: Samples): string | null {
-  const sample = lookupSample(token, samples, COMMAND_ALIASES);
-  if (sample !== null) return sample;
-  // A bare {counter} is not the counter form; it falls through like any
-  // other unknown name, exactly as CutPrefix does in the engine.
-  if (token.name === 'counter' && token.payload !== null) return resolveCounter(token);
-  return resolveDynamic(token);
+function commandResolver(samples: Samples): Resolve {
+  return (token) => {
+    const name = COMMAND_ALIASES[token.name] ?? token.name;
+    const key = token.payload === null ? name : `${name}:${token.payload}`;
+    if (key in samples) return samples[key];
+    // A bare {counter} is not the counter form: it falls through like any
+    // other unknown name, exactly as CutPrefix does in the engine.
+    if (token.name === 'counter' && token.payload !== null) return counterSample(token);
+    return dynamicSample(token);
+  };
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
  * that module falls back to ParseDynamic. */
-function resolveReplyToken(token: Token, samples: Samples, dynamic: boolean): string | null {
-  const sample = lookupSample(token, samples);
-  if (sample !== null) return sample;
-  return dynamic ? resolveDynamic(token) : null;
+function replyResolver(samples: Samples, dynamic: boolean): Resolve {
+  return (token) => {
+    if (token.key in samples) return samples[token.key];
+    return dynamic ? dynamicSample(token) : null;
+  };
 }
 
-function lookupSample(token: Token, samples: Samples, aliases: Samples = {}): string | null {
-  const name = aliases[token.name] ?? token.name;
-  const key = token.payload === null ? name : `${name}:${token.payload}`;
-  return key in samples ? samples[key] : null;
-}
-
-/** {counter:<name>} bumps and renders the counter. Bot-scope counters
- * (bot:…) are admin-only and an empty name never resolves, so both stay
- * literal, exactly like the engine. */
-function resolveCounter(token: Token): string | null {
-  const name = normalizeCounterName(token.payload ?? '');
+/** {counter:<name>} bumps and renders the counter. The name normalizes like
+ * NormalizeCounterName (trim, drop one leading '!', trim, lower-case).
+ * Bot-scope counters (bot:…) are admin-only and an empty name never resolves,
+ * so both stay literal, exactly like the engine. */
+function counterSample(token: Token): string | null {
+  const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
   if (name === '' || name.startsWith('bot:')) return null;
   return COUNTER_SAMPLE;
 }
 
-/** NormalizeCounterName mirror: trim, drop one leading '!', trim, lowercase. */
-function normalizeCounterName(name: string): string {
-  return name.trim().replace(/^!/, '').trim().toLowerCase();
-}
-
 /** ParseDynamic mirror: {random} → a fixed stand-in, {random:min-max} → the
- * range midpoint (invalid ranges stay literal), {choice:a,b,c} → the first
+ * range midpoint (an invalid range stays literal), {choice:a,b,c} → the first
  * option. */
-function resolveDynamic(token: Token): string | null {
-  switch (token.name) {
-    case 'random':
-      return token.payload === null ? RANDOM_SAMPLE : randomMidpoint(token.payload);
-    case 'choice':
-      return token.payload === null ? null : token.payload.split(',')[0];
-    default:
-      return null;
+function dynamicSample(token: Token): string | null {
+  if (token.name === 'choice') {
+    return token.payload === null ? null : token.payload.split(',')[0];
   }
-}
-
-function randomMidpoint(range: string): string | null {
-  const bounds = range.match(/^(\d+)-(\d+)$/);
+  if (token.name !== 'random') return null;
+  if (token.payload === null) return RANDOM_SAMPLE;
+  const bounds = token.payload.match(/^(\d+)-(\d+)$/);
   if (!bounds) return null;
   const min = Number(bounds[1]);
   const max = Number(bounds[2]);
-  if (max < min) return null;
-  return String(Math.floor((min + max) / 2));
+  return max < min ? null : String(Math.floor((min + max) / 2));
 }
 
 // --- slash-verb routing (outgress/slash.go CutSlash) ----------------------
@@ -264,18 +250,23 @@ interface SlashAction {
   bodyStart: number;
 }
 
-interface AnnounceVerb {
+interface VerbSpec {
   verb: string;
-  color: string;
+  mode: RehearsalMode;
+  /** Announce accent color; absent for the verbs that carry none. */
+  color?: string;
 }
 
 // Longest verbs first so "/announceblue" is not mistaken for "/announce".
-const ANNOUNCE_VERBS: readonly AnnounceVerb[] = [
-  { verb: '/announceblue', color: 'blue' },
-  { verb: '/announcegreen', color: 'green' },
-  { verb: '/announceorange', color: 'orange' },
-  { verb: '/announcepurple', color: 'purple' },
-  { verb: '/announce', color: 'primary' }
+const VERBS: readonly VerbSpec[] = [
+  { verb: '/announceblue', mode: 'announce', color: 'blue' },
+  { verb: '/announcegreen', mode: 'announce', color: 'green' },
+  { verb: '/announceorange', mode: 'announce', color: 'orange' },
+  { verb: '/announcepurple', mode: 'announce', color: 'purple' },
+  { verb: '/announce', mode: 'announce', color: 'primary' },
+  { verb: '/shoutout', mode: 'shoutout' },
+  { verb: '/pin', mode: 'pin' },
+  { verb: '/me', mode: 'me' }
 ];
 
 /** CutSlash mirror over the EXPANDED text — the engine expands first, so a
@@ -283,25 +274,21 @@ const ANNOUNCE_VERBS: readonly AnnounceVerb[] = [
  * stays in the text), but Twitch renders it as an italic action, so it is
  * displayed that way with the verb stripped. */
 function parseSlash(text: string): SlashAction {
-  for (const entry of ANNOUNCE_VERBS) {
-    const at = verbEnd(text, entry.verb);
-    if (at !== null) return { mode: 'announce', verb: entry.verb, color: entry.color, bodyStart: at };
+  for (const spec of VERBS) {
+    const at = verbEnd(text, spec);
+    if (at === null) continue;
+    if (spec.mode === 'shoutout') return parseShoutout(text, at);
+    return { mode: spec.mode, verb: spec.verb, color: spec.color, bodyStart: at };
   }
-  const shoutoutAt = verbEnd(text, '/shoutout');
-  if (shoutoutAt !== null) return parseShoutout(text, shoutoutAt);
-  const pinAt = verbEnd(text, '/pin');
-  if (pinAt !== null) return { mode: 'pin', verb: '/pin', bodyStart: pinAt };
-  const meAt = verbEnd(text, '/me');
-  if (meAt !== null) return { mode: 'me', verb: '/me', bodyStart: meAt };
   return { mode: 'chat', bodyStart: 0 };
 }
 
 /** cutVerb mirror: the verb matches as the whole string or as a "verb "
  * prefix; returns the index just past the verb and its one separating space,
  * or null when the verb does not lead the text. */
-function verbEnd(text: string, verb: string): number | null {
-  if (text === verb) return verb.length;
-  if (text.startsWith(verb + ' ')) return verb.length + 1;
+function verbEnd(text: string, spec: VerbSpec): number | null {
+  if (text === spec.verb) return spec.verb.length;
+  if (text.startsWith(spec.verb + ' ')) return spec.verb.length + 1;
   return null;
 }
 

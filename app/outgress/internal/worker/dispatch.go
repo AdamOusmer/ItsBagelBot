@@ -86,14 +86,10 @@ func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) er
 // payload — an /announce or /pin with no text, a /shoutout with no target —
 // so the caller drops it instead of sending a call Twitch would reject.
 func slashMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
-	switch sc.Type {
-	case outgress.TypeShoutout:
+	if sc.Type == outgress.TypeShoutout {
 		return shoutoutMessage(broadcasterID, sc), nil
-	case outgress.TypeAnnounce:
-		return announceMessage(broadcasterID, sc)
-	default:
-		return pinMessage(broadcasterID, sc)
 	}
+	return textActionMessage(broadcasterID, sc)
 }
 
 // shoutoutMessage builds the Send a Shoutout job: the target rides a dedicated
@@ -110,42 +106,38 @@ func shoutoutMessage(broadcasterID string, sc outgress.SlashCommand) *outgress.M
 	}
 }
 
-func announceMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
+// textActionMessage builds the /announce and /pin jobs, which share everything
+// but their body. Color is empty for a pin (CutSlash sets it only on an
+// announce), so it can be assigned unconditionally.
+func textActionMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
 	if sc.Text == "" {
 		return nil, nil
 	}
-	body, err := sonic.Marshal(struct {
-		Message string `json:"message"`
-	}{sc.Text})
+	body, err := textActionBody(broadcasterID, sc)
 	if err != nil {
 		return nil, err
 	}
 	return &outgress.Message{
-		Type:          outgress.TypeAnnounce,
+		Type:          sc.Type,
 		BroadcasterID: broadcasterID,
 		Color:         sc.Color,
 		Payload:       body,
 	}, nil
 }
 
-// pinMessage builds the pin job, whose action sends the message first and then
-// pins it until the current stream ends.
-func pinMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
-	if sc.Text == "" {
-		return nil, nil
+// textActionBody marshals the body Twitch wants: an announcement carries only
+// the message, while a pin reuses the Send Chat Message body because the pin
+// action posts the line first and then pins it for the current stream.
+func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, error) {
+	if sc.Type == outgress.TypeAnnounce {
+		return sonic.Marshal(struct {
+			Message string `json:"message"`
+		}{sc.Text})
 	}
-	body, err := sonic.Marshal(struct {
+	return sonic.Marshal(struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
 	}{broadcasterID, sc.Text})
-	if err != nil {
-		return nil, err
-	}
-	return &outgress.Message{
-		Type:          outgress.TypePin,
-		BroadcasterID: broadcasterID,
-		Payload:       body,
-	}, nil
 }
 
 // sendBotChat routes one synthetic bot chat line (a clip reply, the reauth
