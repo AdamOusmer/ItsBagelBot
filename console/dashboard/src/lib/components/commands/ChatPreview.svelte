@@ -1,93 +1,68 @@
 <script lang="ts">
-  // Live chat rehearsal: acts out the command as it will look in Twitch chat —
+  // Live chat rehearsal: acts out a response as it will look in Twitch chat —
   // a viewer types the trigger, the bot "types" for a beat, then replies with
   // sample values substituted into the tokens. Re-runs (debounced) as the
   // response is edited, so authors see the real thing, not a template string.
   //
-  // When the response leads with a Twitch slash-verb (/announce…, /shoutout, /pin,
-  // /me) the worker turns it into that native action instead of a plain chat
-  // line (see app/sesame/engine/slash.go). The rehearsal mirrors that parse so
-  // authors can see they're driving a Twitch command — an announcement callout,
-  // a shoutout card, a stream-long pin, or an italic /me action — with a badge
-  // naming the verb.
-  // A multi-line response (newline-delimited, up to 5 lines) is acted out as
-  // the bot sending one chat message per line, in order — the same fan-out the
-  // worker performs — so authors see exactly how many messages they're minting.
-  import { normName, responseLines, RESPONSE_MAX_LINES, getI18n } from '@bagel/shared';
+  // This component only RENDERS. What the bot would actually send — which
+  // tokens expand, whether a leading /announce, /shoutout, /pin or /me becomes
+  // a native Twitch action, how many messages a multi-line response mints —
+  // is computed by the shared rehearsal core (@bagel/shared rehearsal.ts),
+  // which mirrors the Go engine line by line. `kind` picks the surface:
+  //
+  //   kind="command" — custom "!command" responses: full command tokens,
+  //   slash-verb routing per line, up to 5 messages (one per line).
+  //
+  //   kind="reply" — module replies (alerts, triggers, rewards, built-ins,
+  //   gateway commands): ONLY the tokens in `samples` (plus the dynamic set
+  //   unless dynamic={false}), one message. A leading slash-verb routes the
+  //   same as a command line — the pipeline translates every emitted output.
+  import {
+    rehearseCommand,
+    rehearseReply,
+    COMMAND_SAMPLES,
+    normName,
+    getI18n,
+    type RehearsedLine,
+    type Seg
+  } from '@bagel/shared';
 
   const { t } = getI18n();
 
-  // Reused beyond custom commands: built-in commands pass `args` (the text a
-  // viewer types after the trigger, e.g. "!clip That is amazing") and sample
-  // overrides; event-driven module replies pass showViewer=false + a `tag` (the
-  // firing event, e.g. "on follow") so only the bot line renders.
   let {
     name = '',
     response = '',
     args = '',
+    kind = 'command',
     showViewer = true,
     viewerText = undefined as string | undefined,
     tag = undefined as string | undefined,
     samples = undefined as Record<string, string> | undefined,
-    samplesOnly = false
+    dynamic = true
   }: {
     name?: string;
     response?: string;
     args?: string;
+    // Which bot expansion path this surface rehearses (see header comment).
+    kind?: 'command' | 'reply';
     showViewer?: boolean;
     // viewerText renders the viewer line verbatim (a plain chat message, no "!"
     // trigger) — used by trigger-word rehearsals where a normal message fires the
     // reply. When unset the viewer types the "!command" trigger.
     viewerText?: string;
     tag?: string;
+    // kind="command": overrides merged over the standard command samples.
+    // kind="reply": the surface's OWN token map — nothing else substitutes.
     samples?: Record<string, string>;
-    // samplesOnly drops the default command samples entirely: gateway module
-    // replies substitute ONLY their own tokens ({player}, {wins}, ...) — the
-    // bot never expands {user}/{random} there, so previewing those as values
-    // would rehearse a reply the bot cannot produce. Unknown tokens stay
-    // marked, exactly like a typo in a custom command.
-    samplesOnly?: boolean;
+    // kind="reply" only: false for surfaces whose bot path is a bare string
+    // replacer with no {random}/{choice:…} fallback (govee, clip).
+    dynamic?: boolean;
   } = $props();
 
-  // Keys mirror what sesame actually expands (custom commands: expandCommand in
-  // app/sesame/engine/vars.go; the rest are alert-module tokens).
-  const DEFAULT_SAMPLES: Record<string, string> = {
-    user: 'sesame_sam',
-    sender: 'sesame_sam',
-    args: 'aaaa',
-    target: 'ferret_king',
-    touser: 'ferret_king',
-    channel: 'bagel_bakery',
-    random: '57',
-    tier: '1000',
-    bits: '500',
-    raider: 'CrustyCrumbs',
-    raider_login: 'crustycrumbs',
-    viewers: '42',
-    count: '5',
-    duration: '90'
-  };
-  // Caller overrides win (e.g. a raid alert where {user} is the raiding channel).
-  const SAMPLES = $derived<Record<string, string>>(
-    samplesOnly ? (samples ?? {}) : { ...DEFAULT_SAMPLES, ...(samples ?? {}) }
-  );
-  // The sample viewer typing the trigger; module replies carry no {user} sample.
-  const viewerName = $derived(SAMPLES.user ?? DEFAULT_SAMPLES.user);
+  // The sample viewer typing the trigger; reply surfaces may carry no {user}.
+  const viewerName = $derived(samples?.user ?? COMMAND_SAMPLES.user);
 
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
-
-  // --- Slash-verb parse, mirrored from app/worker/module/slash.go ---------
-  // Sesame recognizes a leading verb, rewrites the outgress Type, and
-  // strips the verb from the text. We reproduce the same matching (whole-verb
-  // or "verb " prefix) so the rehearsal renders the same action the bot sends.
-  type Mode = 'chat' | 'announce' | 'shoutout' | 'pin' | 'me';
-  type Parsed = {
-    mode: Mode;
-    body: string; // text with the verb stripped (what actually gets shown)
-    verb?: string; // the matched verb, e.g. "/announcegreen"
-    color?: string; // announce color key
-    target?: string; // shoutout target (leading @ removed)
-  };
 
   // Twitch announcement accent colors. "primary" is the channel accent.
   const ACCENT: Record<string, string> = {
@@ -98,117 +73,17 @@
     purple: '#c77dff'
   };
 
-  // Longest verbs first so "/announceblue" isn't mistaken for "/announce".
-  const ANNOUNCE: [string, string][] = [
-    ['/announceblue', 'blue'],
-    ['/announcegreen', 'green'],
-    ['/announceorange', 'orange'],
-    ['/announcepurple', 'purple'],
-    ['/announce', 'primary']
-  ];
-
-  // cutVerb: match verb as the whole string or as a "verb " prefix; returns the
-  // remainder with the single separating space removed (null when no match).
-  function cutVerb(text: string, verb: string): string | null {
-    if (text === verb) return '';
-    if (text.startsWith(verb + ' ')) return text.slice(verb.length + 1);
-    return null;
-  }
-
-  function parseLine(text: string): Parsed {
-    for (const [verb, color] of ANNOUNCE) {
-      const rest = cutVerb(text, verb);
-      if (rest !== null) return { mode: 'announce', body: rest, verb, color };
-    }
-    const so = cutVerb(text, '/shoutout');
-    if (so !== null) {
-      const trimmed = so.replace(/^ +/, '');
-      const sp = trimmed.indexOf(' ');
-      const rawTarget = sp === -1 ? trimmed : trimmed.slice(0, sp);
-      const remainder = sp === -1 ? '' : trimmed.slice(sp + 1).replace(/^ +/, '');
-      return { mode: 'shoutout', body: remainder, verb: '/shoutout', target: rawTarget.replace(/^@/, '') };
-    }
-    const pin = cutVerb(text, '/pin');
-    if (pin !== null) return { mode: 'pin', body: pin, verb: '/pin' };
-    // /me is a plain passthrough on the wire (verb kept in Text), but Twitch
-    // renders it as an italic action — strip the verb for display.
-    const me = cutVerb(text, '/me');
-    if (me !== null) return { mode: 'me', body: me, verb: '/me' };
-    return { mode: 'chat', body: text };
-  }
+  const views = $derived.by<RehearsedLine[]>(() =>
+    kind === 'command' ? rehearseCommand(response, samples) : rehearseReply(response, samples, { dynamic })
+  );
 
   // Human label for the "uses Twitch command" badge.
-  function verbLabelOf(p: Parsed): string {
-    if (p.mode === 'announce') {
-      return p.color === 'primary' ? '/announce' : `/announce (${p.color})`;
+  function verbLabelOf(v: RehearsedLine): string {
+    if (v.mode === 'announce') {
+      return v.color === 'primary' ? '/announce' : `/announce (${v.color})`;
     }
-    return p.verb ?? '';
+    return v.verb ?? '';
   }
-
-  // Substituted segments over the *stripped* body: known tokens become
-  // highlighted sample values, unknown {tokens} stay marked so typos are visible.
-  type Seg = { text: string; kind: 'plain' | 'sample' | 'unknown' };
-
-  // Deterministic stand-ins for the dynamic tokens sesame resolves at run time
-  // ({counter:x} via the loyalty bump, {random:min-max}/{choice:a,b,c} via
-  // module.ParseDynamic). Prefix matching is case-sensitive like the bot's;
-  // null = the bot would leave the token literal.
-  function dynamicSample(raw: string): string | null {
-    // Bot counters are admin-only: runtime leaves the token visible, so the
-    // rehearsal does too.
-    if (raw.startsWith('counter:bot:')) return null;
-    if (raw.startsWith('counter:')) return raw.length > 'counter:'.length ? '42' : null;
-    if (raw.startsWith('random:')) return randomSample(raw.slice('random:'.length));
-    if (raw.startsWith('choice:')) return raw.slice('choice:'.length).split(',')[0];
-    return null;
-  }
-
-  // Midpoint of a valid {random:min-max} range, so the rehearsal shows a value
-  // the bot could roll without re-rolling on every keystroke.
-  function randomSample(range: string): string | null {
-    const m = range.match(/^(\d+)-(\d+)$/);
-    if (!m) return null;
-    const min = Number(m[1]);
-    const max = Number(m[2]);
-    return max >= min ? String(Math.floor((min + max) / 2)) : null;
-  }
-
-  // One token's segment. dynamic=false (samplesOnly callers) skips the dynamic
-  // forms and leaves colon tokens plain: gateway replies never resolve them.
-  function tokenSeg(span: string, raw: string, samples: Record<string, string>, dynamic: boolean): Seg {
-    const key = raw.toLowerCase();
-    if (key in samples) return { text: samples[key], kind: 'sample' };
-    const dyn = dynamic ? dynamicSample(raw) : null;
-    if (dyn !== null) return { text: dyn, kind: 'sample' };
-    if (raw.includes(':') && !dynamic) return { text: span, kind: 'plain' };
-    return { text: span, kind: 'unknown' };
-  }
-
-  function segmentsOf(body: string, samples: Record<string, string>, dynamic: boolean): Seg[] {
-    const out: Seg[] = [];
-    const re = /\{([a-z_]+(?::[^{}]*)?)\}/gi;
-    let last = 0;
-    for (const m of body.matchAll(re)) {
-      if (m.index > last) out.push({ text: body.slice(last, m.index), kind: 'plain' });
-      out.push(tokenSeg(m[0], m[1], samples, dynamic));
-      last = m.index + m[0].length;
-    }
-    if (last < body.length) out.push({ text: body.slice(last), kind: 'plain' });
-    return out;
-  }
-
-  // One rehearsed bot message per response line, mirroring the worker's
-  // fan-out: every line is parsed for its own slash-verb and substituted
-  // independently, capped at the same ceiling the service enforces.
-  type LineView = Parsed & { segments: Seg[] };
-  const views = $derived.by<LineView[]>(() =>
-    responseLines(response)
-      .slice(0, RESPONSE_MAX_LINES)
-      .map((line) => {
-        const p = parseLine(line);
-        return { ...p, segments: segmentsOf(p.body, SAMPLES, !samplesOnly) };
-      })
-  );
 
   // Typing beat: edits flip to the dots, settle back to the reply. Debounced so
   // the bot doesn't stutter on every keystroke.
@@ -228,6 +103,14 @@
     return () => clearTimeout(settle);
   });
 </script>
+
+{#snippet segs(list: Seg[])}
+  {#each list as seg, i (i)}
+    {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
+    {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
+    {:else}{seg.text}{/if}
+  {/each}
+{/snippet}
 
 <div class="chat" aria-label={t('chatPreview.ariaPreview')}>
   <span class="chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
@@ -256,7 +139,7 @@
       <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
     </div>
   {:else}
-    <!-- One bot message per response line, staggered like the worker's send order. -->
+    <!-- One bot message per rehearsed line, staggered like the worker's send order. -->
     {#each views as v, li (li)}
       <div
         class="line bot"
@@ -275,13 +158,7 @@
               {t('chatPreview.announcement')}
             </span>
             {#if v.segments.length}
-              <span class="msg reply">
-                {#each v.segments as seg, i (i)}
-                  {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-                  {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-                  {:else}{seg.text}{/if}
-                {/each}
-              </span>
+              <span class="msg reply">{@render segs(v.segments)}</span>
             {:else}
               <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: v.verb ?? '' })}</span>
             {/if}
@@ -298,13 +175,7 @@
         {:else if v.mode === 'me'}
           <span class="via inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
           {#if v.segments.length}
-            <span class="msg reply action">
-              {#each v.segments as seg, i (i)}
-                {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-                {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-                {:else}{seg.text}{/if}
-              {/each}
-            </span>
+            <span class="msg reply action">{@render segs(v.segments)}</span>
           {:else}
             <span class="msg empty">{t('chatPreview.addActionAfterMe')}</span>
           {/if}
@@ -315,25 +186,13 @@
               {t('chatPreview.pinnedForStream')}
             </span>
             {#if v.segments.length}
-              <span class="msg reply">
-                {#each v.segments as seg, i (i)}
-                  {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-                  {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-                  {:else}{seg.text}{/if}
-                {/each}
-              </span>
+              <span class="msg reply">{@render segs(v.segments)}</span>
             {:else}
               <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: '/pin' })}</span>
             {/if}
           </div>
         {:else}
-          <span class="msg reply">
-            {#each v.segments as seg, i (i)}
-              {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-              {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
-              {:else}{seg.text}{/if}
-            {/each}
-          </span>
+          <span class="msg reply">{@render segs(v.segments)}</span>
         {/if}
       </div>
     {/each}
