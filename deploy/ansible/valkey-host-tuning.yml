@@ -11,6 +11,7 @@
       - node1
       - node2
       - node3
+      - node4
       - worker1
   tasks:
     - name: Refuse an empty or partial cluster target
