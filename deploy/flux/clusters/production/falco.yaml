@@ -164,14 +164,14 @@ spec:
           # container is near-idle, waking only every 168h to poll). falcoctl
           # 0.12.2 predates Go 1.25's CFS-aware GOMAXPROCS default, so its
           # runtime sets GOMAXPROCS to the node core count (2-4 here) and fans
-          # background work (sysmon/GC/scavenger) across that many Ps. Against
-          # the 25m limit (2.5ms per 100ms CFS period) any multi-P burst blows
-          # the quota, so the sidecar showed >90% throttled periods for 5m+
-          # despite ~zero real CPU use (New Relic "Container cpu throttling is
-          # high", CRITICAL). Pinning GOMAXPROCS=1 serializes that work onto one
-          # P and kills the sustained throttling WITHOUT raising the limit (tune
-          # before room). Same mechanism automaxprocs implements for low-limit
-          # Go sidecars. If throttling persists after this, THEN bump limits.
+          # background work (sysmon/GC/scavenger) across that many Ps.
+          # GOMAXPROCS=1 serializes onto one P (same mechanism as automaxprocs)
+          # but was not sufficient alone: even single-P Go runtime bursts (GC
+          # stop-the-world, scavenger) exceed 2.5ms per 100ms CFS period at
+          # the original 25m limit, keeping throttled_periods/total_periods
+          # above 90% and firing New Relic "Container cpu throttling is high"
+          # (CRITICAL). Bumped to 100m (10ms/period) — the runtime can now
+          # complete its bursts within quota. Actual steady-state use is ~0m.
           #
           # Memory: Go's idle RSS (GC heap, stacks, runtime metadata) sits
           # ~25Mi, which against a 32Mi limit kept utilization >90% for 5m+ and
@@ -183,10 +183,10 @@ spec:
               value: "1"
           resources:
             requests:
-              cpu: 5m
+              cpu: 10m
               memory: 32Mi
             limits:
-              cpu: 25m
+              cpu: 100m
               memory: 64Mi
 
     customRules:
