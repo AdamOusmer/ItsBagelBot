@@ -9,6 +9,7 @@ node-external-ip: {{ node_external_ip }}
 flannel-iface: {{ flannel_iface }}
 node-label:
   - "topology.kubernetes.io/zone={{ node_zone }}"
+  - "topology.kubernetes.io/region={{ node_region }}"
 {% if node_pool | length > 0 %}
   - "itsbagelbot.dev/pool={{ node_pool }}"
 node-taint:

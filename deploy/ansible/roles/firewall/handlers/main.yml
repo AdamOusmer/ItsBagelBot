@@ -8,3 +8,12 @@
     name: fleet-cni-trust.service
     state: restarted
     daemon_reload: true
+  register: cni_trust
+  # On a FRESH box the tailscale role flushes handlers before k3s is installed,
+  # so the binder exits 1 ("no CNI/flannel interface present yet") and systemd
+  # reports a failed start. That must NOT abort the provision: the unit carries
+  # Restart=on-failure / RestartSec=15 / StartLimitIntervalSec=0, so it keeps
+  # retrying and binds the moment k3s creates cni0 + flannel-wg. On a node that
+  # already runs k3s the interfaces exist, so a failure there is real and fatal.
+  # (Aborting here stranded node4 mid-provision on 2026-07-25.)
+  failed_when: cni_trust is failed and (k3s_binary.stat.exists | default(false))

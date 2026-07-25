@@ -33,6 +33,7 @@ tailscale_direct_peers:
   - node1
   - node2
   - node3
+  - node4
   - worker1
 
 # --- Node identity -----------------------------------------------------------
@@ -41,6 +42,11 @@ tailscale_direct_peers:
 # box always joins as a BRAND NEW node and never clobbers an existing identity.
 node_name_requested: "{{ lookup('env', 'NODE_NAME') | default('', true) }}"
 node_zone: "{{ lookup('env', 'NODE_ZONE') | default('ovh-bhs1', true) }}"
+# Every fleet node carries BOTH zone and region: console-admin spreads on region
+# and the Service PreferClose routing keys off zone. A node-label absent from
+# this template is dropped on re-registration, so it must live here, not in a
+# one-off `kubectl label`.
+node_region: "{{ lookup('env', 'NODE_REGION') | default('ca-mtl', true) }}"
 
 # Scheduling pool. Set NODE_POOL (e.g. worker-pool) to taint + label the node so
 # only pods that tolerate itsbagelbot.dev/pool=<pool> land on it (default-deny).

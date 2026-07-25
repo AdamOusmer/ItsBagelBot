@@ -99,6 +99,13 @@
 # -- which silently fails the fleet's quota sharing open. A boot-time oneshot
 # waits for the interfaces and binds them; installing it here is why this belongs
 # in the firewall role rather than k3s_agent.
+# The binder can only succeed once k3s has created cni0 + a flannel transport.
+# On a fresh provision it has not, and the handler below must tolerate that.
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
 - name: Install the CNI trusted-zone binder script
   ansible.builtin.copy:
     src: fleet-cni-trust.sh

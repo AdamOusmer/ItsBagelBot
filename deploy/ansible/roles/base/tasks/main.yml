@@ -46,6 +46,13 @@
       - policycoreutils
       - policycoreutils-python-utils
       - chrony
+      # br_netfilter ships in kernel-modules-extra on RHEL10-family, NOT in the
+      # base kernel-modules. Without it `modprobe br_netfilter` fails, the
+      # net.bridge.bridge-nf-call-* sysctls never appear, and pod->Service
+      # traffic crossing cni0 bypasses the kube-proxy iptables chains. The
+      # cloud images the older fleet nodes came from happened to include it;
+      # a bare image does not (node4, 2026-07-25).
+      - kernel-modules-extra
     state: present
 
 - name: Enable + start chrony (clock sync)
