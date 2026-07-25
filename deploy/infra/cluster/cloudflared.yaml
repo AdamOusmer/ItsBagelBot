@@ -1,11 +1,16 @@
 # Cloudflare Tunnel connector. Public ingress enters here: Cloudflare's edge
 # dials these outbound connectors and forwards to traefik.kube-system:443.
 #
-# Replicas hard-spread one per non-worker host (node2/node3). worker1 is
-# excluded explicitly: it is a burst worker, not part of the ingress failure
-# domain. A single tunnel ID supports many connector replicas (Cloudflare's
-# native HA model). Both outbound paths are already encrypted (443 to traefik
-# and 7844 to Cloudflare).
+# Replicas hard-spread one per non-worker host (node1/node2/node3/node4).
+# worker1 is excluded explicitly: it is a burst worker, not part of the ingress
+# failure domain. A single tunnel ID supports many connector replicas
+# (Cloudflare's native HA model). Both outbound paths are already encrypted
+# (443 to traefik and 7844 to Cloudflare).
+#
+# Replica count MUST equal the number of eligible hosts: the anti-affinity is
+# hard one-per-node, so fewer replicas than hosts leaves an arbitrary node with
+# no connector (node4 joined 2026-07-25 and got none until this bump). node1 is
+# arm64 — cloudflared ships a multi-arch manifest, verified for 2026.5.0.
 #
 # Managed by the cluster Flux Kustomization. config = cloudflared-config
 # ConfigMap, creds = cloudflared-tunnel Secret (Doppler-managed; the reload
@@ -18,7 +23,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cloudflared
 spec:
-  replicas: 2 # one per non-worker node (node2, node3); node1 decommissioned
+  replicas: 4 # one per non-worker node: node1, node2, node3, node4
   revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
