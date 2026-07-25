@@ -249,13 +249,13 @@ spec:
     name: outgress
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 3
-  # 3 per hot-path node (node2/node3/worker1). Outgress is Twitch-rate-limited,
+  minReplicaCount: 4
+  # 3 per hot-path node (node2/node3/node4/worker1). Outgress is Twitch-rate-limited,
   # so headroom here is for lag-driven burst drain, not sustained throughput.
-  maxReplicaCount: 9
+  maxReplicaCount: 12
   fallback:
     failureThreshold: 3
-    replicas: 3
+    replicas: 4
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:

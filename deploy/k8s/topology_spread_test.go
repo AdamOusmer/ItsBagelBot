@@ -96,8 +96,8 @@ func TestRolloutSensitiveWorkloadsHardSpreadEachReplicaSet(t *testing.T) {
 		minDomains int
 	}{
 		{"console-admin.yaml", "console-admin", 0},
-		{"notifications.yaml", "notifications", 3},
-		{"transactions.yaml", "transactions", 3},
+		{"notifications.yaml", "notifications", 4},
+		{"transactions.yaml", "transactions", 4},
 		{"twitch-ingress.yaml", "twitch-ingress", 0},
 	}
 
