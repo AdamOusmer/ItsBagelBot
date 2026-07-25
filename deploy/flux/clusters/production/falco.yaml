@@ -147,7 +147,8 @@ spec:
         value: worker-pool
 
     # Far below chart defaults (100m/512Mi -> 1000m/1024Mi); live-proven for
-    # this fleet.
+    # this fleet. falcoctl follow sidecar bumped to 64Mi (from 32Mi) to avoid
+    # sustained >90% memory utilization from Go runtime baseline RSS.
     resources:
       requests:
         cpu: 10m
@@ -171,16 +172,22 @@ spec:
           # P and kills the sustained throttling WITHOUT raising the limit (tune
           # before room). Same mechanism automaxprocs implements for low-limit
           # Go sidecars. If throttling persists after this, THEN bump limits.
+          #
+          # Memory: Go's idle RSS (GC heap, stacks, runtime metadata) sits
+          # ~25Mi, which against a 32Mi limit kept utilization >90% for 5m+ and
+          # fired "Container high memory utilization" (CRITICAL). Bumped to
+          # 64Mi so the baseline floats at ~40% instead. Request raised to 32Mi
+          # to match (request ≈ actual idle RSS).
           env:
             - name: GOMAXPROCS
               value: "1"
           resources:
             requests:
               cpu: 5m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               cpu: 25m
-              memory: 32Mi
+              memory: 64Mi
 
     customRules:
       bagelbot-exceptions.yaml: |-
