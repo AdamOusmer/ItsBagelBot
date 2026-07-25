@@ -147,8 +147,9 @@
     # which is the proof it is not load-bearing.
     #
     # Do NOT "fix" this by repointing it at flannel-wg: the race it guarded
-    # cannot recur now that pod traffic is off tailscale0 entirely, and the
-    # k3s(-agent) units already block on ExecStartPre=wait-for-tailscale0.
+    # cannot recur now that pod traffic is off tailscale0 entirely. (The
+    # ExecStartPre=wait-for-tailscale0 gate that used to back this claim was
+    # removed fleet-wide on 2026-07-25; k3s units retry on their own.)
     # Restarting a single-server control plane on a timer is not a safety net.
     - name: Stop the obsolete VXLAN-era flannel watchdog
       ansible.builtin.systemd:

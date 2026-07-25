@@ -3,9 +3,10 @@
 #
 #   doppler run -p infra-bootstrap -c prd -- ansible-playbook -i inventory.cluster.ini k3s-server-tuning.yml
 #
-# node2 is the SINGLE k3s server (sqlite/kine — no HA, see the control-plane
-# migration notes). Its Go heap is capped with GOMEMLIMIT + GOGC, delivered via
-# the stock unit's `EnvironmentFile=-/etc/systemd/system/k3s.service.env` hook.
+# node3 is the SINGLE k3s server (sqlite/kine — no HA, see the control-plane
+# migration notes; CP moved node2 -> node3 on 2026-07-25). Its Go heap is capped
+# with GOMEMLIMIT + GOGC, delivered via the stock unit's
+# `EnvironmentFile=-/etc/systemd/system/k3s.service.env` hook.
 # Without it the apiserver heap coasts upward on a 12GB box that also hosts
 # pods, and a single-server control plane has no peer to absorb an OOM.
 #
@@ -15,6 +16,9 @@
 # flannel-watchdog keep restarting this control plane unnoticed for ~23h
 # (see cluster-network-wireguard.yml) — a migration cannot clean up, and a
 # rebuild cannot restore, what the repo does not know exists.
+#
+# The k3s install script REWRITES this file empty when it runs (observed during
+# the 2026-07-25 node3 promotion), so re-apply this play after any install/upgrade.
 #
 # Verified live 2026-07-17: /proc/<k3s-pid>/environ carries both vars and
 # k3s-server RSS sits at ~1.4G against GOMEMLIMIT=1300MiB (heap held at the

@@ -113,7 +113,7 @@ NODE_NAME=node4 doppler run --project infra-bootstrap --config prd -- ansible-pl
 The production data plane uses K3s `wireguard-native`. Every node advertises a
 direct WAN Flannel endpoint; no pod or service traffic is nested in Tailscale.
 Tailscale remains only for SSH and explicit private routes such as Kubernetes
-management, the database, and admin ingress. node2's API advertise address and
+management, the database, and admin ingress. node3's API advertise address and
 the API server's kubelet address preference remain pinned to Tailscale
 InternalIP; `node-external-ip` must not move Kubernetes API or DB traffic onto
 the public interface. Workloads, NATS, Valkey, RPC, streams, telemetry, and

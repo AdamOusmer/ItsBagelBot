@@ -54,7 +54,8 @@ spec:
               labelSelector:
                 matchLabels:
                   app.kubernetes.io/instance: cloudflared-deployment
-      # node2 is the control plane and remains one of the three ingress nodes.
+      # node3 is the control plane (moved off node2 2026-07-25) and remains one
+      # of the three ingress nodes.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

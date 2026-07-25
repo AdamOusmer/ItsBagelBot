@@ -15,7 +15,7 @@ fi
 for _ in {1..90}; do
   if /usr/sbin/iw dev wlp2s0 link | grep -q '^Connected to ' \
     && systemctl is-active --quiet tailscaled.service \
-    && timeout 3 /usr/bin/tailscale ping -c 1 100.95.95.9 >/dev/null 2>&1 \
+    && timeout 3 /usr/bin/tailscale ping -c 1 100.99.41.21 >/dev/null 2>&1 \
     && systemctl is-active --quiet k3s-agent.service \
     && systemctl is-active --quiet worker1-wifi-performance.service \
     && systemctl is-active --quiet tailscale-udp-gro.service \
