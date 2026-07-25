@@ -59,9 +59,9 @@ spec:
       # The node1 exclusion below is inert since node1 left the fleet; kept so
       # the applied spec is unchanged. KEDA (see the ScaledObject below) scales
       # onto node2/node3/worker1.
-      # Baseline shape at the KEDA floor of 5: node3=2, worker1=2, node2=1.
-      # node2 already carries the control plane + valkey master, so the doubles
-      # belong on the big-CPU pair; the graded preferences below pick which
+      # Baseline shape at the KEDA floor of 6: node4=2, worker1=2, node2=1, node3=1.
+      # node2 already carries the control plane + valkey master, so the double
+      # belongs on the big-CPU node4; the graded preferences below pick which
       # nodes take them (node3 first, worker1 second). The required hostname
       # spread below is authoritative: preferences choose which nodes receive
       # the two extra replicas, but can never stack four workers on one node.
@@ -79,7 +79,7 @@ spec:
                 matchExpressions:
                   - key: kubernetes.io/hostname
                     operator: In
-                    values: [node3]
+                    values: [node4]
             - weight: 20
               preference:
                 matchExpressions:
@@ -262,7 +262,7 @@ spec:
 ---
 # Sesame's engine is sub-100us p95; confirmed NATS input/output is the measured
 # capacity boundary. minReplicaCount 5 keeps the baseline shape
-# node3=2, worker1=2, node2=1 (see the Deployment's graded node preferences)
+# node4=2, worker1=2, node2=1, node3=1 (see the Deployment's graded node preferences)
 # without waiting on a scale-up; node2 stays light on purpose.
 # Consumer names are bus.durableName("worker", subject) - sesame
 # shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
@@ -280,11 +280,11 @@ spec:
     name: sesame
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 5
-  maxReplicaCount: 10
+  minReplicaCount: 6
+  maxReplicaCount: 12
   fallback:
     failureThreshold: 3
-    replicas: 5
+    replicas: 6
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:

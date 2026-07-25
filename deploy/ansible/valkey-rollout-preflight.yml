@@ -91,7 +91,7 @@
     - name: Refuse rollout with a primary outside node2 and node3
       ansible.builtin.assert:
         that:
-          - valkey_primary_node.stdout in ['node2', 'node3']
+          - valkey_primary_node.stdout in ['node2', 'node3', 'node4']
         fail_msg: >-
           Refusing rollout: Sentinel primary {{ valkey_primary_pod }} is on
-          {{ valkey_primary_node.stdout | default('an unknown node') }}, not node2/node3.
+          {{ valkey_primary_node.stdout | default('an unknown node') }}, not node2/node3/node4.

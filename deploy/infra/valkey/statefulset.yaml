@@ -21,9 +21,9 @@ spec:
   # fleet when ordinal zero is scheduled on a fenced node.
   podManagementPolicy: Parallel
   # Three colocated Valkey+Sentinel voters produce one writable primary and
-  # two replicas, one per node since node1 left the fleet. This count is a
+  # three replicas, one per node since node1 left the fleet. This count is a
   # CI-enforced configuration invariant.
-  replicas: 3
+  replicas: 4
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -64,7 +64,7 @@ spec:
           # view, which avoids making an arbitrary StatefulSet ordinal primary.
           #
           # A retained fenced primary also waits until the remaining Sentinels
-          # elect node2 or node3. Retained replicas may start immediately so
+          # elect node2, node3, or node4. Retained replicas may start immediately so
           # their colocated Sentinels can form the majority needed for failover.
           # This turns the placement policy into a fail-closed invariant instead
           # of relying on replica-priority, which only controls future elections.
@@ -79,7 +79,7 @@ spec:
           fi
           FENCED=true
           case "${NODE_NAME}" in
-            node2|node3) FENCED=false ;;
+            node2|node3|node4) FENCED=false ;;
           esac
           LIVE_MASTER=$(lookup_master)
           WAIT_FOR_PRIMARY=false
@@ -91,7 +91,7 @@ spec:
             WAIT_FOR_PRIMARY=true
           fi
           if [ "${WAIT_FOR_PRIMARY}" = "true" ]; then
-            echo "Waiting for a node2/node3 Sentinel primary before starting ${POD_FQDN}"
+            echo "Waiting for a node2/node3/node4 Sentinel primary before starting ${POD_FQDN}"
             while [ -z "${LIVE_MASTER}" ] || { [ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]; }; do
               sleep 2
               LIVE_MASTER=$(lookup_master)
@@ -117,12 +117,12 @@ spec:
             chmod 600 /data/valkey.conf
           fi
           # Reconcile master eligibility on every boot. Retained PVCs may carry
-          # a stale CONFIG REWRITE value, so only the explicit node2/node3
+          # a stale CONFIG REWRITE value, so only the explicit node2/node3/node4
           # allowlist can remain eligible for Sentinel promotion. Every other
           # node, including worker1 and future unknown nodes, is fenced.
           sed -i '/^replica-priority /d' /data/valkey.conf
           case "${NODE_NAME}" in
-            node2|node3)
+            node2|node3|node4)
               echo "replica-priority 100" >> /data/valkey.conf
               ;;
             *)

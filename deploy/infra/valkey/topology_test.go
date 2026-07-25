@@ -19,7 +19,7 @@ func TestSentinelSinglePrimaryTopologyIsConfigured(t *testing.T) {
 	statefulSet := readFile(t, "statefulset.yaml")
 	valkeyConfig := readFile(t, "config/valkey.conf")
 
-	assert.Regexp(t, `(?m)^  replicas: 3$`, statefulSet, "three Valkey+Sentinel pods")
+	assert.Regexp(t, `(?m)^  replicas: 4$`, statefulSet, "four Valkey+Sentinel pods")
 	assert.Contains(t, statefulSet, topologyMarker)
 	assert.Contains(t, statefulSet, partitioningGuard)
 	assert.Contains(t, statefulSet, "- --sentinel")
@@ -47,8 +47,8 @@ func TestMasterEligibilityIsReconciledOnEveryBoot(t *testing.T) {
 	statefulSet := readFile(t, "statefulset.yaml")
 
 	assert.Contains(t, statefulSet, `case "${NODE_NAME}" in`)
-	assert.Contains(t, statefulSet, `node2|node3)`)
-	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 100"`), "node2/node3 are the only eligible nodes")
+	assert.Contains(t, statefulSet, `node2|node3|node4)`)
+	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 100"`), "node2/node3/node4 are the only eligible nodes")
 	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 0"`), "all non-allowlisted nodes are fenced")
 	assert.NotContains(t, statefulSet, `replica-priority 200`, "node1 must never remain a last-resort master")
 }
@@ -58,7 +58,7 @@ func TestColdBootstrapCannotMakeAnArbitraryOrdinalPrimary(t *testing.T) {
 
 	assert.Regexp(t, `(?m)^  podManagementPolicy: Parallel$`, statefulSet)
 	assert.Contains(t, statefulSet, `elif [ "${CONFIG_PRESENT}" = "false" ] && [ "${NODE_NAME}" != "node2" ]; then`)
-	assert.Contains(t, statefulSet, `Waiting for a node2/node3 Sentinel primary`)
+	assert.Contains(t, statefulSet, `Waiting for a node2/node3/node4 Sentinel primary`)
 	assert.Contains(t, statefulSet, `[ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]`)
 	assert.NotContains(t, statefulSet, "POD_INDEX", "StatefulSet ordinal must not confer primary eligibility")
 	assert.NotContains(t, statefulSet, "MASTER_ENDPOINT:-valkey-node-0", "pod zero must not be a cold-start fallback")

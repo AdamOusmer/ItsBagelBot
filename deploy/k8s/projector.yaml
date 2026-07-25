@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per hot-path node: node2, node3, worker1
+  replicas: 4 # one per hot-path node: node2, node3, node4, worker1
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
