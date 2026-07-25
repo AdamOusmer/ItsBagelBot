@@ -40,6 +40,10 @@ defmodule Ingress.ConduitManager do
   @rebalance_stable_ticks 9
   @rebalance_handoff_timeout_ms 20_000
   @rebalance_poll_interval_ms 300
+  # The released name has to reach the registry replica on the node Horde
+  # places the successor on before that start can register. Delta sync is
+  # sub-second; this bounds the wait well above it without stalling the tick.
+  @rebalance_name_release_timeout_ms 5_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: via())
@@ -361,7 +365,7 @@ defmodule Ingress.ConduitManager do
     Logger.info("rebalancing shard #{shard_id} #{node(pid)} → #{target} after stable membership")
 
     with :ok <- release_shard_name(pid),
-         {:started, successor} <- start_shard(conduit_id, shard_id),
+         {:started, successor} <- start_successor(conduit_id, shard_id),
          :ok <- await_bound(successor, rebalance_deadline()) do
       GenServer.stop(pid, :normal, @orphan_stop_timeout_ms)
       Metrics.count("Conduit/ShardRebalances")
@@ -382,6 +386,41 @@ defmodule Ingress.ConduitManager do
   catch
     :exit, reason -> {:error, {:release_failed, reason}}
   end
+
+  # `release_shard_name` unregisters on the node the old copy runs on, but the
+  # successor registers on whichever node Horde places it on, and that node's
+  # registry replica only learns of the release at the next delta sync. Starting
+  # the instant the release returns therefore races that sync and gets
+  # `{:already_started, _}` for the very copy just unregistered — a rebalance
+  # that rolls back on every tick, forever. Retry until the release has
+  # propagated to the placing node, then give up and roll back.
+  defp start_successor(conduit_id, shard_id) do
+    start_until_free(
+      fn -> start_shard(conduit_id, shard_id) end,
+      name_release_deadline()
+    )
+  end
+
+  @doc false
+  # Retry policy for a blocked start. Public so it can be exercised without a
+  # running Horde cluster.
+  def start_until_free(start_fun, deadline, poll_ms \\ @rebalance_poll_interval_ms) do
+    case start_fun.() do
+      {:started, pid} ->
+        {:started, pid}
+
+      :blocked ->
+        if System.monotonic_time(:millisecond) >= deadline do
+          {:error, :name_release_timeout}
+        else
+          Process.sleep(poll_ms)
+          start_until_free(start_fun, deadline, poll_ms)
+        end
+    end
+  end
+
+  defp name_release_deadline,
+    do: System.monotonic_time(:millisecond) + @rebalance_name_release_timeout_ms
 
   defp rebalance_deadline,
     do: System.monotonic_time(:millisecond) + @rebalance_handoff_timeout_ms
