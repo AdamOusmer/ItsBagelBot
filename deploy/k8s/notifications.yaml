@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per schedulable node incl worker1 (tolerates worker-pool)
+  replicas: 4 # one per schedulable node incl worker1 (tolerates worker-pool)
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -52,7 +52,7 @@ spec:
           tolerationSeconds: 60
       topologySpreadConstraints:
         - maxSkew: 1
-          minDomains: 3
+          minDomains: 4
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
