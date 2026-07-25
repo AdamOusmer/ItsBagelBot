@@ -22,8 +22,12 @@
       NODE_EXTERNAL_IP and a physical FLANNEL_IFACE are required. Tailscale is
       management/DB-only and must not carry Flannel pod traffic.
 
+# ABSOLUTE path on purpose: root's non-interactive PATH on EL10 does not include
+# /usr/local/bin, so a bare `k3s --version` returns rc=127 on a node that has k3s
+# installed. That made the guard below always true, so every single run
+# re-executed the installer and bounced k3s-agent (found 2026-07-25).
 - name: Check installed k3s version (if any)
-  ansible.builtin.command: k3s --version
+  ansible.builtin.command: /usr/local/bin/k3s --version
   register: k3s_installed
   changed_when: false
   failed_when: false

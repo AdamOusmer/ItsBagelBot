@@ -1,0 +1,16 @@
+# Fleet block-device write path. Managed by Ansible.
+#
+# The hypervisor does not always advertise flash correctly: node2/node3 present
+# their QEMU virtual disk as queue/rotational=0 and get the `none` (noop)
+# scheduler, while node4 came up with the SAME virtual hardware flagged
+# rotational=1 and fell back to `mq-deadline` (found 2026-07-25). mq-deadline
+# spends effort reordering for seek locality that does not exist on a
+# flash-backed device, and rotational=1 also skews readahead heuristics — on a
+# node whose hot write path is containerd layers plus valkey/kine fsyncs, that
+# is pure overhead.
+#
+# Gate on discard_granularity != 0 rather than on the rotational flag itself:
+# a device that supports TRIM/discard is flash or thin-provisioned, never a real
+# spindle. A genuine spinning disk reports 0 here and is left completely alone,
+# so this rule is safe to ship fleet-wide including on bare metal (worker1).
+ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]|vd[a-z]|nvme[0-9]n[0-9]", ATTR{queue/discard_granularity}!="0", ATTR{queue/rotational}="0", ATTR{queue/scheduler}="none"

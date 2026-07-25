@@ -30,6 +30,28 @@
   failed_when: >-
     tailscale_tag not in ((ts_ssh.stdout | from_json).Self.Tags | default([]))
 
+# Tailscale SSH authorizes a USER, and the tailnet ACL grants the fleet's
+# non-root admin accounts (almalinux@ / opc@). A box with only root would pass
+# every gate above and still be unreachable the moment OpenSSH goes: node4
+# arrived from a bare image with exactly that shape (2026-07-25) and would have
+# been left with provider-console access only.
+- name: Find a non-root login account for Tailscale SSH
+  ansible.builtin.shell:
+    cmd: >-
+      getent passwd | awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false)$/ {print $1}'
+  register: login_accounts
+  changed_when: false
+
+- name: Require a non-root login account before removing system SSH
+  ansible.builtin.assert:
+    that:
+      - login_accounts.stdout_lines | length > 0
+    fail_msg: >-
+      {{ inventory_hostname }} has no non-root login account. Removing OpenSSH
+      would leave Tailscale SSH with no user to authorize and strand the box.
+      Create the fleet admin user (NOPASSWD sudo) first.
+    success_msg: "Tailscale SSH can authorize: {{ login_accounts.stdout_lines | join(', ') }}"
+
 # --- Tear out OpenSSH --------------------------------------------------------
 - name: Stop + disable + mask sshd
   ansible.builtin.systemd:
@@ -50,6 +72,13 @@
 - name: Remove OpenSSH server package
   ansible.builtin.dnf:
     name: openssh-server
+    state: absent
+
+# Only meaningful once system SSH is gone: Tailscale SSH never consults
+# authorized_keys. Matches node2/node3, which carry no root key material.
+- name: Drop root's authorized_keys
+  ansible.builtin.file:
+    path: /root/.ssh/authorized_keys
     state: absent
 
 - name: Final reminder

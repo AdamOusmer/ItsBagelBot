@@ -53,6 +53,8 @@
       # cloud images the older fleet nodes came from happened to include it;
       # a bare image does not (node4, 2026-07-25).
       - kernel-modules-extra
+      # Required by tailscale-udp-gro.sh below.
+      - ethtool
     state: present
 
 - name: Enable + start chrony (clock sync)
@@ -128,6 +130,77 @@
     mode: "0644"
   notify: reload sysctl
 
+# --- Cluster network tuning --------------------------------------------------
+# These three lived loose in deploy/k8s/network-tune/ and were applied BY HAND.
+# node4 (2026-07-25) joined the fleet without any of them and nobody would have
+# noticed until a burst drop; a node the playbook provisions must arrive tuned.
+- name: Cluster network sysctl tuning (16MiB socket buffers, backlog, PMTU probing)
+  ansible.builtin.copy:
+    src: 90-bagelbot-net.conf
+    dest: /etc/sysctl.d/90-bagelbot-net.conf
+    mode: "0644"
+  notify: reload sysctl
+
+- name: Install the Tailscale underlay UDP-GRO script
+  ansible.builtin.copy:
+    src: tailscale-udp-gro.sh
+    dest: /usr/local/sbin/tailscale-udp-gro.sh
+    mode: "0755"
+
+- name: Install the Tailscale underlay UDP-GRO unit
+  ansible.builtin.copy:
+    src: tailscale-udp-gro.service
+    dest: /etc/systemd/system/tailscale-udp-gro.service
+    mode: "0644"
+
+# Despite the unit's After=tailscaled, the script only needs ethtool and the
+# default-route device, so it converges here even though the tailscale role has
+# not run yet on a fresh box.
+- name: Enable + start the Tailscale underlay UDP-GRO policy
+  ansible.builtin.systemd:
+    name: tailscale-udp-gro.service
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Ensure the tailscaled drop-in dir exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/tailscaled.service.d
+    state: directory
+    mode: "0755"
+
+# Written before tailscaled exists on a fresh node; systemd picks the drop-in up
+# when the unit appears, so first start already carries the raised MTU.
+- name: Pin the Tailscale MTU drop-in
+  ansible.builtin.copy:
+    src: tailscaled-10-mtu.conf
+    dest: /etc/systemd/system/tailscaled.service.d/10-mtu.conf
+    mode: "0644"
+  register: ts_mtu_dropin
+
+# Deliberately NO automatic restart: bouncing tailscaled on an already-joined
+# node drops the tailnet, which on an SSH-removed box is the ONLY way in.
+- name: Report that a tailscaled restart is required to apply a changed MTU
+  ansible.builtin.debug:
+    msg: >-
+      tailscaled MTU drop-in changed on {{ inventory_hostname }}. Apply with a
+      detached `systemd-run --on-active=3 systemctl restart tailscaled` — a
+      foreground restart kills your own session on a tailnet-only host.
+  when: ts_mtu_dropin is changed and not ansible_check_mode
+
+# --- Block device write path -------------------------------------------------
+- name: Install the fleet block-device policy
+  ansible.builtin.copy:
+    src: 60-fleet-io.rules
+    dest: /etc/udev/rules.d/60-fleet-io.rules
+    mode: "0644"
+  register: fleet_io_rules
+
+- name: Apply the block-device policy now
+  ansible.builtin.command: udevadm trigger --subsystem-match=block --action=change
+  when: fleet_io_rules is changed
+  changed_when: true
+
 # Valkey's fork/COW persistence path suffers severe tail-latency spikes when
 # transparent huge pages are active. Keep the host policy reusable by both the
 # fresh-node role and the existing-cluster reconciliation playbook.
@@ -149,3 +222,14 @@
       *               hard    nofile          1048576
       root            soft    nofile          1048576
       root            hard    nofile          1048576
+
+# --- Root account ------------------------------------------------------------
+# Fleet convention (node2/node3): root password LOCKED, admin user reaches root
+# through NOPASSWD sudo. Cloud images ship root already locked, so this was
+# invisible until node4 arrived from a bare image with a usable root password
+# (2026-07-25). Locks the PASSWORD only — key-based auth is untouched, so a run
+# connecting as root does not sever its own connection.
+- name: Lock the root password
+  ansible.builtin.user:
+    name: root
+    password_lock: true
