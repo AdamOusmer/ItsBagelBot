@@ -25,6 +25,14 @@ import (
 // "ok", so a failing, pending, or cleared channel always gets its enroll.
 const enrollCooldownTTL = 2 * time.Minute
 
+const (
+	// A dashboard disconnect followed by enable commonly overlaps for less than
+	// a second. Keep the newer intent in-process briefly instead of paying the
+	// system lane's 15-second transient-failure redelivery delay.
+	enrollLockWaitTimeout  = 3 * time.Second
+	enrollLockPollInterval = 100 * time.Millisecond
+)
+
 // Enrollment states persisted in the channel registry (sub_state). The
 // console's connection model mirrors these exact strings.
 const (
@@ -108,9 +116,9 @@ func effectiveMode(job outgress.EventSubJob) string {
 	return outgress.ModeDisable
 }
 
-// errEnrollLockBusy naks a job that lost the enroll-lock race so paced
-// redelivery re-applies it after the holder finishes.
-var errEnrollLockBusy = errors.New("enroll lock busy: another operation in progress for this channel")
+// errEnrollLockBusy naks a job whose lock stayed busy beyond the short local
+// wait. It is expected backpressure, not an application failure.
+const errEnrollLockBusy expectedNackError = "enroll lock busy: another operation in progress for this channel"
 
 // underEnrollLock runs fn only when this replica wins the channel's enroll
 // lock, so exactly one replica works an enable/disable/reconnect at a time.
@@ -127,13 +135,49 @@ func (w *Worker) underEnrollLock(ctx context.Context, op string, e enrollment, f
 		return err // transient valkey error: nak, let paced redelivery retry
 	}
 	if !got {
-		w.log.Info(op+" waiting on enroll lock, nak for paced redelivery",
+		w.log.Info(op+" waiting on enroll lock",
 			zap.String("broadcaster_id", e.broadcasterID))
-		return errEnrollLockBusy
+		got, err = waitForEnrollLock(ctx, enrollLockWaitTimeout, enrollLockPollInterval, func() (bool, error) {
+			return w.registry.AcquireEnrollLock(ctx, e.broadcasterID, w.owner, 60*time.Second)
+		})
+		if err != nil {
+			return err
+		}
+		if !got {
+			return errEnrollLockBusy
+		}
+		w.log.Info(op+" acquired enroll lock after waiting",
+			zap.String("broadcaster_id", e.broadcasterID))
 	}
 	defer func() { _ = w.registry.ReleaseEnrollLock(ctx, e.broadcasterID, w.owner) }()
 
 	return fn()
+}
+
+func waitForEnrollLock(
+	ctx context.Context,
+	timeout time.Duration,
+	pollInterval time.Duration,
+	acquire func() (bool, error),
+) (bool, error) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-timer.C:
+			return false, nil
+		case <-ticker.C:
+			got, err := acquire()
+			if err != nil || got {
+				return got, err
+			}
+		}
+	}
 }
 
 // skipRevokedEnroll acknowledges an enable/reconnect for a channel whose

@@ -12,6 +12,13 @@
   import LinkedSummary from '$lib/components/overview/LinkedSummary.svelte';
   import TopCommands from '$lib/components/overview/TopCommands.svelte';
   import SetupProgress from '$lib/components/overview/SetupProgress.svelte';
+  import {
+    CONNECTION_POLL_FAST_MS,
+    CONNECTION_POLL_TIMEOUT_MS,
+    connectionPollDelay,
+    connectionPollSettled,
+    type ConnectionPollGoal
+  } from '$lib/connection-poll';
   let { data } = $props();
 
   const { t } = getI18n();
@@ -92,11 +99,13 @@
   let actionError = $state('');
 
   function openModal(action: PendingAction) {
+    if (actionBusy) return;
     actionError = '';
     pending = action;
   }
 
-  function closeModal() {
+  function closeModal(force = false) {
+    if (actionBusy && !force) return;
     actionError = '';
     pending = null;
   }
@@ -106,13 +115,17 @@
   // from "reconnecting" to ok/failing without a manual refresh. `sub` (when set)
   // overrides the server snapshot.
   let sub = $state<{ state: string; error: string } | null>(null);
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let actionBusy = $state(false);
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollRun = 0;
 
-  function stopPolling() {
+  function stopPolling(clearBusy = true) {
+    pollRun += 1;
     if (pollTimer) {
-      clearInterval(pollTimer);
+      clearTimeout(pollTimer);
       pollTimer = null;
     }
+    if (clearBusy) actionBusy = false;
   }
 
   async function refreshSub(): Promise<string> {
@@ -128,33 +141,49 @@
     return 'unknown';
   }
 
-  // Poll while the enroll is unsettled, backstopped at ~30s so a stuck job
-  // stops spinning. 'unenrolled' counts as unsettled here: a just-published
-  // enroll job reads as 'unenrolled' until outgress picks it up and writes
-  // 'pending', and stopping in that gap would freeze the pill mid-flight.
-  function startPolling() {
-    stopPolling();
-    let ticks = 0;
-    pollTimer = setInterval(async () => {
-      ticks += 1;
+  // Poll quickly while the ordinary 1-2s operation finishes, then back off.
+  // Disconnect has its own terminal state: the action response only proves the
+  // job was queued, so Enable stays locked until Outgress reports unenrolled.
+  function startPolling(goal: ConnectionPollGoal) {
+    stopPolling(false);
+    actionBusy = true;
+    const run = ++pollRun;
+    const started = Date.now();
+    let sawUnsettled = false;
+
+    const tick = async () => {
       const state = await refreshSub();
-      if ((state !== 'pending' && state !== 'unenrolled') || ticks >= 12) stopPolling();
-    }, 2500);
+      if (run !== pollRun) return;
+
+      const elapsed = Date.now() - started;
+      if (state === 'pending' || state === 'unenrolled') sawUnsettled = true;
+      if (
+        connectionPollSettled(goal, state, elapsed, sawUnsettled) ||
+        elapsed >= CONNECTION_POLL_TIMEOUT_MS
+      ) {
+        pollTimer = null;
+        actionBusy = false;
+        return;
+      }
+      pollTimer = setTimeout(tick, connectionPollDelay(elapsed));
+    };
+
+    pollTimer = setTimeout(tick, CONNECTION_POLL_FAST_MS);
   }
 
   // Mark reconnecting immediately on user action, then poll to the outcome.
   function trackReconnect() {
     sub = { state: 'pending', error: '' };
-    startPolling();
+    startPolling('connected');
   }
 
   onMount(() => {
     refreshSub().then(async (state) => {
-      if (state === 'pending') return startPolling();
+      if (state === 'pending') return startPolling('connected');
       // The load-time self-heal reports 'pending' before outgress has written
       // anything, so a fresh poll can still read 'unenrolled'. Poll through
       // that gap only when the server said an enroll is actually in flight.
-      if (state === 'unenrolled' && (await data.conn).signals.sub === 'pending') startPolling();
+      if (state === 'unenrolled' && (await data.conn).signals.sub === 'pending') startPolling('connected');
     });
     return stopPolling;
   });
@@ -168,27 +197,31 @@
   };
 
   function closeAfterSubmit() {
-    const wasRestart = pending === 'restart';
+    const action = pending;
+    actionBusy = true;
     return async ({ result, update }: Enhanced) => {
       if (result.type === 'success') {
         await update();
-        closeModal();
-        // Only a restart re-enrolls; disconnect just tears down.
-        if (wasRestart) trackReconnect();
+        closeModal(true);
+        if (action === 'restart') trackReconnect();
+        else startPolling('disconnected');
       } else {
         await update({ reset: false });
+        actionBusy = false;
         actionError = t('overview.actionFailed');
       }
     };
   }
 
   function enableSubmit() {
+    actionBusy = true;
     return async ({ result, update }: Enhanced) => {
       if (result.type === 'success') {
         await update();
         trackReconnect();
       } else {
         await update({ reset: false });
+        actionBusy = false;
         toast('err', t('overview.actionFailed'));
       }
     };
@@ -213,6 +246,7 @@
     <BotStatusPanel
       ui={u}
       checkingText={t('overview.checking')}
+      busy={actionBusy}
       {isDelegate}
       isPremium={data.isPremium}
       logoSrc={logo}
@@ -306,10 +340,11 @@
     <p class="modal-body">{modalBody}</p>
     {#if actionError}<p class="modal-error" role="alert">{actionError}</p>{/if}
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
-      <Button variant="ghost" type="button" onclick={closeModal}>{t('common.cancel')}</Button>
+      <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
       <Button
         variant={pending === 'disconnect' ? 'tan' : 'primary'}
         type="submit"
+        loading={actionBusy}
       >
         {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
       </Button>

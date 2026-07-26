@@ -34,10 +34,14 @@ type activePlan struct {
 	validFromMS int64
 	notBefore   time.Time
 	notAfter    time.Time
-	members     []Member
-	selfIndex   int
-	selfPodID   string
-	shares      [profileHelixUser + 1]selfShare
+	// nextNotBefore is the earliest safe admission time for the following
+	// generation. Between notAfter and this deadline both generations are
+	// deliberately closed, preventing their leased shares from overlapping.
+	nextNotBefore time.Time
+	members       []Member
+	selfIndex     int
+	selfPodID     string
+	shares        [profileHelixUser + 1]selfShare
 }
 
 // coversNow reports whether now falls inside the plan's guarded admission
@@ -117,13 +121,15 @@ func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, gu
 
 	notBefore := localNow.Add(time.UnixMilli(canonical.ValidFromMS).Sub(serverNow) + guard)
 	notAfter := localNow.Add(time.UnixMilli(canonical.ValidUntilMS).Sub(serverNow) - guard)
+	nextNotBefore := localNow.Add(time.UnixMilli(canonical.ValidUntilMS).Sub(serverNow) + guard)
 	if !notBefore.Before(notAfter) {
 		return errors.New("ratelimit: lease guard consumes plan interval")
 	}
 	ap := &activePlan{
 		epoch: canonical.Epoch, generation: canonical.Generation,
 		validFromMS: canonical.ValidFromMS, notBefore: notBefore, notAfter: notAfter,
-		members: canonical.Members, selfIndex: selfIndex,
+		nextNotBefore: nextNotBefore,
+		members:       canonical.Members, selfIndex: selfIndex,
 	}
 	if selfIndex >= 0 {
 		ap.selfPodID = canonical.Members[selfIndex].PodID
@@ -208,6 +214,29 @@ func (m *LeaseManager) primeFixedBuckets(now time.Time, plan *activePlan) {
 
 func (m *LeaseManager) Allow(ctx context.Context, req Request) (bool, error) {
 	return m.allowAt(ctx, &req, time.Now())
+}
+
+// GuardRetryAfter distinguishes the intentional lease-generation guard from a
+// genuinely empty token bucket. The old plan knows the next generation's safe
+// opening boundary, so a system caller that lands in the gap can wait a few
+// milliseconds and retry without weakening the no-overlap invariant.
+func (m *LeaseManager) GuardRetryAfter() time.Duration {
+	return m.guardRetryAfterAt(time.Now())
+}
+
+func (m *LeaseManager) guardRetryAfterAt(now time.Time) time.Duration {
+	plan := m.plan.Load()
+	if plan == nil {
+		return 0
+	}
+	switch {
+	case now.Before(plan.notBefore):
+		return plan.notBefore.Sub(now)
+	case !now.Before(plan.notAfter) && now.Before(plan.nextNotBefore):
+		return plan.nextNotBefore.Sub(now)
+	default:
+		return 0
+	}
 }
 
 // allowAt is the admission core with an explicit clock so deterministic tests

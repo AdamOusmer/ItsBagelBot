@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"ItsBagelBot/pkg/ratelimit"
 
@@ -19,6 +20,22 @@ type scriptedLimiter struct {
 	errs   map[string]error
 	calls  []string
 }
+
+type guardOnceLimiter struct {
+	calls int
+	wait  time.Duration
+}
+
+func (g *guardOnceLimiter) Allow(context.Context, ratelimit.Request) (bool, error) {
+	g.calls++
+	return g.calls > 1, nil
+}
+
+func (g *guardOnceLimiter) AllowOrdered(context.Context, ratelimit.Request, ratelimit.Request) (uint8, error) {
+	return 0, nil
+}
+
+func (g *guardOnceLimiter) GuardRetryAfter() time.Duration { return g.wait }
 
 func (s *scriptedLimiter) Allow(_ context.Context, req ratelimit.Request) (bool, error) {
 	s.calls = append(s.calls, req.Key)
@@ -83,5 +100,17 @@ func TestTakeSystemHelixInfraErrorDoesNotSpill(t *testing.T) {
 	}
 	if len(limiter.calls) != 1 {
 		t.Fatalf("calls = %v, want no spillover on infra error", limiter.calls)
+	}
+}
+
+func TestTakeSystemHelixRetriesLeaseGuardBeforeSpillover(t *testing.T) {
+	limiter := &guardOnceLimiter{wait: time.Millisecond}
+	w := systemLaneWorker(limiter)
+
+	if err := w.takeSystemHelix(context.Background()); err != nil {
+		t.Fatalf("takeSystemHelix() = %v, want nil after guard retry", err)
+	}
+	if limiter.calls != 2 {
+		t.Fatalf("calls = %d, want one guard retry", limiter.calls)
 	}
 }
