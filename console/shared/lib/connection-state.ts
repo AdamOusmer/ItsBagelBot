@@ -77,7 +77,10 @@ function activeKind(sub: SubState): ConnKind {
 
 // Per-kind action sets. Membership lists keep each ConnUi flag a single
 // readable predicate instead of a growing boolean chain.
-const MANAGEABLE: readonly ConnKind[] = ['online', 'degraded', 'sub_unknown', 'connecting'];
+// A connecting channel already has a control operation in flight. Hiding its
+// management actions prevents restart/disconnect/enable sequences from racing
+// each other while Outgress is still converging the previous intent.
+const MANAGEABLE: readonly ConnKind[] = ['online', 'degraded', 'sub_unknown'];
 const CONNECTABLE: readonly ConnKind[] = ['auth_required', 'reauth_required'];
 const RETRYABLE: readonly ConnKind[] = ['unavailable', 'sub_unknown'];
 

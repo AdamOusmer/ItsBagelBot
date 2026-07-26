@@ -21,6 +21,7 @@
     loading = false,
     ui,
     checkingText,
+    busy = false,
     isDelegate = false,
     isPremium = false,
     logoSrc,
@@ -32,6 +33,7 @@
     loading?: boolean;
     ui?: ConnUi;
     checkingText: string;
+    busy?: boolean;
     isDelegate?: boolean;
     isPremium?: boolean;
     logoSrc: string;
@@ -134,12 +136,13 @@
           icon="activity"
           type="button"
           class="ov-cta"
+          disabled={busy}
           onclick={() => onRestart?.()}
         >{kind === 'degraded' ? t('common.reconnect') : t('overview.restart')}</Button>
-        <Button variant="ghost" icon="power" type="button" class="ov-cta" onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
+        <Button variant="ghost" icon="power" type="button" class="ov-cta" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
       {:else if ui.showEnable}
         <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-          <Button variant="primary" icon="power" type="submit" class="ov-cta">{t('overview.enable')}</Button>
+          <Button variant="primary" icon="power" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
         </form>
       {:else if ui.showConnect}
         <!-- reauth_required: the grant died server-side, only a fresh Twitch
