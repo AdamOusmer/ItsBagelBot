@@ -138,25 +138,45 @@ func (w *Worker) takeSystem(ctx context.Context, req ratelimit.Request) error {
 	if allowed {
 		return nil
 	}
+	return w.retrySystemAfterGuard(ctx, req)
+}
 
-	wait := ratelimit.GuardRetryAfter(w.limiter)
-	if wait <= 0 || wait > systemGuardRetryMax {
+func (w *Worker) retrySystemAfterGuard(ctx context.Context, req ratelimit.Request) error {
+	wait, ok := systemGuardRetryDelay(w.limiter)
+	if !ok {
 		return errRateLimitShared
+	}
+	if err := waitForSystemGuard(ctx, wait); err != nil {
+		return err
+	}
+	allowed, err := w.limiter.Allow(ctx, req)
+	return systemLimitResult(allowed, err)
+}
+
+func systemGuardRetryDelay(manager ratelimit.Manager) (time.Duration, bool) {
+	wait := ratelimit.GuardRetryAfter(manager)
+	if wait <= 0 || wait > systemGuardRetryMax {
+		return 0, false
 	}
 	wait += systemGuardActivationSlack
 	if wait > systemGuardRetryMax {
 		wait = systemGuardRetryMax
 	}
+	return wait, true
+}
 
+func waitForSystemGuard(ctx context.Context, wait time.Duration) error {
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-timer.C:
+		return nil
 	}
+}
 
-	allowed, err = w.limiter.Allow(ctx, req)
+func systemLimitResult(allowed bool, err error) error {
 	if err != nil {
 		return err
 	}
