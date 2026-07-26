@@ -245,6 +245,38 @@ func TestExpiredPlanFailsClosed(t *testing.T) {
 	}
 }
 
+func TestGuardRetryAfterCoversBothSidesOfEpochBoundary(t *testing.T) {
+	manager := NewLeaseManager(nil, NewBucketStore(16), nil, WithLeaseIdentity("local", "pod-a"))
+	serverNow := time.Now()
+	localNow := serverNow
+	guard := 250 * time.Millisecond
+	plan := Plan{
+		Version: planVersion, Epoch: 1, Generation: 16,
+		ValidFromMS:  serverNow.Add(time.Second).UnixMilli(),
+		ValidUntilMS: serverNow.Add(31 * time.Second).UnixMilli(),
+		Members:      []Member{{PodID: "pod-a", Region: "local"}},
+	}
+	if err := plan.ComputeDigest(); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.ActivatePlan(plan, serverNow, localNow, guard); err != nil {
+		t.Fatal(err)
+	}
+
+	active := manager.plan.Load()
+	beforeOpening := active.notBefore.Add(-40 * time.Millisecond)
+	if got := manager.guardRetryAfterAt(beforeOpening); got != 40*time.Millisecond {
+		t.Fatalf("opening guard retry = %v, want 40ms", got)
+	}
+	beforeNextGeneration := active.nextNotBefore.Add(-40 * time.Millisecond)
+	if got := manager.guardRetryAfterAt(beforeNextGeneration); got != 40*time.Millisecond {
+		t.Fatalf("closing guard retry = %v, want 40ms", got)
+	}
+	if got := manager.guardRetryAfterAt(active.notBefore.Add(time.Second)); got != 0 {
+		t.Fatalf("active plan retry = %v, want zero", got)
+	}
+}
+
 func TestLocalFastPathAllocatesNothing(t *testing.T) {
 	store := NewBucketStore(16)
 	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
