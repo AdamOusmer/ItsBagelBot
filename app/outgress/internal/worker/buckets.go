@@ -128,15 +128,9 @@ func (w *Worker) takeSystemHelix(ctx context.Context) error {
 }
 
 func (w *Worker) takeSystem(ctx context.Context, req ratelimit.Request) error {
-	started := time.Now()
-	defer recordStageDuration(ctx, "outgress.limiter_ms", started)
-
-	allowed, err := w.limiter.Allow(ctx, req)
-	if err != nil {
+	err := w.take(ctx, req)
+	if !errors.Is(err, errRateLimitShared) {
 		return err
-	}
-	if allowed {
-		return nil
 	}
 	return w.retrySystemAfterGuard(ctx, req)
 }
@@ -149,8 +143,7 @@ func (w *Worker) retrySystemAfterGuard(ctx context.Context, req ratelimit.Reques
 	if err := waitForSystemGuard(ctx, wait); err != nil {
 		return err
 	}
-	allowed, err := w.limiter.Allow(ctx, req)
-	return systemLimitResult(allowed, err)
+	return w.take(ctx, req)
 }
 
 func systemGuardRetryDelay(manager ratelimit.Manager) (time.Duration, bool) {
@@ -174,16 +167,6 @@ func waitForSystemGuard(ctx context.Context, wait time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-func systemLimitResult(allowed bool, err error) error {
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return errRateLimitShared
-	}
-	return nil
 }
 
 // take consumes one token or returns an error that nacks the message, so the
