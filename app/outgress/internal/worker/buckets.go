@@ -41,6 +41,15 @@ const (
 	helixUserCapacity    = 800.0
 )
 
+const (
+	// A lease epoch deliberately closes both generations around its boundary.
+	// System work is asynchronous and rare, so it can cheaply bridge that gap
+	// instead of reporting a false quota exhaustion. Chat/API calls stay on the
+	// non-blocking path.
+	systemGuardRetryMax        = 750 * time.Millisecond
+	systemGuardActivationSlack = 25 * time.Millisecond
+)
+
 // Stable bucket parameters are formatted once at process initialization. Chat
 // keys remain per-broadcaster, but their numeric Lua arguments do not.
 var (
@@ -111,11 +120,50 @@ func (w *Worker) takeGeneralHelix(ctx context.Context, payload *outgress.Message
 // general partition would have spent anyway, so the fleet stays within the
 // real 800/min Helix limit.
 func (w *Worker) takeSystemHelix(ctx context.Context) error {
-	err := w.take(ctx, helixSystemSpec.ForKey("ratelimit:helix:system"))
+	err := w.takeSystem(ctx, helixSystemSpec.ForKey("ratelimit:helix:system"))
 	if !errors.Is(err, errRateLimitShared) {
 		return err
 	}
-	return w.take(ctx, helixGeneralSpec.ForKey("ratelimit:helix:app"))
+	return w.takeSystem(ctx, helixGeneralSpec.ForKey("ratelimit:helix:app"))
+}
+
+func (w *Worker) takeSystem(ctx context.Context, req ratelimit.Request) error {
+	started := time.Now()
+	defer recordStageDuration(ctx, "outgress.limiter_ms", started)
+
+	allowed, err := w.limiter.Allow(ctx, req)
+	if err != nil {
+		return err
+	}
+	if allowed {
+		return nil
+	}
+
+	wait := ratelimit.GuardRetryAfter(w.limiter)
+	if wait <= 0 || wait > systemGuardRetryMax {
+		return errRateLimitShared
+	}
+	wait += systemGuardActivationSlack
+	if wait > systemGuardRetryMax {
+		wait = systemGuardRetryMax
+	}
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+	}
+
+	allowed, err = w.limiter.Allow(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return errRateLimitShared
+	}
+	return nil
 }
 
 // take consumes one token or returns an error that nacks the message, so the

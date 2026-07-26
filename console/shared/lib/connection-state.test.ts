@@ -69,6 +69,11 @@ describe('connectionUiState', () => {
 		}
 	});
 
+	test('management actions are unavailable while an enrollment is in flight', () => {
+		expect(connectionUiState({ ...base, sub: 'pending' }).canManage).toBe(false);
+		expect(connectionUiState({ ...base, sub: 'unenrolled' }).canManage).toBe(false);
+	});
+
 	test('every signal permutation resolves to exactly one kind', () => {
 		const grants: (boolean | 'unknown')[] = [true, false, 'unknown'];
 		const actives: (boolean | 'unknown')[] = [true, false, 'unknown'];
