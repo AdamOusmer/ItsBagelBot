@@ -26,6 +26,7 @@ on:
           - sesame
           - twitch-ingress
           - valkey-live-acceptance
+          - nats-stress
           - console-dashboard
           - console-admin
 
@@ -140,6 +141,12 @@ jobs:
               "description": "ItsBagelBot Valkey live-acceptance probe"
             },
             {
+              "image": "nats-stress",
+              "context": ".",
+              "containerfile": "deploy/k8s/nats-stress/Containerfile",
+              "description": "ItsBagelBot NATS bus stress rig"
+            },
+            {
               "image": "console-dashboard",
               "context": "console",
               "containerfile": "console/dashboard/Containerfile",
@@ -171,6 +178,10 @@ jobs:
             add "sesame"
             add "gateway"
             add "valkey-live-acceptance"
+            # The stress rig is built out of pkg/bus and pkg/idempotency, so a
+            # change to either must rebuild it: a rig image lagging the code it
+            # is supposed to be measuring reports last week's numbers.
+            add "nats-stress"
           }
 
           add_all_services() {
@@ -186,6 +197,7 @@ jobs:
             add "gateway"
             add "twitch-ingress"
             add "valkey-live-acceptance"
+            add "nats-stress"
             add "console-dashboard"
             add "console-admin"
           }
@@ -215,6 +227,9 @@ jobs:
                 ;;
               deploy/k8s/valkey-live-acceptance/*)
                 add "valkey-live-acceptance"
+                ;;
+              deploy/k8s/nats-stress/*)
+                add "nats-stress"
                 ;;
               app/loyalty/*)
                 add "loyalty"

@@ -93,6 +93,10 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
+		// The stress rig provisions the bench stream through pkg/bus's ordinary
+		// reconcile, which converges drift with UpdateStream. Named exactly, like
+		// every other verb here.
+		"$JS.API.STREAM.UPDATE.R3_SHADOW_BENCH",
 		// The harness's consumer role answers flow control on the bench stream;
 		// scoped there and nowhere else, like the mutation verbs above.
 		"$JS.FC.R3_SHADOW_BENCH.>",

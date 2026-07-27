@@ -1,0 +1,30 @@
+# nats-stress (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/nats-stress -f deploy/k8s/nats-stress/Containerfile .
+#
+# The rig ships as an image rather than a kubectl-cp'd binary because both roles
+# run as Deployments: the consumer has to hold a durable flow consumer across a
+# whole ramp plus soak, and the publisher has to be replica-aware. Neither shape
+# survives the sleeping-pod pattern the older acceptance runners use.
+FROM docker.io/library/golang:1.26.5-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+# The whole pkg tree, deliberately: the rig's dependency set (bus, idempotency,
+# valkey, env, monitor) is exactly the set that grows when a production path it
+# exercises grows, and a hand-listed subset here would fail the build the first
+# time pkg/bus took a new internal dependency. publish-images already rebuilds
+# this image on any pkg/* change, so the copy costs nothing that is not already
+# being paid.
+COPY pkg pkg
+COPY deploy/k8s/nats-stress deploy/k8s/nats-stress
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /nats-stress ./deploy/k8s/nats-stress
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /nats-stress /nats-stress
+
+USER nonroot
+ENTRYPOINT ["/nats-stress"]

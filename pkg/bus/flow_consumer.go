@@ -532,6 +532,44 @@ func newFlowLaneSubscriber(cfg flowLaneConfig) (*flowSubscriber, error) {
 	return s, nil
 }
 
+// FlowLaneConfig names the stream and subject a flow lane binds to outright,
+// instead of resolving them from the fleet catalog.
+//
+// It exists for the load rig in deploy/k8s/nats-stress, which has to bind a
+// disposable shadow stream no catalog entry captures, and it is deliberately the
+// only way past the two guards the service path applies: streamForTopic, which
+// refuses a subject the catalog does not own, and isHotIngressLane, which
+// refuses any stream but TWITCH_INGRESS. Service code must keep going through
+// NewSubscriber so those two keep deciding which lanes get receipt-level
+// acknowledgement — a lane that reaches this constructor has had that decision
+// made for it by whoever wrote the call.
+type FlowLaneConfig struct {
+	URL     string // JetStream endpoint; NATS_HUB_URL still wins where it is set
+	Stream  string // stream the pod's consumer is created on
+	Subject string // lane subject the consumer filters
+	Group   string // durable-name prefix, as for NewSubscriber
+	Log     *zap.Logger
+}
+
+// NewFlowLaneSubscriber provisions this pod's AckFlowControl consumer on the
+// named stream and binds the delivery subject the server reports. Everything
+// downstream of the binding — consumer shape, receipt cursor, flow-control
+// responses, heartbeat watchdog, retry hop — is the same code the hot ingress
+// lanes run, which is the whole point: a measurement taken through it transfers
+// to production instead of describing a benchmark-only consumer.
+func NewFlowLaneSubscriber(cfg FlowLaneConfig) (Subscriber, error) {
+	sub, err := newFlowLaneSubscriber(flowLaneConfig{
+		url: cfg.URL, stream: cfg.Stream, subject: cfg.Subject, group: cfg.Group, log: cfg.Log,
+	})
+	// Returned explicitly rather than as a typed nil: a nil *flowSubscriber
+	// wrapped in the interface is a non-nil Subscriber, and the caller's err
+	// check would hand it a value that panics on first use.
+	if err != nil {
+		return nil, err
+	}
+	return sub, nil
+}
+
 func newFlowSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer, deliver string) *flowSubscriber {
 	log := cfg.log
 	if log == nil {

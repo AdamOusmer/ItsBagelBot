@@ -1,0 +1,118 @@
+# nats-stress publisher role.
+#
+# NOT part of deploy/k8s/kustomization.yaml, for the same reason as the consumer:
+# Flux must never reconcile a load generator back into existence. run.sh
+# substitutes __BENCH_IMAGE__, __PUBLISHER_ARGS__ and __PUBLISHER_REPLICAS__ and
+# applies it only after the consumer has reported the shadow stream ready.
+#
+# The replica count appears twice on purpose. spec.replicas is what Kubernetes
+# runs; STRESS_PUBLISHER_REPLICAS is what each pod divides the fleet-wide offered
+# rate by. They must stay equal — a mismatch does not fail, it just offers the
+# wrong rate, which is the worst kind of wrong for a measurement. run.sh writes
+# both from one variable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-stress-publisher
+  namespace: production
+  labels:
+    app: nats-stress
+    role: publisher
+spec:
+  replicas: __PUBLISHER_REPLICAS__
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: nats-stress
+      role: publisher
+  template:
+    metadata:
+      labels:
+        app: nats-stress
+        role: publisher
+    spec:
+      terminationGracePeriodSeconds: 30
+      priorityClassName: nats-r3-bench-nonpreempting
+      automountServiceAccountToken: false
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+        # One publisher per node. Two replicas on one node share that node's
+        # NIC and cores, so the ceiling they find is the node's, not the
+        # broker's — which is the number nobody wanted.
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: nats-stress
+                  role: publisher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nats-stress
+          image: __BENCH_IMAGE__
+          imagePullPolicy: IfNotPresent
+          args: __PUBLISHER_ARGS__
+          env:
+            # PreferSameNode, exactly as sesame publishes: client TLS, socket and
+            # batch work spread across all three hub members while the stream
+            # leader still performs the RAFT commit. Pointing this at the leader
+            # instead measured ~20% lower on the R3 qualification.
+            - name: NATS_HUB_PUBLISH_URL
+              value: tls://nats:4222
+            - name: NATS_HUB_URL
+              value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            # worker_bus. Its publish grant is twitch.outgress.>, which is the
+            # only reason twitch.outgress.bench.r3.* is reachable at all — the
+            # shadow subject tree was chosen to sit under it precisely so no new
+            # data-subject grant is needed for a load generator.
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sesame-env
+                  key: NATS_USER
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sesame-env
+                  key: NATS_PASSWORD
+            # The wire under test. Fast-Ingest needs allow_batched on the stream,
+            # which the consumer role provisions before this Deployment exists.
+            - name: NATS_PUBLISH_WIRE
+              value: fast
+            - name: NATS_PUBLISH_CONNECTIONS
+              value: "4"
+            - name: STRESS_PUBLISHER_REPLICAS
+              value: "__PUBLISHER_REPLICAS__"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: GOMEMLIMIT
+              value: 768MiB
+          resources:
+            requests: {cpu: "1", memory: 256Mi}
+            limits: {cpu: "2", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true

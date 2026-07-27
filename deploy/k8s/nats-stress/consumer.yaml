@@ -1,0 +1,138 @@
+# nats-stress consumer role.
+#
+# NOT part of deploy/k8s/kustomization.yaml and deliberately so: Flux must never
+# reconcile a load generator back into existence. run.sh applies it, tails it,
+# and deletes it. Placeholders (__BENCH_IMAGE__, __CONSUMER_ARGS__,
+# __CONSUMER_REPLICAS__) are substituted by run.sh; applying this file by hand
+# will be rejected by the API server rather than starting something half
+# configured.
+#
+# Shape mirrors sesame: same worker-pool toleration, same node exclusions, same
+# routine count, same Valkey wiring, same hub-direct BUS endpoint. That is the
+# point — a consumer that differed from production would measure a consumer
+# nobody runs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-stress-consumer
+  namespace: production
+  labels:
+    app: nats-stress
+    role: consumer
+spec:
+  replicas: __CONSUMER_REPLICAS__
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: nats-stress
+      role: consumer
+  template:
+    metadata:
+      labels:
+        app: nats-stress
+        role: consumer
+    spec:
+      # Long enough for the flow subscriber to drain its in-flight deliveries and
+      # for the final JSON summary to reach stdout. A shorter grace period kills
+      # the process before it reports, and the whole run is then unjudgeable.
+      terminationGracePeriodSeconds: 60
+      # value -100000, preemptionPolicy Never (deploy/k8s/nats-r3-benchmark-priority-class.yaml):
+      # the rig yields to every production workload and can never evict one.
+      priorityClassName: nats-r3-bench-nonpreempting
+      automountServiceAccountToken: false
+      tolerations:
+        - key: itsbagelbot.dev/pool
+          operator: Equal
+          value: worker-pool
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [node1]
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 25
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values: [node4]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nats-stress
+          image: __BENCH_IMAGE__
+          imagePullPolicy: IfNotPresent
+          args: __CONSUMER_ARGS__
+          env:
+            # Hub-direct, pinned beside the stream the way sesame pins its lane
+            # consumers. The flow subscriber dials this URL, not the publish one.
+            - name: NATS_HUB_URL
+              value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            # admin_bus, not worker_bus. It is the only identity the ACL grants
+            # STREAM.CREATE/UPDATE, CONSUMER.CREATE and $JS.FC on
+            # R3_SHADOW_BENCH — so it is the only identity that can both
+            # provision the shadow stream and answer its flow control. Explicit
+            # env entries win over envFrom, which is why nothing else is loaded
+            # wholesale here.
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nats-bench-setup
+                  key: NATS_USER
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nats-bench-setup
+                  key: NATS_PASSWORD
+            # The consumer under test. "off" would silently fall back to the
+            # explicit-ACK durable path and the run would measure the wrong lane.
+            - name: NATS_CONSUME_FLOW
+              value: "on"
+            # pkg/bus derives this pod's durable consumer name from POD_NAME.
+            # Without it two pods in one Deployment would collide on one durable
+            # and corrupt each other's ack floor.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_ADDR
+              value: valkey.valkey.svc.cluster.local:26380
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sesame-env
+                  key: VALKEY_PASSWORD
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.valkey.svc.cluster.local
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.valkey.svc.cluster.local:6380
+            - name: GOMEMLIMIT
+              value: 768MiB
+          resources:
+            requests: {cpu: 500m, memory: 256Mi}
+            limits: {cpu: "2", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
