@@ -36,7 +36,7 @@ metadata:
 spec:
   # Stateless and cache-backed: keep one local RPC responder beside Sesame on
   # each hot-path node; the working set is one HTTP client and Valkey connection.
-  replicas: 4
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
