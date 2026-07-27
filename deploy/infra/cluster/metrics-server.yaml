@@ -169,6 +169,25 @@ spec:
               name: tmp-dir
       nodeSelector:
         kubernetes.io/os: linux
+      # metrics-server is an API aggregation backend: the apiserver proxies
+      # /apis/metrics.k8s.io to it on every `kubectl top` and every HPA/KEDA
+      # evaluation, so co-locating it with the control plane takes a network hop
+      # off that path. Preferred rather than required so losing node1 does not
+      # also take metrics down.
+      tolerations:
+        - key: itsbagelbot.dev/role
+          operator: Equal
+          value: cp
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: In
+                    values: [cp]
       priorityClassName: system-cluster-critical
       serviceAccountName: metrics-server
       volumes:

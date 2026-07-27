@@ -81,14 +81,36 @@ spec:
     resources:
       requests: {cpu: 25m, memory: 128Mi}
       limits: {cpu: 250m, memory: 256Mi}
+    # cert-manager belongs with the control plane. The webhook in particular is
+    # called SYNCHRONOUSLY by the apiserver on every Certificate admission, so a
+    # cross-node hop sits directly in that path. Preferred rather than required so
+    # losing node1 cannot wedge admission.
+    tolerations: &cpToleration
+      - key: itsbagelbot.dev/role
+        operator: Equal
+        value: cp
+        effect: NoSchedule
+    affinity: &cpAffinity
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: itsbagelbot.dev/role
+                  operator: In
+                  values: [cp]
     webhook:
       resources:
         requests: {cpu: 10m, memory: 96Mi}
         limits: {cpu: 200m, memory: 128Mi}
+      tolerations: *cpToleration
+      affinity: *cpAffinity
     cainjector:
       resources:
         requests: {cpu: 10m, memory: 64Mi}
         limits: {cpu: 200m, memory: 256Mi}
+      tolerations: *cpToleration
+      affinity: *cpAffinity
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

@@ -85,3 +85,22 @@ spec:
       webhooks:
         requests: {cpu: 25m, memory: 32Mi}
         limits: {cpu: 250m, memory: 128Mi}
+    # KEDA sits on two apiserver-synchronous paths: its metrics-apiserver backs
+    # the external.metrics.k8s.io aggregation layer that every ScaledObject
+    # evaluation queries, and its webhook validates admission. Both belong beside
+    # the control plane. Preferred, not required, so node1's loss cannot stall
+    # autoscaling or block admission.
+    tolerations:
+      - key: itsbagelbot.dev/role
+        operator: Equal
+        value: cp
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: itsbagelbot.dev/role
+                  operator: In
+                  values: [cp]
