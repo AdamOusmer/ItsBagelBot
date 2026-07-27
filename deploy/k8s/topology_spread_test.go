@@ -40,6 +40,11 @@ type workloadManifest struct {
 				} `yaml:"affinity"`
 			} `yaml:"spec"`
 		} `yaml:"template"`
+		VolumeClaimTemplates []struct {
+			Metadata struct {
+				Name string `yaml:"name"`
+			} `yaml:"metadata"`
+		} `yaml:"volumeClaimTemplates"`
 	} `yaml:"spec"`
 }
 
@@ -199,6 +204,36 @@ func manifestFilenames(t *testing.T) []string {
 		t.Fatal("no manifests found; the glob is wrong")
 	}
 	return filenames
+}
+
+// TestNoStatefulSetClaimsAPersistentVolume guards the failure that took
+// production down on 2026-07-27.
+//
+// A local-path PVC binds its PV to whichever node provisioned it. When node5
+// died, nats-1 was pinned there and could not be rescheduled anywhere: it sat
+// Pending on "didn't match PersistentVolume's node affinity" indefinitely, took
+// JetStream below quorum, and crashlooped every service that opens a consumer at
+// startup. One dead node became a full outage.
+//
+// Replication is the durability mechanism here, not the disk. Every stream is
+// R3, so a member that restarts empty re-syncs from its peers, which is exactly
+// how nats-1 was recovered onto node3.
+//
+// This has to be a test rather than a comment because volumeClaimTemplates is
+// IMMUTABLE. Server-side apply will not remove one: it keeps the claim template
+// and adds the emptyDir alongside it, producing a duplicate volume name while
+// Flux still reports the reconcile as successful. Reintroducing one would need a
+// delete-and-recreate of the StatefulSet to undo, so it must be caught in review.
+func TestNoStatefulSetClaimsAPersistentVolume(t *testing.T) {
+	for _, located := range loadDirectoryManifests(t) {
+		if located.Kind != "StatefulSet" || len(located.Spec.VolumeClaimTemplates) == 0 {
+			continue
+		}
+		for _, vct := range located.Spec.VolumeClaimTemplates {
+			t.Errorf("%s/%s declares volumeClaimTemplates %q; use an emptyDir volume and let replication provide durability",
+				located.filename, located.Metadata.Name, vct.Metadata.Name)
+		}
+	}
 }
 
 // decodeManifests reads every YAML document from r through the workload shape.
