@@ -23,7 +23,7 @@ spec:
   # Three colocated Valkey+Sentinel voters produce one writable primary and
   # three replicas, one per node since node1 left the fleet. This count is a
   # CI-enforced configuration invariant.
-  replicas: 4
+  replicas: 3
   revisionHistoryLimit: 10
   selector:
     matchLabels:

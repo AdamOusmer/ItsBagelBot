@@ -255,7 +255,7 @@ spec:
   maxReplicaCount: 12
   fallback:
     failureThreshold: 3
-    replicas: 4
+    replicas: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:

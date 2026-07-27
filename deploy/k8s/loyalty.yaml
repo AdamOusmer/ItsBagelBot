@@ -23,7 +23,7 @@ metadata:
 spec:
   # Keep one local loyalty RPC responder beside Sesame on every hot-path node.
   # Event folds remain queue-grouped across the three replicas.
-  replicas: 4
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
