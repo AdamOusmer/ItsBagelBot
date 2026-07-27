@@ -67,6 +67,17 @@ node_region: "{{ lookup('env', 'NODE_REGION') | default('ca-mtl', true) }}"
 # is the common case. Pass NODE_ROLE=cp explicitly when promoting a server.
 node_role: "{{ lookup('env', 'NODE_ROLE') | default('node', true) }}"
 
+# --- Image pull-through cache ------------------------------------------------
+# The in-cluster GHCR mirror's pinned ClusterIP (deploy/infra/registry/). Set as
+# a literal address because containerd resolves through the HOST resolver, never
+# CoreDNS, so a Service DNS name is unusable here. kube-proxy still routes a
+# ClusterIP for host-originated traffic, which is what makes this work.
+#
+# Set empty to skip writing registries.yaml entirely and pull straight from
+# ghcr.io, which is the correct state for a fleet where the mirror is not
+# deployed yet.
+registry_mirror_endpoint: "{{ lookup('env', 'REGISTRY_MIRROR_ENDPOINT') | default('10.43.0.50:5000', true) }}"
+
 # --- SELinux (matches node1) -------------------------------------------------
 selinux_state: "enforcing"
 selinux_policy: "targeted"

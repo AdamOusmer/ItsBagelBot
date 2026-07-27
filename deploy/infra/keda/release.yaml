@@ -85,22 +85,32 @@ spec:
       webhooks:
         requests: {cpu: 25m, memory: 32Mi}
         limits: {cpu: 250m, memory: 128Mi}
-    # KEDA sits on two apiserver-synchronous paths: its metrics-apiserver backs
-    # the external.metrics.k8s.io aggregation layer that every ScaledObject
-    # evaluation queries, and its webhook validates admission. Both belong beside
-    # the control plane. Preferred, not required, so node1's loss cannot stall
-    # autoscaling or block admission.
-    tolerations:
-      - key: itsbagelbot.dev/role
-        operator: Equal
-        value: cp
-        effect: NoSchedule
+    # KEDA stays on the APPLICATION tier, deliberately, and is the one operator
+    # that must not sit beside the API server.
+    #
+    # Every ScaledObject here polls NATS directly:
+    #   natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+    # (see the outgress and sesame ScaledObjects; six triggers at a 15s
+    # pollingInterval). That is a ClusterIP resolving to NATS pods on the app
+    # tier, so the KEDA operator needs pod-network reachability to node4/5/6.
+    #
+    # Flannel wireguard-native publishes exactly ONE endpoint per node, so the
+    # pod mesh is all-public or all-private with no per-peer choice. When it
+    # moves onto the ServaRICA private VLAN, node1 (OCI, a different provider
+    # and not on that VLAN) drops off the pod network entirely. Every other
+    # co-located operator survives that: cert-manager's webhook is called by the
+    # local API server, metrics-server scrapes kubelets over InternalIP on the
+    # tailnet, and the Doppler operator talks to api.doppler.com. KEDA is the
+    # only one whose data path crosses nodes, and losing it would silently
+    # freeze outgress and sesame autoscaling rather than fail loudly.
+    #
+    # Required, not preferred: a preference would let it drift onto the control
+    # plane and reintroduce the problem the next time the scheduler rebalances.
     affinity:
       nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
                 - key: itsbagelbot.dev/role
-                  operator: In
-                  values: [cp]
+                  operator: NotIn
+                  values: [cp, worker]

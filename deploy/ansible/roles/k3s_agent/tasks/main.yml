@@ -45,6 +45,17 @@
   no_log: true   # token
   notify: restart k3s-agent
 
+# Point ghcr.io at the in-cluster pull-through cache. Guarded so a fleet without
+# the mirror deployed keeps pulling straight from ghcr.io rather than being
+# handed an endpoint that does not answer.
+- name: Route ghcr.io through the pull-through cache
+  ansible.builtin.template:
+    src: registries.yaml.j2
+    dest: /etc/rancher/k3s/registries.yaml
+    mode: "0644"
+  when: registry_mirror_endpoint | default('') | length > 0
+  notify: restart k3s-agent
+
 - name: Download k3s install script
   ansible.builtin.get_url:
     url: https://get.k3s.io
