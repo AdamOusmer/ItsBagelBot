@@ -38,10 +38,6 @@ spec:
         app: notifications
     spec:
       tolerations:
-        - key: itsbagelbot.dev/pool
-          operator: Equal
-          value: worker-pool
-          effect: NoSchedule
         - key: node.kubernetes.io/unreachable
           operator: Exists
           effect: NoExecute
@@ -52,7 +48,7 @@ spec:
           tolerationSeconds: 60
       topologySpreadConstraints:
         - maxSkew: 1
-          minDomains: 4
+          minDomains: 3
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
@@ -181,10 +177,6 @@ spec:
         spec:
           restartPolicy: OnFailure
           tolerations:
-            - key: itsbagelbot.dev/pool
-              operator: Equal
-              value: worker-pool
-              effect: NoSchedule
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

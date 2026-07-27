@@ -15,14 +15,14 @@ spec:
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
-  # Parallel startup is required for a safe cold bootstrap: the pod placed on
-  # node2 is the sole deterministic bootstrap candidate, while fresh members on
-  # every other node wait for its Sentinel view. OrderedReady could deadlock the
-  # fleet when ordinal zero is scheduled on a fenced node.
+  # Parallel startup is safe: on a cold bootstrap ordinal 0 is the deterministic
+  # seed and other FRESH members wait for its Sentinel view, so no two members can
+  # both declare themselves primary. Nothing here depends on which node a member
+  # lands on, which is what the previous hostname-based seed got wrong.
   podManagementPolicy: Parallel
-  # Three colocated Valkey+Sentinel voters produce one writable primary and
-  # three replicas, one per node since node1 left the fleet. This count is a
-  # CI-enforced configuration invariant.
+  # Three colocated Valkey+Sentinel voters: one writable primary and two replicas,
+  # every one of them promotable. Three is also the quorum arithmetic — quorum 2
+  # of 3 tolerates losing any single member. CI-enforced invariant.
   replicas: 3
   revisionHistoryLimit: 10
   selector:
@@ -58,45 +58,39 @@ spec:
         - /bin/sh
         - -ec
         - |
-          # Ask a live Sentinel before deriving any role. Stable pod DNS is
-          # authoritative and node2 is the sole deterministic fresh-cluster
-          # bootstrap candidate. Fresh pods on every other node wait for that
-          # view, which avoids making an arbitrary StatefulSet ordinal primary.
+          # Every member is equally eligible for promotion and Sentinel's own
+          # election decides. The app tier is uniform hardware, so preferring or
+          # fencing any particular host buys nothing.
           #
-          # A retained fenced primary also waits until the remaining Sentinels
-          # elect node2, node3, or node4. Retained replicas may start immediately so
-          # their colocated Sentinels can form the majority needed for failover.
-          # This turns the placement policy into a fail-closed invariant instead
-          # of relying on replica-priority, which only controls future elections.
+          # This replaced an explicit node allowlist (node2, node3, node4) that
+          # gated promotion by hostname. When the fleet moved onto
+          # node4/node5/node6 that list silently fenced two of the three live
+          # members at replica-priority 0, leaving exactly one promotable member:
+          # Sentinel could no longer fail over, so a single node loss meant no
+          # writable primary. A host allowlist was never a staleness guarantee
+          # either, since any allowlisted host could hold stale data.
           POD_FQDN="${POD_NAME}.valkey-headless.valkey.svc.cluster.local"
           lookup_master() {
             { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } \
               | head -n 1 | tr -d '"'
           }
-          CONFIG_PRESENT=false
-          if [ -f /data/valkey.conf ]; then
-            CONFIG_PRESENT=true
-          fi
-          FENCED=true
-          case "${NODE_NAME}" in
-            node2|node3|node4) FENCED=false ;;
-          esac
           LIVE_MASTER=$(lookup_master)
-          WAIT_FOR_PRIMARY=false
-          if [ "${FENCED}" = "true" ]; then
-            if [ "${CONFIG_PRESENT}" = "false" ] || ! grep -q '^replicaof ' /data/valkey.conf 2>/dev/null || [ "${LIVE_MASTER}" = "${POD_FQDN}" ]; then
-              WAIT_FOR_PRIMARY=true
-            fi
-          elif [ "${CONFIG_PRESENT}" = "false" ] && [ "${NODE_NAME}" != "node2" ]; then
-            WAIT_FOR_PRIMARY=true
-          fi
-          if [ "${WAIT_FOR_PRIMARY}" = "true" ]; then
-            echo "Waiting for a node2/node3/node4 Sentinel primary before starting ${POD_FQDN}"
-            while [ -z "${LIVE_MASTER}" ] || { [ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]; }; do
+
+          # A FRESH member with no Sentinel quorum to ask is the only case that
+          # needs a deterministic choice: without one, three simultaneously-fresh
+          # members would each declare themselves primary. Ordinal 0 seeds and the
+          # others wait for its view. The seed is the ORDINAL, never a hostname,
+          # so it stays correct wherever the members are scheduled — a hostname
+          # seed is exactly what broke when its node left the fleet.
+          # A member with a retained config already has a role and does not wait.
+          if [ ! -f /data/valkey.conf ] && [ -z "${LIVE_MASTER}" ] && [ "${POD_NAME}" != "valkey-node-0" ]; then
+            echo "Cold start with no Sentinel primary; waiting for valkey-node-0 to seed before starting ${POD_FQDN}"
+            while [ -z "${LIVE_MASTER}" ]; do
               sleep 2
               LIVE_MASTER=$(lookup_master)
             done
           fi
+
           MASTER_ENDPOINT="${POD_FQDN}"
           if [ -n "${LIVE_MASTER}" ]; then
             MASTER_ENDPOINT="${LIVE_MASTER}"
@@ -108,27 +102,18 @@ spec:
               echo "replica-announce-ip ${POD_FQDN}"
               echo "replica-announce-port 6380"
             } >> /data/valkey.conf
-            # The only fresh member allowed to see an empty Sentinel view is the
-            # pod placed on node2. It bootstraps itself; every other fresh member
-            # has waited for and follows the discovered primary.
+            # The seeding member reaches here with MASTER_ENDPOINT equal to its own
+            # FQDN and writes no replicaof line, which is what makes it primary.
             if [ -n "${LIVE_MASTER}" ] && [ "${POD_FQDN}" != "${MASTER_ENDPOINT}" ]; then
               echo "replicaof ${MASTER_ENDPOINT} 6380" >> /data/valkey.conf
             fi
             chmod 600 /data/valkey.conf
           fi
-          # Reconcile master eligibility on every boot. Retained PVCs may carry
-          # a stale CONFIG REWRITE value, so only the explicit node2/node3/node4
-          # allowlist can remain eligible for Sentinel promotion. Every other
-          # node, including worker1 and future unknown nodes, is fenced.
+          # Strip any replica-priority a retained config carries from the old
+          # fenced scheme. Promotion is unfenced now and Valkey's default (100)
+          # makes every member a candidate, so the correct action is to remove the
+          # directive rather than to rewrite it.
           sed -i '/^replica-priority /d' /data/valkey.conf
-          case "${NODE_NAME}" in
-            node2|node3|node4)
-              echo "replica-priority 100" >> /data/valkey.conf
-              ;;
-            *)
-              echo "replica-priority 0" >> /data/valkey.conf
-              ;;
-          esac
           # Keep ConfigMap-backed runtime policy authoritative over retained
           # CONFIG REWRITE output. Moving the include to the end on every boot
           # makes a config change roll out without discarding Sentinel-owned
@@ -204,10 +189,9 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
+        # No NODE_NAME: the init script branched on which host it landed on to
+        # decide promotion eligibility and the bootstrap seed. Nothing does now,
+        # and not exposing it keeps placement out of role selection for good.
         - name: CORE
           valueFrom:
             secretKeyRef:
@@ -490,11 +474,6 @@ spec:
       # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.
       # Required anti-affinity keeps exactly one member per node without
       # exposing Valkey through a hostPort.
-      tolerations:
-      - key: itsbagelbot.dev/pool
-        operator: Equal
-        value: worker-pool
-        effect: NoSchedule
       schedulerName: default-scheduler
       affinity:
         podAntiAffinity:

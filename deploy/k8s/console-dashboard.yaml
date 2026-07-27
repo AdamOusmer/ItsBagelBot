@@ -74,9 +74,9 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/pool
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: ["worker-pool"]
+                    values: ["worker"]
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

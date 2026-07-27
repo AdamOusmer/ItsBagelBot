@@ -41,43 +41,29 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-        # node1 carries a dedicated=nats-ingress taint and hosts nats-2; without
-        # this toleration that member has nowhere to run, because its
-        # jetstream-data PVC is local-path and bound to node1.
-        - key: dedicated
-          operator: Equal
-          value: nats-ingress
-          effect: NoSchedule
-        # Inert while worker1 is excluded below. Kept so this spec matches what
-        # is applied; drop it during a planned roll, not as a drive-by edit —
-        # any change here restarts the whole quorum.
-        - key: itsbagelbot.dev/pool
-          operator: Equal
-          value: worker-pool
-          effect: NoSchedule
-      # The JetStream hub is a 3-member RAFT quorum on node1/node2/node3.
-      # worker1 rides a home-wifi link and is excluded: an R1 stream whose
-      # single replica landed there would stall on every blip.
-      # JetStream PVCs are local-path (node-bound), so this exclusion is not a
-      # preference — moving a member to another node means deleting its
-      # jetstream-data PVC + pod so it reprovisions there and RAFT re-syncs it.
-      # Flipping the excluded host without doing that leaves the member
-      # unschedulable and the quorum at 2/3.
+      # No taint tolerations beyond the eviction pair above, and no host
+      # allowlist. The app tier is uniform hardware, so the scheduler is left to
+      # place members freely; the control plane is excluded because it carries a
+      # role taint this spec deliberately does not tolerate.
+      #
+      # What went: a dedicated=nats-ingress toleration that existed so a member
+      # could follow its node-bound volume onto node1, and a NotIn [worker1]
+      # exclusion for a home-wifi node that is leaving the fleet. Both encoded a
+      # hardware asymmetry that no longer exists, and with node1 now the 2-core
+      # control plane the toleration had become actively harmful.
       affinity:
-        nodeAffinity:
+        # Hard one-member-per-node, replacing a ScheduleAnyway hostname spread.
+        # The soft form permitted two members on a single host, which quietly
+        # turned any single node loss into a QUORUM loss (2 of 3 gone at once).
+        # Required anti-affinity makes surviving one node loss structural rather
+        # than a scheduling accident, and with three members on three app-tier
+        # nodes it is exactly satisfiable.
+        podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values: [worker1]
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: nats
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: nats
       # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
@@ -113,13 +99,13 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # R1 memory-backed ingress needs enough headroom above JetStream's
-            # 4GB max_mem for dedup indexes, connections and the Go runtime.
-            # node2/node3 each have 6 cores and worker1 has 8. Sustained load
-            # has peaked around 1.77 cores on the R1 leader. Reserve 1.5 cores
-            # on every member so quorum placement does not strand half a node,
-            # while the 4-core ceiling still lets the active leader burst.
-            # Memory stays at 2Gi because one member can own all R1 streams.
+            # Memory-backed streams need headroom above JetStream's 4GB max_mem for
+            # dedup indexes, connections and the Go runtime. Every app-tier node
+            # has 12 cores. Sustained load has peaked near 1.77 cores on a stream
+            # leader; reserve 1.5 on every member so quorum placement never
+            # strands a node, while the 4-core ceiling lets the leader burst.
+            # Memory stays 2Gi: with every stream R3 each member holds a copy of
+            # all of them rather than only the ones it leads.
             requests: {cpu: 1500m, memory: 2Gi}
             limits: {cpu: "4", memory: 6Gi}
           securityContext:
@@ -131,7 +117,7 @@ spec:
               exec:
                 # Allow in-flight JetStream operations and client reconnects to
                 # drain before the socket closes. Shortens the 500 blast radius
-                # during NATS restarts (hub is still single-replica).
+                # during NATS restarts.
                 command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
             httpGet: {path: /healthz, port: monitor}
@@ -221,7 +207,7 @@ metadata:
   namespace: production
 spec:
   # JetStream clients dial this Service directly. Prefer the hub on the same
-  # node so node2/node3/worker1 avoid an unnecessary cross-node or home-WAN hop.
+  # node so app-tier clients avoid an unnecessary cross-node hop.
   trafficDistribution: PreferSameNode
   selector:
     app: nats
