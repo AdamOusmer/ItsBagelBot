@@ -134,7 +134,7 @@ func TestPersonalityMentionWalksFactCursor(t *testing.T) {
 func TestPersonalityFactFallsBackWithoutStore(t *testing.T) {
 	pinPersonalityRand(t)
 	var col collector
-	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), personalityCtx("bagel fact please"), col.emit))
+	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), personalityCtx("@ItsBagelBot tell me something"), col.emit))
 	require.Len(t, col.out, 1)
 	assert.Equal(t, personalityFacts[0], col.out[0].Text)
 }
@@ -261,20 +261,32 @@ func TestPersonalityNameVariantsReachDirectedReactions(t *testing.T) {
 	}
 }
 
-func TestPersonalityBareMentionStillFacts(t *testing.T) {
+func TestPersonalityFactOnlyOnAtMention(t *testing.T) {
 	pinPersonalityRand(t)
 	store := &fakePersonality{cursor: 1}
 	h := personalityHandler(t, engine.Deps{Personality: store})
-	for _, text := range []string{"@ItsBagelBot", "yo bagelbot", "its bagel bot is here"} {
+	for _, text := range []string{"@ItsBagelBot", "hey @itsbagelbot, listen", "@ItsBagelBot!"} {
 		var col collector
 		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
 		require.Len(t, col.out, 1, text)
 		assert.Equal(t, personalityFacts[0], col.out[0].Text, text)
 	}
 
-	var col collector
-	require.NoError(t, h(context.Background(), personalityCtx("I love a warm bagel"), col.emit))
-	assert.Empty(t, col.out, "bare 'bagel' (the food) must not trigger the fact row")
+	// Everything short of an @-mention is silent: the written-out handles, the
+	// old "bagel fact" phrases, and the food itself.
+	for _, text := range []string{
+		"yo bagelbot",
+		"its bagel bot is here",
+		"itsbagelbot what is up",
+		"bagel fact",
+		"bagel facts please",
+		"I love a warm bagel",
+		"@itsbagelbotfake is a copy",
+	} {
+		var col collector
+		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
+		assert.Empty(t, col.out, text)
+	}
 }
 
 func TestPersonalityNormalizeChat(t *testing.T) {
