@@ -43,7 +43,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 4 # one per eligible hot-path node: node2, node3, node4, worker1
+  replicas: 3 # one per eligible hot-path node: node4, node5, node6
   revisionHistoryLimit: 3
   # On SIGTERM each pod hands its conduit shards off make-before-break
   # (Ingress.Drain): the successor binds on a peer before the local socket
