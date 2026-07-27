@@ -137,10 +137,6 @@ spec:
           operator: Exists
           effect: NoSchedule
         # worker1 carries the worker-pool taint; DNS must still run there.
-        - key: itsbagelbot.dev/pool
-          operator: Equal
-          value: worker-pool
-          effect: NoSchedule
       containers:
         - name: coredns
           image: rancher/mirrored-coredns-coredns:1.14.3

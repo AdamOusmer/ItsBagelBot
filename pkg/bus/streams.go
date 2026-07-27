@@ -45,17 +45,24 @@ type StreamSpec struct {
 	// Replicas is the RAFT replication factor (0 defaults to 1). Unlike Storage,
 	// replica count IS updatable in place, so reconcileStream converges a drifted
 	// stream via UpdateStream — this is the field streamMatches must compare, or a
-	// live stream hand-edited to R3 sticks at R3 forever while the spec says R1.
-	// R1 is the throughput choice for the perishable firehose: R3 makes every
-	// publish wait on a RAFT quorum before its PubAck, which is pure ack-latency
-	// inflation on an ack-bound producer. Reserve R3 for control/data streams
-	// whose loss on a single broker restart actually matters.
+	// live stream hand-edited to a different factor never converges back.
+	//
+	// Every fleet stream is R3. The hub is a three-member quorum with one member
+	// per node and no persistent volumes, so replication is the ONLY thing making
+	// a stream survive losing a broker — an R1 stream would simply cease to exist
+	// with its member. R3 does cost a quorum ack before every PubAck, which the
+	// earlier R1 firehose exemption existed to avoid; that exemption was measured
+	// on 6-core peers, and the fleet sustained 120k/s for an hour once all three
+	// members ran on 12-core hardware, so the ceiling no longer justifies making
+	// one stream a special case.
 	Replicas int
 	// PlacementTags constrain JetStream replicas to servers carrying every tag.
-	// We use the stable StatefulSet ordinal tag for R1 streams so the hot
-	// firehoses never land on worker1's WAN-connected peer after a restart.
-	// R3 streams cannot use an ordinal placement tag because all three peers are
-	// required; their preferred leader is managed operationally.
+	//
+	// No fleet stream sets this, and none should: pinning a stream to an ordinal
+	// makes it a pet that cannot follow its member when the pod is rescheduled,
+	// which is exactly what the volume-less hub is designed to allow. The field
+	// and its comparison in streamMatches are kept deliberately so that a tag set
+	// by hand out-of-band is reconciled back off rather than silently persisting.
 	PlacementTags []string
 }
 
@@ -79,10 +86,11 @@ var OutgressStream = StreamSpec{
 	// 256 MiB MaxBytes caps the memory it can hold.
 	Storage:      nats.MemoryStorage,
 	BatchPublish: true,
-	// R1: perishable 5s chat work. A dropped in-flight send is re-driven by the
-	// pipeline; RAFT replication would only add ack latency to the send path.
-	Replicas:      1,
-	PlacementTags: []string{"nats-1"},
+	// R3. This was R1 pinned to nats-1, which made the stream a casualty of moving
+	// that member: an R1 stream has no second copy to re-sync from, so relocating
+	// its sole peer deletes it outright. Outgress is Twitch-rate-limited to tens
+	// of sends per second, so a quorum round trip per publish costs nothing here.
+	Replicas: 3,
 }
 
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
@@ -119,11 +127,12 @@ var BagelDataStream = StreamSpec{
 	MaxAge:       5 * time.Minute,
 	MaxBytes:     512 << 20, // 512 MiB
 	BatchPublish: true,
-	// R1: a low-rate, 5-minute replay buffer. A broker restart drops at most a
-	// few minutes of change events, which the projector re-derives from the
-	// data services' RPC projections — not worth a per-publish RAFT quorum.
-	Replicas:      1,
-	PlacementTags: []string{"nats-1"},
+	// R3. This was R1 pinned to nats-1, so relocating that member deleted the
+	// stream outright rather than re-syncing it — there was no second copy. The
+	// projector can re-derive these events from the data services' RPC
+	// projections, but a low-rate 5-minute buffer with 24 durable consumers should
+	// not need that recovery every time a hub member is rescheduled.
+	Replicas: 3,
 }
 
 // TwitchIngressStream is the replayable Twitch ingress firehose. Sesame owns
@@ -138,14 +147,15 @@ var TwitchIngressStream = StreamSpec{
 	// write that capped synchronous PubAck throughput to a few thousand
 	// events/second. Requires the server max_mem headroom in nats-server.conf.
 	Storage: nats.MemoryStorage,
-	// R1 (explicit, and now enforced by streamMatches). The firehose producer
-	// is async PubAck-bound — its ceiling is max_pending / ack_latency — so R3
-	// RAFT consensus per publish is pure ack-latency inflation. A lost leader
-	// drops only in-flight perishable chat (5s/5m retention), the accepted
-	// trade for the throughput. Every hub node (node2/node3/worker1) is
-	// capable, so replication buys nothing here that offsets the latency cost.
-	Replicas:      1,
-	PlacementTags: []string{"nats-0"},
+	// R3, like every other fleet stream. This was the one R1 exemption, pinned to
+	// nats-0: the producer is async PubAck-bound, so a quorum ack per publish
+	// inflates the very latency its ceiling is measured in. Two things retired
+	// that exemption. The hub no longer has persistent volumes, so an R1 stream
+	// ceases to exist when its member is rescheduled rather than merely losing a
+	// leader. And the ~60k single-stream figure behind the trade was measured with
+	// 6-core peers in the quorum; the fleet sustained 120k/s for an hour once all
+	// three members ran on 12-core hardware, which is past what this stream needs.
+	Replicas: 3,
 	// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
 	// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
 	// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the

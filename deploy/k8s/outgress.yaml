@@ -41,10 +41,6 @@ spec:
         app: outgress
     spec:
       tolerations:
-        - key: itsbagelbot.dev/pool
-          operator: Equal
-          value: worker-pool
-          effect: NoSchedule
         - key: node.kubernetes.io/unreachable
           operator: Exists
           effect: NoExecute

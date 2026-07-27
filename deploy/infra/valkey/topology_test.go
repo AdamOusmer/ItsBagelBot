@@ -43,25 +43,40 @@ func TestSentinelSinglePrimaryTopologyIsConfigured(t *testing.T) {
 	)
 }
 
-func TestMasterEligibilityIsReconciledOnEveryBoot(t *testing.T) {
+// TestPromotionIsUnfenced replaces the old host-allowlist assertions. That
+// allowlist gated promotion by hostname, and when the fleet moved onto
+// node4/node5/node6 it silently fenced two of the three live members at
+// replica-priority 0 — leaving one promotable member, so Sentinel could not fail
+// over and a single node loss meant no writable primary. Every member is now a
+// candidate and Sentinel's election decides.
+func TestPromotionIsUnfenced(t *testing.T) {
 	statefulSet := readFile(t, "statefulset.yaml")
 
-	assert.Contains(t, statefulSet, `case "${NODE_NAME}" in`)
-	assert.Contains(t, statefulSet, `node2|node3|node4)`)
-	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 100"`), "node2/node3/node4 are the only eligible nodes")
-	assert.Equal(t, 1, strings.Count(statefulSet, `echo "replica-priority 0"`), "all non-allowlisted nodes are fenced")
-	assert.NotContains(t, statefulSet, `replica-priority 200`, "node1 must never remain a last-resort master")
+	assert.NotRegexp(t, `node[0-9]\|node[0-9]`, statefulSet,
+		"no host allowlist may gate promotion or startup")
+	assert.NotRegexp(t, `(?m)^\s+echo "replica-priority`, statefulSet,
+		"no member may be written a replica-priority; the default makes all eligible")
+	assert.Contains(t, statefulSet, `sed -i '/^replica-priority /d' /data/valkey.conf`,
+		"a retained config's stale replica-priority must be stripped")
+	assert.NotRegexp(t, `(?m)^\s+- name: NODE_NAME$`, statefulSet,
+		"placement must not be exposed to the init script at all")
 }
 
-func TestColdBootstrapCannotMakeAnArbitraryOrdinalPrimary(t *testing.T) {
+// TestColdBootstrapSeedsByOrdinalNotHost pins the one deterministic choice that
+// remains. Without it three simultaneously-fresh members would each declare
+// themselves primary. The seed is the ordinal precisely because it is
+// placement-independent: the previous hostname seed made the whole StatefulSet
+// undeployable the moment that node left the fleet.
+func TestColdBootstrapSeedsByOrdinalNotHost(t *testing.T) {
 	statefulSet := readFile(t, "statefulset.yaml")
 
 	assert.Regexp(t, `(?m)^  podManagementPolicy: Parallel$`, statefulSet)
-	assert.Contains(t, statefulSet, `elif [ "${CONFIG_PRESENT}" = "false" ] && [ "${NODE_NAME}" != "node2" ]; then`)
-	assert.Contains(t, statefulSet, `Waiting for a node2/node3/node4 Sentinel primary`)
-	assert.Contains(t, statefulSet, `[ "${FENCED}" = "true" ] && [ "${LIVE_MASTER}" = "${POD_FQDN}" ]`)
-	assert.NotContains(t, statefulSet, "POD_INDEX", "StatefulSet ordinal must not confer primary eligibility")
-	assert.NotContains(t, statefulSet, "MASTER_ENDPOINT:-valkey-node-0", "pod zero must not be a cold-start fallback")
+	assert.Contains(t, statefulSet, `[ "${POD_NAME}" != "valkey-node-0" ]`,
+		"ordinal 0 must be the cold-start seed")
+	assert.Contains(t, statefulSet, `[ ! -f /data/valkey.conf ]`,
+		"only a fresh member waits; a retained member already has a role")
+	assert.Contains(t, statefulSet, `sentinel monitor myprimary ${MASTER_ENDPOINT} 6380 2`,
+		"Sentinel quorum stays 2 of 3")
 }
 
 func TestLocalReadServiceRemainsNodeLocal(t *testing.T) {

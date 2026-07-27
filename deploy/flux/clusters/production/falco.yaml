@@ -135,16 +135,16 @@ spec:
     podPriorityClassName: infra-low
 
     # Chart default only tolerates control-plane taints; the extra entry keeps
-    # falco on worker1 (tainted itsbagelbot.dev/pool=worker-pool).
+    # falco on any worker-role node (tainted itsbagelbot.dev/role=worker).
     tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
       - effect: NoSchedule
         key: node-role.kubernetes.io/control-plane
       - effect: NoSchedule
-        key: itsbagelbot.dev/pool
+        key: itsbagelbot.dev/role
         operator: Equal
-        value: worker-pool
+        value: worker
 
     # Far below chart defaults (100m/512Mi -> 1000m/1024Mi); live-proven for
     # this fleet. falcoctl follow sidecar bumped to 64Mi (from 32Mi) to avoid

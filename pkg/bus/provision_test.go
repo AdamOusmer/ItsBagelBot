@@ -201,13 +201,18 @@ func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
 func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
 	ingress := ingressStreamSpec(t)
 
-	// The firehose is R1: its async PubAck-bound producer must not pay a per-publish
-	// RAFT quorum. The control lane stays R3 because a lost enroll job is invisible.
-	if got := streamConfig(ingress).Replicas; got != 1 {
-		t.Fatalf("TWITCH_INGRESS replicas = %d, want 1 (R1 firehose)", got)
+	// Every fleet stream is R3. The hub has no persistent volumes, so replication
+	// is the only thing that makes a stream survive losing a member: an R1 stream
+	// ceases to exist when its sole peer is rescheduled. The firehose used to be
+	// the one R1 exemption for ack latency; that was measured on 6-core peers and
+	// no longer applies on the 12-core quorum.
+	for _, spec := range append(append([]StreamSpec{}, DataStreams...), OutgressStream, OutgressSystemStream) {
+		if got := streamConfig(spec).Replicas; got != 3 {
+			t.Fatalf("%s replicas = %d, want 3 (volume-less hub relies on replication)", spec.Name, got)
+		}
 	}
-	if got := streamConfig(OutgressSystemStream).Replicas; got != 3 {
-		t.Fatalf("TWITCH_OUTGRESS_SYSTEM replicas = %d, want 3 (durable control lane)", got)
+	if got := streamConfig(ingress).Replicas; got != 3 {
+		t.Fatalf("TWITCH_INGRESS replicas = %d, want 3", got)
 	}
 
 	// A zero-value Replicas defaults to a single copy, never 0 (which NATS rejects).
@@ -215,37 +220,42 @@ func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
 		t.Fatalf("default replicas = %d, want 1", got)
 	}
 
-	// streamMatches must be replica-sensitive, or a live stream hand-edited to R3
-	// stays R3 while the spec declares R1 — the invisible drift this change fixes.
-	want := *streamConfig(ingress) // R1
+	// streamMatches must be replica-sensitive in both directions. A live stream
+	// that has fallen to a single copy — a partial restore, or a hand edit — must
+	// converge back up to R3, because on a hub with no persistent volumes that
+	// lone copy disappears the moment its member is rescheduled.
+	want := *streamConfig(ingress) // R3
 	drifted := want
-	drifted.Replicas = 3
+	drifted.Replicas = 1
 	if streamMatches(drifted, want) {
-		t.Fatal("streamMatches ignored a replica drift; live R3 would never converge to R1")
+		t.Fatal("streamMatches ignored a replica drift; a live R1 stream would never converge back to R3")
 	}
 }
 
-func TestR1StreamsStayOffWorker1(t *testing.T) {
+// TestNoStreamPinsPlacement replaces the old "R1 streams stay off worker1"
+// guard, which pinned each single-replica stream to an ordinal so its sole copy
+// never landed on the WAN-connected peer. The hub now runs three replicated
+// members with no persistent volumes, so a stream must be free to follow its
+// member wherever the pod is rescheduled. An ordinal tag would make it a pet
+// again — and worse, would leave an R3 stream unschedulable, since placement
+// must be satisfiable by all three peers at once.
+func TestNoStreamPinsPlacement(t *testing.T) {
 	specs := append([]StreamSpec{}, DataStreams...)
-	specs = append(specs, OutgressStream)
+	specs = append(specs, OutgressStream, OutgressSystemStream, ingressStreamSpec(t))
 	for _, spec := range specs {
-		cfg := streamConfig(spec)
-		if cfg.Replicas != 1 {
-			continue
-		}
-		if cfg.Placement == nil || len(cfg.Placement.Tags) != 1 {
-			t.Fatalf("R1 stream %s has no ordinal placement", spec.Name)
-		}
-		if cfg.Placement.Tags[0] == "nats-2" {
-			t.Fatalf("R1 stream %s may place its sole leader on worker1", spec.Name)
+		if cfg := streamConfig(spec); cfg.Placement != nil {
+			t.Fatalf("stream %s pins placement to %v; the volume-less hub requires unpinned streams",
+				spec.Name, cfg.Placement.Tags)
 		}
 	}
 
+	// Placement must stay part of streamMatches even though no spec sets it: a
+	// tag applied out-of-band has to be reconciled back off, not persist silently.
 	want := *streamConfig(ingressStreamSpec(t))
 	drifted := want
 	drifted.Placement = &nats.Placement{Tags: []string{"nats-2"}}
 	if streamMatches(drifted, want) {
-		t.Fatal("streamMatches ignored placement drift")
+		t.Fatal("streamMatches ignored placement drift; a hand-pinned stream would never converge back")
 	}
 }
 

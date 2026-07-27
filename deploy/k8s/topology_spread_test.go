@@ -96,8 +96,16 @@ func TestRolloutSensitiveWorkloadsHardSpreadEachReplicaSet(t *testing.T) {
 		minDomains int
 	}{
 		{"console-admin.yaml", "console-admin", 0},
-		{"notifications.yaml", "notifications", 4},
-		{"transactions.yaml", "transactions", 4},
+		// minDomains tracks the number of schedulable app-tier nodes, which is 3.
+		// It must NEVER exceed that count: when it does, skew is measured against
+		// a global minimum of zero and every replica becomes unschedulable, so an
+		// over-large value is a total outage rather than a loose constraint. This
+		// was 4 while the fleet had four app nodes, and only kept working after
+		// the move because the cordoned old nodes still counted as domains
+		// (nodeTaintsPolicy defaults to Ignore) — deleting them would have taken
+		// both of these services to zero replicas.
+		{"notifications.yaml", "notifications", 3},
+		{"transactions.yaml", "transactions", 3},
 		{"twitch-ingress.yaml", "twitch-ingress", 0},
 	}
 
@@ -118,11 +126,18 @@ func TestRolloutSensitiveWorkloadsHardSpreadEachReplicaSet(t *testing.T) {
 }
 
 // excludesWorkerPool captures the placement rule under test: a nodeAffinity
-// match expression that keeps the workload off the worker pool.
+// match expression that keeps the workload off worker-role nodes.
+//
+// The key moved from itsbagelbot.dev/pool=worker-pool to
+// itsbagelbot.dev/role=worker when node roles were unified onto one key
+// (cp / node / worker). No worker-role node exists yet, so this guard is
+// currently inert — it is kept expressed on the live key so that it starts
+// holding the moment one is added, rather than silently pointing at a retired
+// label that nothing would ever match.
 func excludesWorkerPool(key, operator string, values []string) bool {
-	return key == "itsbagelbot.dev/pool" &&
+	return key == "itsbagelbot.dev/role" &&
 		operator == "NotIn" &&
-		slices.Contains(values, "worker-pool")
+		slices.Contains(values, "worker")
 }
 
 func TestConsoleAdminExplicitlyExcludesWorkerPool(t *testing.T) {
