@@ -16,6 +16,18 @@
     state: started
     enabled: true
 
+# On a fresh install the systemd unit returns 'started' before the daemon has
+# fully initialised its D-Bus interface. ansible.posix.firewalld talks to
+# firewalld over D-Bus and immediately fails with "not currently running".
+# Retry firewall-cmd --state to give the daemon the few seconds it needs.
+- name: Wait for firewalld to be ready
+  ansible.builtin.command: firewall-cmd --state
+  register: fwd_state
+  retries: 10
+  delay: 2
+  until: fwd_state.rc == 0
+  changed_when: false
+
 # --- Trust the tailnet interface --------------------------------------------
 # k3s API (6443), kubelet (10250), flannel VXLAN (8472/udp), pod traffic all
 # traverse tailscale0. Trusting the interface covers every cluster port at once.

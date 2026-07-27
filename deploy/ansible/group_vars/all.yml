@@ -34,6 +34,7 @@ tailscale_direct_peers:
   - node2
   - node3
   - node4
+  - node5
   - worker1
 
 # --- Node identity -----------------------------------------------------------

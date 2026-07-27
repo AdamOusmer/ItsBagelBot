@@ -229,7 +229,23 @@
 # invisible until node4 arrived from a bare image with a usable root password
 # (2026-07-25). Locks the PASSWORD only — key-based auth is untouched, so a run
 # connecting as root does not sever its own connection.
+- name: Ensure fleet admin user exists (almalinux)
+  ansible.builtin.user:
+    name: almalinux
+    state: present
+    groups: wheel
+    append: true
+
+- name: Grant fleet admin user NOPASSWD sudo
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/90-almalinux
+    mode: "0440"
+    content: "almalinux ALL=(ALL) NOPASSWD:ALL"
+
 - name: Lock the root password
   ansible.builtin.user:
     name: root
     password_lock: true
+
+- name: Flush handlers to apply sysctl changes before subsequent roles
+  ansible.builtin.meta: flush_handlers

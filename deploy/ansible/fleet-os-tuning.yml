@@ -1,0 +1,236 @@
+---
+- name: Validate the explicit production-cluster inventory
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    fleet_required_nodes:
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
+      - worker1
+  tasks:
+    - name: Refuse an empty or partial cluster target
+      ansible.builtin.assert:
+        that:
+          - groups.get('cluster', []) | length == fleet_required_nodes | length
+          - fleet_required_nodes | difference(groups.get('cluster', [])) | length == 0
+          - groups.get('k3s_server', []) == ['node3']
+        fail_msg: >-
+          fleet-os-tuning.yml requires the complete production inventory and
+          node3 as the live control plane. Run it with -i inventory.cluster.ini.
+
+- name: Reconcile fleet OS performance safely
+  hosts: cluster
+  become: true
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Require a supported RHEL-family node
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "RedHat"
+          - ansible_service_mgr == "systemd"
+        fail_msg: "{{ inventory_hostname }} is not a supported systemd RHEL-family host"
+
+    - name: Require the expected K3s service to be active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ 'k3s' if inventory_hostname in groups['k3s_server'] else 'k3s-agent' }}"
+      changed_when: false
+
+    - name: Apply the base role performance policy only
+      ansible.builtin.include_role:
+        name: base
+        tasks_from: performance_tuning
+
+    - name: Repair node1 logrotate ownership boundaries
+      ansible.builtin.copy:
+        src: files/node1-custom-limits
+        dest: /etc/logrotate.d/custom-limits
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+      when: inventory_hostname == 'node1'
+
+    - name: Validate node1 logrotate configuration
+      ansible.builtin.command:
+        argv:
+          - logrotate
+          - --debug
+          - /etc/logrotate.conf
+      changed_when: false
+      when:
+        - inventory_hostname == 'node1'
+        - not ansible_check_mode
+
+    - name: Clear node1's stale logrotate failure
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - reset-failed
+          - logrotate.service
+      changed_when: false
+      when:
+        - inventory_hostname == 'node1'
+        - not ansible_check_mode
+
+    - name: Prove node1 log rotation now succeeds
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - start
+          - logrotate.service
+      changed_when: false
+      when:
+        - inventory_hostname == 'node1'
+        - not ansible_check_mode
+
+    - name: Read worker1 boot entries before changing crash-kernel policy
+      ansible.builtin.command:
+        argv:
+          - grubby
+          - --info=ALL
+      register: worker1_grubby_before
+      changed_when: false
+      when: inventory_hostname == 'worker1'
+
+    - name: Preserve worker1 boot entries before performance tuning
+      ansible.builtin.copy:
+        dest: /etc/fleet/grubby-before-performance-tuning.txt
+        content: "{{ worker1_grubby_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+        force: false
+      when: inventory_hostname == 'worker1'
+
+    # Secure Boot prevents this machine from loading its dump kernel, but the
+    # current boot still permanently withholds 448 MiB from the OS. Disable the
+    # nonfunctional service and remove the reservation from future boots.
+    - name: Disable worker1's nonfunctional Kdump service
+      ansible.builtin.systemd:
+        name: kdump.service
+        state: stopped
+        enabled: false
+      when: inventory_hostname == 'worker1'
+
+    - name: Clear worker1's stale Kdump failure
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - reset-failed
+          - kdump.service
+      changed_when: false
+      when:
+        - inventory_hostname == 'worker1'
+        - not ansible_check_mode
+
+    - name: Remove worker1 crash-kernel reservation from installed boot entries
+      ansible.builtin.command:
+        argv:
+          - grubby
+          - --update-kernel=ALL
+          - --remove-args=crashkernel
+      changed_when: true
+      when:
+        - inventory_hostname == 'worker1'
+        - "'crashkernel=' in worker1_grubby_before.stdout"
+        - not ansible_check_mode
+
+    - name: Verify worker1 boot entries no longer reserve crash-kernel RAM
+      ansible.builtin.command:
+        argv:
+          - grubby
+          - --info=ALL
+      register: worker1_grubby_after
+      changed_when: false
+      failed_when: "'crashkernel=' in worker1_grubby_after.stdout"
+      when:
+        - inventory_hostname == 'worker1'
+        - not ansible_check_mode
+
+    - name: Verify the live network and memory policy
+      ansible.builtin.shell: |
+        set -o pipefail
+        test "$(sysctl -n net.core.default_qdisc)" = fq
+        test "$(sysctl -n net.ipv4.tcp_congestion_control)" = bbr
+        test "$(sysctl -n net.ipv4.tcp_mtu_probing)" = 1
+        test "$(sysctl -n vm.swappiness)" = 1
+        test "$(sysctl -n vm.overcommit_memory)" = 1
+        test "$(sysctl -n vm.dirty_background_bytes)" = 134217728
+        test "$(sysctl -n vm.dirty_bytes)" = 536870912
+        grep -q '\[never\]' /sys/kernel/mm/transparent_hugepage/enabled
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read live SoftIRQ budget on measured hosts
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - "{{ item }}"
+      loop:
+        - net.core.netdev_budget
+        - net.core.netdev_budget_usecs
+      register: measured_softirq_budget
+      changed_when: false
+      when:
+        - bagelbot_netdev_budget is defined
+        - not ansible_check_mode
+
+    - name: Require the intended SoftIRQ budget on measured hosts
+      ansible.builtin.assert:
+        that:
+          - measured_softirq_budget.results[0].stdout == bagelbot_netdev_budget | string
+          - measured_softirq_budget.results[1].stdout == bagelbot_netdev_budget_usecs | string
+      when:
+        - bagelbot_netdev_budget is defined
+        - not ansible_check_mode
+
+    - name: Verify non-rotational disks use the low-overhead scheduler
+      ansible.builtin.shell: |
+        set -o pipefail
+        for device in /sys/block/*
+        do
+          test -r "$device/queue/rotational" || continue
+          test "$(cat "$device/queue/rotational")" = 0 || continue
+          case "$(basename "$device")" in
+            loop*|dm-*) continue
+          esac
+          grep -q '\[none\]' "$device/queue/scheduler"
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify performance services are active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ item }}"
+      loop:
+        - irqbalance.service
+        - tuned.service
+        - fstrim.timer
+        - bagelbot-sysctl.service
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require at least ten percent free space on the root filesystem
+      ansible.builtin.assert:
+        that:
+          - item.size_available / item.size_total > 0.10
+        fail_msg: "{{ inventory_hostname }} root filesystem has less than 10% free"
+      loop: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list }}"
+      loop_control:
+        label: "{{ inventory_hostname }}:/"
