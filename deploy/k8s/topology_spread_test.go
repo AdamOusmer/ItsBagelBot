@@ -1,8 +1,10 @@
 package k8s
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -102,7 +104,7 @@ func TestRolloutSensitiveWorkloadsHardSpreadEachReplicaSet(t *testing.T) {
 		// over-large value is a total outage rather than a loose constraint. This
 		// was 4 while the fleet had four app nodes, and only kept working after
 		// the move because the cordoned old nodes still counted as domains
-		// (nodeTaintsPolicy defaults to Ignore) — deleting them would have taken
+		// (nodeTaintsPolicy defaults to Ignore). Deleting them would have taken
 		// both of these services to zero replicas.
 		{"notifications.yaml", "notifications", 3},
 		{"transactions.yaml", "transactions", 3},
@@ -138,6 +140,100 @@ func excludesWorkerPool(key, operator string, values []string) bool {
 	return key == "itsbagelbot.dev/role" &&
 		operator == "NotIn" &&
 		slices.Contains(values, "worker")
+}
+
+// TestNoWorkloadSelectsNodesByHostname guards the failure mode this directory
+// kept re-learning: a nodeAffinity that names individual hosts goes stale the
+// moment the fleet changes shape, and a stale term is silently inert rather than
+// loud. Retiring a node left rules reading "NotIn [worker1]" and "NotIn [node1]"
+// long after both hosts were gone, each carrying a comment admitting it was
+// already inert. Selecting on itsbagelbot.dev/role instead keeps the intent
+// ("not the control plane", "not a burst worker") true across fleet changes.
+//
+// Only nodeAffinity is in scope. topologySpreadConstraints and podAntiAffinity
+// legitimately use kubernetes.io/hostname as a topology KEY, which spreads
+// across whatever hosts exist rather than naming any of them.
+func TestNoWorkloadSelectsNodesByHostname(t *testing.T) {
+	for _, located := range loadDirectoryManifests(t) {
+		for _, selector := range hostnameNodeSelectors(located.workloadManifest) {
+			t.Errorf("%s/%s selects nodes by hostname (%s); select on itsbagelbot.dev/role instead",
+				located.filename, located.Metadata.Name, selector)
+		}
+	}
+}
+
+// locatedManifest keeps a decoded manifest next to the file it came from, so a
+// failure can name the file without that filename being threaded through the
+// call chain as a bare string argument.
+type locatedManifest struct {
+	workloadManifest
+	filename string
+}
+
+// loadDirectoryManifests decodes every YAML document in this directory.
+func loadDirectoryManifests(t *testing.T) []locatedManifest {
+	t.Helper()
+
+	var located []locatedManifest
+	for _, filename := range manifestFilenames(t) {
+		f, err := os.Open(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, manifest := range decodeManifests(t, f) {
+			located = append(located, locatedManifest{workloadManifest: manifest, filename: filename})
+		}
+		f.Close()
+	}
+	return located
+}
+
+func manifestFilenames(t *testing.T) []string {
+	t.Helper()
+
+	filenames, err := filepath.Glob("*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filenames) == 0 {
+		t.Fatal("no manifests found; the glob is wrong")
+	}
+	return filenames
+}
+
+// decodeManifests reads every YAML document from r through the workload shape.
+// Documents that are not workloads (Services, ConfigMaps, CRs) simply decode to
+// a zero value with no selector terms, so they cost nothing to carry and no
+// shape filtering is needed here.
+func decodeManifests(t *testing.T, r io.Reader) []workloadManifest {
+	t.Helper()
+
+	var manifests []workloadManifest
+	decoder := yaml.NewDecoder(r)
+	for {
+		var manifest workloadManifest
+		if err := decoder.Decode(&manifest); err != nil {
+			if err != io.EOF {
+				t.Fatal(err)
+			}
+			return manifests
+		}
+		manifests = append(manifests, manifest)
+	}
+}
+
+// hostnameNodeSelectors reports each required nodeAffinity expression that
+// selects on kubernetes.io/hostname, rendered for the failure message.
+func hostnameNodeSelectors(manifest workloadManifest) []string {
+	var selectors []string
+	for _, term := range manifest.Spec.Template.Spec.Affinity.NodeAffinity.Required.NodeSelectorTerms {
+		for _, expression := range term.MatchExpressions {
+			if expression.Key == "kubernetes.io/hostname" {
+				selectors = append(selectors, fmt.Sprintf("%s %v", expression.Operator, expression.Values))
+			}
+		}
+	}
+	return selectors
 }
 
 func TestConsoleAdminExplicitlyExcludesWorkerPool(t *testing.T) {

@@ -8,8 +8,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - cloudflared.yaml
-  # coredns replaces the skipped k3s addon (coredns.yaml.skip on node2);
-  # DaemonSet on node2/node3/worker1 + PreferSameNode kube-dns.
+  # coredns replaces the skipped k3s addon (coredns.yaml.skip on the server);
+  # DaemonSet on every node + PreferSameNode kube-dns.
   - coredns.yaml
   # Own metrics-server instead of the immutable k3s packaged manifest so
   # kubelet collection stays on the Tailscale InternalIP management plane.

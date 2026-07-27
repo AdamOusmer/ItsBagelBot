@@ -52,46 +52,32 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # The node1 exclusion below is inert since node1 left the fleet; kept so
-      # the applied spec is unchanged. KEDA (see the ScaledObject below) scales
-      # onto node2/node3/worker1.
-      # Baseline shape at the KEDA floor of 6: node4=2, worker1=2, node2=1, node3=1.
-      # node2 already carries the control plane + valkey master, so the double
-      # belongs on the big-CPU node4; the graded preferences below pick which
-      # nodes take them (node3 first, worker1 second). The required hostname
-      # spread below is authoritative: preferences choose which nodes receive
-      # the two extra replicas, but can never stack four workers on one node.
+      # Eligible nodes are selected by ROLE, so this survives the fleet
+      # changing shape. The graded per-hostname preferences that used to live
+      # here are gone: they existed to steer the two extra replicas onto the
+      # one big-CPU host and away from the host that also carried the control
+      # plane and the valkey master. The app tier is uniform hardware now and
+      # carries neither, so every preference was either inert or actively
+      # fighting the spread constraint below. That constraint is authoritative.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: kubernetes.io/hostname
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: [node1]
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 25
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: [node4]
-            - weight: 20
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: [worker1]
+                    values: [cp, worker]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
         # re-spreads one-per-node instead of piling onto whichever node freed
         # capacity first (bit the ingress on 2026-07-10: 3/0/1). This must be a
-        # hard constraint: ScheduleAnyway allowed the node3 preference to place
-        # four 500m workers there, reserving 93% of the node while worker1 had
-        # no Sesame replica. Five healthy replicas fit 2/2/1 across all three
-        # eligible domains; during a node outage existing pods keep serving and
-        # replacement capacity waits rather than overloading a surviving node.
+        # hard constraint: under ScheduleAnyway a per-hostname preference once
+        # placed four 500m workers on one node, reserving 93% of it while
+        # another eligible node had no Sesame replica at all. Five healthy
+        # replicas fit 2/2/1 across all three eligible domains; during a node
+        # outage existing pods keep serving and replacement capacity waits
+        # rather than overloading a surviving node.
         - maxSkew: 1
           minDomains: 3
           topologyKey: kubernetes.io/hostname
@@ -257,9 +243,9 @@ spec:
       app: sesame
 ---
 # Sesame's engine is sub-100us p95; confirmed NATS input/output is the measured
-# capacity boundary. minReplicaCount 5 keeps the baseline shape
-# node4=2, worker1=2, node2=1, node3=1 (see the Deployment's graded node preferences)
-# without waiting on a scale-up; node2 stays light on purpose.
+# capacity boundary. minReplicaCount 5 keeps a warm baseline spread 2/2/1 over
+# the three application nodes (the Deployment's hard hostname spread decides the
+# shape) so a burst does not wait on a scale-up.
 # Consumer names are bus.durableName("worker", subject) - sesame
 # shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
 # bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),

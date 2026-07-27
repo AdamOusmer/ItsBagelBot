@@ -47,8 +47,8 @@ spec:
       # role taint this spec deliberately does not tolerate.
       #
       # What went: a dedicated=nats-ingress toleration that existed so a member
-      # could follow its node-bound volume onto node1, and a NotIn [worker1]
-      # exclusion for a home-wifi node that is leaving the fleet. Both encoded a
+      # could follow its node-bound volume onto a specific host, and a hostname
+      # exclusion for a home-wifi node now retired. Both encoded a
       # hardware asymmetry that no longer exists, and with node1 now the 2-core
       # control plane the toleration had become actively harmful.
       affinity:

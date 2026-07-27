@@ -1,11 +1,12 @@
 # Cloudflare Tunnel connector. Public ingress enters here: Cloudflare's edge
 # dials these outbound connectors and forwards to traefik.kube-system:443.
 #
-# Replicas hard-spread one per non-worker host (node2/node3/node4). worker1 is
-# excluded explicitly: it is a burst worker, not part of the ingress failure
-# domain. A single tunnel ID supports many connector replicas (Cloudflare's
-# native HA model). Both outbound paths are already encrypted (443 to traefik
-# and 7844 to Cloudflare).
+# Replicas hard-spread one per application host. The control plane and any
+# burst worker are excluded by ROLE rather than by hostname: public ingress
+# belongs to the app tier, and naming individual hosts is what left this file
+# referring to a node that had already been retired. A single tunnel ID
+# supports many connector replicas (Cloudflare's native HA model). Both
+# outbound paths are already encrypted (443 to traefik and 7844 to Cloudflare).
 #
 # Managed by the cluster Flux Kustomization. config = cloudflared-config
 # ConfigMap, creds = cloudflared-tunnel Secret (Doppler-managed; the reload
@@ -45,20 +46,20 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: kubernetes.io/hostname
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: ["worker1"]
+                    values: [cp, worker]
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
                   app.kubernetes.io/instance: cloudflared-deployment
-      # node2 is the control plane and remains one of the three ingress nodes.
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
+      # No tolerations. The control plane is a dedicated k3s server now, so
+      # ingress connectors have no business there; the role=cp taint plus the
+      # nodeAffinity above keep them on the app tier. The previous
+      # control-plane toleration dated from when the CP doubled as an ingress
+      # node.
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532

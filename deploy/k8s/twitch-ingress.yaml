@@ -76,17 +76,17 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # Eligible nodes are node2/node3/worker1; the three replicas are spread
-      # one per eligible node in steady state. The node1 exclusion below is
-      # inert since node1 left the fleet; kept so the applied spec is unchanged.
+      # Eligible nodes are the application tier, selected by role rather than
+      # by hostname so the rule cannot go stale when the fleet changes shape.
+      # The three replicas spread one per eligible node in steady state.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: kubernetes.io/hostname
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: [node1]
+                    values: [cp, worker]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout

@@ -24,8 +24,9 @@
 #     webserver.prometheus_metrics_enabled, both live. The prometheus.io pod
 #     annotations are the podAnnotations below.
 #   - resources trimmed way below chart defaults (small fleet, tight CPU
-#     budgets), infra-low priority class, and the itsbagelbot.dev/pool=
-#     worker-pool toleration so the DaemonSet lands on worker1 too (3/3 nodes).
+#     budgets) and the infra-low priority class. The retired
+#     itsbagelbot.dev/pool=worker-pool toleration is gone; the DaemonSet covers
+#     the untainted application nodes.
 #   - falcoctl config needs ZERO overrides: rules artifact falco-rules:5,
 #     container plugin 0.6.3 and follow every 168h are all 8.0.3 defaults
 #     (live falcoctl.yaml diffs empty against the default render). The one

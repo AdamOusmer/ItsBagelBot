@@ -3,8 +3,8 @@
 # This repository is PUBLIC. Committing node addresses here leaked more than the
 # addresses themselves: it correlated which hosts form one cluster, which single
 # host is the control plane, and (read alongside roles/firewall) exactly which
-# ports are open on each. worker1 was a home connection, which made its entry
-# materially worse than the datacenter ones.
+# ports are open on each. One retired node was a home connection, which made its
+# entry materially worse than the datacenter ones.
 #
 # Generate the real file, which .gitignore excludes:
 #

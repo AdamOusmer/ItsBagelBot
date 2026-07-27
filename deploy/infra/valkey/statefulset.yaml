@@ -471,7 +471,7 @@ spec:
       dnsPolicy: ClusterFirst
       priorityClassName: infra-low
       restartPolicy: Always
-      # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.
+      # No role tolerations: Valkey belongs on the untainted application tier.
       # Required anti-affinity keeps exactly one member per node without
       # exposing Valkey through a hostPort.
       schedulerName: default-scheduler

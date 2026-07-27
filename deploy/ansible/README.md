@@ -186,32 +186,35 @@ nodes with the explicit cluster inventory:
 ansible-playbook -i inventory.cluster.ini valkey-host-tuning.yml
 ```
 
-The play asserts that node1, node2, node3, and worker1 are all present before it
-changes a host. Running it against the default single-node provisioning
-inventory fails loudly instead of reporting a successful no-op.
+The play asserts that every host in `valkey_required_nodes` (node1, node4, node5,
+node6) is present before it changes anything. Running it against the default
+single-node provisioning inventory fails loudly instead of reporting a
+successful no-op.
 
 `provision.sh` is a thin `doppler run --project infra-bootstrap --config prd --
 ansible-playbook …` wrapper.
 
-### Compute-only nodes (taint + label)
+### Node roles (label + taint)
 
-Set `NODE_POOL` to fence a node so **only pods that tolerate it** schedule there
-(default-deny). Used for the private compute box — user-facing apps + ingress
-stay on the cloud nodes automatically; only tolerating workloads land here.
+`NODE_ROLE` sets the one label the fleet schedules on,
+`itsbagelbot.dev/role`, and the matching taint. It replaces the retired
+`NODE_POOL` / `itsbagelbot.dev/pool` pair, which named a hardware pool rather
+than a purpose and left workloads tolerating a key no node carried.
+
+| Value | Taint | Meaning |
+|---|---|---|
+| `cp` | `itsbagelbot.dev/role=cp:NoSchedule` | k3s control plane. Runs the API server and the operators that must sit beside it, nothing else. |
+| `node` | none | Application tier. The default, and where workloads run. |
+| `worker` | `itsbagelbot.dev/role=worker:NoSchedule` | Reserved for burst/compute hosts. No node holds this today. |
 
 ```bash
-NODE_POOL=worker-pool ./provision.sh 51.x.x.x opc node4
+NODE_ROLE=node ./provision.sh <address> almalinux node7
 ```
 
-This adds at k3s registration:
-```
-node-label: itsbagelbot.dev/pool=worker-pool
-node-taint: itsbagelbot.dev/pool=worker-pool:NoSchedule
-```
-Pods opt in with a matching toleration (already added to the production compute
-Deployments + `nats-leaf`). `host-research` tolerates all taints;
-`falco` / `crowdsec-agent` were patched to tolerate the pool too.
-Leave `NODE_POOL` unset for normal cloud nodes (no taint).
+Omit it and the box joins as `node`, which is the common case. Pass `cp`
+explicitly when promoting a server. Workloads select the tier by role
+(`itsbagelbot.dev/role NotIn [cp, worker]`) rather than by hostname, so a rule
+cannot go stale when the fleet changes shape.
 
 ## ⚠️ SSH is removed — read before running
 

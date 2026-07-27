@@ -32,7 +32,7 @@ func TestMembershipCadence(t *testing.T) {
 }
 
 func TestEncodeDecodeMember(t *testing.T) {
-	m := Member{PodID: "outgress-abc123", Region: "node2"}
+	m := Member{PodID: "outgress-abc123", Region: "node4"}
 	if got, ok := decodeMember(encodeMember(m)); !ok || got != m {
 		t.Fatalf("round trip = %v, %v; want %v", got, ok, m)
 	}
@@ -52,11 +52,11 @@ func TestMembershipRegistryIntegration(t *testing.T) {
 	registry := newMembershipRegistryTest(t)
 
 	now := time.Now()
-	alive := []Member{{PodID: "pod-a", Region: "node2"}, {PodID: "pod-b", Region: "worker1"}}
+	alive := []Member{{PodID: "pod-a", Region: "node4"}, {PodID: "pod-b", Region: "node5"}}
 	registry.heartbeat(now, time.Minute, alive...)
 
 	// A pod that stopped refreshing: its presence already lies in the past.
-	stale := Member{PodID: "pod-dead", Region: "node2"}
+	stale := Member{PodID: "pod-dead", Region: "node4"}
 	registry.heartbeat(now.Add(-time.Hour), time.Minute, stale)
 
 	registry.assertMembers(now, alive, "stale pod must be excluded")

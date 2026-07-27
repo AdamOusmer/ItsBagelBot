@@ -21,7 +21,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # one per schedulable node incl worker1 (tolerates worker-pool)
+  replicas: 3 # one per application node
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -176,7 +176,6 @@ spec:
             app: notifications-cleanup
         spec:
           restartPolicy: OnFailure
-          tolerations:
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

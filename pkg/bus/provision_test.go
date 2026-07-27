@@ -232,13 +232,13 @@ func TestStreamReplicasAreExplicitAndEnforced(t *testing.T) {
 	}
 }
 
-// TestNoStreamPinsPlacement replaces the old "R1 streams stay off worker1"
-// guard, which pinned each single-replica stream to an ordinal so its sole copy
-// never landed on the WAN-connected peer. The hub now runs three replicated
-// members with no persistent volumes, so a stream must be free to follow its
-// member wherever the pod is rescheduled. An ordinal tag would make it a pet
-// again — and worse, would leave an R3 stream unschedulable, since placement
-// must be satisfiable by all three peers at once.
+// TestNoStreamPinsPlacement replaces an older guard that pinned each
+// single-replica stream to an ordinal so its sole copy never landed on the one
+// WAN-connected peer. That peer is retired, and the hub now runs three
+// replicated members with no persistent volumes, so a stream must be free to
+// follow its member wherever the pod is rescheduled. An ordinal tag would make
+// it a pet again, and worse, would leave an R3 stream unschedulable, since
+// placement must be satisfiable by all three peers at once.
 func TestNoStreamPinsPlacement(t *testing.T) {
 	specs := append([]StreamSpec{}, DataStreams...)
 	specs = append(specs, OutgressStream, OutgressSystemStream, ingressStreamSpec(t))
