@@ -50,11 +50,27 @@ Before provisioning, make UDP `41641` reachable:
    `41641` from `0.0.0.0/0` (and `::/0` when the node has public IPv6). The host
    firewall still restricts all other public traffic; Tailscale authenticates
    and encrypts packets arriving on this UDP socket.
-2. On worker1's upstream router, reserve its LAN address and create a static
-   UDP port-forward from WAN `41641` to worker1 port `41641`. Enabling
-   NAT-PMP/UPnP is an alternative, but a static mapping is more predictable for
-   a cluster node.
-3. Allow outbound UDP to arbitrary destinations and UDP `3478` for STUN.
+2. Allow outbound UDP to arbitrary destinations and UDP `3478` for STUN.
+
+### Fleet nodes are datacenter hosts only. Never port-forward from a home router.
+
+A fleet node must be a host whose inbound UDP you open on a **cloud** firewall,
+in front of an address that belongs to a provider and not to a residence.
+
+Do not satisfy step 1 by forwarding a port on a home or office router. The
+playbook used to document exactly that for a home node, and it is the wrong
+trade in two ways:
+
+- **It publishes a home address.** A tailnet peer learns every other peer's
+  endpoint, and any artifact that records those endpoints (a benchmark log, a
+  `tailscale status` paste, an inventory file) then carries a residential IP
+  that geolocates to a street-level area and cannot be rotated on most ISPs.
+- **It puts a residential link in the RAFT path.** Flannel carries JetStream
+  RAFT over the tailnet, so a consumer-grade uplink becomes a quorum member.
+
+If a node cannot take direct inbound UDP on a provider address, it does not
+belong in the fleet. There is no Ansible task, firewall rule, or NAT-PMP/UPnP
+setting here that makes a home connection an acceptable substitute.
 
 Validate from each node (this pulls the live peer list so it never goes stale):
 

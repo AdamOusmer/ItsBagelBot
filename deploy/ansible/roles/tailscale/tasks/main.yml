@@ -19,8 +19,10 @@
     dest: /etc/default/tailscaled
     mode: "0644"
     content: |
-      # Managed by Ansible. A stable port is required for cloud firewall rules
-      # and worker1's upstream static UDP port-forward.
+      # Managed by Ansible. A stable port is required so the cloud firewall rule
+      # can name a fixed destination port. It is NOT a port to forward from a
+      # home router: fleet nodes take inbound UDP on a provider address only
+      # (see README.md).
       PORT="{{ tailscale_port }}"
       FLAGS=""
   register: tailscale_daemon_defaults
@@ -87,8 +89,9 @@
   changed_when: false
 
 # Direct connectivity is an infrastructure precondition, not a best-effort
-# optimization. If this fails, open UDP/{{ tailscale_port }} in the cloud
-# firewall or add worker1's upstream port-forward described in README.md.
+# optimization. If this fails, open UDP/{{ tailscale_port }} inbound in the
+# cloud firewall. Do not reach for a home-router port-forward instead: a fleet
+# node has to be a provider-addressed host (see README.md).
 - name: Require a direct UDP path to every fleet peer
   ansible.builtin.command:
     argv:
