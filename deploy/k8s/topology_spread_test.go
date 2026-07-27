@@ -96,37 +96,53 @@ func hostnameSpread(t *testing.T, manifest workloadManifest) struct {
 	}{}
 }
 
-func TestRolloutSensitiveWorkloadsHardSpreadEachReplicaSet(t *testing.T) {
-	tests := []struct {
-		file       string
-		name       string
-		minDomains int
-	}{
-		{"console-admin.yaml", "console-admin", 0},
-		// minDomains tracks the number of schedulable app-tier nodes, which is 3.
-		// It must NEVER exceed that count: when it does, skew is measured against
-		// a global minimum of zero and every replica becomes unschedulable, so an
-		// over-large value is a total outage rather than a loose constraint. This
-		// was 4 while the fleet had four app nodes, and only kept working after
-		// the move because the cordoned old nodes still counted as domains
-		// (nodeTaintsPolicy defaults to Ignore). Deleting them would have taken
-		// both of these services to zero replicas.
-		{"notifications.yaml", "notifications", 3},
-		{"transactions.yaml", "transactions", 3},
-		{"twitch-ingress.yaml", "twitch-ingress", 0},
-	}
-
-	for _, tt := range tests {
+// TestSpreadIsPreferredNeverBlocking asserts the placement policy the fleet
+// settled on after 2026-07-27: spread hard enough to survive a rollout, never
+// hard enough to withhold a replica.
+//
+// These were DoNotSchedule with minDomains, which is a correct-looking
+// constraint that fails badly the moment a node is gone for longer than a few
+// minutes. When node5 died, thirteen deployments sat at 2/3 with a permanently
+// Pending third replica: the scheduler could not place it without exceeding
+// maxSkew against a domain that no longer had a schedulable node. Capacity was
+// withheld for hours to preserve a spread that could not be achieved anyway.
+//
+// minDomains was worse than that. It is only valid alongside DoNotSchedule, and
+// if it ever exceeds the number of eligible domains, skew is measured against a
+// global minimum of zero and EVERY replica becomes unschedulable. It sat at 4
+// while the fleet had four app nodes and only kept working after the move
+// because cordoned nodes still count as domains (nodeTaintsPolicy defaults to
+// Ignore); deleting them would have taken those services to zero replicas.
+//
+// ScheduleAnyway keeps the scheduler preferring an even spread while letting a
+// replica land anywhere rather than nowhere, and matchLabelKeys still scopes the
+// skew to the incoming ReplicaSet so each rollout re-spreads. Kubernetes does
+// not rebalance running pods, so a returning node is repopulated by the next
+// rollout rather than immediately, which is the accepted trade.
+//
+// Quorum services are the deliberate exception and are NOT listed here: nats and
+// valkey keep required podAntiAffinity, because two members of a three-member
+// quorum sharing a node means one node loss costs the quorum.
+func TestSpreadIsPreferredNeverBlocking(t *testing.T) {
+	for _, tt := range []struct{ file, name string }{
+		{"console-admin.yaml", "console-admin"},
+		{"notifications.yaml", "notifications"},
+		{"transactions.yaml", "transactions"},
+		{"twitch-ingress.yaml", "twitch-ingress"},
+		{"sesame.yaml", "sesame"},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			constraint := hostnameSpread(t, loadDeployment(t, tt.file, tt.name))
-			if constraint.WhenUnsatisfiable != "DoNotSchedule" {
-				t.Fatalf("hostname spread is %q, want DoNotSchedule", constraint.WhenUnsatisfiable)
+			if constraint.WhenUnsatisfiable != "ScheduleAnyway" {
+				t.Errorf("hostname spread is %q; must be ScheduleAnyway so a missing node cannot withhold a replica",
+					constraint.WhenUnsatisfiable)
 			}
 			if !slices.Contains(constraint.MatchLabelKeys, "pod-template-hash") {
-				t.Fatal("hostname spread must be scoped to the incoming ReplicaSet")
+				t.Error("hostname spread must be scoped to the incoming ReplicaSet via matchLabelKeys")
 			}
-			if constraint.MinDomains != tt.minDomains {
-				t.Fatalf("minDomains = %d, want %d", constraint.MinDomains, tt.minDomains)
+			if constraint.MinDomains != 0 {
+				t.Errorf("minDomains = %d; it is only valid with DoNotSchedule and turns into a total outage when it exceeds the eligible domain count",
+					constraint.MinDomains)
 			}
 		})
 	}
@@ -206,31 +222,46 @@ func manifestFilenames(t *testing.T) []string {
 	return filenames
 }
 
-// TestNoStatefulSetClaimsAPersistentVolume guards the failure that took
-// production down on 2026-07-27.
+// pinningIsWorthIt lists the StatefulSets allowed to claim a PersistentVolume.
 //
-// A local-path PVC binds its PV to whichever node provisioned it. When node5
-// died, nats-1 was pinned there and could not be rescheduled anywhere: it sat
-// Pending on "didn't match PersistentVolume's node affinity" indefinitely, took
-// JetStream below quorum, and crashlooped every service that opens a consumer at
-// startup. One dead node became a full outage.
+// A local-path PVC binds its PV to whichever node provisioned it, so a member
+// whose node dies sits Pending on "didn't match PersistentVolume's node
+// affinity" until someone deletes the claim. On 2026-07-27 that stranded nats-1
+// on a dead node5, took JetStream below quorum, and crashlooped every service
+// that opens a consumer at startup. Pinning is therefore opt-in and has to earn
+// its place, which only nats does:
 //
-// Replication is the durability mechanism here, not the disk. Every stream is
-// R3, so a member that restarts empty re-syncs from its peers, which is exactly
-// how nats-1 was recovered onto node3.
+//   - nats: a cold start re-establishes every stream AND all 24+ consumer RAFT
+//     groups from its peers. Measured that day, a restarted member sat "not
+//     current" on 10-27 groups for minutes, surfacing as chat replies that were
+//     slow or dropped past MaxDeliver. The cost scales with GROUP COUNT, not
+//     data: the streams held under a thousand messages.
+//
+// Valkey is deliberately absent. Its master/replica topology rebuilds a member
+// with one full resync of a small derived dataset, so an empty volume costs a
+// few seconds rather than minutes of degraded consumer state.
+var pinningIsWorthIt = map[string]string{
+	"nats": "cold start rebuilds 24+ consumer RAFT groups; see the volumeClaimTemplates comment in nats.yaml",
+}
+
+// TestOnlyDocumentedStatefulSetsPinAVolume keeps the exception list honest.
 //
 // This has to be a test rather than a comment because volumeClaimTemplates is
-// IMMUTABLE. Server-side apply will not remove one: it keeps the claim template
-// and adds the emptyDir alongside it, producing a duplicate volume name while
-// Flux still reports the reconcile as successful. Reintroducing one would need a
-// delete-and-recreate of the StatefulSet to undo, so it must be caught in review.
-func TestNoStatefulSetClaimsAPersistentVolume(t *testing.T) {
+// IMMUTABLE. Server-side apply will neither add nor remove one: dropping it
+// leaves the claim template in place and adds the new volume alongside,
+// producing a duplicate volume name while Flux still reports the reconcile as
+// successful. Either direction needs a delete-and-recreate of the StatefulSet,
+// so the decision must be caught in review rather than at deploy time.
+func TestOnlyDocumentedStatefulSetsPinAVolume(t *testing.T) {
 	for _, located := range loadDirectoryManifests(t) {
 		if located.Kind != "StatefulSet" || len(located.Spec.VolumeClaimTemplates) == 0 {
 			continue
 		}
+		if _, ok := pinningIsWorthIt[located.Metadata.Name]; ok {
+			continue
+		}
 		for _, vct := range located.Spec.VolumeClaimTemplates {
-			t.Errorf("%s/%s declares volumeClaimTemplates %q; use an emptyDir volume and let replication provide durability",
+			t.Errorf("%s/%s claims volume %q but is not in pinningIsWorthIt; a local-path PVC strands the pod when its node dies, so either justify it there or use an emptyDir and let replication rebuild the member",
 				located.filename, located.Metadata.Name, vct.Metadata.Name)
 		}
 	}

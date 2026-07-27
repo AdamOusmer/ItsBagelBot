@@ -40,6 +40,30 @@ tailscale_direct_peers:
   - node5
   - node6
 
+# Subnet routes this node advertises to the tailnet, set PER HOST in the
+# inventory. It is what lets nodes on different providers reach each other's
+# private networks, and the fleet already depends on it: node1 advertises OCI's
+# 10.0.0.0/16 so in-cluster pods can reach the database.
+#
+# The ServaRICA nodes advertise the private VLAN (10.10.0.0/24) for the same
+# reason in reverse. Once flannel on those nodes peers over their VLAN addresses,
+# node1 has no physical path to 10.10.0.x, and this route is what gives it one.
+# App-tier traffic still goes DIRECT over the VLAN at sub-millisecond latency;
+# only the control plane's small share (~0.05 GB/day) takes the tailnet hop, and
+# measured 2026-07-27 that hop is 2ms versus the 2.8-4.0ms it already pays on the
+# public path, so it costs nothing.
+#
+# EMPTY MEANS "DO NOT TOUCH", deliberately. `tailscale set --advertise-routes=`
+# with an empty value CLEARS every advertised route, so a run against a partial
+# inventory would silently strip node1 of 10.0.0.0/16 and cut the cluster off
+# from the database. The role therefore omits the flag entirely when this is
+# unset rather than passing it empty.
+#
+# Routes still need approving once in the Tailscale admin console (or via an ACL
+# auto-approver, which is the better answer so a reprovisioned node does not come
+# back silently unrouted).
+tailscale_advertise_routes: ""
+
 # --- Node identity -----------------------------------------------------------
 # Resolved/persisted in the base role. Pass NODE_NAME for explicit incremental
 # names (node4, node5…); otherwise a unique bot-XXXXX name is generated so the

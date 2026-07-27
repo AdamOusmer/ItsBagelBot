@@ -69,16 +69,54 @@
 # `tailscale up` above is intentionally only used for first authentication.
 # Reconcile mutable preferences on every Ansible run; otherwise old nodes keep
 # stale settings forever because their BackendState is already Running.
+#
+# --advertise-routes is appended only when the host actually declares routes.
+# Passing it empty is destructive: `tailscale set --advertise-routes=` clears ALL
+# advertised routes, so a run against a partial inventory would strip node1 of
+# OCI's 10.0.0.0/16 and cut every pod off from the database. Omitting the flag
+# leaves whatever the node already advertises untouched.
 - name: Reconcile Tailscale runtime preferences
   ansible.builtin.command:
-    argv:
-      - tailscale
-      - set
-      - "--hostname={{ fleet_node_name }}"
-      - "--ssh=true"
-      - "--accept-routes=true"
-      - "--accept-dns=false"
+    argv: >-
+      {{
+        [
+          'tailscale', 'set',
+          '--hostname=' ~ fleet_node_name,
+          '--ssh=true',
+          '--accept-routes=true',
+          '--accept-dns=false',
+        ]
+        + (
+          ['--advertise-routes=' ~ tailscale_advertise_routes]
+          if (tailscale_advertise_routes | default('') | length > 0)
+          else []
+        )
+      }}
   changed_when: false
+
+# A route is advertised but NOT usable until it is approved, and an unapproved
+# route fails silently: peers simply have no path. Surface it at provision time
+# rather than leaving it to be discovered when the control plane cannot reach a
+# pod. Not fatal, because approval is a one-time console/ACL action that may
+# legitimately lag the playbook run.
+- name: Warn when advertised routes are not yet approved
+  when: tailscale_advertise_routes | default('') | length > 0
+  block:
+    - name: Read advertised vs approved routes
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_route_state
+      changed_when: false
+
+    - name: Report unapproved routes
+      ansible.builtin.debug:
+        msg: >-
+          Route(s) {{ tailscale_advertise_routes }} are advertised but NOT in
+          Self.AllowedIPs. Approve them in the Tailscale admin console (or add an
+          ACL auto-approver) or peers will have no path to this subnet.
+      when: >-
+        (tailscale_route_state.stdout | from_json).Self.AllowedIPs
+        | default([]) | select('search', tailscale_advertise_routes.split(',')[0])
+        | list | length == 0
 
 - name: Confirm tailscaled is listening on the pinned UDP port
   ansible.builtin.shell: >-

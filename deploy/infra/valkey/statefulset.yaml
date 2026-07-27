@@ -497,7 +497,7 @@ spec:
             app.kubernetes.io/name: valkey
         maxSkew: 1
         topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: DoNotSchedule
+        whenUnsatisfiable: ScheduleAnyway
       volumes:
       - name: users-secret
         secret:

@@ -1,0 +1,8 @@
+---
+# Second NIC on the ServaRICA private VLAN. Overridable per host in case a
+# rebuilt image enumerates it differently.
+vlan_interface: eth1
+
+# Empty means "this host is not on the private VLAN" and the role ends early.
+# Set per host in inventory.cluster.ini (node4/5/6 only; node1 is at OCI).
+vlan_address: ""

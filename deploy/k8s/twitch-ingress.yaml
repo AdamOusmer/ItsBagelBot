@@ -96,7 +96,7 @@ spec:
         # the steady-state placement exactly 1/1/1.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:

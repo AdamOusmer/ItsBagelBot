@@ -163,10 +163,12 @@ var TwitchIngressStream = StreamSpec{
 	//     handling), so this degrades rather than corrupts. Splitting the status
 	//     subjects into their own longer-lived stream is the clean fix and is
 	//     worth doing before this window is trusted for anything but chat.
-	//  2. streamConfig clamps the dedup window to MaxAge, so Nats-Msg-Id dedup
-	//     narrows from 30s to 10s. A duplicate publish separated by more than 10s
-	//     would no longer be caught. Ingress publishes are acked and idempotent
-	//     per event id, so the exposure is a retry that straddles the window.
+	//  2. streamConfig clamps the dedup window to MaxAge, which narrows it from
+	//     30s to 10s. This costs nothing here: ingress is the only publisher to
+	//     these subjects and it deliberately attaches no Nats-Msg-Id (see
+	//     app/ingress/lib/ingress/nats.ex — EventSub websocket delivery is not
+	//     replayed, so the broker-side dedup index was pure overhead and was
+	//     measured at ~27% of per-message cost). There is no dedup to lose.
 	MaxAge: 10 * time.Second,
 	// Memory-backed: the stream is perishable (a replay window that never
 	// needs to survive a restart), so memory storage drops the per-event disk

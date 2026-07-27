@@ -186,30 +186,44 @@ spec:
             secretName: nats-hub-tls
         - name: pid
           emptyDir: {}
-        # JetStream storage is EPHEMERAL, deliberately. There is no
-        # volumeClaimTemplates block and there must never be one again.
-        #
-        # A local-path PVC binds its PV to the node that first provisioned it, so
-        # a member whose node dies can never be rescheduled anywhere: it sits
-        # Pending on "didn't match PersistentVolume's node affinity" forever. On
-        # 2026-07-27 node5 was lost, nats-1 was pinned to it, JetStream fell below
-        # quorum, and every service that opens a consumer at startup crashlooped
-        # on "JetStream system temporarily unavailable". A single node loss became
-        # a full outage purely because of the pin.
-        #
-        # Durability comes from R3 replication instead (see pkg/bus/streams.go:
-        # every stream is Replicas: 3 with no PlacementTags). A member that
-        # restarts with an empty volume re-syncs from the two peers that still
-        # hold the data, which is what happened when nats-1 was rebuilt onto
-        # node3. Ephemeral storage makes that the NORMAL path rather than a
-        # recovery procedure, and lets a member follow its pod to any node.
-        #
-        # sizeLimit is a guard, not a reservation: it caps what a runaway stream
-        # can take from the node's filesystem. It sits above JetStream's 4GB
-        # max_mem so a legitimate spill is not truncated.
-        - name: jetstream-data
-          emptyDir:
-            sizeLimit: 6Gi
+  # JetStream keeps a PERSISTENT volume, chosen with both failure modes measured
+  # on 2026-07-27.
+  #
+  # The cost of NOT having one: a member restarts with no store directory, logs
+  # "JetStream cluster bootstrapping", and must re-establish every stream AND all
+  # 24+ consumer RAFT groups from its peers. Measured that day, members sat
+  # "not current" on 10-27 groups for many minutes after each restart, which
+  # shows up as chat replies that are slow or dropped past MaxDeliver. The
+  # expense is the GROUP COUNT, not the data: the streams held under a thousand
+  # messages.
+  #
+  # The cost of having one: local-path binds the PV to the node that provisioned
+  # it, so a member whose node dies sits Pending forever on "didn't match
+  # PersistentVolume's node affinity". That is what happened to nats-1 when node5
+  # was lost, and it took JetStream below quorum and crashlooped every service
+  # that opens a consumer at startup.
+  #
+  # Note what the volume does and does not buy. TWITCH_INGRESS and
+  # TWITCH_OUTGRESS are MemoryStorage, so their data never touches this disk and
+  # a restart always re-fetches them. What the volume actually preserves is the
+  # file-backed streams (BAGEL_DATA, KV_admin_lanes, TWITCH_OUTGRESS_SYSTEM) and,
+  # crucially, the consumer/RAFT state that makes a restart cheap.
+  #
+  # RECOVERY when a node dies and a member is stranded: delete that member's PVC.
+  # The StatefulSet provisions a fresh one on a live node and the member re-syncs
+  # from its two peers. It is one command, and it is the documented answer rather
+  # than something to rediscover under pressure.
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: jetstream-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 4Gi
 ---
 apiVersion: v1
 kind: Service
