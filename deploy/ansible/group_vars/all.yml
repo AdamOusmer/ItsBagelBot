@@ -9,10 +9,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # --- k3s control plane (node1) -----------------------------------------------
-# node1 Tailscale IPv4. CP history: node1 -> node2 (2026-07-01) -> node3
-# (2026-07-25) -> node1 (2026-07-27). Agents join over the tailnet, never the
-# public interface.
-k3s_server_ip: "100.98.67.104"
+# Control-plane Tailscale IPv4, injected by doppler run (infra-bootstrap/prd).
+# NOT committed: this repo is public, and the server address identifies the one
+# host whose loss takes the cluster down. CP history: node1 -> node2
+# (2026-07-01) -> node3 (2026-07-25) -> node1 (2026-07-27). Agents join over the
+# tailnet, never the public interface.
+k3s_server_ip: "{{ lookup('env', 'NODE1_TAILNET_IP') | mandatory }}"
 k3s_url: "https://{{ k3s_server_ip }}:6443"
 k3s_version: "v1.35.5+k3s1"             # pinned to running fleet; bump deliberately
 # Pod/service traffic must use the physical underlay. Tailscale is reserved for

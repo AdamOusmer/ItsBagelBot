@@ -9,15 +9,19 @@ NATS, Valkey, RPC, stream, telemetry, or autoscaling data inside Tailscale.
 K3s Flannel now uses the supported `wireguard-native` backend. Every node
 advertises a direct WAN endpoint:
 
+Addresses are deliberately not recorded here: this is a public repository, and
+worker1 in particular was a home connection. Endpoints come from Doppler
+(`infra-bootstrap/prd`) at apply time.
+
 | Node | Flannel interface | Endpoint |
 |---|---|---|
 | node1 | `enp0s6` | `<node1-public>:51820` |
-| node2 | `eth0` | `<node2-public>:51820` |
-| node3 | `eth0` | `<node3-public>:51820` |
-| worker1 | `wlp2s0` | `<redacted-home-ip>:51820` |
+| node2 | `eth0` | `<node2-public>:51820` (retired) |
+| node3 | `eth0` | `<node3-public>:51820` (retired) |
+| worker1 | `wlp2s0` | `<worker1-public>:51820` (retired) |
 
 The Kubernetes InternalIP remains the node's Tailscale management address. On node2,
-`advertise-address: 100.95.95.9` and the API server's kubelet address preference
+`advertise-address: <server-tailnet-ip>` and the API server's kubelet address preference
 keep the API Service and logs on InternalIP. The Flux-owned metrics-server also
 prefers InternalIP, so kubelet metrics do not require public port 10250.
 

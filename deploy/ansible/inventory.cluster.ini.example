@@ -1,0 +1,38 @@
+# TEMPLATE ONLY — the real inventory is gitignored.
+#
+# This repository is PUBLIC. Committing node addresses here leaked more than the
+# addresses themselves: it correlated which hosts form one cluster, which single
+# host is the control plane, and (read alongside roles/firewall) exactly which
+# ports are open on each. worker1 was a home connection, which made its entry
+# materially worse than the datacenter ones.
+#
+# Generate the real file, which .gitignore excludes:
+#
+#   cd deploy/ansible
+#   doppler run --project infra-bootstrap --config prd -- ./render-inventory.sh
+#
+# The provisioning path already worked this way: group_vars/all.yml reads
+# NODE_EXTERNAL_IP from the environment, injected by doppler run. Only this
+# cluster inventory bypassed it, which is why README.md's claim that "no IPs are
+# copied or committed" was true of site.yml and false of this file.
+#
+[cluster]
+node1 ansible_host=node1 ansible_user=opc k3s_role=server flannel_iface=enp0s6 node_external_ip={{ NODE1_PUBLIC_IP }} wireguard_endpoint={{ NODE1_PUBLIC_IP }} api_advertise_address={{ NODE1_TAILNET_IP }} node_role=cp
+node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE4_PUBLIC_IP }} wireguard_endpoint={{ NODE4_PUBLIC_IP }} node_role=node
+node5 ansible_host=node5 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE5_PUBLIC_IP }} wireguard_endpoint={{ NODE5_PUBLIC_IP }} node_role=node
+node6 ansible_host=node6 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE6_PUBLIC_IP }} wireguard_endpoint={{ NODE6_PUBLIC_IP }} node_role=node
+
+[k3s_server]
+node1
+
+[k3s_agents]
+node4
+node5
+node6
+
+[k3s_first_agent]
+node4
+
+[k3s_remaining_agents]
+node5
+node6
