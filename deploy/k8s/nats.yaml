@@ -14,6 +14,12 @@ spec:
   replicas: 3
   podManagementPolicy: Parallel
   revisionHistoryLimit: 10
+  # Ready is not the same as settled. A member reports healthy as soon as its
+  # assigned assets are current, but the followers that just caught it up are
+  # still flushing snapshots and re-forming consumer groups; 30s of quiet before
+  # the rolling update takes the next member keeps a roll from chaining three
+  # catch-ups back to back.
+  minReadySeconds: 30
   selector:
     matchLabels:
       app: nats
@@ -56,8 +62,10 @@ spec:
           value: worker-pool
           effect: NoSchedule
       # The JetStream hub is a 3-member RAFT quorum on node1/node2/node3.
-      # worker1 rides a home-wifi link and is excluded: an R1 stream whose
-      # single replica landed there would stall on every blip.
+      # worker1 rides a home-wifi link and is excluded. Under the all-R3 catalog
+      # this matters more, not less: every stream needs a quorum on every
+      # publish, so a member on a flapping link does not merely lose its own
+      # copy, it drags the write path of all three down to its RTT.
       # JetStream PVCs are local-path (node-bound), so this exclusion is not a
       # preference — moving a member to another node means deleting its
       # jetstream-data PVC + pod so it reprovisions there and RAFT re-syncs it.
@@ -113,13 +121,30 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # R1 memory-backed ingress needs enough headroom above JetStream's
-            # 4GB max_mem for dedup indexes, connections and the Go runtime.
+            # The memory-backed ingress, retry and chat streams are R3, so every
+            # member holds a full replica: ~1.3 GiB of stream bytes
+            # (TWITCH_INGRESS 1 GiB + TWITCH_OUTGRESS 256 MiB +
+            # TWITCH_INGRESS_RETRY 32 MiB) on all three, not on whichever one
+            # held the single copy. Stream bytes are only part of it: each of
+            # those replicas also carries a memStore RAFT WAL that approaches a
+            # second copy between snapshots, plus one ingest queue per stream
+            # (max_buffered_size 128 MiB x 5) and unaccounted atomic-batch
+            # staging — see the max_mem block in nats-server.conf for the full
+            # arithmetic, ~4.2 GiB per member worst case.
+            # So the 2Gi request is a scheduling floor, not a steady-state
+            # estimate: it deliberately understates usage to keep three members
+            # placeable on this fleet, which also makes a hub pod an early
+            # kubelet eviction candidate under node memory pressure. Raising it
+            # is the correct fix and must be paired with a check of each node's
+            # allocatable memory — an unschedulable member is a 2/3 quorum. The
+            # 6Gi limit is the real ceiling and the only thing that stops a
+            # runaway member, since max_mem cannot see the terms above.
             # node2/node3 each have 6 cores and worker1 has 8. Sustained load
-            # has peaked around 1.77 cores on the R1 leader. Reserve 1.5 cores
-            # on every member so quorum placement does not strand half a node,
+            # peaked around 1.77 cores back when one member carried the whole
+            # firehose alone; under R3 the leader still does the most work, but
+            # the followers now apply every entry too. Reserve 1.5 cores on
+            # every member so quorum placement does not strand half a node,
             # while the 4-core ceiling still lets the active leader burst.
-            # Memory stays at 2Gi because one member can own all R1 streams.
             requests: {cpu: 1500m, memory: 2Gi}
             limits: {cpu: "4", memory: 6Gi}
           securityContext:
@@ -130,25 +155,52 @@ spec:
             preStop:
               exec:
                 # Allow in-flight JetStream operations and client reconnects to
-                # drain before the socket closes. Shortens the 500 blast radius
-                # during NATS restarts (hub is still single-replica).
+                # drain before the socket closes. R3 means a restart no longer
+                # takes a stream with it, but the departing member may still be
+                # a stream leader, and clients pinned to it need the window to
+                # reconnect while the group elects a successor.
                 command: ["/bin/sh", "-c", "sleep 10"]
+          # Full /healthz on all three probes. The full walk checks the meta
+          # layer AND every stream/consumer assigned to this member, so a
+          # restarted peer is only healthy once it has actually caught up — which
+          # on a memory-backed R3 stream means re-syncing the whole replica from
+          # the leader, because a memory stream's RAFT WAL is a memStore that
+          # starts empty. 120s of startup budget (24 x 5s) covers catching up
+          # ~1.3 GiB over the WG mesh; the old 50s could kill a member that was
+          # making perfectly good progress.
           startupProbe:
             httpGet: {path: /healthz, port: monitor}
             periodSeconds: 5
-            failureThreshold: 10
-            timeoutSeconds: 1
+            failureThreshold: 24
+            timeoutSeconds: 2
           livenessProbe:
             httpGet: {path: /healthz, port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 12
+          # Readiness gates the rolling update. js-enabled-only used to answer
+          # healthy the moment JetStream was switched on — it short-circuits
+          # before the asset walk — so a member that held nothing yet was Ready
+          # in ~5-15s and the StatefulSet moved straight on to the next one.
+          # Restart all three that way and the memory-backed ingress window and
+          # the whole outgress work queue are gone: the exact loss the R3
+          # rationale says cannot happen.
+          #
+          # The tradeoff, deliberately taken: a member that never becomes current
+          # now stops the roll instead of taking the quorum with it, and this
+          # fleet's known failure mode is exactly that — a StatefulSet roll wedged
+          # on one broken pod, cleared by deleting it. A wedged roll is a paged
+          # operator; a drained quorum is lost data. failureThreshold 6 (60s)
+          # keeps a transient leader election or meta-layer blip from yanking an
+          # already-serving member out of the Service, and timeoutSeconds is
+          # raised because the full walk is heavier than the short-circuit.
           readinessProbe:
-            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor}
+            httpGet: {path: /healthz, port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 3
+            timeoutSeconds: 5
+            failureThreshold: 6
         # Watches the mounted config (nats.conf + auth.conf, sourced from the
         # nats-config configmap) and SIGHUPs nats-server on change, so a git
         # push updating the Flux-managed configMapGenerator hot-reloads without
@@ -211,6 +263,25 @@ spec:
         resources:
           requests:
             storage: 4Gi
+---
+# The hub is a three-voter RAFT quorum: losing two members at once loses every
+# stream's write path, and for the memory-backed ones it loses the data too. The
+# rolling update is already serial and readiness-gated, but a *voluntary*
+# disruption is not — a node drain, a cluster-autoscaler action or an
+# `kubectl drain` will happily evict two hub pods in parallel unless something
+# says otherwise. This is that something.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: nats
+  name: nats
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: nats
 ---
 apiVersion: v1
 kind: Service

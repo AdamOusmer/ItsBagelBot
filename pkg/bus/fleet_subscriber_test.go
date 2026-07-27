@@ -31,6 +31,37 @@ func TestFleetSubscriberCloseWaitsForAdmittedRegistration(t *testing.T) {
 	requireRegistrationRejected(t, subscriber)
 }
 
+func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
+	owner := &fleetSubscriber{}
+	binding := testFlowSubscriber()
+
+	lane, err := owner.rememberFlowLane("TWITCH_INGRESS|twitch.ingress.event.standard", binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A second consumer unit joins the pod's existing consumer instead of
+	// creating one of its own, so the pod keeps a single receipt cursor.
+	shared, surplus, err := owner.storeFlowLane(lane.key, binding)
+	if err != nil || !surplus || shared != lane {
+		t.Fatalf("second unit got lane=%p surplus=%v err=%v", shared, surplus, err)
+	}
+	if lane.refs != 2 {
+		t.Fatalf("reference count = %d, want both units", lane.refs)
+	}
+
+	if err := owner.releaseFlowLane(lane); err != nil {
+		t.Fatal(err)
+	}
+	if _, bound := owner.flowLanes[lane.key]; !bound {
+		t.Fatal("retiring one unit tore down the pod's lane binding")
+	}
+
+	_ = owner.releaseFlowLane(lane) // the last unit closes the binding
+	if _, bound := owner.flowLanes[lane.key]; bound {
+		t.Fatal("the last unit left the binding behind")
+	}
+}
+
 func requireRegistrationAdmitted(t *testing.T, subscriber *fleetSubscriber) {
 	t.Helper()
 	if !subscriber.beginRegistration() {

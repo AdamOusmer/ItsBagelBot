@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
@@ -115,6 +115,7 @@ func newQuotesCmd(d engine.Deps, c *module.Context, log *zap.Logger) quotesCmd {
 		q:        d.Quotes,
 		c:        c,
 		cd:       d.Cooldown,
+		dd:       d.Dedup,
 		addRole:  quotePermRole(cfg.AddPerm),
 		editRole: quotePermRole(cfg.EditPerm),
 		log:      log,
@@ -188,19 +189,27 @@ type quotesCmd struct {
 	q        engine.QuotesStore
 	c        *module.Context
 	cd       engine.CooldownStore
+	dd       *engine.EventDedup
 	addRole  module.Role
 	editRole module.Role
 	log      *zap.Logger
 }
 
-// add saves the quote and confirms with its assigned number.
+// add saves the quote and confirms with its assigned number. QuoteAdd creates a
+// NEW numbered row, so a replay is deduped: a redelivered or retried !addquote
+// does not save a second identical quote under a second number.
 func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) error {
 	if body == "" {
 		qc.reply(emit, "quote.err.usage")
 		return nil
 	}
+	dup, release := qc.dd.Claim(ctx, engine.EventIdentity(&qc.c.Env), engine.EffectQuoteAdd)
+	if dup {
+		return nil // replay: the quote was already created on the first pass
+	}
 	saved, err := qc.q.QuoteAdd(ctx, qc.c.BroadcasterID, body, strings.ToLower(qc.c.Env.ChatterUserLogin))
 	if err != nil {
+		release() // no row was created: let a redelivery retry
 		qc.log.Warn("quotes: add failed", qc.bid(), zap.Error(err))
 		return err
 	}

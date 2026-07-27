@@ -14,6 +14,8 @@ import (
 const (
 	defaultSLIServices       = "users,commands,modules,loyalty,projector,sesame,gateway,ingress,outgress,transactions,notifications"
 	defaultIngressSLISubject = "twitch.ingress.admin.shards.get"
+	defaultShadowConsumer    = "R3_SHADOW_CEILING"
+	defaultShadowGroup       = "r3-shadow-ceiling"
 )
 
 type acceptanceRunID string
@@ -83,7 +85,14 @@ func parseFlags() config {
 	flag.BoolVar(&cfg.createStream, "create-stream", true, "create the isolated stream before benchmarking")
 	flag.BoolVar(&cfg.setupOnly, "setup-only", false, "perform create/cleanup actions without benchmarking")
 	flag.IntVar(&cfg.replicas, "replicas", 3, "temporary stream replica count (1 or 3)")
+	flag.StringVar(&cfg.storage, "storage", "memory", "temporary stream storage: memory or file")
 	flag.Int64Var(&cfg.maxMsgsPerSubject, "max-msgs-per-subject", 400_000, "rolling per-subject message limit (-1 is unlimited)")
+	flag.BoolVar(&cfg.consumerOnly, "consumer-only", false, "drain the isolated subject through an AckFlowControl push consumer without publishing")
+	flag.BoolVar(&cfg.consumerCheck, "consumer-check", false, "inspect the shadow consumer's final delivered/ack-floor state without publishing")
+	flag.StringVar(&cfg.consumerName, "consumer-name", defaultShadowConsumer, "shadow flow consumer name (letters, digits, dash, underscore)")
+	flag.StringVar(&cfg.consumerGroup, "consumer-group", defaultShadowGroup, "shadow flow consumer delivery queue group")
+	flag.IntVar(&cfg.consumerMaxPending, "consumer-max-pending", 20_000, "shadow flow consumer MaxAckPending, matching the production hot lane")
+	flag.DurationVar(&cfg.consumerSettleTimeout, "consumer-settle-timeout", 30*time.Second, "maximum wait for the shadow consumer's ack floor to reach the published total")
 	flag.BoolVar(&cfg.topologyOnly, "topology-only", false, "monitor and validate stream topology without publishing")
 	flag.DurationVar(&cfg.topologyDuration, "topology-duration", 0, "duration to monitor topology after the shared start barrier")
 	flag.DurationVar(&cfg.topologyInterval, "topology-interval", time.Second, "stream topology polling interval")
@@ -133,7 +142,36 @@ func validateConfig(cfg config) {
 	validatePositiveConfig(cfg)
 	validateStreamOptions(cfg)
 	validatePublishOptions(cfg)
+	validateConsumerOptions(cfg)
 	validateTopologyOptions(cfg)
+}
+
+// validateConsumerOptions keeps the shadow consumer nameable by JetStream and
+// its ack window identical to the production hot lane, so a ceiling measured
+// here transfers to sesame.
+func validateConsumerOptions(cfg config) {
+	if !safeConsumerName(cfg.consumerName) {
+		log.Fatal("consumer-name must be letters, digits, dash, or underscore")
+	}
+	if !safeConsumerName(cfg.consumerGroup) {
+		log.Fatal("consumer-group must be letters, digits, dash, or underscore")
+	}
+	positiveValue{cfg.consumerMaxPending, "consumer-max-pending"}.require()
+	positiveValue{int(cfg.consumerSettleTimeout), "consumer-settle-timeout"}.require()
+	distinctStrings{
+		boolLabel(cfg.consumerOnly),
+		boolLabel(cfg.consumerCheck),
+		"consumer-only and consumer-check are separate roles",
+	}.requireWhenSet()
+}
+
+// boolLabel turns a selected role into the token distinctStrings compares, so
+// two mutually exclusive roles cannot be requested in one process.
+func boolLabel(selected bool) string {
+	if selected {
+		return "selected"
+	}
+	return ""
 }
 
 func validateSLIConfig(cfg config) error {
@@ -335,6 +373,11 @@ func validateStreamOptions(cfg config) {
 	}
 	if cfg.maxMsgsPerSubject == 0 || cfg.maxMsgsPerSubject < -1 {
 		log.Fatal("max-msgs-per-subject must be positive or -1")
+	}
+	switch cfg.storage {
+	case "memory", "file":
+	default:
+		log.Fatal("storage must be memory or file")
 	}
 }
 

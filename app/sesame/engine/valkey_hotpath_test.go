@@ -24,8 +24,97 @@ func TestValkeyHotPathScriptsIntegration(t *testing.T) {
 	}
 	t.Run("loyalty channel seed and warm bump", fixture.testChannelBump)
 	t.Run("loyalty entry seed and warm bump", fixture.testEntryBump)
+	t.Run("loyalty channel bump-once fold", fixture.testBumpOnceChannel)
+	t.Run("loyalty entry bump-once fold", fixture.testBumpOnceEntry)
+	t.Run("loyalty bump-once dup-cold and kill switch", fixture.testBumpOnceEdges)
 	t.Run("greet claim and expiry", fixture.testGreetClaim)
 	t.Run("feed counters share one atomic call", fixture.testFeedCounters)
+}
+
+// bumpOnceReply decodes the {value, flag} array a folded bump-once script returns.
+func bumpOnceReply(t *testing.T, r valkey.ValkeyResult) (int64, int64) {
+	t.Helper()
+	vals, err := r.AsIntSlice()
+	require.NoError(t, err)
+	require.Len(t, vals, 2)
+	return vals[0], vals[1]
+}
+
+func (f hotPathFixture) exists(t *testing.T, key string) bool {
+	t.Helper()
+	n, err := f.client.Do(f.ctx, f.client.B().Exists().Key(key).Build()).AsInt64()
+	require.NoError(t, err)
+	return n == 1
+}
+
+// testBumpOnceChannel proves the folded claim+increment for a string counter:
+// the cold probe signals needseed WITHOUT claiming, the seeded call increments
+// and claims in one round trip, and a replay under that claim reads the value
+// back warm without a second INCR.
+func (f hotPathFixture) testBumpOnceChannel(t *testing.T) {
+	counter, dedup := f.prefix+":once-cnt", f.prefix+":once-claim"
+	f.cleanupKeys(t, counter, dedup)
+	keys := []string{counter, dedup}
+	args := func(seed string) []string { return []string{seed, "1", "60", "60"} }
+
+	value, flag := bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, keys, args("")))
+	require.EqualValues(t, 0, value)
+	require.EqualValues(t, -1, flag)
+	require.False(t, f.exists(t, dedup), "the needseed probe must not claim, or the re-exec would self-dedup")
+
+	value, flag = bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, keys, args("41")))
+	require.EqualValues(t, 42, value)
+	require.EqualValues(t, 1, flag)
+	require.True(t, f.exists(t, dedup), "an applied bump claims atomically")
+
+	value, flag = bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, keys, args("")))
+	require.EqualValues(t, 42, value)
+	require.EqualValues(t, 0, flag)
+	final, err := f.client.Do(f.ctx, f.client.B().Get().Key(counter).Build()).AsInt64()
+	require.NoError(t, err)
+	require.EqualValues(t, 42, final, "a duplicate must not INCR")
+}
+
+// testBumpOnceEntry is the hash-field equivalent of testBumpOnceChannel.
+func (f hotPathFixture) testBumpOnceEntry(t *testing.T) {
+	counter, dedup := f.prefix+":once-hash", f.prefix+":once-hash-claim"
+	f.cleanupKeys(t, counter, dedup)
+	keys := []string{counter, dedup}
+	args := func(seed string) []string { return []string{"viewer", seed, "1", "60", "60"} }
+
+	value, flag := bumpOnceReply(t, bumpEntryOnceScript.Exec(f.ctx, f.client, keys, args("")))
+	require.EqualValues(t, 0, value)
+	require.EqualValues(t, -1, flag)
+	require.False(t, f.exists(t, dedup))
+
+	value, flag = bumpOnceReply(t, bumpEntryOnceScript.Exec(f.ctx, f.client, keys, args("9")))
+	require.EqualValues(t, 10, value)
+	require.EqualValues(t, 1, flag)
+	require.True(t, f.exists(t, dedup))
+
+	value, flag = bumpOnceReply(t, bumpEntryOnceScript.Exec(f.ctx, f.client, keys, args("")))
+	require.EqualValues(t, 10, value)
+	require.EqualValues(t, 0, flag)
+}
+
+// testBumpOnceEdges covers the two boundary decodes: a claim present over a cold
+// counter view is a dup-cold peek signal, and the kill switch (one key, no claim)
+// re-applies on every delivery.
+func (f hotPathFixture) testBumpOnceEdges(t *testing.T) {
+	counter, dedup := f.prefix+":once-dupcold", f.prefix+":once-dupcold-claim"
+	f.cleanupKeys(t, counter, dedup)
+	require.NoError(t, f.client.Do(f.ctx, f.client.B().Set().Key(dedup).Value("1").Build()).Error())
+	value, flag := bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, []string{counter, dedup}, []string{"", "1", "60", "60"}))
+	require.EqualValues(t, 0, value)
+	require.EqualValues(t, -2, flag, "a claim over a cold counter is a peek signal")
+
+	kill := f.prefix + ":once-kill"
+	f.cleanupKeys(t, kill)
+	_, flag = bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, []string{kill}, []string{"5", "1", "60", "60"}))
+	require.EqualValues(t, 1, flag)
+	value, flag = bumpOnceReply(t, bumpChannelOnceScript.Exec(f.ctx, f.client, []string{kill}, []string{"", "1", "60", "60"}))
+	require.EqualValues(t, 7, value, "the kill switch has no claim, so every delivery applies")
+	require.EqualValues(t, 1, flag)
 }
 
 func BenchmarkValkeyHotPathScriptsIntegration(b *testing.B) {

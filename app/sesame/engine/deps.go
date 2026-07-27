@@ -97,6 +97,10 @@ type Deps struct {
 	// default. nil degrades gracefully: facts go random, the feed count is
 	// omitted and the mood re-rolls per message.
 	Personality PersonalityStore
+	// Dedup guards the non-idempotent effect sites against a redelivered or
+	// schedule-retried event applying them twice. nil (the kill switch) fails
+	// open everywhere: effects run, nothing is deduped.
+	Dedup *EventDedup
 }
 
 // FeedCounts is one feeding's readout: how often the bagel has been fed today
@@ -181,6 +185,13 @@ type LoyaltyStore interface {
 	// is used only when the counter's scope needs it (viewer, or
 	// viewer+command — the three modes, all per channel).
 	CounterBump(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64) (int64, error)
+	// CounterBumpOnce is CounterBump with an idempotency claim folded into the
+	// same atomic script: a redelivered event increments the counter (and the
+	// summed delta) exactly once. dedupKey is the claim key ("" disables dedup);
+	// applied reports whether this delivery incremented. A deduplicated-cold
+	// replay or a Valkey fault returns a non-nil error so the caller reads the
+	// value back with a peek.
+	CounterBumpOnce(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64, dedupKey string, dedupTTL time.Duration) (int64, bool, error)
 	// CounterPeek reads a counter without bumping it; found=false means it
 	// does not exist.
 	CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error)

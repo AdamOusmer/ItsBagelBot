@@ -52,6 +52,35 @@ topologies =
 
 config :ingress, cluster_topologies: topologies
 
+# --- Cohort wire ------------------------------------------------------------
+# "atomic" (one ADR-050 batch commit ack per cohort; NATS 2.14, the default —
+# it amortizes the replicated stream's quorum round trip over the whole cohort)
+# or "single" (per-event PubAck, the compatibility fallback). Both values are
+# matched explicitly: a typo used to coerce silently to :atomic, which is the
+# wrong direction to fail — "atomic" has the larger blast radius (an ambiguous
+# outcome drops a whole INGRESS_PUBLISH_BATCH_SIZE cohort, against one event on
+# "single"), and an operator reaching for this variable at all is usually
+# reaching for the fallback. Unknown values still keep the shipped default so a
+# bad env cannot fail the boot, but they say so on stderr; Logger is not
+# started yet when runtime.exs is evaluated in a release.
+publish_wire =
+  case System.get_env("INGRESS_PUBLISH_WIRE", "atomic") do
+    "atomic" ->
+      :atomic
+
+    "single" ->
+      :single
+
+    unknown ->
+      IO.warn(
+        "INGRESS_PUBLISH_WIRE=#{inspect(unknown)} is not a known cohort wire; " <>
+          "expected \"atomic\" or \"single\", using \"atomic\"",
+        []
+      )
+
+      :atomic
+  end
+
 config :ingress,
   twitch_client_id: System.get_env("TWITCH_CLIENT_ID"),
   twitch_client_secret: System.get_env("TWITCH_CLIENT_SECRET"),
@@ -158,15 +187,20 @@ config :ingress,
   # callers are being replied to, without creating one task/process per event.
   publish_send_concurrency:
     String.to_integer(System.get_env("INGRESS_PUBLISH_SEND_CONCURRENCY", "22")),
-  # Cohort wire: "single" (per-event PubAck, default) or "atomic" (one ADR-050
-  # batch commit ack per cohort; NATS 2.14). Anything unrecognized stays single.
-  publish_wire:
-    (case System.get_env("INGRESS_PUBLISH_WIRE", "single") do
-       "atomic" -> :atomic
-       _ -> :single
-     end),
+  # Parsed and validated above.
+  publish_wire: publish_wire,
+  # Unresolved atomic batches per shard: a latency × flush-rate window (~1000
+  # cohorts/s at batch_wait_ms=1 × the commit-ack latency covered), not a
+  # mirror of the broker's per-stream cap. See Ingress.Config.Publish for the
+  # fleet arithmetic and for which metric means which overflow.
   publish_batch_inflight:
-    String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_INFLIGHT", "4")),
+    String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_INFLIGHT", "16")),
+  # How long a swept atomic batch keeps its local slot. Nothing on the wire
+  # cancels an open batch, so this must equal the broker's own batch inactivity
+  # timeout (jetstream.limits.batch.timeout, default 10s) or admission runs
+  # over the broker budget exactly when the broker is stalled.
+  publish_batch_hold_ms:
+    String.to_integer(System.get_env("INGRESS_PUBLISH_BATCH_HOLD_MS", "10000")),
   # Per-attempt PubAck wait and total attempt budget. Ingress is structurally
   # dedup-free: only definite negative PubAcks retry; ambiguous ack timeouts
   # drop instead of risking a double-store.

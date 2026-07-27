@@ -3,9 +3,11 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"regexp"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 
 	"ItsBagelBot/pkg/env"
 )
@@ -58,9 +60,10 @@ func baseOptions(name, user, pass string) []nats.Option {
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
 		// 32 MB buffer so publishes during a reconnect are not lost. Raised from
-		// 8 MB for the 150k firehose: a hub roll (R1 memory stream) can briefly
-		// disconnect the async publisher, and at 150k/s an 8 MB buffer fills in
-		// well under a second, dropping events the dedup window can't recover.
+		// 8 MB for the 150k firehose: a hub roll can briefly disconnect the async
+		// publisher even with the streams at R3 (the pod's own connection goes
+		// with the member it was pinned to), and at 150k/s an 8 MB buffer fills
+		// in well under a second, dropping events the dedup window can't recover.
 		nats.ReconnectBufSize(32 * 1024 * 1024),
 		nats.PingInterval(20 * time.Second),
 		nats.MaxPingsOutstanding(3),
@@ -75,6 +78,14 @@ func baseOptions(name, user, pass string) []nats.Option {
 		// env lags a credential rotation (readyz stays 503 but healthz keeps the
 		// container alive, so it never restarts on its own).
 		nats.IgnoreAuthErrorAbort(),
+		// Without this, an ACL mistake is invisible. The server reports a
+		// permissions violation out-of-band on the -ERR line: the publish call
+		// that caused it has already returned nil, the message is simply never
+		// stored, and nats.go's only remaining channel for it is this callback.
+		// A missing $JS.FC grant wedged both hot ingress lanes with no log line
+		// anywhere in the fleet, which is the failure this option exists to make
+		// impossible to repeat.
+		nats.ErrorHandler(logAsyncError),
 	}
 
 	// Verify the broker's TLS server cert against the fleet CA when one is
@@ -93,6 +104,37 @@ func baseOptions(name, user, pass string) []nats.Option {
 	}
 
 	return opts
+}
+
+// violatedSubjectPattern extracts the subject out of the server's transient
+// error text ("Permissions Violation for Publish to \"$JS.FC.X.Y.abcd\"").
+// nats.go passes a nil *Subscription for publish violations, so the error string
+// is the only place the subject appears.
+var violatedSubjectPattern = regexp.MustCompile(`"([^"]+)"`)
+
+// logAsyncError reports the errors the NATS client can only deliver
+// out-of-band: permission violations on publish or subscribe, slow-consumer
+// drops, and the subscription limits. It logs at Error because every one of them
+// means a message the caller believes it sent or received did not happen, and
+// the caller has already been told nothing.
+//
+// It uses the global logger on purpose: this is a connection option shared by
+// every bus connection in the process, and pkg/logger installs the fleet logger
+// as the global at startup, so services get their real logger without threading
+// one through every call site.
+func logAsyncError(_ *nats.Conn, sub *nats.Subscription, err error) {
+	subject := ""
+	if sub != nil {
+		subject = sub.Subject
+	}
+	if subject == "" && err != nil {
+		if match := violatedSubjectPattern.FindStringSubmatch(err.Error()); len(match) == 2 {
+			subject = match[1]
+		}
+	}
+	zap.L().Error("nats asynchronous error",
+		zap.String("subject", subject),
+		zap.Error(err))
 }
 
 // tlsSecureOption returns a nats.Secure option that verifies the broker's server

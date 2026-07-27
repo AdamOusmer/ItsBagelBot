@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -142,7 +142,7 @@ type accrual struct {
 // and hand the result to the store. The per-event logic shrinks to the award
 // closure.
 func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, ev T) accrual) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		var cfg engine.LoyaltyModuleConfig
 		_ = c.Decode(&cfg)
 		if d.Loyalty == nil || len(c.Env.Event) == 0 {
@@ -153,7 +153,7 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 			return err
 		}
 		a := award(cfg, ev)
-		earn(d, c, a.userID, a.login, a.name, a.points)
+		earn(ctx, d, c, a.userID, a.login, a.name, a.points)
 		return nil
 	}
 }
@@ -209,11 +209,28 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
+	return lc.applyGrant(ctx, login, value, absolute)
+}
+
+// applyGrant dedups a relative grant and applies it, replying with the outcome.
+// Only the "add" form is a delta that can double-grant on a replay; the absolute
+// "set" form is last-writer-wins and skips the guard. A replayed add is a full
+// no-op (no second grant, no second reply); a transient failure releases the
+// claim so a redelivery retries.
+func (lc loyaltyCmd) applyGrant(ctx context.Context, login string, value int64, absolute bool) error {
+	release := func() {}
+	if !absolute {
+		var dup bool
+		if dup, release = lc.d.Dedup.Claim(ctx, engine.EventIdentity(&lc.c.Env), engine.EffectPointsAdjust); dup {
+			return nil
+		}
+	}
+
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
-
 	bal, found, err := lc.d.Loyalty.BalanceAdjust(ctx, lc.c.BroadcasterID, login, value, absolute)
 	if err != nil {
+		release()
 		lc.log.Warn("loyalty: balance adjust failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
@@ -253,13 +270,18 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 
 // earn parses the event's viewer identity and hands the accrual to the store.
 // A non-positive award (a source switched off, a sub-100-bit cheer at low
-// rates) is skipped before it can publish an empty entry.
-func earn(d engine.Deps, c *module.Context, userID, login, name string, points int64) {
+// rates) is skipped before it can publish an empty entry. The accrual is a delta
+// (not idempotent), so a redelivered or retried event is deduped here: a replay
+// credits the viewer nothing rather than doubling their points.
+func earn(ctx context.Context, d engine.Deps, c *module.Context, userID, login, name string, points int64) {
 	if points <= 0 {
 		return
 	}
 	viewerID, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil || viewerID == 0 {
+		return
+	}
+	if d.Dedup.Duplicate(ctx, engine.EventIdentity(&c.Env), engine.EffectEarn) {
 		return
 	}
 	d.Loyalty.Earn(c.BroadcasterID, viewerID, login, name, points, 0)

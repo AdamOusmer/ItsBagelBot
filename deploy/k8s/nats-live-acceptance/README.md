@@ -258,6 +258,56 @@ deploy/k8s/nats-live-acceptance/r3-matrix-report.sh \
 
 Use `--report-only` to render an incomplete calibration matrix.
 
+## Receipt-level consumer variant (manual only)
+
+**No runner script invokes these roles.** `r3-120k.sh`, `fleet-700k.sh`,
+`r3-isolated-tune.sh` and `r3-matrix-report.sh` never pass `-consumer-only` or
+`-consumer-check`, and the matrix report has no schema for a consumer result, so
+a matrix pass says nothing about the receipt-level consumer path. Run the two
+commands below by hand when that is what you want measured.
+
+`-consumer-only` drains the isolated subject through an `AckFlowControl` push
+consumer shaped like the production hot ingress lane (`MaxAckPending` 20,000,
+flow control with a one-second heartbeat, memory consumer state inheriting the
+stream's replicas). It subscribes to the delivery subject before creating the
+consumer, because a delivery into a subject with no interest is lost outright —
+this ack policy forces `AckWait` to zero and has no redelivery of any kind. It
+answers each flow-control request with its own `Nats-Last-Consumer`/
+`Nats-Last-Stream` receipt cursor, never the pair the server put on the
+heartbeat, which is exactly what production does: the server reports what it
+sent, and claiming that would advance the replicated ack floor past deliveries
+that never arrived. It never sends a per-message ack, which is the cost this
+variant exists to measure.
+
+`-consumer-check` is the settle gate for a finished run: it polls the same
+consumer until delivered, ack floor, pending and ack-pending agree that every
+published message was received and acknowledged, and fails if they do not
+converge inside `-consumer-settle-timeout`. It reports `redelivered` without
+gating on it, because nothing under this ack policy can redeliver.
+
+The publishers must be told to leave the stream behind (`-cleanup=false`), or
+`closeSetup` deletes it as they exit and the settle gate races its own subject.
+
+```sh
+# consumer role, started before the publishers reach the shared start barrier
+deploy/k8s/nats-live-acceptance/nats-live-acceptance \
+  -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
+  -consumer-only -messages 200000 -start-at-unix-ms "$start"
+
+# settle gate, after the publishers exit (publishers also run -cleanup=false)
+deploy/k8s/nats-live-acceptance/nats-live-acceptance \
+  -stream "$stream" -subject "$subject" -create-stream=false -cleanup=false \
+  -consumer-check -messages 200000
+```
+
+Both roles need publish permission on the consumer's `$JS.FC.>` reply subjects
+in addition to the ordinary JetStream API grants; without it the delivery
+window never reopens and the run stalls at `MaxAckPending`.
+
+Storage is a matrix axis, not a fixed property: `-storage file` creates the
+isolated stream on disk so the file-backed R3 retention path can be qualified
+with the same gates. `-storage memory` (the default) keeps the firehose shape.
+
 ## Direct leaf RPC test
 
 `rpc-leaf-direct.sh` creates a `USERS_RPC` responder on node2 and an

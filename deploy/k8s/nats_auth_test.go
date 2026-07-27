@@ -29,13 +29,22 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"modules_bus":   {"BAGEL_DATA"},
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":    {"BAGEL_DATA"},
-		"worker_bus":   {"TWITCH_INGRESS"},
+		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
 		"outgress_bus": {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
+	}
+	// Flow-control reply subjects are ack authority, not ordinary acks: for an
+	// AckFlowControl consumer the server never subscribes to $JS.ACK, so this is
+	// the only channel that reopens the delivery window — and the sequence guard
+	// that bounds a normal ack does not apply to it. Every account that binds
+	// such a consumer needs exactly one stream-scoped grant, and no account may
+	// hold a wildcard one.
+	flowControl := map[string][]string{
+		"worker_bus": {"TWITCH_INGRESS"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
@@ -53,6 +62,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 			want := expectedJetStreamSubjects(streamGrants{
 				consumerStreams: consumers[user],
 				ownedStreams:    owners[user],
+				flowStreams:     flowControl[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -83,8 +93,12 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
+		// The harness's consumer role answers flow control on the bench stream;
+		// scoped there and nowhere else, like the mutation verbs above.
+		"$JS.FC.R3_SHADOW_BENCH.>",
 		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
 	}
+	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)
 	}
@@ -99,8 +113,12 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	}
 	check := streamOwnershipCheck{
 		want: map[string]string{
-			"users":    "[]bus.StreamSpec{bus.BagelDataStream}",
-			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream}",
+			"users": "[]bus.StreamSpec{bus.BagelDataStream}",
+			// Both ingress streams: worker_bus holds STREAM.CREATE/UPDATE for
+			// TWITCH_INGRESS_RETRY, and a stream that is granted to an owner but
+			// reconciled by nobody simply never exists — the delayed-redelivery
+			// lane would fail open, dropping every retry with no error.
+			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressRetryStream}",
 			"outgress": "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
 		seen: make(map[string]bool, 3),
@@ -128,6 +146,7 @@ type sourceFile struct {
 type streamGrants struct {
 	consumerStreams []string
 	ownedStreams    []string
+	flowStreams     []string
 }
 
 type authConfig struct {
@@ -175,6 +194,9 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 		set[jetStreamAPI+"STREAM.INFO."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
+	}
+	for _, stream := range grants.flowStreams {
+		set["$JS.FC."+stream+".>"] = struct{}{}
 	}
 	return sortedKeys(set)
 }

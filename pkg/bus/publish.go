@@ -29,6 +29,13 @@ func publishPartition(ctx context.Context) string {
 // code owns payload semantics while pkg/bus owns payload lifetime, message
 // identity, trace propagation, pooling, batching, PubAcks and reconnect
 // behavior. Fleet publishing deliberately does not use broker deduplication.
+//
+// Delivery is at-least-once. The default Fast-Ingest wire stores each message
+// on arrival rather than on commit and the broker never rolls a session back,
+// so a caller that retries a reported failure can store a message twice. The
+// publisher narrows that window as far as the wire allows — it reports the
+// prefix the broker acknowledged as delivered and fails only the rest — but it
+// cannot close it.
 type Publisher interface {
 	// PublishOwned admits payload to the background publisher and takes ownership
 	// of its backing bytes on success. Prefer PublishJSON or PublishRaw at call
@@ -36,10 +43,13 @@ type Publisher interface {
 	PublishOwned(ctx context.Context, subject string, payload []byte) error
 	// PublishOwnedWithID publishes one logical output under a caller-supplied
 	// fleet message identity and waits for its cohort's final PubAck. The ID
-	// is not sent as Nats-Msg-Id and does not make replays idempotent.
+	// is not sent as Nats-Msg-Id and does not make replays idempotent. An error
+	// means the message was not acknowledged, not that it was not stored.
 	PublishOwnedWithID(ctx context.Context, subject, id string, payload []byte) error
-	// Flush waits until every message admitted before the call has resolved. An
-	// ambiguous atomic acknowledgement fails without replay.
+	// Flush waits until every message admitted before the call has resolved and
+	// reports the first failure that overlapped that window. It is a per-call
+	// result, not a latch: the failure it reports is cleared, so a later Flush
+	// answers for its own window.
 	Flush(ctx context.Context) error
 	Close() error
 }

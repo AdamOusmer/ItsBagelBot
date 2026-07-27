@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
@@ -57,6 +58,11 @@ func (f *fakeLoyalty) CounterBump(_ context.Context, broadcasterID uint64, name 
 	f.bumps = append(f.bumps, bumpCall{broadcasterID, engine.NormalizeCounterName(name), viewer.ID, command, delta})
 	f.bumpVal += delta
 	return f.bumpVal, nil
+}
+
+func (f *fakeLoyalty) CounterBumpOnce(ctx context.Context, broadcasterID uint64, name string, viewer engine.Viewer, command string, delta int64, _ string, _ time.Duration) (int64, bool, error) {
+	v, err := f.CounterBump(ctx, broadcasterID, name, viewer, command, delta)
+	return v, true, err
 }
 
 func (f *fakeLoyalty) CounterPeek(_ context.Context, _ uint64, name string, _ uint64, _ string) (loyaltyrpc.Counter, bool, error) {

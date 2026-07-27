@@ -130,7 +130,7 @@ func ChannelPoints(d engine.Deps) module.Module {
 		// as an unbound counter.
 		var counterValue string
 		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
-			awardRewardPoints(d, c, binding, ev)
+			awardRewardPoints(ctx, d, c, binding, ev)
 			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
 		}
 		emitRewardAction(binding, ev, counterValue, emit)
@@ -156,12 +156,17 @@ func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveO
 
 // awardRewardPoints hands the binding's loyalty-point award (if any) to the
 // redeemer — fire-and-forget through the loyalty reporter, like every accrual.
-func awardRewardPoints(d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) {
+// The award is a delta, so a replayed redemption is deduped: it credits nothing
+// rather than doubling the redeemer's points.
+func awardRewardPoints(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) {
 	if b.Points <= 0 || d.Loyalty == nil {
 		return
 	}
 	viewerID, err := strconv.ParseUint(ev.UserID, 10, 64)
 	if err != nil || viewerID == 0 {
+		return
+	}
+	if d.Dedup.Duplicate(ctx, engine.EventIdentity(&c.Env), engine.EffectEarn) {
 		return
 	}
 	d.Loyalty.Earn(c.BroadcasterID, viewerID, ev.UserLogin, ev.UserName, b.Points, 0)
@@ -180,8 +185,15 @@ func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b 
 	}
 	viewerID, _ := strconv.ParseUint(ev.UserID, 10, 64)
 	viewer := engine.Viewer{ID: viewerID, Login: ev.UserLogin, Name: ev.UserName}
+	// The bump is a live INCR plus a summed delta, neither idempotent. A replayed
+	// redemption reads the current value via a peek instead of re-incrementing.
+	dup, release := d.Dedup.Claim(ctx, engine.EventIdentity(&c.Env), engine.CounterEffect(b.Counter))
+	if dup {
+		return engine.CounterPeekValue(ctx, d.Loyalty, c.BroadcasterID, b.Counter, viewerID, ev.Reward.Title)
+	}
 	value, err := d.Loyalty.CounterBump(ctx, c.BroadcasterID, b.Counter, viewer, ev.Reward.Title, 1)
 	if err != nil {
+		release() // no bump landed: let a redelivery retry
 		if d.Log != nil {
 			d.Log.Warn("channelpoints: counter bump failed",
 				zap.Uint64("broadcaster_id", c.BroadcasterID),

@@ -3,18 +3,26 @@ defmodule Ingress.Nats.Publisher do
   One scheduler-local, bounded JetStream cohort publisher.
 
   Calls arriving within `publish_batch_wait_ms` are staged as a local cohort,
-  then published through Gnat on one of two wires (`Ingress.Config.Publish.wire/0`):
+  then handed to the wire selected by `Ingress.Config.Publish.wire/0`:
 
-    * `:single` (default) — one ordinary JetStream PubAck per event. Ingress
-      never attaches `Nats-Msg-Id`: EventSub websockets do not replay and the
-      broker dedup index materially reduces ingest throughput. An ambiguous ack
-      timeout is dropped instead of retried; only definite failures retry.
-    * `:atomic` — the cohort is written as one ADR-050 atomic batch (NATS
-      2.14): sequenced `Nats-Batch-*` headers, one commit PubAck for the whole
-      cohort. A definite server rejection is re-driven per message because the
-      broker stored nothing. A send error or missing commit ack is ambiguous and
-      drops the cohort rather than risking a duplicate. Fast-Ingest
-      (flow-controlled batches) stays out of scope until Gnat supports it.
+    * `:atomic` (default) — the cohort is written as one ADR-050 atomic batch
+      (NATS 2.14) and resolved by a single commit PubAck, so a replicated
+      stream pays RAFT quorum latency once per cohort instead of once per
+      event.
+    * `:single` — one ordinary JetStream PubAck per event; the compatibility
+      fallback, and where a definitely rejected batch is re-driven.
+
+  Neither wire attaches `Nats-Msg-Id`: EventSub websockets do not replay and
+  the broker dedup index materially reduces ingest throughput. Every ambiguous
+  outcome therefore drops instead of retrying; only definite negative PubAcks
+  retry. See `Ingress.Nats.Publisher.Wire` for the full contract and for the
+  deferred Fast-Ingest seam.
+
+  This module owns the process: lifecycle, admission, cohort assembly and flush
+  scheduling, the ack subscription, sweeping and metrics. Wires are plain
+  functions it calls; `Ingress.Nats.Publisher.Pending` owns the in-flight row
+  and counter shapes, and `Ingress.Nats.Publisher.AckPath` owns the reply-inbox
+  naming.
 
   `Ingress.Nats.PublisherPool` runs one publisher and BUS connection per online
   BEAM scheduler. Admission and cohort assembly are serialized only inside that local
@@ -26,23 +34,13 @@ defmodule Ingress.Nats.Publisher do
   require Logger
 
   alias Ingress.Config.Publish, as: PublishConfig
-  alias Ingress.{Metrics, Nats}
+  alias Ingress.Metrics
   alias Ingress.Nats.CohortSender
+  alias Ingress.Nats.Publisher.{AckPath, Pending, Wire}
+  alias Ingress.Nats.Publisher.Wire.{Atomic, Single}
 
-  @idx_pending 1
-  @idx_next_id 2
-  @idx_acked 3
-  @idx_retried 4
-  @idx_failed 5
-  @idx_cohorts 6
-  @idx_batch_inflight 7
-  @idx_batch_fallback 8
-  @idx_batch_bypass 9
-
-  @inbox_prefix "_INBOX.ingresspub."
   @sweep_interval_ms 500
   @gauge_interval_ms 5_000
-  @ack_latency_sample_rate 64
 
   ## Scheduler-local admission
 
@@ -91,12 +89,12 @@ defmodule Ingress.Nats.Publisher do
          trace_headers
        ) do
     cond do
-      :atomics.add_get(counter, @idx_pending, 1) > max_pending ->
-        :atomics.sub(counter, @idx_pending, 1)
+      Pending.reserve(counter) > max_pending ->
+        Pending.release(counter)
         {:error, :overloaded}
 
       not Process.alive?(pid) or is_nil(Process.whereis(conn)) ->
-        :atomics.sub(counter, @idx_pending, 1)
+        Pending.release(counter)
         {:error, :not_connected}
 
       true ->
@@ -126,61 +124,62 @@ defmodule Ingress.Nats.Publisher do
   @impl true
   def init(opts) do
     index = Keyword.fetch!(opts, :index)
-    conn = Keyword.fetch!(opts, :conn)
-    table = :"ingress_pub_pending_#{index}"
+    {token, prefix} = AckPath.new_inbox()
 
-    :ets.new(table, [
-      :named_table,
-      :public,
-      :set,
-      read_concurrency: true,
-      write_concurrency: true
-    ])
-
-    counter = :atomics.new(9, signed: false)
-    token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
-    prefix = @inbox_prefix <> token <> "."
-    max_pending = PublishConfig.max_pending()
-
-    :persistent_term.put(
-      {__MODULE__, :ctx, index},
-      %{
-        pid: self(),
-        counter: counter,
-        prefix: prefix,
-        table: table,
-        conn: conn,
-        max_pending: max_pending
-      }
-    )
-
-    state = %{
-      index: index,
-      conn: conn,
-      table: table,
-      counter: counter,
+    wire = %Wire{
+      conn: Keyword.fetch!(opts, :conn),
+      table: Pending.new_table(index),
+      counter: Pending.new_counter(),
       prefix: prefix,
       batch_token: token,
-      sub_topic: prefix <> ">",
-      sid: nil,
-      conn_ref: nil,
-      max_pending: max_pending,
-      ack_timeout_ms: PublishConfig.ack_timeout_ms(),
-      max_attempts: PublishConfig.attempts(),
-      batch_size: PublishConfig.batch_size(),
-      batch_wait_ms: PublishConfig.batch_wait_ms(),
       senders: CohortSender.start(PublishConfig.send_concurrency()),
-      wire: PublishConfig.wire(),
-      batch_inflight_cap: PublishConfig.batch_inflight(),
-      queue: [],
-      queue_count: 0,
-      flush_token: nil
+      max_attempts: PublishConfig.attempts(),
+      call_timeout_ms: PublishConfig.call_timeout_ms()
     }
+
+    state = initial_state(index, wire)
+    publish_context(state)
 
     send(self(), :connect)
     schedule(:sweep, @sweep_interval_ms)
     schedule(:gauge, @gauge_interval_ms)
     {:ok, state}
+  end
+
+  defp initial_state(index, %Wire{} = wire) do
+    %{
+      index: index,
+      wire: wire,
+      sub_topic: AckPath.subscription(wire.prefix),
+      sid: nil,
+      conn_ref: nil,
+      max_pending: PublishConfig.max_pending(),
+      ack_timeout_ms: PublishConfig.ack_timeout_ms(),
+      batch_hold_ms: PublishConfig.batch_hold_ms(),
+      batch_size: PublishConfig.batch_size(),
+      batch_wait_ms: PublishConfig.batch_wait_ms(),
+      wire_mode: PublishConfig.wire(),
+      batch_inflight_cap: PublishConfig.batch_inflight(),
+      queue: [],
+      queue_count: 0,
+      flush_token: nil
+    }
+  end
+
+  # The admission context is read from any scheduler without touching this
+  # process, so it carries only immutable handles.
+  defp publish_context(state) do
+    :persistent_term.put(
+      {__MODULE__, :ctx, state.index},
+      %{
+        pid: self(),
+        counter: state.wire.counter,
+        prefix: state.wire.prefix,
+        table: state.wire.table,
+        conn: state.wire.conn,
+        max_pending: state.max_pending
+      }
+    )
   end
 
   @impl true
@@ -222,27 +221,22 @@ defmodule Ingress.Nats.Publisher do
 
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
 
-  def handle_info({:msg, %{topic: topic, body: body}}, state) do
-    case ack_key(topic, state.prefix) do
-      nil -> {:noreply, state}
-      key -> {:noreply, apply_ack(key, body, state)}
-    end
-  end
+  def handle_info({:msg, %{topic: topic, body: body}}, state),
+    do: {:noreply, apply_reply(topic, body, state)}
 
   def handle_info(:sweep, state) do
-    deadline = now_ms() - state.ack_timeout_ms
+    state = drain_replies(state)
+    now = Pending.now_ms()
 
-    for row <- :ets.tab2list(state.table) do
-      case row do
-        {id, :single, subject, payload, attempts, timestamp} when timestamp <= deadline ->
-          retry_or_drop(id, subject, payload, attempts, :ack_timeout, state)
+    expired =
+      Pending.expired(
+        state.wire.table,
+        now - state.ack_timeout_ms,
+        now - state.batch_hold_ms
+      )
 
-        {id, :batch, entries, timestamp} when timestamp <= deadline ->
-          expire_batch(id, entries, state)
-
-        _ ->
-          :ok
-      end
+    for row <- expired do
+      row_wire(row).expire(row, state.wire)
     end
 
     schedule(:sweep, @sweep_interval_ms)
@@ -250,30 +244,13 @@ defmodule Ingress.Nats.Publisher do
   end
 
   def handle_info(:gauge, state) do
-    pending = :atomics.get(state.counter, @idx_pending)
-
-    flush_metric(state.counter, @idx_acked, "Nats/PublishAcked")
-    flush_metric(state.counter, @idx_retried, "Nats/PublishRetried")
-    flush_metric(state.counter, @idx_failed, "Nats/PublishFailed")
-    flush_metric(state.counter, @idx_cohorts, "Nats/PublishCohorts")
-    flush_metric(state.counter, @idx_batch_fallback, "Nats/PublishBatchFallback")
-    flush_metric(state.counter, @idx_batch_bypass, "Nats/PublishBatchBypassed")
-
-    Metrics.event("Nats/PublishInflight", %{
-      shard: state.index,
-      pending: pending,
-      max_pending: state.max_pending,
-      utilization_pct: round(pending * 100 / state.max_pending),
-      queued: state.queue_count,
-      batch_size: state.batch_size,
-      batches_inflight: :atomics.get(state.counter, @idx_batch_inflight)
-    })
-
+    flush_counters(state.wire.counter)
+    Metrics.event("Nats/PublishInflight", inflight_gauge(state))
     schedule(:gauge, @gauge_interval_ms)
     {:noreply, state}
   end
 
-  ## Batch assembly and wire writes
+  ## Cohort assembly and wire selection
 
   defp ensure_flush_scheduled(%{flush_token: token} = state) when not is_nil(token), do: state
 
@@ -288,363 +265,94 @@ defmodule Ingress.Nats.Publisher do
   defp flush_queue(state) do
     entries = Enum.reverse(state.queue)
     state = %{state | queue: [], queue_count: 0, flush_token: nil}
-    :atomics.add(state.counter, @idx_cohorts, 1)
+    Pending.cohort(state.wire.counter)
 
-    if atomic_batch?(state, entries) do
-      send_atomic_batch(entries, state)
-    else
-      send_individual_entries(entries, state)
-    end
+    cohort_wire(state, entries).send_cohort(entries, state.wire)
+    state
   end
 
   # A cohort rides the atomic wire only when the mode is on, it actually
   # amortizes something (two or more events), and this shard is under its
-  # in-flight batch budget — the broker caps in-flight batches per stream, so
-  # overflow degrades to per-message publishes instead of broker rejections.
-  defp atomic_batch?(%{wire: :atomic} = state, [_, _ | _]) do
-    if :atomics.get(state.counter, @idx_batch_inflight) < state.batch_inflight_cap do
-      true
+  # in-flight batch budget. That budget is a latency × flush-rate window, not a
+  # mirror of the broker's per-stream cap (see `Ingress.Config.Publish`): it
+  # bounds how much of this shard's traffic is riding on unresolved commits,
+  # and it counts the slots the broker is still holding for swept batches.
+  defp cohort_wire(%{wire_mode: :atomic} = state, [_, _ | _]) do
+    if Pending.batches_inflight(state.wire.counter) < state.batch_inflight_cap do
+      Atomic
     else
-      # Make mixed-wire benchmark runs visible: an "atomic" cohort that hits
-      # the stream budget is intentionally sent as singles.
-      :atomics.add(state.counter, @idx_batch_bypass, 1)
-      false
+      # Nats/PublishBatchBypassed is a commit-latency signal: the local window
+      # filled, so this cohort intentionally goes out as singles.
+      Pending.batch_bypassed(state.wire.counter)
+      Single
     end
   end
 
-  defp atomic_batch?(_state, _entries), do: false
-
-  defp send_individual_entries(entries, state) do
-    requests = Enum.map(entries, &stage_single(&1, state))
-
-    state.senders
-    |> CohortSender.publish(state.conn, requests)
-    |> Enum.each(&finish_single_send(&1, state))
-
-    state
-  end
-
-  defp stage_single({subject, json, from}, state) do
-    id = :atomics.add_get(state.counter, @idx_next_id, 1)
-    :ets.insert(state.table, {id, :single, subject, json, 1, now_ms()})
-
-    token = {id, from}
-    opts = [reply_to: single_reply_subject(state.prefix, id)]
-    {token, subject, json, opts}
-  end
-
-  defp stage_single({subject, json, trace_headers, from}, state) do
-    id = :atomics.add_get(state.counter, @idx_next_id, 1)
-    :ets.insert(state.table, {id, :single, subject, {json, trace_headers}, 1, now_ms()})
-
-    token = {id, from}
-    opts = publish_opts([reply_to: single_reply_subject(state.prefix, id)], trace_headers)
-    {token, subject, json, opts}
-  end
-
-  defp finish_single_send({{_id, from}, :ok}, _state), do: reply_entry(from, :ok)
-
-  defp finish_single_send({{id, from}, {:error, reason}}, state) do
-    :ets.delete(state.table, id)
-    :atomics.sub(state.counter, @idx_pending, 1)
-    :atomics.add(state.counter, @idx_failed, 1)
-    reply_entry(from, {:error, reason})
-  end
-
-  ## Atomic batch wire (ADR-050)
-
-  # Publishes one cohort as an atomic batch: sequenced Nats-Batch-* headers,
-  # the opening message carrying a reply (so a rejected open surfaces at once),
-  # intermediates unacknowledged, and the final message committing the batch
-  # into one PubAck. The whole cohort is tracked as a single ETS row until that
-  # commit ack, an error reply, or the sweep deadline resolves it.
-  defp send_atomic_batch(entries, state) do
-    id = :atomics.add_get(state.counter, @idx_next_id, 1)
-    batch_id = state.batch_token <> "-" <> Integer.to_string(id)
-    :ets.insert(state.table, {id, :batch, entries, now_ms()})
-    :atomics.add(state.counter, @idx_batch_inflight, 1)
-
-    case publish_batch_messages(entries, batch_id, id, state) do
-      :ok -> state
-      # A local send failure can be ambiguous when the commit write reached the
-      # socket but its call result did not. Without message IDs a per-message
-      # replay could double-store the entire cohort, so fail closed.
-      {:error, _reason} -> fail_batch(id, entries, state)
-    end
-  end
-
-  defp publish_batch_messages(entries, batch_id, id, state) do
-    last = length(entries)
-
-    entries
-    |> Enum.with_index(1)
-    |> Enum.reduce_while(:ok, fn {entry, seq}, :ok ->
-      {subject, json, trace_headers} = wire_entry(entry)
-      headers = batch_headers(batch_id, seq, last) ++ trace_headers
-
-      case safe_pub(state.conn, subject, json, batch_pub_opts(headers, seq, last, id, state)) do
-        :ok -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
-
-  defp wire_entry({subject, json, _from}), do: {subject, json, []}
-
-  defp wire_entry({subject, json, trace_headers, _from}),
-    do: {subject, json, trace_headers}
-
-  defp batch_headers(batch_id, seq, last) do
-    commit = if seq == last, do: [{"Nats-Batch-Commit", "1"}], else: []
-
-    [{"Nats-Batch-Id", batch_id}, {"Nats-Batch-Sequence", Integer.to_string(seq)}] ++
-      commit
-  end
-
-  defp batch_pub_opts(headers, 1, last, id, state) when last > 1,
-    do: [reply_to: state.prefix <> "bs." <> Integer.to_string(id), headers: headers]
-
-  defp batch_pub_opts(headers, seq, last, id, state) when seq == last,
-    do: [reply_to: state.prefix <> "bc." <> Integer.to_string(id), headers: headers]
-
-  defp batch_pub_opts(headers, _seq, _last, _id, _state), do: [headers: headers]
-
-  # Re-drives a definitely rejected batch per message over the single wire. A
-  # negative server acknowledgement proves the atomic cohort was not committed;
-  # ambiguous transport failures and timeouts use fail_batch/3 instead.
-  defp fallback_batch(id, entries, state) do
-    :ets.delete(state.table, id)
-    :atomics.sub(state.counter, @idx_batch_inflight, 1)
-    :atomics.add(state.counter, @idx_batch_fallback, 1)
-    send_individual_entries(entries, state)
-  end
-
-  # A swept batch is the cohort-shaped ack timeout: the commit may have landed
-  # with only its ack lost. Dedup is deliberately unavailable, so drop the
-  # whole cohort rather than risking a double-store. Error replies never come
-  # here — definite rejections take fallback_batch/3 directly.
-  defp expire_batch(id, entries, state), do: fail_batch(id, entries, state)
-
-  defp fail_batch(id, entries, state) do
-    :ets.delete(state.table, id)
-    count = length(entries)
-    :atomics.sub(state.counter, @idx_pending, count)
-    :atomics.add(state.counter, @idx_failed, count)
-    :atomics.sub(state.counter, @idx_batch_inflight, 1)
-    state
-  end
-
-  defp resolve_batch(id, entries, timestamp, state) do
-    :ets.delete(state.table, id)
-    count = length(entries)
-    record_ack_latency(id, timestamp, count)
-    :atomics.sub(state.counter, @idx_pending, count)
-    :atomics.add(state.counter, @idx_acked, count)
-    :atomics.sub(state.counter, @idx_batch_inflight, 1)
-    state
-  end
-
-  defp pub(conn, subject, json, reply, trace_headers),
-    do: safe_pub(conn, subject, json, publish_opts([reply_to: reply], trace_headers))
-
-  defp publish_opts(opts, []), do: opts
-  defp publish_opts(opts, headers), do: Keyword.put(opts, :headers, headers)
-
-  defp safe_pub(conn, subject, json, opts) do
-    Gnat.pub(conn, subject, json, opts)
-  catch
-    :exit, _ -> {:error, :not_connected}
-  end
-
-  defp reply_entry(nil, _result), do: :ok
-  defp reply_entry(from, result), do: GenServer.reply(from, result)
+  defp cohort_wire(_state, _entries), do: Single
 
   ## PubAck reconciliation
+  #
+  # A reply is routed by the tag its inbox suffix carries, never by the
+  # configured wire: a shard that has just switched modes, or one whose atomic
+  # cohort fell back to singles, still has both row shapes outstanding.
 
-  defp apply_ack({:single, id}, body, state) do
-    case :ets.lookup(state.table, id) do
-      [{^id, :single, subject, payload, attempts, timestamp}] ->
-        case Nats.parse_pub_ack(body) do
-          :ok -> resolve_single(id, timestamp, state)
-          {:error, reason} -> retry_or_drop(id, subject, payload, attempts, reason, state)
-        end
+  # Every wire write is a blocking GenServer.call, so PubAcks pile up in this
+  # mailbox while the collector is inside one. The sweep must apply them before
+  # it reads the clock: the monotonic clock advanced through the block too, so
+  # a deadline computed first expires rows whose acknowledgements are sitting a
+  # few messages further down THIS mailbox — counting stored events as publish
+  # failures and deleting rows the queued replies then no-op against. One
+  # stalled socket write would otherwise cost a shard its whole window
+  # (publish_max_pending = 16384 events) as phantom loss.
+  # Bounded by the mailbox depth measured at the tick, not by "until empty": at
+  # firehose rates replies arrive while the drain runs, and an unbounded loop
+  # would starve the sweep and the gauge it is standing in front of.
+  defp drain_replies(state) do
+    {:message_queue_len, queued} = Process.info(self(), :message_queue_len)
+    drain_replies(state, queued)
+  end
 
-      [] ->
-        state
+  defp drain_replies(state, 0), do: state
+
+  defp drain_replies(state, remaining) do
+    receive do
+      {:msg, %{topic: topic, body: body}} ->
+        drain_replies(apply_reply(topic, body, state), remaining - 1)
+    after
+      0 -> state
     end
   end
 
-  # Batch-open reply: zero-byte means the broker accepted the batch and the
-  # commit ack will resolve it. Only an explicit negative PubAck proves a
-  # rejection and permits fallback; malformed replies fail closed.
-  defp apply_ack({:batch_start, _id}, "", state), do: state
-
-  defp apply_ack({:batch_start, id}, body, state) do
-    case :ets.lookup(state.table, id) do
-      [{^id, :batch, entries, _timestamp}] ->
-        case Nats.parse_pub_ack(body) do
-          {:error, {:pub_ack, _reason}} -> fallback_batch(id, entries, state)
-          _ambiguous -> fail_batch(id, entries, state)
-        end
-
-      _ ->
-        state
+  defp apply_reply(topic, body, state) do
+    case AckPath.parse(topic, state.wire.prefix) do
+      nil -> state
+      ref -> apply_ack(ref, body, state)
     end
   end
 
-  defp apply_ack({:batch_commit, id}, body, state) do
-    case :ets.lookup(state.table, id) do
-      [{^id, :batch, entries, timestamp}] ->
-        case Nats.parse_pub_ack(body) do
-          :ok -> resolve_batch(id, entries, timestamp, state)
-          {:error, {:pub_ack, _reason}} -> fallback_batch(id, entries, state)
-          _ambiguous -> fail_batch(id, entries, state)
-        end
-
-      _ ->
-        state
-    end
-  end
-
-  defp resolve_single(id, timestamp, state) do
-    record_ack_latency(id, timestamp, 1)
-    :ets.delete(state.table, id)
-    :atomics.sub(state.counter, @idx_pending, 1)
-    :atomics.add(state.counter, @idx_acked, 1)
+  defp apply_ack(ref, body, state) do
+    _ = ack_wire(ref).ack(ref, body, state.wire)
     state
   end
 
-  defp record_ack_latency(id, timestamp, count) when rem(id, @ack_latency_sample_rate) == 0 do
-    bucket = ack_latency_bucket(max(now_ms() - timestamp, 0))
-    Metrics.count("Nats/PubAckLatency/#{bucket}", count)
-    Metrics.count("Nats/PubAckLatency/Sampled", count)
-  end
+  defp ack_wire({:single, _id}), do: Single
+  defp ack_wire({:batch_start, _id}), do: Atomic
+  defp ack_wire({:batch_commit, _id}), do: Atomic
 
-  defp record_ack_latency(_id, _timestamp, _count), do: :ok
+  defp row_wire({_id, :single, _subject, _payload, _attempts, _stamp}), do: Single
+  defp row_wire({_id, :batch, _entries, _stamp}), do: Atomic
+  defp row_wire({_id, :batch_hold, _stamp}), do: Atomic
 
-  defp ack_latency_bucket(ms) when ms <= 1, do: "Le1ms"
-  defp ack_latency_bucket(ms) when ms <= 2, do: "Le2ms"
-  defp ack_latency_bucket(ms) when ms <= 4, do: "Le4ms"
-  defp ack_latency_bucket(ms) when ms <= 8, do: "Le8ms"
-  defp ack_latency_bucket(ms) when ms <= 16, do: "Le16ms"
-  defp ack_latency_bucket(ms) when ms <= 32, do: "Le32ms"
-  defp ack_latency_bucket(ms) when ms <= 64, do: "Le64ms"
-  defp ack_latency_bucket(ms) when ms <= 128, do: "Le128ms"
-  defp ack_latency_bucket(_ms), do: "Gt128ms"
-
-  defp retry_or_drop(id, subject, {json, trace_headers} = payload, attempts, reason, state) do
-    if retry?(attempts, reason, state) do
-      :ets.insert(
-        state.table,
-        {id, :single, subject, payload, attempts + 1, now_ms()}
-      )
-
-      :atomics.add(state.counter, @idx_retried, 1)
-
-      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id), trace_headers)
-
-      :ok
-    else
-      :ets.delete(state.table, id)
-      :atomics.sub(state.counter, @idx_pending, 1)
-      :atomics.add(state.counter, @idx_failed, 1)
-      :ok
-    end
-  end
-
-  defp retry_or_drop(id, subject, json, attempts, reason, state) do
-    if retry?(attempts, reason, state) do
-      :ets.insert(state.table, {id, :single, subject, json, attempts + 1, now_ms()})
-      :atomics.add(state.counter, @idx_retried, 1)
-      _ = pub(state.conn, subject, json, single_reply_subject(state.prefix, id), [])
-      :ok
-    else
-      :ets.delete(state.table, id)
-      :atomics.sub(state.counter, @idx_pending, 1)
-      :atomics.add(state.counter, @idx_failed, 1)
-      :ok
-    end
-  end
-
-  # An ack timeout is ambiguous: the broker may have stored the event and only
-  # the ack was lost. Without Nats-Msg-Id the event is dropped rather than
-  # risking a duplicate. Definite negative PubAcks mean nothing was stored and
-  # may be retried within the bounded attempt budget. Malformed acknowledgements
-  # are ambiguous and therefore fail closed too.
-  defp retry?(attempts, {:pub_ack, _reason}, state), do: attempts < state.max_attempts
-  defp retry?(_attempts, _reason, _state), do: false
-
-  defp ack_key(topic, prefix) do
-    plen = byte_size(prefix)
-
-    case topic do
-      <<^prefix::binary-size(plen), "bs.", id::binary>> ->
-        parse_tagged_id(:batch_start, id)
-
-      <<^prefix::binary-size(plen), "bc.", id::binary>> ->
-        parse_tagged_id(:batch_commit, id)
-
-      <<^prefix::binary-size(plen), "s.", id::binary>> ->
-        parse_single_id(id)
-
-      <<^prefix::binary-size(plen), id::binary>> ->
-        # Backwards-compatible parser for in-flight replies across a rolling
-        # upgrade and for the public id_from_topic/2 contract.
-        parse_single_id(id)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp parse_single_id(id), do: parse_tagged_id(:single, id)
-
-  defp parse_tagged_id(tag, id) do
-    case Integer.parse(id) do
-      {value, ""} -> {tag, value}
-      _ -> nil
-    end
-  end
-
-  @doc false
-  @spec id_from_topic(String.t(), String.t()) :: non_neg_integer() | nil
-  def id_from_topic(topic, prefix) do
-    case ack_key(topic, prefix) do
-      {:single, id} -> id
-      _ -> nil
-    end
-  end
-
-  defp single_reply_subject(prefix, id), do: prefix <> "s." <> Integer.to_string(id)
   ## Connection and metrics
 
   defp ensure_subscribed(state) do
-    case Process.whereis(state.conn) do
+    case Process.whereis(state.wire.conn) do
       nil ->
         schedule(:connect, 500)
         state
 
       pid ->
-        ref = Process.monitor(pid)
-
-        case Gnat.sub(state.conn, self(), state.sub_topic) do
-          {:ok, sid} ->
-            Logger.info(
-              "nats cohort publisher #{state.index} awaiting acks on #{state.sub_topic}"
-            )
-
-            %{state | sid: sid, conn_ref: ref}
-
-          other ->
-            Process.demonitor(ref, [:flush])
-
-            Logger.warning(
-              "nats cohort publisher #{state.index} subscribe failed: #{inspect(other)}"
-            )
-
-            schedule(:connect, 500)
-            state
-        end
+        subscribe(state, pid)
     end
   catch
     :exit, _ ->
@@ -652,19 +360,71 @@ defmodule Ingress.Nats.Publisher do
       state
   end
 
-  defp now_ms, do: System.monotonic_time(:millisecond)
+  # The monitor is taken only on the path that stores it. Taking it before
+  # Gnat.sub/3 leaked one ref per attempt down the `catch :exit` above — the
+  # branch that exists precisely because the connection died mid-call — so a
+  # broker roll accumulated a stale monitor and a spurious :DOWN per retry.
+  # Monitoring after the fact is not a race: Process.monitor on an
+  # already-dead pid delivers :DOWN immediately, which is the reconnect path.
+  defp subscribe(state, pid) do
+    case Gnat.sub(state.wire.conn, self(), state.sub_topic) do
+      {:ok, sid} ->
+        Logger.info("nats cohort publisher #{state.index} awaiting acks on #{state.sub_topic}")
 
-  defp flush_metric(counter, index, name) do
-    case :atomics.exchange(counter, index, 0) do
-      0 -> :ok
-      count -> Metrics.count(name, count)
+        %{state | sid: sid, conn_ref: Process.monitor(pid)}
+
+      other ->
+        Logger.warning("nats cohort publisher #{state.index} subscribe failed: #{inspect(other)}")
+
+        schedule(:connect, 500)
+        state
+    end
+  end
+
+  defp inflight_gauge(state) do
+    pending = Pending.pending(state.wire.counter)
+
+    %{
+      shard: state.index,
+      pending: pending,
+      max_pending: state.max_pending,
+      utilization_pct: round(pending * 100 / state.max_pending),
+      queued: state.queue_count,
+      batch_size: state.batch_size,
+      batches_inflight: Pending.batches_inflight(state.wire.counter)
+    }
+  end
+
+  defp flush_counters(counter) do
+    flush_metric(Pending.take_acked(counter), "Nats/PublishAcked")
+    flush_metric(Pending.take_retried(counter), "Nats/PublishRetried")
+    flush_metric(Pending.take_failed(counter), "Nats/PublishFailed")
+    flush_metric(Pending.take_cohorts(counter), "Nats/PublishCohorts")
+    flush_metric(Pending.take_batch_fallback(counter), "Nats/PublishBatchFallback")
+    flush_metric(Pending.take_batch_bypassed(counter), "Nats/PublishBatchBypassed")
+
+    flush_metric(
+      Pending.take_batch_headers_ignored(counter),
+      "Nats/PublishBatchHeadersIgnored"
+    )
+  end
+
+  defp flush_metric(0, _name), do: :ok
+  defp flush_metric(count, name), do: Metrics.count(name, count)
+
+  @doc false
+  @spec id_from_topic(String.t(), String.t()) :: non_neg_integer() | nil
+  def id_from_topic(topic, prefix) do
+    case AckPath.parse(topic, prefix) do
+      {:single, id} -> id
+      _ -> nil
     end
   end
 
   @impl true
   def terminate(_reason, state) do
     :persistent_term.erase({__MODULE__, :ctx, state.index})
-    CohortSender.stop(state.senders)
+    CohortSender.stop(state.wire.senders)
     :ok
   end
 

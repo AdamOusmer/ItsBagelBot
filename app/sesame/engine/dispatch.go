@@ -103,15 +103,21 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		return nil
 	}
 
-	// Count the successful run. The reporter sums ticks locally and publishes one
-	// event per command per flush window, so chat spam never floods NATS. cc.Name
-	// is the canonical key (an alias lookup resolves to it), so alias invocations
-	// all count against the one command.
-	if p.uses != nil {
-		p.uses.Record(c.BroadcasterID, cc.Name)
-	}
-
+	// Count the successful run. cc.Name is the canonical key (an alias lookup
+	// resolves to it), so alias invocations all count against the one command.
+	p.recordUse(ctx, c, cc.Name)
 	return nil
+}
+
+// recordUse counts one successful command run. The reporter sums ticks locally
+// and publishes one event per command per flush window, so chat spam never
+// floods NATS. It is deduped so a redelivered or retried command line does not
+// inflate the summed count by one use.
+func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
+	if p.uses == nil || p.dedup.Duplicate(ctx, EventIdentity(&c.Env), effectUse) {
+		return
+	}
+	p.uses.Record(c.BroadcasterID, name)
 }
 
 // emitResponse expands a custom command once and prepares one action per
@@ -239,18 +245,35 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		if strings.HasPrefix(name, botCounterTokenPrefix) {
 			continue // bot counters are admin-only; the token stays visible
 		}
-		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewer, command, 1)
-		if err != nil {
-			p.log.Warn("counter token bump failed",
-				zap.Uint64("broadcaster_id", c.BroadcasterID),
-				zap.String("counter", name),
-				zap.Error(err),
-			)
-			continue
+		if value, ok := p.guardedCounterBump(ctx, c, name, viewer, command); ok {
+			counters[name] = value
 		}
-		counters[name] = strconv.FormatInt(value, 10)
 	}
 	return counters
+}
+
+// guardedCounterBump increments one counter at most once per event. The claim
+// and the increment are one atomic call (CounterBumpOnce), so a crash can no
+// longer leave the counter claimed-but-un-incremented — the split Claim-then-Bump
+// window that permanently lost a redelivered bump. A deduplicated replay, a
+// cold-view replay, or a Valkey fault surfaces as an error: the value already
+// landed exactly once, so read it back with the authoritative peek rather than
+// double-incrementing.
+func (p *Pipeline) guardedCounterBump(ctx context.Context, c *module.Context, name string, viewer Viewer, command string) (string, bool) {
+	dedupKey, dedupTTL := p.dedup.CounterClaim(&c.Env, name)
+	value, _, err := p.loyalty.CounterBumpOnce(ctx, c.BroadcasterID, name, viewer, command, 1, dedupKey, dedupTTL)
+	if err != nil {
+		return p.peekCounterValue(ctx, c, name, viewer.ID, command)
+	}
+	return strconv.FormatInt(value, 10), true
+}
+
+// peekCounterValue renders a counter from its authoritative value, for the
+// deduplicated-cold and fail-open cases CounterBumpOnce signals with an error.
+// An unknown value leaves the token unbound, matching every other unresolved token.
+func (p *Pipeline) peekCounterValue(ctx context.Context, c *module.Context, name string, viewerID uint64, command string) (string, bool) {
+	v := CounterPeekValue(ctx, p.loyalty, c.BroadcasterID, name, viewerID, command)
+	return v, v != ""
 }
 
 // gateRule is the set of checks one command is gated by, so the gate takes a

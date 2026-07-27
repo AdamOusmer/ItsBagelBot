@@ -51,10 +51,14 @@ func main() {
 
 	cfg := config.Load()
 
-	// Sesame owns TWITCH_INGRESS stream reconciliation. Other ingress consumers
-	// receive consumer-only ACLs and twitch-ingress itself is publish-only.
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.TwitchIngressStream}, log); err != nil {
-		log.Fatal("failed to provision TWITCH_INGRESS stream", zap.Error(err))
+	// Sesame owns TWITCH_INGRESS stream reconciliation, and TWITCH_INGRESS_RETRY
+	// with it: the retry lane exists only because sesame's flow-controlled lane
+	// consumers cannot NAK, and it is meaningless without the consumer that
+	// drains it. Other ingress consumers receive consumer-only ACLs and
+	// twitch-ingress itself is publish-only.
+	owned := []bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressRetryStream}
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, owned, log); err != nil {
+		log.Fatal("failed to provision the TWITCH_INGRESS streams", zap.Error(err))
 	}
 
 	nc, pub, sub := dialNATS(cfg, log)
@@ -127,6 +131,9 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 		zap.String("consumer_name", cfg.ConsumerName),
 		zap.String("premium_subject", cfg.PremiumSubject),
 		zap.String("standard_subject", cfg.StandardSubject),
+		// Which acknowledgement contract the lanes actually bound: receipt-level
+		// flow control, or the explicit-ACK fallback (NATS_CONSUME_FLOW=off).
+		zap.Bool("flow_consume", bus.FlowConsumeEnabled()),
 		zap.Int("min_routines", cfg.MinRoutines),
 		zap.Int("max_routines", cfg.MaxRoutines),
 		zap.Int("min_consumers", cfg.MinConsumers),

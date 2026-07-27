@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
@@ -78,6 +81,101 @@ redis.call('EXPIRE', KEYS[1], ARGV[4])
 return value`)
 )
 
+// The bump-ONCE scripts fold the idempotency claim (KEYS[2], the same key
+// idempotency.ValkeyStore.Seen would SET) into the increment so a redelivered
+// counter bump is deduped in the SAME atomic master round trip that increments —
+// never the crash-exposed "claim, then a separate INCRBY" the split guard ran.
+// A crash between those two ops used to leave the claim set but the counter
+// un-incremented, so the redelivery saw a duplicate and rendered a stale value:
+// the bump was lost. Folded, either both land or neither does.
+//
+// Return is a two-element array {value, flag}:
+//
+//	flag  1 = applied   (this delivery incremented; value is the new count)
+//	flag  0 = duplicate (a replay; value is the current count, read back warm)
+//	flag -1 = needseed  (fresh but the counter is cold and no seed was supplied;
+//	                     NOTHING was mutated — crucially the claim was NOT set —
+//	                     so the caller loads the authoritative seed and re-execs)
+//	flag -2 = dup-cold  (a replay whose counter view is cold; value is unknown,
+//	                     so the caller falls back to the authoritative peek)
+//
+// KEYS[2] is optional: with the dedup key absent (numkeys 1, the kill switch)
+// the scripts never claim and simply apply, matching the guard's fail-open.
+var (
+	bumpChannelOnceScript = valkey.NewLuaScript(`
+local dedup = KEYS[2]
+if dedup and dedup ~= '' and redis.call('EXISTS', dedup) == 1 then
+  if redis.call('EXISTS', KEYS[1]) == 1 then
+    return {redis.call('GET', KEYS[1]), 0}
+  end
+  return {0, -2}
+end
+if redis.call('EXISTS', KEYS[1]) == 0 then
+  if ARGV[1] == '' then return {0, -1} end
+  redis.call('SET', KEYS[1], ARGV[1])
+end
+local value = redis.call('INCRBY', KEYS[1], ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+if dedup and dedup ~= '' then
+  redis.call('SET', dedup, '1', 'EX', ARGV[4])
+end
+return {value, 1}`)
+	bumpEntryOnceScript = valkey.NewLuaScript(`
+local dedup = KEYS[2]
+if dedup and dedup ~= '' and redis.call('EXISTS', dedup) == 1 then
+  if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+    return {redis.call('HGET', KEYS[1], ARGV[1]), 0}
+  end
+  return {0, -2}
+end
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 0 then
+  if ARGV[2] == '' then return {0, -1} end
+  redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+end
+local value = redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[3])
+redis.call('EXPIRE', KEYS[1], ARGV[4])
+if dedup and dedup ~= '' then
+  redis.call('SET', dedup, '1', 'EX', ARGV[5])
+end
+return {value, 1}`)
+)
+
+// The flag half of a bump-once reply. See the script comment for the states.
+const (
+	bumpFlagApplied  = 1
+	bumpFlagWarmDup  = 0
+	bumpFlagNeedSeed = -1
+	bumpFlagDupCold  = -2
+)
+
+// errCounterDupCold marks a deduplicated bump whose live counter view was cold:
+// the increment already landed on the original delivery, so the caller renders
+// the authoritative value via a peek rather than trusting a stale zero. It is a
+// sentinel, not a fault, so the reporter delta is NOT re-applied for it.
+var errCounterDupCold = errors.New("loyalty: counter bump deduplicated, view cold")
+
+// bumpOnceOutcome is the decoded result of one folded claim+increment.
+type bumpOnceOutcome struct {
+	value   int64 // the counter value (valid unless dupCold)
+	applied bool  // true = this delivery incremented; false = duplicate replay
+	dupCold bool  // duplicate AND the view was cold: the caller must peek
+}
+
+// bumpOnceTarget is the fully-resolved counter one bump-once addresses, so the
+// script wiring and the reporter/fail-open settle both read one value instead of
+// a long parameter list.
+type bumpOnceTarget struct {
+	broadcasterID uint64
+	name          string
+	scope         string
+	field         string // hash field for entry scopes; unused for row scopes
+	viewerID      uint64
+	command       string
+	delta         int64
+	dedupKey      string        // "" = kill switch: apply without claiming
+	dedupTTL      time.Duration // claim lifetime; ignored when dedupKey is ""
+}
+
 // ValkeyLoyaltyStore is the worker-side loyalty surface: counter bumps/reads
 // with a Valkey live view over the loyalty service, cached balance peeks, and
 // pass-through management verbs. It implements LoyaltyStore.
@@ -94,6 +192,9 @@ type ValkeyLoyaltyStore struct {
 	reporter *LoyaltyReporter
 	scopes   *cache.Cache[string]
 	log      *zap.Logger
+	// bumpFailOpen counts folded bumps admitted through a Valkey/script fault, so
+	// the fail-open rate is observable the way idempotency.ValkeyStore exposes its.
+	bumpFailOpen atomic.Int64
 }
 
 // NewValkeyLoyaltyStore builds the store. reporter carries every mutation to
@@ -295,6 +396,181 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64
 	return bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{
 		field, strconv.FormatInt(seed, 10), deltaArg, counterTTLArg,
 	}).AsInt64()
+}
+
+// CounterBumpOnce is CounterBump with the idempotency claim folded into the same
+// atomic script, so a redelivered command bumps the counter (and the summed
+// loyalty delta) exactly once even if the pod dies mid-flight: the claim and the
+// increment now land together or not at all. dedupKey is the exact key the guard
+// would claim ("" disables dedup — the kill switch — and simply applies once).
+// Returns (value, applied): applied is true when this delivery incremented (the
+// reporter fired), false on a deduplicated replay (it did not). A cold-view
+// replay and any Valkey/script fault return a non-nil error so the caller reads
+// the authoritative value back with a peek; a fault fails OPEN, applying the
+// durable accrual once so an outage never drops a live bump.
+func (s *ValkeyLoyaltyStore) CounterBumpOnce(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64, dedupKey string, dedupTTL time.Duration) (int64, bool, error) {
+	name = NormalizeCounterName(name)
+	if name == "" || delta == 0 {
+		return 0, false, nil
+	}
+	scope, viewerID, command := bumpTarget(s.scope(ctx, broadcasterID, name), viewer.ID, NormalizeCounterName(command))
+	if viewerID == 0 {
+		viewer = Viewer{}
+	}
+	viewer.ID = viewerID
+
+	t := bumpOnceTarget{
+		broadcasterID: broadcasterID, name: name, scope: scope,
+		field:    entryField(scope, viewerID, command),
+		viewerID: viewerID, command: command, delta: delta,
+		dedupKey: dedupKey, dedupTTL: dedupTTL,
+	}
+	out, err := s.atomicBumpOnce(ctx, t)
+	return s.settleBumpOnce(t, viewer, out, err)
+}
+
+// settleBumpOnce maps a folded-bump outcome to the caller's contract and gates
+// the loss-tolerant summed delta: reporter.Bump fires exactly once on a real
+// apply and once on a fail-open fault (never dropping the accrual), and never on
+// a duplicate replay.
+func (s *ValkeyLoyaltyStore) settleBumpOnce(t bumpOnceTarget, viewer Viewer, out bumpOnceOutcome, err error) (int64, bool, error) {
+	switch {
+	case err != nil:
+		// Fail OPEN: a Valkey/script fault must not drop a live bump, so apply the
+		// durable accrual once and let the caller render via the authoritative peek.
+		s.reporter.Bump(t.broadcasterID, t.name, t.scope, viewer, t.command, t.delta)
+		s.noteBumpFailOpen(t.name, err)
+		return 0, true, err
+	case out.dupCold:
+		return 0, false, errCounterDupCold
+	case out.applied:
+		s.reporter.Bump(t.broadcasterID, t.name, t.scope, viewer, t.command, t.delta)
+		return out.value, true, nil
+	default: // warm duplicate: value known, no second apply
+		return out.value, false, nil
+	}
+}
+
+// atomicBumpOnce runs the folded claim+increment against the right key shape for
+// the counter's scope.
+func (s *ValkeyLoyaltyStore) atomicBumpOnce(ctx context.Context, t bumpOnceTarget) (bumpOnceOutcome, error) {
+	if rowScoped(t.scope) {
+		return s.bumpChannelOnce(ctx, t)
+	}
+	return s.bumpEntryOnce(ctx, t)
+}
+
+// bumpChannelOnce folds the claim into the shared-string bump; a cold counter on
+// a fresh (non-duplicate) delivery is seeded from the service and re-run, exactly
+// as bumpChannel does — the needseed pass writes no claim, so the re-exec still
+// takes the fresh path.
+func (s *ValkeyLoyaltyStore) bumpChannelOnce(ctx context.Context, t bumpOnceTarget) (bumpOnceOutcome, error) {
+	keys := bumpOnceKeys(counterChannelKey(t.broadcasterID, t.name), t.dedupKey)
+	deltaArg, ttlArg := strconv.FormatInt(t.delta, 10), dedupTTLArg(t.dedupTTL)
+	return runBumpOnce(
+		func() int64 { return s.seedCounter(ctx, t.broadcasterID, t.name, 0, "") },
+		func(seed string) (int64, int64, error) {
+			return decodeBumpOnce(bumpChannelOnceScript.Exec(ctx, s.client, keys,
+				[]string{seed, deltaArg, counterTTLArg, ttlArg}))
+		},
+	)
+}
+
+// bumpEntryOnce is the hash-field equivalent of bumpChannelOnce.
+func (s *ValkeyLoyaltyStore) bumpEntryOnce(ctx context.Context, t bumpOnceTarget) (bumpOnceOutcome, error) {
+	keys := bumpOnceKeys(counterViewerKey(t.broadcasterID, t.name), t.dedupKey)
+	deltaArg, ttlArg := strconv.FormatInt(t.delta, 10), dedupTTLArg(t.dedupTTL)
+	return runBumpOnce(
+		func() int64 { return s.seedCounter(ctx, t.broadcasterID, t.name, t.viewerID, t.command) },
+		func(seed string) (int64, int64, error) {
+			return decodeBumpOnce(bumpEntryOnceScript.Exec(ctx, s.client, keys,
+				[]string{t.field, seed, deltaArg, counterTTLArg, ttlArg}))
+		},
+	)
+}
+
+// seedCounter loads a cold counter's authoritative value from the loyalty
+// service; a load failure seeds zero (the same benign default bumpChannel uses).
+func (s *ValkeyLoyaltyStore) seedCounter(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) int64 {
+	if c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command); err == nil && found {
+		return c.Value
+	}
+	return 0
+}
+
+// runBumpOnce runs the folded script once and, only on the cold-needseed signal,
+// loads the seed and re-runs — the two-exec cold path, preserved. exec applies
+// the script for a seed argument ("" probes without seeding) and returns the
+// decoded (value, flag).
+func runBumpOnce(loadSeed func() int64, exec func(seed string) (int64, int64, error)) (bumpOnceOutcome, error) {
+	value, flag, err := exec("")
+	if err != nil {
+		return bumpOnceOutcome{}, err
+	}
+	if flag != bumpFlagNeedSeed {
+		return outcomeFor(value, flag), nil
+	}
+	value, flag, err = exec(strconv.FormatInt(loadSeed(), 10))
+	if err != nil {
+		return bumpOnceOutcome{}, err
+	}
+	return outcomeFor(value, flag), nil
+}
+
+// outcomeFor maps a settled (value, flag) reply to an outcome. needseed is
+// resolved before this by runBumpOnce, so only applied/dup/dup-cold reach here.
+func outcomeFor(value, flag int64) bumpOnceOutcome {
+	return bumpOnceOutcome{
+		value:   value,
+		applied: flag == bumpFlagApplied,
+		dupCold: flag == bumpFlagDupCold,
+	}
+}
+
+// bumpOnceKeys assembles the script's key list: the counter key alone (kill
+// switch, numkeys 1) or the counter key plus the claim key (numkeys 2).
+func bumpOnceKeys(counterKey, dedupKey string) []string {
+	if dedupKey == "" {
+		return []string{counterKey}
+	}
+	return []string{counterKey, dedupKey}
+}
+
+// decodeBumpOnce reads the {value, flag} array a bump-once script returns.
+func decodeBumpOnce(r valkey.ValkeyResult) (value, flag int64, err error) {
+	vals, err := r.AsIntSlice()
+	return splitBumpReply(vals, err)
+}
+
+// splitBumpReply validates a bump-once reply's arity and splits it, kept pure so
+// the array contract is unit-tested without a live interpreter.
+func splitBumpReply(vals []int64, err error) (value, flag int64, _ error) {
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(vals) != 2 {
+		return 0, 0, fmt.Errorf("loyalty: bump-once reply arity %d, want 2", len(vals))
+	}
+	return vals[0], vals[1], nil
+}
+
+// dedupTTLArg formats a claim TTL in whole seconds, floored at one so a
+// sub-second window never publishes a claim with no expiry.
+func dedupTTLArg(ttl time.Duration) string {
+	secs := int64(ttl.Seconds())
+	if secs < 1 {
+		secs = 1
+	}
+	return strconv.FormatInt(secs, 10)
+}
+
+// noteBumpFailOpen counts and (throttled) logs a fail-open bump.
+func (s *ValkeyLoyaltyStore) noteBumpFailOpen(name string, err error) {
+	n := s.bumpFailOpen.Add(1)
+	if n == 1 || n%1000 == 0 {
+		s.log.Warn("loyalty: counter bump-once failed; applying without dedup (fail-open)",
+			zap.String("counter", name), zap.Int64("fail_open_total", n), zap.Error(err))
+	}
 }
 
 // CounterPeek reads a counter without bumping it: the live Valkey view when

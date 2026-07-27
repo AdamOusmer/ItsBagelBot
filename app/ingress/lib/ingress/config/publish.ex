@@ -3,12 +3,43 @@ defmodule Ingress.Config.Publish do
   Lane-publisher tuning (see `Ingress.Nats.Publisher` / `PublisherPool`).
   Thin accessors over application env, set once at boot by `config/runtime.exs`
   under the same `:publish_*` keys as before the split.
+
+  ## Atomic-wire blast radius
+
+  `wire/0` picks how much an unlucky cohort costs. Both wires obey the same
+  dedup-free rule — an ambiguous outcome (ack timeout, malformed reply, a send
+  error after part of the write is on the socket) drops rather than replays —
+  but they drop different amounts:
+
+    * `:single` — one ambiguous outcome drops exactly **1** event.
+    * `:atomic` — one ambiguous outcome drops the **whole cohort**, up to
+      `batch_size/0` (128) events, because the cohort is one pending row
+      resolved by one commit PubAck.
+
+  Nothing is lost silently: every dropped event is counted in
+  `Nats/PublishFailed`. The operator signal is the *shape* of that counter,
+  not its existence. On `:atomic` it climbs in cohort-sized steps (a multiple
+  of the flushed cohort size, up to 128 at a time); on `:single` it climbs one
+  event at a time. A step-shaped `Nats/PublishFailed` is the cue to set
+  `INGRESS_PUBLISH_WIRE=single`, which trades that blast radius back for one
+  RAFT quorum round trip per event.
   """
 
   # How long an outstanding publish waits for its PubAck before
   # the collector reconciles it (see Ingress.Nats.Publisher).
   def ack_timeout_ms,
     do: Application.get_env(:ingress, :publish_ack_timeout_ms, 2_000)
+
+  # Ceiling on one blocking wire write. `Gnat.pub/4` is a `GenServer.call` with
+  # a hardcoded 5s default, and the collector processes no PubAcks and no sweep
+  # ticks while it blocks — so on a wedged socket write (TLS renegotiation, a
+  # full kernel send buffer, the server's slow-consumer write deadline) the
+  # default outlives the 2s ack budget and the tick that resumes afterwards
+  # finds a whole window already past its deadline. Half the ack budget makes a
+  # stalled connection surface as {:error, :not_connected} with a full budget
+  # of headroom left, which is a definite outcome rather than a mass timeout.
+  # Derived, not configurable: the two clocks must not be tunable apart.
+  def call_timeout_ms, do: max(div(ack_timeout_ms(), 2), 250)
 
   # Total delivery attempts (first try + retries) for one lane publish.
   # Only definite negative acknowledgements are retried; ambiguous timeouts
@@ -39,21 +70,72 @@ defmodule Ingress.Config.Publish do
   def send_concurrency,
     do: Application.get_env(:ingress, :publish_send_concurrency, 22) |> max(1) |> min(32)
 
-  # Wire protocol for one flushed cohort. :single publishes every event with
-  # its own JetStream PubAck (the long-standing path). :atomic writes the
-  # cohort as one ADR-050 atomic batch (NATS 2.14): a single commit PubAck
-  # per cohort instead of one per event. Default stays :single so the mode
-  # ships dark and is enabled by INGRESS_PUBLISH_WIRE=atomic only after the R3
-  # acceptance matrix proves its loss and latency behavior.
+  # Wire protocol for one flushed cohort. :atomic writes the cohort as one
+  # ADR-050 atomic batch (NATS 2.14): a single commit PubAck per cohort instead
+  # of one per event. That is the default because the lane stream is
+  # replicated — every per-message PubAck on an R3 stream costs a RAFT quorum
+  # round trip, and the atomic wire amortizes that cost across the whole
+  # cohort. :single publishes every event with its own JetStream PubAck: the
+  # long-standing path, kept as the compatibility fallback (a broker without
+  # batch support, or a stream with allow_atomic off) and selectable with
+  # INGRESS_PUBLISH_WIRE=single. Both wires are structurally dedup-free. See
+  # the blast-radius note in this module's doc before flipping it.
   def wire,
-    do: Application.get_env(:ingress, :publish_wire, :single)
+    do: Application.get_env(:ingress, :publish_wire, :atomic)
 
-  # Ceiling on unresolved atomic batches per shard. The broker allows 50
-  # in-flight batches per stream across ALL publishers, so the fleet budget is
-  # shards × pods × this cap; overflow cohorts fall back to per-message
-  # publishes rather than risking broker-side batch rejection.
+  # Ceiling on unresolved atomic batches per shard. This is a latency × rate
+  # window (Little's law), NOT a guard against the broker's per-stream cap:
+  # concurrent unresolved batches = flush rate × commit-ack latency.
+  # `ensure_flush_scheduled/1` arms its timer at batch_wait_ms = 1, so a busy
+  # shard flushes up to ~1000 cohorts/s and the window is
+  #
+  #     1000 cohorts/s × commit-ack latency
+  #
+  # 16 therefore covers a 16 ms commit ack at the full flush rate — comfortably
+  # past the R3 quorum commit this stream pays over the WireGuard mesh. Below
+  # that it is this cap, not the broker, that stops the batching: the old
+  # default of 4 covered only 4 ms and pinned busy shards on the bypass path,
+  # paying one quorum round trip per event, which is the exact cost the atomic
+  # wire exists to remove.
+  #
+  # Fleet arithmetic against the broker's own ceiling: 4 replicas
+  # (deploy/k8s/twitch-ingress.yaml) × 2 schedulers (`+S 2:2`) = 8 shards, so
+  # the fleet worst case is 8 × 16 = 128 concurrently open batches on one
+  # stream, against 50 — streamDefaultMaxAtomicBatchInflightPerStream, which is
+  # what the hub actually runs: deploy/k8s/nats-server.conf ships no
+  # `limits { batch { … } }` block on purpose, because JetStreamLimits is not
+  # hot-reloadable and one such key would wedge every later SIGHUP.
+  #
+  # That overshoot is deliberate, because this cap is not what keeps the fleet
+  # inside the broker's budget — the broker is. An over-cap open is answered
+  # with a definite 10210/429, which proves nothing was stored, so the cohort
+  # re-drives per message and lands in Nats/PublishBatchFallback. It costs one
+  # extra round trip and only binds when every shard is saturated at once,
+  # which is exactly the condition per-message fallback is the right answer to;
+  # sizing the local window for the broker's ceiling instead would give up
+  # batching on every shard at a commit latency the broker is handling fine.
+  #
+  # That splits the two signals cleanly. Nats/PublishBatchBypassed means the
+  # LOCAL window filled — a commit-latency alarm. Nats/PublishBatchFallback
+  # climbing with 429s means the FLEET budget overran the broker cap — turn
+  # INGRESS_PUBLISH_BATCH_INFLIGHT down, or raise the broker's
+  # max_inflight_per_stream. There is no adaptive sizing on purpose: a feedback
+  # loop here would trade a predictable, observable fallback for one that
+  # oscillates under load.
   def batch_inflight,
-    do: Application.get_env(:ingress, :publish_batch_inflight, 4)
+    do: Application.get_env(:ingress, :publish_batch_inflight, 16)
+
+  # How long a swept atomic batch keeps its LOCAL in-flight slot after its
+  # events have been resolved. Nothing on the wire cancels an open batch: only
+  # the broker's inactivity timer closes it (jetstream.limits.batch.timeout,
+  # default streamDefaultMaxBatchTimeout = 10s), and a client-side discard
+  # sends nothing at all. Releasing the slot at ack_timeout_ms would let one
+  # shard recycle its whole cap every ~2s while the broker still holds each
+  # abandoned batch — and its staged cohort in the R3 leader's RAM — for 10s,
+  # so local admission would run ~5× over the broker budget exactly when the
+  # broker is already stalled. Keep this equal to the deployed broker timeout.
+  def batch_hold_ms,
+    do: Application.get_env(:ingress, :publish_batch_hold_ms, 10_000)
 
   # Number of independent BUS connections (each with its own ack collector) the
   # lane firehose is sharded across. Every publish is a GenServer.call into one

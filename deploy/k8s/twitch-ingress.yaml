@@ -189,6 +189,36 @@ spec:
               value: "128"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS
               value: "1"
+            # Cohort wire, shipped as an explicit value so falling back is an
+            # edit here rather than a code change. "atomic" writes the cohort
+            # as one ADR-050 batch and resolves it with a single commit PubAck,
+            # so the R3 lane stream pays RAFT quorum latency once per cohort;
+            # "single" is the per-event PubAck compatibility path.
+            #
+            # Blast radius, which is what an operator flips this for: on
+            # "atomic" an ambiguous outcome (ack timeout, malformed reply, a
+            # send error mid-batch) drops the WHOLE cohort — up to
+            # INGRESS_PUBLISH_BATCH_SIZE=128 events — where the same outcome on
+            # "single" costs exactly 1. Nothing is lost silently: every drop
+            # lands in Nats/PublishFailed. The signal is that counter's SHAPE —
+            # cohort-sized steps rather than one event at a time. Step-shaped
+            # growth means set this to "single" and take the per-event quorum
+            # cost back. Anything other than these two values is refused with a
+            # warning on stderr and stays "atomic".
+            - name: INGRESS_PUBLISH_WIRE
+              value: "atomic"
+            # Unresolved atomic batches per shard: a latency x flush-rate
+            # window (Little's law), not a mirror of the broker's per-stream
+            # cap. ~1000 cohorts/s at BATCH_WAIT_MS=1 x 16 ms of commit-ack
+            # latency = 16. Fleet worst case is 4 replicas x 2 schedulers
+            # (+S 2:2) x 16 = 128 open batches on TWITCH_INGRESS against the
+            # broker's stock 50; over-cap opens come back as a definite
+            # 10210/429 and re-drive per message (Nats/PublishBatchFallback),
+            # so the overshoot costs a round trip, never an event.
+            # Nats/PublishBatchBypassed instead means this local window filled:
+            # a commit-latency alarm, not a budget one.
+            - name: INGRESS_PUBLISH_BATCH_INFLIGHT
+              value: "16"
             # Match normal and dirty schedulers to the two-CPU cgroup below.
             # `short` normal-scheduler busy-wait was modestly faster than
             # `none` across repeated direct-dispatch runs, while dirty

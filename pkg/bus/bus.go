@@ -195,11 +195,12 @@ type fleetSubscriber struct {
 	group string
 	log   *zap.Logger
 
-	mu      sync.Mutex
-	closed  bool
-	subs    []Subscriber
-	conns   []*nats.Conn
-	closeCh chan struct{}
+	mu        sync.Mutex
+	closed    bool
+	subs      []Subscriber
+	conns     []*nats.Conn
+	flowLanes map[string]*sharedFlowLane
+	closeCh   chan struct{}
 
 	registrations sync.WaitGroup
 }
@@ -314,16 +315,147 @@ func closeSubscription(sub Subscriber, conn *nats.Conn) {
 }
 
 // subscriberFor builds the topic's subscriber: a broadcast ephemeral consumer
-// when the group is empty, else a durable queue-group consumer bound to a
-// provisioned server-owned durable (so it survives pod disconnects), with the
-// shared fleet redelivery budget (see fleetMaxRedeliveries).
+// when the group is empty, the receipt-level flow consumer on the hot ingress
+// lanes, else a durable queue-group consumer bound to a provisioned server-owned
+// durable (so it survives pod disconnects), with the shared fleet redelivery
+// budget (see fleetMaxRedeliveries).
 func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
 	if s.group == "" {
 		return s.broadcastSubscriber(target)
 	}
+	if s.usesFlowConsumer(target) {
+		return s.flowSubscriberFor(target)
+	}
 	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
 	maxDeliveries := fleetMaxRedeliveries + 1
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
+}
+
+// usesFlowConsumer is the scope guard for receipt-level acknowledgement. Only
+// the perishable hot ingress lanes qualify; every control lane, status subject
+// and work-queue stream keeps explicit acks, and the refusal is logged so an
+// operator who set NATS_CONSUME_FLOW can see which lanes it actually reached.
+func (s *fleetSubscriber) usesFlowConsumer(target subscriptionTarget) bool {
+	if !FlowConsumeEnabled() {
+		return false
+	}
+	if isHotIngressLane(target.stream, target.topic) {
+		return true
+	}
+	s.logger().Info("flow consumption declined outside the hot ingress lanes",
+		zap.String("stream", target.stream), zap.String("subject", target.topic))
+	return false
+}
+
+// sharedFlowLane is one pod-wide flow-lane binding. AckFlowControl has coherent
+// acknowledgement semantics only for a single subscriber, so every consumer unit
+// in this process shares one consumer, one receipt cursor and one flow-control
+// conversation; the units simply read the same lane channel. The binding lives
+// until the last unit holding it releases it.
+type sharedFlowLane struct {
+	owner *fleetSubscriber
+	key   string
+	sub   *flowSubscriber
+	refs  int
+}
+
+// flowLaneHandle is one unit's claim on the shared binding. Close releases the
+// claim, never the binding, until it is the last one.
+type flowLaneHandle struct {
+	lane    *sharedFlowLane
+	release sync.Once
+}
+
+func (h *flowLaneHandle) Subscribe(ctx context.Context, subject string) (<-chan *Message, error) {
+	return h.lane.sub.Subscribe(ctx, subject)
+}
+
+func (h *flowLaneHandle) Close() error {
+	var err error
+	h.release.Do(func() { err = h.lane.owner.releaseFlowLane(h.lane) })
+	return err
+}
+
+func (s *fleetSubscriber) flowSubscriberFor(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
+	lane, err := s.acquireFlowLane(target)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The binding owns its connection for as long as any unit holds it, so the
+	// per-subscription connection bookkeeping must not close it.
+	return &flowLaneHandle{lane: lane}, nil, nil
+}
+
+func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget) (*sharedFlowLane, error) {
+	key := target.stream + "|" + target.topic
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil, errors.New("bus: subscriber is closed")
+	}
+	if lane, bound := s.flowLanes[key]; bound {
+		lane.refs++
+		s.mu.Unlock()
+		return lane, nil
+	}
+	s.mu.Unlock()
+
+	sub, err := newFlowLaneSubscriber(flowLaneConfig{
+		url: s.url, stream: target.stream, subject: target.topic, group: s.group, log: s.log,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.rememberFlowLane(key, sub)
+}
+
+// rememberFlowLane publishes a freshly built binding, discarding it when another
+// unit won the race to build the same lane or the subscriber closed meanwhile.
+// The surplus binding is released outside the lock, because closing it drains
+// deliveries.
+func (s *fleetSubscriber) rememberFlowLane(key string, sub *flowSubscriber) (*sharedFlowLane, error) {
+	lane, surplus, err := s.storeFlowLane(key, sub)
+	if surplus {
+		_ = sub.Close()
+	}
+	return lane, err
+}
+
+func (s *fleetSubscriber) storeFlowLane(key string, sub *flowSubscriber) (*sharedFlowLane, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, true, errors.New("bus: subscriber closed during subscribe")
+	}
+	if existing, bound := s.flowLanes[key]; bound {
+		existing.refs++
+		return existing, true, nil
+	}
+	if s.flowLanes == nil {
+		s.flowLanes = make(map[string]*sharedFlowLane)
+	}
+	lane := &sharedFlowLane{owner: s, key: key, sub: sub, refs: 1}
+	s.flowLanes[key] = lane
+	return lane, false, nil
+}
+
+func (s *fleetSubscriber) releaseFlowLane(lane *sharedFlowLane) error {
+	s.mu.Lock()
+	lane.refs--
+	if lane.refs > 0 {
+		s.mu.Unlock()
+		return nil
+	}
+	delete(s.flowLanes, lane.key)
+	s.mu.Unlock()
+	return lane.sub.Close()
+}
+
+func (s *fleetSubscriber) logger() *zap.Logger {
+	if s.log == nil {
+		return zap.NewNop()
+	}
+	return s.log
 }
 
 // broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
@@ -362,24 +494,32 @@ func (s *fleetSubscriber) Close() error {
 	// either registers its resources or closes them before returning.
 	s.registrations.Wait()
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Released outside the lock: a shared flow lane's Close reaches back into
+	// releaseFlowLane for the reference count, and holding s.mu across that would
+	// deadlock shutdown.
+	subs, conns := s.takeResources()
 
 	var errs []error
-	for _, sub := range s.subs {
+	for _, sub := range subs {
 		if err := sub.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	for _, conn := range s.conns {
+	for _, conn := range conns {
 		conn.Close()
 	}
-	s.subs = nil
-	s.conns = nil
 	if len(errs) > 0 {
 		return fmt.Errorf("fleetSubscriber closed with %d errors, first: %w", len(errs), errs[0])
 	}
 	return nil
+}
+
+func (s *fleetSubscriber) takeResources() ([]Subscriber, []*nats.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	subs, conns := s.subs, s.conns
+	s.subs, s.conns = nil, nil
+	return subs, conns
 }
 
 func newSubscriber(url string, group string, log *zap.Logger) (Subscriber, error) {

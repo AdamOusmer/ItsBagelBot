@@ -93,6 +93,15 @@ type Config struct {
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
+	// IdempotencyEnabled arms the consumer-side dedup guard (SESAME_IDEMPOTENCY,
+	// on by default). off is the kill switch: the guard fails open everywhere and
+	// no claim is written. IdempotencyTTL bounds a claim; it must exceed the widest
+	// replay window (the stream MaxAge plus the retry hop) so a late redelivery is
+	// still recognised — 15m covers the 5m firehose MaxAge and the ~30s retry TTL
+	// with margin.
+	IdempotencyEnabled bool
+	IdempotencyTTL     time.Duration
+
 	// Projection RPC subjects: the cold-key fallbacks behind the Valkey
 	// settings projection. Modules and commands ask the PROJECTOR's dashboard
 	// get verbs — the projector owns Valkey, so its miss path hydrates the
@@ -179,6 +188,9 @@ func Load() *Config {
 		EmotesEnabled:  env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
+
+		IdempotencyEnabled: env.Get("SESAME_IDEMPOTENCY", "on") != "off",
+		IdempotencyTTL:     env.GetDuration("SESAME_IDEMPOTENCY_TTL", 15*time.Minute),
 
 		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
 		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.projector.dashboard.modules.get"),

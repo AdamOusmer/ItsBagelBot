@@ -23,64 +23,71 @@ import (
 )
 
 type config struct {
-	hubURL            string
-	domain            string
-	placementTag      string
-	stream            string
-	subject           string
-	messages          int
-	publishers        int
-	window            int
-	mode              string
-	batchSize         int
-	atomicInflight    int
-	fastOutstanding   int
-	targetRate        float64
-	startAtUnixMS     int64
-	payloadBytes      int
-	payloadVariants   int
-	latencySamples    int
-	latencyInterval   time.Duration
-	ackTimeout        time.Duration
-	runTimeout        time.Duration
-	maxAckGap         time.Duration
-	maxP95            time.Duration
-	maxP99            time.Duration
-	minRate           float64
-	cleanup           bool
-	createStream      bool
-	setupOnly         bool
-	replicas          int
-	maxMsgsPerSubject int64
-	topologyOnly      bool
-	topologyDuration  time.Duration
-	topologyInterval  time.Duration
-	topologyGrace     time.Duration
-	preferredLeader   string
-	forbiddenLeader   string
-	requiredPeers     int
-	settleTimeout     time.Duration
-	producerID        string
-	insecureLocal     bool
-	sliOnly           bool
-	sliServices       []string
-	sliDuration       time.Duration
-	sliInterval       time.Duration
-	sliTimeout        time.Duration
-	sliMaxRTT         time.Duration
-	sliIngressMaxRTT  time.Duration
-	sliRPCP99Max      time.Duration
-	sliRPCP99Min      int
-	sliKey            string
-	sliIngressSubject string
-	sliNATSURL        string
-	valkeyAddress     string
-	valkeyPassword    string
-	valkeyCAPEM       string
-	user              string
-	password          string
-	caFile            string
-	caPEM             string
+	hubURL                string
+	domain                string
+	placementTag          string
+	stream                string
+	subject               string
+	messages              int
+	publishers            int
+	window                int
+	mode                  string
+	batchSize             int
+	atomicInflight        int
+	fastOutstanding       int
+	targetRate            float64
+	startAtUnixMS         int64
+	payloadBytes          int
+	payloadVariants       int
+	latencySamples        int
+	latencyInterval       time.Duration
+	ackTimeout            time.Duration
+	runTimeout            time.Duration
+	maxAckGap             time.Duration
+	maxP95                time.Duration
+	maxP99                time.Duration
+	minRate               float64
+	cleanup               bool
+	createStream          bool
+	setupOnly             bool
+	replicas              int
+	storage               string
+	maxMsgsPerSubject     int64
+	consumerOnly          bool
+	consumerCheck         bool
+	consumerName          string
+	consumerGroup         string
+	consumerMaxPending    int
+	consumerSettleTimeout time.Duration
+	topologyOnly          bool
+	topologyDuration      time.Duration
+	topologyInterval      time.Duration
+	topologyGrace         time.Duration
+	preferredLeader       string
+	forbiddenLeader       string
+	requiredPeers         int
+	settleTimeout         time.Duration
+	producerID            string
+	insecureLocal         bool
+	sliOnly               bool
+	sliServices           []string
+	sliDuration           time.Duration
+	sliInterval           time.Duration
+	sliTimeout            time.Duration
+	sliMaxRTT             time.Duration
+	sliIngressMaxRTT      time.Duration
+	sliRPCP99Max          time.Duration
+	sliRPCP99Min          int
+	sliKey                string
+	sliIngressSubject     string
+	sliNATSURL            string
+	valkeyAddress         string
+	valkeyPassword        string
+	valkeyCAPEM           string
+	user                  string
+	password              string
+	caFile                string
+	caPEM                 string
 }
 
 type endpoint struct {
@@ -202,15 +209,23 @@ func (r *acceptanceRun) close(runErr *error) {
 	*runErr = errors.Join(*runErr, closeSetup(r.cfg, r.setup))
 }
 
+// execute selects the run's role. The matrix starts one process per role
+// against the same isolated stream: publishers, the shadow flow consumer that
+// measures the receipt-level path, and the post-run consumer-state check.
 func (r *acceptanceRun) execute() error {
-	if r.cfg.sliOnly {
-		return r.executeSLI()
-	}
-	if r.cfg.topologyOnly {
-		return r.executeTopology()
-	}
-	if r.cfg.setupOnly {
-		return r.executeSetup()
+	for _, mode := range []struct {
+		selected bool
+		run      func() error
+	}{
+		{r.cfg.sliOnly, r.executeSLI},
+		{r.cfg.topologyOnly, r.executeTopology},
+		{r.cfg.consumerOnly, r.executeConsumer},
+		{r.cfg.consumerCheck, r.executeConsumerCheck},
+		{r.cfg.setupOnly, r.executeSetup},
+	} {
+		if mode.selected {
+			return mode.run()
+		}
 	}
 	return r.executeBenchmark()
 }
@@ -306,9 +321,22 @@ func modernJetStream(nc *nats.Conn, domain string) (jsapi.JetStream, error) {
 	return jsapi.NewWithDomain(nc, domain)
 }
 
+// streamStorage resolves the -storage flag. Storage type is a matrix axis, not
+// a fixed property: the fleet runs a memory-backed R3 firehose alongside
+// file-backed R3 retention streams, and the two exercise different paths —
+// atomic staging is a real FileStore only on a file store, PersistMode fsync
+// semantics apply to file stores only, and a memory R3 stream re-syncs its whole
+// message set from the leader when a peer restarts.
+func streamStorage(name string) jsapi.StorageType {
+	if name == "file" {
+		return jsapi.FileStorage
+	}
+	return jsapi.MemoryStorage
+}
+
 func temporaryStreamConfig(cfg config) jsapi.StreamConfig {
 	stream := jsapi.StreamConfig{
-		Name: cfg.stream, Subjects: []string{cfg.subject}, Storage: jsapi.MemoryStorage,
+		Name: cfg.stream, Subjects: []string{cfg.subject}, Storage: streamStorage(cfg.storage),
 		Replicas: cfg.replicas, MaxBytes: 1 << 30, MaxAge: 5 * time.Minute,
 		MaxMsgsPerSubject: cfg.maxMsgsPerSubject, Retention: jsapi.LimitsPolicy, Discard: jsapi.DiscardOld,
 		// Fleet publishers never send Nats-Msg-Id, so this compatibility window
