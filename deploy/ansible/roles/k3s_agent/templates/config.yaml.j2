@@ -9,10 +9,17 @@ node-external-ip: {{ node_external_ip }}
 flannel-iface: {{ flannel_iface }}
 node-label:
   - "topology.kubernetes.io/zone={{ node_zone }}"
-{% if node_pool | length > 0 %}
-  - "itsbagelbot.dev/pool={{ node_pool }}"
+  # Every other node carries region as well as zone. A node-label absent from
+  # this file is DROPPED when the node re-registers, so omitting it here means a
+  # playbook-provisioned node can never match the rest of the fleet.
+  - "topology.kubernetes.io/region={{ node_region }}"
+  - "itsbagelbot.dev/role={{ node_role }}"
+{% if node_role in ['cp', 'worker'] %}
+# cp and worker are default-deny: only pods that explicitly tolerate the role
+# land there. The plain "node" role is the application tier and stays
+# schedulable, so it takes no taint.
 node-taint:
-  - "itsbagelbot.dev/pool={{ node_pool }}:NoSchedule"
+  - "itsbagelbot.dev/role={{ node_role }}:NoSchedule"
 {% endif %}
 kubelet-arg:
   - "protect-kernel-defaults=true"

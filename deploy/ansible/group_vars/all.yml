@@ -8,8 +8,11 @@
 #                 generated on first run and persisted to /etc/fleet/node-name.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# --- k3s control plane (node2) -----------------------------------------------
-k3s_server_ip: "100.95.95.9"            # node2 Tailscale IPv4 (CP migrated node1->node2 2026-07-01)
+# --- k3s control plane (node1) -----------------------------------------------
+# node1 Tailscale IPv4. CP history: node1 -> node2 (2026-07-01) -> node3
+# (2026-07-25) -> node1 (2026-07-27). Agents join over the tailnet, never the
+# public interface.
+k3s_server_ip: "100.98.67.104"
 k3s_url: "https://{{ k3s_server_ip }}:6443"
 k3s_version: "v1.35.5+k3s1"             # pinned to running fleet; bump deliberately
 # Pod/service traffic must use the physical underlay. Tailscale is reserved for
@@ -31,21 +34,36 @@ flannel_wireguard_port: 51820          # K3s wireguard-native, IPv4
 # Add new stable Tailscale DNS names here before growing the fleet.
 tailscale_direct_peers:
   - node1
-  - node2
-  - node3
-  - worker1
+  - node4
+  - node5
+  - node6
 
 # --- Node identity -----------------------------------------------------------
 # Resolved/persisted in the base role. Pass NODE_NAME for explicit incremental
 # names (node4, node5…); otherwise a unique bot-XXXXX name is generated so the
 # box always joins as a BRAND NEW node and never clobbers an existing identity.
 node_name_requested: "{{ lookup('env', 'NODE_NAME') | default('', true) }}"
-node_zone: "{{ lookup('env', 'NODE_ZONE') | default('ovh-bhs1', true) }}"
+# zone == city (see deploy/k8s/console-dashboard.yaml): Services route on
+# trafficDistribution, so a node labelled with a city it is not in gets no
+# same-zone endpoints. The whole fleet is Montreal, so mtl1 is the right default.
+# node5 provisioned with NODE_ZONE unset and inherited the old ovh-bhs1 default.
+node_zone: "{{ lookup('env', 'NODE_ZONE') | default('mtl1', true) }}"
 
-# Scheduling pool. Set NODE_POOL (e.g. worker-pool) to taint + label the node so
-# only pods that tolerate itsbagelbot.dev/pool=<pool> land on it (default-deny).
-# Leave empty for normal cloud nodes (no taint, schedules everything).
-node_pool: "{{ lookup('env', 'NODE_POOL') | default('', true) }}"
+node_region: "{{ lookup('env', 'NODE_REGION') | default('ca-mtl', true) }}"
+
+# Node role, on the single itsbagelbot.dev/role key. Replaces the retired
+# itsbagelbot.dev/pool label+taint, which named a hardware pool rather than a
+# purpose and left every consumer tolerating a key no node carries.
+#
+#   cp     — k3s control plane. Tainted NoSchedule: it runs the API server and
+#            the operators that must sit beside it, nothing else.
+#   node   — application tier. Untainted, this is where workloads run.
+#   worker — reserved for burst/compute nodes. Tainted NoSchedule, so a
+#            workload has to opt in. No node holds this today.
+#
+# Default is "node": a newly provisioned box joins the application tier, which
+# is the common case. Pass NODE_ROLE=cp explicitly when promoting a server.
+node_role: "{{ lookup('env', 'NODE_ROLE') | default('node', true) }}"
 
 # --- SELinux (matches node1) -------------------------------------------------
 selinux_state: "enforcing"
