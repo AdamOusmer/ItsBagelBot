@@ -288,7 +288,8 @@ spec:
         value: "300m"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
+        useHttps: "true"
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
@@ -298,7 +299,8 @@ spec:
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
+        useHttps: "true"
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_standard

@@ -270,7 +270,8 @@ spec:
         value: "75"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
+        useHttps: "true"
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-premium_twitch_outgress_premium
@@ -278,7 +279,8 @@ spec:
         activationLagThreshold: "5"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
+        useHttps: "true"
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-standard_twitch_outgress_standard
@@ -286,7 +288,8 @@ spec:
         activationLagThreshold: "20"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
+        useHttps: "true"
         account: BUS
         stream: TWITCH_OUTGRESS_SYSTEM
         consumer: outgress-system_twitch_outgress_system

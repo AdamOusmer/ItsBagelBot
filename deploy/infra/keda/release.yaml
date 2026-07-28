@@ -96,40 +96,31 @@ spec:
     # Verify a change landed; do not trust that the key was read:
     #   kubectl -n keda get deploy keda-operator -o jsonpath='{.spec.template.spec.affinity}'
     #
-    # operator -> APPLICATION TIER (off cp).
-    # Every ScaledObject polls NATS directly:
-    #   natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
-    # (six triggers at a 15s pollingInterval, see the outgress and sesame
-    # ScaledObjects). That ClusterIP resolves to NATS pods on the app tier, so the
-    # operator needs pod-network reachability to node4/5/6. Flannel
-    # wireguard-native publishes exactly ONE endpoint per node, so once the pod
-    # mesh moves onto the ServaRICA private VLAN, node1 (OCI, not on that VLAN)
-    # reaches it only over the tailscale subnet route.
+    # ALL THREE COMPONENTS -> CONTROL PLANE (on cp), required.
     #
-    # metricsServer and webhooks -> CONTROL PLANE (on cp), required.
-    # Both are called SYNCHRONOUSLY BY THE APISERVER: metricsServer backs the
-    # v1beta1.external.metrics.k8s.io aggregated APIService, webhooks back the
-    # keda-admission ValidatingWebhookConfiguration. Pinning them beside the
-    # apiserver keeps those calls node-local, so they survive any VLAN, subnet
-    # route, or advertiser failure. An unreachable aggregated APIService is worse
-    # than an unreachable backend: it stalls API discovery cluster-wide, not just
-    # KEDA. metricsServer still queries the operator over gRPC :9666 cross-node;
-    # if THAT hop breaks, scaling degrades to each ScaledObject's `fallback`
-    # replicas, which is the loud, bounded failure we want.
+    # metricsServer and webhooks are called SYNCHRONOUSLY BY THE APISERVER:
+    # metricsServer backs the v1beta1.external.metrics.k8s.io aggregated
+    # APIService, webhooks back the keda-admission ValidatingWebhookConfiguration.
+    # Pinning them beside the apiserver keeps those calls node-local. An
+    # unreachable aggregated APIService is worse than an unreachable backend: it
+    # stalls API discovery cluster-wide, not just KEDA.
     #
-    # Required, not preferred, on both sides: a preference lets the scheduler
-    # rebalance either half onto the wrong tier and reintroduce the problem.
+    # The operator has to follow them, because metricsServer queries it over gRPC
+    # :9666. Split across tiers, that gRPC hop was the LAST piece of cross-node
+    # pod traffic leaving node1, and node1 is at OCI with no path to the private
+    # VLAN. Serving it would have meant a tailscale SUBNET ROUTE, which puts a
+    # single route advertiser in the failure path of autoscaling. Co-locating all
+    # three makes both internal hops node-local instead.
+    #
+    # What the operator still needs off-node is NATS monitoring, and that now
+    # arrives as a Tailscale Service (nats-monitoring.tail451e6d.ts.net, see the
+    # Ingress in deploy/k8s/nats.yaml) which node1 dials over HOST networking by
+    # tailnet name. No pod route, no subnet route. The ts-ingress ProxyGroup runs
+    # 3 ha-spread replicas, so no single proxy or node carries it.
+    #
+    # Required, not preferred: a preference lets the scheduler rebalance a
+    # component onto the app tier and silently reintroduce the cross-node hop.
     operator:
-      tolerations: []
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: itsbagelbot.dev/role
-                    operator: NotIn
-                    values: [cp, worker]
-    metricsServer:
       tolerations: &cpToleration
         - key: itsbagelbot.dev/role
           operator: Equal
@@ -143,6 +134,9 @@ spec:
                   - key: itsbagelbot.dev/role
                     operator: In
                     values: [cp]
+    metricsServer:
+      tolerations: *cpToleration
+      affinity: *cpAffinity
     webhooks:
       tolerations: *cpToleration
       affinity: *cpAffinity
