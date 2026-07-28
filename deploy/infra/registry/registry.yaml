@@ -171,7 +171,7 @@ spec:
         - name: registry
           # CONFIRM the current stable tag before first apply and bump
           # deliberately, same rule as cert-manager.yaml and keda.yaml.
-          image: registry:2.8.3
+          image: registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
           imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 5000, name: http}

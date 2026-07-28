@@ -67,7 +67,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
-          image: nats:2.14.3-alpine
+          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           command: ["/bin/sh", "-c"]
@@ -143,7 +143,7 @@ spec:
         # without a manual signal or a pod restart.
         # TODO(deploy): pin to a digest like the other images.
         - name: reloader
-          image: natsio/nats-server-config-reloader:0.23.0
+          image: natsio/nats-server-config-reloader:0.23.0@sha256:64cb6c858e794906d3167378e02b7e0feb83c4e14c07b371eb8d921ef8c4a60b
           imagePullPolicy: IfNotPresent
           args:
             - "-pid"
