@@ -107,6 +107,13 @@ spec:
             - secretRef:
                 name: nats-auth-env
           env:
+            # The Go runtime reads the HOST core count (12), not the cgroup CPU
+            # limit, so it starts 12 Ps that contend for 5 cores of quota and
+            # get throttled at every CFS period. On a commit path this lock-heavy
+            # that costs far more than the parallelism it buys. Keep this equal
+            # to resources.limits.cpu.
+            - name: GOMAXPROCS
+              value: "5"
             - name: POD_NAME
               valueFrom:
                 fieldRef:

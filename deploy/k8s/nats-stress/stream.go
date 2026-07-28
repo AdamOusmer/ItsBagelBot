@@ -62,8 +62,12 @@ func stressStream() bus.StreamSpec {
 		// lag curve a meaningful soak assertion rather than a tautology.
 		MaxMsgsPer: 400_000,
 		Duplicates: 10 * time.Second,
-		Storage:    nats.MemoryStorage,
-		Replicas:   3,
+		Storage: nats.MemoryStorage,
+		// R3 by default, because that is what the firehose runs. STRESS_STREAM_
+		// REPLICAS=1 measures the same shape without RAFT quorum on the commit
+		// path, which is the only way to price what replication costs rather
+		// than guess at it.
+		Replicas: env.GetInt("STRESS_STREAM_REPLICAS", 3),
 		// Mandatory, not optional. NATS_PUBLISH_WIRE defaults to "fast" and the
 		// fast wire needs allow_batched (API level 4); allow_atomic rides the same
 		// flag so a run pinned to NATS_PUBLISH_WIRE=atomic works without a second
