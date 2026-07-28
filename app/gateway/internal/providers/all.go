@@ -52,10 +52,11 @@ func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps,
 		return out
 	}
 	return append(out, hypixel.New(hypixel.Config{
-		BaseURL:       cfg.HypixelBaseURL,
-		MojangBaseURL: cfg.MojangBaseURL,
-		APIKey:        cfg.HypixelAPIKey,
-		RateLimit:     cfg.HypixelRateLimit,
+		BaseURL:         cfg.HypixelBaseURL,
+		MojangBaseURL:   cfg.MojangBaseURL,
+		APIKey:          cfg.HypixelAPIKey,
+		RateLimit:       cfg.HypixelRateLimit,
+		MojangRateLimit: cfg.MojangRateLimit,
 	}, d))
 }
 

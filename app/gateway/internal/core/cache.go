@@ -26,6 +26,11 @@ type Store interface {
 	// retain it (the valkey client serializes within the call; an in-memory
 	// test store must copy).
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
+	// SetNX writes val under key for ttl only when the key is absent and
+	// reports whether this caller won the claim. It is the fleet-wide mutual
+	// exclusion primitive: coordination lives in the shared store, never in
+	// pod-local state, so replicas cannot each make the same decision.
+	SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error)
 	// Del removes key.
 	Del(ctx context.Context, key string) error
 }
@@ -53,6 +58,20 @@ func (s *ValkeyStore) Get(ctx context.Context, key string) ([]byte, bool, error)
 
 func (s *ValkeyStore) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error {
 	return s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(val)).Ex(ttl).Build()).Error()
+}
+
+// SetNX claims key with SET NX EX. A lost claim answers as a Valkey nil reply,
+// which is a normal outcome, not an error. Writes route to the Sentinel-elected
+// master, so the claim is authoritative fleet-wide.
+func (s *ValkeyStore) SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error) {
+	res := s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(val)).Nx().Ex(ttl).Build())
+	if err := res.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *ValkeyStore) Del(ctx context.Context, key string) error {

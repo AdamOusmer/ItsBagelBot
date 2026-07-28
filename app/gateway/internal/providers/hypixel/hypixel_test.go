@@ -47,6 +47,16 @@ func (s *memStore) Del(_ context.Context, key string) error {
 	return nil
 }
 
+func (s *memStore) SetNX(_ context.Context, key string, val []byte, _ time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.m[key]; ok {
+		return false, nil
+	}
+	s.m[key] = append([]byte(nil), val...)
+	return true, nil
+}
+
 // newTestProvider wires the provider with BOTH upstreams faked: mojang answers
 // the uuid resolve, hypixel answers /v2/player.
 func newTestProvider(t *testing.T, mojang, hypixel http.Handler) provider.Provider {
@@ -217,6 +227,46 @@ func TestOddRateLimitDoesNotPanic(t *testing.T) {
 		New(Config{APIKey: "k", RateLimit: 100.3},
 			provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 	})
+	assert.NotPanics(t, func() {
+		New(Config{APIKey: "k", MojangRateLimit: 100.3},
+			provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	})
+}
+
+// Mojang is a second upstream with its own throttle (per source IP, not per
+// key), so it must carry a budget of its own. Sharing the Hypixel bucket would
+// spend the Hypixel key's allowance on calls that never reach Hypixel and would
+// leave Mojang guarded by the wrong window; carrying no bucket at all — the
+// original defect — left the resolve hop completely unmetered, so Mojang could
+// answer 429 while the Hypixel budget still read as untouched.
+func TestMojangCarriesItsOwnBudget(t *testing.T) {
+	p := newAPI(Config{APIKey: "k"}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	assert.NotEqual(t, p.buckets, p.mojangBuckets, "the resolve hop must not share the Hypixel key's bucket")
+	assert.NotEqual(t, core.Buckets{}, p.mojangBuckets, "the resolve hop must be metered")
+}
+
+// A Mojang throttle answers the upstream-flavored rate-limit message and pins
+// briefly: the immediate next request answers from the cache instead of
+// re-hitting an upstream that is already throttling us.
+func TestStatsMojangRateLimitedPinsBriefly(t *testing.T) {
+	var mojangHits int
+	p := newTestProvider(t,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			mojangHits++
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":"TooManyRequestsException"}`))
+		}),
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(playerBody))
+		}))
+	h := statsHandle(t, p)
+
+	reply := asReply(t, h(context.Background(), gatewayrpc.Request{Account: "Techno"}))
+	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", reply.Error)
+
+	reply = asReply(t, h(context.Background(), gatewayrpc.Request{Account: "Techno"}))
+	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", reply.Error)
+	assert.Equal(t, 1, mojangHits, "a burst during an upstream throttle must answer from the pinned reply, not re-hit the upstream")
 }
 
 func TestLooksLikeUUID(t *testing.T) {

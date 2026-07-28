@@ -41,6 +41,11 @@ const (
 
 	// rateWindowSeconds is the Coral key budget window (5 minutes).
 	rateWindowSeconds = 300.0
+	// maxBurst caps instantaneous spend. Coral runs an undocumented edge
+	// limiter (~40 rapid requests, ~4/s refill, measured 2026-07-28) far below
+	// the 600/5min key quota; 8-at-once with ~2/s sustained refill stays under
+	// that wall while still spending the full quota across the window.
+	maxBurst = 8.0
 )
 
 // Config carries the provider's environment: the Coral base URL, the API key
@@ -103,7 +108,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		cache:   d.Cache,
 		key:     cfg.APIKey,
 		limiter: d.Limiter,
-		buckets: core.NewBuckets("ratelimit:gateway:urchin", cfg.RateLimit, rateWindowSeconds),
+		buckets: core.NewPacedBuckets("ratelimit:gateway:urchin", cfg.RateLimit, rateWindowSeconds, maxBurst),
 	}
 }
 

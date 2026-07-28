@@ -150,12 +150,20 @@ func storeEntry(ctx context.Context, c *Cache, key string, payload []byte, ttl t
 	entryBufPool.Put(bufp)
 }
 
-// refreshBytes revalidates one stale key in the background, deduped via
-// c.refreshing so only one refresh runs per key. It uses a detached context (the
-// triggering request was already answered from the stale value) and
-// single-flights with any concurrent blocking miss. A failed refresh is
-// swallowed and leaves the stale entry to expire on its physical TTL, so an
-// upstream blip degrades to slightly-old data rather than an error.
+// refreshBytes revalidates one stale key in the background. Deduplication is
+// fleet-wide: the refresh is gated on a SET NX EX claim in the shared store, so
+// exactly ONE replica refreshes a stale key no matter how a burst spreads
+// across the queue group — without the claim each pod would fire its own
+// refresh and one stale key would cost one upstream call per replica. The
+// pod-local c.refreshing map is only a cheap pre-filter that keeps one pod from
+// stacking goroutines on a hot key; the claim in Valkey is the authority.
+//
+// The claim expires on its own (never deleted early), so refresh attempts for
+// one key are floored to one per swrRefreshTimeout fleet-wide — a deliberate
+// backoff that shields the upstream. A successful refresh rewrites the entry
+// fresh, so nothing re-triggers anyway; a failed refresh is swallowed and the
+// stale entry keeps serving until its physical TTL, so an upstream blip
+// degrades to slightly-old data rather than an error.
 func (c *Cache) refreshBytes(key string, build func(context.Context) ([]byte, time.Duration, error)) {
 	if _, busy := c.refreshing.LoadOrStore(key, struct{}{}); busy {
 		return
@@ -164,6 +172,11 @@ func (c *Cache) refreshBytes(key string, build func(context.Context) ([]byte, ti
 		defer c.refreshing.Delete(key)
 		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshTimeout)
 		defer cancel()
+		if won, err := c.store.SetNX(ctx, key+":swr", []byte("1"), swrRefreshTimeout); err != nil || !won {
+			// Lost claim: another replica is refreshing. Claim error: leave the
+			// stale entry serving; the next read retries the claim.
+			return
+		}
 		_, _, _ = c.sf.Do(key, func() (any, error) {
 			payload, ttl, err := build(ctx)
 			if err != nil {
