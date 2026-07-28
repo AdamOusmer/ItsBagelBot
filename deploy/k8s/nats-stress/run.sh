@@ -37,7 +37,9 @@ priority_class=${BENCH_PRIORITY_CLASS:-nats-r3-bench-nonpreempting}
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo=$(cd -- "$here/../../.." && pwd)
 run_id=$(date -u +%Y%m%d%H%M%S)
-workdir=$(mktemp -d)
+# WORKDIR keeps a run's raw JSONL after teardown: the merged verdict cannot
+# explain a consumer that under-delivers, only the per-role lines can.
+workdir=${WORKDIR:-$(mktemp -d)}
 reporter="$workdir/nats-stress-report"
 publisher_log="$workdir/publisher.jsonl"
 consumer_log="$workdir/consumer.jsonl"
@@ -68,7 +70,8 @@ cleanup() {
   kubectl -n "$namespace" delete deployment nats-stress-publisher nats-stress-consumer \
     --ignore-not-found --wait=true --timeout=90s >/dev/null 2>&1 || true
   teardown_stream || true
-  rm -rf "$workdir"
+  # An operator-supplied WORKDIR is theirs to keep; only a temp one is ours.
+  [[ -n ${WORKDIR:-} ]] || rm -rf "$workdir"
 }
 
 # teardown_stream runs the rig's own delete role in a one-shot pod carrying the
