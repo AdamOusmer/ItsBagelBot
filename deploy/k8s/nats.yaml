@@ -256,3 +256,42 @@ spec:
     app: nats
   ports:
     - {name: cluster, port: 6222, targetPort: cluster}
+---
+# NATS monitoring (/jsz) published on the tailnet, so KEDA can poll consumer lag
+# from the control plane WITHOUT a pod-network path to the application tier.
+#
+# WHY THIS EXISTS
+# ---------------
+# KEDA's metricsServer backs an aggregated APIService, so it must sit beside the
+# apiserver on node1 (see deploy/infra/keda/release.yaml). It reaches the KEDA
+# operator over gRPC, so the operator has to live on node1 too, and the operator
+# is what polls NATS. That made the operator's poll the last piece of cross-node
+# POD traffic leaving node1, which is precisely what the private-VLAN topology
+# must not require: node1 is at OCI with no path to 10.10.0.0/24, and reaching it
+# through a tailscale SUBNET ROUTE puts every advertiser in the failure path.
+#
+# Routing it through the ts-ingress ProxyGroup instead means node1 dials a stable
+# tailnet name over HOST networking, which is exactly what node1 is allowed to do.
+# The ProxyGroup runs 3 ha-spread replicas, so no single proxy or node carries it,
+# unlike a NodePort pinned to one node's address.
+#
+# The ScaledObject triggers in outgress.yaml / sesame.yaml point at this name with
+# useHttps "true"; the cert is a real MagicDNS cert, so no custom CA is involved.
+# Reaching it needs a tag:cp -> tag:k8s grant in the tailnet policy.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nats-monitoring
+  namespace: production
+  annotations:
+    tailscale.com/proxy-group: ts-ingress
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: nats
+      port:
+        number: 8222
+  tls:
+    - hosts:
+        - nats-monitoring
