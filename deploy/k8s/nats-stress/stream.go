@@ -62,7 +62,7 @@ func stressStream() bus.StreamSpec {
 		// lag curve a meaningful soak assertion rather than a tautology.
 		MaxMsgsPer: 400_000,
 		Duplicates: 10 * time.Second,
-		Storage: nats.MemoryStorage,
+		Storage:    nats.MemoryStorage,
 		// R3 by default, because that is what the firehose runs. STRESS_STREAM_
 		// REPLICAS=1 measures the same shape without RAFT quorum on the commit
 		// path, which is the only way to price what replication costs rather

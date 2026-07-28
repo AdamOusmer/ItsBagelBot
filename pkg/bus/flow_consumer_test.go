@@ -45,8 +45,12 @@ func TestFlowConsumerConfigIsAcceptedByTheServerContract(t *testing.T) {
 	if cfg.MaxAckPending != flowMaxAckPending {
 		t.Fatalf("max ack pending = %d, want %d", cfg.MaxAckPending, flowMaxAckPending)
 	}
-	if cfg.Replicas != 0 || !cfg.MemoryStorage {
-		t.Fatalf("consumer state must inherit stream replicas in memory: %#v", cfg)
+	// R1 memory consumer state on the R3 stream: replicating per-consumer ack
+	// state is leader RAFT work the receipt-level design never needed. Loss of
+	// the consumer means this pod re-provisions from its own cursor and the
+	// idempotency guard absorbs the redelivered window.
+	if cfg.Replicas != 1 || !cfg.MemoryStorage {
+		t.Fatalf("consumer state must be R1 in memory: %#v", cfg)
 	}
 	// A first creation must not replay the retained firehose.
 	if cfg.DeliverPolicy != jsapi.DeliverNewPolicy {
