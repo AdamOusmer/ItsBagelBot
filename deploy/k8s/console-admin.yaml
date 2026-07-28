@@ -36,7 +36,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3 # no worker toleration: one per normal node (node2, node3, node4), never worker1; node1 decommissioned
+  replicas: 3 # one per application node; no cp or worker toleration
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -61,7 +61,7 @@ spec:
               app: console-admin
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           # Scope the hard rule to the incoming ReplicaSet. With maxSurge=1
           # the first new pod may share a host with an old pod, while the
           # second new pod is forced onto the other normal node.

@@ -1,0 +1,76 @@
+# TEMPLATE ONLY — the real inventory is gitignored.
+#
+# This repository is PUBLIC. Committing node addresses here leaked more than the
+# addresses themselves: it correlated which hosts form one cluster, which single
+# host is the control plane, and (read alongside roles/firewall) exactly which
+# ports are open on each. One retired node was a home connection, which made its
+# entry materially worse than the datacenter ones.
+#
+# Generate the real file, which .gitignore excludes:
+#
+#   cd deploy/ansible
+#   doppler run --project infra-bootstrap --config prd -- ./render-inventory.sh
+#
+# The provisioning path already worked this way: group_vars/all.yml reads
+# NODE_EXTERNAL_IP from the environment, injected by doppler run. Only this
+# cluster inventory bypassed it, which is why README.md's claim that "no IPs are
+# copied or committed" was true of site.yml and false of this file.
+#
+# PRIVATE VLAN (node4/5/6 only)
+# -----------------------------
+# vlan_address is this node's address on the ServaRICA private VLAN, and
+# tailscale_advertise_routes publishes that subnet to the tailnet so hosts with no
+# physical path to it (node1 at OCI) can still reach it.
+#
+# EXACTLY ONE NODE ADVERTISES 10.10.0.0/24. This is not the obvious choice, so
+# it is worth stating why the obvious one is wrong. Advertising from all three
+# for HA failover was tried and MEASURED on 2026-07-27: it breaks the VLAN.
+# A node that advertises a subnet becomes a member of that route, and a member
+# that is NOT the elected primary installs the primary's route locally:
+#
+#   node4 (primary):     PrimaryRoutes=[10.10.0.0/24]   table 52: empty      OK
+#   node5/6 (secondary): PrimaryRoutes=None             table 52: 10.10.0.0/24
+#
+# That entry is "10.10.0.0/24 dev tailscale0" in table 52, and rule 5270
+# (table 52) outranks 32766 (main), so it SHADOWS the node's own direct eth1
+# path: node5 would reach node6 by tunnelling through node4 instead of crossing
+# the switch. Splitting tag:cp from tag:nodes does not save you here. The ACL
+# grant controls whether a node may reach the subnet, not whether a node that
+# advertises it installs it.
+#
+# The single-advertiser risk is real but is handled at the other end instead:
+# everything the apiserver calls synchronously (cert-manager + trust-manager
+# webhooks, metrics-server, KEDA's metricsServer and webhooks) is pinned to the
+# control plane by role, so losing the advertiser costs cross-node pod routing
+# and KEDA's operator hop, not cluster admission. See deploy/infra/keda/release.yaml.
+#
+# node1 keeps advertising OCI's 10.0.0.0/16, which is how in-cluster pods reach
+# the database. It is declared here rather than left implicit so a playbook run
+# reconciles it instead of drifting; see the destructive-empty warning in
+# group_vars/all.yml.
+#
+# flannel_iface / node_external_ip still name the PUBLIC interface. Switching the
+# pod mesh onto the VLAN is a separate, deliberate step: flannel publishes exactly
+# one endpoint per node, so the moment node4/5/6 advertise 10.10.0.x, every host
+# without a route to that subnet loses pod-network reachability to them. Do not
+# change these without the tailscale routes above already approved and verified.
+[cluster]
+node1 ansible_host=node1 ansible_user=opc k3s_role=server flannel_iface=enp0s6 node_external_ip={{ NODE1_PUBLIC_IP }} wireguard_endpoint={{ NODE1_PUBLIC_IP }} api_advertise_address={{ NODE1_TAILNET_IP }} node_role=cp tailscale_advertise_routes=10.0.0.0/16
+node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE4_PUBLIC_IP }} wireguard_endpoint={{ NODE4_PUBLIC_IP }} node_role=node vlan_address=10.10.0.4/24 tailscale_advertise_routes=10.10.0.0/24
+node5 ansible_host=node5 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE5_PUBLIC_IP }} wireguard_endpoint={{ NODE5_PUBLIC_IP }} node_role=node vlan_address=10.10.0.5/24
+node6 ansible_host=node6 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE6_PUBLIC_IP }} wireguard_endpoint={{ NODE6_PUBLIC_IP }} node_role=node vlan_address=10.10.0.6/24
+
+[k3s_server]
+node1
+
+[k3s_agents]
+node4
+node5
+node6
+
+[k3s_first_agent]
+node4
+
+[k3s_remaining_agents]
+node5
+node6

@@ -56,7 +56,7 @@ The architecture is fixed during this phase:
 - hubs own JetStream and leaves serve RPC only;
 - broker deduplication remains off;
 - publishers dial the node-local hub Service;
-- worker1 participates as a replica but is not the preferred leader;
+- every hub member is an equal replica and any of them may hold the leadership;
 - no stream partitioning or sharding;
 - production streams remain unchanged during isolated qualification.
 
@@ -69,8 +69,11 @@ it only when a repeat run improves the result.
 The desired R3 operating point is 90,000 events/s for at least 30 minutes with
 zero errors and zero final follower lag. It is not promotable unless its loaded
 latency target is explicitly accepted. The historical 2 ms p99 remains the
-normal-load JetStream SLO; the current hardware evidence shows that a
-fleet-wide R3 p99 near 14 ms may be the physical worker1 floor.
+normal-load JetStream SLO. The fleet-wide R3 p99 near 14 ms that earlier runs
+treated as a physical floor was measured while the quorum still included a
+home-wifi node and two weaker hosts; that hardware is retired and the
+application tier is uniform now, so the figure needs re-establishing before it
+is quoted as a limit.
 
 If 90k throughput and the accepted latency cannot coexist, record the lower
 stable ceiling. Do not weaken an automated gate merely to make the run pass.

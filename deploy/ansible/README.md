@@ -50,11 +50,27 @@ Before provisioning, make UDP `41641` reachable:
    `41641` from `0.0.0.0/0` (and `::/0` when the node has public IPv6). The host
    firewall still restricts all other public traffic; Tailscale authenticates
    and encrypts packets arriving on this UDP socket.
-2. On worker1's upstream router, reserve its LAN address and create a static
-   UDP port-forward from WAN `41641` to worker1 port `41641`. Enabling
-   NAT-PMP/UPnP is an alternative, but a static mapping is more predictable for
-   a cluster node.
-3. Allow outbound UDP to arbitrary destinations and UDP `3478` for STUN.
+2. Allow outbound UDP to arbitrary destinations and UDP `3478` for STUN.
+
+### Fleet nodes are datacenter hosts only. Never port-forward from a home router.
+
+A fleet node must be a host whose inbound UDP you open on a **cloud** firewall,
+in front of an address that belongs to a provider and not to a residence.
+
+Do not satisfy step 1 by forwarding a port on a home or office router. The
+playbook used to document exactly that for a home node, and it is the wrong
+trade in two ways:
+
+- **It publishes a home address.** A tailnet peer learns every other peer's
+  endpoint, and any artifact that records those endpoints (a benchmark log, a
+  `tailscale status` paste, an inventory file) then carries a residential IP
+  that geolocates to a street-level area and cannot be rotated on most ISPs.
+- **It puts a residential link in the RAFT path.** Flannel carries JetStream
+  RAFT over the tailnet, so a consumer-grade uplink becomes a quorum member.
+
+If a node cannot take direct inbound UDP on a provider address, it does not
+belong in the fleet. There is no Ansible task, firewall rule, or NAT-PMP/UPnP
+setting here that makes a home connection an acceptable substitute.
 
 Validate from each node (this pulls the live peer list so it never goes stale):
 
@@ -170,32 +186,35 @@ nodes with the explicit cluster inventory:
 ansible-playbook -i inventory.cluster.ini valkey-host-tuning.yml
 ```
 
-The play asserts that node1, node2, node3, and worker1 are all present before it
-changes a host. Running it against the default single-node provisioning
-inventory fails loudly instead of reporting a successful no-op.
+The play asserts that every host in `valkey_required_nodes` (node1, node4, node5,
+node6) is present before it changes anything. Running it against the default
+single-node provisioning inventory fails loudly instead of reporting a
+successful no-op.
 
 `provision.sh` is a thin `doppler run --project infra-bootstrap --config prd --
 ansible-playbook …` wrapper.
 
-### Compute-only nodes (taint + label)
+### Node roles (label + taint)
 
-Set `NODE_POOL` to fence a node so **only pods that tolerate it** schedule there
-(default-deny). Used for the private compute box — user-facing apps + ingress
-stay on the cloud nodes automatically; only tolerating workloads land here.
+`NODE_ROLE` sets the one label the fleet schedules on,
+`itsbagelbot.dev/role`, and the matching taint. It replaces the retired
+`NODE_POOL` / `itsbagelbot.dev/pool` pair, which named a hardware pool rather
+than a purpose and left workloads tolerating a key no node carried.
+
+| Value | Taint | Meaning |
+|---|---|---|
+| `cp` | `itsbagelbot.dev/role=cp:NoSchedule` | k3s control plane. Runs the API server and the operators that must sit beside it, nothing else. |
+| `node` | none | Application tier. The default, and where workloads run. |
+| `worker` | `itsbagelbot.dev/role=worker:NoSchedule` | Reserved for burst/compute hosts. No node holds this today. |
 
 ```bash
-NODE_POOL=worker-pool ./provision.sh 51.x.x.x opc node4
+NODE_ROLE=node ./provision.sh <address> almalinux node7
 ```
 
-This adds at k3s registration:
-```
-node-label: itsbagelbot.dev/pool=worker-pool
-node-taint: itsbagelbot.dev/pool=worker-pool:NoSchedule
-```
-Pods opt in with a matching toleration (already added to the production compute
-Deployments + `nats-leaf`). `host-research` tolerates all taints;
-`falco` / `crowdsec-agent` were patched to tolerate the pool too.
-Leave `NODE_POOL` unset for normal cloud nodes (no taint).
+Omit it and the box joins as `node`, which is the common case. Pass `cp`
+explicitly when promoting a server. Workloads select the tier by role
+(`itsbagelbot.dev/role NotIn [cp, worker]`) rather than by hostname, so a rule
+cannot go stale when the fleet changes shape.
 
 ## ⚠️ SSH is removed — read before running
 

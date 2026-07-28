@@ -1,0 +1,79 @@
+---
+# Configure this node's interface on the ServaRICA private VLAN.
+#
+# Skipped entirely unless the host declares vlan_address in the inventory, so
+# node1 (OCI, not on the VLAN) and any future host without one are untouched.
+#
+# The VLAN is UNTAGGED from the guest's point of view. The provider handles the
+# tag on their side, so configuring an 802.1Q interface here would double-tag and
+# silently receive nothing. Confirmed with ServaRICA 2026-07-27.
+
+- name: Skip hosts with no private VLAN address
+  ansible.builtin.meta: end_host
+  when: vlan_address | default('') | length == 0
+
+- name: Confirm the second interface exists
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ vlan_interface }}"
+  register: vlan_nic
+
+- name: Fail clearly when the VLAN interface is absent
+  ansible.builtin.fail:
+    msg: >-
+      {{ vlan_interface }} does not exist on this host, but vlan_address
+      ({{ vlan_address }}) is declared. Attach the private-network NIC in the
+      provider panel before running this role.
+  when: not vlan_nic.stat.exists
+
+# STATIC, never DHCP. The provider runs no DHCP server on this VLAN, so a DHCP
+# profile leaves the device in NM state 70 retrying forever, which in turn hangs
+# NetworkManager-wait-online and delays every boot. That cost node6 a clean
+# reboot on 2026-07-27 before the cause was found.
+#
+# never-default: this interface must never become the default route. The public
+# interface carries egress; the VLAN is strictly node-to-node.
+- name: Configure the private VLAN interface (static, untagged)
+  community.general.nmcli:
+    conn_name: vlan-private
+    ifname: "{{ vlan_interface }}"
+    type: ethernet
+    ip4: "{{ vlan_address }}"
+    never_default4: true
+    method6: disabled
+    autoconnect: true
+    state: present
+  notify: bring up private vlan
+
+# firewalld's default zone is public, which would drop node-to-node traffic on
+# this interface. The VLAN carries the pod mesh once flannel moves onto it, so it
+# belongs in the same trusted zone as tailscale0/cni0/flannel-wg.
+#
+# This is an explicit trust decision: it assumes the VLAN is genuinely private to
+# this account. If the provider ever shares that segment between customers, this
+# line is what would need revisiting first.
+- name: Trust the private VLAN interface
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: "{{ vlan_interface }}"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Read the VLAN interface state
+  ansible.builtin.command: "cat /sys/class/net/{{ vlan_interface }}/statistics/rx_bytes"
+  register: vlan_rx
+  changed_when: false
+
+# rx_bytes is the honest check. A firewall drop still increments it, and ARP is
+# broadcast so it cannot be unicast-filtered; zero bytes since boot therefore
+# means the provider is not passing frames on this segment at all, which is
+# exactly the state every node sat in for a full day on 2026-07-27 while the
+# guest configuration was already correct.
+- name: Report a VLAN that is configured but receiving nothing
+  ansible.builtin.debug:
+    msg: >-
+      {{ vlan_interface }} has {{ vlan_address }} and is UP, but has received
+      0 bytes since boot. The guest side is correct; the provider is not passing
+      frames on this VLAN. Do not switch flannel onto it until this is non-zero
+      and peers answer on 10.10.0.0/24.
+  when: vlan_rx.stdout | int == 0

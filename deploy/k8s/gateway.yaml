@@ -66,9 +66,9 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: kubernetes.io/hostname
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: [node1]
+                    values: [cp, worker]
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: kubernetes.io/hostname
@@ -78,7 +78,7 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:

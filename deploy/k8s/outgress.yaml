@@ -49,16 +49,16 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # The node1 exclusion below is inert since node1 left the fleet; kept so
-      # the applied spec is unchanged.
+      # Application tier only, selected by role so the rule cannot go stale
+      # when the fleet changes shape.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: kubernetes.io/hostname
+                  - key: itsbagelbot.dev/role
                     operator: NotIn
-                    values: [node1]
+                    values: [cp, worker]
       topologySpreadConstraints:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
@@ -246,7 +246,7 @@ spec:
   pollingInterval: 15
   cooldownPeriod: 300
   minReplicaCount: 4
-  # 3 per hot-path node (node2/node3/node4/worker1). Outgress is Twitch-rate-limited,
+  # 4 per application node. Outgress is Twitch-rate-limited,
   # so headroom here is for lag-driven burst drain, not sustained throughput.
   maxReplicaCount: 12
   fallback:
