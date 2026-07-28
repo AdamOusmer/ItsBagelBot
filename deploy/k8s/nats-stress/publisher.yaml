@@ -120,8 +120,9 @@ spec:
             # exists.
             - name: NATS_PUBLISH_WIRE
               value: atomic
-            - name: NATS_PUBLISH_CONNECTIONS
-              value: "4"
+            # NATS_PUBLISH_CONNECTIONS is set once, above, from the runner knob.
+            # A second entry here would win (last duplicate wins in Kubernetes)
+            # and silently pin the worker count whatever the sweep asked for.
             - name: STRESS_PUBLISHER_REPLICAS
               value: "__PUBLISHER_REPLICAS__"
             - name: POD_NAME
@@ -131,8 +132,8 @@ spec:
             - name: GOMEMLIMIT
               value: 768MiB
           resources:
-            requests: {cpu: "1", memory: 256Mi}
-            limits: {cpu: "2", memory: 1Gi}
+            requests: {cpu: "2", memory: 256Mi}
+            limits: {cpu: "6", memory: 1Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

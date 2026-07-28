@@ -350,7 +350,11 @@ func (s *publishState) soak(ctx context.Context, rate float64) *stepResult {
 	}
 	s.log.Info("soaking at the stable rate",
 		zap.Float64("msgs_per_sec", rate), zap.Duration("for", s.cfg.SoakFor))
-	result := s.runStep(ctx, -1, rate, s.cfg.SoakFor, true)
+	// runStep takes a FLEET rate and divides by Replicas for this replica's
+	// share. The ceiling resolves from this replica's own achieved steps, so
+	// rate is already per-replica: scale it back up, or the soak silently runs
+	// at 1/Replicas of the stable rate it reports.
+	result := s.runStep(ctx, -1, rate*float64(max(s.cfg.Replicas, 1)), s.cfg.SoakFor, true)
 	emit(stepLine{
 		envelopeHeader: envelopeHeader{Rig: rigName, Role: rolePublish, Kind: kindStep},
 		PublisherID:    s.cfg.PublisherID, Step: result,

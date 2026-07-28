@@ -146,7 +146,7 @@ spec:
             # every member so quorum placement does not strand half a node,
             # while the 4-core ceiling still lets the active leader burst.
             requests: {cpu: 1500m, memory: 2Gi}
-            limits: {cpu: "4", memory: 6Gi}
+            limits: {cpu: "5", memory: 6Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
