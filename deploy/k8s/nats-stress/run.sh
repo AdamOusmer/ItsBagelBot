@@ -27,6 +27,10 @@ step_rate=${STEP_RATE:-10000}
 step_hold=${STEP_HOLD:-30s}
 max_steps=${MAX_STEPS:-20}
 soak=${SOAK:-5m}
+# Atomic cohort shape under test; substituted into publisher.yaml so a tuning
+# sweep needs no image rebuild. Defaults mirror the bus defaults.
+atomic_batch_size=${ATOMIC_BATCH_SIZE:-256}
+atomic_batch_wait=${ATOMIC_BATCH_WAIT:-1ms}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -220,7 +224,10 @@ start_publisher() {
     -lanes "$lanes" -payload-bytes "$payload_bytes" -dup-fraction "$dup_fraction" \
     -start-rate "$start_rate" -step-rate "$step_rate" -step-hold "$step_hold" \
     -max-steps "$max_steps" -soak "$soak" -tick 5s)
-  apply_manifest "$here/publisher.yaml" "$args" "$publisher_replicas" PUBLISHER
+  sed -e "s|__ATOMIC_BATCH_SIZE__|$atomic_batch_size|g" \
+      -e "s|__ATOMIC_BATCH_WAIT__|$atomic_batch_wait|g" \
+      "$here/publisher.yaml" >"$workdir/publisher.rendered.yaml"
+  apply_manifest "$workdir/publisher.rendered.yaml" "$args" "$publisher_replicas" PUBLISHER
   kubectl -n "$namespace" rollout status deployment/nats-stress-publisher \
     --timeout="${ready_timeout}s" >/dev/null
   follow_logs publisher "$publisher_log"
