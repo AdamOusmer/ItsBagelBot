@@ -33,6 +33,7 @@ atomic_batch_size=${ATOMIC_BATCH_SIZE:-256}
 atomic_batch_wait=${ATOMIC_BATCH_WAIT:-1ms}
 # Boolean string for env.GetBool: "true"/"false", not on/off.
 atomic_overlap=${ATOMIC_OVERLAP:-true}
+publish_connections=${PUBLISH_CONNECTIONS:-4}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -229,6 +230,7 @@ start_publisher() {
   sed -e "s|__ATOMIC_BATCH_SIZE__|$atomic_batch_size|g" \
       -e "s|__ATOMIC_BATCH_WAIT__|$atomic_batch_wait|g" \
       -e "s|__ATOMIC_OVERLAP__|$atomic_overlap|g" \
+      -e "s|__PUBLISH_CONNECTIONS__|$publish_connections|g" \
       "$here/publisher.yaml" >"$workdir/publisher.rendered.yaml"
   apply_manifest "$workdir/publisher.rendered.yaml" "$args" "$publisher_replicas" PUBLISHER
   kubectl -n "$namespace" rollout status deployment/nats-stress-publisher \

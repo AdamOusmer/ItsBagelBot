@@ -79,6 +79,10 @@ spec:
               value: "__ATOMIC_BATCH_WAIT__"
             - name: NATS_ATOMIC_PUBLISH_OVERLAP
               value: "__ATOMIC_OVERLAP__"
+            # Parallel batch workers per pod (one per pooled connection). The
+            # measured winner is many small concurrent cohorts, not big ones.
+            - name: NATS_PUBLISH_CONNECTIONS
+              value: "__PUBLISH_CONNECTIONS__"
             # PreferSameNode, exactly as sesame publishes: client TLS, socket and
             # batch work spread across all three hub members while the stream
             # leader still performs the RAFT commit. Pointing this at the leader
