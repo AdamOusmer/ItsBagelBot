@@ -288,8 +288,25 @@ spec:
         value: "300m"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        # Still the in-cluster ClusterIP, NOT the tailnet Service, and that is a
+        # known limitation rather than an oversight.
+        #
+        # Moving this to nats-monitoring.tail451e6d.ts.net was tried on
+        # 2026-07-27 so the control plane would need no VLAN subnet route. The
+        # /jsz fetch works over the tailnet, but KEDA's clustered-JetStream
+        # scaler then follows the cluster to the consumer's leader and dials that
+        # member's monitoring endpoint by its ADVERTISED POD IP:
+        #   Get "https://10.42.3.205/varz": dial tcp 10.42.3.205:443: refused
+        # A pod IP is only reachable over the pod network, so exposing one
+        # Service does not remove the dependency; every NATS member would have to
+        # be individually reachable under the address NATS itself advertises.
+        #
+        # Two further traps if this is retried. Tailnet names need a TRAILING DOT
+        # here: the pod resolver runs ndots:5, this name has 4 dots, so the search
+        # list is walked first and resolution fails outright. And KEDA does not
+        # fail loudly, it suppresses the error and serves the static `fallback`
+        # replicas below, so autoscaling stops while the HPA still reads healthy.
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
@@ -299,8 +316,7 @@ spec:
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_standard
