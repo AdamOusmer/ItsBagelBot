@@ -17,7 +17,7 @@ resources:
 # StatefulSet (kustomize rewrites the volume reference to the hashed name).
 # Start/ping logic no longer lives in mounted scripts: valkey-server runs the
 # seeded conf directly, stable StatefulSet DNS identities keep replication and
-# Sentinel on the native WireGuard pod network, failover persistence is
+# Sentinel addressed by name across reschedules, failover persistence is
 # valkey's built-in CONFIG REWRITE, and probes are inline valkey-cli. A small
 # initContainer seeds and migrates the writable /data conf.
 configMapGenerator:

@@ -34,7 +34,8 @@ metadata:
   namespace: valkey
 spec:
   # kube-proxy selects only the endpoint on the caller's node. This keeps
-  # node-local reads on the pod network without a host or Tailscale hop.
+  # node-local reads on that node's own listener, with no cross-node or
+  # Tailscale hop.
   internalTrafficPolicy: Local
   ports:
   - name: tls-redis

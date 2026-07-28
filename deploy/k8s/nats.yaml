@@ -20,8 +20,9 @@ spec:
   template:
     metadata:
       annotations:
-        # Wire encryption is NATS-native TLS (nats-server.conf) over native
-        # WireGuard.
+        # Wire encryption is NATS-native TLS (nats-server.conf). The pods run in
+        # the host netns, so that TLS is the only encryption layer: the CNI's
+        # WireGuard tunnel is not in the path and does not re-encrypt it.
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
@@ -32,6 +33,13 @@ spec:
       labels:
         app: nats
     spec:
+      # The hub listens on the node's own addresses: client 4222, cluster 6222,
+      # monitor 8222, exporter 7777. Kubernetes promotes each declared
+      # containerPort to a host port here, so the scheduler already refuses to
+      # place two members on one node. Cluster DNS is still required, because
+      # the routes below resolve through the headless Service.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       tolerations:
         - key: node.kubernetes.io/unreachable
           operator: Exists
