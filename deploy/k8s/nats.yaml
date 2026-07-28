@@ -166,7 +166,7 @@ spec:
             capabilities: {drop: ["ALL"]}
             readOnlyRootFilesystem: true
         - name: prometheus-nats-exporter
-          image: natsio/prometheus-nats-exporter:0.15.0
+          image: natsio/prometheus-nats-exporter:0.20.1@sha256:4fbf6dacb84780a45a1c3af9b1080c69451a288d20902deae671b80717bb8f61
           imagePullPolicy: IfNotPresent
           args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8222"]
           ports:
