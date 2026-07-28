@@ -18,65 +18,54 @@
 #
 # PRIVATE VLAN (node4/5/6 only)
 # -----------------------------
-# vlan_address is this node's address on the ServaRICA private VLAN, and
-# tailscale_advertise_routes publishes that subnet to the tailnet so hosts with no
-# physical path to it (node1 at OCI) can still reach it.
-#
-# EXACTLY ONE NODE ADVERTISES 10.10.0.0/24. This is not the obvious choice, so
-# it is worth stating why the obvious one is wrong. Advertising from all three
-# for HA failover was tried and MEASURED on 2026-07-27: it breaks the VLAN.
-# A node that advertises a subnet becomes a member of that route, and a member
-# that is NOT the elected primary installs the primary's route locally:
-#
-#   node4 (primary):     PrimaryRoutes=[10.10.0.0/24]   table 52: empty      OK
-#   node5/6 (secondary): PrimaryRoutes=None             table 52: 10.10.0.0/24
-#
-# That entry is "10.10.0.0/24 dev tailscale0" in table 52, and rule 5270
-# (table 52) outranks 32766 (main), so it SHADOWS the node's own direct eth1
-# path: node5 would reach node6 by tunnelling through node4 instead of crossing
-# the switch. Splitting tag:cp from tag:nodes does not save you here. The ACL
-# grant controls whether a node may reach the subnet, not whether a node that
-# advertises it installs it.
-#
-# The single-advertiser risk is real but is handled at the other end instead:
-# everything the apiserver calls synchronously (cert-manager + trust-manager
-# webhooks, metrics-server, KEDA's metricsServer and webhooks) is pinned to the
-# control plane by role, so losing the advertiser costs cross-node pod routing
-# and KEDA's operator hop, not cluster admission. See deploy/infra/keda/release.yaml.
-#
-# node1 keeps advertising OCI's 10.0.0.0/16, which is how in-cluster pods reach
-# the database. It is declared here rather than left implicit so a playbook run
-# reconciles it instead of drifting; see the destructive-empty warning in
-# group_vars/all.yml.
+# vlan_address is this node's address on the ServaRICA private VLAN.
 #
 # THE POD MESH IS ON THE VLAN as of 2026-07-27. node4/5/6 set flannel_iface=eth1
 # and node_external_ip=10.10.0.x, so flannel's wireguard-native endpoint for each
 # is its VLAN address and inter-node pod traffic crosses the switch instead of the
 # public internet (measured after the switch: eth1 ~5x the byte rate of eth0).
 #
-# node1 deliberately KEEPS its public endpoint. flannel publishes exactly one
-# endpoint per node, so this is asymmetric on purpose: node4/5/6 dial node1 over
-# the public internet, and node1 dials them at 10.10.0.x through the tailscale
-# subnet route. Both directions resolve, which is all WireGuard needs.
+# NO TAILSCALE SUBNET ROUTE FOR 10.10.0.0/24 EXISTS, and none is needed. This is
+# the part that is easy to get wrong, because it looks like node1 (OCI, no
+# physical path to the VLAN) could never reach flannel endpoints at 10.10.0.x:
 #
-# Consequence worth knowing before adding a node: any host WITHOUT a route to
-# 10.10.0.0/24 loses pod-network reachability to node4/5/6. That is why node2 was
-# removed from the cluster outright and node3 carries a NoExecute standby taint.
-# Both are tag:nodes, which the ACL does not grant the VLAN, so they could not
-# reach the app tier's flannel endpoints; they kept working only on a stale
-# WireGuard endpoint that would have died at the next rekey. A retired node left
-# in the cluster is not inert, it stays in kube-dns and Service endpoints and
-# black-holes the traffic it is handed.
+#   node1 deliberately keeps its PUBLIC flannel endpoint, so node4/5/6 initiate
+#   WireGuard to node1 over the public internet, and flannel's net-conf sets
+#   PersistentKeepaliveInterval 25 for every peer. Kernel WireGuard ROAMS: it
+#   updates a peer's endpoint to the outer source address of the latest
+#   authenticated inbound packet. The app nodes' keepalives arrive at node1 from
+#   their PUBLIC addresses, so node1's flannel-wg learns those and sends pod
+#   traffic back over the public path. Verified 2026-07-28 on node1:
+#     wg show flannel-wg endpoints -> 38.49.x.x public IPs, never 10.10.0.x
+#   A tailscale subnet route for the VLAN previously existed and was measured to
+#   carry no pod traffic at all; it was removed, along with its ACL grant and
+#   auto-approver. Worst case after a node1 flannel restart: the configured
+#   10.10.0.x endpoints are unreachable for up to ~25s until the first keepalive
+#   arrives and roaming re-learns the public endpoints.
 #
-# MTU: flannel-wg is 1420 and tailscale0 is 1350, so node1's packets to the VLAN
-# exceed the tunnel budget and are IP-fragmented rather than dropped (verified:
-# 1400-byte pings and a 3400-byte TCP body both succeed node1 pod -> node6 pod).
-# That path carries only KEDA's metrics gRPC now that everything the apiserver
-# calls synchronously is pinned to node1, so the fragmentation cost is immaterial.
-# net.ipv4.tcp_mtu_probing=1 is the blackhole backstop if it ever is not.
+# NEVER advertise 10.10.0.0/24 from any node, and never from more than one:
+# a member that loses the primary election installs the primary's route into
+# table 52 (rule 5270 outranks main's 32766), shadowing its own direct eth1 path
+# (measured 2026-07-27: node5/6 as secondaries got "10.10.0.0/24 dev tailscale0"
+# and VLAN connectivity broke). The ACL tag split does not prevent this; the
+# grant controls reachability, not whether an advertiser installs the route.
+#
+# Everything the apiserver calls synchronously (cert-manager + trust-manager
+# webhooks, metrics-server, all of KEDA) is pinned to the control plane by role,
+# so no admission or aggregated-API path ever crosses nodes. KEDA's operator
+# polls NATS over the pod mesh described above. See deploy/infra/keda/release.yaml.
+#
+# node1 keeps advertising OCI's 10.0.0.0/16, which is how in-cluster pods reach
+# the database. It is declared here rather than left implicit so a playbook run
+# reconciles it instead of drifting; see the destructive-empty warning in
+# group_vars/all.yml.
+#
+# Retired nodes are not inert while they remain cluster members: they stay in
+# kube-dns and Service endpoints and black-hole whatever they are handed. That is
+# why node2 was removed outright and node3 carries a NoExecute standby taint.
 [cluster]
 node1 ansible_host=node1 ansible_user=opc k3s_role=server flannel_iface=enp0s6 node_external_ip={{ NODE1_PUBLIC_IP }} wireguard_endpoint={{ NODE1_PUBLIC_IP }} api_advertise_address={{ NODE1_TAILNET_IP }} node_role=cp tailscale_advertise_routes=10.0.0.0/16
-node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.4 wireguard_endpoint=10.10.0.4 node_role=node vlan_address=10.10.0.4/24 tailscale_advertise_routes=10.10.0.0/24
+node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.4 wireguard_endpoint=10.10.0.4 node_role=node vlan_address=10.10.0.4/24
 node5 ansible_host=node5 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.5 wireguard_endpoint=10.10.0.5 node_role=node vlan_address=10.10.0.5/24
 node6 ansible_host=node6 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.6 wireguard_endpoint=10.10.0.6 node_role=node vlan_address=10.10.0.6/24
 

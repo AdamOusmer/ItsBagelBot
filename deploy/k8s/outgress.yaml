@@ -270,8 +270,11 @@ spec:
         value: "75"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        # ClusterIP, not the tailnet Service. See the long note in sesame.yaml:
+        # KEDA's clustered scaler follows the cluster to the leader's advertised
+        # POD IP, so a single tailnet Service does not remove the pod-network
+        # dependency.
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-premium_twitch_outgress_premium
@@ -279,8 +282,7 @@ spec:
         activationLagThreshold: "5"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-standard_twitch_outgress_standard
@@ -288,8 +290,7 @@ spec:
         activationLagThreshold: "20"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS_SYSTEM
         consumer: outgress-system_twitch_outgress_system
