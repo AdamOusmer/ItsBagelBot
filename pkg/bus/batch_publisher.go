@@ -111,6 +111,14 @@ type publishBatchWorker struct {
 	// per-message and atomic wires can use.
 	batchSize int
 	batchWait time.Duration
+
+	// overlapCommit lets an atomic cohort's commit ack be awaited off this
+	// goroutine. It trades strict cross-cohort stream order for the commit RTT;
+	// publishAtomicOverlapped documents exactly what that costs.
+	overlapCommit bool
+	// newAtomic is the test seam for Orbit's batch publisher. Production leaves
+	// it nil and atomicPublisher opens the real ADR-050 session.
+	newAtomic func() (atomicCohortPublisher, error)
 }
 
 func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
@@ -321,9 +329,10 @@ func (p *batchPublisher) workerLocked(stream string) (*publishBatchWorker, error
 		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots:     make(chan struct{}, maxInflightCohorts),
-		batchSize: publishBatchSize(p.wire),
-		batchWait: publishBatchWait(p.wire),
+		slots:         make(chan struct{}, maxInflightCohorts),
+		batchSize:     publishBatchSize(p.wire),
+		batchWait:     publishBatchWait(p.wire),
+		overlapCommit: atomicPublishOverlap(),
 	}
 	p.workers[stream] = worker
 	go worker.run()
@@ -471,13 +480,14 @@ func stopAndDrainTimer(timer *time.Timer) {
 	}
 }
 
-// publish drives one cohort. The Orbit wires block this worker until their
-// session commits, which is what keeps the session single-goroutine and this
-// stream's messages in wire order.
+// publish drives one cohort. Cohorts are staged from this goroutine in wire
+// order; what may move off it is the wait for the broker's verdict — plus, on
+// the overlapping atomic path, the commit that carries the cohort's last
+// message — and only as far as each wire's ordering contract allows.
 func (w *publishBatchWorker) publish(batch []publishRequest) {
 	switch cohortWire(w.owner.wire, len(batch)) {
 	case wireAtomic:
-		w.finish(batch, w.publishAtomic(batch))
+		w.publishAtomicCohort(batch)
 	case wireFast:
 		w.finishFast(batch, w.publishFast(batch))
 	default:

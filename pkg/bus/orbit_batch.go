@@ -70,10 +70,13 @@ const (
 	wireFast
 )
 
-// atomicBatchMax is ADR-050's per-batch message ceiling. The atomic wire
-// collects cohorts of defaultPublishBatchSize, far below it; this guard only
-// protects against a future batch-size bump past the protocol.
+// atomicBatchMax is ADR-050's per-batch message ceiling and the upper clamp on
+// the configured cohort size.
 const atomicBatchMax = 1000
+
+// defaultAtomicPublishBatchSize is how many messages one atomic cohort carries
+// unless NATS_ATOMIC_PUBLISH_BATCH_SIZE says otherwise.
+const defaultAtomicPublishBatchSize = 256
 
 // fastSessionMax bounds one Fast-Ingest session. It is not a protocol limit:
 // the broker enforces no maximum batch size on the fast path (jetstream.limits
@@ -108,9 +111,64 @@ func cohortWire(wire wireMode, cohort int) wireMode {
 }
 
 func publishBatchSize(wire wireMode) int {
-	if wire != wireFast {
+	switch wire {
+	case wireAtomic:
+		return atomicPublishBatchSize()
+	case wireFast:
+		return fastPublishBatchSize()
+	default:
 		return defaultPublishBatchSize
 	}
+}
+
+func publishBatchWait(wire wireMode) time.Duration {
+	switch wire {
+	case wireAtomic:
+		return atomicPublishBatchWait()
+	case wireFast:
+		return fastPublishBatchWait()
+	default:
+		return defaultPublishBatchWait
+	}
+}
+
+// atomicPublishBatchSize is the only client-side lever on the server's
+// per-stream ingest cost. nats-server pays that cost — the lock acquisitions,
+// the timer-heap reset and one ProposeMulti — once per cohort, so a bigger
+// cohort amortises the RAFT proposal over more messages.
+//
+// atomicBatchMax is the protocol cap, not a chosen bound. The tradeoff that
+// grows with the size is ambiguous-failure blast radius and per-cohort latency:
+// the commit ack is the cohort's only verdict, so one lost or ambiguous ack
+// fails every message in the cohort at once and this wire never replays an
+// ambiguous cohort, and a caller waits for its whole cohort to fill and commit
+// before hearing anything.
+//
+// The floor is two because a lone message takes the plain async wire anyway
+// (cohortWire): a one-message batch is a commit with nothing to amortise.
+func atomicPublishBatchSize() int {
+	size := env.GetInt("NATS_ATOMIC_PUBLISH_BATCH_SIZE", defaultAtomicPublishBatchSize)
+	return min(max(size, 2), atomicBatchMax)
+}
+
+// atomicPublishBatchWait bounds how long a partly filled cohort waits for more
+// messages, and under load it — not the size — is what decides cohort shape: a
+// cohort closes at whichever comes first, so it holds about rate x wait
+// messages. A worker seeing 30k msg/s fills 30 messages in the default
+// millisecond and needs about 8ms to reach 256, so raising the size without
+// raising the wait changes nothing on a stream that is not already bursty.
+func atomicPublishBatchWait() time.Duration {
+	wait := env.GetDuration("NATS_ATOMIC_PUBLISH_BATCH_WAIT", defaultPublishBatchWait)
+	return min(max(wait, 500*time.Microsecond), 20*time.Millisecond)
+}
+
+// atomicPublishOverlap reports whether a cohort's commit ack may be awaited off
+// the worker goroutine. See publishAtomicOverlapped for what it costs.
+func atomicPublishOverlap() bool {
+	return env.GetBool("NATS_ATOMIC_PUBLISH_OVERLAP", true)
+}
+
+func fastPublishBatchSize() int {
 	size := env.GetInt("NATS_FAST_PUBLISH_BATCH_SIZE", 8192)
 	if size < 1 {
 		return 1
@@ -118,10 +176,7 @@ func publishBatchSize(wire wireMode) int {
 	return min(size, fastSessionMax)
 }
 
-func publishBatchWait(wire wireMode) time.Duration {
-	if wire != wireFast {
-		return defaultPublishBatchWait
-	}
+func fastPublishBatchWait() time.Duration {
 	wait := env.GetDuration("NATS_FAST_PUBLISH_BATCH_WAIT", 10*time.Millisecond)
 	return min(max(wait, time.Millisecond), 100*time.Millisecond)
 }
@@ -147,29 +202,141 @@ func fastPublishOutstanding() uint16 {
 	return uint16(min(max(outstanding, 1), int(^uint16(0))))
 }
 
-// publishAtomic delegates the complete ADR-050 wire contract to Orbit. The
-// worker owns the batch from first Add through Commit so this stream's wire
-// order is preserved. Only cohorts of one or more messages reach it.
+// atomicCohortPublisher is the seam Orbit's BatchPublisher fills, so cohort
+// staging, the commit overlap and failure handling are testable without a
+// broker. It is deliberately the subset of the ADR-050 contract this wire uses.
+type atomicCohortPublisher interface {
+	AddMsg(*nats.Msg, ...jetstreamext.BatchMsgOpt) error
+	CommitMsg(context.Context, *nats.Msg, ...jetstreamext.BatchMsgOpt) (*jetstreamext.BatchAck, error)
+	Discard() error
+}
+
+// atomicCohort is a staged cohort on its way to a commit. Orbit's batch
+// publisher is not safe for concurrent use, so exactly one goroutine may hold
+// this at a time: the worker builds it and never touches the session again, and
+// the goroutine handoff gives the commit a happens-before on every Add.
+type atomicCohort struct {
+	publisher atomicCohortPublisher
+	batch     []publishRequest
+	stageErr  error
+}
+
+// publishAtomicCohort routes one cohort to the overlapping or the strictly
+// ordered atomic path.
+func (w *publishBatchWorker) publishAtomicCohort(batch []publishRequest) {
+	if w.overlapCommit {
+		w.publishAtomicOverlapped(batch)
+		return
+	}
+	w.finish(batch, w.publishAtomic(batch))
+}
+
+// publishAtomicOverlapped stages a cohort on the worker and awaits its commit on
+// its own goroutine, so the next cohort's messages are already on the wire while
+// this one's commit ack is still outstanding. That ack is a RAFT quorum round
+// trip on an R3 stream and used to be dead air on the worker, with only
+// NATS_PUBLISH_CONNECTIONS workers per stream to hide it behind: one commit RTT
+// of every cohort's wall clock spent offering the stream nothing.
+//
+// Orbit has no end-of-batch commit. BatchPublisher offers only
+// Commit(ctx, subject, data) and CommitMsg(ctx, msg), and both PUBLISH the
+// cohort's final message carrying Nats-Batch-Commit (jetstreamext/publishbatch
+// .go:42-49 and :268-341), so the commit cannot be separated from that last
+// publish and the overlap goroutine has to send it.
+//
+// What that relaxes is cross-cohort order, and by a whole cohort rather than by
+// the one message: the broker stages an atomic batch and appends it with a
+// single ProposeMulti AT COMMIT, so stream sequences follow commit arrival, not
+// add arrival. A cohort's own messages keep their order under
+// Nats-Batch-Sequence and each commit is dispatched from a goroutine started
+// after the previous one, so the order is right in the ordinary case, but
+// nothing forces the scheduler to keep it. NATS_ATOMIC_PUBLISH_OVERLAP=false
+// restores strict cohort order by keeping the commit on the worker.
+//
+// The slot is taken before staging, so a worker holds at most
+// maxInflightCohorts open batches. That is also what keeps the fleet under the
+// broker's own cap on concurrently staged batches per stream
+// (jetstream.limits.batch.max_inflight_per_stream, default 50):
+// NATS_PUBLISH_CONNECTIONS workers x maxInflightCohorts slots is 16 per pod, so
+// up to three pods publishing to one stream still fit.
+func (w *publishBatchWorker) publishAtomicOverlapped(batch []publishRequest) {
+	if err := atomicCohortFits(batch); err != nil {
+		w.finish(batch, err)
+		return
+	}
+	w.slots <- struct{}{}
+	cohort := w.stageAtomic(batch)
+	w.acks.Add(1)
+	go func() {
+		defer w.acks.Done()
+		defer func() { <-w.slots }()
+		w.finish(batch, w.resolveAtomic(cohort))
+	}()
+}
+
+// publishAtomic runs one cohort to completion on the calling goroutine. It is
+// the strict-order path and the one the fallbacks' own await stays inside.
 func (w *publishBatchWorker) publishAtomic(batch []publishRequest) error {
+	if err := atomicCohortFits(batch); err != nil {
+		return err
+	}
+	return w.resolveAtomic(w.stageAtomic(batch))
+}
+
+func atomicCohortFits(batch []publishRequest) error {
 	if len(batch) < 1 || len(batch) > atomicBatchMax {
 		return fmt.Errorf("bus: atomic cohort of %d messages is outside the 1..%d server range", len(batch), atomicBatchMax)
+	}
+	return nil
+}
+
+// stageAtomic opens a session and publishes every message but the last, in wire
+// order, from the calling goroutine. The last message is the commit's payload
+// because Orbit's commit is a publish.
+func (w *publishBatchWorker) stageAtomic(batch []publishRequest) atomicCohort {
+	publisher, err := w.atomicPublisher()
+	if err != nil {
+		return atomicCohort{batch: batch, stageErr: err}
+	}
+	if err := addAtomicBatch(publisher, batch[:len(batch)-1]); err != nil {
+		_ = publisher.Discard()
+		return atomicCohort{batch: batch, stageErr: err}
+	}
+	return atomicCohort{publisher: publisher, batch: batch}
+}
+
+// resolveAtomic settles a staged cohort: the commit when the session is intact,
+// the at-most-once fallback rules when it is not. Both the commit ack wait and
+// any replay it authorises happen here, so whichever goroutine resolves a cohort
+// owns every step of it and the worker is never blocked by a failure path.
+func (w *publishBatchWorker) resolveAtomic(cohort atomicCohort) error {
+	if cohort.stageErr != nil {
+		return w.atomicFallback(cohort.batch, cohort.stageErr)
+	}
+	last := len(cohort.batch) - 1
+	return w.commitAtomic(cohort.publisher, cohort.batch, cohort.batch[last].msg)
+}
+
+// atomicPublisher opens one ADR-050 session. AckFirst makes Orbit request-reply
+// the cohort's first message, so a stream that refuses batches answers with a
+// typed API error while nothing has been staged — the one failure this wire may
+// safely replay. It also costs a round trip per cohort on the staging goroutine,
+// which is the inline wait the commit overlap does not remove.
+func (w *publishBatchWorker) atomicPublisher() (atomicCohortPublisher, error) {
+	if w.newAtomic != nil {
+		return w.newAtomic()
 	}
 	publisher, err := jetstreamext.NewBatchPublisher(
 		w.owner.modern,
 		jetstreamext.BatchFlowControl{AckFirst: true, AckTimeout: defaultPublishAckWait},
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	last := len(batch) - 1
-	if err := addAtomicBatch(publisher, batch[:last]); err != nil {
-		_ = publisher.Discard()
-		return w.atomicFallback(batch, err)
-	}
-	return w.commitAtomic(publisher, batch, batch[last].msg)
+	return publisher, nil
 }
 
-func addAtomicBatch(publisher jetstreamext.BatchPublisher, batch []publishRequest) error {
+func addAtomicBatch(publisher atomicCohortPublisher, batch []publishRequest) error {
 	for i := range batch {
 		if err := publisher.AddMsg(batch[i].msg); err != nil {
 			return err
@@ -178,7 +345,7 @@ func addAtomicBatch(publisher jetstreamext.BatchPublisher, batch []publishReques
 	return nil
 }
 
-func (w *publishBatchWorker) commitAtomic(publisher jetstreamext.BatchPublisher, batch []publishRequest, commit *nats.Msg) error {
+func (w *publishBatchWorker) commitAtomic(publisher atomicCohortPublisher, batch []publishRequest, commit *nats.Msg) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultPublishAckWait)
 	ack, err := publisher.CommitMsg(ctx, commit)
 	cancel()
