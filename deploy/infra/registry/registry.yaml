@@ -71,6 +71,12 @@ data:
           enabled: true
           age: 24h
           interval: 1h
+          # Required whenever uploadpurging is configured: distribution 2.8
+          # panics at boot with "Unable to parse upload purge configuration:
+          # dryrun missing" if the key is absent. This crashlooped the mirror
+          # 110 times over 8h while every node quietly fell back to pulling
+          # straight from ghcr.io, so the only symptom was egress cost.
+          dryrun: false
     http:
       addr: :5000
       # Liveness/readiness hit this rather than the API root, which would count
