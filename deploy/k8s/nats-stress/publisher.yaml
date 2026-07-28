@@ -88,7 +88,7 @@ spec:
             # leader still performs the RAFT commit. Pointing this at the leader
             # instead measured ~20% lower on the R3 qualification.
             - name: NATS_HUB_PUBLISH_URL
-              value: tls://nats:4222
+              value: "__PUBLISH_URL__"
             - name: NATS_HUB_URL
               value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
             - name: NATS_CA_PEM

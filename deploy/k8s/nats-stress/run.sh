@@ -35,6 +35,9 @@ atomic_batch_wait=${ATOMIC_BATCH_WAIT:-1ms}
 atomic_overlap=${ATOMIC_OVERLAP:-true}
 publish_connections=${PUBLISH_CONNECTIONS:-4}
 publish_wire=${PUBLISH_WIRE:-atomic}
+# Client publish endpoint. Default spreads across members (PreferSameNode);
+# a leader FQDN removes the route-forwarding hop for every non-local pod.
+publish_url=${PUBLISH_URL:-tls://nats:4222}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -233,6 +236,7 @@ start_publisher() {
       -e "s|__ATOMIC_OVERLAP__|$atomic_overlap|g" \
       -e "s|__PUBLISH_CONNECTIONS__|$publish_connections|g" \
       -e "s|__PUBLISH_WIRE__|$publish_wire|g" \
+      -e "s|__PUBLISH_URL__|$publish_url|g" \
       "$here/publisher.yaml" >"$workdir/publisher.rendered.yaml"
   apply_manifest "$workdir/publisher.rendered.yaml" "$args" "$publisher_replicas" PUBLISHER
   kubectl -n "$namespace" rollout status deployment/nats-stress-publisher \
