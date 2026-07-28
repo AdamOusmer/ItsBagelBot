@@ -32,10 +32,15 @@ type Config struct {
 	// system with its own key and budget — Coral's profile endpoint needs the
 	// Player Data permission our key lacks (403). Key empty = provider disabled.
 	// Usernames resolve to uuids through Mojang's public API.
+	// Mojang is a second, independently-throttled upstream on this provider's
+	// path, so it carries its own budget: Hypixel meters per key, Mojang meters
+	// per source IP, and a name resolve spends Mojang's allowance before the
+	// Hypixel key is ever touched.
 	HypixelBaseURL   string
 	MojangBaseURL    string
 	HypixelAPIKey    string
 	HypixelRateLimit float64
+	MojangRateLimit  float64
 
 	// MCSR Ranked provider. The public API needs no key; APIKey optionally
 	// unlocks expanded rate limits. Enabled unless MCSR_ENABLED=false.
@@ -80,8 +85,14 @@ func Load() *Config {
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
 
-		UrchinBaseURL:   env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
-		UrchinAPIKey:    env.Get("URCHIN_API_KEY", ""),
+		UrchinBaseURL: env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
+		UrchinAPIKey:  env.Get("URCHIN_API_KEY", ""),
+		// Coral meters per key over a ROLLING 5-minute window: personal keys
+		// allow 600, developer keys whatever was assigned at issue time. The
+		// default fits a personal key; a developer key MUST set
+		// URCHIN_RATE_LIMIT to its assigned number, and a key shared with an
+		// overlay needs headroom below that (the budget is per key, not per
+		// caller, so overlay polling spends the same window).
 		UrchinRateLimit: env.GetFloat("URCHIN_RATE_LIMIT", 600.0),
 
 		HypixelBaseURL: env.Get("HYPIXEL_BASE_URL", "https://api.hypixel.net"),
@@ -89,6 +100,11 @@ func Load() *Config {
 		HypixelAPIKey:  env.Get("HYPIXEL_API_KEY", ""),
 		// Hypixel personal keys allow 300 requests per 5 minutes.
 		HypixelRateLimit: env.GetFloat("HYPIXEL_RATE_LIMIT", 300.0),
+		// Mojang throttles the profile endpoint per source IP, not per key, so
+		// the whole fleet shares one allowance no matter how many pods run.
+		// 600 per 10 minutes is the commonly observed ceiling; the bucket is
+		// deliberately fleet-wide (one shared budget) rather than per-pod.
+		MojangRateLimit: env.GetFloat("MOJANG_RATE_LIMIT", 600.0),
 
 		McsrBaseURL:   env.Get("MCSR_BASE_URL", "https://api.mcsrranked.com"),
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),

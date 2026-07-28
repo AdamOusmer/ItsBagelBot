@@ -24,6 +24,12 @@ type UpstreamError struct {
 	// Message is the upstream's own error text when it sent a JSON
 	// {"error": "..."} body, empty otherwise.
 	Message string
+	// LocalDeny marks a 429 minted by our own token bucket rather than
+	// received from the upstream. The two must stay distinguishable: a bucket
+	// denial refills in seconds and cost no upstream call, while a real
+	// upstream 429 means the provider is throttling our address and retrying
+	// immediately makes it worse.
+	LocalDeny bool
 }
 
 func (e *UpstreamError) Error() string {

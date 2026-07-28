@@ -61,3 +61,38 @@ func TestNewBucketsDoesNotPanic(t *testing.T) {
 		NewBuckets("k", 0, 300) // clamped to 1 by the caller-facing floor
 	})
 }
+
+// A paced bucket must satisfy BOTH constraints at once: the rolling window
+// stays at the documented quota, and the instantaneous burst stays at the
+// measured edge ceiling. Coral's numbers: 600/5min quota, ~40-request ~4/s
+// edge wall; burst 8 + ~1.97/s spends the full quota without ever bursting
+// near the wall.
+func TestPacedBucketCoralNumbers(t *testing.T) {
+	burst, refill := pacedBucket(600, 300, 8)
+	assert.Equal(t, 8.0, burst)
+	assert.InDelta(t, (600.0-8.0)/300.0, refill, 1e-9)
+	assert.InDelta(t, 600.0, burst+refill*300, 1e-9, "full quota still spent across the rolling window")
+	assert.Less(t, refill, 4.0, "sustained pace must stay under the measured edge refill")
+
+	// Standard lane: 75% of quota, 75% of burst ceiling.
+	stdBurst, stdRefill := pacedBucket(450, 300, 6)
+	assert.Equal(t, 6.0, stdBurst)
+	assert.InDelta(t, 450.0, stdBurst+stdRefill*300, 1e-9)
+}
+
+// A ceiling wider than the strict half-split must not loosen the rolling
+// window: pacedBucket clamps to the strict burst.
+func TestPacedBucketClampsToStrict(t *testing.T) {
+	burst, refill := pacedBucket(300, 300, 1000)
+	sBurst, sRefill := strictBucket(300, 300)
+	assert.Equal(t, sBurst, burst)
+	assert.InDelta(t, sRefill, refill, 1e-9)
+}
+
+func TestNewPacedBucketsDoesNotPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		NewPacedBuckets("k", 600, 300, 8)
+		NewPacedBuckets("k", 1, 300, 8)
+		NewPacedBuckets("k", 600.7, 300, 0.4) // ceiling under 1 clamps to 1
+	})
+}

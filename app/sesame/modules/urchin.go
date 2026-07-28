@@ -19,8 +19,9 @@ import (
 const urchinModuleName = "urchin"
 
 // urchinCooldown is the shared per-command window; the gateway caches upstream
-// replies, so this only shields chat from command spam, not the API.
-const urchinCooldown = 10 * time.Second
+// replies, so this only shields chat from command spam, not the API. The
+// upstream budget is the gateway's URCHIN_RATE_LIMIT bucket, not this window.
+const urchinCooldown = 5 * time.Second
 
 // Default reply templates. The broadcaster customizes them per command on the
 // module page; blank falls back to these.
