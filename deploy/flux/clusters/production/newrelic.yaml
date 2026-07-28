@@ -167,10 +167,10 @@ spec:
                 - -c
                 - |
                   export PASSWORD="$(cat /secrets/valkey/VALKEY_CORE_PASSWORD)"
-                  # Per-pod headless DNS name. The 6380 TLS listener is pod-network
-                  # only (no hostPort since the networking rework), so node IPs no
-                  # longer reach it, and valkey-server-tls SANs cover the
-                  # valkey-node-*.valkey-headless names but not node addresses.
+                  # Per-pod headless DNS name. valkey-server-tls SANs cover the
+                  # valkey-node-*.valkey-headless names but not node addresses,
+                  # so the name is required even though the members now listen
+                  # on the host network.
                   # SSL_CERT_FILE extends Go's system roots with the fleet CA.
                   export HOSTNAME="${discovery.podName}.valkey-headless.valkey.svc.cluster.local"
                   export PORT="6380"
