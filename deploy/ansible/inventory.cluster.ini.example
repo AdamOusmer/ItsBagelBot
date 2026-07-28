@@ -49,16 +49,36 @@
 # reconciles it instead of drifting; see the destructive-empty warning in
 # group_vars/all.yml.
 #
-# flannel_iface / node_external_ip still name the PUBLIC interface. Switching the
-# pod mesh onto the VLAN is a separate, deliberate step: flannel publishes exactly
-# one endpoint per node, so the moment node4/5/6 advertise 10.10.0.x, every host
-# without a route to that subnet loses pod-network reachability to them. Do not
-# change these without the tailscale routes above already approved and verified.
+# THE POD MESH IS ON THE VLAN as of 2026-07-27. node4/5/6 set flannel_iface=eth1
+# and node_external_ip=10.10.0.x, so flannel's wireguard-native endpoint for each
+# is its VLAN address and inter-node pod traffic crosses the switch instead of the
+# public internet (measured after the switch: eth1 ~5x the byte rate of eth0).
+#
+# node1 deliberately KEEPS its public endpoint. flannel publishes exactly one
+# endpoint per node, so this is asymmetric on purpose: node4/5/6 dial node1 over
+# the public internet, and node1 dials them at 10.10.0.x through the tailscale
+# subnet route. Both directions resolve, which is all WireGuard needs.
+#
+# Consequence worth knowing before adding a node: any host WITHOUT a route to
+# 10.10.0.0/24 loses pod-network reachability to node4/5/6. That is why node2 was
+# removed from the cluster outright and node3 carries a NoExecute standby taint.
+# Both are tag:nodes, which the ACL does not grant the VLAN, so they could not
+# reach the app tier's flannel endpoints; they kept working only on a stale
+# WireGuard endpoint that would have died at the next rekey. A retired node left
+# in the cluster is not inert, it stays in kube-dns and Service endpoints and
+# black-holes the traffic it is handed.
+#
+# MTU: flannel-wg is 1420 and tailscale0 is 1350, so node1's packets to the VLAN
+# exceed the tunnel budget and are IP-fragmented rather than dropped (verified:
+# 1400-byte pings and a 3400-byte TCP body both succeed node1 pod -> node6 pod).
+# That path carries only KEDA's metrics gRPC now that everything the apiserver
+# calls synchronously is pinned to node1, so the fragmentation cost is immaterial.
+# net.ipv4.tcp_mtu_probing=1 is the blackhole backstop if it ever is not.
 [cluster]
 node1 ansible_host=node1 ansible_user=opc k3s_role=server flannel_iface=enp0s6 node_external_ip={{ NODE1_PUBLIC_IP }} wireguard_endpoint={{ NODE1_PUBLIC_IP }} api_advertise_address={{ NODE1_TAILNET_IP }} node_role=cp tailscale_advertise_routes=10.0.0.0/16
-node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE4_PUBLIC_IP }} wireguard_endpoint={{ NODE4_PUBLIC_IP }} node_role=node vlan_address=10.10.0.4/24 tailscale_advertise_routes=10.10.0.0/24
-node5 ansible_host=node5 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE5_PUBLIC_IP }} wireguard_endpoint={{ NODE5_PUBLIC_IP }} node_role=node vlan_address=10.10.0.5/24
-node6 ansible_host=node6 ansible_user=almalinux k3s_role=agent flannel_iface=eth0 node_external_ip={{ NODE6_PUBLIC_IP }} wireguard_endpoint={{ NODE6_PUBLIC_IP }} node_role=node vlan_address=10.10.0.6/24
+node4 ansible_host=node4 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.4 wireguard_endpoint=10.10.0.4 node_role=node vlan_address=10.10.0.4/24 tailscale_advertise_routes=10.10.0.0/24
+node5 ansible_host=node5 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.5 wireguard_endpoint=10.10.0.5 node_role=node vlan_address=10.10.0.5/24
+node6 ansible_host=node6 ansible_user=almalinux k3s_role=agent flannel_iface=eth1 node_external_ip=10.10.0.6 wireguard_endpoint=10.10.0.6 node_role=node vlan_address=10.10.0.6/24
 
 [k3s_server]
 node1
