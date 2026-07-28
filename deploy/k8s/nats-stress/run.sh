@@ -182,7 +182,10 @@ follow_logs() {
 # summary line, and a pipeline that consumed the stream to find one marker would
 # have thrown the rest away.
 wait_for_line() {
-  local file=$1 marker=$2 timeout=$3 deadline=$((SECONDS + timeout))
+  # Two statements: local expands every word before it assigns any of them,
+  # so deadline's arithmetic would read timeout while it is still unset (-u).
+  local file=$1 marker=$2 timeout=$3
+  local deadline=$((SECONDS + timeout))
   while ((SECONDS < deadline)); do
     if grep -q "$marker" "$file" 2>/dev/null; then
       return 0
