@@ -167,7 +167,7 @@ func (p *api) devices(ctx context.Context, req gatewayrpc.Request) any {
 
 	cacheKey := core.Key(providerName, "devices", broadcaster)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, func(ctx context.Context) ([]byte, time.Duration, error) {
-		return core.BuildReply(ctx, devicesTTL, negativeTTL,
+		b, ttl, _, err := core.BuildReply(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp deviceListResponse
 				req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
@@ -181,6 +181,7 @@ func (p *api) devices(ctx context.Context, req gatewayrpc.Request) any {
 			},
 			func(msg string) any { return gatewayrpc.GoveeDevicesReply{Error: msg} },
 		)
+		return b, ttl, err
 	})
 	if err != nil {
 		log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))

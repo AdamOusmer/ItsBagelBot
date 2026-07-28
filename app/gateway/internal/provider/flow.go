@@ -148,10 +148,12 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 		}
 		b, err := core.CachedBytes(ctx, cache, core.Key(ref.provider, ref.endpoint, id.Key),
 			func(ctx context.Context) ([]byte, time.Duration, error) {
-				return core.BuildReply(ctx, f.ttl, f.negativeTTL,
+				b, ttl, friendly, err := core.BuildReply(ctx, f.ttl, f.negativeTTL,
 					func(ctx context.Context) (any, error) { return f.fetch(ctx, req, id) },
 					func(msg string) any { return f.reply(id.Display, msg) },
 				)
+				logFriendly(log, ref, id, friendly)
+				return b, ttl, err
 			})
 		if err != nil {
 			log.Warn("gateway fetch failed",
@@ -163,4 +165,26 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 		}
 		return json.RawMessage(b)
 	}
+}
+
+// logFriendly records the friendly failures that would otherwise be invisible:
+// they are shaped into ordinary replies, so without this line neither the
+// gateway nor the caller ever logs that a rate limit or key problem happened —
+// exactly the states an operator needs to see. Missing players (400/404) stay
+// quiet; they are routine.
+func logFriendly(log *zap.Logger, ref endpointRef, id ID, friendly *core.UpstreamError) {
+	if friendly == nil {
+		return
+	}
+	switch friendly.Status {
+	case 400, 404:
+		return
+	}
+	log.Warn("gateway upstream denial",
+		zap.String("provider", ref.provider),
+		zap.String("endpoint", ref.endpoint),
+		zap.String("id", id.Display),
+		zap.Int("status", friendly.Status),
+		zap.String("upstream_message", friendly.Message),
+		zap.Bool("local_deny", friendly.LocalDeny))
 }

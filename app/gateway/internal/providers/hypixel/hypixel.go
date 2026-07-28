@@ -36,6 +36,10 @@ const (
 
 	// rateWindowSeconds is the Hypixel key budget window (5 minutes).
 	rateWindowSeconds = 300.0
+	// mojangWindowSeconds is Mojang's profile-endpoint budget window (10
+	// minutes). It is a separate window from Hypixel's because it is a separate
+	// upstream: Mojang throttles per source IP, Hypixel per key.
+	mojangWindowSeconds = 600.0
 )
 
 // Config carries the provider's environment. APIKey empty = provider disabled
@@ -46,6 +50,12 @@ type Config struct {
 	MojangBaseURL string
 	APIKey        string
 	RateLimit     float64
+	// MojangRateLimit is the Mojang profile endpoint's own budget per
+	// mojangWindowSeconds. It is separate from RateLimit: the name resolve and
+	// the stats call hit different systems with different throttles, and the
+	// resolve happens first, so metering only the Hypixel call leaves Mojang
+	// completely unguarded.
+	MojangRateLimit float64
 }
 
 // providerName is the subject token this provider answers under.
@@ -58,6 +68,11 @@ type api struct {
 	cache   *core.Cache
 	limiter *ratelimit.Limiter
 	buckets core.Buckets
+	// mojangBuckets is the resolve hop's own budget. Sharing `buckets` would be
+	// wrong twice over: it would spend the Hypixel key's allowance on calls that
+	// never reach Hypixel, and it would bound Mojang by a window Mojang does not
+	// use.
+	mojangBuckets core.Buckets
 }
 
 // New builds the hypixel provider: one byte-flow stats endpoint.
@@ -84,12 +99,16 @@ func newAPI(cfg Config, d provider.Deps) *api {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 300
 	}
+	if cfg.MojangRateLimit <= 0 {
+		cfg.MojangRateLimit = 600
+	}
 	return &api{
-		http:    core.NewHTTPClient(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
-		mojang:  core.NewHTTPClient(mojangBase, nil, httpTimeout),
-		cache:   d.Cache,
-		limiter: d.Limiter,
-		buckets: core.NewBuckets("ratelimit:gateway:hypixel", cfg.RateLimit, rateWindowSeconds),
+		http:          core.NewHTTPClient(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
+		mojang:        core.NewHTTPClient(mojangBase, nil, httpTimeout),
+		cache:         d.Cache,
+		limiter:       d.Limiter,
+		buckets:       core.NewBuckets("ratelimit:gateway:hypixel", cfg.RateLimit, rateWindowSeconds),
+		mojangBuckets: core.NewBuckets("ratelimit:gateway:mojang", cfg.MojangRateLimit, mojangWindowSeconds),
 	}
 }
 
@@ -135,12 +154,21 @@ func looksLikeUUID(account string) bool {
 // resolveUUID turns a username into the canonical uuid via Mojang, cached for
 // a day. An unknown name is a 404 there already (204 on the legacy path is
 // also treated as missing by the empty-id check), so it negative-caches.
-func (p *api) resolveUUID(ctx context.Context, account string) (string, error) {
+//
+// The Mojang budget is spent inside the cache fill, so only a real resolve
+// costs a token and a hit costs nothing. Metering here is what keeps Mojang
+// from answering 429 on its own terms: it throttles per source IP, so an
+// unguarded resolve could exhaust the fleet's allowance while the Hypixel key
+// — whose bucket is only reached further down — still showed a full budget.
+func (p *api) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
 	if looksLikeUUID(account) {
 		return strings.ReplaceAll(account, "-", ""), nil
 	}
 	key := core.Key(providerName, "uuid", accountKey(account))
 	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, func(ctx context.Context) (string, error) {
+		if err := p.mojangBuckets.Enforce(ctx, p.limiter, isPremium); err != nil {
+			return "", err
+		}
 		var profile mojangProfile
 		if err := p.mojang.GetJSON(ctx, "/users/profiles/minecraft/"+account, nil, &profile); err != nil {
 			return "", err
@@ -178,7 +206,7 @@ type playerResponse struct {
 // fetchStats resolves the uuid, spends the Hypixel budget, and shapes the
 // success reply.
 func (p *api) fetchStats(ctx context.Context, account string, isPremium bool) (gatewayrpc.HypixelStatsReply, error) {
-	uuid, err := p.resolveUUID(ctx, account)
+	uuid, err := p.resolveUUID(ctx, account, isPremium)
 	if err != nil {
 		return gatewayrpc.HypixelStatsReply{}, err
 	}

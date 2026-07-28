@@ -144,6 +144,38 @@ func TestCachedBytesStaleServedThenRevalidated(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 }
 
+// A stale key read on several replicas at once must cost ONE upstream call,
+// not one per replica: the SWR refresh is gated on a SET NX claim in the
+// SHARED store, so the pod-local dedup maps never decide alone. Two Cache
+// instances over one store model two pods; without the claim each would fire
+// its own background refresh.
+func TestCachedBytesStaleRefreshClaimedOnceFleetWide(t *testing.T) {
+	st := newMemStore()
+	podA, podB := NewCache(st), NewCache(st)
+	var builds atomic.Int32
+	ctx := context.Background()
+
+	_, err := CachedBytes(ctx, podA, "k", buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
+	require.NoError(t, err)
+	require.Equal(t, int32(1), builds.Load())
+	time.Sleep(40 * time.Millisecond)
+
+	// Both pods take a stale hit and each spawns its refresh goroutine; the
+	// claim lets exactly one through.
+	rebuild := buildStatic(`{"n":2}`, time.Minute, &builds)
+	for _, pod := range []*Cache{podA, podB} {
+		b, gerr := CachedBytes(ctx, pod, "k", rebuild)
+		require.NoError(t, gerr)
+		assert.JSONEq(t, `{"n":1}`, string(b), "stale hit must serve the old bytes")
+	}
+
+	require.Eventually(t, func() bool {
+		got, gerr := CachedBytes(ctx, podA, "k", rebuild)
+		return gerr == nil && string(got) == `{"n":2}`
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(2), builds.Load(), "one cold fill + exactly one fleet-wide refresh")
+}
+
 // The reply-bytes hit path is the gateway's hot path: after the store read it
 // must do no JSON work and no allocation (prefix check + slice only).
 func BenchmarkCachedBytesHit(b *testing.B) {
