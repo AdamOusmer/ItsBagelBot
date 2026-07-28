@@ -34,10 +34,11 @@ spec:
   template:
     metadata:
       annotations:
-        # Replication and Sentinel announce stable StatefulSet DNS names over
-        # Flannel's native WireGuard pod network. Valkey TLS provides
+        # Replication and Sentinel announce stable StatefulSet DNS names, which
+        # now resolve to the node each member runs on. Valkey TLS provides
         # end-to-end identity and encryption on data port 6380 and Sentinel
-        # port 26380; neither listener is exposed through a node hostPort.
+        # port 26380, and it is the only encryption layer: the pods sit in the
+        # host netns, so the CNI's WireGuard tunnel never re-encrypts them.
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
@@ -468,12 +469,16 @@ spec:
         - mountPath: /etc/valkey/tls
           name: valkey-tls
           readOnly: true
-      dnsPolicy: ClusterFirst
+      # Valkey and Sentinel listen on the node's own addresses (6380/26380).
+      # config-init resolves the Sentinel Service and every member announces a
+      # cluster DNS name, so the pods still need cluster DNS.
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
       priorityClassName: infra-low
       restartPolicy: Always
-      # No role tolerations: Valkey belongs on the untainted application tier.
-      # Required anti-affinity keeps exactly one member per node without
-      # exposing Valkey through a hostPort.
+# No role tolerations: Valkey belongs on the untainted application tier.
+      # Required anti-affinity keeps exactly one member per node, which is also
+      # what keeps the two host listeners collision-free.
       schedulerName: default-scheduler
       affinity:
         podAntiAffinity:

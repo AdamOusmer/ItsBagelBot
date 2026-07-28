@@ -14,8 +14,13 @@ spec:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      # A surge pod would have to bind the same host listeners as the leaf it
+      # replaces, so the scheduler would leave it Pending forever and the roll
+      # would never advance. Replace in place instead: the preStop lame-duck
+      # drain migrates that node's clients to a healthy leaf before the socket
+      # closes, and the nats-leaf Service covers the gap cluster-wide.
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: nats-leaf
@@ -23,12 +28,14 @@ spec:
     metadata:
       annotations:
         # Wire encryption is NATS-native TLS (client + cluster + the leaf->hub
-        # remotes; nats-leaf-server.conf) over native WireGuard.
+        # remotes; nats-leaf-server.conf). The pods run in the host netns, so
+        # that TLS is the only encryption layer: the CNI's WireGuard tunnel is
+        # not in the path and does not re-encrypt it.
         # Cluster listener/routes and TLS blocks cannot be introduced by a config
         # reload; bump this to force a rolling restart when the topology changes.
-        itsbagelbot.dev/config-revision: "leaf-cluster-v2-tls-demesh"
+        itsbagelbot.dev/config-revision: "leaf-hostnet-v3-port-split"
         prometheus.io/path: /metrics
-        prometheus.io/port: "7777"
+        prometheus.io/port: "7778"
         prometheus.io/scrape: "true"
         # See nats.yaml: the prometheus agent's default job never matches nats;
         # this annotation hits the unfiltered "newrelic" job.
@@ -36,7 +43,7 @@ spec:
       labels:
         app: nats-leaf
     spec:
-      # No tolerations, deliberately. A leaf is the per-node Core NATS RPC tier
+# No tolerations, deliberately. A leaf is the per-node Core NATS RPC tier
       # for pods that dial nats-leaf-local, so it belongs on exactly the nodes
       # that run application pods. It has no business on the control plane:
       # node1 runs only coredns (node-local), the New Relic agents (which ship
@@ -50,6 +57,13 @@ spec:
       # had already been scheduled there, and NoSchedule does not evict, so the
       # stale pod survived every reconcile. Deleting it is enough; with no
       # matching toleration the DaemonSet cannot place it again.
+      #
+      # The leaf listens on the node's own addresses. It shares the netns with
+      # the hub member on that node, so every listener sits one above the hub's:
+      # client 4223, cluster 6223, monitor 8223, exporter 7778. The Services
+      # below still publish 4222/8222, so no client URL changes.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
@@ -92,9 +106,9 @@ spec:
             - secretRef:
                 name: nats-auth-env
           ports:
-            - {containerPort: 4222, name: client}
-            - {containerPort: 8222, name: monitor}
-            - {containerPort: 6222, name: cluster}
+            - {containerPort: 4223, name: client}
+            - {containerPort: 8223, name: monitor}
+            - {containerPort: 6223, name: cluster}
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
             - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
@@ -170,9 +184,9 @@ spec:
         - name: prometheus-nats-exporter
           image: natsio/prometheus-nats-exporter:0.20.1@sha256:4fbf6dacb84780a45a1c3af9b1080c69451a288d20902deae671b80717bb8f61
           imagePullPolicy: IfNotPresent
-          args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8222"]
+          args: ["-port", "7778", "-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8223"]
           ports:
-            - {containerPort: 7777, name: metrics}
+            - {containerPort: 7778, name: metrics}
           resources:
             requests: {cpu: 5m, memory: 32Mi}
             limits: {cpu: 100m, memory: 128Mi}
@@ -242,14 +256,16 @@ metadata:
   namespace: production
 spec:
   # Headless route-discovery for the leaf cluster: the route URL resolves to every
-  # leaf pod IP, so each node dials every peer and forms a clean full mesh (a
-  # ClusterIP would load-balance the route dial and leave the mesh incomplete).
+  # leaf's node address, so each node dials every peer and forms a clean full mesh
+  # (a ClusterIP would load-balance the route dial and leave the mesh incomplete).
   # publishNotReadyAddresses lets a still-forming leaf seed the cluster on rollout.
+  # Nothing is proxied through a headless Service, so these ports are the leaf's
+  # real listeners rather than the published 4222/8222 client contract.
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
     app: nats-leaf
   ports:
-    - {name: client, port: 4222, targetPort: client}
-    - {name: monitor, port: 8222, targetPort: monitor}
-    - {name: cluster, port: 6222, targetPort: cluster}
+    - {name: client, port: 4223, targetPort: client}
+    - {name: monitor, port: 8223, targetPort: monitor}
+    - {name: cluster, port: 6223, targetPort: cluster}
