@@ -288,8 +288,26 @@ spec:
         value: "300m"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        # In-cluster ClusterIP, on purpose, and it needs NO tailscale subnet
+        # route even though the operator runs on the control plane: node1's
+        # flannel reaches the app tier over kernel WireGuard's roamed PUBLIC
+        # endpoints (see deploy/infra/keda/release.yaml and the inventory notes).
+        #
+        # Do not move this to the nats-monitoring tailnet Service. It was tried
+        # on 2026-07-27: the /jsz fetch works, but KEDA's clustered-JetStream
+        # scaler then follows the cluster to the consumer's leader and dials that
+        # member's monitoring endpoint by its ADVERTISED POD IP:
+        #   Get "https://10.42.3.205/varz": dial tcp 10.42.3.205:443: refused
+        # so a single fronting Service cannot satisfy it; every NATS member would
+        # have to be reachable under the address NATS itself advertises.
+        #
+        # Two further traps if this is ever retried. Tailnet names need a
+        # TRAILING DOT here: the pod resolver runs ndots:5, this name has 4 dots,
+        # so the search list is walked first and resolution fails outright. And
+        # KEDA does not fail loudly, it suppresses the error and serves the
+        # static `fallback` replicas below, so autoscaling stops while the HPA
+        # still reads healthy.
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
@@ -299,8 +317,7 @@ spec:
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats-monitoring.tail451e6d.ts.net
-        useHttps: "true"
+        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_standard
