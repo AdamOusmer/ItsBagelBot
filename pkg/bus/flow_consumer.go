@@ -216,10 +216,14 @@ func flowConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 		// One consumer per pod means one consumer per pod that dies. The server
 		// deletes it once its delivery subject has had no interest for this long.
 		InactiveThreshold: flowInactiveThreshold,
-		// Inherit the parent stream's replica count. TWITCH_INGRESS is R3 in
-		// production, so its consumer state remains R3 without a second replica
-		// setting that can drift from the stream during reconciliation.
-		Replicas:      0,
+		// R1 consumer state on an R3 stream, per NATS maintainer guidance for
+		// high-rate consumers: replicating per-consumer ack state costs the
+		// stream leader RAFT work on the hot path and buys nothing this design
+		// needs. The consumer is memory-backed and per-pod already; a leader
+		// change or state loss just means this pod re-provisions and resumes
+		// from its own receipt cursor, and the idempotency guard absorbs the
+		// redelivered window. The stream's data durability is untouched.
+		Replicas:      1,
 		MemoryStorage: true,
 		Metadata:      map[string]string{managedConsumerMetadata: "true"},
 	}

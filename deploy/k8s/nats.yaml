@@ -146,14 +146,13 @@ spec:
             # allocatable memory — an unschedulable member is a 2/3 quorum. The
             # 6Gi limit is the real ceiling and the only thing that stops a
             # runaway member, since max_mem cannot see the terms above.
-            # node2/node3 each have 6 cores and worker1 has 8. Sustained load
-            # peaked around 1.77 cores back when one member carried the whole
-            # firehose alone; under R3 the leader still does the most work, but
-            # the followers now apply every entry too. Reserve 1.5 cores on
-            # every member so quorum placement does not strand half a node,
-            # while the 4-core ceiling still lets the active leader burst.
-            requests: {cpu: 1500m, memory: 2Gi}
-            limits: {cpu: "5", memory: 6Gi}
+            # requests == limits on purpose (Guaranteed QoS): the official
+            # NATS chart recommends exactly this so the Go runtime sizes
+            # GOMAXPROCS from a real CPU reservation instead of thrashing
+            # against a CFS quota, and so the kubelet's static CPU policy can
+            # pin the quorum if ever enabled. 12-core nodes hold 5/5 easily.
+            requests: {cpu: "5", memory: 5Gi}
+            limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
