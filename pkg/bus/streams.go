@@ -141,7 +141,35 @@ var BagelDataStream = StreamSpec{
 var TwitchIngressStream = StreamSpec{
 	Name:     "TWITCH_INGRESS",
 	Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
-	MaxAge:   5 * time.Minute,
+	// Chat is live or it is nothing. This was 5 minutes, and on 2026-07-27 that
+	// window is what turned a recovery into a chat flood: ingress kept publishing
+	// while sesame crashlooped on a JetStream quorum loss, five minutes of events
+	// accumulated, and sesame replied to every one of them the moment it came
+	// back. Nothing in the bus distinguishes an event that arrived two seconds
+	// ago from one that arrived four minutes ago, so the retention window IS the
+	// staleness policy.
+	//
+	// 10s is a delivery hiccup, not a replay buffer. A consumer that misses more
+	// than that has missed the conversation, and answering late is worse than not
+	// answering. The durable replay guarantees stay on BAGEL_DATA, which is where
+	// state that must survive an outage actually lives.
+	//
+	// TWO CONSEQUENCES, both deliberate:
+	//
+	//  1. twitch.ingress.status.> shares this stream, so authorization grants and
+	//     revocations now also expire after 10s. If outgress is down longer than
+	//     that, a revocation is dropped rather than applied late. The revocation
+	//     path re-derives state on the next grant (see the EventSub revocation
+	//     handling), so this degrades rather than corrupts. Splitting the status
+	//     subjects into their own longer-lived stream is the clean fix and is
+	//     worth doing before this window is trusted for anything but chat.
+	//  2. streamConfig clamps the dedup window to MaxAge, which narrows it from
+	//     30s to 10s. This costs nothing here: ingress is the only publisher to
+	//     these subjects and it deliberately attaches no Nats-Msg-Id (see
+	//     app/ingress/lib/ingress/nats.ex — EventSub websocket delivery is not
+	//     replayed, so the broker-side dedup index was pure overhead and was
+	//     measured at ~27% of per-message cost). There is no dedup to lose.
+	MaxAge: 10 * time.Second,
 	// Memory-backed: the stream is perishable (a replay window that never
 	// needs to survive a restart), so memory storage drops the per-event disk
 	// write that capped synchronous PubAck throughput to a few thousand

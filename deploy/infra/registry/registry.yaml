@@ -1,0 +1,211 @@
+# GHCR pull-through cache.
+#
+# WHY
+# ---
+# Every node pulls every image independently. A full fleet deploy rebuilds ~13
+# services, so the same layers are fetched from ghcr.io three times, and k3s runs
+# with image-gc-high-threshold=55, which evicts images and forces them to be
+# pulled AGAIN later. Measured cost: node6's containerd store is 7.9 GB, filled
+# by roughly 2.8 GB of compressed pulls, per node, per fresh join.
+#
+# With this mirror a layer is fetched from ghcr.io once and served from inside
+# the cluster to everyone else. That turns public ingress into pod-network
+# traffic, which becomes free the moment the pod mesh moves onto the private
+# VLAN.
+#
+# ADDRESSING: WHY A PINNED ClusterIP AND NOT A DNS NAME
+# -----------------------------------------------------
+# containerd runs on the HOST and resolves through the host's resolver, not
+# CoreDNS, so registry-mirror.registry.svc.cluster.local is unresolvable to it.
+# A ClusterIP, however, is reachable from the host: kube-proxy's rules apply to
+# host-originated traffic too. So the Service pins a fixed ClusterIP and
+# registries.yaml refers to that literal address (see
+# deploy/ansible/roles/k3s_agent/templates/registries.yaml.j2).
+#
+# 10.43.0.50 is inside the service CIDR and was verified unallocated. It must
+# stay stable: changing it means re-templating and restarting every agent.
+#
+# Plain HTTP is deliberate. Host-to-ClusterIP traffic is either node-local or
+# carried between nodes inside the flannel wireguard-native tunnel, so it is
+# already encrypted on the wire, and terminating TLS here would mean issuing and
+# distributing a cert for a bare IP.
+#
+# DEGRADATION
+# -----------
+# This is a cache and nothing depends on it. registries.yaml lists ghcr.io as a
+# second endpoint, so if this pod is down or its node is gone, containerd falls
+# through to pulling from ghcr.io exactly as it does today.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+  labels:
+    # Baseline rather than restricted: the upstream distribution image does not
+    # ship a non-root default, and it is pinned to runAsNonRoot below anyway.
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-config
+  namespace: registry
+data:
+  config.yml: |
+    version: 0.1
+    log:
+      level: warn
+      # The fleet ships all stdout to New Relic, so a chatty cache would cost
+      # the egress this component exists to save.
+      fields:
+        service: registry
+    storage:
+      filesystem:
+        rootdirectory: /var/lib/registry
+      # Required for the proxy scheduler to expire cached blobs; without it the
+      # cache grows until the volume fills.
+      delete:
+        enabled: true
+      maintenance:
+        uploadpurging:
+          enabled: true
+          age: 24h
+          interval: 1h
+    http:
+      addr: :5000
+      # Liveness/readiness hit this rather than the API root, which would count
+      # as an unauthenticated catalog request.
+      debug:
+        addr: :5001
+        prometheus:
+          enabled: false
+    health:
+      storagedriver:
+        enabled: true
+        interval: 30s
+        threshold: 3
+    # Pull-through mode. A registry can proxy exactly ONE upstream, so this
+    # mirrors ghcr.io only; docker.io and registry.k8s.io images continue to be
+    # pulled directly. That is the right trade: the images that actually churn
+    # are the fleet's own, and they all live on ghcr.io.
+    #
+    # No username/password: the itsbagelbot packages are public (no deployment
+    # carries an imagePullSecret). Adding credentials here would make this cache
+    # a credential holder for no benefit.
+    proxy:
+      remoteurl: https://ghcr.io
+      ttl: 168h
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-cache
+  namespace: registry
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry-mirror
+  namespace: registry
+spec:
+  type: ClusterIP
+  # PINNED. containerd addresses this literally; see the header.
+  clusterIP: 10.43.0.50
+  selector:
+    app: registry-mirror
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry-mirror
+  namespace: registry
+spec:
+  replicas: 1
+  # Recreate, not RollingUpdate: the cache is backed by a ReadWriteOnce volume
+  # that a second pod could not mount concurrently.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: registry-mirror
+  template:
+    metadata:
+      labels:
+        app: registry-mirror
+    spec:
+      # Application tier by role. Never the control plane: node1 leaves the pod
+      # network when the mesh moves to the private VLAN (same reasoning as the
+      # KEDA placement in deploy/infra/keda/release.yaml).
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: NotIn
+                    values: [cp, worker]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: registry
+          # CONFIRM the current stable tag before first apply and bump
+          # deliberately, same rule as cert-manager.yaml and keda.yaml.
+          image: registry:2.8.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {containerPort: 5000, name: http}
+            - {containerPort: 5001, name: debug}
+          env:
+            - name: OTEL_TRACES_EXPORTER
+              value: "none"
+          volumeMounts:
+            - {name: config, mountPath: /etc/docker/registry}
+            - {name: cache, mountPath: /var/lib/registry}
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            httpGet: {path: /, port: 5001}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /, port: 5001}
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap: {name: registry-config}
+        - name: cache
+          persistentVolumeClaim: {claimName: registry-cache}
+---
+# The cache is a single replica on a ReadWriteOnce volume, so it cannot be made
+# highly available without shared storage. A PDB still stops a voluntary drain
+# from taking it down for no reason; an involuntary node loss falls through to
+# ghcr.io, which is the pre-existing behaviour.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: registry-mirror
+  namespace: registry
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: registry-mirror

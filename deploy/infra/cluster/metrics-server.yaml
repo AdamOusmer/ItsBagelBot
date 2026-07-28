@@ -169,6 +169,32 @@ spec:
               name: tmp-dir
       nodeSelector:
         kubernetes.io/os: linux
+      # metrics-server is an API aggregation backend: the apiserver proxies
+      # /apis/metrics.k8s.io to it on every `kubectl top` and every HPA/KEDA
+      # evaluation, so co-locating it with the control plane takes a network hop
+      # off that path.
+      #
+      # Required, not preferred. The old comment argued a preference kept metrics
+      # alive if node1 was lost, but that reasoning does not survive the pod mesh
+      # moving to the private VLAN: node1 reaches node4/5/6 only through a
+      # tailscale subnet route, so an off-node backend makes this aggregated
+      # APIService depend on that route. An unavailable APIService does not just
+      # break `kubectl top`, it stalls API discovery for every client. Node-local
+      # means the only thing that can break it is node1, and losing node1 already
+      # means losing the apiserver that proxies to it.
+      tolerations:
+        - key: itsbagelbot.dev/role
+          operator: Equal
+          value: cp
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: In
+                    values: [cp]
       priorityClassName: system-cluster-critical
       serviceAccountName: metrics-server
       volumes:

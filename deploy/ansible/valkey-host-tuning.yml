@@ -9,10 +9,9 @@
   vars:
     valkey_required_nodes:
       - node1
-      - node2
-      - node3
       - node4
-      - worker1
+      - node5
+      - node6
   tasks:
     - name: Refuse an empty or partial cluster target
       ansible.builtin.assert:

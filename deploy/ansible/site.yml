@@ -39,6 +39,13 @@
     #   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml --tags firewall -e target_host=<tailnet-ip>
     - role: firewall
       tags: [firewall]
+    # Before tailscale: the VLAN interface has to exist and be trusted before the
+    # tailscale role advertises 10.10.0.0/24 as a subnet route for it. Tagged so
+    # the VLAN can be (re)configured on a live node without touching anything
+    # else:
+    #   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml --tags vlan -i inventory.cluster.ini
+    - role: private_vlan
+      tags: [vlan]
     - role: tailscale
     - role: k3s_agent
     - role: ssh_removal

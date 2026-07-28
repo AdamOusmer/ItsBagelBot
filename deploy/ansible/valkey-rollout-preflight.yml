@@ -88,10 +88,14 @@
       register: valkey_primary_node
       changed_when: false
 
-    - name: Refuse rollout with a primary outside node2 and node3
+    # Promotion is no longer fenced to an allowlist: every member is a candidate
+    # and Sentinel's election decides. So the check is simply that the primary is
+    # on the application tier, not on the control plane or a worker.
+    - name: Refuse rollout with a primary outside the application tier
       ansible.builtin.assert:
         that:
-          - valkey_primary_node.stdout in ['node2', 'node3', 'node4']
+          - valkey_primary_node.stdout in groups['k3s_agents']
         fail_msg: >-
           Refusing rollout: Sentinel primary {{ valkey_primary_pod }} is on
-          {{ valkey_primary_node.stdout | default('an unknown node') }}, not node2/node3/node4.
+          {{ valkey_primary_node.stdout | default('an unknown node') }}, which is
+          not an application-tier node.

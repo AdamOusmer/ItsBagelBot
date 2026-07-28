@@ -471,7 +471,7 @@ spec:
       dnsPolicy: ClusterFirst
       priorityClassName: infra-low
       restartPolicy: Always
-      # Tolerate the worker-pool taint so a valkey-node lands on worker1 too.
+      # No role tolerations: Valkey belongs on the untainted application tier.
       # Required anti-affinity keeps exactly one member per node without
       # exposing Valkey through a hostPort.
       schedulerName: default-scheduler
@@ -497,7 +497,7 @@ spec:
             app.kubernetes.io/name: valkey
         maxSkew: 1
         topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: DoNotSchedule
+        whenUnsatisfiable: ScheduleAnyway
       volumes:
       - name: users-secret
         secret:
@@ -511,19 +511,30 @@ spec:
         secret:
           defaultMode: 288
           secretName: valkey-server-tls
+      # Valkey storage is EPHEMERAL, deliberately. No volumeClaimTemplates, and
+      # there must never be one again.
+      #
+      # A local-path PVC binds its PV to the node that provisioned it, so a
+      # member whose node dies cannot be rescheduled: it sits Pending on
+      # "didn't match PersistentVolume's node affinity" indefinitely. The same
+      # pin took JetStream below quorum on 2026-07-27 when node5 was lost, and
+      # turned one dead node into a full production outage.
+      #
+      # Losing a member's volume is cheap here. Replication rebuilds a replica
+      # from the primary, and the whole dataset is derived state: projections are
+      # rebuilt by the projector from the databases, and timers are re-armed by
+      # the reconciler on its one-minute pass and by ArmAll on stream.online. The
+      # init script already regenerates valkey.conf and sentinel.conf on every
+      # boot from Sentinel discovery rather than reading them back off disk, so an
+      # empty /data is the path it is written for, not an edge case.
+      #
+      # The honest trade: with PVCs, one surviving volume could repopulate the
+      # set after a simultaneous loss of all three. Without them, that scenario
+      # means a rebuild from the databases instead. That is the correct trade for
+      # derived state, and it buys back the ability for any member to land on any
+      # node, which is what actually keeps the service up.
+      - name: valkey-data
+        emptyDir:
+          sizeLimit: 8Gi
   updateStrategy:
     type: RollingUpdate
-  volumeClaimTemplates:
-  - apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: valkey-data
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 8Gi
-      volumeMode: Filesystem
-    status:
-      phase: Pending

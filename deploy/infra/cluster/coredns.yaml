@@ -1,16 +1,16 @@
 # Cluster DNS. Replaces the k3s-packaged coredns addon (skipped via
-# coredns.yaml.skip on the node2 server since the 2026-06-30 DNS-stall fix,
+# coredns.yaml.skip on the k3s server since the 2026-06-30 DNS-stall fix,
 # when the stock 1-replica Deployment was hand-converted to a DaemonSet).
 # This file brings that hand-applied state under Flux ownership with two
 # deliberate changes (2026-07-15 network-tune):
 #
-#   1. Required nodeAffinity keeps the DaemonSet on node2/node3/worker1 only,
-#      so every hot-path pod has a node-local resolver. (The node1 exclusion
-#      is inert since node1 left the cluster; kept so the applied spec is
-#      unchanged.)
+#   1. The DaemonSet runs on EVERY node, so every pod has a node-local
+#      resolver. There is no node exclusion: the earlier one named specific
+#      hostnames from a fleet that no longer exists, and the control plane
+#      needs DNS as much as the app tier now that cert-manager, KEDA,
+#      metrics-server and the Doppler operator sit beside the API server.
 #   2. kube-dns gets trafficDistribution: PreferSameNode (same mechanism as
-#      the nats Service): queries from node2/node3/worker1 never leave the
-#      node.
+#      the nats Service), so a query never leaves the node it came from.
 #
 # The ConfigMap deliberately declares ONLY the Corefile key. NodeHosts is
 # owned and continuously updated by the k3s node-hosts controller; omitting
@@ -117,26 +117,28 @@ spec:
     spec:
       serviceAccountName: coredns
       priorityClassName: system-cluster-critical
-      # DNS lives on the hot nodes only. The node1 exclusion below is inert
-      # since node1 left the cluster; kept so the applied spec is unchanged.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values: [node1]
+      # No nodeAffinity: DNS is wanted on every node, control plane included.
       nodeSelector:
         kubernetes.io/os: linux
       dnsPolicy: Default
+      # A DaemonSet still needs a toleration per taint it must cross, so every
+      # role taint the fleet uses is listed here. Without the role=cp entry the
+      # node1 pod could never be rescheduled once deleted, which would leave
+      # the operators co-located with the API server resolving cross-node.
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
-        # worker1 carries the worker-pool taint; DNS must still run there.
+        - key: itsbagelbot.dev/role
+          operator: Equal
+          value: cp
+          effect: NoSchedule
+        - key: itsbagelbot.dev/role
+          operator: Equal
+          value: worker
+          effect: NoSchedule
       containers:
         - name: coredns
           image: rancher/mirrored-coredns-coredns:1.14.3
@@ -147,7 +149,7 @@ spec:
             - {containerPort: 53, name: dns-tcp, protocol: TCP}
             - {containerPort: 9153, name: metrics, protocol: TCP}
           resources:
-            # The node-local caches on node2/node3 hold about 100Mi steadily.
+            # A node-local cache holds about 100Mi steadily.
             requests: {cpu: 100m, memory: 128Mi}
             limits: {memory: 256Mi}
           securityContext:
@@ -199,8 +201,9 @@ spec:
   type: ClusterIP
   clusterIP: 10.43.0.10
   ipFamilyPolicy: SingleStack
-  # Resolve against the node-local CoreDNS when one exists (node2/node3/
-  # worker1).
+  # Resolve against the node-local CoreDNS. The DaemonSet covers every node, so
+  # this normally never leaves the host; it falls back to a remote endpoint only
+  # while a node's own pod is restarting.
   trafficDistribution: PreferSameNode
   selector:
     k8s-app: kube-dns

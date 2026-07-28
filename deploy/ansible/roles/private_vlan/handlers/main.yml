@@ -1,0 +1,4 @@
+---
+- name: bring up private vlan
+  ansible.builtin.command: "nmcli connection up vlan-private"
+  changed_when: true
