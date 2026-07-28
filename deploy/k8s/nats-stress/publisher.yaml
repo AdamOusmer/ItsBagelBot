@@ -77,6 +77,8 @@ spec:
               value: "__ATOMIC_BATCH_SIZE__"
             - name: NATS_ATOMIC_PUBLISH_BATCH_WAIT
               value: "__ATOMIC_BATCH_WAIT__"
+            - name: NATS_ATOMIC_PUBLISH_OVERLAP
+              value: "__ATOMIC_OVERLAP__"
             # PreferSameNode, exactly as sesame publishes: client TLS, socket and
             # batch work spread across all three hub members while the stream
             # leader still performs the RAFT commit. Pointing this at the leader

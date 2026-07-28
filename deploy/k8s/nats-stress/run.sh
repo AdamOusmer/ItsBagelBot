@@ -31,6 +31,7 @@ soak=${SOAK:-5m}
 # sweep needs no image rebuild. Defaults mirror the bus defaults.
 atomic_batch_size=${ATOMIC_BATCH_SIZE:-256}
 atomic_batch_wait=${ATOMIC_BATCH_WAIT:-1ms}
+atomic_overlap=${ATOMIC_OVERLAP:-on}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -226,6 +227,7 @@ start_publisher() {
     -max-steps "$max_steps" -soak "$soak" -tick 5s)
   sed -e "s|__ATOMIC_BATCH_SIZE__|$atomic_batch_size|g" \
       -e "s|__ATOMIC_BATCH_WAIT__|$atomic_batch_wait|g" \
+      -e "s|__ATOMIC_OVERLAP__|$atomic_overlap|g" \
       "$here/publisher.yaml" >"$workdir/publisher.rendered.yaml"
   apply_manifest "$workdir/publisher.rendered.yaml" "$args" "$publisher_replicas" PUBLISHER
   kubectl -n "$namespace" rollout status deployment/nats-stress-publisher \
