@@ -288,7 +288,7 @@ items:
       securityContext: *podSecurity
       containers:
         - name: nats-box
-          image: natsio/nats-box:0.17.0
+          image: natsio/nats-box:0.19.7@sha256:ffce8bd103383f179f8c7f11cf645726acf5d17280706c530c3b342dbe16334c
           command: ["sleep", "1800"]
           env:
             - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-core-0:4222"}
@@ -325,7 +325,7 @@ items:
         kubernetes.io/hostname: node3
       containers:
         - name: nats-box
-          image: natsio/nats-box:0.17.0
+          image: natsio/nats-box:0.19.7@sha256:ffce8bd103383f179f8c7f11cf645726acf5d17280706c530c3b342dbe16334c
           command: ["sleep", "1800"]
           env:
             - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-core-1:4222"}
@@ -361,7 +361,7 @@ items:
           effect: NoSchedule
       containers:
         - name: nats-box
-          image: natsio/nats-box:0.17.0
+          image: natsio/nats-box:0.19.7@sha256:ffce8bd103383f179f8c7f11cf645726acf5d17280706c530c3b342dbe16334c
           command: ["sleep", "1800"]
           env:
             - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-worker1:4222"}
@@ -392,7 +392,7 @@ items:
         kubernetes.io/hostname: node1
       containers:
         - name: nats-box
-          image: natsio/nats-box:0.17.0
+          image: natsio/nats-box:0.19.7@sha256:ffce8bd103383f179f8c7f11cf645726acf5d17280706c530c3b342dbe16334c
           command: ["sleep", "1800"]
           env:
             - {name: LOCAL_NATS_URL, value: "tls://nats-gw-accept-node1:4222"}
