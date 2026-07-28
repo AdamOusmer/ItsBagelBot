@@ -31,7 +31,8 @@ soak=${SOAK:-5m}
 # sweep needs no image rebuild. Defaults mirror the bus defaults.
 atomic_batch_size=${ATOMIC_BATCH_SIZE:-256}
 atomic_batch_wait=${ATOMIC_BATCH_WAIT:-1ms}
-atomic_overlap=${ATOMIC_OVERLAP:-on}
+# Boolean string for env.GetBool: "true"/"false", not on/off.
+atomic_overlap=${ATOMIC_OVERLAP:-true}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
