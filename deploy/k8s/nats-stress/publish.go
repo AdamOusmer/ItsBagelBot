@@ -27,6 +27,15 @@ const pacerMinSleep = time.Millisecond
 // size.
 const pendingDupLimit = 1 << 16
 
+// samplePoolSize bounds the confirmed publishes in flight for measurement. A
+// confirmed publish waits out its cohort's commit, so taking that wait on the
+// lane goroutine makes the sampler the run's constraint the moment the round
+// trip is long: at 152 ms it capped a fleet-wide 8192-lane run at 54k msg/s.
+// Sixty-four outstanding keeps a 1-in-512 sample populated at six figures a
+// second, and is small enough that draining the pool at the end of a step is a
+// bounded wait rather than a second measurement.
+const samplePoolSize = 64
+
 type publisherConfig struct {
 	URL          string
 	Subject      string
@@ -180,6 +189,41 @@ func (l *laneState) scheduleDup(id string, delay time.Duration, now time.Time) {
 	l.delayed = append(l.delayed, pendingDup{id: id, due: now.Add(delay)})
 }
 
+// samplePool runs the timed publishes off the lane goroutines. Slots are taken
+// without waiting, and that is the whole point: a full pool means the
+// measurement is already the slowest thing in the run, and the right answer
+// there is to skip the sample, not to hold the offered load until a slot frees.
+type samplePool struct {
+	slots chan struct{}
+	wg    sync.WaitGroup
+}
+
+func newSamplePool(size int) *samplePool {
+	return &samplePool{slots: make(chan struct{}, max(size, 1))}
+}
+
+// offer runs fn on a pooled goroutine, and reports false when the pool was full
+// and fn was not run at all.
+func (p *samplePool) offer(fn func()) bool {
+	select {
+	case p.slots <- struct{}{}:
+	default:
+		return false
+	}
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		defer func() { <-p.slots }()
+		fn()
+	}()
+	return true
+}
+
+// wait drains the outstanding samples. A step is scored only after this: a
+// confirmed publish still in flight belongs to the step that offered it, and
+// charging its verdict to the next step attributes a failure to the wrong rate.
+func (p *samplePool) wait() { p.wg.Wait() }
+
 // publishState is the whole publisher role: one production publisher, the lane
 // states, and the counters a step is read off.
 type publishState struct {
@@ -188,6 +232,7 @@ type publishState struct {
 	log     *zap.Logger
 	pad     string
 	latency *sampler
+	samples *samplePool
 	// lanes outlive the steps. A fresh laneState per step would restart every
 	// sequence at 1, and the consumer would score the whole next step as one
 	// enormous regression instead of measuring what it was for.
@@ -212,6 +257,7 @@ func runPublisher(ctx context.Context, cfg publisherConfig, log *zap.Logger) err
 		cfg: cfg, pub: pub, log: log,
 		pad:     padFor(cfg.PayloadBytes),
 		latency: newSampler(cfg.SampleCap),
+		samples: newSamplePool(samplePoolSize),
 		lanes:   newLanes(cfg.PublisherID, cfg.Lanes),
 	}
 	go state.tick(ctx)
@@ -339,6 +385,9 @@ func (s *publishState) runStep(ctx context.Context, index int, fleetRate float64
 	start := time.Now()
 	deadline := start.Add(time.Duration(float64(hold) * s.cfg.Plan.Overrun))
 	truncated := s.runLanes(ctx, laneRate, perLane, start, deadline)
+	// The deferred samples belong to the step that offered them, so they resolve
+	// before the flush that closes it and before any counter is read.
+	s.samples.wait()
 	flushErrors := s.flush(ctx)
 	elapsed := time.Since(start)
 
@@ -407,10 +456,34 @@ func (s *publishState) sendOne(ctx context.Context, lane *laneState, now time.Ti
 	s.publish(ctx, lane.key, &event)
 }
 
+// publish sends one event. A sampled event is handed to the pool and its verdict
+// arrives later; everything else resolves inline, which is the path that has to
+// stay free of anything the measurement does.
 func (s *publishState) publish(ctx context.Context, partition string, event *envelope) {
 	ctx = bus.WithPublishPartition(ctx, partition)
 	s.total.Add(1)
-	err := s.dispatch(ctx, event)
+	if s.sampleDue() {
+		if s.samples.offer(func() { s.settle(s.timedPublish(ctx, event)) }) {
+			return
+		}
+		// The pool is full, so this event is sent untimed rather than held. The
+		// skip is counted next to the distribution it thinned.
+		s.latency.skip()
+	}
+	s.settle(bus.PublishJSON(ctx, s.pub, s.cfg.Subject, event))
+}
+
+// sampleDue advances the sample counter and reports whether this send owes one.
+// It advances even when the pool then refuses the sample, so the interval stays
+// the one the flag asked for instead of drifting with pool pressure.
+func (s *publishState) sampleDue() bool {
+	return s.cfg.SampleEvery >= 1 && s.sampleN.Add(1)%int64(s.cfg.SampleEvery) == 0
+}
+
+// settle scores one publish. It runs on the lane goroutine for an ordinary send
+// and on a pooled goroutine for a sampled one, which is why the step waits for
+// the pool before it reads these counters.
+func (s *publishState) settle(err error) {
 	if err != nil {
 		s.failures.Add(1)
 		return
@@ -418,15 +491,17 @@ func (s *publishState) publish(ctx context.Context, partition string, event *env
 	s.achieved.Add(1)
 }
 
-// dispatch chooses between the two production publish calls. The sampled one is
-// bus.PublishConfirmed, which is the only way to observe publish-to-PubAck from
-// outside pkg/bus: it rides the same cohort as everything around it and simply
+// timedPublish is bus.PublishConfirmed, the only way to observe publish-to-PubAck
+// from outside pkg/bus: it rides the same cohort as everything around it and
 // waits for that cohort's acknowledgement, so the number it yields is the real
 // one rather than a probe's.
-func (s *publishState) dispatch(ctx context.Context, event *envelope) error {
-	if s.cfg.SampleEvery < 1 || s.sampleN.Add(1)%int64(s.cfg.SampleEvery) != 0 {
-		return bus.PublishJSON(ctx, s.pub, s.cfg.Subject, event)
-	}
+//
+// Running it off the lane costs one thing and buys another. The sampled event can
+// now reach the wire behind its own successor, so the consumer's lane ledger
+// scores one gap and one regression per sample — at one in 512 that is what those
+// two counters will read. The alternative was letting the measurement decide the
+// offered rate, which is the one thing an open-loop rig must not do.
+func (s *publishState) timedPublish(ctx context.Context, event *envelope) error {
 	body, err := sonic.ConfigFastest.Marshal(event)
 	if err != nil {
 		return err

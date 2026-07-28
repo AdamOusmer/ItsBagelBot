@@ -49,10 +49,24 @@ const (
 	// compatibility fallback for brokers without NATS 2.14 batch publishing.
 	wireSingle wireMode = iota
 	// wireAtomic publishes a cohort through Orbit's ADR-050 batch client: one
-	// bounded cohort, one confirmed commit.
+	// bounded cohort, one confirmed commit. It is the R3 throughput default.
+	//
+	// The reason is server-side and structural. nats-server 2.14.3 stores an
+	// atomic batch through a single ProposeMulti, so the per-stream work an
+	// ingest costs — around five mutex acquisitions, a timer-heap reset and one
+	// RAFT proposal — is paid ONCE PER COHORT and amortised across every message
+	// in it. Nothing the client does can move that cost; only batching it can.
 	wireAtomic
-	// wireFast publishes a flow-controlled Fast-Ingest session through Orbit.
-	// It is the throughput default.
+	// wireFast publishes a flow-controlled Fast-Ingest session through Orbit. The
+	// broker persists each message as it ARRIVES, so it pays that same per-stream
+	// locking, timer reset and RAFT proposal PER MESSAGE. Measured against a
+	// single fast R3 stream that fits a broker service rate of about 68k msg/s,
+	// whatever the publisher offers: the historical six-figure fleet numbers were
+	// earned on the atomic and plain async wires, not on this one.
+	//
+	// It stays selectable because arrival-time persistence is a real contract —
+	// consumers see a fast message before its session commits — and a workload
+	// that wants it can pay the throughput for it.
 	wireFast
 )
 
@@ -73,13 +87,13 @@ const atomicBatchMax = 1000
 const fastSessionMax = 65_536
 
 func publishWireMode() wireMode {
-	switch env.Get("NATS_PUBLISH_WIRE", "fast") {
+	switch env.Get("NATS_PUBLISH_WIRE", "atomic") {
 	case "single":
 		return wireSingle
-	case "atomic":
-		return wireAtomic
-	default:
+	case "fast":
 		return wireFast
+	default:
+		return wireAtomic
 	}
 }
 
@@ -114,10 +128,16 @@ func publishBatchWait(wire wireMode) time.Duration {
 
 func fastPublishFlow(batchSize int, outstanding uint16) uint16 {
 	flow := env.GetInt("NATS_FAST_PUBLISH_FLOW", 100)
-	// Orbit stalls only after Flow*MaxOutstandingAcks messages. Keeping that
-	// threshold below a full configured cohort exercises flow acknowledgements
-	// instead of making the setting inert. Unlike the session size this really is
-	// a uint16 protocol field: it is the flow token of the reply subject.
+	// Orbit stalls only after Flow*MaxOutstandingAcks messages, so keeping that
+	// threshold below a full configured cohort is what exercises flow
+	// acknowledgements at all. Unlike the session size this really is a uint16
+	// protocol field: it is the flow token of the reply subject.
+	//
+	// The clamp bounds the client only. The broker dilutes its own fast-ingest
+	// flow window to 500/len(sessions) per stream, so on a saturated stream the
+	// server's window is far below anything this setting asks for and the knob
+	// has no effect on the achieved rate. It is kept because it still decides
+	// when Orbit's local stall fires, not because it tunes throughput.
 	maxUseful := max((batchSize-1)/max(int(outstanding), 1), 1)
 	return uint16(min(max(flow, 1), min(maxUseful, int(^uint16(0)))))
 }

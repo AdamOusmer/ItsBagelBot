@@ -10,7 +10,7 @@ func TestSummarizeUsesNearestRank(t *testing.T) {
 	for i := 1; i <= 100; i++ {
 		values = append(values, time.Duration(i)*time.Millisecond)
 	}
-	got := summarize(values, 100)
+	got := summarize(values, 100, 0)
 	// Nearest rank, no interpolation: a reported quantile is always a duration
 	// something actually took.
 	if got.P50Ms != 51 || got.P95Ms != 96 || got.P99Ms != 100 || got.MaxMs != 100 {
@@ -22,9 +22,27 @@ func TestSummarizeUsesNearestRank(t *testing.T) {
 }
 
 func TestSummarizeOfNothingReportsTheAttempt(t *testing.T) {
-	got := summarize(nil, 7)
-	if got.Count != 0 || got.Sampled != 7 {
+	got := summarize(nil, 7, 3)
+	if got.Count != 0 || got.Sampled != 7 || got.Skipped != 3 {
 		t.Fatalf("an empty reservoir must still report what it saw: %+v", got)
+	}
+}
+
+// A distribution built from a handful of samples because the rest were skipped
+// is not the same distribution as one built from all of them, so the skip count
+// travels with the quantiles and resets with them.
+func TestSamplerReportsSkipsAlongsideTheDistribution(t *testing.T) {
+	s := newSampler(16)
+	s.record(10 * time.Millisecond)
+	s.skip()
+	s.skip()
+
+	got := s.drain()
+	if got.Count != 1 || got.Sampled != 1 || got.Skipped != 2 {
+		t.Fatalf("drain = %+v, want one timed sample and two skips", got)
+	}
+	if next := s.drain(); next.Skipped != 0 {
+		t.Fatalf("skips leaked into the next step: %+v", next)
 	}
 }
 

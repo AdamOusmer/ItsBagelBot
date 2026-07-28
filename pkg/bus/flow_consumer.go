@@ -40,6 +40,15 @@ const (
 	flowHeartbeatGrace = 3 * time.Second
 	flowWatchdogTick   = time.Second
 
+	// flowWedgeStreak is how many consecutive stalled heartbeats, with no delivery
+	// between any two of them, prove the flow-control conversation has gone
+	// one-way. The heartbeat watchdog structurally cannot see this failure: the
+	// server heartbeats a STALLED consumer once a second indefinitely, so
+	// lastControl stays fresh for as long as the lane is frozen. Ten seconds of
+	// stall with nothing delivered is past any window the server would reopen on
+	// its own.
+	flowWedgeStreak = 10
+
 	// flowInactiveThreshold garbage-collects this pod's own consumer once the pod
 	// is gone. nats-server 2.14.3 arms a delete timer whenever a push consumer's
 	// delivery subject loses interest and honours the threshold for durables as
@@ -54,6 +63,31 @@ const (
 	// sequence at 1 while the stream sequence keeps climbing, so anything further
 	// back than a whole ack window is a reset rather than reordering.
 	flowSessionResetGap = flowMaxAckPending
+
+	// flowControlPendingBytes is the server's flow-control window for this ack
+	// policy: nats-server 2.14.3 holds JsFlowControlMaxPending (32 MiB) of
+	// delivered payload outstanding before it shuts the window until a response
+	// arrives.
+	flowControlPendingBytes = 32 << 20
+
+	// flowWireBytesFloor is the smallest lane delivery the queue is sized for. A
+	// live R3 run measured ~865 B on the wire per ingress event; sizing at 800
+	// deliberately rounds the derived depth UP, because the failure this guards
+	// against is a queue too shallow for the window, never one too deep.
+	flowWireBytesFloor = 800
+
+	// flowQueueDepth is how many deliveries the callback may hold. It is derived
+	// from the BYTE window and not from flowMaxAckPending, because the message
+	// brake is not what binds here: under AckFlowControl the server keeps no
+	// per-message pending set to stop at, it stops on the byte window, and 32 MiB
+	// of ~865 B deliveries ramps to roughly 38k messages in flight — nearly twice
+	// the 20k the message figure suggests. A queue cut to flowMaxAckPending
+	// therefore overflows during perfectly healthy delivery: one repro dropped
+	// 26k deliveries in three seconds that way, silently, because a drop here
+	// costs an event rather than the binding. The depth has to sit above the
+	// ramped window, so it is derived at the wire floor with the margin that
+	// implies.
+	flowQueueDepth = flowControlPendingBytes / flowWireBytesFloor
 )
 
 // Push status protocol (nats-server 2.14 consumer.go, nats.go jetstream/push.go).
@@ -487,6 +521,8 @@ type flowSubscriber struct {
 	retried     atomic.Int64
 	stale       atomic.Int64
 	overrun     atomic.Int64
+	stallStreak atomic.Int64
+	wedged      atomic.Int64
 	lastControl atomic.Int64
 	recovering  atomic.Bool
 	closed      atomic.Bool
@@ -579,10 +615,10 @@ func newFlowSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer, deliver stri
 	return &flowSubscriber{
 		nc: nc, stream: cfg.stream, subject: cfg.subject, group: cfg.group,
 		consumer: consumer, deliverSubject: deliver, log: log,
-		// The queue is sized at the server's own message brake: the consumer stops
-		// delivering at MaxAckPending, so a queue that deep cannot overflow before
-		// the server has already stopped pushing.
-		queue:   make(chan flowDelivery, flowMaxAckPending),
+		// Sized at the server's own byte window, not at MaxAckPending: the window
+		// is what actually stops delivery under this ack policy, and it ramps well
+		// past the message figure.
+		queue:   make(chan flowDelivery, flowQueueDepth),
 		output:  make(chan *Message),
 		closeCh: make(chan struct{}),
 		ctx:     ctx,
@@ -632,6 +668,9 @@ func (s *flowSubscriber) deliveryCallback(wire *nats.Msg) {
 // enqueue records the receipt cursor before queueing, so a flow-control request
 // arriving straight after the delivery can already acknowledge it.
 func (s *flowSubscriber) enqueue(wire *nats.Msg) {
+	// A delivery is the proof the window reopened, so it ends any wedge streak the
+	// stalled heartbeats had accumulated.
+	s.stallStreak.Store(0)
 	s.recordReceipt(wire)
 	msg, err := messageFromNATS(wire)
 	if err != nil {
@@ -643,8 +682,10 @@ func (s *flowSubscriber) enqueue(wire *nats.Msg) {
 	case s.queue <- flowDelivery{wire: wire, msg: msg}:
 	default:
 		// Withholding the flow-control response would stall the consumer; dropping
-		// one delivery costs one event. The server's own MaxAckPending brake should
-		// make this unreachable, so it is an alert, not a mode of operation.
+		// one delivery costs one event. The queue is cut to sit above the server's
+		// ramped flow-control window, so this stays an alert rather than a mode of
+		// operation — a sustained count here means the window grew past what
+		// flowQueueDepth was derived for and the derivation needs re-measuring.
 		s.log.Warn("lane receipt queue overflowed",
 			zap.String("subject", s.subject),
 			zap.Int64("overrun_total", s.overrun.Add(1)))
@@ -839,6 +880,7 @@ func (s *flowSubscriber) dropRetry(msg *Message, cause error) {
 func (s *flowSubscriber) handleStatus(control *nats.Msg, status string) {
 	if status == controlStatus {
 		s.lastControl.Store(time.Now().UnixNano())
+		s.noteStall(control)
 		s.noteDeliveryGap(control)
 		s.respondFlowControl(control)
 		return
@@ -847,6 +889,32 @@ func (s *flowSubscriber) handleStatus(control *nats.Msg, status string) {
 		zap.String("subject", s.subject),
 		zap.String("status", status),
 		zap.String("description", control.Header.Get(descriptionHeader)))
+}
+
+// noteStall counts stalled heartbeats that no delivery interrupted. The stalled
+// marker says the server is holding the window shut until a flow-control
+// response reaches it, so a run of them says this pod's responses are not
+// arriving — and the only two causes are an ACL that denies publishing to the
+// $JS.FC subject and a response the connection dropped.
+//
+// It is reported, never repaired. Recreating the consumer cannot grant a
+// permission, and a watchdog that recreated on this signal would churn the lane
+// once a second for as long as the denial lasted; the ack floor and every
+// in-flight delivery would go with it each time. The counter and the log line
+// are what an operator needs, and the fix is on the broker's side.
+func (s *flowSubscriber) noteStall(control *nats.Msg) {
+	fcid := control.Header.Get(consumerStalledHeader)
+	if fcid == "" {
+		return
+	}
+	if streak := s.stallStreak.Add(1); streak%flowWedgeStreak == 0 {
+		s.log.Error("flow consumer is wedged: stalled heartbeats are going unanswered",
+			zap.String("subject", s.subject),
+			zap.String("consumer", s.consumer),
+			zap.String("flow_control_id", fcid),
+			zap.Int64("stalled_heartbeats", streak),
+			zap.Int64("wedged_total", s.wedged.Add(1)))
+	}
 }
 
 // noteDeliveryGap compares what the heartbeat says the server has sent with what
@@ -894,6 +962,10 @@ func (s *flowSubscriber) respondFlowControl(control *nats.Msg) {
 // server pins the heartbeat at one second and publishes no deletion status to a
 // push subject, so silence on the delivery subject is the signal: the lane would
 // otherwise sit at zero events per second, healthy and Ready, indefinitely.
+//
+// It detects a DELETED consumer and nothing else. A wedged one heartbeats
+// forever, so silence never comes and this watchdog never fires for it; that
+// failure belongs to noteStall.
 func (s *flowSubscriber) watchHeartbeats() {
 	defer s.workers.Done()
 	ticker := time.NewTicker(flowWatchdogTick)

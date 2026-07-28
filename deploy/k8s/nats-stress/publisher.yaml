@@ -95,10 +95,16 @@ spec:
                 secretKeyRef:
                   name: sesame-env
                   key: NATS_PASSWORD
-            # The wire under test. Fast-Ingest needs allow_batched on the stream,
-            # which the consumer role provisions before this Deployment exists.
+            # Pinned to the value pkg/bus already defaults to, so the rig measures
+            # the wire production runs rather than one chosen for the bench. The
+            # atomic wire pays the broker's per-stream locking and its RAFT
+            # proposal once per cohort; the fast wire pays both per message and
+            # fits a single R3 stream at ~68k msg/s. Set this to "fast" to measure
+            # that wire deliberately. Either one needs allow_batched on the
+            # stream, which the consumer role provisions before this Deployment
+            # exists.
             - name: NATS_PUBLISH_WIRE
-              value: fast
+              value: atomic
             - name: NATS_PUBLISH_CONNECTIONS
               value: "4"
             - name: STRESS_PUBLISHER_REPLICAS

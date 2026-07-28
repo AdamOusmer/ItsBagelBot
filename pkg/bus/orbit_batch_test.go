@@ -15,13 +15,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestPublishWireModeDefaultsToFast(t *testing.T) {
+// The fast wire persists per message server-side — one RAFT proposal each — and
+// fits ~68k msg/s on a single R3 stream. The atomic wire pays that cost once per
+// cohort, so it is the wire an unconfigured service must get.
+func TestPublishWireModeDefaultsToAtomic(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "")
-	if publishWireMode() != wireFast {
-		t.Fatal("unset NATS_PUBLISH_WIRE must select the Fast-Ingest wire")
+	if publishWireMode() != wireAtomic {
+		t.Fatal("unset NATS_PUBLISH_WIRE must select the ADR-050 atomic wire")
 	}
 	t.Setenv("NATS_PUBLISH_WIRE", "nonsense")
-	if publishWireMode() != wireFast {
+	if publishWireMode() != wireAtomic {
 		t.Fatal("unknown NATS_PUBLISH_WIRE must fall back to the default wire")
 	}
 }

@@ -18,6 +18,12 @@ type quantiles struct {
 	P99Ms   float64 `json:"p99_ms"`
 	MaxMs   float64 `json:"max_ms"`
 	Sampled int64   `json:"sampled"`
+	// Skipped is the samples that were due and never taken, because the bounded
+	// pool that times them was full. It is reported next to the distribution
+	// because it is the distribution's own bias: a step that skipped most of its
+	// samples measured whichever publishes happened to find a free slot. The
+	// consumer's guard sampler never skips, so it always reports zero.
+	Skipped int64 `json:"skipped"`
 }
 
 // sampler collects publish-to-PubAck durations from every lane.
@@ -29,6 +35,12 @@ type quantiles struct {
 // timestamp per message at six figures a second is allocation pressure the
 // measurement would then be reporting on itself.
 //
+// Sampling alone was not enough. Even one in 512, taken on the lane goroutine,
+// became the run's binding constraint once the round trip grew: at 152 ms it held
+// a fleet-wide run to 54k msg/s, which is the sampler's number and not the
+// broker's. The confirmed publish now runs off the lane in a bounded pool, and
+// what the pool refuses is counted here.
+//
 // Above Capacity it switches to reservoir sampling, so a long soak keeps a
 // uniform sample of its whole window instead of the first Capacity events —
 // otherwise the p99 of a five-minute soak would be the p99 of its first second.
@@ -37,6 +49,7 @@ type sampler struct {
 	values   []time.Duration
 	capacity int
 	seen     int64
+	skipped  int64
 	rng      *rand.Rand
 }
 
@@ -67,21 +80,31 @@ func (s *sampler) record(d time.Duration) {
 	}
 }
 
+// skip records a sample that was due and never taken. Counted rather than
+// ignored: the alternative to skipping is blocking the lane that owed the
+// sample, and a reader has to be able to tell a distribution built from most of
+// its samples from one built from a handful.
+func (s *sampler) skip() {
+	s.mu.Lock()
+	s.skipped++
+	s.mu.Unlock()
+}
+
 // drain returns the distribution and empties the reservoir, so consecutive steps
 // report their own latency rather than a running average over the whole ramp.
 func (s *sampler) drain() quantiles {
 	s.mu.Lock()
 	values := s.values
-	seen := s.seen
+	seen, skipped := s.seen, s.skipped
 	s.values = make([]time.Duration, 0, s.capacity)
-	s.seen = 0
+	s.seen, s.skipped = 0, 0
 	s.mu.Unlock()
-	return summarize(values, seen)
+	return summarize(values, seen, skipped)
 }
 
-func summarize(values []time.Duration, seen int64) quantiles {
+func summarize(values []time.Duration, seen, skipped int64) quantiles {
 	if len(values) == 0 {
-		return quantiles{Sampled: seen}
+		return quantiles{Sampled: seen, Skipped: skipped}
 	}
 	sorted := slices.Clone(values)
 	slices.Sort(sorted)
@@ -92,6 +115,7 @@ func summarize(values []time.Duration, seen int64) quantiles {
 		P99Ms:   millisAt(sorted, 0.99),
 		MaxMs:   float64(sorted[len(sorted)-1].Microseconds()) / 1000,
 		Sampled: seen,
+		Skipped: skipped,
 	}
 }
 

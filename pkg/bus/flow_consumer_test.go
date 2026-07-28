@@ -423,6 +423,80 @@ func TestStatusHandlingNeverWaitsOnTheDataPath(t *testing.T) {
 	}
 }
 
+// The queue must clear the server's own brake, and that brake is the byte
+// window, not MaxAckPending: 32 MiB of ~865 B deliveries ramps to ~38k messages
+// in flight, so a queue cut at 20k drops deliveries during healthy delivery.
+func TestReceiptQueueIsSizedOffTheFlowControlByteWindow(t *testing.T) {
+	if flowQueueDepth != flowControlPendingBytes/flowWireBytesFloor {
+		t.Fatalf("queue depth %d is no longer derived from the byte window", flowQueueDepth)
+	}
+	ramped := flowControlPendingBytes / 865
+	if flowQueueDepth <= ramped {
+		t.Fatalf("queue depth %d does not clear the ramped window of %d deliveries", flowQueueDepth, ramped)
+	}
+	if flowQueueDepth <= flowMaxAckPending {
+		t.Fatalf("queue depth %d fell back to the message brake %d", flowQueueDepth, flowMaxAckPending)
+	}
+	if got := cap(testFlowSubscriber().queue); got != flowQueueDepth {
+		t.Fatalf("bound lane queue = %d, want the derived depth %d", got, flowQueueDepth)
+	}
+}
+
+// The server heartbeats a STALLED consumer forever, so heartbeat silence can
+// never expose an unanswered flow-control conversation: lastControl stays fresh
+// while delivery is frozen. The streak is the only signal that survives that.
+func TestStalledHeartbeatStreakIsReportedAsAWedge(t *testing.T) {
+	sub := testFlowSubscriber()
+
+	for i := 0; i < flowWedgeStreak-1; i++ {
+		sub.handleStatus(stalledFlowStatus(), controlStatus)
+	}
+	if sub.wedged.Load() != 0 {
+		t.Fatalf("wedge reported after %d stalls, before the streak threshold", flowWedgeStreak-1)
+	}
+
+	sub.handleStatus(stalledFlowStatus(), controlStatus)
+	if sub.wedged.Load() != 1 {
+		t.Fatalf("wedged counter = %d after %d consecutive stalls, want 1",
+			sub.wedged.Load(), flowWedgeStreak)
+	}
+	// Reported, never repaired: recreating the consumer cannot grant a denied
+	// $JS.FC publish permission, and would churn the lane once a second.
+	if sub.recovering.Load() {
+		t.Fatal("a wedge triggered a consumer re-provision")
+	}
+}
+
+func TestADeliveryClearsTheWedgeStreak(t *testing.T) {
+	sub := testFlowSubscriber()
+	for i := 0; i < flowWedgeStreak-1; i++ {
+		sub.handleStatus(stalledFlowStatus(), controlStatus)
+	}
+
+	sub.deliveryCallback(laneDelivery("logical-id", []byte(`{"text":"hello"}`)))
+	if got := sub.stallStreak.Load(); got != 0 {
+		t.Fatalf("streak = %d after a delivery, want it cleared", got)
+	}
+
+	sub.handleStatus(stalledFlowStatus(), controlStatus)
+	if sub.wedged.Load() != 0 {
+		t.Fatalf("a stall after a delivery completed the old streak: wedged=%d", sub.wedged.Load())
+	}
+}
+
+// An unstalled heartbeat is the healthy case and must not accumulate anything:
+// the server sends one every second for the life of a quiet lane.
+func TestQuietHeartbeatsNeverAccumulateAWedge(t *testing.T) {
+	sub := testFlowSubscriber()
+	for i := 0; i < 4*flowWedgeStreak; i++ {
+		sub.handleStatus(flowStatus("Idle Heartbeat"), controlStatus)
+	}
+	if sub.stallStreak.Load() != 0 || sub.wedged.Load() != 0 {
+		t.Fatalf("quiet heartbeats counted as stalls: streak=%d wedged=%d",
+			sub.stallStreak.Load(), sub.wedged.Load())
+	}
+}
+
 func TestHeartbeatSilenceIsWhatDetectsADeletedConsumer(t *testing.T) {
 	now := time.Now()
 	if heartbeatLost(now, now.Add(-2*time.Second).UnixNano()) {
@@ -516,6 +590,15 @@ func flowStatus(description string) *nats.Msg {
 	return control
 }
 
+// stalledFlowStatus is the heartbeat a server sends while it is holding the
+// delivery window shut: the stalled marker carries the flow-control id the
+// response has to go to.
+func stalledFlowStatus() *nats.Msg {
+	stalled := flowStatus("Idle Heartbeat")
+	stalled.Header.Set(consumerStalledHeader, "$JS.FC.TWITCH_INGRESS.worker_standard.stall")
+	return stalled
+}
+
 func laneDelivery(id string, payload []byte) *nats.Msg {
 	wire := nats.NewMsg("twitch.ingress.event.standard")
 	wire.Header.Set(MessageIDHeader, id)
@@ -537,7 +620,7 @@ func testFlowSubscriber() *flowSubscriber {
 		stream: TwitchIngressStream.Name, subject: "twitch.ingress.event.standard",
 		group: "worker", consumer: "worker_twitch_ingress_event_standard_pod_1",
 		log:   zap.NewNop(),
-		queue: make(chan flowDelivery, flowMaxAckPending),
+		queue: make(chan flowDelivery, flowQueueDepth),
 		// Unbuffered, like the real lane: nothing reads it in these tests.
 		output:  make(chan *Message),
 		closeCh: make(chan struct{}),
