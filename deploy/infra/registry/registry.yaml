@@ -189,11 +189,15 @@ spec:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
             readOnlyRootFilesystem: true
+          # The debug listener serves /debug/health and /metrics only; "/" is a
+          # 404 there, so probing it makes the kubelet kill a perfectly healthy
+          # registry forever. This was invisible while the dryrun panic was
+          # crashing the container earlier in boot.
           livenessProbe:
-            httpGet: {path: /, port: 5001}
+            httpGet: {path: /debug/health, port: 5001}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /, port: 5001}
+            httpGet: {path: /debug/health, port: 5001}
             periodSeconds: 10
       volumes:
         - name: config
