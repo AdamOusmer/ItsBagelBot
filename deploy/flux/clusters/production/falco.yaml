@@ -219,14 +219,17 @@ spec:
         # lives in an infra namespace (flux controllers, keda, cert-manager +
         # trust-manager, tailscale operator + proxies, nri-kubernetes;
         # kube-system/coredns is already excluded by the stock k8s_containers
-        # macro), except the nats-selfheal CronJob in ns production, which is
-        # matched by pod-name prefix, NOT namespace-wide. Residual trickle:
-        # connects raced during pod startup can miss k8s metadata enrichment
-        # (k8s.ns.name=<NA>) and still alert; rare, accepted.
+        # macro). Residual trickle: connects raced during pod startup can miss
+        # k8s metadata enrichment (k8s.ns.name=<NA>) and still alert; rare,
+        # accepted.
+        #
+        # The ns-production exception for the nats-selfheal CronJob is gone with
+        # the job itself (2026-07-27). Nothing in production should be calling
+        # the API server now, so an alert from that namespace is a real signal
+        # again rather than expected noise.
         - macro: user_known_contact_k8s_api_server_activities
           condition: >
-            (k8s.ns.name in (flux-system, keda, cert-manager, tailscale, newrelic)
-             or (k8s.ns.name = production and k8s.pod.name startswith "nats-selfheal-"))
+            (k8s.ns.name in (flux-system, keda, cert-manager, tailscale, newrelic))
           override:
             condition: replace
 

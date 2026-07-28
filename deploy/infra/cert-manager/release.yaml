@@ -81,16 +81,15 @@ spec:
     resources:
       requests: {cpu: 25m, memory: 128Mi}
       limits: {cpu: 250m, memory: 256Mi}
-    # cert-manager belongs with the control plane. The webhook in particular is
-    # called SYNCHRONOUSLY by the apiserver on every Certificate admission, so a
-    # cross-node hop sits directly in that path. Preferred rather than required so
-    # losing node1 cannot wedge admission.
+    # cert-manager belongs with the control plane. The controller and cainjector
+    # are ordinary reconcilers, so a preference is enough for them: if node1 is
+    # full they can run anywhere and just take an extra hop.
     tolerations: &cpToleration
       - key: itsbagelbot.dev/role
         operator: Equal
         value: cp
         effect: NoSchedule
-    affinity: &cpAffinity
+    affinity: &cpPreferred
       nodeAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
@@ -104,13 +103,33 @@ spec:
         requests: {cpu: 10m, memory: 96Mi}
         limits: {cpu: 200m, memory: 128Mi}
       tolerations: *cpToleration
-      affinity: *cpAffinity
+      # REQUIRED on cp, unlike the controller above. The webhook is called
+      # SYNCHRONOUSLY by the apiserver on every Certificate/Issuer admission and
+      # its failurePolicy is Fail, so that hop must never depend on the pod
+      # network. A preference does not actually protect availability here, it
+      # only changes which failure wedges admission: the pod drifted onto node4
+      # (2026-07-27), and once the pod mesh moves to the private VLAN, node1
+      # reaches node4/5/6 only through a tailscale subnet route with a single
+      # advertiser. Pinning it node-local means the only thing that can break the
+      # call is node1 itself, and if node1 is down the apiserver is down too, so
+      # admission is moot. That trades a real distributed failure for a vacuous
+      # one. Cost of being wrong is bounded: the webhook rules cover only
+      # cert-manager.io resources, so a wedge blocks Certificate/Issuer writes,
+      # not general pod admission.
+      affinity: &cpRequired
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: In
+                    values: [cp]
     cainjector:
       resources:
         requests: {cpu: 10m, memory: 64Mi}
         limits: {cpu: 200m, memory: 256Mi}
       tolerations: *cpToleration
-      affinity: *cpAffinity
+      affinity: *cpPreferred
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -154,3 +173,27 @@ spec:
     resources:
       requests: {cpu: 10m, memory: 32Mi}
       limits: {cpu: 200m, memory: 128Mi}
+    # Pinned to the control plane for the same reason as cert-manager's webhook:
+    # trust-manager serves a ValidatingWebhookConfiguration with failurePolicy
+    # Fail, called synchronously by the apiserver on every Bundle admission.
+    #
+    # Until now it carried NO toleration and NO affinity, so it could never land
+    # on node1 at all (the cp taint repelled it) and sat on node4, where the apiserver
+    # reached its Fail-policy webhook across the pod network, over the very link
+    # the private VLAN is about to change. Written out in full rather than reusing
+    # the &cpToleration / &cpRequired anchors above: YAML anchors do not cross a
+    # document boundary, and a dangling alias here is a parse error, not a
+    # silently ignored key.
+    tolerations:
+      - key: itsbagelbot.dev/role
+        operator: Equal
+        value: cp
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: itsbagelbot.dev/role
+                  operator: In
+                  values: [cp]

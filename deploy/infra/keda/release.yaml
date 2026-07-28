@@ -85,32 +85,64 @@ spec:
       webhooks:
         requests: {cpu: 25m, memory: 32Mi}
         limits: {cpu: 250m, memory: 128Mi}
-    # KEDA stays on the APPLICATION tier, deliberately, and is the one operator
-    # that must not sit beside the API server.
+    # PLACEMENT IS PER-COMPONENT, AND THE SPLIT IS LOAD-BEARING.
     #
-    # Every ScaledObject here polls NATS directly:
+    # Chart 2.20.1 reads placement from operator/metricsServer/webhooks, NOT from
+    # a top-level `affinity`. This is the exact inverse of `resources` above, and
+    # it bites the same way: a top-level `affinity:` block is accepted as unused
+    # YAML and silently dropped. That is what happened here: every KEDA pod ran
+    # with no affinity and no tolerations at all, and stayed off the control plane
+    # only because node1 carries the itsbagelbot.dev/role=cp:NoSchedule taint.
+    # Verify a change landed; do not trust that the key was read:
+    #   kubectl -n keda get deploy keda-operator -o jsonpath='{.spec.template.spec.affinity}'
+    #
+    # operator -> APPLICATION TIER (off cp).
+    # Every ScaledObject polls NATS directly:
     #   natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
-    # (see the outgress and sesame ScaledObjects; six triggers at a 15s
-    # pollingInterval). That is a ClusterIP resolving to NATS pods on the app
-    # tier, so the KEDA operator needs pod-network reachability to node4/5/6.
+    # (six triggers at a 15s pollingInterval, see the outgress and sesame
+    # ScaledObjects). That ClusterIP resolves to NATS pods on the app tier, so the
+    # operator needs pod-network reachability to node4/5/6. Flannel
+    # wireguard-native publishes exactly ONE endpoint per node, so once the pod
+    # mesh moves onto the ServaRICA private VLAN, node1 (OCI, not on that VLAN)
+    # reaches it only over the tailscale subnet route.
     #
-    # Flannel wireguard-native publishes exactly ONE endpoint per node, so the
-    # pod mesh is all-public or all-private with no per-peer choice. When it
-    # moves onto the ServaRICA private VLAN, node1 (OCI, a different provider
-    # and not on that VLAN) drops off the pod network entirely. Every other
-    # co-located operator survives that: cert-manager's webhook is called by the
-    # local API server, metrics-server scrapes kubelets over InternalIP on the
-    # tailnet, and the Doppler operator talks to api.doppler.com. KEDA is the
-    # only one whose data path crosses nodes, and losing it would silently
-    # freeze outgress and sesame autoscaling rather than fail loudly.
+    # metricsServer and webhooks -> CONTROL PLANE (on cp), required.
+    # Both are called SYNCHRONOUSLY BY THE APISERVER: metricsServer backs the
+    # v1beta1.external.metrics.k8s.io aggregated APIService, webhooks back the
+    # keda-admission ValidatingWebhookConfiguration. Pinning them beside the
+    # apiserver keeps those calls node-local, so they survive any VLAN, subnet
+    # route, or advertiser failure. An unreachable aggregated APIService is worse
+    # than an unreachable backend: it stalls API discovery cluster-wide, not just
+    # KEDA. metricsServer still queries the operator over gRPC :9666 cross-node;
+    # if THAT hop breaks, scaling degrades to each ScaledObject's `fallback`
+    # replicas, which is the loud, bounded failure we want.
     #
-    # Required, not preferred: a preference would let it drift onto the control
-    # plane and reintroduce the problem the next time the scheduler rebalances.
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: itsbagelbot.dev/role
-                  operator: NotIn
-                  values: [cp, worker]
+    # Required, not preferred, on both sides: a preference lets the scheduler
+    # rebalance either half onto the wrong tier and reintroduce the problem.
+    operator:
+      tolerations: []
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: NotIn
+                    values: [cp, worker]
+    metricsServer:
+      tolerations: &cpToleration
+        - key: itsbagelbot.dev/role
+          operator: Equal
+          value: cp
+          effect: NoSchedule
+      affinity: &cpAffinity
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: In
+                    values: [cp]
+    webhooks:
+      tolerations: *cpToleration
+      affinity: *cpAffinity

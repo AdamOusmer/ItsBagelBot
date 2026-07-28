@@ -45,13 +45,21 @@ tailscale_direct_peers:
 # private networks, and the fleet already depends on it: node1 advertises OCI's
 # 10.0.0.0/16 so in-cluster pods can reach the database.
 #
-# The ServaRICA nodes advertise the private VLAN (10.10.0.0/24) for the same
-# reason in reverse. Once flannel on those nodes peers over their VLAN addresses,
-# node1 has no physical path to 10.10.0.x, and this route is what gives it one.
-# App-tier traffic still goes DIRECT over the VLAN at sub-millisecond latency;
-# only the control plane's small share (~0.05 GB/day) takes the tailnet hop, and
-# measured 2026-07-27 that hop is 2ms versus the 2.8-4.0ms it already pays on the
-# public path, so it costs nothing.
+# Exactly ONE ServaRICA node advertises the private VLAN (10.10.0.0/24), for the
+# same reason in reverse. Once flannel on those nodes peers over their VLAN
+# addresses, node1 has no physical path to 10.10.0.x, and this route is what
+# gives it one. App-tier traffic still goes DIRECT over the VLAN at
+# sub-millisecond latency; only the control plane's small share (~0.05 GB/day)
+# takes the tailnet hop, and measured 2026-07-27 that hop is 2ms versus the
+# 2.8-4.0ms it already pays on the public path, so it costs nothing.
+#
+# Do NOT add the second and third node as advertisers for failover. Measured
+# 2026-07-27: a node that advertises a subnet but loses the primary election
+# installs the primary's "10.10.0.0/24 dev tailscale0" into table 52, and rule
+# 5270 outranks main's 32766, so it shadows that node's own direct eth1 path and
+# routes VLAN peers through the primary. See the long note in
+# inventory.cluster.ini.example for the measurement and for how the resulting
+# single-advertiser risk is contained (control-plane pinning, by role).
 #
 # EMPTY MEANS "DO NOT TOUCH", deliberately. `tailscale set --advertise-routes=`
 # with an empty value CLEARS every advertised route, so a run against a partial
