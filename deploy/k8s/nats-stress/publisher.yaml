@@ -119,7 +119,7 @@ spec:
             # stream, which the consumer role provisions before this Deployment
             # exists.
             - name: NATS_PUBLISH_WIRE
-              value: atomic
+              value: "__PUBLISH_WIRE__"
             # NATS_PUBLISH_CONNECTIONS is set once, above, from the runner knob.
             # A second entry here would win (last duplicate wins in Kubernetes)
             # and silently pin the worker count whatever the sweep asked for.
