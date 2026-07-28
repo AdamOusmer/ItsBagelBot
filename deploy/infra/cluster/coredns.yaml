@@ -91,6 +91,24 @@ data:
           max_concurrent 1000
         }
     }
+    # MagicDNS. Tailnet names are not resolvable by the public anycast resolvers
+    # above, so without this a pod asking for a *.ts.net name gets NXDOMAIN:
+    #   lookup nats-monitoring.tail451e6d.ts.net on 10.43.0.10:53: no such host
+    #
+    # That matters because the control plane is deliberately kept OFF the pod
+    # network path to the application tier: KEDA on node1 reaches NATS monitoring
+    # as a Tailscale Service (nats-monitoring.tail451e6d.ts.net) rather than over
+    # a VLAN subnet route. Resolving the name is the first hop of that design, and
+    # when it fails KEDA does not error loudly, it silently serves each
+    # ScaledObject's static `fallback` replicas.
+    #
+    # 100.100.100.100 is the tailscaled-local MagicDNS resolver. CoreDNS reaches
+    # it because pod egress masquerades out the node's tailscale0.
+    ts.net:53 {
+        errors
+        cache 30
+        forward . 100.100.100.100
+    }
     import /etc/coredns/custom/*.server
 ---
 apiVersion: apps/v1
