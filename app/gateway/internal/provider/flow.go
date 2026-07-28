@@ -173,7 +173,11 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 // exactly the states an operator needs to see. Missing players (400/404) stay
 // quiet; they are routine.
 func logFriendly(log *zap.Logger, ref endpointRef, id ID, friendly *core.UpstreamError) {
-	if friendly == nil || friendly.Status == 400 || friendly.Status == 404 {
+	if friendly == nil {
+		return
+	}
+	switch friendly.Status {
+	case 400, 404:
 		return
 	}
 	log.Warn("gateway upstream denial",
