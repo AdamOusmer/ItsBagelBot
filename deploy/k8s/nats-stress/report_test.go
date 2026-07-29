@@ -194,3 +194,33 @@ func TestReorderingPassesButUnfilledGapsFail(t *testing.T) {
 		t.Fatalf("unfilled gaps did not fail the verdict: %v", failureReasons(lossy))
 	}
 }
+
+func TestPullModeIsNotCondemnedForDistributingTheLane(t *testing.T) {
+	// A shared durable hands each message to one pod, so every pod's view of a
+	// lane is mostly holes. That is the feature, not loss.
+	distributed := verdict{
+		ConsumeMode: consumeModePull,
+		Sequence:    seqCounts{Delivered: 5_875_744, Gaps: 13_539_448, Regressions: 1_789_268},
+	}
+	for _, reason := range failureReasons(distributed) {
+		if strings.Contains(reason, "never delivered") {
+			t.Fatalf("pull distribution reported as loss: %q", reason)
+		}
+	}
+
+	// The same counters on a fan-out mode still fail, because there every pod is
+	// supposed to see every message.
+	fanout := verdict{
+		ConsumeMode: consumeModeFlow,
+		Sequence:    seqCounts{Delivered: 5_875_744, Gaps: 13_539_448, Regressions: 1_789_268},
+	}
+	var found bool
+	for _, reason := range failureReasons(fanout) {
+		if strings.Contains(reason, "never delivered") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("fan-out loss was not reported")
+	}
+}

@@ -111,27 +111,31 @@ type consumerSummary struct {
 // verdict is what a run is read against. It is one object rather than a
 // paragraph so a later run can be diffed against it mechanically.
 type verdict struct {
-	Rig             string       `json:"rig"`
-	Kind            string       `json:"kind"`
-	Publishers      int          `json:"publishers"`
-	Consumers       int          `json:"consumers"`
-	Ceiling         ceiling      `json:"ceiling"`
-	StableRate      float64      `json:"stable_msgs_per_sec"`
-	Steps           []stepResult `json:"steps"`
-	Soak            *stepResult  `json:"soak,omitempty"`
-	Sequence        seqCounts    `json:"sequence"`
-	Guard           guardStats   `json:"guard"`
-	GuardFailOpen   int64        `json:"guard_fail_open"`
-	DupsDropped     int64        `json:"injected_duplicates_dropped"`
-	DecodeErrors    int64        `json:"decode_errors"`
-	GuardLatency    quantiles    `json:"guard_latency"`
-	LagCurve        []lagSample  `json:"lag_curve"`
-	LagFlat         bool         `json:"lag_flat"`
-	SoakLatencyOK   bool         `json:"soak_latency_stable"`
-	SoakFailures    int64        `json:"soak_cohort_failures"`
-	Pass            bool         `json:"pass"`
-	FailureReasons  []string     `json:"failure_reasons"`
-	MissingRoleData []string     `json:"missing_role_data,omitempty"`
+	Rig        string       `json:"rig"`
+	Kind       string       `json:"kind"`
+	Publishers int          `json:"publishers"`
+	Consumers  int          `json:"consumers"`
+	Ceiling    ceiling      `json:"ceiling"`
+	StableRate float64      `json:"stable_msgs_per_sec"`
+	Steps      []stepResult `json:"steps"`
+	Soak       *stepResult  `json:"soak,omitempty"`
+	Sequence   seqCounts    `json:"sequence"`
+	// ConsumeMode decides how Sequence may be read: a shared pull consumer hands
+	// each message to one pod, so per-pod continuity is holes by design, while a
+	// fan-out mode owes every pod every message.
+	ConsumeMode     string      `json:"consume_mode"`
+	Guard           guardStats  `json:"guard"`
+	GuardFailOpen   int64       `json:"guard_fail_open"`
+	DupsDropped     int64       `json:"injected_duplicates_dropped"`
+	DecodeErrors    int64       `json:"decode_errors"`
+	GuardLatency    quantiles   `json:"guard_latency"`
+	LagCurve        []lagSample `json:"lag_curve"`
+	LagFlat         bool        `json:"lag_flat"`
+	SoakLatencyOK   bool        `json:"soak_latency_stable"`
+	SoakFailures    int64       `json:"soak_cohort_failures"`
+	Pass            bool        `json:"pass"`
+	FailureReasons  []string    `json:"failure_reasons"`
+	MissingRoleData []string    `json:"missing_role_data,omitempty"`
 }
 
 // summaries is the parsed input of a merge.
@@ -356,6 +360,9 @@ func applyConsumerTotals(v *verdict, consumers []consumerSummary) {
 		v.Sequence.Gaps += c.Seq.Gaps
 		v.Sequence.Regressions += c.Seq.Regressions
 		v.Sequence.Lanes = max(v.Sequence.Lanes, c.Seq.Lanes)
+		// Every consumer in a run binds the same way, so the last one wins and
+		// the field simply records which contract these counters came from.
+		v.ConsumeMode = c.ConsumeMode
 		v.Guard.add(c.Guard)
 		v.GuardFailOpen += c.GuardFailOpen
 		v.DecodeErrors += c.DecodeErrors
@@ -405,8 +412,13 @@ func failureReasons(v verdict) []string {
 	// regression that fills it. Reordering therefore produces gaps and
 	// regressions in roughly equal measure; an excess of gaps over regressions
 	// is the part that was never filled, and that is loss.
+	// Only meaningful when every consumer receives the whole lane. A shared pull
+	// consumer hands each message to exactly ONE pod, so each pod's view of a
+	// lane is full of holes by design and the arithmetic below would condemn a
+	// correctly distributed run. Fleet-level loss on that path is what the
+	// delivered-versus-published comparison catches, not per-pod continuity.
 	unfilled := v.Sequence.Gaps - v.Sequence.Regressions
-	reasons = appendIf(reasons, unfilled > sequenceLossTolerance,
+	reasons = appendIf(reasons, v.ConsumeMode != consumeModePull && unfilled > sequenceLossTolerance,
 		fmt.Sprintf("%d lane sequences were never delivered (%d gaps, %d regressions)",
 			unfilled, v.Sequence.Gaps, v.Sequence.Regressions))
 	reasons = appendIf(reasons, !v.LagFlat, "consumer lag grew across the run")
