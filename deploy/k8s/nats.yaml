@@ -126,13 +126,14 @@ spec:
             # size GOMAXPROCS against instead of a burst ceiling it cannot see,
             # and makes the member eligible for the kubelet's static CPU policy.
             # 12-core nodes hold 5/5 on every member with room to spare.
-            # Memory is 8Gi, NOT matched to the request: an R3 memory-backed
-            # catalog holds every stream on every member plus a RAFT WAL that
-            # approaches a second copy between snapshots, and a 5Gi ceiling
-            # OOM-killed two members under a 90k/s bench. CPU stays matched so
-            # the Go runtime still sizes GOMAXPROCS off a real reservation.
+            # 5/5 matched. The OOM that briefly justified an 8Gi ceiling was
+            # caused by a 1 GiB memory-backed R3 bench stream resident on every
+            # member on top of this catalog, not by the catalog itself; the
+            # bench stream is now 256 MiB. Keep max_mem in nats-server.conf
+            # under this ceiling — JetStream sizes memory streams against
+            # max_mem and cannot see the container limit.
             requests: {cpu: "5", memory: 5Gi}
-            limits: {cpu: "5", memory: 8Gi}
+            limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
