@@ -38,6 +38,11 @@ publish_wire=${PUBLISH_WIRE:-atomic}
 # Client publish endpoint. Default spreads across members (PreferSameNode);
 # a leader FQDN removes the route-forwarding hop for every non-local pod.
 publish_url=${PUBLISH_URL:-tls://nats:4222}
+# Stream caps. Once a memory stream sits at its byte cap every publish evicts
+# the oldest message inside the apply loop, on every member, which starves
+# apply behind commit. Raise these to measure without eviction in the path.
+stream_max_mb=${STREAM_MAX_MB:-256}
+stream_max_msgs_per=${STREAM_MAX_MSGS_PER:-400000}
 stream_replicas=${STREAM_REPLICAS:-3}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
@@ -214,6 +219,8 @@ start_consumer() {
   local args
   args=$(json_args -role consume -routines "$routines" -guard-ttl "$guard_ttl" -tick 5s)
   sed -e "s|__STREAM_REPLICAS__|$stream_replicas|g" \
+      -e "s|__STREAM_MAX_MB__|$stream_max_mb|g" \
+      -e "s|__STREAM_MAX_MSGS_PER__|$stream_max_msgs_per|g" \
       "$here/consumer.yaml" >"$workdir/consumer.rendered.yaml"
   apply_manifest "$workdir/consumer.rendered.yaml" "$args" "$consumer_replicas" CONSUMER
   kubectl -n "$namespace" rollout status deployment/nats-stress-consumer \

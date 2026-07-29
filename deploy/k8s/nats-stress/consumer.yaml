@@ -77,6 +77,15 @@ spec:
             # guessed at.
             - name: STRESS_STREAM_REPLICAS
               value: "__STREAM_REPLICAS__"
+            # Eviction caps. A memory stream sitting at its byte cap evicts the
+            # oldest message on EVERY publish, inside the apply loop, on every
+            # member - which starves apply behind commit and blows up publish
+            # latency while CPU stays idle. Raise these to measure the write
+            # path without eviction in it.
+            - name: STRESS_STREAM_MAX_MB
+              value: "__STREAM_MAX_MB__"
+            - name: STRESS_STREAM_MAX_MSGS_PER
+              value: "__STREAM_MAX_MSGS_PER__"
             # Hub-direct, pinned beside the stream the way sesame pins its lane
             # consumers. The flow subscriber dials this URL, not the publish one.
             - name: NATS_HUB_URL

@@ -64,11 +64,11 @@ func stressStream() bus.StreamSpec {
 		// three pods. A 1 GiB bench stream OOM-killed two members mid-run. At
 		// 512B payloads this still buys ~500k messages of lag budget, well past
 		// the per-subject cap below, so nothing about the measurement changes.
-		MaxBytes: 256 << 20,
+		MaxBytes: int64(env.GetInt("STRESS_STREAM_MAX_MB", 256)) << 20,
 		// The consumer's lag budget in messages. At 100k/s this is four seconds of
 		// buffer before oldest-first eviction starts, which is what makes a flat
 		// lag curve a meaningful soak assertion rather than a tautology.
-		MaxMsgsPer: 400_000,
+		MaxMsgsPer: int64(env.GetInt("STRESS_STREAM_MAX_MSGS_PER", 400_000)),
 		Duplicates: 10 * time.Second,
 		Storage:    nats.MemoryStorage,
 		// R3 by default, because that is what the firehose runs. STRESS_STREAM_
