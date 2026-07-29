@@ -83,11 +83,16 @@ type lagSample struct {
 // consumerSummary is one consumer replica's whole run.
 type consumerSummary struct {
 	envelopeHeader
-	ConsumerID      string      `json:"consumer_id"`
-	Stream          string      `json:"stream"`
-	Subject         string      `json:"subject"`
-	Group           string      `json:"group"`
-	Consumer        string      `json:"consumer"`
+	ConsumerID string `json:"consumer_id"`
+	Stream     string `json:"stream"`
+	Subject    string `json:"subject"`
+	Group      string `json:"group"`
+	Consumer   string `json:"consumer"`
+	// ConsumeMode is the acknowledgement contract the run measured. Recorded
+	// because a delivered rate is meaningless without it: the flow mode's number
+	// counts every pod receiving the whole lane, the pull mode's counts the lane
+	// divided across pods, and the two are only comparable when labelled.
+	ConsumeMode     string      `json:"consume_mode"`
 	Routines        int         `json:"routines"`
 	GuardPrefix     string      `json:"guard_prefix"`
 	GuardTTL        string      `json:"guard_ttl"`
@@ -373,6 +378,12 @@ func soakFailures(soak *stepResult) int64 {
 	return soak.Failures + soak.FlushErrors
 }
 
+// sequenceLossTolerance is how far gaps may exceed regressions before the run is
+// called lossy. It is not zero: a run ends while cohorts are still in flight, so
+// the last few reorderings legitimately have no regression to pair with, and a
+// consumer that joins mid-stream sees one opening gap per lane.
+const sequenceLossTolerance = 1000
+
 // failureReasons is the pass/fail rule, written as one list so the verdict says
 // what is wrong rather than only that something is.
 func failureReasons(v verdict) []string {
@@ -387,6 +398,17 @@ func failureReasons(v verdict) []string {
 		fmt.Sprintf("%d natural redeliveries were applied twice", v.Guard.ControlDoubleApplied))
 	reasons = appendIf(reasons, v.SoakFailures > 0,
 		fmt.Sprintf("soak reported %d cohort failures", v.SoakFailures))
+	// Sequence integrity was previously absent from the rule entirely, so a run
+	// could report PASS while millions of lane sequences went missing. It has to
+	// be read carefully though: NATS_ATOMIC_PUBLISH_OVERLAP lets whole cohorts
+	// commit out of order, which shows up as a gap followed later by the
+	// regression that fills it. Reordering therefore produces gaps and
+	// regressions in roughly equal measure; an excess of gaps over regressions
+	// is the part that was never filled, and that is loss.
+	unfilled := v.Sequence.Gaps - v.Sequence.Regressions
+	reasons = appendIf(reasons, unfilled > sequenceLossTolerance,
+		fmt.Sprintf("%d lane sequences were never delivered (%d gaps, %d regressions)",
+			unfilled, v.Sequence.Gaps, v.Sequence.Regressions))
 	reasons = appendIf(reasons, !v.LagFlat, "consumer lag grew across the run")
 	reasons = appendIf(reasons, !v.SoakLatencyOK, "soak p99 exceeded the ramp baseline")
 	reasons = appendIf(reasons, v.Soak == nil, "no soak was run")

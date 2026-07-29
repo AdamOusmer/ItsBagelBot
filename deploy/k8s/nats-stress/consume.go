@@ -34,11 +34,23 @@ const (
 	appliedMeta    = "Stress-Applied"
 )
 
+// Consumer roles under test. They are two different fleet shapes, not two
+// settings of one: flow gives every pod the WHOLE lane (fan-out under the
+// autoscaler, correctness resting on the guard), pull gives the fleet one shared
+// durable the server distributes from (scale-out). Everything downstream of the
+// binding — guard, ledger, sequence accounting, lag polling — is identical, so
+// the two are directly comparable.
+const (
+	consumeModeFlow = "flow"
+	consumeModePull = "pull"
+)
+
 type consumerConfig struct {
 	URL          string
 	Subject      string
 	Group        string
 	ConsumerID   string
+	Mode         string
 	Routines     int
 	GuardEnabled bool
 	GuardPrefix  string
@@ -76,12 +88,10 @@ func runConsumer(ctx context.Context, cfg consumerConfig, log *zap.Logger) error
 	}
 	defer closeStore()
 
-	// The exported fixed-stream flow binding. Everything past it — consumer
-	// shape, receipt cursor, flow-control responses, watchdog — is the code the
-	// hot ingress lanes run, which is why a number measured here transfers.
-	sub, err := bus.NewFlowLaneSubscriber(bus.FlowLaneConfig{
-		URL: cfg.URL, Stream: stressStreamName, Subject: cfg.Subject, Group: cfg.Group, Log: log,
-	})
+	// The exported fixed-stream binding for the mode under test. Everything past
+	// it is the code the hot ingress lanes run in that mode, which is why a
+	// number measured here transfers.
+	sub, err := bindLane(cfg, log)
 	if err != nil {
 		return err
 	}
@@ -91,8 +101,8 @@ func runConsumer(ctx context.Context, cfg consumerConfig, log *zap.Logger) error
 		[]bus.WeightedLane{{Sub: sub, Subject: cfg.Subject, Handle: state.handle}},
 		// Pinned, not autoscaled: a routine count that moves during the run makes
 		// every latency comparison between steps a comparison of two pools. And
-		// MaxConsumers stays 1 because every unit in this pod shares the one flow
-		// binding anyway — extra units would add pool slots, not consumers.
+		// MaxConsumers stays 1 because every unit in this pod shares the one lane
+		// binding in either mode — extra units would add pool slots, not consumers.
 		bus.ScalePolicy{
 			MinRoutines: cfg.Routines, MaxRoutines: cfg.Routines,
 			MinConsumers: 1, MaxConsumers: 1,
@@ -112,6 +122,29 @@ func runConsumer(ctx context.Context, cfg consumerConfig, log *zap.Logger) error
 	}
 	emit(state.summary())
 	return nil
+}
+
+// bindLane opens the lane through the exported pkg/bus constructor for the mode
+// under test. Both are the fixed-stream escape hatch the rig needs — the shadow
+// stream is in no catalog — and both bind the same subject with the same group,
+// so the only difference between an A run and a B run is the consumer shape.
+func bindLane(cfg consumerConfig, log *zap.Logger) (bus.Subscriber, error) {
+	if cfg.Mode == consumeModePull {
+		return bus.NewPullLaneSubscriber(bus.PullLaneConfig{
+			URL: cfg.URL, Stream: stressStreamName, Subject: cfg.Subject, Group: cfg.Group, Log: log,
+		})
+	}
+	return bus.NewFlowLaneSubscriber(bus.FlowLaneConfig{
+		URL: cfg.URL, Stream: stressStreamName, Subject: cfg.Subject, Group: cfg.Group, Log: log,
+	})
+}
+
+// validConsumeMode refuses an unrecognised mode outright rather than defaulting.
+// A run whose mode silently fell back to flow would be reported as a pull
+// measurement, and a benchmark that lies about what it measured is worse than
+// one that refuses to start.
+func validConsumeMode(mode string) bool {
+	return mode == consumeModeFlow || mode == consumeModePull
 }
 
 func newConsumeState(cfg consumerConfig, log *zap.Logger) (*consumeState, func(), error) {
@@ -299,35 +332,47 @@ func (s *consumeState) sampleLag(ctx context.Context, js jsapi.JetStream) {
 	s.lag.add(sample)
 }
 
-// findConsumer locates this pod's own flow consumer by listing the stream's
-// consumers each sample rather than reconstructing the durable name. Listing
-// self-heals: the flow subscriber's watchdog re-provisions after a heartbeat
-// loss, and a cached name would keep polling a consumer that is gone.
+// findConsumer locates the consumer this pod is fetching from (pull) or pushed
+// by (flow), by listing the stream's consumers each sample rather than
+// reconstructing the durable name. Listing self-heals: the flow subscriber's
+// watchdog re-provisions after a heartbeat loss, and a cached name would keep
+// polling a consumer that is gone.
 //
-// The name suffix is the pod name because pkg/bus builds the durable as
-// <group>_<subject-token>_<pod-token>, and a Kubernetes pod name is already
+// The single-candidate path is the normal one in BOTH modes, for opposite
+// reasons: pull has exactly one durable for the whole fleet by construction, and
+// a single-replica flow run has exactly one because there is one pod. The suffix
+// match is only the multi-pod flow case, where pkg/bus builds the durable as
+// <group>_<subject-token>_<pod-token> and a Kubernetes pod name is already
 // inside the character set and the 48-character bound its sanitiser applies.
-// When only one flow consumer exists on the stream the suffix does not have to
-// match — a single-replica run is the common case and must not silently report
-// zero lag over a naming detail.
 func (s *consumeState) findConsumer(ctx context.Context, stream jsapi.Stream) *jsapi.ConsumerInfo {
-	candidates := s.flowConsumers(ctx, stream)
+	candidates := s.laneConsumers(ctx, stream)
 	if len(candidates) == 1 {
 		return candidates[0]
 	}
 	return ownConsumer(candidates, s.cfg.ConsumerID)
 }
 
-func (s *consumeState) flowConsumers(ctx context.Context, stream jsapi.Stream) []*jsapi.ConsumerInfo {
+func (s *consumeState) laneConsumers(ctx context.Context, stream jsapi.Stream) []*jsapi.ConsumerInfo {
+	want := s.laneAckPolicy()
 	var candidates []*jsapi.ConsumerInfo
 	// Drained to completion: abandoning the lister mid-page leaks the goroutine
 	// nats.go pages it from, once per second for the length of the run.
 	for info := range stream.ListConsumers(ctx).Info() {
-		if info.Config.FilterSubject == s.cfg.Subject && info.Config.AckPolicy == jsapi.AckFlowControlPolicy {
+		if info.Config.FilterSubject == s.cfg.Subject && info.Config.AckPolicy == want {
 			candidates = append(candidates, info)
 		}
 	}
 	return candidates
+}
+
+// laneAckPolicy is how the lag poller tells the two modes' consumers apart on a
+// stream that may still carry a leftover from the other mode's run: the ack
+// policy is the one field that cannot be the same for both.
+func (s *consumeState) laneAckPolicy() jsapi.AckPolicy {
+	if s.cfg.Mode == consumeModePull {
+		return jsapi.AckAllPolicy
+	}
+	return jsapi.AckFlowControlPolicy
 }
 
 func ownConsumer(candidates []*jsapi.ConsumerInfo, identity string) *jsapi.ConsumerInfo {
@@ -388,6 +433,7 @@ func (s *consumeState) summary() consumerSummary {
 		Stream:          stressStreamName,
 		Subject:         s.cfg.Subject,
 		Group:           s.cfg.Group,
+		ConsumeMode:     s.cfg.Mode,
 		Routines:        s.cfg.Routines,
 		GuardPrefix:     s.cfg.GuardPrefix,
 		GuardTTL:        s.cfg.GuardTTL.String(),

@@ -191,6 +191,10 @@ func parseOptions(args []string) (options, error) {
 	if err := fs.Parse(args); err != nil {
 		return o, err
 	}
+	if !validConsumeMode(o.consumer.Mode) {
+		return o, fmt.Errorf("nats-stress: unknown -consume-mode %q (want %s or %s)",
+			o.consumer.Mode, consumeModeFlow, consumeModePull)
+	}
 	o.reportIn = fs.Args()
 	return o.resolved(), nil
 }
@@ -231,6 +235,11 @@ func bindPublisher(fs *flag.FlagSet, o *options) {
 
 func bindConsumer(fs *flag.FlagSet, o *options) {
 	c := &o.consumer
+	// The A/B knob. CONSUME_MODE is the env consumer.yaml carries, so run.sh sets
+	// the flag and the pod's environment from the same variable and they cannot
+	// disagree about which contract the run measured.
+	fs.StringVar(&c.Mode, "consume-mode", env.Get("CONSUME_MODE", consumeModeFlow),
+		"lane acknowledgement contract under test: flow (per-pod push) | pull (shared durable)")
 	fs.IntVar(&c.Routines, "routines", 100, "handler routines (pinned; production sesame runs 100)")
 	fs.BoolVar(&c.GuardEnabled, "guard", true, "run guard-sampled events through pkg/idempotency")
 	fs.StringVar(&c.GuardPrefix, "guard-prefix", "", "Valkey claim prefix (default stress:seen:<pod>:)")

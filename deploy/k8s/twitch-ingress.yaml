@@ -207,18 +207,21 @@ spec:
             # warning on stderr and stays "atomic".
             - name: INGRESS_PUBLISH_WIRE
               value: "atomic"
-            # Unresolved atomic batches per shard: a latency x flush-rate
-            # window (Little's law), not a mirror of the broker's per-stream
-            # cap. ~1000 cohorts/s at BATCH_WAIT_MS=1 x 16 ms of commit-ack
-            # latency = 16. Fleet worst case is 4 replicas x 2 schedulers
-            # (+S 2:2) x 16 = 128 open batches on TWITCH_INGRESS against the
-            # broker's stock 50; over-cap opens come back as a definite
-            # 10210/429 and re-drive per message (Nats/PublishBatchFallback),
-            # so the overshoot costs a round trip, never an event.
-            # Nats/PublishBatchBypassed instead means this local window filled:
-            # a commit-latency alarm, not a budget one.
+            # Unresolved atomic batches per shard, sized so the FLEET stays
+            # under the broker's stock per-stream cap of 50 open atomic batches.
+            # 4 replicas x 2 schedulers (+S 2:2) = 8 shards, so 6 each = 48.
+            # The previous 16 put the fleet at 128 against that 50: every open
+            # past the cap comes back 10210/429 and re-drives per message, which
+            # silently removes the RAFT batching this wire exists for, and it
+            # does so exactly when the fleet is busiest. Little's law would
+            # argue for a deeper window (~1000 cohorts/s x 16 ms commit-ack
+            # latency = 16), but a window the broker refuses to honour is not a
+            # window. Raise the broker cap first if this needs to grow.
+            # Nats/PublishBatchFallback rising means the fleet is over the cap;
+            # Nats/PublishBatchBypassed means this local window filled, which is
+            # a commit-latency alarm rather than a budget one.
             - name: INGRESS_PUBLISH_BATCH_INFLIGHT
-              value: "16"
+              value: "6"
             # Match normal and dirty schedulers to the two-CPU cgroup below.
             # `short` normal-scheduler busy-wait was modestly faster than
             # `none` across repeated direct-dispatch runs, while dirty

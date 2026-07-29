@@ -44,6 +44,15 @@ publish_url=${PUBLISH_URL:-tls://nats:4222}
 stream_max_mb=${STREAM_MAX_MB:-256}
 stream_max_msgs_per=${STREAM_MAX_MSGS_PER:-400000}
 stream_replicas=${STREAM_REPLICAS:-3}
+# Lane acknowledgement contract under test: flow | pull. Substituted into
+# consumer.yaml AND passed as -consume-mode, from this one variable, so the pod's
+# environment and the role's flag can never describe different runs.
+#
+# It changes what CONSUMER_REPLICAS means, which is the whole reason to A/B it:
+# under flow every pod receives the WHOLE lane (N pods = N copies), under pull
+# the fleet shares one durable and the server hands each message to exactly one
+# pod (N pods = the lane divided). Compare a 2-replica run in each mode.
+consume_mode=${CONSUME_MODE:-flow}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -155,6 +164,20 @@ require_go() {
   exit 1
 }
 
+# require_consume_mode rejects an unknown mode before anything reaches the
+# cluster. The rig refuses it too, but only after the Deployment is rolled out
+# and the shadow stream provisioned -- and a failed roll is a slower, noisier way
+# to learn about a typo.
+require_consume_mode() {
+  case $consume_mode in
+    flow | pull) ;;
+    *)
+      echo "CONSUME_MODE must be flow or pull (got '$consume_mode')" >&2
+      exit 1
+      ;;
+  esac
+}
+
 require_priority_class() {
   local json
   json=$(kubectl get priorityclass "$priority_class" -o json)
@@ -217,10 +240,12 @@ wait_for_line() {
 
 start_consumer() {
   local args
-  args=$(json_args -role consume -routines "$routines" -guard-ttl "$guard_ttl" -tick 5s)
+  args=$(json_args -role consume -consume-mode "$consume_mode" \
+    -routines "$routines" -guard-ttl "$guard_ttl" -tick 5s)
   sed -e "s|__STREAM_REPLICAS__|$stream_replicas|g" \
       -e "s|__STREAM_MAX_MB__|$stream_max_mb|g" \
       -e "s|__STREAM_MAX_MSGS_PER__|$stream_max_msgs_per|g" \
+      -e "s|__CONSUME_MODE__|$consume_mode|g" \
       "$here/consumer.yaml" >"$workdir/consumer.rendered.yaml"
   apply_manifest "$workdir/consumer.rendered.yaml" "$args" "$consumer_replicas" CONSUMER
   kubectl -n "$namespace" rollout status deployment/nats-stress-consumer \
@@ -267,6 +292,7 @@ main() {
   require_confirmation
   require_image
   require_go
+  require_consume_mode
   require_priority_class
   require_secrets
 

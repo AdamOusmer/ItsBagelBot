@@ -3,9 +3,9 @@
 # NOT part of deploy/k8s/kustomization.yaml and deliberately so: Flux must never
 # reconcile a load generator back into existence. run.sh applies it, tails it,
 # and deletes it. Placeholders (__BENCH_IMAGE__, __CONSUMER_ARGS__,
-# __CONSUMER_REPLICAS__) are substituted by run.sh; applying this file by hand
-# will be rejected by the API server rather than starting something half
-# configured.
+# __CONSUMER_REPLICAS__, __CONSUME_MODE__, __STREAM_*__) are substituted by
+# run.sh; applying this file by hand will be rejected by the API server rather
+# than starting something half configured.
 #
 # Shape mirrors sesame: same worker-pool toleration, same node exclusions, same
 # routine count, same Valkey wiring, same hub-direct BUS endpoint. That is the
@@ -115,9 +115,25 @@ spec:
             # explicit-ACK durable path and the run would measure the wrong lane.
             - name: NATS_CONSUME_FLOW
               value: "on"
-            # pkg/bus derives this pod's durable consumer name from POD_NAME.
-            # Without it two pods in one Deployment would collide on one durable
-            # and corrupt each other's ack floor.
+            # Which acknowledgement contract this run measures. run.sh sets this
+            # and the role's -consume-mode flag from the same variable, so they
+            # cannot disagree about what the reported number describes.
+            #
+            #   flow  per-pod AckFlowControl push consumer. Every pod receives
+            #         the WHOLE lane, so raising CONSUMER_REPLICAS multiplies
+            #         delivery and handler work instead of dividing it.
+            #   pull  one shared durable the whole fleet fetches from. The server
+            #         hands each message to exactly one pod, so raising
+            #         CONSUMER_REPLICAS divides the lane -- which is the point of
+            #         running the two side by side.
+            - name: CONSUME_MODE
+              value: "__CONSUME_MODE__"
+            # pkg/bus derives the FLOW mode's durable consumer name from
+            # POD_NAME. Without it two pods in one Deployment would collide on
+            # one durable and corrupt each other's ack floor. The pull mode
+            # deliberately ignores it: sharing one durable is what makes the
+            # server distribute the lane, and a pod suffix there would turn pull
+            # back into the fan-out shape.
             - name: POD_NAME
               valueFrom:
                 fieldRef:

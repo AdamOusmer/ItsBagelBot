@@ -171,3 +171,26 @@ func TestMergeSumsConsumerRepliasWithoutTreatingThemAsAPartition(t *testing.T) {
 		t.Fatalf("consumers = %d, want 2", got.Consumers)
 	}
 }
+
+func TestReorderingPassesButUnfilledGapsFail(t *testing.T) {
+	// Overlapped cohorts commit out of order, so a gap is normally followed by
+	// the regression that fills it. Equal counts must not fail the run.
+	reordered := verdict{Sequence: seqCounts{Gaps: 3_000_156, Regressions: 3_000_182}}
+	for _, reason := range failureReasons(reordered) {
+		if strings.Contains(reason, "never delivered") {
+			t.Fatalf("reordering was reported as loss: %q", reason)
+		}
+	}
+
+	// Gaps with no regressions to pair with are holes nothing ever filled.
+	lossy := verdict{Sequence: seqCounts{Gaps: 50_000, Regressions: 12}}
+	var found bool
+	for _, reason := range failureReasons(lossy) {
+		if strings.Contains(reason, "never delivered") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("unfilled gaps did not fail the verdict: %v", failureReasons(lossy))
+	}
+}

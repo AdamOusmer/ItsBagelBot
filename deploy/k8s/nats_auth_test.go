@@ -100,6 +100,13 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 		// The harness's consumer role answers flow control on the bench stream;
 		// scoped there and nowhere else, like the mutation verbs above.
 		"$JS.FC.R3_SHADOW_BENCH.>",
+		// The pull mode's cumulative ack. Under AckAll one publish here moves the
+		// floor for a whole batch, so it is ack authority of the same kind as
+		// $JS.FC and carries the same exact-stream scope. Both forms, because the
+		// server switches to the <domain>.<account-hash> subject under a
+		// JetStream domain and this fleet runs one.
+		"$JS.ACK.R3_SHADOW_BENCH.>",
+		"$JS.ACK.*.*.R3_SHADOW_BENCH.>",
 		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
 	}
 	slices.Sort(want)
