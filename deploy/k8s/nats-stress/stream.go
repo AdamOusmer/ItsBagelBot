@@ -47,16 +47,24 @@ const (
 // would let the two batch capabilities be forgotten, which turns every fast-wire
 // cohort into a rejection.
 //
-// The limits mirror TWITCH_INGRESS because the point of the run is the ingress
+// The shape mirrors TWITCH_INGRESS because the point of the run is the ingress
 // lane's operating point: R3 so the RAFT commit cost is real, memory-backed so
-// the per-event disk write is out of the way, 1 GiB stream cap and 400k
-// per-subject cap so eviction happens where production would evict.
+// the per-event disk write is out of the way, and a per-subject cap so eviction
+// happens where production would evict. The byte cap is deliberately smaller —
+// see MaxBytes.
 func stressStream() bus.StreamSpec {
 	return bus.StreamSpec{
 		Name:     stressStreamName,
 		Subjects: []string{stressSubjectPrefix + ">"},
 		MaxAge:   5 * time.Minute,
-		MaxBytes: 1 << 30,
+		// 256 MiB, not the 1 GiB TWITCH_INGRESS carries. The bench stream is
+		// memory-backed and R3, so its cap is held IN FULL ON EVERY MEMBER, plus
+		// a RAFT WAL that approaches a second copy between snapshots - all of it
+		// additive to the production catalog already resident on those same
+		// three pods. A 1 GiB bench stream OOM-killed two members mid-run. At
+		// 512B payloads this still buys ~500k messages of lag budget, well past
+		// the per-subject cap below, so nothing about the measurement changes.
+		MaxBytes: 256 << 20,
 		// The consumer's lag budget in messages. At 100k/s this is four seconds of
 		// buffer before oldest-first eviction starts, which is what makes a flat
 		// lag curve a meaningful soak assertion rather than a tautology.
