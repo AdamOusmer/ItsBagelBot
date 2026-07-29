@@ -145,9 +145,17 @@ spec:
                 # during NATS restarts.
                 command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
+            # 10 minutes, not 50 seconds. Full /healthz stays 503 until every
+            # assigned stream and consumer is current, and an R3 memory-backed
+            # catalog re-syncs its whole dataset from the leader on boot: a
+            # restarted member measured 6.5 minutes to go green. A budget shorter
+            # than that is self-perpetuating - the kubelet kills the member
+            # mid-catchup, the restart begins the catchup again, and the pod
+            # never leaves CrashLoopBackOff. Restarting during startup is free;
+            # killing a member that is doing exactly what it should is not.
             httpGet: {path: /healthz, port: monitor}
             periodSeconds: 5
-            failureThreshold: 10
+            failureThreshold: 120
             timeoutSeconds: 1
           livenessProbe:
             httpGet: {path: /healthz, port: monitor}
