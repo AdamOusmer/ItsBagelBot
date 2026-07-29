@@ -323,39 +323,44 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 	if s.group == "" {
 		return s.broadcastSubscriber(target)
 	}
-	if s.usesFlowConsumer(target) {
-		return s.flowSubscriberFor(target)
+	if mode := s.laneModeFor(target); mode != laneModeExplicit {
+		return s.sharedLaneSubscriberFor(target, mode)
 	}
 	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
 	maxDeliveries := fleetMaxRedeliveries + 1
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// usesFlowConsumer is the scope guard for receipt-level acknowledgement. Only
-// the perishable hot ingress lanes qualify; every control lane, status subject
-// and work-queue stream keeps explicit acks, and the refusal is logged so an
-// operator who set NATS_CONSUME_FLOW can see which lanes it actually reached.
-func (s *fleetSubscriber) usesFlowConsumer(target subscriptionTarget) bool {
-	if !FlowConsumeEnabled() {
-		return false
+// laneModeFor is the scope guard for receipt-level acknowledgement. Only the
+// perishable hot ingress lanes qualify for either receipt-level mode; every
+// control lane, status subject and work-queue stream keeps explicit acks, and
+// the refusal is logged so an operator who set the mode can see which lanes it
+// actually reached.
+func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
+	mode := consumeMode()
+	if mode == laneModeExplicit || isHotIngressLane(target.stream, target.topic) {
+		return mode
 	}
-	if isHotIngressLane(target.stream, target.topic) {
-		return true
-	}
-	s.logger().Info("flow consumption declined outside the hot ingress lanes",
-		zap.String("stream", target.stream), zap.String("subject", target.topic))
-	return false
+	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",
+		zap.String("stream", target.stream),
+		zap.String("subject", target.topic),
+		zap.String("mode", string(mode)))
+	return laneModeExplicit
 }
 
-// sharedFlowLane is one pod-wide flow-lane binding. AckFlowControl has coherent
+// sharedFlowLane is one pod-wide receipt-level lane binding, in either mode.
+//
+// The flow mode has no choice about sharing: AckFlowControl has coherent
 // acknowledgement semantics only for a single subscriber, so every consumer unit
-// in this process shares one consumer, one receipt cursor and one flow-control
-// conversation; the units simply read the same lane channel. The binding lives
-// until the last unit holding it releases it.
+// in this process must share one consumer, one receipt cursor and one
+// flow-control conversation. The pull mode shares for economy rather than
+// correctness — a second fetch loop against the same durable would be a second
+// stream of MSG.NEXT requests for the same lane. Either way the units read the
+// same channel, and the binding lives until the last unit releases it.
 type sharedFlowLane struct {
 	owner *fleetSubscriber
 	key   string
-	sub   *flowSubscriber
+	sub   Subscriber
 	refs  int
 }
 
@@ -376,8 +381,11 @@ func (h *flowLaneHandle) Close() error {
 	return err
 }
 
-func (s *fleetSubscriber) flowSubscriberFor(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
-	lane, err := s.acquireFlowLane(target)
+func (s *fleetSubscriber) sharedLaneSubscriberFor(
+	target subscriptionTarget,
+	mode laneConsumeMode,
+) (Subscriber, *nats.Conn, error) {
+	lane, err := s.acquireFlowLane(target, mode)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -386,7 +394,9 @@ func (s *fleetSubscriber) flowSubscriberFor(target subscriptionTarget) (Subscrib
 	return &flowLaneHandle{lane: lane}, nil, nil
 }
 
-func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget) (*sharedFlowLane, error) {
+func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget, mode laneConsumeMode) (*sharedFlowLane, error) {
+	// The mode is process-wide and fixed for the life of the pod, so it is not
+	// part of the key: one lane can never be bound in both modes at once here.
 	key := target.stream + "|" + target.topic
 	s.mu.Lock()
 	if s.closed {
@@ -400,20 +410,39 @@ func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget) (*sharedFlo
 	}
 	s.mu.Unlock()
 
-	sub, err := newFlowLaneSubscriber(flowLaneConfig{
+	sub, err := newSharedLaneSubscriber(flowLaneConfig{
 		url: s.url, stream: target.stream, subject: target.topic, group: s.group, log: s.log,
-	})
+	}, mode)
 	if err != nil {
 		return nil, err
 	}
 	return s.rememberFlowLane(key, sub)
 }
 
+// newSharedLaneSubscriber builds the binding the mode asks for. Both
+// constructors return a concrete pointer, so each is widened to the interface
+// only after its error has been checked: a typed nil behind Subscriber is a
+// non-nil interface value that panics on first use.
+func newSharedLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (Subscriber, error) {
+	if mode == laneModePull {
+		sub, err := newPullLaneSubscriber(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return sub, nil
+	}
+	sub, err := newFlowLaneSubscriber(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return sub, nil
+}
+
 // rememberFlowLane publishes a freshly built binding, discarding it when another
 // unit won the race to build the same lane or the subscriber closed meanwhile.
 // The surplus binding is released outside the lock, because closing it drains
 // deliveries.
-func (s *fleetSubscriber) rememberFlowLane(key string, sub *flowSubscriber) (*sharedFlowLane, error) {
+func (s *fleetSubscriber) rememberFlowLane(key string, sub Subscriber) (*sharedFlowLane, error) {
 	lane, surplus, err := s.storeFlowLane(key, sub)
 	if surplus {
 		_ = sub.Close()
@@ -421,7 +450,7 @@ func (s *fleetSubscriber) rememberFlowLane(key string, sub *flowSubscriber) (*sh
 	return lane, err
 }
 
-func (s *fleetSubscriber) storeFlowLane(key string, sub *flowSubscriber) (*sharedFlowLane, bool, error) {
+func (s *fleetSubscriber) storeFlowLane(key string, sub Subscriber) (*sharedFlowLane, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {

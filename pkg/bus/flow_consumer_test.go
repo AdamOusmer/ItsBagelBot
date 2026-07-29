@@ -574,15 +574,15 @@ func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 	hot := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.event.premium"}
 	control := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.status.authz.revoked"}
 
-	if !subscriber.usesFlowConsumer(hot) {
+	if subscriber.laneModeFor(hot) != laneModeFlow {
 		t.Fatal("the hot premium lane was refused a flow consumer")
 	}
-	if subscriber.usesFlowConsumer(control) {
+	if subscriber.laneModeFor(control) != laneModeExplicit {
 		t.Fatal("a status lane was given a flow consumer")
 	}
 
 	t.Setenv("NATS_CONSUME_FLOW", "off")
-	if subscriber.usesFlowConsumer(hot) {
+	if subscriber.laneModeFor(hot) != laneModeExplicit {
 		t.Fatal("NATS_CONSUME_FLOW=off still bound a flow consumer")
 	}
 }

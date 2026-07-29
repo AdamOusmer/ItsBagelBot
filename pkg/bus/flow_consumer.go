@@ -156,6 +156,46 @@ func FlowConsumeEnabled() bool {
 	return env.Get("NATS_CONSUME_FLOW", "on") != "off"
 }
 
+// laneConsumeMode is the acknowledgement contract the hot ingress lanes bind
+// under. The three are genuinely different shapes, not settings of one shape:
+//
+//	flow      per-pod AckFlowControl push consumer. Every pod receives the WHOLE
+//	          lane, so a pod added by the autoscaler multiplies delivery and
+//	          handler work rather than dividing it.
+//	pull      one fleet-wide durable, fetched by every pod. The server hands each
+//	          message to exactly one pod, so a pod added divides the lane.
+//	explicit  the ordinary durable queue-group consumer with per-message acks.
+type laneConsumeMode string
+
+const (
+	laneModeFlow     laneConsumeMode = "flow"
+	laneModePull     laneConsumeMode = "pull"
+	laneModeExplicit laneConsumeMode = "explicit"
+)
+
+// consumeMode resolves the configured contract. The default is deliberately
+// unchanged: flow is what production runs, and this knob exists to A/B pull
+// against it rather than to switch the fleet over.
+//
+// NATS_CONSUME_FLOW=off predates NATS_CONSUME_MODE and still wins outright,
+// because it is set in deployed manifests as the kill switch back to explicit
+// acks — an operator reaching for it during an incident must not have to know
+// that a second variable exists. An unrecognised mode falls back to flow for the
+// same reason: a typo must not silently change the lane's shape.
+func consumeMode() laneConsumeMode {
+	if !FlowConsumeEnabled() {
+		return laneModeExplicit
+	}
+	switch laneConsumeMode(env.Get("NATS_CONSUME_MODE", string(laneModeFlow))) {
+	case laneModePull:
+		return laneModePull
+	case laneModeExplicit:
+		return laneModeExplicit
+	default:
+		return laneModeFlow
+	}
+}
+
 // RetryLaneSubject is the retry lane a failed hot-lane event is scheduled onto.
 // It is the schedule's target subject, and the subject a consumer binds to pick
 // the retry back up.
@@ -767,28 +807,34 @@ func (s *flowSubscriber) awaitResult(delivery flowDelivery) {
 	}
 }
 
-// scheduleRetry is the flow path's redelivery. The server holds no per-message
-// pending state to NAK against — it does not even subscribe to $JS.ACK for this
-// ack policy — so the adapter hands the event to the broker's own scheduler
-// instead: a one-shot @at row on the retry stream that re-emits the payload onto
-// the retry lane once the delay has passed, then purges itself.
 func (s *flowSubscriber) scheduleRetry(delivery flowDelivery) {
-	msg := delivery.msg
-	if attempt := msg.Metadata.Get(RetryCountHeader); attempt != "" {
-		s.dropRetry(msg, fmt.Errorf("one-hop retry budget exhausted at attempt %s", attempt))
-		return
-	}
-	schedule := retryScheduleMsg(s.subject, delivery.wire, flowRetryDelay(), time.Now())
-	ack, err := s.nc.RequestMsg(schedule, flowRetryTimeout)
-	if err != nil {
-		s.dropRetry(msg, err)
-		return
-	}
-	if err := pubAckError(ack); err != nil {
-		s.dropRetry(msg, err)
+	if err := scheduleLaneRetry(s.nc, s.subject, delivery.wire, delivery.msg); err != nil {
+		s.dropRetry(delivery.msg, err)
 		return
 	}
 	s.retried.Add(1)
+}
+
+// scheduleLaneRetry is the redelivery both receipt-level lane adapters share.
+// Neither has per-message pending state to NAK against: the flow lane's server
+// does not even subscribe to $JS.ACK for its ack policy, and the pull lane's
+// cumulative floor has already moved past the message. Both therefore hand the
+// event to the broker's own scheduler instead — a one-shot @at row on the retry
+// stream that re-emits the payload onto the retry lane once the delay has
+// passed, then purges itself.
+//
+// It is one function on purpose: the budget check, the schedule shape and the
+// PubAck-error reading are the parts that go silently wrong, and a second copy
+// of them would be a second place for a retry to be dropped without a trace.
+func scheduleLaneRetry(nc *nats.Conn, lane string, wire *nats.Msg, msg *Message) error {
+	if attempt := msg.Metadata.Get(RetryCountHeader); attempt != "" {
+		return fmt.Errorf("one-hop retry budget exhausted at attempt %s", attempt)
+	}
+	ack, err := nc.RequestMsg(retryScheduleMsg(lane, wire, flowRetryDelay(), time.Now()), flowRetryTimeout)
+	if err != nil {
+		return err
+	}
+	return pubAckError(ack)
 }
 
 // retryScheduleMsg builds the one-shot schedule row. The row's own subject is

@@ -291,11 +291,20 @@ func messageIdentity(wire *nats.Msg) string {
 		return id
 	}
 	if metadata, err := wire.Metadata(); err == nil && metadata.Sequence.Stream > 0 {
-		return fmt.Sprintf("js:%s:%s:%d", metadata.Domain, metadata.Stream, metadata.Sequence.Stream)
+		return jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream)
 	}
 	// This path covers legacy/core messages without JetStream reply metadata.
 	// NUID is process-safe and avoids introducing UUID machinery.
 	return nuid.Next()
+}
+
+// jetStreamIdentity is the fallback identity for an event whose publisher set
+// none. It is derived rather than random so it survives a retry hop: the pull
+// adapter stamps it from the pull API's own metadata (see pullWireMessage),
+// which cannot reach nats.go's subscription-bound parser, and both paths must
+// produce the same string for the same delivery.
+func jetStreamIdentity(domain, stream string, sequence uint64) string {
+	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
 }
 
 func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *Message) {
