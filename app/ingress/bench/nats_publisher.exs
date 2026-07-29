@@ -16,9 +16,31 @@ defmodule BenchGnat do
     {:reply, {:ok, sid}, %{state | receiver: receiver, sid: sid}}
   end
 
+  # An atomic cohort deliberately omits reply_to on its intermediate messages:
+  # only the opening and committing messages carry an inbox. Answering a publish
+  # that asked for no reply is what the broker does, so the fake must do it too -
+  # fetch!/2 here turned the default wire into a KeyError and left the BEAM-side
+  # publisher unmeasured.
+  # Emulates the ADR-050 reply contract, not just "answer everything with a
+  # PubAck". The broker acknowledges a batch-OPEN with a zero-byte body and only
+  # the COMMIT carries the stored PubAck; answering the open with a PubAck is how
+  # a broker signals it does not implement atomic publish at all, which made the
+  # publisher correctly fall back to singles and left the atomic wire unmeasured.
   def handle_call({:pub, _topic, _message, opts}, _from, state) do
-    send(state.receiver, {:msg, %{topic: Keyword.fetch!(opts, :reply_to), body: ~s({"seq":1})}})
+    case Keyword.get(opts, :reply_to) do
+      nil -> :ok
+      reply -> send(state.receiver, {:msg, %{topic: reply, body: batch_reply(reply)}})
+    end
+
     {:reply, :ok, state}
+  end
+
+  # bs. = batch open (zero-byte accept), bc. = commit, s. = single publish.
+  defp batch_reply(reply) do
+    cond do
+      String.contains?(reply, ".bs.") -> ""
+      true -> ~s({"seq":1})
+    end
   end
 end
 
