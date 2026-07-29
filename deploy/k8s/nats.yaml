@@ -102,6 +102,14 @@ spec:
             # resources.limits.cpu.
             - name: GOMAXPROCS
               value: "5"
+            # Without this the Go GC has no idea a ceiling exists: JetStream is
+            # allowed 4GiB of memory streams, and the heap grows toward that plus
+            # the RAFT WAL and connection buffers until the kernel OOM-kills the
+            # member - which is exactly how two members were lost under load.
+            # A soft limit below the container limit makes the GC work harder
+            # instead of dying. Keep it ~80% of resources.limits.memory.
+            - name: GOMEMLIMIT
+              value: "4GiB"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
