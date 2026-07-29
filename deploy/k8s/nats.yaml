@@ -93,6 +93,15 @@ spec:
             - secretRef:
                 name: nats-auth-env
           env:
+            # The Go runtime sizes its scheduler from the cgroup CPU limit, but
+            # only when one is set; with requests-only it reads the host's core
+            # count (12 here) and starts that many Ps against a much smaller
+            # quota, paying CFS throttling and scheduler contention on a commit
+            # path that is already lock-heavy. Pinning it to the limit measured
+            # lower hub CPU and higher throughput at once. Keep equal to
+            # resources.limits.cpu.
+            - name: GOMAXPROCS
+              value: "5"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -107,15 +116,18 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # Memory-backed streams need headroom above JetStream's 4GB max_mem for
-            # dedup indexes, connections and the Go runtime. Every app-tier node
-            # has 12 cores. Sustained load has peaked near 1.77 cores on a stream
-            # leader; reserve 1.5 on every member so quorum placement never
-            # strands a node, while the 4-core ceiling lets the leader burst.
-            # Memory stays 2Gi: with every stream R3 each member holds a copy of
-            # all of them rather than only the ones it leads.
-            requests: {cpu: 1500m, memory: 2Gi}
-            limits: {cpu: "4", memory: 6Gi}
+            # Memory-backed streams need headroom above JetStream's 4GB max_mem
+            # for dedup indexes, connections and the Go runtime, and with every
+            # stream R3 each member holds a copy of all of them rather than only
+            # the ones it leads. Every app-tier node has 12 cores, so 5/5 fits
+            # three members with room left for the rest of the tier.
+            # requests == limits (Guaranteed QoS) on the recommendation of the
+            # upstream NATS chart: it gives the Go runtime a real reservation to
+            # size GOMAXPROCS against instead of a burst ceiling it cannot see,
+            # and makes the member eligible for the kubelet's static CPU policy.
+            # 12-core nodes hold 5/5 on every member with room to spare.
+            requests: {cpu: "5", memory: 5Gi}
+            limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
