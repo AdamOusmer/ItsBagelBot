@@ -38,6 +38,7 @@ publish_wire=${PUBLISH_WIRE:-atomic}
 # Client publish endpoint. Default spreads across members (PreferSameNode);
 # a leader FQDN removes the route-forwarding hop for every non-local pod.
 publish_url=${PUBLISH_URL:-tls://nats:4222}
+stream_replicas=${STREAM_REPLICAS:-3}
 dup_fraction=${DUP_FRACTION:-0.01}
 routines=${ROUTINES:-100}
 guard_ttl=${GUARD_TTL:-2m}
@@ -212,7 +213,9 @@ wait_for_line() {
 start_consumer() {
   local args
   args=$(json_args -role consume -routines "$routines" -guard-ttl "$guard_ttl" -tick 5s)
-  apply_manifest "$here/consumer.yaml" "$args" "$consumer_replicas" CONSUMER
+  sed -e "s|__STREAM_REPLICAS__|$stream_replicas|g" \
+      "$here/consumer.yaml" >"$workdir/consumer.rendered.yaml"
+  apply_manifest "$workdir/consumer.rendered.yaml" "$args" "$consumer_replicas" CONSUMER
   kubectl -n "$namespace" rollout status deployment/nats-stress-consumer \
     --timeout="${ready_timeout}s" >/dev/null
   follow_logs consumer "$consumer_log"

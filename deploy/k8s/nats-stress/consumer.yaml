@@ -71,6 +71,12 @@ spec:
           imagePullPolicy: IfNotPresent
           args: __CONSUMER_ARGS__
           env:
+            # Replica count for the shadow stream this role provisions. R1 has
+            # no RAFT group and therefore no synchronous WAL fsync on the commit
+            # path, which is how the cost of replication gets priced instead of
+            # guessed at.
+            - name: STRESS_STREAM_REPLICAS
+              value: "__STREAM_REPLICAS__"
             # Hub-direct, pinned beside the stream the way sesame pins its lane
             # consumers. The flow subscriber dials this URL, not the publish one.
             - name: NATS_HUB_URL
