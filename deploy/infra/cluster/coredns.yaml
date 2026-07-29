@@ -9,8 +9,8 @@
 #      hostnames from a fleet that no longer exists, and the control plane
 #      needs DNS as much as the app tier now that cert-manager, KEDA,
 #      metrics-server and the Doppler operator sit beside the API server.
-#   2. kube-dns gets trafficDistribution: PreferSameNode (same mechanism as
-#      the nats Service), so a query never leaves the node it came from.
+#   2. kube-dns gets internalTrafficPolicy: Local (enforced node-local, same
+#      mechanism as valkey-local), so a query never leaves the node it came from.
 #
 # The ConfigMap deliberately declares ONLY the Corefile key. NodeHosts is
 # owned and continuously updated by the k3s node-hosts controller; omitting
@@ -219,10 +219,13 @@ spec:
   type: ClusterIP
   clusterIP: 10.43.0.10
   ipFamilyPolicy: SingleStack
-  # Resolve against the node-local CoreDNS. The DaemonSet covers every node, so
-  # this normally never leaves the host; it falls back to a remote endpoint only
-  # while a node's own pod is restarting.
-  trafficDistribution: PreferSameNode
+  # Resolve against the node-local CoreDNS, strictly. The DaemonSet covers every
+  # node, so there is always a local endpoint. This is Local rather than
+  # PreferSameNode because the preference is a HINT the datapath may ignore:
+  # Cilium's LB only filters on zone hints, every node shares one zone, and a
+  # query sprayed to a remote backend can black-hole (node1's egress path).
+  # Local is enforced in the BPF service map, so a query never leaves the node.
+  internalTrafficPolicy: Local
   selector:
     k8s-app: kube-dns
   ports:
