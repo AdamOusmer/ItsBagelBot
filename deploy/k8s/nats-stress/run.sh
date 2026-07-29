@@ -238,7 +238,42 @@ wait_for_line() {
   return 1
 }
 
+# provision_only creates the shadow stream with no consumer behind it, so a run
+# can measure the publish path alone. Every consumer this rig binds gets the
+# WHOLE lane (the flow consumer is per-pod by design), so its delivery work lands
+# on the same leader the publishers are being measured against - which is exactly
+# the difference between our numbers and a publish-only reference.
+provision_only() {
+  local pod="nats-stress-prov-${run_id}" overrides
+  overrides=$(jq -nc --arg pod "$pod" --arg image "$image" --arg priority "$priority_class" \
+    --arg mb "$stream_max_mb" --arg mp "$stream_max_msgs_per" --arg r "$stream_replicas" '{
+    spec:{restartPolicy:"Never",priorityClassName:$priority,automountServiceAccountToken:false,
+    tolerations:[{key:"itsbagelbot.dev/pool",operator:"Equal",value:"worker-pool",effect:"NoSchedule"}],
+    containers:[{name:$pod,image:$image,args:["-role","provision"],
+      env:[
+        {name:"NATS_HUB_URL",value:"tls://nats-0.nats-headless.production.svc.cluster.local:4222"},
+        {name:"NATS_CA_PEM",valueFrom:{configMapKeyRef:{name:"fleet-ca",key:"ca.pem"}}},
+        {name:"NATS_USER",valueFrom:{secretKeyRef:{name:"nats-bench-setup",key:"NATS_USER"}}},
+        {name:"NATS_PASSWORD",valueFrom:{secretKeyRef:{name:"nats-bench-setup",key:"NATS_PASSWORD"}}},
+        {name:"STRESS_STREAM_MAX_MB",value:$mb},
+        {name:"STRESS_STREAM_MAX_MSGS_PER",value:$mp},
+        {name:"STRESS_STREAM_REPLICAS",value:$r}
+      ],
+      resources:{requests:{cpu:"50m",memory:"64Mi"},limits:{cpu:"500m",memory:"256Mi"}},
+      securityContext:{allowPrivilegeEscalation:false,capabilities:{drop:["ALL"]},readOnlyRootFilesystem:true}}],
+    securityContext:{runAsNonRoot:true,runAsUser:65532,runAsGroup:65532,seccompProfile:{type:"RuntimeDefault"}}}
+  }')
+  kubectl -n "$namespace" run "$pod" --image="$image" --restart=Never --overrides="$overrides" >/dev/null
+  kubectl -n "$namespace" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$pod" --timeout=120s >/dev/null
+  kubectl -n "$namespace" delete pod "$pod" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  : >"$consumer_log"
+}
+
 start_consumer() {
+  if [[ $consumer_replicas -eq 0 ]]; then
+    provision_only
+    return
+  fi
   local args
   args=$(json_args -role consume -consume-mode "$consume_mode" \
     -routines "$routines" -guard-ttl "$guard_ttl" -tick 5s)
@@ -283,6 +318,9 @@ start_publisher() {
 # what makes it flush its final summary. The follower is still attached, so the
 # summary lands in the capture before the pod goes away.
 collect_consumer_summary() {
+  # A publish-only run has no consumer to flush, and waiting 120s for a summary
+  # that cannot arrive would only delay the verdict.
+  [[ $consumer_replicas -eq 0 ]] && return 0
   kubectl -n "$namespace" delete deployment nats-stress-consumer \
     --ignore-not-found --wait=true --timeout=90s >/dev/null
   wait_for_line "$consumer_log" '"role":"consume","kind":"summary"' 120 || true
