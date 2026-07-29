@@ -29,12 +29,12 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"modules_bus":   {"BAGEL_DATA"},
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":    {"BAGEL_DATA"},
-		"worker_bus":   {"TWITCH_INGRESS"},
+		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
 		"outgress_bus": {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
@@ -53,6 +53,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 			want := expectedJetStreamSubjects(streamGrants{
 				consumerStreams: consumers[user],
 				ownedStreams:    owners[user],
+				flowControl:     flowControlStreams[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -83,7 +84,12 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
+		// UPDATE lets bus.EnsureStreams converge a drifted bench stream; the
+		// FC reply subject is how an AckFlowControl consumer acknowledges at
+		// all, scoped to the disposable stream and nothing else.
+		"$JS.API.STREAM.UPDATE.R3_SHADOW_BENCH",
 		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
+		"$JS.FC.R3_SHADOW_BENCH.>",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -125,9 +131,19 @@ type sourceFile struct {
 	name string
 }
 
+// flowControlStreams names, per user, the streams whose consumers acknowledge
+// through the AckFlowControl reply subject rather than $JS.ACK. Publishing to
+// $JS.FC is how such a consumer acks at all, so the grant is mandatory — and it
+// is ack-equivalent authority on that consumer, which is why it is scoped to a
+// single stream and asserted here rather than folded into the per-stream set.
+var flowControlStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS"},
+}
+
 type streamGrants struct {
 	consumerStreams []string
 	ownedStreams    []string
+	flowControl     []string
 }
 
 type authConfig struct {
@@ -158,6 +174,9 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 
 func expectedJetStreamSubjects(grants streamGrants) []string {
 	set := make(map[string]struct{})
+	for _, stream := range grants.flowControl {
+		set["$JS.FC."+stream+".>"] = struct{}{}
+	}
 	for _, stream := range grants.consumerStreams {
 		for _, subject := range []string{
 			jetStreamAPI + "STREAM.INFO." + stream,
