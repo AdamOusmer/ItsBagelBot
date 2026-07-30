@@ -71,10 +71,14 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	}
 }
 
-// TestAdminBenchmarkStreamPermissionsAreExact keeps the production capacity
-// runner confined to its disposable stream. The admin retains its existing KV
-// ownership, but may not gain wildcard mutation access to the BUS account.
-func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
+// TestAdminStreamMutationGrantsAreOnlyItsOwnKV holds admin_bus to the one
+// stream it actually owns. It used to also carry create/update/delete,
+// leader-stepdown, $JS.FC and $JS.ACK on a fixed benchmark stream name so a load
+// rig could run without a config push. That is standing ack-floor and
+// stream-mutation authority for a workload that is not running, and it outlived
+// the rig by itself — which is exactly how a permission becomes permanent.
+// A future load test brings its own grant for the duration of its run.
+func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
 	if !ok {
@@ -83,31 +87,16 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 
 	var got []string
 	for _, subject := range block.jetStreamSubjects() {
-		if streamMutationPattern.MatchString(subject) || strings.Contains(subject, "R3_SHADOW_BENCH") {
+		if streamMutationPattern.MatchString(subject) {
 			got = append(got, subject)
+		}
+		if strings.Contains(subject, "BENCH") || strings.Contains(subject, "SHADOW") {
+			t.Errorf("admin_bus still grants a benchmark-stream subject: %s", subject)
 		}
 	}
 	want := []string{
 		"$JS.API.STREAM.CREATE.KV_admin_lanes",
-		"$JS.API.STREAM.CREATE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
-		// The stress rig provisions the bench stream through pkg/bus's ordinary
-		// reconcile, which converges drift with UpdateStream. Named exactly, like
-		// every other verb here.
-		"$JS.API.STREAM.UPDATE.R3_SHADOW_BENCH",
-		// The harness's consumer role answers flow control on the bench stream;
-		// scoped there and nowhere else, like the mutation verbs above.
-		"$JS.FC.R3_SHADOW_BENCH.>",
-		// The pull mode's cumulative ack. Under AckAll one publish here moves the
-		// floor for a whole batch, so it is ack authority of the same kind as
-		// $JS.FC and carries the same exact-stream scope. Both forms, because the
-		// server switches to the <domain>.<account-hash> subject under a
-		// JetStream domain and this fleet runs one.
-		"$JS.ACK.R3_SHADOW_BENCH.>",
-		"$JS.ACK.*.*.R3_SHADOW_BENCH.>",
-		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
 	}
 	slices.Sort(want)
 	if !slices.Equal(got, want) {

@@ -258,39 +258,10 @@ type pullSubscriber struct {
 	once     sync.Once
 }
 
-// PullLaneConfig names the stream and subject a shared-durable pull lane binds
-// to outright, instead of resolving them from the fleet catalog.
-//
-// It is the pull counterpart of FlowLaneConfig and exists for the same reason:
-// the load rig in deploy/k8s/nats-stress binds a disposable shadow stream that
-// no catalog entry owns, and A/B-ing the two acknowledgement contracts means
-// reaching both constructors directly. Service code must keep going through
-// NewSubscriber so the catalog and the hot-lane scope guard keep deciding which
-// lanes get receipt-level acknowledgement.
-type PullLaneConfig struct {
-	URL     string // JetStream endpoint; NATS_HUB_URL still wins where it is set
-	Stream  string // stream the shared durable is created on
-	Subject string // lane subject the consumer filters
-	Group   string // durable-name prefix, as for NewSubscriber
-	Log     *zap.Logger
-}
-
-// NewPullLaneSubscriber binds the fleet-wide durable on the named stream and
-// starts this pod's fetch loop. Everything downstream of the binding — consumer
-// shape, ack cadence, retry hop — is the code the hot ingress lanes would run in
-// pull mode, which is the point: a measurement taken through it transfers.
-func NewPullLaneSubscriber(cfg PullLaneConfig) (Subscriber, error) {
-	sub, err := newPullLaneSubscriber(flowLaneConfig{
-		url: cfg.URL, stream: cfg.Stream, subject: cfg.Subject, group: cfg.Group, log: cfg.Log,
-	})
-	// Returned explicitly rather than as a typed nil: a nil *pullSubscriber
-	// wrapped in the interface is a non-nil Subscriber, and the caller's err
-	// check would hand it a value that panics on first use.
-	if err != nil {
-		return nil, err
-	}
-	return sub, nil
-}
+// As with the flow lane, there is deliberately no exported constructor that
+// names a stream and subject directly: NewSubscriber is the only entry point, so
+// the catalog and the hot-lane scope guard keep deciding which lanes get
+// receipt-level acknowledgement.
 
 func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
 	name := pullConsumerName(cfg.group, cfg.subject)

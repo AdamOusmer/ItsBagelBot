@@ -61,14 +61,6 @@ func NewPublisher(url string, log *zap.Logger) (Publisher, error) {
 	return newPublisherPool(url, log)
 }
 
-// NewPublisherForStream builds the same fleet publisher for a dynamically
-// provisioned stream whose subjects are not part of the static fleet catalog.
-// It is used by isolated acceptance tests and keeps all transport behavior in
-// this package instead of reimplementing a benchmark-only publisher.
-func NewPublisherForStream(url, stream string, log *zap.Logger) (Publisher, error) {
-	return newPublisherPoolForStream(url, stream, log)
-}
-
 // PublishJSON gives Sonic's result buffer directly to the asynchronous
 // publisher. There is no intermediate message object or payload copy.
 func PublishJSON(ctx context.Context, pub Publisher, subject string, payload any) error {
