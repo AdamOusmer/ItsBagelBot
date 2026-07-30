@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/pkg/env"
 
 	"github.com/nats-io/nats.go"
+	jsapi "github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/nuid"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -58,11 +59,11 @@ type batchPublisher struct {
 	js  nats.JetStreamContext
 	log *zap.Logger
 
-	// wire selects the cohort protocol (per-message PubAcks or ADR-050 atomic
-	// batches); sender is the connection's shared batch-ack inbox, present only
-	// on the atomic wire.
+	// wire selects the cohort protocol (per-message PubAcks, ADR-050 atomic
+	// batches or Fast-Ingest sessions). modern is the jetstream.JetStream handle
+	// Orbit's batch publishers require; js stays for the per-message wire.
 	wire   wireMode
-	sender *atomicSender
+	modern jsapi.JetStream
 
 	mu       sync.RWMutex
 	workerMu sync.Mutex
@@ -72,8 +73,14 @@ type batchPublisher struct {
 	stateMu   sync.Mutex
 	accepted  uint64
 	completed uint64
-	firstErr  error
-	changed   chan struct{}
+	// firstErr is the first cohort failure no Flush has reported yet, and
+	// firstErrAt the completion position its cohort started at. Flush is a
+	// per-call result, so it takes the error out on the way past instead of
+	// latching it; a latch would fail every later Flush on this connection for
+	// the life of the process.
+	firstErr   error
+	firstErrAt uint64
+	changed    chan struct{}
 }
 
 type publishRequest struct {
@@ -98,6 +105,20 @@ type publishBatchWorker struct {
 	owner    *batchPublisher
 	slots    chan struct{}
 	acks     sync.WaitGroup
+
+	// Cohort shape is fixed per wire at worker creation: the Fast-Ingest wire
+	// amortizes a session over a much longer collection window than the
+	// per-message and atomic wires can use.
+	batchSize int
+	batchWait time.Duration
+
+	// overlapCommit lets an atomic cohort's commit ack be awaited off this
+	// goroutine. It trades strict cross-cohort stream order for the commit RTT;
+	// publishAtomicOverlapped documents exactly what that costs.
+	overlapCommit bool
+	// newAtomic is the test seam for Orbit's batch publisher. Production leaves
+	// it nil and atomicPublisher opens the real ADR-050 session.
+	newAtomic func() (atomicCohortPublisher, error)
 }
 
 func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
@@ -138,20 +159,16 @@ func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.
 		nc.Close()
 		return nil, fmt.Errorf("bus: jetstream batch publisher: %w", err)
 	}
-	publisher := &batchPublisher{
-		nc: nc, js: js, log: log, wire: wire,
+	modern, err := jsapi.NewWithDomain(nc, JSDomain())
+	if err != nil {
+		nc.Close()
+		return nil, fmt.Errorf("bus: modern jetstream batch publisher: %w", err)
+	}
+	return &batchPublisher{
+		nc: nc, js: js, modern: modern, log: log, wire: wire,
 		workers: make(map[string]*publishBatchWorker),
 		changed: make(chan struct{}),
-	}
-	if wire == wireAtomic {
-		sender, err := newAtomicSender(nc)
-		if err != nil {
-			nc.Close()
-			return nil, err
-		}
-		publisher.sender = sender
-	}
-	return publisher, nil
+	}, nil
 }
 
 func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload []byte) error {
@@ -312,7 +329,10 @@ func (p *batchPublisher) workerLocked(stream string) (*publishBatchWorker, error
 		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots: make(chan struct{}, maxInflightCohorts),
+		slots:         make(chan struct{}, maxInflightCohorts),
+		batchSize:     publishBatchSize(p.wire),
+		batchWait:     publishBatchWait(p.wire),
+		overlapCommit: atomicPublishOverlap(),
 	}
 	p.workers[stream] = worker
 	go worker.run()
@@ -357,10 +377,14 @@ func (p *batchPublisher) markAccepted() {
 
 func (p *batchPublisher) complete(count int, err error) {
 	p.stateMu.Lock()
-	p.completed += uint64(count)
 	if err != nil && p.firstErr == nil {
 		p.firstErr = err
+		// Record the failure at the cohort's first message so a Flush can tell a
+		// cohort overlapping its window from one made only of messages admitted
+		// after the call returned its own result.
+		p.firstErrAt = p.completed
 	}
+	p.completed += uint64(count)
 	p.notifyLocked()
 	p.stateMu.Unlock()
 	if err != nil {
@@ -386,8 +410,22 @@ func (p *batchPublisher) Flush(ctx context.Context) error {
 		}
 		p.stateMu.Lock()
 	}
-	err := p.firstErr
+	err := p.takeWindowErrLocked(target)
 	p.stateMu.Unlock()
+	return err
+}
+
+// takeWindowErrLocked returns the pending cohort failure that overlaps this
+// flush window and clears it, so the next Flush answers for its own window. A
+// failure recorded once the window had already fully resolved belongs to a later
+// call and is left in place for it.
+func (p *batchPublisher) takeWindowErrLocked(target uint64) error {
+	if p.firstErr == nil || p.firstErrAt >= target {
+		return nil
+	}
+	err := p.firstErr
+	p.firstErr = nil
+	p.firstErrAt = 0
 	return err
 }
 
@@ -416,9 +454,9 @@ func (w *publishBatchWorker) nextBatch() ([]publishRequest, bool) {
 
 func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishRequest, bool) {
 	batch := []publishRequest{first}
-	timer := time.NewTimer(defaultPublishBatchWait)
+	timer := time.NewTimer(w.batchWait)
 	defer stopAndDrainTimer(timer)
-	for len(batch) < defaultPublishBatchSize {
+	for len(batch) < w.batchSize {
 		select {
 		case request := <-w.requests:
 			batch = append(batch, request)
@@ -442,45 +480,85 @@ func stopAndDrainTimer(timer *time.Timer) {
 	}
 }
 
+// publish drives one cohort. Cohorts are staged from this goroutine in wire
+// order; what may move off it is the wait for the broker's verdict — plus, on
+// the overlapping atomic path, the commit that carries the cohort's last
+// message — and only as far as each wire's ordering contract allows.
 func (w *publishBatchWorker) publish(batch []publishRequest) {
-	// A single-message cohort gains nothing from batch framing; ADR-050 also
-	// shapes a lone commit as an ordinary PubAck, so the plain wire is simpler.
-	if w.owner.wire == wireAtomic && len(batch) > 1 {
-		w.publishAtomic(batch)
-		return
+	switch cohortWire(w.owner.wire, len(batch)) {
+	case wireAtomic:
+		w.publishAtomicCohort(batch)
+	case wireFast:
+		w.finishFast(batch, w.publishFast(batch))
+	default:
+		w.publishAsync(batch)
 	}
+}
+
+// publishAsync sends the cohort message by message and lets up to
+// maxInflightCohorts cohorts overlap their PubAck waits. A send that fails
+// part-way still leaves everything already handed to nats.go on the wire, so
+// the cohort is resolved from the same goroutine that would have awaited a
+// complete one.
+func (w *publishBatchWorker) publishAsync(batch []publishRequest) {
 	w.slots <- struct{}{}
-	futures, err := w.startAsync(batch)
-	if err != nil {
-		<-w.slots
-		w.finish(batch, err)
-		return
-	}
+	futures, startErr := w.startAsync(batch)
 	w.acks.Add(1)
 	go func() {
 		defer w.acks.Done()
 		defer func() { <-w.slots }()
-		w.finish(batch, w.awaitAsync(futures))
+		awaitErr := w.awaitAsync(futures)
+		w.finish(batch, joinAsyncCohort(len(batch), futures, startErr, awaitErr))
 	}()
 }
 
+// publishCohortIndividually re-publishes a whole cohort message by message and
+// waits for every PubAck. Callers must have proven the broker stored nothing of
+// the cohort; otherwise this path stores a prefix a second time.
+func (w *publishBatchWorker) publishCohortIndividually(batch []publishRequest) error {
+	futures, startErr := w.startAsync(batch)
+	awaitErr := w.awaitAsync(futures)
+	return joinAsyncCohort(len(batch), futures, startErr, awaitErr)
+}
+
 // startAsync sends cohorts serially from the active object, preserving wire
-// order, while awaitAsync lets up to maxInflightCohorts overlap their PubAck
-// waits. It uses only nats.go APIs and bounds the client's future set.
+// order, while awaitAsync overlaps their PubAck waits. It uses only nats.go
+// APIs and bounds the client's future set. Both fallbacks re-publish a
+// definitely rejected cohort through it. A refused send returns the futures
+// created so far rather than abandoning them: those messages are on the wire.
 func (w *publishBatchWorker) startAsync(batch []publishRequest) ([]nats.PubAckFuture, error) {
 	futures := make([]nats.PubAckFuture, 0, len(batch))
 	for _, req := range batch {
 		future, err := w.js.PublishMsgAsync(req.msg)
 		if err != nil {
-			return nil, fmt.Errorf("bus: async publish %s: %w", req.msg.Subject, err)
+			return futures, fmt.Errorf("bus: async publish %s: %w", req.msg.Subject, err)
 		}
 		futures = append(futures, future)
 	}
 	return futures, nil
 }
 
-// awaitAsync is the strategy seam to replace only when nats.go exposes NATS
-// 2.14 Fast-Ingest; no server wire protocol is reimplemented here.
+// joinAsyncCohort reports a partially sent cohort honestly. nats.go refuses a
+// publish once its future set is full and once the connection is closed, but
+// everything it already accepted is on the wire and is normally stored, so those
+// PubAcks are resolved before the cohort is reported instead of being abandoned
+// under the send error. A caller that retries on this error stores the sent
+// prefix twice, which is why the message counts are in the text.
+func joinAsyncCohort(size int, futures []nats.PubAckFuture, startErr, awaitErr error) error {
+	if startErr == nil {
+		return awaitErr
+	}
+	if awaitErr != nil {
+		return fmt.Errorf("bus: async cohort sent %d/%d messages and their acknowledgements did not all resolve: %w",
+			len(futures), size, errors.Join(startErr, awaitErr))
+	}
+	return fmt.Errorf("bus: async cohort sent and stored %d/%d messages; the remainder never reached the wire: %w",
+		len(futures), size, startErr)
+}
+
+// awaitAsync drains one cohort's PubAcks in publish order. A timeout here is
+// ambiguous for the messages still unresolved, so the cohort fails without
+// replay.
 func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
 	timer := time.NewTimer(defaultPublishAckWait)
 	defer timer.Stop()

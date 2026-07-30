@@ -75,12 +75,23 @@ func newMessage(data messageData) *Message {
 
 // Ack marks the message successfully handled. It returns false only when Nack
 // won the acknowledgement race first.
+//
+// On the explicit-ACK subscriber this releases one JetStream delivery. On the
+// hot ingress lanes' flow-controlled subscriber it is receipt-level: the ack
+// floor for a whole delivery window is advanced by the flow-control responses
+// the subscriber sends, not by this call, so Ack there records the handler's
+// verdict rather than acknowledging one message.
 func (m *Message) Ack() bool {
 	return m.resolve(messageAcked)
 }
 
 // Nack marks the message for paced redelivery. It returns false only when Ack
 // won the acknowledgement race first.
+//
+// The flow-controlled subscriber has no per-message pending state to NAK
+// against, so it schedules the event onto the lane's retry subject exactly once
+// instead (see RetryCountHeader); ordering is lost and a second failure drops
+// the event.
 func (m *Message) Nack() bool {
 	return m.resolve(messageNacked)
 }
