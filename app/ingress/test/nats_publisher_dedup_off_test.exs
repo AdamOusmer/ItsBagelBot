@@ -71,6 +71,9 @@ defmodule Ingress.Nats.PublisherAtMostOnceTest do
 
           {id, :batch, entries, _ts} ->
             {id, :batch, entries, expired}
+
+          {id, :batch_hold, _ts} ->
+            {id, :batch_hold, expired}
         end
 
       :ets.insert(ctx.table, aged)
@@ -157,9 +160,20 @@ defmodule Ingress.Nats.PublisherAtMostOnceTest do
     # No per-message re-drive: the commit may have landed, so an unprotected
     # cohort must not be re-published.
     refute_receive {:pub, _, _, _}, 100
-    assert :ets.info(ctx.table, :size) == 0
     assert :atomics.get(ctx.counter, 1) == 0
     assert :atomics.get(ctx.counter, 5) == 3
+
+    # The events are resolved, but the broker still holds the abandoned batch,
+    # so the shard keeps owing it one in-flight slot until the broker's own
+    # batch timeout — represented by an event-free hold row.
+    assert [{_id, :batch_hold, _ts}] = :ets.tab2list(ctx.table)
+    assert :atomics.get(ctx.counter, 7) == 1
+
+    age_pending_rows(ctx)
+    send(publisher, :sweep)
+    _state = :sys.get_state(publisher)
+
+    assert :ets.info(ctx.table, :size) == 0
     assert :atomics.get(ctx.counter, 7) == 0
   end
 

@@ -42,12 +42,39 @@ defmodule Ingress.Nats.CohortSenderTest do
         {id, "twitch.ingress.event.standard", "{}", reply_to: "_INBOX.#{id}"}
       end
 
-    assert CohortSender.publish(senders, connection, requests) |> Enum.sort() == [
+    assert CohortSender.publish(senders, connection, requests, 1_000) |> Enum.sort() == [
              {1, :ok},
              {2, :ok},
              {3, :ok}
            ]
 
     assert_received {:coalesced, 3}
+  end
+
+  test "a wedged connection costs one timeout for the whole lane, not one per write" do
+    {:ok, connection} = start_supervised({BarrierGnat, expected: 99, owner: self()})
+    senders = CohortSender.start(1)
+    on_exit(fn -> CohortSender.stop(senders) end)
+
+    requests =
+      for id <- 1..4 do
+        {id, "twitch.ingress.event.standard", "{}", reply_to: "_INBOX.#{id}"}
+      end
+
+    started = System.monotonic_time(:millisecond)
+    results = CohortSender.publish(senders, connection, requests, 200)
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    # The barrier never replies, so the first write times out and the rest of
+    # the lane fails closed without calling: the collector is blocked here, so
+    # four writes must not cost four timeouts.
+    assert Enum.sort(results) == [
+             {1, {:error, :not_connected}},
+             {2, {:error, :not_connected}},
+             {3, {:error, :not_connected}},
+             {4, {:error, :not_connected}}
+           ]
+
+    assert elapsed < 600
   end
 end
