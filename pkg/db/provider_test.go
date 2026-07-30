@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
 	"testing"
@@ -26,17 +27,13 @@ func TestRegisterTLSRejectsMissingCA(t *testing.T) {
 }
 
 func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	ca, caKey, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	ca, caKey, cfg := registerTestCA(t)
 	require.True(t, cfg.InsecureSkipVerify)
 	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	require.Empty(t, cfg.ServerName)
-	require.NotNil(t, cfg.RootCAs)
+	// The trusted pool lives inside the VerifyConnection closure (it can be
+	// swapped on CA rotation), not on the config.
+	require.Nil(t, cfg.RootCAs)
 	require.Nil(t, cfg.VerifyPeerCertificate)
 	require.NotNil(t, cfg.VerifyConnection)
 
@@ -46,34 +43,85 @@ func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 }
 
 func TestRegisterTLSRejectsUntrustedServerCertificate(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+	_, _, cfg := registerTestCA(t)
 
-	_, _, trustedCAPEM := testCA(t)
 	untrustedCA, untrustedKey, _ := testCA(t)
-
-	_, err := registerTLS(trustedCAPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "db.example.com:3306")
 	require.Error(t, cfg.VerifyConnection(tls.ConnectionState{
 		PeerCertificates: testLeafChain(t, untrustedCA, untrustedKey),
 	}))
 }
 
 func TestRegisterTLSRejectsMissingServerCertificate(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+	_, _, cfg := registerTestCA(t)
 
-	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "db.example.com:3306")
 	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{}), "server presented no certificate")
 }
 
 func TestRegisterTLSRejectsInvalidCA(t *testing.T) {
 	_, err := registerTLS([]byte("not pem"))
 	require.ErrorContains(t, err, "DB_CA_CERT did not contain a valid PEM certificate")
+}
+
+func TestVerifyConnectionAdoptsRotatedCA(t *testing.T) {
+	oldCA, oldKey, cfg := registerTestCA(t)
+
+	// A rotated CA with the pinned subject, presented by the server itself,
+	// is adopted and the handshake that saw it succeeds.
+	newCA, newKey, _ := testCA(t)
+	rotated := testLeafChainWithCA(t, newCA, newKey)
+	require.NoError(t, cfg.VerifyConnection(tls.ConnectionState{PeerCertificates: rotated}))
+
+	// Adoption replaced the pool: chains from the pre-rotation CA are no
+	// longer trusted, and the rotated chain keeps verifying.
+	require.Error(t, cfg.VerifyConnection(tls.ConnectionState{
+		PeerCertificates: testLeafChain(t, oldCA, oldKey),
+	}))
+	require.NoError(t, cfg.VerifyConnection(tls.ConnectionState{PeerCertificates: rotated}))
+}
+
+func TestVerifyConnectionRejectsRotationWithDifferentSubject(t *testing.T) {
+	_, _, cfg := registerTestCA(t)
+
+	imposterCA, imposterKey := testNamedCA(t, "Imposter_CA")
+	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{
+		PeerCertificates: testLeafChainWithCA(t, imposterCA, imposterKey),
+	}), "no rotation candidate")
+}
+
+func TestVerifyConnectionRejectsRotationWithoutPresentedCA(t *testing.T) {
+	_, _, cfg := registerTestCA(t)
+
+	// Leaf-only chain from an untrusted CA: nothing to adopt, fail closed.
+	untrustedCA, untrustedKey, _ := testCA(t)
+	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{
+		PeerCertificates: testLeafChain(t, untrustedCA, untrustedKey),
+	}), "no rotation candidate")
+}
+
+func TestVerifyConnectionRejectsRotatedCANotSigningLeaf(t *testing.T) {
+	_, _, cfg := registerTestCA(t)
+
+	// The presented CA carries the pinned subject but did not sign the leaf.
+	leafCA, leafKey, _ := testCA(t)
+	bystanderCA, _, _ := testCA(t)
+	chain := append(testLeafChain(t, leafCA, leafKey), bystanderCA)
+	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{
+		PeerCertificates: chain,
+	}), "does not sign the server certificate")
+}
+
+// registerTestCA pins a fresh test CA in the driver's TLS registry (with
+// cleanup) and returns the CA pair plus the registered config, so each test
+// starts from the same known trust state.
+func registerTestCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, *tls.Config) {
+	t.Helper()
+	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+
+	ca, caKey, caPEM := testCA(t)
+	_, err := registerTLS(caPEM)
+	require.NoError(t, err)
+
+	return ca, caKey, registeredTLSConfig(t, "10.0.0.4:3306")
 }
 
 func registeredTLSConfig(t *testing.T, addr string) *tls.Config {
@@ -94,8 +142,16 @@ func registeredTLSConfig(t *testing.T, addr string) *tls.Config {
 func testCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
 	t.Helper()
 
+	cert, key := testNamedCA(t, "MySQL_Endpoint_CA")
+	return cert, key, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+}
+
+func testNamedCA(t *testing.T, commonName string) (*x509.Certificate, *ecdsa.PrivateKey) {
+	t.Helper()
+
 	template := x509.Certificate{
 		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: commonName},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 		IsCA:                  true,
@@ -103,9 +159,15 @@ func testCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
 		BasicConstraintsValid: true,
 	}
 
-	cert, key := issueTestCertificate(t, template, nil, nil)
+	return issueTestCertificate(t, template, nil, nil)
+}
 
-	return cert, key, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+// testLeafChainWithCA mirrors what the managed endpoint actually presents
+// after a rotation: the server certificate followed by the CA that signed it.
+func testLeafChainWithCA(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) []*x509.Certificate {
+	t.Helper()
+
+	return append(testLeafChain(t, ca, caKey), ca)
 }
 
 func testLeafChain(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) []*x509.Certificate {

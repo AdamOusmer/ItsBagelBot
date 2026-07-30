@@ -1,0 +1,165 @@
+# Keep DB_CA_CERT in Doppler in sync with the OCI MySQL endpoint CA.
+#
+# WHY
+# ---
+# The DB system uses OCI-managed (self-signed) TLS certificates. OCI reissues
+# the endpoint CA on its own schedule (observed 2026-07-02 -> 2026-07-30, ~28
+# days), and the moment it does, every service that pins the old CA in
+# DB_CA_CERT fails all MySQL connections with
+#   x509: certificate signed by unknown authority ("MySQL_Endpoint_CA")
+# which on 2026-07-30 took down dashboard login and the admin console for ~7.5h
+# until the CA was re-pinned by hand.
+#
+# This CronJob closes the loop: every 10 minutes it pulls the live cert chain
+# from the DB endpoint, extracts the CA, sanity-checks it (the CA must actually
+# sign the presented server cert and carry the expected MySQL_Endpoint_CA
+# subject), and if it differs from the value already in Doppler, writes it to
+# DB_CA_CERT in every project that pins it. The Doppler operator then rolls the
+# affected deployments automatically, so worst-case outage after a rotation is
+# ~10 minutes instead of "until a human notices".
+#
+# Trust model: trust-on-first-use against the VCN-private endpoint. The fetch
+# happens over the private pod->VCN path to 10.0.2.206, the same path the
+# services themselves use; an attacker who can MITM that path already owns the
+# database traffic. The signature + subject checks stop garbage (a TCP proxy,
+# a half-open endpoint) from ever being written to Doppler.
+#
+# Tokens: the mysql-ca-sync-tokens secret holds one read/write Doppler service
+# token per project config (created 2026-07-30, names "mysql-ca-sync"). Service
+# tokens are scoped to a single project+config, so the blast radius of a leaked
+# token is one prd config. The secret is created by hand (kubectl), not by
+# Flux: it is a credential, so it never lands in git.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-ca-sync-script
+  namespace: production
+data:
+  sync.sh: |
+    #!/bin/sh
+    set -eu
+
+    # alpine base image; tools are fetched per run. A failed apk just fails
+    # this run and the next tick retries, which is fine at a 10m cadence.
+    apk add --no-cache --quiet openssl curl jq
+
+    workdir=$(mktemp -d)
+    trap 'rm -rf "$workdir"' EXIT
+
+    echo "[ca-sync] probing ${DB_ADDR}"
+    openssl s_client -connect "${DB_ADDR}" -starttls mysql -showcerts \
+      </dev/null 2>/dev/null >"$workdir/chain.txt"
+
+    awk '/BEGIN CERTIFICATE/{n++} n==1{print; if(/END CERTIFICATE/) exit}' \
+      "$workdir/chain.txt" >"$workdir/leaf.pem"
+    awk '/BEGIN CERTIFICATE/{n++} n==2{print; if(/END CERTIFICATE/) exit}' \
+      "$workdir/chain.txt" >"$workdir/ca.pem"
+
+    if ! grep -q "END CERTIFICATE" "$workdir/ca.pem"; then
+      echo "[ca-sync] ERROR: endpoint did not present a CA cert" >&2
+      exit 1
+    fi
+
+    subject=$(openssl x509 -in "$workdir/ca.pem" -noout -subject)
+    case "$subject" in
+      *MySQL_Endpoint_CA*) ;;
+      *)
+        echo "[ca-sync] ERROR: unexpected CA subject: $subject" >&2
+        exit 1
+        ;;
+    esac
+
+    if ! openssl verify -CAfile "$workdir/ca.pem" "$workdir/leaf.pem" >/dev/null 2>&1; then
+      echo "[ca-sync] ERROR: presented CA does not sign the server cert" >&2
+      exit 1
+    fi
+
+    # Each Doppler service token is scoped to one project+config, so the API
+    # needs no project/config parameters: the token itself selects them.
+    fetch_current() {
+      curl -sf --retry 3 -H "Authorization: Bearer $1" \
+        "https://api.doppler.com/v3/configs/config/secrets/download?format=json" \
+        | jq -r '.DB_CA_CERT // empty'
+    }
+
+    push_ca() {
+      jq -n --rawfile ca "$workdir/ca.pem" '{secrets: {DB_CA_CERT: $ca}}' \
+        | curl -sf --retry 3 -X POST \
+            -H "Authorization: Bearer $1" \
+            -H "Content-Type: application/json" \
+            -d @- \
+            "https://api.doppler.com/v3/configs/config/secrets" >/dev/null
+    }
+
+    rc=0
+    for project in users commands loyalty modules notifications transactions; do
+      token_var="TOKEN_$(echo "$project" | tr 'a-z' 'A-Z')"
+      token=$(eval "printf '%s' \"\$${token_var}\"")
+
+      current=$(fetch_current "$token") || {
+        echo "[ca-sync] ERROR: $project: failed to read current DB_CA_CERT" >&2
+        rc=1
+        continue
+      }
+
+      if [ "$current" = "$(cat "$workdir/ca.pem")" ]; then
+        echo "[ca-sync] $project: up to date"
+        continue
+      fi
+
+      if push_ca "$token"; then
+        echo "[ca-sync] $project: DB_CA_CERT UPDATED (CA rotated)"
+      else
+        echo "[ca-sync] ERROR: $project: failed to write DB_CA_CERT" >&2
+        rc=1
+      fi
+    done
+    exit $rc
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-ca-sync
+  namespace: production
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 240
+      template:
+        metadata:
+          labels:
+            app: mysql-ca-sync
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: alpine:3.22
+              command: ["/bin/sh", "/scripts/sync.sh"]
+              env:
+                # VCN-private endpoint of the OCI MySQL DB system; reachable
+                # from the pod network on every node via the node1 VCN path.
+                - name: DB_ADDR
+                  value: "10.0.2.206:3306"
+              envFrom:
+                - secretRef:
+                    name: mysql-ca-sync-tokens
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: mysql-ca-sync-script
