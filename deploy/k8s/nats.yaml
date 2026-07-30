@@ -14,6 +14,13 @@ spec:
   replicas: 3
   podManagementPolicy: Parallel
   revisionHistoryLimit: 10
+  # Ready is not the same as settled. A member reports healthy as soon as its
+  # own assigned assets are current, but the peers that just caught it up are
+  # still flushing snapshots and re-forming consumer groups. 30s of quiet before
+  # the rolling update takes the next member stops a roll from chaining three
+  # catch-ups back to back — which on a memory-backed R3 catalog is three full
+  # replica re-syncs with no gap between them.
+  minReadySeconds: 30
   selector:
     matchLabels:
       app: nats
@@ -124,23 +131,38 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # Memory-backed streams need headroom above JetStream's 4GB max_mem
-            # for dedup indexes, connections and the Go runtime, and with every
-            # stream R3 each member holds a copy of all of them rather than only
-            # the ones it leads. Every app-tier node has 12 cores, so 5/5 fits
-            # three members with room left for the rest of the tier.
-            # requests == limits (Guaranteed QoS) on the recommendation of the
-            # upstream NATS chart: it gives the Go runtime a real reservation to
-            # size GOMAXPROCS against instead of a burst ceiling it cannot see,
-            # and makes the member eligible for the kubelet's static CPU policy.
-            # 12-core nodes hold 5/5 on every member with room to spare.
-            # 5/5 matched. The OOM that briefly justified an 8Gi ceiling was
-            # caused by a 1 GiB memory-backed R3 bench stream resident on every
-            # member on top of this catalog, not by the catalog itself; the
-            # bench stream is now 256 MiB. Keep max_mem in nats-server.conf
-            # under this ceiling — JetStream sizes memory streams against
-            # max_mem and cannot see the container limit.
-            requests: {cpu: "5", memory: 5Gi}
+            # The LIMITS are the real ceiling and do not move: 5 cores because
+            # GOMAXPROCS is pinned to them, and 5Gi because memory-backed streams
+            # need headroom above JetStream's 4GB max_mem for dedup indexes,
+            # connections and the Go runtime — and with every stream R3, each
+            # member holds a copy of all of them rather than only the ones it
+            # leads. Keep max_mem in nats-server.conf under this ceiling:
+            # JetStream sizes memory streams against max_mem and cannot see the
+            # container limit. The OOM that briefly justified an 8Gi ceiling was
+            # a 1 GiB memory-backed R3 bench stream resident on every member on
+            # top of this catalog, not the catalog itself.
+            #
+            # The REQUESTS are deliberately below them, which makes this pod
+            # Burstable rather than Guaranteed. The upstream NATS chart
+            # recommends requests == limits so the member is eligible for the
+            # kubelet's static CPU policy — but this fleet runs
+            # cpuManagerPolicy: none, so that eligibility buys nothing today and
+            # reserving 5 cores per node bought nothing either. Measured steady
+            # state is ~1.3 cores on the leader, so a request of 2 covers it with
+            # ~50% headroom while the limit still lets a catch-up burst take all
+            # five. That returns 3 cores and 1Gi per app node to the scheduler on
+            # a 12-core, ~11 GiB tier.
+            #
+            # The cost, stated so it is not rediscovered: memory usage above the
+            # request puts this pod into the kubelet's memory-pressure eviction
+            # ranking, which at requests == limits it sat outside entirely. The
+            # modelled per-member worst case is ~4.2 GiB (see the max_mem block
+            # in nats-server.conf), so 4Gi sits just under it — steady state is
+            # far below, but a member catching up a full memory-backed catalog
+            # is not. If a hub member is ever evicted under node pressure, raise
+            # this to 4500Mi before looking anywhere else. If cpuManagerPolicy
+            # ever becomes static, revisit the CPU request too.
+            requests: {cpu: "2", memory: 4Gi}
             limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
@@ -266,6 +288,29 @@ spec:
         resources:
           requests:
             storage: 4Gi
+---
+# The hub is a three-voter RAFT quorum: losing two members at once loses every
+# stream's write path, and for the memory-backed ones it loses the data too. The
+# rolling update is already serial and readiness-gated, but a VOLUNTARY
+# disruption is not — a node drain or a cluster-autoscaler action will happily
+# evict two hub pods in parallel unless something says otherwise. This is that
+# something.
+#
+# It matters more here than it looks: the required podAntiAffinity puts exactly
+# one member on each of the three app nodes, so there is no slack to reschedule
+# into. Draining two nodes without this budget is an outage, not a migration.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: nats
+  name: nats
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: nats
 ---
 apiVersion: v1
 kind: Service
