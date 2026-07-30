@@ -24,45 +24,88 @@ type StreamSpec struct {
 	Retention  nats.RetentionPolicy // zero value is the ordinary limits policy
 	MaxAge     time.Duration        // hard lifetime limit for stored messages
 	MaxBytes   int64                // hard cap so one stream cannot exhaust the instance
-	MaxMsgsPer int64                // per-subject cap (0 = unlimited); lane isolation on shared streams
+	MaxMsgsPer int64                // per-subject cap (0 = unlimited, sent as the server's -1); lane isolation on shared streams
 	// Duplicates overrides the Nats-Msg-Id dedup window (0 = the 2m default,
 	// clamped to MaxAge). The broker tracks one id per message inside the
 	// window, so a high-rate stream wants it as short as its producers' retry
 	// horizon, not the default.
 	Duplicates time.Duration
-	// Storage selects the backing store. The zero value is nats.FileStorage
-	// (on disk). A transient, size-capped, short-retention stream should use
-	// nats.MemoryStorage: the per-message disk write (and, for replicas, the
-	// synchronous consensus flush) is the dominant publish-side cost, so a
-	// perishable firehose that never needs to survive a broker restart is far
-	// cheaper in memory. Storage is fixed at creation — see reconcileStream.
+	// Storage selects the backing store and splits the catalog into two tiers.
+	// The zero value is nats.FileStorage (on disk); specs that want it state it
+	// explicitly, because "which tier is this" is the first question an operator
+	// asks about a stream.
+	//
+	//   - nats.MemoryStorage is the firehose tier: a size-capped, short-retention
+	//     lane whose contents are worthless once they age out. The per-message
+	//     disk write is the dominant publish-side cost, so keeping it out of the
+	//     filesystem is what makes six-figure ingest rates reachable. Memory is
+	//     not the same as unreplicated: an R3 memory stream keeps a full copy on
+	//     every hub peer and a restarted peer re-syncs its copy from the leader,
+	//     so only losing the whole quorum at once loses the window.
+	//   - nats.FileStorage is the retention tier: anything whose loss is silent
+	//     (a control job nobody re-issues, a replay window a consumer resumes
+	//     into) pays disk so a full-quorum restart is survivable.
+	//
+	// Storage is fixed at creation — see reconcileStream.
 	Storage nats.StorageType
 	// BatchPublish enables both reliable atomic microbatches and NATS 2.14
 	// flow-controlled fast-ingest batches. All fleet-owned streams opt in so
 	// every pkg/bus publisher benefits; RPC subjects are Core NATS and never
 	// enter these streams.
+	//
+	// Both flags ride the same UpdateStream as every other field (see
+	// reconcileStream), so a converge can never leave a stream with batching
+	// half-disabled.
 	BatchPublish bool
+	// MsgSchedules enables server-side message scheduling (allow_msg_schedules,
+	// NATS 2.14 / API level 2): a publish carrying Nats-Schedule is stored as a
+	// schedule row, and the server emits the payload to Nats-Schedule-Target
+	// when it fires. It is the delay primitive the retry lane is built on, so
+	// nothing in the fleet has to hold a timer for a message it already handed
+	// to the broker.
+	//
+	// It carries two server-imposed companions, both set explicitly by
+	// streamConfig rather than left to the broker's silent coercion:
+	//
+	//   - AllowMsgTTL, because a non-empty Nats-Schedule-TTL (the per-retry
+	//     lifetime on the *emitted* message) is rejected with the TTL-disabled
+	//     error when message TTLs are off;
+	//   - AllowRollup (and DenyPurge cleared), because the server forces both on
+	//     any scheduling stream — a schedule row is replaced via Nats-Rollup:
+	//     sub, and a one-shot schedule purges its own subject after it fires.
+	//
+	// Discard must stay DiscardOld (the server rejects scheduling with discard
+	// new), which is what streamConfig emits for every stream.
+	MsgSchedules bool
 	// Replicas is the RAFT replication factor (0 defaults to 1). Unlike Storage,
 	// replica count IS updatable in place, so reconcileStream converges a drifted
 	// stream via UpdateStream — this is the field streamMatches must compare, or a
-	// live stream hand-edited to a different factor never converges back.
+	// live stream left at R1 sticks at R1 forever while the spec declares R3.
 	//
-	// Every fleet stream is R3. The hub is a three-member quorum with one member
-	// per node and no persistent volumes, so replication is the ONLY thing making
-	// a stream survive losing a broker — an R1 stream would simply cease to exist
-	// with its member. R3 does cost a quorum ack before every PubAck, which the
-	// earlier R1 firehose exemption existed to avoid; that exemption was measured
-	// on 6-core peers, and the fleet sustained 120k/s for an hour once all three
-	// members ran on 12-core hardware, so the ceiling no longer justifies making
-	// one stream a special case.
+	// Every fleet stream is R3. The hub is a three-peer quorum, so R3 is the only
+	// factor that survives losing one peer; an R1 stream's sole copy disappears
+	// with the peer that held it, taking every unconsumed message and the
+	// consumers bound to it. R1 used to be the throughput choice because R3 makes
+	// each publish wait on a quorum before its PubAck — that cost is now
+	// amortized, not paid per message: the ADR-050 atomic wire and the NATS 2.14
+	// fast-ingest wire commit a whole batch behind one quorum round-trip, and
+	// AckFlowControl consumers take the matching cost off the ack path.
 	Replicas int
 	// PlacementTags constrain JetStream replicas to servers carrying every tag.
+	// The catalog deliberately sets none. Hub tags are per-pod ordinals
+	// (server_tags: $POD_NAME in nats-server.conf), and an ordinal tag exists on
+	// exactly one server, so an R3 stream constrained to it is unsatisfiable —
+	// the meta leader cannot find three peers carrying a one-peer tag. Preferred
+	// leadership is an operator action (a step-down), not a spec field.
 	//
-	// No fleet stream sets this, and none should: pinning a stream to an ordinal
-	// makes it a pet that cannot follow its member when the pod is rescheduled,
-	// which is exactly what the volume-less hub is designed to allow. The field
-	// and its comparison in streamMatches are kept deliberately so that a tag set
-	// by hand out-of-band is reconciled back off rather than silently persisting.
+	// The field stays because "no tags" is also how a live stream's stored
+	// placement is cleared: streamConfig emits a nil Placement, and nats-server
+	// 2.14.3 stores the update's config wholesale, so nil replaces whatever was
+	// there. One ordering constraint if tags are ever reintroduced: the server
+	// treats a non-nil placement that differs from the stored one as a move, and
+	// rejects a move and a replica change in the same update
+	// (JSStreamMoveAndScale). Never add a tag in the same edit that touches
+	// Replicas.
 	PlacementTags []string
 }
 
@@ -79,17 +122,24 @@ var OutgressStream = StreamSpec{
 	// immediately; this 5s ceiling also drops a message that outlived its
 	// usefulness (a chat line older than the retry budget must never be sent
 	// late) and removes an orphan if no consumer is available during a rollout.
-	MaxAge:   5 * time.Second,
+	MaxAge: 5 * time.Second,
+	// 256 MiB is also the per-node memory this stream can occupy: under R3 every
+	// hub peer holds a full replica, so the budget against the broker's 4GB
+	// max_mem is 1 GiB (TWITCH_INGRESS) + 256 MiB here ≈ 1.3 GiB on every member,
+	// not on one. See nats-server.conf.
 	MaxBytes: 256 << 20, // 256 MiB
 	// A 5s work queue never outlives a broker restart, so paying disk I/O per
 	// send is pure overhead. Memory-backed removes the write bottleneck; the
 	// 256 MiB MaxBytes caps the memory it can hold.
 	Storage:      nats.MemoryStorage,
 	BatchPublish: true,
-	// R3. This was R1 pinned to nats-1, which made the stream a casualty of moving
-	// that member: an R1 stream has no second copy to re-sync from, so relocating
-	// its sole peer deletes it outright. Outgress is Twitch-rate-limited to tens
-	// of sends per second, so a quorum round trip per publish costs nothing here.
+	// R3: perishable is not the same as expendable. A single-copy chat lane
+	// vanishes with its peer, dropping every queued send and stalling the
+	// consumers bound to it until the stream is re-created; R3 keeps the lane
+	// serving through any one-peer loss, and a restarted peer re-syncs its
+	// memory copy from the leader. The quorum round-trip is paid per batch by
+	// the atomic/fast-ingest wires, not per send. No placement: an ordinal tag
+	// cannot satisfy three peers (see PlacementTags).
 	Replicas: 3,
 }
 
@@ -104,16 +154,21 @@ var OutgressStream = StreamSpec{
 // chat lanes, so producers and the NATS ACLs are unchanged; only the stream that
 // captures twitch.outgress.system differs.
 var OutgressSystemStream = StreamSpec{
-	Name:         "TWITCH_OUTGRESS_SYSTEM",
-	Subjects:     []string{"twitch.outgress.system"},
-	Retention:    nats.WorkQueuePolicy,
-	MaxAge:       5 * time.Minute,
-	MaxBytes:     64 << 20, // 64 MiB: control jobs are small and low-volume
+	Name:      "TWITCH_OUTGRESS_SYSTEM",
+	Subjects:  []string{"twitch.outgress.system"},
+	Retention: nats.WorkQueuePolicy,
+	MaxAge:    5 * time.Minute,
+	MaxBytes:  64 << 20, // 64 MiB: control jobs are small and low-volume
+	// Retention tier, explicitly on disk. The chat lanes next door are memory
+	// because their contents are worthless in five seconds; a control job is the
+	// opposite — an EventSub enroll/disable or stream re-check lost to a
+	// full-quorum restart leaves a channel un-ingested with nobody the wiser.
+	// Low volume, so the disk write is not on any hot path.
+	Storage:      nats.FileStorage,
 	BatchPublish: true,
-	// R3, unlike the chat lanes: an EventSub enroll/disable or stream re-check
-	// silently lost on a broker restart leaves a channel un-ingested with nobody
-	// the wiser. This lane is low-volume, so the RAFT cost is negligible and the
-	// durability is worth it. This is the one stream that stays replicated.
+	// R3, like every fleet stream: a silently-lost control job has no observer
+	// to re-drive it, so a copy on each peer is the cheapest insurance the hub
+	// offers at this volume.
 	Replicas: 3,
 }
 
@@ -122,16 +177,20 @@ var OutgressSystemStream = StreamSpec{
 // manage their own consumers. Keeping the owner explicit lets the broker ACL
 // grant STREAM.CREATE/UPDATE to one credential instead of every BUS user.
 var BagelDataStream = StreamSpec{
-	Name:         "BAGEL_DATA",
-	Subjects:     []string{"data.>"},
-	MaxAge:       5 * time.Minute,
-	MaxBytes:     512 << 20, // 512 MiB
+	Name:     "BAGEL_DATA",
+	Subjects: []string{"data.>"},
+	MaxAge:   5 * time.Minute,
+	MaxBytes: 512 << 20, // 512 MiB
+	// Durable replay tier, explicitly on disk: this is a replay buffer, and a
+	// buffer that empties on a restart turns every consumer's resume point into
+	// a gap the consumer cannot see it has. The projector can re-derive from the
+	// data services' RPC projections, but only if something tells it to. Low
+	// rate, so disk costs nothing that matters here. Under R3 each peer keeps
+	// 512 MiB of this stream on disk, well inside the 2GB max_file.
+	Storage:      nats.FileStorage,
 	BatchPublish: true,
-	// R3. This was R1 pinned to nats-1, so relocating that member deleted the
-	// stream outright rather than re-syncing it — there was no second copy. The
-	// projector can re-derive these events from the data services' RPC
-	// projections, but a low-rate 5-minute buffer with 24 durable consumers should
-	// not need that recovery every time a hub member is rescheduled.
+	// R3: a full copy on every hub peer, so losing one peer neither empties the
+	// replay window nor stalls the publishers bound to it.
 	Replicas: 3,
 }
 
@@ -170,25 +229,39 @@ var TwitchIngressStream = StreamSpec{
 	//     replayed, so the broker-side dedup index was pure overhead and was
 	//     measured at ~27% of per-message cost). There is no dedup to lose.
 	MaxAge: 10 * time.Second,
-	// Memory-backed: the stream is perishable (a replay window that never
-	// needs to survive a restart), so memory storage drops the per-event disk
-	// write that capped synchronous PubAck throughput to a few thousand
-	// events/second. Requires the server max_mem headroom in nats-server.conf.
+	// Memory-backed: the stream is perishable (a replay window that never needs
+	// to survive a restart), so memory storage drops the per-event disk write
+	// that capped synchronous PubAck throughput to a few thousand events/second.
+	// Requires the server max_mem headroom in nats-server.conf.
 	Storage: nats.MemoryStorage,
-	// R3, like every other fleet stream. This was the one R1 exemption, pinned to
-	// nats-0: the producer is async PubAck-bound, so a quorum ack per publish
-	// inflates the very latency its ceiling is measured in. Two things retired
-	// that exemption. The hub no longer has persistent volumes, so an R1 stream
-	// ceases to exist when its member is rescheduled rather than merely losing a
-	// leader. And the ~60k single-stream figure behind the trade was measured with
-	// 6-core peers in the quorum; the fleet sustained 120k/s for an hour once all
-	// three members ran on 12-core hardware, which is past what this stream needs.
+	// R3 (explicit, and enforced by streamMatches). Memory-backed and replicated
+	// are independent axes, and this stream wants both: memory keeps the
+	// per-event disk write off the ingest path, R3 keeps a full copy on all
+	// three hub peers so losing one neither empties the replay window nor
+	// strands the lane consumers. A restarted peer re-syncs its memory copy from
+	// the leader; only a simultaneous full-quorum loss drops the window.
+	//
+	// The per-publish quorum latency that made R1 the throughput choice is gone
+	// from the per-message path: the ADR-050 atomic wire and the NATS 2.14
+	// fast-ingest wire commit a whole batch behind one quorum round-trip. What
+	// remains is the known R3 single-stream ceiling — one serialized RAFT
+	// proposal loop per stream, measured at roughly 60k msg/s with the leader
+	// saturating two of its cores. That ceiling is accepted as the current
+	// operating point; the lever beyond it is partitioning the lane across
+	// several streams, which is roadmap and deliberately not done here (one
+	// stream per lane keeps the subject contract and the ACLs unchanged).
+	//
+	// No placement: an R3 stream needs all three peers, and the hub's tags are
+	// per-pod ordinals that exist on one server each (see PlacementTags).
 	Replicas: 3,
-	// MaxBytes is 1 GiB so the memory-backed stream fits the broker's 4GB
-	// max_mem alongside TWITCH_OUTGRESS and dedup state. MaxAge is moot under
-	// load: MaxBytes (stream-wide, oldest-first) evicts first, and 1 GiB is the
-	// consumer lag budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising
-	// toward the 150-200k target means larger MaxBytes + more max_mem.
+	// MaxBytes is 1 GiB, and under R3 that is 1 GiB on *every* hub peer, not on
+	// one: each member holds a full replica. Against the broker's 4GB max_mem
+	// the memory-backed budget is 1 GiB here + 256 MiB (TWITCH_OUTGRESS) ≈ 1.3
+	// GiB per node, leaving room for dedup ids and broker state — see the
+	// max_mem block in nats-server.conf. MaxAge is moot under load: MaxBytes
+	// (stream-wide, oldest-first) evicts first, and 1 GiB is the consumer lag
+	// budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising it means raising
+	// max_mem on all three members at once.
 	MaxBytes: 1 << 30, // 1 GiB
 	// The premium, standard and stream lanes are distinct literal subjects
 	// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
@@ -198,13 +271,61 @@ var TwitchIngressStream = StreamSpec{
 	// retention (and stays within the 1 GiB stream cap).
 	MaxMsgsPer: 400_000,
 	// The dedup window only applies to messages that carry a Nats-Msg-Id.
-	// Production ingress runs INGRESS_PUBLISH_DEDUP=off (the per-message
-	// dedup insert measured ~27% of single-stream ingest capacity, and
-	// EventSub websockets never redeliver), so lane events are unindexed
-	// and this window costs nothing for them. It stays at 10s to bound
-	// dedup state for any id-carrying publisher on these subjects — at
-	// 200k/s a 30s window would track ~6M ids, a 10s window ~2M.
+	// Production ingress attaches none (see the MaxAge note above), so lane
+	// events are unindexed and this window costs nothing for them. It stays at
+	// 10s to bound dedup state for any id-carrying publisher on these subjects —
+	// at 200k/s a 30s window would track ~6M ids, a 10s window ~2M. streamConfig
+	// clamps it to MaxAge regardless, so the two cannot drift apart.
 	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
+// TwitchIngressRetryStream is the delayed-redelivery lane for the hot ingress
+// consumers. An AckFlowControl consumer has no per-message pending state to NAK
+// against — the server advances one replicated ack floor per window — so a
+// handler failure cannot ask the broker to redeliver. The lane consumer instead
+// hands the failed event back to the broker as a *scheduled* message here, and
+// the broker delivers it when the delay elapses. Nothing in sesame holds a timer
+// for work it has already handed off, so a pod that dies during the delay does
+// not take the retry with it.
+//
+// NOT PROVISIONED TODAY. Membership of DataStreams resolves subjects to streams;
+// it does not create anything. Every service reconciles an explicit list, and
+// sesame's is still []StreamSpec{TwitchIngressStream} — deliberately, because
+// receipt-level lane consumers ship disabled (NATS_CONSUME_FLOW defaults off), so
+// nothing schedules onto this lane and a stream nobody drains would only consume
+// hub memory. Provisioning it is part of enabling flow consumption, not of
+// defining the spec, and it is owned by sesame when that happens: the retry lane
+// is meaningless without the consumer that drains it, and one owner per stream is
+// what keeps STREAM.CREATE/UPDATE grants narrow (see nats-auth.conf).
+var TwitchIngressRetryStream = StreamSpec{
+	Name:     "TWITCH_INGRESS_RETRY",
+	Subjects: []string{"twitch.ingress.retry.>"},
+	// 2 minutes is the whole budget, and it is NOT a retention target — it is the
+	// floor a schedule row needs to outlive its own delay. MaxAge evicts the row,
+	// and an evicted row is a silently cancelled schedule: the scheduler's only
+	// cleanup for a missing message is dropping the wheel entry. So this bounds
+	// the row, while the retry delay itself is bounded by the 10s lane window
+	// above — a retry that lands after the event it replays would have aged out
+	// is a late answer, which the lane's staleness policy says is worse than no
+	// answer. Retry delays therefore have to stay well inside 10s, not inside 2m.
+	MaxAge: 2 * time.Minute,
+	// 32 MiB per member under R3. This lane only ever holds the exceptional
+	// path — the events a handler already failed — so it is sized as an
+	// incident buffer, not a firehose: at ~1 KiB an event that is ~32k retries
+	// in flight, far past the point where the fix is upstream rather than here.
+	MaxBytes: 32 << 20, // 32 MiB
+	// Memory, like the lane it serves. A retry is worth less than the event it
+	// replays and both are perishable, so paying a disk write per retry buys
+	// nothing. Memory storage also rescans its messages to rebuild the schedule
+	// wheel on start, so the schedules survive exactly as long as the messages do.
+	Storage: nats.MemoryStorage,
+	// R3, like every fleet stream. A single-copy retry lane would drop every
+	// in-flight retry with its peer, and those are precisely the deliveries
+	// that already failed once.
+	Replicas: 3,
+	// The reason this stream exists: the delay is the broker's, not ours.
+	MsgSchedules: true,
 	BatchPublish: true,
 }
 
@@ -212,7 +333,7 @@ var TwitchIngressStream = StreamSpec{
 // to tests and operator tooling; runtime services reconcile only the named
 // stream they own above. Outgress commands are deliberately excluded because
 // they are perishable work, not event history.
-var DataStreams = []StreamSpec{BagelDataStream, TwitchIngressStream}
+var DataStreams = []StreamSpec{BagelDataStream, TwitchIngressStream, TwitchIngressRetryStream}
 
 // streamForTopic resolves the catalog stream that captures a subject, so
 // subscribers can bind explicitly instead of paying an account-wide lookup.
