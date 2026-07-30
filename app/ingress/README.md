@@ -64,6 +64,9 @@ to standard.
 | `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local JetStream publish cohort size.                 | `128`                                         |
 | `INGRESS_PUBLISH_SEND_CONCURRENCY`    | Persistent Gnat send lanes per publisher connection.           | `22`                                          |
 | `INGRESS_PUBLISH_BATCH_WAIT_MS`       | Maximum wait for a partially full publish cohort.               | `1`                                           |
+| `INGRESS_PUBLISH_WIRE`                | Cohort wire: `atomic` (one commit PubAck per cohort, ADR-050) or `single` (per-event PubAck). An ambiguous outcome drops the whole cohort on `atomic` (up to `INGRESS_PUBLISH_BATCH_SIZE` = 128 events) against exactly 1 on `single` — see the blast-radius note below. Anything else warns on stderr and stays `atomic`. | `atomic` |
+| `INGRESS_PUBLISH_BATCH_INFLIGHT`      | Unresolved atomic batches per shard. Sized by the FLEET budget, not by local latency: the broker caps open batches at 50 per stream and 3 replicas × 2 schedulers × 8 = 48. Cohorts over budget publish individually. | `8` |
+| `INGRESS_PUBLISH_BATCH_HOLD_MS`       | How long a swept atomic batch keeps its local in-flight slot. Nothing on the wire cancels an open batch, so this must match the broker's batch inactivity timeout. | `10000`                  |
 | `TWITCH_EVENTSUB_WSS_URL`           | EventSub WebSocket endpoint.                                   | `wss://eventsub.wss.twitch.tv/ws?...`         |
 | `TWITCH_SPECIAL_USER_IDS`           | Comma-separated chatter IDs that always go premium.            | (empty)                                       |
 | `NATS_HOST` / `NATS_PORT`           | NATS connection.                                               | `127.0.0.1` / `4222`                          |
@@ -84,6 +87,36 @@ to standard.
 | `INGRESS_PUBLISH_CONNECTIONS`       | Independent NATS writers and PubAck collectors.                 | Online scheduler count                        |
 | `INGRESS_PUBLISH_MAX_PENDING`       | In-flight PubAck window per NATS writer.                        | `16384`                                       |
 | `LOG_LEVEL`                         | Logger level.                                                  | (inherited)                                   |
+
+### Atomic-wire blast radius
+
+Both wires are structurally dedup-free — no `Nats-Msg-Id` is ever attached — so
+both follow the same rule: an *ambiguous* outcome (ack timeout, malformed
+PubAck, a send error after part of the write is on the socket) drops rather
+than replays, because a replay could double-store. Only a *definite* negative
+PubAck, which proves the broker stored nothing, is re-driven.
+
+What differs is how much one ambiguous outcome costs. `single` resolves one
+event per PubAck, so it drops 1. `atomic` resolves the whole cohort with one
+commit PubAck, so it drops up to `INGRESS_PUBLISH_BATCH_SIZE` = 128.
+
+Nothing is lost silently: every dropped event is counted in
+`Nats/PublishFailed`. The operator signal is that counter's **shape**, not its
+existence — on `atomic` it moves in cohort-sized steps, on `single` one event
+at a time. `Nats/PublishFailed` climbing in steps is the cue to set
+`INGRESS_PUBLISH_WIRE=single` (a value edit in `deploy/k8s/twitch-ingress.yaml`,
+no rebuild), which buys per-event granularity back at one RAFT quorum round trip
+per event.
+
+Two neighbouring counters mean different things and should not be alarmed
+together: `Nats/PublishBatchBypassed` is the local in-flight window filling (a
+commit-latency signal), while `Nats/PublishBatchFallback` is the broker
+refusing or rejecting a batch and the cohort re-driving per message — if it
+climbs with 10210/429s, the fleet has crossed the broker's 50-per-stream cap and
+the replica or scheduler count no longer matches the arithmetic above.
+`Nats/PublishBatchHeadersIgnored` is neither failure nor fallback: the broker
+stored the cohort as ordinary publishes because it never read the
+`Nats-Batch-*` headers, which only a pre-2.14 server does.
 
 ## Monitoring
 
