@@ -97,6 +97,10 @@ type Deps struct {
 	// default. nil degrades gracefully: facts go random, the feed count is
 	// omitted and the mood re-rolls per message.
 	Personality PersonalityStore
+	// Dedup guards the non-idempotent effect sites against a redelivered or
+	// schedule-retried event applying them twice. nil (the kill switch) fails
+	// open everywhere: effects run, nothing is deduped.
+	Dedup *EventDedup
 }
 
 // FeedCounts is one feeding's readout: how often the bagel has been fed today
