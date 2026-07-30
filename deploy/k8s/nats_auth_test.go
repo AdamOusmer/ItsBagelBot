@@ -62,10 +62,14 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	}
 }
 
-// TestAdminBenchmarkStreamPermissionsAreExact keeps the production capacity
-// runner confined to its disposable stream. The admin retains its existing KV
-// ownership, but may not gain wildcard mutation access to the BUS account.
-func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
+// TestAdminStreamMutationGrantsAreOnlyItsOwnKV holds admin_bus to the one
+// stream it actually owns. It used to also carry create/update/delete,
+// leader-stepdown and $JS.FC on a fixed benchmark stream name so a load rig
+// could run without a config push. That is standing ack-floor and
+// stream-mutation authority for a workload that is not running, and it outlived
+// the rig by itself — which is exactly how a permission becomes permanent.
+// A future load test brings its own grant for the duration of its run.
+func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
 	if !ok {
@@ -74,22 +78,16 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 
 	var got []string
 	for _, subject := range block.jetStreamSubjects() {
-		if streamMutationPattern.MatchString(subject) || strings.Contains(subject, "R3_SHADOW_BENCH") {
+		if streamMutationPattern.MatchString(subject) {
 			got = append(got, subject)
+		}
+		if strings.Contains(subject, "BENCH") || strings.Contains(subject, "SHADOW") {
+			t.Errorf("admin_bus still grants a benchmark-stream subject: %s", subject)
 		}
 	}
 	want := []string{
 		"$JS.API.STREAM.CREATE.KV_admin_lanes",
-		"$JS.API.STREAM.CREATE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
-		// UPDATE lets bus.EnsureStreams converge a drifted bench stream; the
-		// FC reply subject is how an AckFlowControl consumer acknowledges at
-		// all, scoped to the disposable stream and nothing else.
-		"$JS.API.STREAM.UPDATE.R3_SHADOW_BENCH",
-		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
-		"$JS.FC.R3_SHADOW_BENCH.>",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)

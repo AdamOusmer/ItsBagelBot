@@ -105,21 +105,21 @@ iex --sname ingress-a -S mix   # start a node; start a second one and Gossip wil
 To exercise the keepalive/reconnect flows locally, run the Twitch CLI mock EventSub server
 (`twitch event websocket start-server`) and point `TWITCH_EVENTSUB_WSS_URL` at it.
 
-The ingress hot paths have dependency-free benchmarks. Use the production VM's
-two-CPU scheduler configuration when comparing changes:
+Benchmarks are not kept in this repository. Load generators and capacity probes
+belong in an operator's working copy for the duration of a measurement: when
+they live in the tree they get built and published as container images on
+unrelated commits, and they accumulate the broker grants and Falco exceptions
+they need until those become permanent. If a hot-path change needs numbers,
+write the harness locally and match the production VM's scheduler configuration
+so the result transfers:
 
 ```sh
 export ERL_FLAGS='+S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none'
-MIX_ENV=test mix run bench/hot_path.exs
-MIX_ENV=test mix run bench/nats_publisher.exs
-MIX_ENV=test mix run bench/end_to_end.exs
 ```
 
-The isolated TLS WebSocket benchmark exercises a real shard through dispatcher
-handoff without Twitch or NATS. Run it across the three production ingress
-nodes with `bench/websocket_shard_cluster.sh`; the latest measurements and
-capacity decision are recorded in
-[`bench/2026-07-15-websocket-shard-results.md`](bench/2026-07-15-websocket-shard-results.md).
+The capacity figures those measurements produced are not lost with the
+harnesses: the per-pod event rating and the shard ceiling live as documented
+constants in `config/runtime.exs`, and `test/capacity_test.exs` holds them.
 
 The release builds on OTP 27 and uses its native `:json` codec for Twitch frame
 decoding and NATS event encoding. Control-plane RPCs retain Jason where protocol

@@ -233,24 +233,13 @@ spec:
           override:
             condition: replace
 
-        # --- 3. Acceptance-test pods (drop-and-execute + stdio redirect) -----
-        # nats-live-acceptance / valkey-live-acceptance / wg-latency test pods
-        # run image alpine/k8s and get freshly built binaries kubectl-cp'd in
-        # and executed (deploy/k8s/nats-live-acceptance/*.sh): textbook trigger
-        # for "Drop and execute new binary in container" and "Redirect
-        # STDOUT/STDIN to Network Connection in Container". The container
-        # plugin reports container.image.repository WITH the registry prefix
-        # (verified live), so both forms are listed.
-        - list: known_drop_and_execute_containers
-          items: [alpine/k8s, docker.io/alpine/k8s]
-          override:
-            items: append
-
-        - macro: user_known_stand_streams_redirect_activities
-          condition: >
-            (container.image.repository in (alpine/k8s, docker.io/alpine/k8s)
-             or k8s.pod.name startswith "nats-live-acceptance"
-             or k8s.pod.name startswith "valkey-live-acceptance"
-             or k8s.pod.name startswith "wg-latency")
-          override:
-            condition: replace
+        # There is deliberately no exception for drop-and-execute or stdio
+        # redirect. One used to live here, whitelisting the alpine/k8s image and
+        # the nats-live-acceptance / valkey-live-acceptance / wg-latency pod
+        # names, because those harnesses had freshly built binaries kubectl-cp'd
+        # into a running container and executed. The harnesses are gone from the
+        # repository and so is the exception: "a generic utility image may drop
+        # and run an unsigned binary in production, unalerted" is a wide hole to
+        # hold open for a benchmark. Anything that needs to run in this cluster
+        # ships as an image built by publish-images.yml; if a rule fires, that is
+        # the rule working.

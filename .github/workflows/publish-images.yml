@@ -25,7 +25,6 @@ on:
           - users
           - sesame
           - twitch-ingress
-          - valkey-live-acceptance
           - console-dashboard
           - console-admin
 
@@ -134,12 +133,6 @@ jobs:
               "description": "ItsBagelBot Twitch ingress service"
             },
             {
-              "image": "valkey-live-acceptance",
-              "context": ".",
-              "containerfile": "deploy/k8s/valkey-live-acceptance/Containerfile",
-              "description": "ItsBagelBot Valkey live-acceptance probe"
-            },
-            {
               "image": "console-dashboard",
               "context": "console",
               "containerfile": "console/dashboard/Containerfile",
@@ -159,6 +152,13 @@ jobs:
             selected["$1"]=1
           }
 
+          # Every image below runs in production. Load rigs, capacity probes and
+          # hardware benchmarks are deliberately absent and must stay absent:
+          # they were previously listed here, which meant an unrelated pkg/*
+          # commit published a capacity probe to GHCR under :main and :latest,
+          # signed with the same build provenance as a real service. A benchmark
+          # belongs in an operator's working copy, not in the registry the
+          # cluster pulls from.
           add_root_go_services() {
             add "commands"
             add "loyalty"
@@ -170,7 +170,6 @@ jobs:
             add "users"
             add "sesame"
             add "gateway"
-            add "valkey-live-acceptance"
           }
 
           add_all_services() {
@@ -185,7 +184,6 @@ jobs:
             add "sesame"
             add "gateway"
             add "twitch-ingress"
-            add "valkey-live-acceptance"
             add "console-dashboard"
             add "console-admin"
           }
@@ -212,9 +210,6 @@ jobs:
                 ;;
               app/ingress/*)
                 add "twitch-ingress"
-                ;;
-              deploy/k8s/valkey-live-acceptance/*)
-                add "valkey-live-acceptance"
                 ;;
               app/loyalty/*)
                 add "loyalty"
