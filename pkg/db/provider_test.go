@@ -27,13 +27,7 @@ func TestRegisterTLSRejectsMissingCA(t *testing.T) {
 }
 
 func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	ca, caKey, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	ca, caKey, cfg := registerTestCA(t)
 	require.True(t, cfg.InsecureSkipVerify)
 	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	require.Empty(t, cfg.ServerName)
@@ -49,28 +43,17 @@ func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 }
 
 func TestRegisterTLSRejectsUntrustedServerCertificate(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+	_, _, cfg := registerTestCA(t)
 
-	_, _, trustedCAPEM := testCA(t)
 	untrustedCA, untrustedKey, _ := testCA(t)
-
-	_, err := registerTLS(trustedCAPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "db.example.com:3306")
 	require.Error(t, cfg.VerifyConnection(tls.ConnectionState{
 		PeerCertificates: testLeafChain(t, untrustedCA, untrustedKey),
 	}))
 }
 
 func TestRegisterTLSRejectsMissingServerCertificate(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+	_, _, cfg := registerTestCA(t)
 
-	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "db.example.com:3306")
 	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{}), "server presented no certificate")
 }
 
@@ -80,13 +63,7 @@ func TestRegisterTLSRejectsInvalidCA(t *testing.T) {
 }
 
 func TestVerifyConnectionAdoptsRotatedCA(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	oldCA, oldKey, oldCAPEM := testCA(t)
-	_, err := registerTLS(oldCAPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	oldCA, oldKey, cfg := registerTestCA(t)
 
 	// A rotated CA with the pinned subject, presented by the server itself,
 	// is adopted and the handshake that saw it succeeds.
@@ -103,13 +80,7 @@ func TestVerifyConnectionAdoptsRotatedCA(t *testing.T) {
 }
 
 func TestVerifyConnectionRejectsRotationWithDifferentSubject(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	_, _, cfg := registerTestCA(t)
 
 	imposterCA, imposterKey := testNamedCA(t, "Imposter_CA")
 	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{
@@ -118,13 +89,7 @@ func TestVerifyConnectionRejectsRotationWithDifferentSubject(t *testing.T) {
 }
 
 func TestVerifyConnectionRejectsRotationWithoutPresentedCA(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	_, _, cfg := registerTestCA(t)
 
 	// Leaf-only chain from an untrusted CA: nothing to adopt, fail closed.
 	untrustedCA, untrustedKey, _ := testCA(t)
@@ -134,13 +99,7 @@ func TestVerifyConnectionRejectsRotationWithoutPresentedCA(t *testing.T) {
 }
 
 func TestVerifyConnectionRejectsRotatedCANotSigningLeaf(t *testing.T) {
-	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
-
-	_, _, caPEM := testCA(t)
-	_, err := registerTLS(caPEM)
-	require.NoError(t, err)
-
-	cfg := registeredTLSConfig(t, "10.0.0.4:3306")
+	_, _, cfg := registerTestCA(t)
 
 	// The presented CA carries the pinned subject but did not sign the leaf.
 	leafCA, leafKey, _ := testCA(t)
@@ -149,6 +108,20 @@ func TestVerifyConnectionRejectsRotatedCANotSigningLeaf(t *testing.T) {
 	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{
 		PeerCertificates: chain,
 	}), "does not sign the server certificate")
+}
+
+// registerTestCA pins a fresh test CA in the driver's TLS registry (with
+// cleanup) and returns the CA pair plus the registered config, so each test
+// starts from the same known trust state.
+func registerTestCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, *tls.Config) {
+	t.Helper()
+	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+
+	ca, caKey, caPEM := testCA(t)
+	_, err := registerTLS(caPEM)
+	require.NoError(t, err)
+
+	return ca, caKey, registeredTLSConfig(t, "10.0.0.4:3306")
 }
 
 func registeredTLSConfig(t *testing.T, addr string) *tls.Config {
