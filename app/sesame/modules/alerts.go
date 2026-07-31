@@ -283,17 +283,34 @@ func subLine(_ context.Context, ev subscribeEvent) (alertLine, bool) {
 	}}, true
 }
 
+// anonymousSender is the identity of an alert whose sender is allowed to stay
+// anonymous (a gift, a cheer). Twitch omits the name and login entirely in that
+// case, so each such alert carries its own stand-in label.
+type anonymousSender struct {
+	isAnonymous bool
+	name        string
+	login       string
+	anonLabel   string
+}
+
+// userToken renders the {user} token for a sender who may be anonymous: the
+// stand-in label when they are, otherwise the display name with any leading @
+// stripped so a template can write "@{user}" without doubling it.
+func (s anonymousSender) userToken() string {
+	if s.isAnonymous {
+		return s.anonLabel
+	}
+	return chatName(s.name, s.login)
+}
+
 // giftLine renders the one line a gifter gets for a whole gift batch.
 func giftLine(_ context.Context, ev giftEvent) (alertLine, bool) {
 	if ev.BroadcasterUserID == "" || ev.Total <= 0 {
 		return alertLine{}, false
 	}
-	gifter := "An anonymous gifter"
-	if !ev.IsAnonymous {
-		gifter = displayName(ev.UserName, ev.UserLogin)
-	}
+	gifter := anonymousSender{ev.IsAnonymous, ev.UserName, ev.UserLogin, "An anonymous gifter"}
 	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"user":  strings.TrimPrefix(gifter, "@"),
+		"user":  gifter.userToken(),
 		"count": strconv.Itoa(ev.Total),
 		"tier":  ev.Tier,
 	}}, true
@@ -304,12 +321,9 @@ func cheerLine(_ context.Context, ev cheerEvent) (alertLine, bool) {
 	if ev.BroadcasterUserID == "" {
 		return alertLine{}, false
 	}
-	cheerer := "An anonymous cheerer"
-	if !ev.IsAnonymous {
-		cheerer = displayName(ev.UserName, ev.UserLogin)
-	}
+	cheerer := anonymousSender{ev.IsAnonymous, ev.UserName, ev.UserLogin, "An anonymous cheerer"}
 	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"user": strings.TrimPrefix(cheerer, "@"),
+		"user": cheerer.userToken(),
 		"bits": strconv.Itoa(ev.Bits),
 	}}, true
 }
