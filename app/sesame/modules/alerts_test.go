@@ -2,7 +2,9 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
@@ -15,15 +17,19 @@ import (
 )
 
 const (
-	followJSON    = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
-	subscribeJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
-	giftedSubJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
-	resubJSON     = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
-	giftJSON      = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
-	anonGiftJSON  = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
-	cheerJSON     = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
-	anonCheerJSON = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
-	adBreakJSON   = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
+	followJSON = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
+	// A follow payload with no user id: the dedupe has nothing to key on.
+	followNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
+	// The same follower on a different channel.
+	followOtherChannelJSON = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"9"}`
+	subscribeJSON          = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
+	giftedSubJSON          = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
+	resubJSON              = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
+	giftJSON               = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
+	anonGiftJSON           = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
+	cheerJSON              = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
+	anonCheerJSON          = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
+	adBreakJSON            = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
 )
 
 func alertsCtx(eventType, payload, config string) *module.Context {
@@ -40,12 +46,24 @@ func alertsCtx(eventType, payload, config string) *module.Context {
 
 func alertsHandler(t *testing.T, eventType string) module.EventHandler {
 	t.Helper()
-	m := Alerts(engine.Deps{Log: zap.NewNop()})
+	return alertsHandlerWith(t, eventType, engine.Deps{Log: zap.NewNop()})
+}
+
+// alertsHandlerWith builds the module from a caller-supplied Deps, for the
+// tests that need a cooldown store wired in.
+func alertsHandlerWith(t *testing.T, eventType string, d engine.Deps) module.EventHandler {
+	t.Helper()
+	m := Alerts(d)
 	assert.Equal(t, "alerts", m.Name)
 	assert.Equal(t, module.KindDefault, m.Kind)
 	h := m.Events[eventType]
 	require.NotNil(t, h, "alerts must handle %s", eventType)
 	return h
+}
+
+// alertsDeps wires a scripted cooldown into an otherwise bare Deps.
+func alertsDeps(cd engine.CooldownStore) engine.Deps {
+	return engine.Deps{Log: zap.NewNop(), Cooldown: cd}
 }
 
 // alertInput is one event fired at the alerts module: the EventSub type, its
@@ -63,6 +81,91 @@ func runAlert(t *testing.T, in alertInput) []module.Output {
 	var col collector
 	require.NoError(t, alertsHandler(t, in.event)(context.Background(), alertsCtx(in.event, in.payload, in.cfg), col.emit))
 	return col.out
+}
+
+// runAlertOn fires one event through a handler the caller already built, so a
+// dedupe test can send several events at the same module instance.
+func runAlertOn(t *testing.T, h module.EventHandler, in alertInput) []module.Output {
+	t.Helper()
+	var col collector
+	require.NoError(t, h(context.Background(), alertsCtx(in.event, in.payload, in.cfg), col.emit))
+	return col.out
+}
+
+// The first follow claims the per-channel, per-follower window; a re-follow
+// inside it is silent, so unfollow/refollow cannot drive the alert line.
+func TestAlertsFollowDedupeSuppressesRefollow(t *testing.T) {
+	cd := &fakeCooldown{allow: []bool{true, false}}
+	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
+	in := alertInput{event: "channel.follow", payload: followJSON}
+
+	require.Len(t, runAlertOn(t, h, in), 1)
+	assert.Empty(t, runAlertOn(t, h, in), "re-follow inside the window must stay silent")
+
+	assert.Equal(t, []string{"alert:follow:2:7", "alert:follow:2:7"}, cd.keys)
+	assert.Equal(t, []time.Duration{followAlertWindow, followAlertWindow}, cd.ttls)
+	assert.Equal(t, 72*time.Hour, followAlertWindow, "follow dedupe window must stay multi-day")
+}
+
+// The same follower on another channel must still be thanked: the key carries
+// the broadcaster id.
+func TestAlertsFollowDedupeIsPerChannel(t *testing.T) {
+	cd := &fakeCooldown{}
+	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
+
+	require.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followJSON}), 1)
+	require.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followOtherChannelJSON}), 1)
+
+	assert.Equal(t, []string{"alert:follow:2:7", "alert:follow:9:7"}, cd.keys)
+}
+
+// Valkey unreachable must not swallow thank-yous: the gate fails open.
+func TestAlertsFollowDedupeFailsOpen(t *testing.T) {
+	cd := &fakeCooldown{err: errors.New("valkey down")}
+	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
+
+	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followJSON}), 1)
+}
+
+// No user id on the payload means nothing stable to key on, so the alert fires
+// rather than claiming a window every follower would share.
+func TestAlertsFollowWithoutUserIDSkipsDedupe(t *testing.T) {
+	cd := &fakeCooldown{allow: []bool{false}}
+	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
+
+	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followNoIDJSON}), 1)
+	assert.Empty(t, cd.keys)
+}
+
+// A channel with follow alerts off must not burn a window it would want the
+// moment the broadcaster turns them back on.
+func TestAlertsFollowDisabledClaimsNoWindow(t *testing.T) {
+	cd := &fakeCooldown{}
+	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
+
+	in := alertInput{event: "channel.follow", payload: followJSON, cfg: `{"followEnabled":"off"}`}
+	assert.Empty(t, runAlertOn(t, h, in))
+	assert.Empty(t, cd.keys)
+}
+
+// Every alert other than follow costs its sender something (or is the
+// channel's own ad break), so none of them are deduplicated.
+func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
+	cd := &fakeCooldown{}
+	d := alertsDeps(cd)
+
+	for _, in := range []alertInput{
+		{event: "channel.subscribe", payload: subscribeJSON},
+		{event: "channel.subscription.message", payload: resubJSON},
+		{event: "channel.subscription.gift", payload: giftJSON},
+		{event: "channel.cheer", payload: cheerJSON},
+		{event: "channel.raid", payload: raidJSON},
+		{event: "channel.ad_break.begin", payload: adBreakJSON, cfg: `{"adsEnabled":"on"}`},
+	} {
+		h := alertsHandlerWith(t, in.event, d)
+		assert.Len(t, runAlertOn(t, h, in), 1, in.event)
+	}
+	assert.Empty(t, cd.keys)
 }
 
 // Every alert with its default template: one chat line to the broadcaster's
