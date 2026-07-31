@@ -31,11 +31,6 @@ resources:
   - nats.yaml
   - nats-leaf.yaml
   - nats-auth-dopplersecret.yaml
-  # Auto-repins DB_CA_CERT in Doppler when OCI rotates the MySQL endpoint CA
-  # (~28d cadence; the 2026-07-30 rotation broke dashboard login + admin for
-  # ~7.5h). Reads the live chain from the DB endpoint every 10 min. Its token
-  # secret (mysql-ca-sync-tokens) is created by hand, never in git.
-  - mysql-ca-sync.yaml
 # NATS broker config, formerly created by apply-nats.sh. The configmaps hold
 # only the server conf + the auth conf ($ENV placeholders expanded at runtime
 # from the nats-auth-env secret). disableNameSuffixHash keeps the names stable
