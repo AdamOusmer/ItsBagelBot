@@ -699,7 +699,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'Chat Alerts',
     tagline: 'Announce follows, subs, cheers, raids and ad breaks in chat.',
     description:
-      'The bot posts a chat line when someone follows, subscribes, cheers, or raids, and can announce ad breaks. Turn each alert on or off and customize its message. New alerts default on, except the ad-break alert which stays off until you enable it.',
+      'The bot posts a chat line when someone follows, subscribes, cheers, or raids, and can announce ad breaks. Turn each alert on or off and customize its message. New alerts default on, except the ad-break alert which stays off until you enable it. A follow alert fires at most once per viewer every three days, so unfollowing and refollowing cannot spam your chat.',
     icon: 'bell',
     category: 'Community',
     defaultEnabled: true,
@@ -707,7 +707,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       {
         key: 'follow',
         label: 'Follow alert',
-        tagline: 'When someone follows your channel.',
+        tagline: 'When someone follows your channel. Fires once per viewer every three days.',
         event: 'on follow',
         enableKey: 'followEnabled',
         messageKey: 'followMessage',
