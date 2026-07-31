@@ -228,29 +228,80 @@ func Alerts(d engine.Deps) module.Module {
 	subAlert := onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
 		defaultSubTemplate,
-		subLine)
+		func(_ context.Context, ev subscribeEvent) (alertLine, bool) {
+			// A gifted recipient is announced through the gift alert on
+			// channel.subscription.gift (one line per gifter, not one per
+			// recipient), so a gift bomb cannot flood chat with welcome lines.
+			if ev.UserLogin == "" || ev.IsGift {
+				return alertLine{}, false
+			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user": chatName(ev.UserName, ev.UserLogin),
+				"tier": ev.Tier,
+			}}, true
+		})
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
 
 	m.On("channel.subscription.gift", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
 		defaultGiftTemplate,
-		giftLine))
+		func(_ context.Context, ev giftEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" || ev.Total <= 0 {
+				return alertLine{}, false
+			}
+			gifter := "An anonymous gifter"
+			if !ev.IsAnonymous {
+				gifter = displayName(ev.UserName, ev.UserLogin)
+			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user":  strings.TrimPrefix(gifter, "@"),
+				"count": strconv.Itoa(ev.Total),
+				"tier":  ev.Tier,
+			}}, true
+		}))
 
 	m.On("channel.cheer", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
 		defaultCheerTemplate,
-		cheerLine))
+		func(_ context.Context, ev cheerEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" {
+				return alertLine{}, false
+			}
+			cheerer := "An anonymous cheerer"
+			if !ev.IsAnonymous {
+				cheerer = displayName(ev.UserName, ev.UserLogin)
+			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"user": strings.TrimPrefix(cheerer, "@"),
+				"bits": strconv.Itoa(ev.Bits),
+			}}, true
+		}))
 
 	m.On("channel.raid", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
 		defaultRaidTemplate,
-		raidLine))
+		func(_ context.Context, ev raidEvent) (alertLine, bool) {
+			if ev.FromBroadcasterUserLogin == "" {
+				return alertLine{}, false
+			}
+			return alertLine{ev.ToBroadcasterUserID, map[string]string{
+				"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
+				"viewers": strconv.Itoa(ev.Viewers),
+			}}, true
+		}))
 
 	m.On("channel.ad_break.begin", onAlert(
 		func(cfg alertsConfig) (bool, string) { return adAlertOn(cfg.AdsEnabled), cfg.AdsMessage },
 		defaultAdsTemplate,
-		adBreakLine))
+		func(_ context.Context, ev adBreakEvent) (alertLine, bool) {
+			if ev.BroadcasterUserID == "" {
+				return alertLine{}, false
+			}
+			return alertLine{ev.BroadcasterUserID, map[string]string{
+				"duration": strconv.Itoa(ev.DurationSeconds),
+			}}, true
+		}))
 
 	return m.Build()
 }
@@ -267,86 +318,6 @@ func followLine(cd engine.CooldownStore, log *zap.Logger) func(context.Context, 
 			"user": chatName(ev.UserName, ev.UserLogin),
 		}}, true
 	}
-}
-
-// subLine renders the welcome line for a new sub or a resub.
-func subLine(_ context.Context, ev subscribeEvent) (alertLine, bool) {
-	// A gifted recipient is announced through the gift alert on
-	// channel.subscription.gift (one line per gifter, not one per recipient),
-	// so a gift bomb cannot flood chat with welcome lines.
-	if ev.UserLogin == "" || ev.IsGift {
-		return alertLine{}, false
-	}
-	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"user": chatName(ev.UserName, ev.UserLogin),
-		"tier": ev.Tier,
-	}}, true
-}
-
-// anonymousSender is the identity of an alert whose sender is allowed to stay
-// anonymous (a gift, a cheer). Twitch omits the name and login entirely in that
-// case, so each such alert carries its own stand-in label.
-type anonymousSender struct {
-	isAnonymous bool
-	name        string
-	login       string
-	anonLabel   string
-}
-
-// userToken renders the {user} token for a sender who may be anonymous: the
-// stand-in label when they are, otherwise the display name with any leading @
-// stripped so a template can write "@{user}" without doubling it.
-func (s anonymousSender) userToken() string {
-	if s.isAnonymous {
-		return s.anonLabel
-	}
-	return chatName(s.name, s.login)
-}
-
-// giftLine renders the one line a gifter gets for a whole gift batch.
-func giftLine(_ context.Context, ev giftEvent) (alertLine, bool) {
-	if ev.BroadcasterUserID == "" || ev.Total <= 0 {
-		return alertLine{}, false
-	}
-	gifter := anonymousSender{ev.IsAnonymous, ev.UserName, ev.UserLogin, "An anonymous gifter"}
-	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"user":  gifter.userToken(),
-		"count": strconv.Itoa(ev.Total),
-		"tier":  ev.Tier,
-	}}, true
-}
-
-// cheerLine renders the cheer thank-you.
-func cheerLine(_ context.Context, ev cheerEvent) (alertLine, bool) {
-	if ev.BroadcasterUserID == "" {
-		return alertLine{}, false
-	}
-	cheerer := anonymousSender{ev.IsAnonymous, ev.UserName, ev.UserLogin, "An anonymous cheerer"}
-	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"user": cheerer.userToken(),
-		"bits": strconv.Itoa(ev.Bits),
-	}}, true
-}
-
-// raidLine announces an incoming raid to the raided channel.
-func raidLine(_ context.Context, ev raidEvent) (alertLine, bool) {
-	if ev.FromBroadcasterUserLogin == "" {
-		return alertLine{}, false
-	}
-	return alertLine{ev.ToBroadcasterUserID, map[string]string{
-		"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
-		"viewers": strconv.Itoa(ev.Viewers),
-	}}, true
-}
-
-// adBreakLine warns chat that an ad break started.
-func adBreakLine(_ context.Context, ev adBreakEvent) (alertLine, bool) {
-	if ev.BroadcasterUserID == "" {
-		return alertLine{}, false
-	}
-	return alertLine{ev.BroadcasterUserID, map[string]string{
-		"duration": strconv.Itoa(ev.DurationSeconds),
-	}}, true
 }
 
 // displayName prefers the EventSub display name, falling back to the login
