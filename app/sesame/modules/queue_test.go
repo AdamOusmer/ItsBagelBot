@@ -338,14 +338,22 @@ func TestQueueJoinAndListViaSubcommand(t *testing.T) {
 }
 
 // fakeCooldown scripts CooldownStore.Allow: it records the claimed keys and
-// answers from the allow queue (defaulting to true when exhausted).
+// their windows, and answers from the allow queue (defaulting to true when
+// exhausted). A non-nil err makes every claim fail, which is how the callers'
+// fail-open/fail-closed behavior is exercised.
 type fakeCooldown struct {
 	keys  []string
+	ttls  []time.Duration
 	allow []bool
+	err   error
 }
 
-func (f *fakeCooldown) Allow(_ context.Context, key string, _ time.Duration) (bool, error) {
+func (f *fakeCooldown) Allow(_ context.Context, key string, ttl time.Duration) (bool, error) {
 	f.keys = append(f.keys, key)
+	f.ttls = append(f.ttls, ttl)
+	if f.err != nil {
+		return false, f.err
+	}
 	if len(f.allow) == 0 {
 		return true, nil
 	}
