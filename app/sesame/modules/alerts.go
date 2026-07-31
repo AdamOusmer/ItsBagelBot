@@ -214,19 +214,11 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 // announced every time.
 func Alerts(d engine.Deps) module.Module {
 	m := module.NewModule("alerts", module.KindDefault)
-	log := moduleLog(d)
 
 	m.On("channel.follow", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.FollowEnabled), cfg.FollowMessage },
 		defaultFollowTemplate,
-		func(ctx context.Context, ev followEvent) (alertLine, bool) {
-			if ev.UserLogin == "" || !firstFollowAlert(ctx, d.Cooldown, log, ev) {
-				return alertLine{}, false
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": chatName(ev.UserName, ev.UserLogin),
-			}}, true
-		}))
+		followLine(d.Cooldown, moduleLog(d))))
 
 	// The sub alert serves both channel.subscribe (new subs) and
 	// channel.subscription.message (resubs shared in chat), so a renewing sub
@@ -236,82 +228,111 @@ func Alerts(d engine.Deps) module.Module {
 	subAlert := onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
 		defaultSubTemplate,
-		func(_ context.Context, ev subscribeEvent) (alertLine, bool) {
-			// A gifted recipient is announced through the gift alert on
-			// channel.subscription.gift (one line per gifter, not one per
-			// recipient), so a gift bomb cannot flood chat with welcome lines.
-			if ev.UserLogin == "" || ev.IsGift {
-				return alertLine{}, false
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": chatName(ev.UserName, ev.UserLogin),
-				"tier": ev.Tier,
-			}}, true
-		})
+		subLine)
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
 
 	m.On("channel.subscription.gift", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
 		defaultGiftTemplate,
-		func(_ context.Context, ev giftEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" || ev.Total <= 0 {
-				return alertLine{}, false
-			}
-			gifter := "An anonymous gifter"
-			if !ev.IsAnonymous {
-				gifter = displayName(ev.UserName, ev.UserLogin)
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user":  strings.TrimPrefix(gifter, "@"),
-				"count": strconv.Itoa(ev.Total),
-				"tier":  ev.Tier,
-			}}, true
-		}))
+		giftLine))
 
 	m.On("channel.cheer", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
 		defaultCheerTemplate,
-		func(_ context.Context, ev cheerEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" {
-				return alertLine{}, false
-			}
-			cheerer := "An anonymous cheerer"
-			if !ev.IsAnonymous {
-				cheerer = displayName(ev.UserName, ev.UserLogin)
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": strings.TrimPrefix(cheerer, "@"),
-				"bits": strconv.Itoa(ev.Bits),
-			}}, true
-		}))
+		cheerLine))
 
 	m.On("channel.raid", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
 		defaultRaidTemplate,
-		func(_ context.Context, ev raidEvent) (alertLine, bool) {
-			if ev.FromBroadcasterUserLogin == "" {
-				return alertLine{}, false
-			}
-			return alertLine{ev.ToBroadcasterUserID, map[string]string{
-				"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
-				"viewers": strconv.Itoa(ev.Viewers),
-			}}, true
-		}))
+		raidLine))
 
 	m.On("channel.ad_break.begin", onAlert(
 		func(cfg alertsConfig) (bool, string) { return adAlertOn(cfg.AdsEnabled), cfg.AdsMessage },
 		defaultAdsTemplate,
-		func(_ context.Context, ev adBreakEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" {
-				return alertLine{}, false
-			}
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"duration": strconv.Itoa(ev.DurationSeconds),
-			}}, true
-		}))
+		adBreakLine))
 
 	return m.Build()
+}
+
+// followLine renders the follow alert. It is the one render that needs runtime
+// deps: the dedupe window is claimed here, inside the render, so it is taken
+// only for a channel whose follow alert is actually enabled.
+func followLine(cd engine.CooldownStore, log *zap.Logger) func(context.Context, followEvent) (alertLine, bool) {
+	return func(ctx context.Context, ev followEvent) (alertLine, bool) {
+		if ev.UserLogin == "" || !firstFollowAlert(ctx, cd, log, ev) {
+			return alertLine{}, false
+		}
+		return alertLine{ev.BroadcasterUserID, map[string]string{
+			"user": chatName(ev.UserName, ev.UserLogin),
+		}}, true
+	}
+}
+
+// subLine renders the welcome line for a new sub or a resub.
+func subLine(_ context.Context, ev subscribeEvent) (alertLine, bool) {
+	// A gifted recipient is announced through the gift alert on
+	// channel.subscription.gift (one line per gifter, not one per recipient),
+	// so a gift bomb cannot flood chat with welcome lines.
+	if ev.UserLogin == "" || ev.IsGift {
+		return alertLine{}, false
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"user": chatName(ev.UserName, ev.UserLogin),
+		"tier": ev.Tier,
+	}}, true
+}
+
+// giftLine renders the one line a gifter gets for a whole gift batch.
+func giftLine(_ context.Context, ev giftEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" || ev.Total <= 0 {
+		return alertLine{}, false
+	}
+	gifter := "An anonymous gifter"
+	if !ev.IsAnonymous {
+		gifter = displayName(ev.UserName, ev.UserLogin)
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"user":  strings.TrimPrefix(gifter, "@"),
+		"count": strconv.Itoa(ev.Total),
+		"tier":  ev.Tier,
+	}}, true
+}
+
+// cheerLine renders the cheer thank-you.
+func cheerLine(_ context.Context, ev cheerEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" {
+		return alertLine{}, false
+	}
+	cheerer := "An anonymous cheerer"
+	if !ev.IsAnonymous {
+		cheerer = displayName(ev.UserName, ev.UserLogin)
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"user": strings.TrimPrefix(cheerer, "@"),
+		"bits": strconv.Itoa(ev.Bits),
+	}}, true
+}
+
+// raidLine announces an incoming raid to the raided channel.
+func raidLine(_ context.Context, ev raidEvent) (alertLine, bool) {
+	if ev.FromBroadcasterUserLogin == "" {
+		return alertLine{}, false
+	}
+	return alertLine{ev.ToBroadcasterUserID, map[string]string{
+		"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
+		"viewers": strconv.Itoa(ev.Viewers),
+	}}, true
+}
+
+// adBreakLine warns chat that an ad break started.
+func adBreakLine(_ context.Context, ev adBreakEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" {
+		return alertLine{}, false
+	}
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"duration": strconv.Itoa(ev.DurationSeconds),
+	}}, true
 }
 
 // displayName prefers the EventSub display name, falling back to the login
