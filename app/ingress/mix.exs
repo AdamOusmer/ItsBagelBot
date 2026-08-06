@@ -31,7 +31,7 @@ defmodule Ingress.MixProject do
       {:mint_web_socket, "~> 1.0"},
       {:castore, "~> 1.0"},
       # Twitch Helix HTTP API
-      {:req, "~> 0.5"},
+      {:req, "~> 0.7"},
       {:jason, "~> 1.4"},
       # New Relic monitoring (disabled automatically when no license key)
       {:new_relic_agent, "~> 1.30"}
