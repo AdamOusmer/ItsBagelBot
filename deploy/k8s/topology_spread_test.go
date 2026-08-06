@@ -96,52 +96,54 @@ func hostnameSpread(t *testing.T, manifest workloadManifest) struct {
 	}{}
 }
 
-// TestSpreadIsPreferredNeverBlocking asserts the placement policy the fleet
-// settled on after 2026-07-27: spread hard enough to survive a rollout, never
-// hard enough to withhold a replica.
+// TestSpreadIsHardWithoutMinDomains asserts the placement policy the fleet
+// settled on after 2026-08-05: spread MUST be enforced, but WITHOUT minDomains.
 //
-// These were DoNotSchedule with minDomains, which is a correct-looking
-// constraint that fails badly the moment a node is gone for longer than a few
-// minutes. When node5 died, thirteen deployments sat at 2/3 with a permanently
-// Pending third replica: the scheduler could not place it without exceeding
-// maxSkew against a domain that no longer had a schedulable node. Capacity was
-// withheld for hours to preserve a spread that could not be achieved anyway.
+// History: the fleet tried three policies.
 //
-// minDomains was worse than that. It is only valid alongside DoNotSchedule, and
-// if it ever exceeds the number of eligible domains, skew is measured against a
-// global minimum of zero and EVERY replica becomes unschedulable. It sat at 4
-// while the fleet had four app nodes and only kept working after the move
-// because cordoned nodes still count as domains (nodeTaintsPolicy defaults to
-// Ignore); deleting them would have taken those services to zero replicas.
+//  1. DoNotSchedule + minDomains (2026-07-10 → 2026-07-27): when node5 died,
+//     thirteen deployments sat at 2/3 with a permanently Pending third replica
+//     because the scheduler could not place it without exceeding maxSkew against
+//     a domain that no longer had a schedulable node. minDomains made it worse:
+//     when it exceeds the eligible domain count, skew is measured against a
+//     global minimum of zero and EVERY replica becomes unschedulable.
 //
-// ScheduleAnyway keeps the scheduler preferring an even spread while letting a
-// replica land anywhere rather than nowhere, and matchLabelKeys still scopes the
-// skew to the incoming ReplicaSet so each rollout re-spreads. Kubernetes does
-// not rebalance running pods, so a returning node is repopulated by the next
-// rollout rather than immediately, which is the accepted trade.
+//  2. ScheduleAnyway (2026-07-27 → 2026-08-05): avoided the withholding
+//     problem, but the scheduler treated spread as a preference and piled all
+//     six sesame replicas onto node6. When node6 rebooted on 2026-08-05, the
+//     entire sesame fleet was disrupted simultaneously.
+//
+//  3. DoNotSchedule WITHOUT minDomains (2026-08-06 → present): the scheduler
+//     enforces even placement across available nodes. Without minDomains, a
+//     lost node simply reduces the domain count and new pods land on surviving
+//     nodes within maxSkew. Replica counts are tuned to 1-per-node at the floor
+//     (3 replicas across 3 app nodes = 1/1/1), so a node outage loses at most
+//     one replica instead of the whole fleet.
 //
 // Quorum services are the deliberate exception and are NOT listed here: nats and
 // valkey keep required podAntiAffinity, because two members of a three-member
 // quorum sharing a node means one node loss costs the quorum.
-func TestSpreadIsPreferredNeverBlocking(t *testing.T) {
+func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 	for _, tt := range []struct{ file, name string }{
 		{"console-admin.yaml", "console-admin"},
+		{"console-dashboard.yaml", "console-dashboard"},
 		{"notifications.yaml", "notifications"},
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
+		{"outgress.yaml", "outgress"},
 		{"sesame.yaml", "sesame"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			constraint := hostnameSpread(t, loadDeployment(t, tt.file, tt.name))
-			if constraint.WhenUnsatisfiable != "ScheduleAnyway" {
-				t.Errorf("hostname spread is %q; must be ScheduleAnyway so a missing node cannot withhold a replica",
+			if constraint.WhenUnsatisfiable != "DoNotSchedule" {
+				t.Errorf("hostname spread is %q; must be DoNotSchedule to enforce even placement (ScheduleAnyway piled all replicas onto one node on 2026-08-05)",
 					constraint.WhenUnsatisfiable)
 			}
 			if !slices.Contains(constraint.MatchLabelKeys, "pod-template-hash") {
 				t.Error("hostname spread must be scoped to the incoming ReplicaSet via matchLabelKeys")
 			}
 			if constraint.MinDomains != 0 {
-				t.Errorf("minDomains = %d; it is only valid with DoNotSchedule and turns into a total outage when it exceeds the eligible domain count",
+				t.Errorf("minDomains = %d; do NOT set minDomains — it withholds ALL replicas when it exceeds the eligible domain count (see 2026-07-27 incident)",
 					constraint.MinDomains)
 			}
 		})

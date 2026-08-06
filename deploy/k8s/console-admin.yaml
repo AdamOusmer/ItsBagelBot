@@ -61,7 +61,7 @@ spec:
               app: console-admin
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           # Scope the hard rule to the incoming ReplicaSet. With maxSurge=1
           # the first new pod may share a host with an old pod, while the
           # second new pod is forced onto the other normal node.
