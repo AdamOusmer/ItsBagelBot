@@ -71,16 +71,16 @@ spec:
         # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
         # maxSurge=0 roll the outgoing pods no longer count, so every rollout
         # re-spreads one-per-node instead of piling onto whichever node freed
-        # capacity first (bit the ingress on 2026-07-10: 3/0/1). This must be a
-        # hard constraint: under ScheduleAnyway a per-hostname preference once
-        # placed four 500m workers on one node, reserving 93% of it while
-        # another eligible node had no Sesame replica at all. Five healthy
-        # replicas fit 2/2/1 across all three eligible domains; during a node
-        # outage existing pods keep serving and replacement capacity waits
-        # rather than overloading a surviving node.
+        # capacity first (bit the ingress on 2026-07-10: 3/0/1). DoNotSchedule
+        # enforces a hard constraint: under ScheduleAnyway all six replicas
+        # once piled onto node6, so a single node disruption took out the
+        # entire fleet (2026-08-05). Three healthy replicas fit 1/1/1 across
+        # the three application nodes; during a node outage existing pods keep
+        # serving and replacement capacity waits rather than overloading a
+        # surviving node.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -242,9 +242,9 @@ spec:
       app: sesame
 ---
 # Sesame's engine is sub-100us p95; confirmed NATS input/output is the measured
-# capacity boundary. minReplicaCount 5 keeps a warm baseline spread 2/2/1 over
-# the three application nodes (the Deployment's hard hostname spread decides the
-# shape) so a burst does not wait on a scale-up.
+# capacity boundary. minReplicaCount 3 keeps a warm baseline spread 1/1/1 over
+# the three application nodes (the Deployment's hard hostname DoNotSchedule
+# spread decides the shape) so a burst does not wait on a scale-up.
 # Consumer names are bus.durableName("worker", subject) - sesame
 # shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
 # bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),
@@ -261,11 +261,11 @@ spec:
     name: sesame
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 6
+  minReplicaCount: 3
   maxReplicaCount: 12
   fallback:
     failureThreshold: 3
-    replicas: 6
+    replicas: 3
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
