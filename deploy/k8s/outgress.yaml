@@ -70,7 +70,7 @@ spec:
         # >= 1 per node.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -245,7 +245,7 @@ spec:
     name: outgress
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 4
+  minReplicaCount: 3
   # 4 per application node. Outgress is Twitch-rate-limited,
   # so headroom here is for lag-driven burst drain, not sustained throughput.
   maxReplicaCount: 12
