@@ -139,7 +139,7 @@ items:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: nats
-          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
+          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
           args: ["--config", "/etc/nats/config/core-0.conf"]
           envFrom:
             - secretRef: {name: nats-auth-env}
@@ -186,7 +186,7 @@ items:
         kubernetes.io/hostname: node3
       containers:
         - name: nats
-          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
+          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
           args: ["--config", "/etc/nats/config/core-1.conf"]
           envFrom:
             - secretRef: {name: nats-auth-env}
@@ -221,7 +221,7 @@ items:
           effect: NoSchedule
       containers:
         - name: nats
-          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
+          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
           args: ["--config", "/etc/nats/config/worker1.conf"]
           envFrom:
             - secretRef: {name: nats-auth-env}
@@ -251,7 +251,7 @@ items:
         kubernetes.io/hostname: node1
       containers:
         - name: nats
-          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
+          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
           args: ["--config", "/etc/nats/config/node1.conf"]
           envFrom:
             - secretRef: {name: nats-auth-env}
