@@ -84,6 +84,8 @@ spec:
           labelSelector:
             matchLabels:
               app: console-dashboard
+          matchLabelKeys:
+            - pod-template-hash
       # DaemonSet placement keeps one dashboard pod per schedulable node, so
       # cloudflared -> traefik can prefer a local backend on every node.
       # Resolve external hosts (Twitch OAuth login) without the cluster
