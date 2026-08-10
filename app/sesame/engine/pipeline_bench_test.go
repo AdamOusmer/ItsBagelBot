@@ -78,7 +78,8 @@ func TestProcessNoOutputAllocCeiling(t *testing.T) {
 		_ = p.Process(msg)
 	})
 
-	if avg > allocCeiling {
-		t.Fatalf("no-output hot path allocates %.1f allocs/op, ceiling %.0f: pooling likely regressed", avg, allocCeiling)
+	const ceiling = 12.0
+	if avg > ceiling {
+		t.Fatalf("no-output hot path allocates %.1f allocs/op, ceiling %.0f: pooling likely regressed", avg, ceiling)
 	}
 }
