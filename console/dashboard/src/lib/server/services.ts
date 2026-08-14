@@ -25,7 +25,7 @@ export const SUB = {
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
-  gateway: process.env.NATS_GATEWAY_SUBJECT_PREFIX ?? 'bagel.rpc.gateway',
+  gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX ?? process.env.NATS_GATEWAY_SUBJECT_PREFIX ?? 'bagel.rpc.gossip',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
   goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX ?? 'bagel.rpc.modules.govee',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',

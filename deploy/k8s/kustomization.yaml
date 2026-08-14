@@ -7,9 +7,9 @@ resources:
   - commands.yaml
   - console-dashboard.yaml
   # console-admin.yaml now replaces the Go admin tier, sharing the admin.tail451e6d.ts.net host.
-  # gateway is the external-API proxy + cache (urchin.gg, MCSR Ranked) sesame
-  # queries over bagel.rpc.gateway.>.
-  - gateway.yaml
+  # gossip is the external-API proxy + cache (urchin.gg, MCSR Ranked) sesame
+  # queries over bagel.rpc.gossip.>.
+  - gossip.yaml
   # loyalty is the points/watchtime/counters data service behind sesame's
   # loyalty module (bagel.rpc.loyalty.> + the data.loyalty.* consumers).
   # Onboarded 2026-07-11: bagel_loyalty schema + loyalty_svc user, Doppler

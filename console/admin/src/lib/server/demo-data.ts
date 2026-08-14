@@ -106,7 +106,7 @@ export const sampleHealth: ServiceHealth[] = [
   { id: 'loyalty', label: 'Loyalty', ok: true, ms: 9 },
   { id: 'projector', label: 'Projector', ok: true, ms: 5 },
   { id: 'sesame', label: 'Sesame', ok: true, ms: 8 },
-  { id: 'gateway', label: 'Gateway', ok: true, ms: 12 },
+  { id: 'gossip', label: 'Gossip', ok: true, ms: 12 },
   { id: 'ingress', label: 'Ingress', ok: true, ms: 11 },
   { id: 'outgress', label: 'Outgress', ok: true, ms: 7 },
   { id: 'transactions', label: 'Transactions', ok: true, ms: 10 },
@@ -216,7 +216,7 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
         notifications: 'legacy'
       },
       legacyInUse: true,
-      legacyExcessProjects: ['admin', 'dashboard', 'gateway']
+      legacyExcessProjects: ['admin', 'dashboard', 'gossip']
     }
   };
 }
