@@ -134,7 +134,7 @@ func TestMcsrStreamOnlineSnapshots(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("stream.online never called the gateway")
+		t.Fatal("stream.online never called gossip")
 	}
 	call := gw.lastCall(t)
 	assert.Equal(t, "mcsr", call.provider)

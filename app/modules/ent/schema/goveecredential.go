@@ -11,7 +11,7 @@ import (
 // GoveeCredential holds one broadcaster's Govee API key, sealed at rest. The
 // key is a third-party secret, so it never lands in the projected module
 // configs blob (which is cached and fanned out in cleartext); it lives here as
-// Tink AEAD ciphertext instead, and only the gateway ever receives it
+// Tink AEAD ciphertext instead, and only gossip ever receives it
 // decrypted, over an internal RPC. The user is referenced by Twitch id only,
 // like every other schema in this service.
 type GoveeCredential struct {

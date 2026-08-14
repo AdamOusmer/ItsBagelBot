@@ -192,7 +192,11 @@ func Load() *Config {
 
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
 
-		GossipRPCPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gossip")),
+		// Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
+		// fallback. The NATS account/user were renamed too, so a stale prefix
+		// would resolve against ACLs the old credential no longer has; delete
+		// any leftover NATS_GATEWAY_SUBJECT_PREFIX from Doppler.
+		GossipRPCPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
 
 		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 

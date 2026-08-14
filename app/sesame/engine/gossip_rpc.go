@@ -20,12 +20,19 @@ import (
 // try" symptom.
 const gossipRPCTimeout = 12 * time.Second
 
+// GossipRoute addresses one provider endpoint on the gossip service (e.g.
+// provider "fortnite", endpoint "stats").
+type GossipRoute struct {
+	Provider string
+	Endpoint string
+}
+
 // GossipCaller is the external-data surface modules pull third-party stats
 // through (the urchin and mcsr modules). One generic Call keeps Deps flat while
 // each module keeps its replies typed: it passes the gossiprpc reply struct it
 // expects as out.
 type GossipCaller interface {
-	Call(ctx context.Context, provider, endpoint string, req gossiprpc.Request, out any) error
+	Call(ctx context.Context, route GossipRoute, req gossiprpc.Request, out any) error
 }
 
 // GossipRPC implements GossipCaller over NATS request/reply against the
@@ -45,8 +52,8 @@ func NewGossipRPC(nc *nats.Conn, prefix string) *GossipRPC {
 // carrying the conventional {"error": "..."} envelope (player not found, ...)
 // is returned as a bus.RPCReplyError so a module can chat the message back;
 // any other failure (timeout, no responder) is an infrastructure error.
-func (g *GossipRPC) Call(ctx context.Context, provider, endpoint string, req gossiprpc.Request, out any) error {
-	subject := gossiprpc.Subject(g.prefix, provider, endpoint)
+func (g *GossipRPC) Call(ctx context.Context, route GossipRoute, req gossiprpc.Request, out any) error {
+	subject := gossiprpc.Subject(g.prefix, route.Provider, route.Endpoint)
 
 	ctx, cancel := context.WithTimeout(ctx, gossipRPCTimeout)
 	defer cancel()

@@ -26,14 +26,14 @@ the production hub or leaf tier.
 Without the exact confirmation token the runner prints its plan and exits:
 
 ```sh
-deploy/k8s/nats-live-acceptance/gateway/local-first.sh
+deploy/k8s/nats-live-acceptance/gossip/local-first.sh
 ```
 
 Run the live-hardware proof in a controlled, quiet window:
 
 ```sh
-CONFIRM_NATS_GATEWAY_ACCEPTANCE=LOCAL-FIRST-RPC \
-  deploy/k8s/nats-live-acceptance/gateway/local-first.sh
+CONFIRM_NATS_GOSSIP_ACCEPTANCE=LOCAL-FIRST-RPC \
+  deploy/k8s/nats-live-acceptance/gossip/local-first.sh
 ```
 
 No local binary or container image is built. The runner uses the existing

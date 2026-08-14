@@ -74,7 +74,7 @@ func TestGoveeOfflineRefundsWithoutCallingGossip(t *testing.T) {
 	gw := okGossip()
 	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "offline must not reach the gateway")
+	assert.Empty(t, gw.calls, "offline must not reach gossip")
 	assertRefund(t, col.out)
 }
 
@@ -93,7 +93,7 @@ func TestGoveeUnknownColourRefunds(t *testing.T) {
 	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	payload := `{"id":"redeem-1","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"chartreuseish","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "a bad colour must refund before the gateway")
+	assert.Empty(t, gw.calls, "a bad colour must refund before gossip")
 	assertRefund(t, col.out)
 }
 
@@ -129,7 +129,7 @@ func TestGoveeAllowOfflineDrivesLightsWhileOffline(t *testing.T) {
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
 
 	call := gw.lastCall(t)
-	assert.Equal(t, "control", call.endpoint, "allowOffline must reach the gateway even when offline")
+	assert.Equal(t, "control", call.endpoint, "allowOffline must reach gossip even when offline")
 	require.Len(t, col.out, 2)
 	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
 }
@@ -176,10 +176,10 @@ func TestGoveeOffInputRefundsWhenNotAllowed(t *testing.T) {
 	gw := okGossip()
 	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	// Default config: the off action is not enabled, so "off" is just an
-	// unrecognized colour and refunds before the gateway.
+	// unrecognized colour and refunds before gossip.
 	payload := `{"id":"redeem-3","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "off must not reach the gateway when the action is disabled")
+	assert.Empty(t, gw.calls, "off must not reach gossip when the action is disabled")
 	assertRefund(t, col.out)
 }
 

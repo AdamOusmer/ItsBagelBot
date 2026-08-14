@@ -176,7 +176,7 @@ func TestCachedBytesStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 	assert.Equal(t, int32(2), builds.Load(), "one cold fill + exactly one fleet-wide refresh")
 }
 
-// The reply-bytes hit path is the gateway's hot path: after the store read it
+// The reply-bytes hit path is gossip's hot path: after the store read it
 // must do no JSON work and no allocation (prefix check + slice only).
 func BenchmarkCachedBytesHit(b *testing.B) {
 	st := newMemStore()

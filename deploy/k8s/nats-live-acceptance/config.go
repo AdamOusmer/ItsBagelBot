@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultSLIServices       = "users,commands,modules,loyalty,projector,sesame,gateway,ingress,outgress,transactions,notifications"
+	defaultSLIServices       = "users,commands,modules,loyalty,projector,sesame,gossip,ingress,outgress,transactions,notifications"
 	defaultIngressSLISubject = "twitch.ingress.admin.shards.get"
 )
 
