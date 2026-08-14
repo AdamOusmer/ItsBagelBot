@@ -23,7 +23,8 @@ import (
 // connection open until ctx is cancelled and reconciles the specs:
 //
 //   - once, synchronously, before returning — a failure here is fatal at
-//     startup, because the service cannot run without its streams;
+//     startup (with a bounded retry budget to tolerate transient broker quorum
+//     election races during rolling restarts or cluster boots);
 //   - again on every reconnect — if the broker restarted with empty JetStream
 //     storage (or the streams were deleted), they are recreated automatically.
 //
@@ -36,24 +37,32 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 	var js nats.JetStreamManager
 	var batchJS jsapi.JetStream
 
-	reconcileAll := func() {
+	reconcileAll := func() error {
 		for _, spec := range specs {
 			if err := reconcileStream(js, spec, log); err != nil {
-				log.Warn("jetstream stream reconcile failed; will retry on next reconnect",
-					zap.String("stream", spec.Name), zap.Error(err))
-				continue
+				return err
 			}
 			if err := reconcileBatchFeatures(batchJS, spec); err != nil {
-				log.Warn("jetstream batch feature reconcile failed; will retry on next reconnect",
-					zap.String("stream", spec.Name), zap.Error(err))
+				return fmt.Errorf("bus: enable batch publishing on %q: %w", spec.Name, err)
 			}
 		}
+		return nil
 	}
 
 	opts := append(busOptions("stream-guardian"),
 		nats.ReconnectHandler(func(*nats.Conn) {
 			log.Info("nats reconnected; re-provisioning jetstream streams")
-			reconcileAll()
+			for _, spec := range specs {
+				if err := reconcileStream(js, spec, log); err != nil {
+					log.Warn("jetstream stream reconcile failed; will retry on next reconnect",
+						zap.String("stream", spec.Name), zap.Error(err))
+					continue
+				}
+				if err := reconcileBatchFeatures(batchJS, spec); err != nil {
+					log.Warn("jetstream batch feature reconcile failed; will retry on next reconnect",
+						zap.String("stream", spec.Name), zap.Error(err))
+				}
+			}
 		}),
 	)
 
@@ -74,16 +83,34 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 		return fmt.Errorf("bus: modern jetstream context: %w", err)
 	}
 
-	// Initial provisioning is synchronous and fatal: the service must not start
-	// serving if its streams could not be established.
-	for _, spec := range specs {
-		if err := reconcileStream(js, spec, log); err != nil {
-			nc.Close()
-			return err
+	// Initial provisioning is synchronous and retries with backoff across a
+	// bounded startup budget (45s) to tolerate transient broker quorum
+	// election races during rolling restarts or cluster boots. If the streams
+	// still cannot be reconciled after the retry budget, it returns the error
+	// so the pod fails fast.
+	const (
+		startupBudget = 45 * time.Second
+		retryInterval = 2 * time.Second
+	)
+
+	startupCtx, cancel := context.WithTimeout(ctx, startupBudget)
+	defer cancel()
+
+	var lastErr error
+	for {
+		if lastErr = reconcileAll(); lastErr == nil {
+			break
 		}
-		if err := reconcileBatchFeatures(batchJS, spec); err != nil {
+
+		select {
+		case <-startupCtx.Done():
 			nc.Close()
-			return fmt.Errorf("bus: enable batch publishing on %q: %w", spec.Name, err)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("bus: failed to provision streams within %v: %w", startupBudget, lastErr)
+		case <-time.After(retryInterval):
+			log.Warn("waiting for jetstream quorum to provision streams...", zap.Error(lastErr))
 		}
 	}
 
