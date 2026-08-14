@@ -20,7 +20,7 @@ import (
 // and the dashboard module page use the same id.
 const fortniteModuleName = "fortnite"
 
-// fortniteCooldown is the shared per-command window; the gateway caches
+// fortniteCooldown is the shared per-command window; gossip caches
 // upstream replies, so this only shields chat from command spam, not the API.
 const fortniteCooldown = 10 * time.Second
 
@@ -61,7 +61,7 @@ type fortniteConfig struct {
 	StoreMessage   string `json:"storeMessage"`
 }
 
-// Fortnite owns the Fortnite chat commands backed by the gateway service. It
+// Fortnite owns the Fortnite chat commands backed by the gossip service. It
 // is a named, opt-in module (KindOptIn): off by default, enabled on the
 // dashboard, where the broadcaster links a default account. Viewers can
 // always target another player explicitly: "!fn Ninja".
@@ -74,9 +74,9 @@ type fortniteConfig struct {
 //	!fn session          wins/kills/K/D since the stream started (also !fnsession)
 //	!fn store            the current item-shop rotation (also !fnstore)
 //
-// All stats replies carry the solo/duo/squad breakdown; the gateway resolves
+// All stats replies carry the solo/duo/squad breakdown; gossip resolves
 // the season window itself. The session baseline is snapshotted when
-// stream.online arrives — the gateway stores the linked account's standing
+// stream.online arrives — gossip stores the linked account's standing
 // keyed by this channel — so "this stream" is exactly the live session.
 func Fortnite(d engine.Deps) module.Module {
 	statsRun := fortniteStatsRun(d, fortniteStatsCommand{
@@ -140,7 +140,7 @@ func fortniteSnapshotOnline(d engine.Deps) module.EventHandler {
 			defer cancel()
 			req := gossiprpc.Request{Account: account, AccountType: cfg.AccountType, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
 			var reply gossiprpc.FortniteSnapshotReply
-			if err := d.Gossip.Call(wctx, "fortnite", "session_start", req, &reply); err != nil {
+			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session_start"}, req, &reply); err != nil {
 				log.Warn("fortnite: stream-start snapshot failed",
 					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
 				return
@@ -183,7 +183,7 @@ type fortniteStatsCommand struct {
 	fallback string
 }
 
-// fortniteStatsTokens is the !fnstats template palette over the gateway reply.
+// fortniteStatsTokens is the !fnstats template palette over the gossip reply.
 func fortniteStatsTokens() map[string]func(*gossiprpc.FortniteStatsReply) string {
 	type reply = gossiprpc.FortniteStatsReply
 	return map[string]func(*reply) string{
@@ -229,7 +229,7 @@ func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
 			IsPremium:   c.Regress.IsPremium(),
 		}
 		var reply gossiprpc.FortniteStatsReply
-		if err := d.Gossip.Call(ctx, "fortnite", "stats", req, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "stats"}, req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -278,7 +278,7 @@ func fortniteSessionText(cfg fortniteConfig, reply *gossiprpc.FortniteSessionRep
 // linked account, never a typed argument: the baseline is stored per channel
 // and keyed to the linked account, so honoring an arbitrary player would
 // clobber the streamer's stream-start baseline. Without a baseline (module
-// enabled mid-stream) the gateway starts tracking now and the reply says so
+// enabled mid-stream) gossip starts tracking now and the reply says so
 // instead of faking a zero delta.
 func fortniteSessionRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -296,7 +296,7 @@ func fortniteSessionRun(d engine.Deps) module.RunFunc {
 			IsPremium:   c.Regress.IsPremium(),
 		}
 		var reply gossiprpc.FortniteSessionReply
-		if err := d.Gossip.Call(ctx, "fortnite", "session", req, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session"}, req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -319,7 +319,7 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 
 		var reply gossiprpc.FortniteShopReply
 		req := gossiprpc.Request{IsPremium: c.Regress.IsPremium()}
-		if err := d.Gossip.Call(ctx, "fortnite", "shop", req, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "shop"}, req, &reply); err != nil {
 			if chatReplyError(c, emit, "item shop", err) {
 				return nil
 			}

@@ -1,5 +1,5 @@
 // gossip is the fleet's external-API gateway: sesame (and any future caller)
-// requests third-party data over NATS RPC and the gateway fetches, normalizes
+// requests third-party data over NATS RPC and gossip fetches, normalizes
 // and caches it in Valkey.
 //
 // Its architecture mirrors sesame's: provider is the authoring surface,
@@ -34,7 +34,7 @@ import (
 
 const serviceName = "gossip"
 
-// queueGroup load-balances each endpoint across gateway replicas.
+// queueGroup load-balances each endpoint across gossip replicas.
 const queueGroup = "gossip-rpc"
 
 func main() {

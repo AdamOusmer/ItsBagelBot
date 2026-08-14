@@ -134,8 +134,8 @@ func (g *GoveeCreds) HasKey(ctx context.Context, userID uint64) (bool, error) {
 }
 
 // Key unseals and returns the stored Govee API key. Returns ErrNoGoveeKey when
-// the broadcaster has none. The plaintext is returned to the caller (the
-// gateway) and deliberately never cached.
+// the broadcaster has none. The plaintext is returned to the caller (gossip)
+// and deliberately never cached.
 func (g *GoveeCreds) Key(ctx context.Context, userID uint64) (string, error) {
 	row, err := g.keyRow(ctx, userID)
 	if err != nil {

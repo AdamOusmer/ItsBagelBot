@@ -80,7 +80,11 @@ func Load() *Config {
 		NATSURL:    natsURL,
 		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
 
-		SubjectPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gossip")),
+		// Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
+		// fallback. The NATS account/user were renamed too, so a stale prefix
+		// would resolve against ACLs the old credential no longer has; delete
+		// any leftover NATS_GATEWAY_SUBJECT_PREFIX from Doppler.
+		SubjectPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),

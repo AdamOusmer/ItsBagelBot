@@ -1,4 +1,4 @@
-// Package urchin is the gateway provider for the urchin.gg Coral API: Hypixel
+// Package urchin is the gossip provider for the urchin.gg Coral API: Hypixel
 // Bed Wars session deltas (daily/weekly/monthly) and the Urchin cheater
 // blacklist (sniper score, tags). Lifetime stats live in the hypixel provider:
 // Coral's profile endpoint needs the Player Data permission our key does not
@@ -133,7 +133,7 @@ func (a account) cacheKey() string { return strings.ToLower(strings.TrimSpace(st
 
 // --- session deltas (daily / weekly / monthly) -------------------------------
 
-// sessionResponse is the Coral SessionDeltaResponse subset the gateway reads.
+// sessionResponse is the Coral SessionDeltaResponse subset gossip reads.
 // Delta is the recursive diff of the Hypixel player object: unchanged fields
 // omitted, changed numeric stats as bare numbers, non-numeric changes as
 // {old,new} objects.
@@ -211,7 +211,7 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 
 // --- blacklist: tags + sniper score -------------------------------------------
 
-// tagsResponse is the Coral PlayerTagsResponse subset the gateway reads. It is
+// tagsResponse is the Coral PlayerTagsResponse subset gossip reads. It is
 // also the uuid resolver for the sniper endpoint (it accepts a username and
 // echoes the canonical uuid, without needing the Player Data permission the
 // dedicated /v3/resolve endpoint requires).
@@ -263,7 +263,7 @@ func (p *api) tagsFetch(ctx context.Context, req gossiprpc.Request, id provider.
 	return out, nil
 }
 
-// cubelifyResponse is the Coral CubelifyResponse subset the gateway reads.
+// cubelifyResponse is the Coral CubelifyResponse subset gossip reads.
 type cubelifyResponse struct {
 	Score struct {
 		Value float64 `json:"value"`

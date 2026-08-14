@@ -43,11 +43,11 @@ SERVICES = {
     "admin": "admin",
     "transactions": "transactions",
     "notifications": "notifications",
-    "gateway": "gateway",
+    "gossip": "gossip",
 }
 NO_RPC: set[str] = set()
-# gateway is RPC-only (no JetStream/event plane), so it gets no BUS user.
-NO_BUS: set[str] = {"gateway"}
+# gossip is RPC-only (no JetStream/event plane), so it gets no BUS user.
+NO_BUS: set[str] = {"gossip"}
 
 def gen() -> str:
     # URL-safe (hex) so the plaintext is valid inside the leaf nats-leaf:// URLs.

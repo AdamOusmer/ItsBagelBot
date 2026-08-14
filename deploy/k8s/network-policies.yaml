@@ -9,7 +9,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gateway, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -53,7 +53,7 @@ spec:
               kubernetes.io/metadata.name: valkey
 ---
 # Every long-running application currently exports APM directly to New Relic
-# over HTTPS. Product integrations also use HTTPS from gateway, ingress,
+# over HTTPS. Product integrations also use HTTPS from gossip, ingress,
 # outgress, sesame, transactions and the consoles. Keep this grant explicit so
 # a workload cannot silently inherit it merely by joining default-deny-apps.
 apiVersion: networking.k8s.io/v1
@@ -66,7 +66,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gateway, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
   policyTypes:
     - Egress
   egress:

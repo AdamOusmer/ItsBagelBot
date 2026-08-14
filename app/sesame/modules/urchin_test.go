@@ -33,9 +33,9 @@ type fakeGossipCall struct {
 	req                gossiprpc.Request
 }
 
-func (f *fakeGossip) Call(_ context.Context, provider, endpoint string, req gossiprpc.Request, out any) error {
+func (f *fakeGossip) Call(_ context.Context, route engine.GossipRoute, req gossiprpc.Request, out any) error {
 	f.mu.Lock()
-	f.calls = append(f.calls, fakeGossipCall{provider, endpoint, req})
+	f.calls = append(f.calls, fakeGossipCall{route.Provider, route.Endpoint, req})
 	if f.done != nil {
 		close(f.done)
 		f.done = nil
@@ -45,7 +45,7 @@ func (f *fakeGossip) Call(_ context.Context, provider, endpoint string, req goss
 	if f.err != nil {
 		return f.err
 	}
-	reply, ok := f.replies[provider+"."+endpoint]
+	reply, ok := f.replies[route.Provider+"."+route.Endpoint]
 	if !ok {
 		return bus.RPCReplyError{Message: "no responder"}
 	}
@@ -136,7 +136,7 @@ func TestUrchinPerCommandToggleOff(t *testing.T) {
 }
 
 func TestUrchinCustomTemplate(t *testing.T) {
-	// !bwstats rides the gateway's hypixel provider (its own external system);
+	// !bwstats rides gossip's hypixel provider (its own external system);
 	// the command stays on the urchin dashboard module.
 	gw := &fakeGossip{replies: map[string]any{
 		"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
@@ -160,7 +160,7 @@ func TestUrchinReplyErrorChatsBack(t *testing.T) {
 	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
 }
 
-// An infrastructure failure (cold lookup outliving the RPC budget, gateway
+// An infrastructure failure (cold lookup outliving the RPC budget, gossip
 // down) still chats a retry hint — the first attempt must not be silent — while
 // the error propagates for logging.
 func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {

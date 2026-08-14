@@ -1,9 +1,9 @@
-// Package govee is the gateway provider for the Govee smart-light Developer
+// Package govee is the gossip provider for the Govee smart-light Developer
 // API (openapi.api.govee.com). Unlike the stats providers it holds no service
 // API key of its own: every call authenticates with the broadcaster's own key,
 // resolved just-in-time from the modules service (provider.Deps.GoveeKeys) by
-// the broadcaster id the caller passes as Request.ChannelID. The gateway is the
-// one door to the internet, so the plaintext key lives only inside one handler
+// the broadcaster id the caller passes as Request.ChannelID. The gossip service
+// is the one door to the internet, so the plaintext key lives only inside one handler
 // run and is never cached or logged.
 //
 // Two endpoints back the "set my lights to a colour" channel-points reward:

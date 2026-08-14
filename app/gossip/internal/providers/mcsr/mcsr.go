@@ -1,4 +1,4 @@
-// Package mcsr is the gateway provider for the MCSR Ranked public API: a
+// Package mcsr is the gossip provider for the MCSR Ranked public API: a
 // player's current ranked standing, plus the per-channel stream-session delta
 // sesame's !session command shows.
 //
@@ -95,7 +95,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 
 // --- upstream shapes -----------------------------------------------------------
 
-// userResponse is the /users/{identifier} envelope subset the gateway reads.
+// userResponse is the /users/{identifier} envelope subset gossip reads.
 // eloRate/eloRank are null for an unrated player. statistics.season maps a
 // category name to per-queue counters; the ranked queue is the one MCSR Ranked
 // is about.

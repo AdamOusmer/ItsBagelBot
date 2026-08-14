@@ -1,9 +1,9 @@
-// Package hypixel is the gateway provider for the direct Hypixel API: lifetime
+// Package hypixel is the gossip provider for the direct Hypixel API: lifetime
 // Bed Wars stats for sesame's !bwstats. It is its own provider — not a path
 // inside urchin — because it is a separate external system with its own key,
 // its own (much smaller) rate budget and its own failure modes; on the
 // dashboard the command still lives on the one urchin module page, which is a
-// sesame/console concern, not a gateway one.
+// sesame/console concern, not a gossip one.
 //
 // The player identifier resolves through Mojang's public profile endpoint, so
 // this provider depends on no other provider. All endpoints are byte-flow: the
@@ -182,7 +182,7 @@ func (p *api) resolveUUID(ctx context.Context, account string, isPremium bool) (
 
 // --- lifetime stats --------------------------------------------------------------
 
-// playerResponse is the api.hypixel.net/v2/player envelope subset the gateway
+// playerResponse is the api.hypixel.net/v2/player envelope subset gossip
 // reads. Player is null for an unknown uuid even on a 200.
 type playerResponse struct {
 	Success bool `json:"success"`

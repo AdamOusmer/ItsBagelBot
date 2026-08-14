@@ -23,7 +23,7 @@ const (
 
 var rpcDestinations = map[string]struct{}{
 	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
-	"delegation": {}, "gateway": {}, "health": {}, "ingress": {},
+	"delegation": {}, "gossip": {}, "health": {}, "ingress": {},
 	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
 	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
 }

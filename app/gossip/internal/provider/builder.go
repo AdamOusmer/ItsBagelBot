@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Builder is the fluent authoring surface for one provider, the gateway's twin
+// Builder is the fluent authoring surface for one provider, gossip's twin
 // of sesame's module.Builder. A provider's New creates a Builder with
 // NewProvider, declares its endpoints, then calls Build to get the immutable
 // Provider the engine serves:

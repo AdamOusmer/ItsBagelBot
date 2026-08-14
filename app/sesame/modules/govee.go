@@ -23,7 +23,7 @@ const goveeModuleName = "govee"
 // goveeConfig is the module's dashboard configuration. It names the one custom
 // reward that drives the lights and which device to control. The Govee API key
 // is deliberately absent: it is a secret, sealed in the modules service and
-// fetched (decrypted) by the gateway at call time, so it never rides this blob
+// fetched (decrypted) by gossip at call time, so it never rides this blob
 // (which is projected and cached in cleartext).
 type goveeConfig struct {
 	// RewardID is the Twitch custom reward id whose redemptions set the lights.
@@ -86,8 +86,8 @@ func bindingsOf(c *module.Context) []goveeConfig {
 //
 // On a redemption of its bound reward it enforces live-only (refunding the
 // points when the stream is offline), parses the colour the viewer typed (a
-// name like "blue" or a hex like "#00ccff"), drives the light through the
-// gateway's govee provider, and resolves the redemption in Twitch's queue.
+// name like "blue" or a hex like "#00ccff"), drives the light through
+// gossip's govee provider, and resolves the redemption in Twitch's queue.
 func Govee(d engine.Deps) module.Module {
 	m := module.NewModule(goveeModuleName, module.KindOptIn)
 	m.On(redemptionAddType, goveeRedemption(d))
@@ -128,7 +128,7 @@ type goveeRun struct {
 
 // apply resolves the viewer's input to an off action or a colour, drives the
 // light, and resolves the redemption — refunding on an unrecognized colour or a
-// gateway failure.
+// gossip failure.
 func (r goveeRun) apply(ctx context.Context) {
 	req, label, ok := goveeIntent(r.cfg, strings.TrimSpace(r.ev.UserInput))
 	if !ok {
@@ -143,14 +143,14 @@ func (r goveeRun) apply(ctx context.Context) {
 	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
 }
 
-// control issues one gateway control call for this redemption, filling the
+// control issues one gossip control call for this redemption, filling the
 // broadcaster + device fields around the caller's colour/off intent.
 func (r goveeRun) control(ctx context.Context, req gossiprpc.Request) error {
 	req.ChannelID = r.ev.BroadcasterUserID
 	req.Device = r.cfg.Device
 	req.SKU = r.cfg.SKU
 	var reply gossiprpc.GoveeControlReply
-	return r.d.Gossip.Call(ctx, "govee", "control", req, &reply)
+	return r.d.Gossip.Call(ctx, engine.GossipRoute{Provider: "govee", Endpoint: "control"}, req, &reply)
 }
 
 // goveeIntent maps the viewer's input to a control request and its colour label:
@@ -259,7 +259,7 @@ func goveeLivePermits(ctx context.Context, d engine.Deps, cfg goveeConfig, broad
 	return live
 }
 
-// goveeFailureMessage turns a gateway failure into a chat-safe reason. A
+// goveeFailureMessage turns a gossip failure into a chat-safe reason. A
 // reply-level error (the provider's own friendly text: rate limited, no key on
 // file) is surfaced; anything else stays generic so an outage leaks no detail.
 func goveeFailureMessage(err error) string {
