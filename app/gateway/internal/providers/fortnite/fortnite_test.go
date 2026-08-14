@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -119,8 +120,11 @@ var (
 // read); it serves lifetime only, so the season endpoint is never touched.
 func mutableStatsUpstream(t *testing.T, account string, body *string, reqs *[]*http.Request) http.Handler {
 	t.Helper()
+	var mu sync.Mutex
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		*reqs = append(*reqs, r.Clone(context.Background()))
+		mu.Unlock()
 		switch {
 		case strings.EqualFold(r.URL.Path, "/api/v1/account/displayName/"+account):
 			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"` + account + `"}`))
@@ -136,11 +140,14 @@ func mutableStatsUpstream(t *testing.T, account string, body *string, reqs *[]*h
 // statsUpstream fakes api-fortnite.com: the display-name lookup answers
 // account, the stats path answers body, the season endpoint answers a fixed
 // 2026-05-30T13:00:00Z begin (epoch 1780146000). Requests are recorded onto
-// reqs.
+// reqs in a thread-safe manner.
 func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) http.Handler {
 	t.Helper()
+	var mu sync.Mutex
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		*reqs = append(*reqs, r.Clone(context.Background()))
+		mu.Unlock()
 		switch {
 		// Lookups match the display name case-insensitively, like Epic's.
 		case strings.EqualFold(r.URL.Path, "/api/v1/account/displayName/"+account):
@@ -217,6 +224,21 @@ func TestStatsResolvesAndAggregates(t *testing.T) {
 	assert.Len(t, reqs, 2)
 }
 
+// add routes one counter into the aggregate. Production code aggregates via
+// parse.go's addMetric (integer metric constants, zero-alloc); this string-keyed
+// form is now only the legacy reference implementation's helper (see
+// aggregate in parse_test.go), kept to cross-check parseRawStats' output.
+func (a *modeAgg) add(metric string, v int64) {
+	switch metric {
+	case "placetop1":
+		a.wins += v
+	case "kills":
+		a.kills += v
+	case "matchesplayed":
+		a.matches += v
+	}
+}
+
 // The real 66KB blob the probe captured from api-fortnite.com for Ninja's
 // account; expected numbers computed independently from the same fixture.
 func TestStatsRealBlobAggregation(t *testing.T) {
@@ -225,11 +247,26 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	var resp rawStatsResponse
 	require.NoError(t, json.Unmarshal(body, &resp))
 
-	overall, modes := aggregate(resp.Stats)
-	assert.Equal(t, modeAgg{wins: 11472, matches: 33287, kills: 221742}, overall)
-	assert.Equal(t, modeAgg{wins: 3290, matches: 11645, kills: 82607}, modes[0])
-	assert.Equal(t, modeAgg{wins: 3668, matches: 8699, kills: 61606}, modes[1])
-	assert.Equal(t, modeAgg{wins: 2954, matches: 7350, kills: 47051}, modes[2])
+	wantOverall := modeAgg{wins: 11472, matches: 33287, kills: 221742}
+	wantModes := [3]modeAgg{
+		{wins: 3290, matches: 11645, kills: 82607},
+		{wins: 3668, matches: 8699, kills: 61606},
+		{wins: 2954, matches: 7350, kills: 47051},
+	}
+
+	assert.Equal(t, wantOverall, resp.Overall)
+	assert.Equal(t, wantModes[0], resp.Modes[0])
+	assert.Equal(t, wantModes[1], resp.Modes[1])
+	assert.Equal(t, wantModes[2], resp.Modes[2])
+
+	// Also verify legacy map-based aggregate produces identical results.
+	var mapResp struct {
+		Stats map[string]float64 `json:"stats"`
+	}
+	require.NoError(t, json.Unmarshal(body, &mapResp))
+	mapOverall, mapModes := aggregate(mapResp.Stats)
+	assert.Equal(t, wantOverall, mapOverall)
+	assert.Equal(t, wantModes, mapModes)
 }
 
 // requestPaths projects the recorded upstream requests to their paths.
@@ -257,10 +294,12 @@ func TestStatsSeasonAutoResolved(t *testing.T) {
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "lifetime", reply.Window)
 
-	// lookup + season + season-scoped stats, then just the lifetime stats.
+	// lookup + season (run concurrently) + season-scoped stats, then just the lifetime stats.
 	require.Len(t, reqs, 4, "paths: %v", requestPaths(reqs))
 	wantStart := time.Date(2026, 5, 30, 13, 0, 0, 0, time.UTC).Unix()
-	assert.Equal(t, "/api/v1/season", reqs[1].URL.Path)
+	firstTwo := []string{reqs[0].URL.Path, reqs[1].URL.Path}
+	assert.Contains(t, firstTwo, "/api/v1/season")
+	assert.Contains(t, firstTwo, "/api/v1/account/displayName/Ninja")
 	assert.Equal(t, strconv.FormatInt(wantStart, 10), reqs[2].URL.Query().Get("startTime"))
 	assert.Empty(t, reqs[3].URL.Query().Get("startTime"))
 }
@@ -283,9 +322,12 @@ func TestStatsSeasonManualOverride(t *testing.T) {
 // With the season endpoint down the season window degrades to lifetime (and
 // says so) instead of failing the command.
 func TestStatsSeasonResolveFailureFallsBack(t *testing.T) {
+	var mu sync.Mutex
 	var reqs []*http.Request
 	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		reqs = append(reqs, r.Clone(context.Background()))
+		mu.Unlock()
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/api/v1/account/displayName/"):
 			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"Ninja"}`))
@@ -303,6 +345,139 @@ func TestStatsSeasonResolveFailureFallsBack(t *testing.T) {
 	assert.Equal(t, "lifetime", reply.Window)
 	require.Len(t, reqs, 3, "paths: %v", requestPaths(reqs))
 	assert.Empty(t, reqs[2].URL.Query().Get("startTime"))
+}
+
+// seasonRaceUpstream is the fake api-fortnite.com used by
+// TestStatsSeasonSurvivesAccountFailure. It sequences the season and account
+// legs of a single "season" request so the account leg's failure is
+// provably delivered while the season leg is still in flight: the season
+// handler blocks until accountFailed closes before it records its request
+// context's error and responds, and the account handler (for the known-bad
+// name "Ghosty") blocks until seasonStarted closes before it 404s. A
+// healthy "Ninja" lookup and the stats fetch pass straight through.
+type seasonRaceUpstream struct {
+	seasonCalls   int32
+	seasonStarted chan struct{}
+	accountFailed chan struct{}
+	seasonCtxErr  error
+}
+
+func newSeasonRaceUpstream() *seasonRaceUpstream {
+	return &seasonRaceUpstream{
+		seasonStarted: make(chan struct{}),
+		accountFailed: make(chan struct{}),
+	}
+}
+
+// calls reports how many times the season endpoint has been hit so far.
+func (u *seasonRaceUpstream) calls() int32 {
+	return atomic.LoadInt32(&u.seasonCalls)
+}
+
+// handler builds the sequenced fake stats upstream.
+func (u *seasonRaceUpstream) handler(t *testing.T) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/season":
+			u.serveSeason(t, w, r)
+		case r.URL.Path == "/api/v1/account/displayName/Ghosty":
+			u.serveFailingAccount(t, w)
+		case strings.EqualFold(r.URL.Path, "/api/v1/account/displayName/Ninja"):
+			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"Ninja"}`))
+		case r.URL.Path == "/api/v2/stats/deadbeef":
+			_, _ = w.Write([]byte(syntheticBlob))
+		default:
+			t.Errorf("unexpected stats-upstream path %s", r.URL.Path)
+		}
+	})
+}
+
+// serveSeason answers the season endpoint. On its first call it announces
+// seasonStarted, waits for the account leg to fail (or times out), then
+// records whether its own request context was canceled by that failure
+// before responding -- the fact under test.
+func (u *seasonRaceUpstream) serveSeason(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	if atomic.AddInt32(&u.seasonCalls, 1) == 1 {
+		close(u.seasonStarted)
+		select {
+		case <-u.accountFailed:
+		case <-time.After(2 * time.Second):
+			t.Error("account leg never resolved")
+		}
+		u.seasonCtxErr = r.Context().Err()
+	}
+	_, _ = w.Write([]byte(`{"seasonDateBegin":"2026-05-30T13:00:00Z","seasonDateEnd":"2026-08-21T13:00:00Z","seasonNumber":41}`))
+}
+
+// serveFailingAccount answers the known-bad "Ghosty" lookup: it waits for
+// the season leg to be provably in flight before 404ing, so the failure
+// lands while the season fetch is still running.
+func (u *seasonRaceUpstream) serveFailingAccount(t *testing.T, w http.ResponseWriter) {
+	t.Helper()
+	select {
+	case <-u.seasonStarted:
+	case <-time.After(2 * time.Second):
+		t.Error("season fetch never started before the account leg resolved")
+	}
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write([]byte(`{"status":404,"error":"Upstream API error: not found"}`))
+	close(u.accountFailed)
+}
+
+// TestStatsSeasonSurvivesAccountFailure pins down the opposite of the
+// cancellation this function used to have: seasonStartTime rides a shared
+// singleflight (see resolveStatsWindow's doc comment), so a bad account name
+// on one caller must not cancel or poison the season fetch other callers are
+// joined on. It orders the two upstream calls so the account leg fails while
+// the season leg is still in flight, asserts the season leg's request
+// context was never canceled, then proves the resolved value actually
+// landed in cache (a second, healthy request reuses it instead of
+// re-fetching or degrading to lifetime).
+func TestStatsSeasonSurvivesAccountFailure(t *testing.T) {
+	race := newSeasonRaceUpstream()
+	p := newTestProvider(t, race.handler(t), noUpstream(t, "shop"), nil)
+
+	reply := asStats(t, handle(t, p, "stats")(context.Background(),
+		gatewayrpc.Request{Account: "Ghosty", TimeWindow: "season"}))
+	assert.Equal(t, "player not found", reply.Error)
+	assert.NoError(t, race.seasonCtxErr, "the account leg's failure must not cancel the shared season fetch")
+
+	reply2 := asStats(t, handle(t, p, "stats")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", TimeWindow: "season"}))
+	require.Empty(t, reply2.Error)
+	assert.Equal(t, "season", reply2.Window)
+	assert.Equal(t, int32(1), race.calls(), "season endpoint must be hit once, cached thereafter")
+}
+
+// The p.seasonStart > 0 override still yields the configured value with no
+// concurrent machinery: since resolveStatsWindow takes the plain serial path,
+// a broken season endpoint (which would 500 the concurrent path's fetch, were
+// it reachable) never gets called and never affects the result.
+func TestStatsSeasonOverrideSkipsConcurrentPath(t *testing.T) {
+	var reqs []*http.Request
+	stats := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqs = append(reqs, r.Clone(context.Background()))
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/v1/account/displayName/"):
+			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"Ninja"}`))
+		case r.URL.Path == "/api/v2/stats/deadbeef":
+			_, _ = w.Write([]byte(syntheticBlob))
+		case r.URL.Path == "/api/v1/season":
+			t.Error("season endpoint must not be called when the override is set")
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})
+	p := newTestProvider(t, stats, noUpstream(t, "shop"),
+		func(cfg *Config) { cfg.SeasonStartUnix = 1746000000 })
+
+	reply := asStats(t, handle(t, p, "stats")(context.Background(),
+		gatewayrpc.Request{Account: "Ninja", TimeWindow: "season"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "season", reply.Window)
+	require.Len(t, reqs, 2, "paths: %v", requestPaths(reqs))
+	assert.Equal(t, "1746000000", reqs[1].URL.Query().Get("startTime"))
 }
 
 // PSN/Xbox lookups are Pro-plan upstream features: friendly error, no
@@ -515,4 +690,37 @@ func TestEpicOnly(t *testing.T) {
 	assert.Empty(t, epicOnly(" Epic "))
 	assert.NotEmpty(t, epicOnly("psn"))
 	assert.NotEmpty(t, epicOnly("steam"))
+}
+
+func BenchmarkStatsZeroAllocUnmarshal(b *testing.B) {
+	data, err := os.ReadFile("testdata/stats_v2_real.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var resp rawStatsResponse
+		if err := resp.UnmarshalJSON(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkStatsLegacyMapAggregate(b *testing.B) {
+	data, err := os.ReadFile("testdata/stats_v2_real.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	var mapResp struct {
+		Stats map[string]float64 `json:"stats"`
+	}
+	if err := json.Unmarshal(data, &mapResp); err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = aggregate(mapResp.Stats)
+	}
 }
