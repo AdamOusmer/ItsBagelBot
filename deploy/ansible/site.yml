@@ -46,6 +46,14 @@
     #   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml --tags vlan -i inventory.cluster.ini
     - role: private_vlan
       tags: [vlan]
+    # Only does anything on a node whose Cilium node IP is not the address the
+    # kernel would pick for egress (the OCI control plane, whose public IP is a
+    # secondary /32 while DHCP owns the default route). Ends early everywhere
+    # else. Tagged so the hints can be restored on a live node after a rebuild
+    # without touching anything else:
+    #   doppler run -p infra-bootstrap -c prd -- ansible-playbook site.yml --tags cilium-routes -i inventory.cluster.ini
+    - role: cilium_node_routes
+      tags: [cilium-routes]
     - role: tailscale
     - role: k3s_agent
     - role: ssh_removal

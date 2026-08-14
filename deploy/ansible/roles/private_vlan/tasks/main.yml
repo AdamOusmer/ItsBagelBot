@@ -42,22 +42,53 @@
     method6: disabled
     autoconnect: true
     state: present
+    # NetworkManager owns this interface, so its connection profile is the
+    # authoritative zone binding: what firewalld's own permanent config says
+    # loses to this on reboot. Setting it here (rather than only via the
+    # firewalld module below) is what makes the zone survive a reboot.
+    zone: "{{ vlan_firewall_zone }}"
   notify: bring up private vlan
 
 # firewalld's default zone is public, which would drop node-to-node traffic on
-# this interface. The VLAN carries the pod mesh once flannel moves onto it, so it
-# belongs in the same trusted zone as tailscale0/cni0/flannel-wg.
-#
-# This is an explicit trust decision: it assumes the VLAN is genuinely private to
-# this account. If the provider ever shares that segment between customers, this
-# line is what would need revisiting first.
-- name: Trust the private VLAN interface
+# this interface, so the VLAN needs an explicit zone. It is deliberately NOT
+# trusted (target=ACCEPT); see the vlan_firewall_zone comment in defaults for
+# what that exposed and why the fleet allowlist is the right home for it.
+- name: Confirm the target firewalld zone exists
+  ansible.builtin.command: "firewall-cmd --permanent --get-zones"
+  register: vlan_zone_list
+  changed_when: false
+
+- name: Fail clearly when the target zone is not defined
+  ansible.builtin.fail:
+    msg: >-
+      firewalld zone "{{ vlan_firewall_zone }}" does not exist on
+      {{ inventory_hostname }}, so the VLAN interface cannot be bound to it.
+      Create the zone (with its port and source allowlist) before running this
+      role, or override vlan_firewall_zone.
+  when: vlan_firewall_zone not in vlan_zone_list.stdout.split()
+
+- name: Bind the private VLAN interface to its firewalld zone
   ansible.posix.firewalld:
-    zone: trusted
+    zone: "{{ vlan_firewall_zone }}"
     interface: "{{ vlan_interface }}"
     permanent: true
     immediate: true
     state: enabled
+
+# firewalld keeps its own permanent interface list per zone, separate from the
+# NM binding above. A zone change therefore leaves the interface listed under
+# BOTH the old and new zone, and the two race on reload. Observed live on all
+# three workers on 2026-08-14. Strip any stale binding so reload is
+# deterministic.
+- name: Remove the VLAN interface from every other zone
+  ansible.posix.firewalld:
+    zone: "{{ item }}"
+    interface: "{{ vlan_interface }}"
+    permanent: true
+    state: disabled
+  loop: "{{ vlan_zone_list.stdout.split() | difference([vlan_firewall_zone]) }}"
+  failed_when: false
+  changed_when: false
 
 - name: Read the VLAN interface state
   ansible.builtin.command: "cat /sys/class/net/{{ vlan_interface }}/statistics/rx_bytes"
