@@ -59,7 +59,7 @@ func TestNewCrypto_WrongKeyType(t *testing.T) {
 	assert.Error(t, err, "Should fail when passing a MAC key to AEAD constructor")
 
 	// FIX: Updated the expected error string to match the actual output
-	assert.Contains(t, err.Error(), "want *tink.AEAD", "Error should be about primitive type mismatch")
+	assert.Contains(t, err.Error(), "primitive is not a tink.AEAD", "Error should be about primitive type mismatch")
 	assert.Nil(t, c)
 }
 
