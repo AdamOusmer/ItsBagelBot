@@ -19,7 +19,7 @@ import (
 // the dashboard module page use the same id.
 const mcsrModuleName = "mcsr"
 
-// mcsrCooldown is the shared per-command window; the gateway caches upstream
+// mcsrCooldown is the shared per-command window; gossip caches upstream
 // replies (the MCSR API allows 500 requests / 10 min fleet-wide), so this only
 // shields chat from spam.
 const mcsrCooldown = 10 * time.Second
@@ -44,13 +44,13 @@ type mcsrConfig struct {
 	SessionMessage string `json:"sessionMessage"`
 }
 
-// Mcsr owns the MCSR Ranked commands backed by the gateway service. It is a
+// Mcsr owns the MCSR Ranked commands backed by the gossip service. It is a
 // named, opt-in module (KindOptIn): off by default, enabled on the dashboard
 // with a linked account.
 //
 // Commands: !elo (current rating + season record), !session (elo and record
 // since the stream started). The session baseline is snapshotted when
-// stream.online arrives — the gateway stores the player's standing keyed by
+// stream.online arrives — gossip stores the player's standing keyed by
 // this channel — so "this stream" is exactly the live session's duration.
 func Mcsr(d engine.Deps) module.Module {
 	log := d.Log
@@ -82,7 +82,7 @@ func Mcsr(d engine.Deps) module.Module {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
 			defer cancel()
 			var reply gossiprpc.McsrSnapshotReply
-			if err := d.Gossip.Call(wctx, "mcsr", "session_start", gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "session_start"}, gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 				log.Warn("mcsr: stream-start snapshot failed",
 					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
 				return
@@ -108,7 +108,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 
 		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply gossiprpc.McsrUserReply
-		if err := d.Gossip.Call(ctx, "mcsr", "user", gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "user"}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -143,7 +143,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 
 // mcsrSessionRun answers !session with the delta since the stream-start
 // snapshot. Template tokens: {player} {elo} {elochange} {wins} {losses}
-// {matches}. Without a baseline (module enabled mid-stream) the gateway starts
+// {matches}. Without a baseline (module enabled mid-stream) gossip starts
 // tracking now and the reply says so instead of faking a zero delta.
 func mcsrSessionRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -160,7 +160,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		req := gossiprpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10), IsPremium: c.Regress.IsPremium()}
 		var reply gossiprpc.McsrSessionReply
-		if err := d.Gossip.Call(ctx, "mcsr", "session", req, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "session"}, req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}

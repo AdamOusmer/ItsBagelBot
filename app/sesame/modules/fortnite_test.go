@@ -96,7 +96,7 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 }
 
 // A per-command "off" toggle keeps that command silent: no chat line and no
-// gateway call, for both fortnite commands.
+// gossip call, for both fortnite commands.
 func TestFortniteDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"fn", `{"statsEnabled":"off"}`},
@@ -128,7 +128,7 @@ func TestFnDispatch(t *testing.T) {
 
 	cases := []struct {
 		name, args      string
-		endpoint        string // gateway endpoint expected
+		endpoint        string // gossip endpoint expected
 		window, account string // stats requests only
 		replyValue      any
 	}{
@@ -169,8 +169,8 @@ func TestFnstatsReplyErrorChats(t *testing.T) {
 	assert.Equal(t, "Ghosty: player not found", col.out[0].Text)
 }
 
-// runFnSession runs !fnsession against a gateway stubbed with reply, under the
-// given module config and command argument, returning the gateway and collected
+// runFnSession runs !fnsession against a gossip stubbed with reply, under the
+// given module config and command argument, returning the gossip and collected
 // output for assertion.
 func runFnSession(t *testing.T, reply gossiprpc.FortniteSessionReply, cfg, arg string) (*fakeGossip, collector) {
 	t.Helper()
@@ -244,7 +244,7 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("stream.online never called the gateway")
+		t.Fatal("stream.online never called gossip")
 	}
 	call := gw.lastCall(t)
 	assert.Equal(t, "fortnite", call.provider)

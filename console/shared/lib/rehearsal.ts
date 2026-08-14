@@ -23,7 +23,7 @@
 //   each), then translates each line's leading slash-verb.
 //
 //   rehearseReply — module replies (alerts, trigger words, channel-point
-//   rewards, built-ins, gateway commands). Each module expands ONLY its own
+//   rewards, built-ins, gossip commands). Each module expands ONLY its own
 //   token map — most fall back to the shared dynamic tokens ({random},
 //   {choice:…}), a few (govee, clip) do not — and emits one message, whose
 //   leading slash-verb routes the same way.

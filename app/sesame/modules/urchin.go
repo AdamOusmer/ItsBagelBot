@@ -18,9 +18,9 @@ import (
 // the dashboard module page use the same id.
 const urchinModuleName = "urchin"
 
-// urchinCooldown is the shared per-command window; the gateway caches upstream
+// urchinCooldown is the shared per-command window; gossip caches upstream
 // replies, so this only shields chat from command spam, not the API. The
-// upstream budget is the gateway's URCHIN_RATE_LIMIT bucket, not this window.
+// upstream budget is gossip's URCHIN_RATE_LIMIT bucket, not this window.
 const urchinCooldown = 5 * time.Second
 
 // Default reply templates. The broadcaster customizes them per command on the
@@ -60,7 +60,7 @@ type urchinConfig struct {
 }
 
 // Urchin owns the Hypixel Bed Wars stats commands backed by the urchin.gg
-// Coral API through the gateway service. It is a named, opt-in module
+// Coral API through the gossip service. It is a named, opt-in module
 // (KindOptIn): off by default, enabled on the dashboard, where the broadcaster
 // links a default Minecraft account and can toggle or re-template each
 // command. Viewers can always target another player explicitly: "!daily
@@ -117,7 +117,7 @@ func urchinToggle(cfg urchinConfig, endpoint string) (enabled bool, tmpl string)
 }
 
 // gatewayCommand names one urchin command's wiring: the config toggle key and
-// the gateway provider/endpoint it calls.
+// the gossip provider/endpoint it calls.
 type gatewayCommand struct {
 	toggle   string
 	provider string
@@ -126,7 +126,7 @@ type gatewayCommand struct {
 
 // runUrchinCommand is the shared skeleton every urchin command runs: decode
 // the channel config, check the command's toggle, resolve the target account,
-// call the gateway, then expand the reply's tokens into the template. tokens
+// call gossip, then expand the reply's tokens into the template. tokens
 // maps a template key to its reply field; unknown keys fall through to the
 // dynamic palette.
 func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[string]func(*R) string) module.RunFunc {
@@ -140,7 +140,7 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 
 		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply R
-		if err := d.Gossip.Call(ctx, cmd.provider, cmd.endpoint, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: cmd.provider, Endpoint: cmd.endpoint}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -180,9 +180,9 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 // tokens: {player} {stars} {wins} {losses} {finals} {finaldeaths} {beds}
 // {fkdr} {wlr}.
 //
-// The data rides the gateway's hypixel provider — a separate external system
+// The data rides gossip's hypixel provider — a separate external system
 // with its own key and budget (Coral cannot serve lifetime stats on our key) —
-// but the command stays on the one urchin module page: gateway provider layout
+// but the command stays on the one urchin module page: gossip provider layout
 // is not a dashboard concern.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
 	type reply = gossiprpc.HypixelStatsReply

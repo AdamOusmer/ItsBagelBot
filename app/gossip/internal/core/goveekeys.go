@@ -17,7 +17,7 @@ import (
 const goveeKeyTimeout = 2 * time.Second
 
 // GoveeKeyClient resolves a broadcaster's decrypted Govee API key over the
-// modules service's internal RPC, the gateway's twin of outgress's tokenstore.
+// modules service's internal RPC, gossip's twin of outgress's tokenstore.
 // The plaintext key it returns is used for one upstream call and never cached.
 type GoveeKeyClient struct {
 	nc     *nats.Conn

@@ -4,12 +4,12 @@ set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 namespace=${NAMESPACE:-production}
-confirmation=${CONFIRM_NATS_GATEWAY_ACCEPTANCE:-}
+confirmation=${CONFIRM_NATS_GOSSIP_ACCEPTANCE:-}
 correctness_requests=${CORRECTNESS_REQUESTS:-500}
 latency_requests=${LATENCY_REQUESTS:-5000}
 latency_clients=${LATENCY_CLIENTS:-4}
 rpc_p99_max_ms=${RPC_P99_MAX_MS:-8}
-queue_group=${QUEUE_GROUP:-RPC_GATEWAY_ACCEPTANCE}
+queue_group=${QUEUE_GROUP:-RPC_GOSSIP_ACCEPTANCE}
 run_id=$(date -u +%Y%m%d%H%M%S)
 results_file=${RESULTS_FILE:-/tmp/nats-gateway-local-first-${run_id}.json}
 phase_results=""
@@ -38,8 +38,8 @@ edge clusters joined through mutually verified native-TLS gateways. A NetworkPol
 prevents every acceptance pod from reaching the production NATS hub or leaf tier.
 
 Run only in a controlled window:
-  CONFIRM_NATS_GATEWAY_ACCEPTANCE=LOCAL-FIRST-RPC \
-    deploy/k8s/nats-live-acceptance/gateway/local-first.sh
+  CONFIRM_NATS_GOSSIP_ACCEPTANCE=LOCAL-FIRST-RPC \
+    deploy/k8s/nats-live-acceptance/gossip/local-first.sh
 EOF
   exit 0
 fi

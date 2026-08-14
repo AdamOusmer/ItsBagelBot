@@ -300,7 +300,7 @@ export interface ModuleReply {
   defaultOff?: boolean;
   defaultMessage: string; // sesame default template (placeholder + preview fallback)
 
-  // --- command-style replies (gateway modules: urchin, mcsr) ---------------
+  // --- command-style replies (gossip modules: urchin, mcsr) ---------------
   // command is the chat trigger without '!' (e.g. 'daily'). When set, the
   // inspector rehearses the reply exactly like a custom command: the border
   // reads "Chat rehearsal", a viewer line types the trigger, and the bot
@@ -774,7 +774,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       }
     ]
   },
-  // External-stats modules: chat commands answered through the gateway service
+  // External-stats modules: chat commands answered through the gossip service
   // (external API proxy + cache). Config keys must match the sesame module
   // structs (app/sesame/modules/urchin.go, mcsr.go).
   {

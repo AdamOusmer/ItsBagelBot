@@ -156,7 +156,7 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 				return b, ttl, err
 			})
 		if err != nil {
-			log.Warn("gateway fetch failed",
+			log.Warn("gossip fetch failed",
 				zap.String("provider", ref.provider),
 				zap.String("endpoint", ref.endpoint),
 				zap.String("id", id.Display),
@@ -169,7 +169,7 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 
 // logFriendly records the friendly failures that would otherwise be invisible:
 // they are shaped into ordinary replies, so without this line neither the
-// gateway nor the caller ever logs that a rate limit or key problem happened —
+// gossip service nor the caller ever logs that a rate limit or key problem happened —
 // exactly the states an operator needs to see. Missing players (400/404) stay
 // quiet; they are routine.
 func logFriendly(log *zap.Logger, ref endpointRef, id ID, friendly *core.UpstreamError) {
@@ -180,7 +180,7 @@ func logFriendly(log *zap.Logger, ref endpointRef, id ID, friendly *core.Upstrea
 	case 400, 404:
 		return
 	}
-	log.Warn("gateway upstream denial",
+	log.Warn("gossip upstream denial",
 		zap.String("provider", ref.provider),
 		zap.String("endpoint", ref.endpoint),
 		zap.String("id", id.Display),

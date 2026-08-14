@@ -14,7 +14,7 @@
   //   slash-verb routing per line, up to 5 messages (one per line).
   //
   //   kind="reply" — module replies (alerts, triggers, rewards, built-ins,
-  //   gateway commands): ONLY the tokens in `samples` (plus the dynamic set
+  //   gossip commands): ONLY the tokens in `samples` (plus the dynamic set
   //   unless dynamic={false}), one message. A leading slash-verb routes the
   //   same as a command line — the pipeline translates every emitted output.
   import {

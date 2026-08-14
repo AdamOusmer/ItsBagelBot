@@ -221,7 +221,7 @@ type leagueStats struct {
 }
 
 // Public endpoint replies live in the provider package intentionally: this
-// change adds only the gateway integration and no sesame-facing feature.
+// change adds only the gossip integration and no sesame-facing feature.
 type statsReply struct {
 	Player                string  `json:"player"`
 	Tag                   string  `json:"tag"`

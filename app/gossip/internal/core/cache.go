@@ -1,4 +1,4 @@
-// Package core holds the gateway's provider-neutral runtime pieces: the
+// Package core holds gossip's provider-neutral runtime pieces: the
 // Valkey-backed reply cache and the outbound HTTP fetcher. Providers compose
 // these; core knows nothing about any specific external API.
 package core

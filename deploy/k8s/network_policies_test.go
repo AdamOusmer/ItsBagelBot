@@ -116,7 +116,7 @@ func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 
 func TestPublicHTTPSEgressAllowlist(t *testing.T) {
 	publicHTTPS := requirePolicy(t, loadNetworkPolicies(t), "allow-public-https")
-	wantHTTPS := sorted("commands", "console-admin", "console-dashboard", "gateway", "loyalty", "modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users")
+	wantHTTPS := sorted("commands", "console-admin", "console-dashboard", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users")
 	if got := selectedApps(t, publicHTTPS); !slices.Equal(got, wantHTTPS) {
 		t.Fatalf("public HTTPS allowlist = %v, want %v", got, wantHTTPS)
 	}
