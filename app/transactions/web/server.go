@@ -308,11 +308,16 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 		return fmt.Errorf("invalid webhook date: %w", err)
 	}
 	expiresAt := payment.ExpiresAt
-	if action == billingrpc.ActionActivate && expiresAt == nil {
+	if grantsPaid(action) && expiresAt == nil {
 		// One-time purchases (single-month buys, gifts) can arrive without any
-		// expiry on the payment subject, but a paid month must still run out —
-		// an activation without expiry would never be revoked by the safety
-		// net. Default to one month from the payment event.
+		// expiry on the payment subject, but every action that leaves the user
+		// paid must still run out. This is not just activation: a
+		// payment.dispute.won maps to ActionCancelAborted and follows a
+		// payment.dispute.opened that already cleared the stored expiry
+		// (ActionRevoke), so a nil expiry here would otherwise reinstate the
+		// user with no expiry at all, permanent premium, and no further Tebex
+		// event ever arrives for a settled one-time payment to correct it.
+		// Default to one month from the payment event.
 		fallback := occurredAt.AddDate(0, 1, 0)
 		expiresAt = &fallback
 	}

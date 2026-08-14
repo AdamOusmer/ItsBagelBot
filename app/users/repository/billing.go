@@ -56,10 +56,10 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 		)
 		switch req.Action {
 		case billingrpc.ActionActivate, billingrpc.ActionCancelAborted:
-			applyPaidUpdate(q, req, false)
+			applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
 
 		case billingrpc.ActionCancelRequested:
-			applyPaidUpdate(q, req, true)
+			applyPaidUpdate(q, req, true, u.SubscriptionExpiresAt)
 
 		case billingrpc.ActionRevoke:
 			q.SetStatus(user.StatusFree).
@@ -104,14 +104,38 @@ func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequ
 // applyPaidUpdate sets the paid-tier fields common to a Tebex activation and a
 // cancellation-requested event; the two differ only in whether the cancellation
 // is pending. One place, so the update chain is not duplicated per action.
-func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool) {
+//
+// storedExpiresAt is the row's expiry before this update runs. The caller
+// (transactions/web's applyBilling) already backfills a fallback expiry for
+// every action that reaches this function, but that is a second place trusted
+// to get it right, not a guarantee. A payment.dispute.won lands here as
+// ActionCancelAborted after the preceding payment.dispute.opened already
+// cleared subscription_expires_at via ActionRevoke; if req.ExpiresAt were
+// ever nil for that event (a one-time purchase carries no payment-subject
+// expiry), setting StatusPaid with no expiry at all would reinstate the user
+// with permanent premium; see the incident this function's fallback exists
+// for. This is the backstop that makes it structurally impossible from this
+// side too: when the request carries no expiry and the stored row has none
+// either, clamp to one month from the event instead of leaving it open. A
+// hard reject was considered and rejected: SetAdminStatus can afford to
+// reject because it is a synchronous, operator-driven call the caller retries
+// by hand, but this path is a Tebex webhook, and ApplyBilling's contract is
+// that a returned error makes Tebex retry the delivery (see its doc comment).
+// That retry path exists for transient NATS/users outages, not a condition
+// that Tebex redelivering the identical event can ever resolve, so rejecting
+// here would leave a legitimately paid customer (a won dispute) stuck in an
+// infinite retry loop instead of holding a bounded grant.
+func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool, storedExpiresAt *time.Time) {
 	q.SetStatus(user.StatusPaid).
 		SetSubscriptionSource("tebex").
 		SetSubscriptionCancelPending(cancelPending).
 		SetBillingEventAt(req.OccurredAt).
 		SetBillingEventID(req.EventID)
-	if req.ExpiresAt != nil {
+	switch {
+	case req.ExpiresAt != nil:
 		q.SetSubscriptionExpiresAt(*req.ExpiresAt)
+	case storedExpiresAt == nil:
+		q.SetSubscriptionExpiresAt(req.OccurredAt.AddDate(0, 1, 0))
 	}
 	if req.RecurringReference != "" {
 		q.SetSubscriptionRef(req.RecurringReference)
