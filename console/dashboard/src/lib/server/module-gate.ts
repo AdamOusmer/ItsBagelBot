@@ -24,3 +24,13 @@ export function gateModulePage(session: Session | null | undefined, moduleId: st
   const def = moduleDef(moduleId);
   if (!def || !delegateCanOpen(def, session)) throw redirect(302, '/');
 }
+
+// assertModuleWritable reports whether a write action (toggle, save, patch)
+// may touch this module's stored row. It folds together the same two checks
+// the read paths already make (delegateCanOpen's scope check, and the
+// def.hidden rejection the [id] load performs) so a write gate can never end
+// up looser than its matching read gate: gateModules() alone only knows the
+// 'modules' section, not that a module like channel points is its own grant.
+export function assertModuleWritable(session: Session | null | undefined, def: ModuleDef): boolean {
+  return !def.hidden && delegateCanOpen(def, session);
+}
