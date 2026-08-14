@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -16,9 +17,11 @@ import (
 //	NATS lanes -> ConsumeWeighted -> consumers, each with its own routine pool
 //
 // It runs one or more consumer units. Each unit owns its own subscriptions to
-// every lane and its own bounded pool of pipeline routines, and dispatches each
-// message to its lane's handler on its own goroutine. The pool grows or shrinks
-// with load along two independent tiers:
+// every lane, its own bounded admission gate, and a fleet of persistent worker
+// routines that run the lane handlers. A reader never spawns anything: it claims
+// a gate slot for its lane and hands the message to the fleet over a channel.
+// The gate and the fleet grow or shrink together with load, along two
+// independent tiers:
 //
 //	routines per consumer: each unit scales its own pool from MinRoutines up to
 //	MaxRoutines on its own saturation, a step at a time after ScaleUpAfter, and
@@ -34,7 +37,7 @@ import (
 // lanes together never hold more than 75% of any unit's pool, leaving premium a
 // guaranteed quarter on every unit.
 //
-// Ack discipline matches Consume: a message's goroutine runs the handler to
+// Ack discipline matches Consume: a message's worker runs the handler to
 // completion and only then acks (nil) or nacks (error), so the redelivery
 // retry budget is preserved. Handlers must be safe for concurrent use.
 //
@@ -101,17 +104,24 @@ func ConsumeWeighted(ctx context.Context, app *newrelic.Application, lanes []Wei
 
 // Weighted is the handle ConsumeWeighted returns; Drain is its only method.
 type Weighted struct {
-	// dispatched counts every reader loop and every dispatched handler goroutine
+	// dispatched counts every reader loop and every dispatch handed to a worker,
 	// across all units. It starts positive (the first unit's readers are added
 	// before ConsumeWeighted returns, so before any Drain) and stays positive
-	// while any reader is alive, so a handler's Add never races Drain's Wait: the
-	// counter only reaches zero once every reader has exited and every handler has
-	// returned.
+	// while any reader is alive, so a dispatch's Add never races Drain's Wait: only
+	// a reader adds, only a live reader can add, and every reader is itself counted
+	// until it exits. The counter therefore reaches zero only once every reader has
+	// exited and every dispatch that ever crossed the channel has been run to
+	// completion by a worker.
+	//
+	// Persistent workers do not weaken that: a worker's Done is deferred inside
+	// workerPool.handle, and the work channel is closed only after every reader has
+	// exited, so no counted dispatch can be stranded in the channel by a shutdown.
 	dispatched *sync.WaitGroup
 }
 
-// Drain blocks until every reader loop has exited and every handler goroutine
-// already dispatched has returned, or until ctx is done, whichever comes first.
+// Drain blocks until every reader loop has exited and every dispatch already
+// handed to a worker has been run to completion, or until ctx is done, whichever
+// comes first.
 //
 // Call it only after the context passed to ConsumeWeighted has been cancelled,
 // so the readers have stopped pulling new messages; Drain then converges as the
@@ -142,9 +152,9 @@ type supervisor struct {
 	policy   ScalePolicy
 	log      *zap.Logger
 
-	// dispatched counts every reader loop and every dispatched handler across all
-	// units (including retired ones), so Drain can wait for in-flight work on
-	// shutdown. See Weighted for why the counting is race-free.
+	// dispatched counts every reader loop and every dispatch across all units
+	// (including retired ones), so Drain can wait for in-flight work on shutdown.
+	// See Weighted for why the counting is race-free.
 	dispatched *sync.WaitGroup
 
 	units []*consumerUnit
@@ -220,9 +230,20 @@ func (s *supervisor) retireUnit() {
 }
 
 // startUnit brings up one consumer unit: its own subscriptions to every lane,
-// its own routine pool sized at the floor, and its own routine-tier autoscaler.
+// its admission gate and worker fleet sized at the floor, its readers, and its
+// own routine-tier autoscaler.
+//
+// Nothing is started until every subscription is up, so a Subscribe failure
+// leaves no reader and no worker behind: cancelling uctx releases the
+// subscriptions that did come up and there is nothing else to unwind.
 func (s *supervisor) startUnit() (*consumerUnit, error) {
 	uctx, cancel := context.WithCancel(s.ctx)
+
+	channels, err := subscribeLanes(uctx, s.lanes)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
 	pool := newRoutinePool(s.reserves, s.policy.MinRoutines)
 	go func() {
@@ -230,30 +251,73 @@ func (s *supervisor) startUnit() (*consumerUnit, error) {
 		pool.close()
 	}()
 
-	wg, err := startReaders(uctx, s.app, s.lanes, pool, s.dispatched, s.log)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
+	workers := newWorkerPool(newConsumeLanes(s.app, s.lanes, s.log), pool, s.dispatched, s.policy.MaxRoutines)
+	workers.resize(s.policy.MinRoutines)
 
-	u := &consumerUnit{pool: pool, cancel: cancel, wg: wg}
+	readers := startReaders(channels, pool, workers.work, s.dispatched)
+
+	u := &consumerUnit{pool: pool, workers: workers, cancel: cancel, done: make(chan struct{})}
+	go u.awaitDrain(readers)
 	go u.autoscaleRoutines(uctx, s.policy, s.log)
 
 	return u, nil
 }
 
-// consumerUnit is one independent consumer: its own pool, subscriptions, and
-// routine-tier autoscaler. The pool's capacity is the unit's current routine
-// count, scaling between MinRoutines and MaxRoutines on the unit's own load.
+// newConsumeLanes bundles each lane's invariants (subject, transaction name,
+// handler) once per unit. They never change between deliveries, so a dispatch
+// carries only the message and its lane index and the worker looks the rest up.
+func newConsumeLanes(app *newrelic.Application, lanes []WeightedLane, log *zap.Logger) []consumeLane {
+	procs := make([]consumeLane, len(lanes))
+	for i, lane := range lanes {
+		procs[i] = newConsumeLane(app, lane.Subject, lane.Handle, log)
+	}
+	return procs
+}
+
+// consumerUnit is one independent consumer: its own admission gate, worker
+// fleet, subscriptions, and routine-tier autoscaler. The gate's capacity is the
+// unit's current routine count, scaling between MinRoutines and MaxRoutines on
+// the unit's own load, and the fleet follows it.
 type consumerUnit struct {
-	pool   *routinePool
-	cancel context.CancelFunc
-	wg     *sync.WaitGroup
+	pool    *routinePool
+	workers *workerPool
+	cancel  context.CancelFunc
+	// done is closed once every reader has exited and the fleet has drained the
+	// work channel. It is driven by awaitDrain rather than by stop, because units
+	// that outlive the supervisor are torn down by context cancellation alone and
+	// stop is never called on them.
+	done chan struct{}
+}
+
+// awaitDrain retires the unit's machinery in the only order that cannot strand a
+// counted dispatch: readers first (after which nothing can send), then the work
+// channel closed, then the fleet drained to the last buffered message.
+func (u *consumerUnit) awaitDrain(readers *sync.WaitGroup) {
+	defer close(u.done)
+	readers.Wait()
+	u.workers.stop()
 }
 
 func (u *consumerUnit) stop() {
 	u.cancel()
-	u.wg.Wait()
+	<-u.done
+}
+
+// setRoutines moves the unit to n routines: n admission slots and n workers.
+//
+// The order is the contract. Growing spawns before the gate widens; shrinking
+// narrows the gate before it retires. Either way live workers >= capacity holds
+// at every instant, which is what makes an admitted message's slot worth a
+// worker rather than a place in a queue (see workerPool).
+func (u *consumerUnit) setRoutines(n int) {
+	_, capacity := u.pool.stats()
+	if n > capacity {
+		u.workers.resize(n)
+		u.pool.setCapacity(n)
+		return
+	}
+	u.pool.setCapacity(n)
+	u.workers.resize(n)
 }
 
 func (u *consumerUnit) autoscaleRoutines(ctx context.Context, policy ScalePolicy, log *zap.Logger) {
@@ -276,9 +340,10 @@ func (u *consumerUnit) autoscaleRoutines(ctx context.Context, policy ScalePolicy
 					saturatedSince = now
 				}
 				if now.Sub(saturatedSince) >= policy.ScaleUpAfter {
-					u.pool.setCapacity(capacity + 1)
+					u.setRoutines(capacity + 1)
 					saturatedSince = now
-					log.Debug("consumer routines scaled up", zap.Int("routines", capacity+1))
+					log.Debug("consumer routines scaled up",
+						zap.Int("routines", capacity+1), zap.Int("workers", u.workers.liveWorkers()))
 				}
 			case inflight*2 <= capacity && capacity > policy.MinRoutines: // calm, room to shrink
 				saturatedSince = time.Time{}
@@ -286,9 +351,10 @@ func (u *consumerUnit) autoscaleRoutines(ctx context.Context, policy ScalePolicy
 					calmSince = now
 				}
 				if now.Sub(calmSince) >= policy.ScaleDownAfter {
-					u.pool.setCapacity(capacity - 1)
+					u.setRoutines(capacity - 1)
 					calmSince = now
-					log.Debug("consumer routines scaled down", zap.Int("routines", capacity-1))
+					log.Debug("consumer routines scaled down",
+						zap.Int("routines", capacity-1), zap.Int("workers", u.workers.liveWorkers()))
 				}
 			default:
 				saturatedSince, calmSince = time.Time{}, time.Time{}
@@ -322,57 +388,230 @@ func (p ScalePolicy) normalized() ScalePolicy {
 	return p
 }
 
-// startReaders subscribes to every lane under ctx and runs one reader goroutine
-// per lane that pulls messages, claims a pool slot (blocking under
-// backpressure), and dispatches the handler on its own goroutine. The returned
-// WaitGroup is done when every reader loop has exited (ctx cancelled, channels
-// closed); messages already dispatched keep running and release their slot on
-// completion. A Subscribe failure aborts: ctx is left to the caller to cancel.
-//
-// dispatched counts both the reader loops and the dispatched handlers so a
-// graceful shutdown can wait for in-flight work (see Weighted.Drain). Counting
-// the reader in the same group keeps the count positive while the reader can
-// still add handlers, so a handler's Add never races the Wait.
-func startReaders(ctx context.Context, app *newrelic.Application, lanes []WeightedLane, pool *routinePool, dispatched *sync.WaitGroup, log *zap.Logger) (*sync.WaitGroup, error) {
-
-	var wg sync.WaitGroup
-
+// subscribeLanes subscribes to every lane under ctx before any reader exists, so
+// a failure on a later lane leaves nothing running: cancelling ctx releases the
+// subscriptions that did come up.
+func subscribeLanes(ctx context.Context, lanes []WeightedLane) ([]<-chan *Message, error) {
+	channels := make([]<-chan *Message, len(lanes))
 	for i, lane := range lanes {
 		messages, err := lane.Sub.Subscribe(ctx, lane.Subject)
 		if err != nil {
 			return nil, err
 		}
+		channels[i] = messages
+	}
+	return channels, nil
+}
 
+// dispatch is the unit of work a reader hands to the fleet: the message and the
+// index of the lane it arrived on. It is deliberately two words wide and holds
+// no closure, so a dispatch is a plain copy into a pre-sized channel buffer —
+// nothing on the reader's serial path escapes to the heap.
+type dispatch struct {
+	msg  *Message
+	lane int
+}
+
+// startReaders runs one reader goroutine per lane. A reader pulls messages,
+// claims a gate slot for its lane (blocking under backpressure, honouring the
+// lane reserves), and hands the message to the persistent worker fleet.
+//
+// That hand-off is the whole point of the fleet. The reader loop is serial, so
+// whatever it costs per message is the lane's dispatch ceiling, and a `go`
+// statement here was the expensive part of it: ~250-360ns of spawn and scheduler
+// churn plus 40 bytes of closure per message, against ~160-200ns and no
+// allocation at all for the send (BenchmarkDispatchGoroutinePerMessage against
+// BenchmarkDispatchHandoff, M1 Pro, GOMAXPROCS 2 through 10). At 100k msg/s per
+// pod that is a couple of percent of a core and ~4MB/s of garbage the reader no
+// longer makes before any handler has run. What is left of the loop is the
+// admission check, one WaitGroup increment and one channel send.
+//
+// The returned WaitGroup is done when every reader loop has exited (ctx
+// cancelled, channels closed, or the gate closed); dispatches already handed
+// over keep running and release their slot on completion.
+//
+// dispatched counts both the reader loops and every dispatch so a graceful
+// shutdown can wait for in-flight work (see Weighted.Drain). Counting the reader
+// in the same group keeps the count positive while the reader can still add, so
+// a dispatch's Add never races the Wait; the matching Done is the worker's, run
+// after the handler returns.
+func startReaders(channels []<-chan *Message, pool *routinePool, work chan<- dispatch, dispatched *sync.WaitGroup) *sync.WaitGroup {
+
+	var wg sync.WaitGroup
+
+	for i, messages := range channels {
 		wg.Add(1)
 		dispatched.Add(1)
-		// A lane's invariants (subject, transaction name, handler) never change,
-		// so they are bundled once here and carried into every dispatch.
-		go func(lane int, proc consumeLane, msgs <-chan *Message) {
+		go func(lane int, msgs <-chan *Message) {
 			defer wg.Done()
 			defer dispatched.Done()
 			for msg := range msgs {
 				if !pool.acquire(lane) {
-					// Pool is shutting down: hand the message back unprocessed.
+					// Gate is shutting down: hand the message back unprocessed.
 					msg.Nack()
 					return
 				}
 				dispatched.Add(1)
-				go func(m *Message) {
-					defer dispatched.Done()
-					defer pool.release(lane)
-					proc.process(m)
-				}(msg)
+				work <- dispatch{msg: msg, lane: lane}
 			}
-		}(i, newConsumeLane(app, lane.Subject, lane.Handle, log), messages)
+		}(i, messages)
 	}
 
-	return &wg, nil
+	return &wg
 }
 
-// routinePool is the shared, resizable admission gate. inflight is the number
-// of running handler goroutines; laneInflight tracks them per lane so a lane's
-// reserve can be honoured. A lane may hold at most capacity minus the slots
-// reserved for the other lanes, so each reserved lane always keeps its share.
+// workerPool is the unit's persistent handler fleet: long-lived goroutines that
+// receive dispatches and run the lane handler on them. Its size follows the
+// admission gate's capacity, so it is resizable without being respawned.
+//
+// Fleet size >= gate capacity is the load-bearing relation, and it is what keeps
+// a lane's reserve meaningful under the shared channel. At any instant every
+// admitted message is either running in a worker, sitting in the work buffer, or
+// on its way from a reader, so
+//
+//	buffered + sending = admitted - running <= capacity - running <= workers - running
+//
+// and the right-hand side is exactly the number of workers not running anything.
+// Every queued dispatch therefore has an idle worker waiting for it: a premium
+// message that claims its reserved slot is picked up within a scheduler hop, not
+// behind a standard handler's full runtime. consumerUnit.setRoutines maintains
+// the relation across resizes by spawning before the gate widens and retiring
+// after it narrows.
+//
+// The fleet is a throughput knob, never a correctness bound: concurrency is
+// capped by the gate whatever the worker count happens to be mid-resize.
+type workerPool struct {
+	work   chan dispatch
+	retire chan struct{}
+
+	procs      []consumeLane
+	gate       *routinePool
+	dispatched *sync.WaitGroup
+
+	// alive is done when every spawned worker has returned; live is the same
+	// count readable without blocking, for the scale logs and the resize tests.
+	alive sync.WaitGroup
+	live  atomic.Int64
+
+	mu      sync.Mutex
+	desired int
+}
+
+// newWorkerPool builds an idle fleet over procs. max is the largest capacity the
+// gate can be given (ScalePolicy.MaxRoutines); it sizes both channels:
+//
+//	work: the gate admits at most capacity <= max messages at once and each one
+//	holds its slot until a worker is done with it, so at most max dispatches can
+//	be outstanding and the reader's send never blocks. The admission check stays
+//	the single point of backpressure. A capacity somehow raised past max would
+//	only make the send block — backpressure, never loss.
+//
+//	retire: one token per worker the fleet is shrinking by. Tokens outstanding
+//	are live minus desired, which is bounded by max for the same reason.
+func newWorkerPool(procs []consumeLane, gate *routinePool, dispatched *sync.WaitGroup, max int) *workerPool {
+	return &workerPool{
+		work:       make(chan dispatch, max),
+		retire:     make(chan struct{}, max),
+		procs:      procs,
+		gate:       gate,
+		dispatched: dispatched,
+	}
+}
+
+// resize moves the fleet towards n workers, one step per unit of difference.
+// Growth cancels a pending retirement in preference to spawning, so the ±1 the
+// autoscaler applies each second cannot churn goroutines when it oscillates
+// around a step: a shrink immediately followed by a grow costs nothing at all.
+func (w *workerPool) resize(n int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for w.desired < n {
+		w.desired++
+		w.growLocked()
+	}
+	for w.desired > n {
+		w.desired--
+		w.shrinkLocked()
+	}
+}
+
+// growLocked adds one worker. A token still in the retire buffer belongs to a
+// worker that has not acted on it yet — taking it back keeps that worker instead
+// of spawning a replacement for it.
+func (w *workerPool) growLocked() {
+	select {
+	case <-w.retire:
+	default:
+		w.live.Add(1)
+		w.alive.Add(1)
+		go w.run()
+	}
+}
+
+// shrinkLocked retires one worker by leaving it a token. The default arm is
+// unreachable while capacity stays within max (see newWorkerPool); if it ever
+// fires the surplus worker simply stays, which costs an idle goroutine and
+// breaks nothing, because the gate — not the worker count — bounds concurrency.
+func (w *workerPool) shrinkLocked() {
+	select {
+	case w.retire <- struct{}{}:
+	default:
+	}
+}
+
+// run is one persistent worker. It leaves the loop only between messages, either
+// to retire on a token from resize or at shutdown when the work channel closes,
+// so a shrink can never kill a handler mid-message.
+//
+// Shutdown cannot strand a counted dispatch. The channel is closed only after
+// every reader has exited (consumerUnit.awaitDrain), and the select's retire arm
+// cannot empty the fleet ahead of the buffer: tokens outstanding are live minus
+// desired, so at least desired (>= MinRoutines >= 1) workers have no token to
+// take and stay until the receive reports the channel closed and drained.
+func (w *workerPool) run() {
+	defer w.alive.Done()
+	defer w.live.Add(-1)
+
+	for {
+		select {
+		case <-w.retire:
+			return
+		case d, ok := <-w.work:
+			if !ok {
+				return
+			}
+			w.handle(d)
+		}
+	}
+}
+
+// handle runs one dispatch: the lane's handler inside its own New Relic
+// transaction under the shared ack discipline (consumeLane.process), then the
+// slot release and the Drain bookkeeping the reader counted up before the send.
+func (w *workerPool) handle(d dispatch) {
+	defer w.dispatched.Done()
+	defer w.gate.release(d.lane)
+	w.procs[d.lane].process(d.msg)
+}
+
+// stop closes the work channel and waits for the fleet to drain it. It is safe
+// only after every reader has exited, so that nothing can send on a closed
+// channel; awaitDrain is the one caller that guarantees it.
+func (w *workerPool) stop() {
+	close(w.work)
+	w.alive.Wait()
+}
+
+// liveWorkers is the number of spawned workers that have not returned yet.
+func (w *workerPool) liveWorkers() int {
+	return int(w.live.Load())
+}
+
+// routinePool is the shared, resizable admission gate. inflight is the number of
+// admitted messages — running in a worker or queued for one — and laneInflight
+// tracks them per lane so a lane's reserve can be honoured. A lane may hold at
+// most capacity minus the slots reserved for the other lanes, so each reserved
+// lane always keeps its share.
 type routinePool struct {
 	mu           sync.Mutex
 	cond         *sync.Cond
@@ -446,6 +685,9 @@ func (p *routinePool) release(lane int) {
 	p.cond.Broadcast()
 }
 
+// setCapacity resizes the gate. Callers on the scaling path must go through
+// consumerUnit.setRoutines instead, which orders this against the worker fleet
+// so live workers >= capacity holds throughout the move.
 func (p *routinePool) setCapacity(n int) {
 	p.mu.Lock()
 	p.capacity = n
