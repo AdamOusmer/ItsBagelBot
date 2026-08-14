@@ -104,24 +104,34 @@ function allowedConfigKeys(def: ModuleDef): Set<string> {
   return keys;
 }
 
+// resolveWrite gates a write action and resolves what it writes: the module
+// def and the id whose row it touches. Every rejection is returned as `denied`
+// for the action to hand straight back, so both actions read as a single gate
+// call instead of repeating the same four checks and drifting apart from each
+// other (and from the load) the way the read and write paths already did once.
+// href modules are refused here for the same reason the load redirects them:
+// their bespoke page owns the write.
+type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: string };
+
+function resolveWrite(id: string, session: Session | null | undefined): WriteTarget {
+  gateModules(session);
+  const def = moduleDef(id);
+  if (!def || def.href) return { denied: fail(404, { ok: false, error: 'Unknown module.' }) };
+  // gateModules above only proves the 'modules' section; a module with its
+  // own delegation grant (channel points) needs its own scope checked too.
+  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
+  if (env.DEMO !== '1' && !session) return { denied: fail(401, { ok: false, error: 'Not signed in.' }) };
+  return { def, uid: effectiveId(session) };
+}
+
 export const actions: Actions = {
   // One save persists the whole module config (enable + every reply message and
   // per-reply toggle). The client always posts the full draft, so upsertModule's
   // config replace is authoritative.
   save: async ({ request, params, locals }) => {
-    gateModules(locals.session);
-    const def = moduleDef(params.id);
-    // href modules own a bespoke page (see the load's redirect above) and
-    // are never editable through this generic reply inspector, so they read
-    // as not-found here the same as an id the catalog has never heard of.
-    if (!def || def.href) return fail(404, { ok: false, error: 'Unknown module.' });
-    // gateModules above only proves the 'modules' section; a module with its
-    // own delegation grant (channel points) needs its own scope checked too.
-    if (!assertModuleWritable(locals.session, def)) return fail(403, { ok: false, error: 'Not allowed.' });
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+    const target = resolveWrite(params.id, locals.session);
+    if ('denied' in target) return target.denied;
+    const { def, uid } = target;
 
     const f = await request.formData();
     const enabled = f.get('is_enabled') === 'on';
@@ -146,36 +156,47 @@ export const actions: Actions = {
   // last read. A conflict means another writer moved the revision on: the client
   // reloads and retries instead of clobbering it.
   patch: async ({ request, params, locals }) => {
-    gateModules(locals.session);
-    const def = moduleDef(params.id);
-    // See save above: href modules are never editable through this route,
-    // regardless of who is asking.
-    if (!def || def.href) return fail(404, { ok: false, error: 'Unknown module.' });
-    if (!assertModuleWritable(locals.session, def)) return fail(403, { ok: false, error: 'Not allowed.' });
-    const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+    const target = resolveWrite(params.id, locals.session);
+    if ('denied' in target) return target.denied;
+    const { def, uid } = target;
 
     const f = await request.formData();
-    const enabled = f.get('is_enabled') === 'on';
-    const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
     const partial = parsePartial(f.get('partial'), def);
     if (!partial) return fail(400, { ok: false, error: 'Invalid patch.' });
+    const enabled = f.get('is_enabled') === 'on';
+    const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
 
     if (env.DEMO === '1') return { ok: true, rev: expectedRev + 1, conflict: false };
 
-    try {
-      const res = await patchModule({ userId: uid, name: def.id, isEnabled: enabled, partial, expectedRev });
-      if (res.conflict) return { ok: false, conflict: true, rev: res.rev };
-      auditDashboardImpersonation(locals.session, 'module:patch', `${def.id}=${enabled}`);
-      return { ok: true, rev: res.rev, conflict: false };
-    } catch (e) {
-      logger.error({ err: e }, `[modules] patch ${def.id} failed`);
-      return fail(400, { ok: false });
-    }
+    return applyPatch(def, uid, { enabled, expectedRev, partial }, locals.session);
   }
 };
+
+// applyPatch performs the optimistic-concurrency write itself, so the action
+// above stays a straight read of the request. A conflict is a normal outcome
+// the client retries after refetching, not a failure.
+async function applyPatch(
+  def: ModuleDef,
+  uid: string,
+  draft: { enabled: boolean; expectedRev: number; partial: Record<string, string> },
+  session: Session | null | undefined
+) {
+  try {
+    const res = await patchModule({
+      userId: uid,
+      name: def.id,
+      isEnabled: draft.enabled,
+      partial: draft.partial,
+      expectedRev: draft.expectedRev
+    });
+    if (res.conflict) return { ok: false, conflict: true, rev: res.rev };
+    auditDashboardImpersonation(session, 'module:patch', `${def.id}=${draft.enabled}`);
+    return { ok: true, rev: res.rev, conflict: false };
+  } catch (e) {
+    logger.error({ err: e }, `[modules] patch ${def.id} failed`);
+    return fail(400, { ok: false });
+  }
+}
 
 // parsePartial coerces the posted patch JSON into a flat string map, dropping
 // any key the module def does not declare (allowedConfigKeys), or null when
