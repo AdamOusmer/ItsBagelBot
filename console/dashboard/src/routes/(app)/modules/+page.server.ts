@@ -4,7 +4,7 @@ import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { delegateCanOpen } from '$lib/server/module-gate';
+import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -73,6 +73,9 @@ export const actions: Actions = {
     const name = String(f.get('name') ?? '');
     const def = moduleDef(name);
     if (!def || def.toggleable === false) return fail(400, { ok: false, error: 'Unknown module.' });
+    // gateModules above only proves the 'modules' section; channel points is
+    // its own grant and would otherwise flip through this generic toggle.
+    if (!assertModuleWritable(locals.session, def)) return fail(403, { ok: false, error: 'Not allowed.' });
     const enabled = f.get('is_enabled') === 'on';
 
     if (env.DEMO === '1') return { ok: true, name, enabled };
