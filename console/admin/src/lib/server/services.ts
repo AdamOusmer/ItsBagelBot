@@ -425,7 +425,7 @@ const HEALTH_PROBES: HealthProbe[] = [
   { id: 'loyalty', label: 'Loyalty', subject: `${SUB.health}.loyalty`, payload: {} },
   { id: 'projector', label: 'Projector', subject: `${SUB.health}.projector`, payload: {} },
   { id: 'sesame', label: 'Sesame', subject: `${SUB.health}.sesame`, payload: {} },
-  { id: 'gateway', label: 'Gateway', subject: `${SUB.health}.gateway`, payload: {} },
+  { id: 'gossip', label: 'Gossip', subject: `${SUB.health}.gossip`, payload: {} },
   { id: 'ingress', label: 'Ingress', subject: `${SUB.health}.ingress`, payload: {} },
   { id: 'outgress', label: 'Outgress', subject: `${SUB.health}.outgress`, payload: {} },
   { id: 'transactions', label: 'Transactions', subject: `${SUB.health}.transactions`, payload: {} },

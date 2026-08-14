@@ -257,7 +257,7 @@ export function goveeStore(userId: string): GoveeStore {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
         const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
-          `${SUB.gateway}.govee.devices`,
+          `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
           // Just over the gateway's devices handler budget (8s) so this RPC
           // never abandons a fetch the gateway is still completing.

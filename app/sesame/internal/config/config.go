@@ -122,10 +122,10 @@ type Config struct {
 	// id>". Stored without a trailing slash.
 	PublicBaseURL string
 
-	// GatewayRPCPrefix is the NATS subject prefix the gateway service (external
+	// GossipRPCPrefix is the NATS subject prefix the gossip service (external
 	// API proxy + cache) subscribes to; the urchin/mcsr modules append
 	// ".<provider>.<endpoint>".
-	GatewayRPCPrefix string
+	GossipRPCPrefix string
 
 	// LoyaltyRPCPrefix is the NATS subject prefix the loyalty service
 	// subscribes to; the loyalty store appends its balance/counter verbs.
@@ -192,7 +192,7 @@ func Load() *Config {
 
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
 
-		GatewayRPCPrefix: env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gateway"),
+		GossipRPCPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", env.Get("NATS_GATEWAY_SUBJECT_PREFIX", "bagel.rpc.gossip")),
 
 		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 

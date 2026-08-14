@@ -8,15 +8,15 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func mcsrModule(gw engine.GatewayCaller) module.Module {
-	return Mcsr(engine.Deps{Gateway: gw, Log: zap.NewNop()})
+func mcsrModule(gw engine.GossipCaller) module.Module {
+	return Mcsr(engine.Deps{Gossip: gw, Log: zap.NewNop()})
 }
 
 func mcsrCtx(config string) *module.Context {
@@ -25,8 +25,8 @@ func mcsrCtx(config string) *module.Context {
 }
 
 func TestMcsrEloDefaultTemplate(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"mcsr.user": gatewayrpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20},
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20},
 	}}
 	m := mcsrModule(gw)
 	assert.Equal(t, "mcsr", m.Name)
@@ -40,8 +40,8 @@ func TestMcsrEloDefaultTemplate(t *testing.T) {
 }
 
 func TestMcsrEloUnrated(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"mcsr.user": gatewayrpc.McsrUserReply{Nickname: "Newbie", Elo: -1, Rank: -1},
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Newbie", Elo: -1, Rank: -1},
 	}}
 	cmd := findCmd(t, mcsrModule(gw), "elo")
 
@@ -53,8 +53,8 @@ func TestMcsrEloUnrated(t *testing.T) {
 }
 
 func TestMcsrSessionWithSnapshot(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"mcsr.session": gatewayrpc.McsrSessionReply{
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session": gossiprpc.McsrSessionReply{
 			Nickname: "Feinberg", Elo: 1660, EloChange: 24, Wins: 3, Loses: 1, Played: 4, HasSnapshot: true,
 		},
 	}}
@@ -74,8 +74,8 @@ func TestMcsrSessionWithSnapshot(t *testing.T) {
 // clobber) the streamer's per-channel baseline; it always uses the linked
 // account.
 func TestMcsrSessionIgnoresArgument(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"mcsr.session": gatewayrpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
 	}}
 	cmd := findCmd(t, mcsrModule(gw), "session")
 
@@ -85,8 +85,8 @@ func TestMcsrSessionIgnoresArgument(t *testing.T) {
 }
 
 func TestMcsrSessionWithoutSnapshot(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"mcsr.session": gatewayrpc.McsrSessionReply{Nickname: "Feinberg", Elo: 1650, HasSnapshot: false},
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", Elo: 1650, HasSnapshot: false},
 	}}
 	cmd := findCmd(t, mcsrModule(gw), "session")
 
@@ -97,7 +97,7 @@ func TestMcsrSessionWithoutSnapshot(t *testing.T) {
 }
 
 func TestMcsrSessionToggleOff(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"mcsr.session": gatewayrpc.McsrSessionReply{}}}
+	gw := &fakeGossip{replies: map[string]any{"mcsr.session": gossiprpc.McsrSessionReply{}}}
 	cmd := findCmd(t, mcsrModule(gw), "session")
 
 	var col collector
@@ -108,8 +108,8 @@ func TestMcsrSessionToggleOff(t *testing.T) {
 
 func TestMcsrStreamOnlineSnapshots(t *testing.T) {
 	done := make(chan struct{})
-	gw := &fakeGateway{
-		replies: map[string]any{"mcsr.session_start": gatewayrpc.McsrSnapshotReply{Nickname: "Feinberg", Elo: 1650}},
+	gw := &fakeGossip{
+		replies: map[string]any{"mcsr.session_start": gossiprpc.McsrSnapshotReply{Nickname: "Feinberg", Elo: 1650}},
 		done:    done,
 	}
 	m := mcsrModule(gw)

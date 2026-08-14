@@ -57,7 +57,7 @@ type Deps struct {
 	Special    *SpecialSet
 	Pub        bus.Publisher
 	Commands   CommandManager
-	Gateway    GatewayCaller
+	Gossip     GossipCaller
 	Followage  FollowageLookup
 	AccountAge AccountAgeLookup
 	Log        *zap.Logger
