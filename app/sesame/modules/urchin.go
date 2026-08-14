@@ -9,7 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"go.uber.org/zap"
 )
@@ -134,13 +134,13 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 		var cfg urchinConfig
 		_ = c.Decode(&cfg)
 		enabled, tmpl := urchinToggle(cfg, cmd.toggle)
-		if !enabled || d.Gateway == nil {
+		if !enabled || d.Gossip == nil {
 			return nil
 		}
 
 		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply R
-		if err := d.Gateway.Call(ctx, cmd.provider, cmd.endpoint, gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		if err := d.Gossip.Call(ctx, cmd.provider, cmd.endpoint, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -162,7 +162,7 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 // Wars delta. Template tokens: {player} {wins} {losses} {finals} {finaldeaths}
 // {beds} {games} {levels} {fkdr}.
 func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
-	type reply = gatewayrpc.UrchinSessionReply
+	type reply = gossiprpc.UrchinSessionReply
 	return runUrchinCommand(d, gatewayCommand{endpoint, "urchin", endpoint}, map[string]func(*reply) string{
 		"player":      func(r *reply) string { return r.Player },
 		"wins":        func(r *reply) string { return i64(r.Wins) },
@@ -185,7 +185,7 @@ func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
 // but the command stays on the one urchin module page: gateway provider layout
 // is not a dashboard concern.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
-	type reply = gatewayrpc.HypixelStatsReply
+	type reply = gossiprpc.HypixelStatsReply
 	return runUrchinCommand(d, gatewayCommand{"stats", "hypixel", "stats"}, map[string]func(*reply) string{
 		"player":      func(r *reply) string { return r.Player },
 		"stars":       func(r *reply) string { return i64(r.Stars) },
@@ -202,7 +202,7 @@ func urchinStatsRun(d engine.Deps) module.RunFunc {
 // urchinSniperRun answers !sniper with the Urchin (Cubelify overlay) score.
 // Template tokens: {player} {score} {mode} {tagcount}.
 func urchinSniperRun(d engine.Deps) module.RunFunc {
-	type reply = gatewayrpc.UrchinSniperReply
+	type reply = gossiprpc.UrchinSniperReply
 	return runUrchinCommand(d, gatewayCommand{"sniper", "urchin", "sniper"}, map[string]func(*reply) string{
 		"player":   func(r *reply) string { return r.Player },
 		"score":    func(r *reply) string { return trimScore(r.Score) },
@@ -226,8 +226,8 @@ func urchinTagDescriptionRun(d engine.Deps) module.RunFunc {
 
 // tagTokens builds the token set both tag commands share; format renders the
 // tag list (with or without reasons).
-func tagTokens(format func([]gatewayrpc.UrchinTag) string) map[string]func(*gatewayrpc.UrchinTagsReply) string {
-	type reply = gatewayrpc.UrchinTagsReply
+func tagTokens(format func([]gossiprpc.UrchinTag) string) map[string]func(*gossiprpc.UrchinTagsReply) string {
+	type reply = gossiprpc.UrchinTagsReply
 	return map[string]func(*reply) string{
 		"player":   func(r *reply) string { return r.Player },
 		"tags":     func(r *reply) string { return format(r.Tags) },
@@ -258,7 +258,7 @@ func displayTagType(tagType string) string {
 
 // formatUrchinTags renders the tag list for chat with display names only:
 // "Blatant Cheater, Sniper", or "No tags" when the player has none.
-func formatUrchinTags(tags []gatewayrpc.UrchinTag) string {
+func formatUrchinTags(tags []gossiprpc.UrchinTag) string {
 	if len(tags) == 0 {
 		return "No tags"
 	}
@@ -275,7 +275,7 @@ func formatUrchinTags(tags []gatewayrpc.UrchinTag) string {
 
 // formatUrchinTagDescriptions renders the tag list with display names and
 // reasons: "Blatant Cheater (bhop), Sniper", or "No tags" when empty.
-func formatUrchinTagDescriptions(tags []gatewayrpc.UrchinTag) string {
+func formatUrchinTagDescriptions(tags []gossiprpc.UrchinTag) string {
 	if len(tags) == 0 {
 		return "No tags"
 	}

@@ -135,7 +135,7 @@ data:
         ["sesame"] = true,
         ["loyalty"] = true,
         ["notifications"] = true,
-        ["gateway"] = true,
+        ["gossip"] = true,
         ["outgress"] = true,
         -- The twitch-ingress Deployment's container is named "ingress"; the
         -- allowlist keys on container_name, so "twitch-ingress" never matched.

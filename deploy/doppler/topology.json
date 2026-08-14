@@ -57,7 +57,7 @@
     "lane-standard": {"inheritProfile": "full"},
     "lane-stream": {"inheritProfile": "full"},
     "twitch-ingress": {"inheritProfile": "full"},
-    "gateway": {"inheritProfile": "production-full"},
+    "gossip": {"inheritProfile": "production-full"},
     "outgress": {"inheritProfile": "production-full"},
     "commands": {"inheritProfile": "production-observability"},
     "loyalty": {"inheritProfile": "production-observability"},

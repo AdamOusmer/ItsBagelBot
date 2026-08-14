@@ -10,7 +10,7 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"go.uber.org/zap"
 )
@@ -71,7 +71,7 @@ func Mcsr(d engine.Deps) module.Module {
 	// may cancel the moment the handler returns), mirroring the live module's
 	// write discipline.
 	m.On("stream.online", func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gateway == nil {
+		if d.Gossip == nil {
 			return nil
 		}
 		var cfg mcsrConfig
@@ -81,8 +81,8 @@ func Mcsr(d engine.Deps) module.Module {
 		go func() {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
 			defer cancel()
-			var reply gatewayrpc.McsrSnapshotReply
-			if err := d.Gateway.Call(wctx, "mcsr", "session_start", gatewayrpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+			var reply gossiprpc.McsrSnapshotReply
+			if err := d.Gossip.Call(wctx, "mcsr", "session_start", gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 				log.Warn("mcsr: stream-start snapshot failed",
 					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
 				return
@@ -102,13 +102,13 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
-		if !alertOn(cfg.EloEnabled) || d.Gateway == nil {
+		if !alertOn(cfg.EloEnabled) || d.Gossip == nil {
 			return nil
 		}
 
 		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		var reply gatewayrpc.McsrUserReply
-		if err := d.Gateway.Call(ctx, "mcsr", "user", gatewayrpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		var reply gossiprpc.McsrUserReply
+		if err := d.Gossip.Call(ctx, "mcsr", "user", gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -149,7 +149,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
-		if !alertOn(cfg.SessionEnabled) || d.Gateway == nil {
+		if !alertOn(cfg.SessionEnabled) || d.Gossip == nil {
 			return nil
 		}
 
@@ -158,9 +158,9 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 		// account, so honoring an arbitrary player would clobber the streamer's
 		// stream-start baseline. Per-player lookups go through !elo instead.
 		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		req := gatewayrpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10), IsPremium: c.Regress.IsPremium()}
-		var reply gatewayrpc.McsrSessionReply
-		if err := d.Gateway.Call(ctx, "mcsr", "session", req, &reply); err != nil {
+		req := gossiprpc.Request{Account: account, ChannelID: strconv.FormatUint(c.BroadcasterID, 10), IsPremium: c.Regress.IsPremium()}
+		var reply gossiprpc.McsrSessionReply
+		if err := d.Gossip.Call(ctx, "mcsr", "session", req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}

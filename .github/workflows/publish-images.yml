@@ -122,10 +122,10 @@ jobs:
               "description": "ItsBagelBot Twitch event worker (sesame)"
             },
             {
-              "image": "gateway",
+              "image": "gossip",
               "context": ".",
-              "containerfile": "app/gateway/Containerfile",
-              "description": "ItsBagelBot external API gateway"
+              "containerfile": "app/gossip/Containerfile",
+              "description": "ItsBagelBot external API gossip service"
             },
             {
               "image": "twitch-ingress",
@@ -169,7 +169,7 @@ jobs:
             add "transactions"
             add "users"
             add "sesame"
-            add "gateway"
+            add "gossip"
             add "valkey-live-acceptance"
           }
 
@@ -183,7 +183,7 @@ jobs:
             add "transactions"
             add "users"
             add "sesame"
-            add "gateway"
+            add "gossip"
             add "twitch-ingress"
             add "valkey-live-acceptance"
             add "console-dashboard"
@@ -240,8 +240,8 @@ jobs:
               app/sesame/*)
                 add "sesame"
                 ;;
-              app/gateway/*)
-                add "gateway"
+              app/gossip/*)
+                add "gossip"
                 ;;
               console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json|console/tsconfig.base.json)
                 add "console-dashboard"
