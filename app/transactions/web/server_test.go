@@ -117,6 +117,93 @@ func TestPaymentCompletedWithoutUserIDStoresFailedState(t *testing.T) {
 	assert.Contains(t, store.events[0].Error, "user id")
 }
 
+// A resolved chargeback (payment.dispute.won) maps to ActionCancelAborted and,
+// like a one-time payment.completed, can arrive with no expiry on the payment
+// subject. Without the fallback this reinstates the user with an open-ended
+// grant: the preceding payment.dispute.opened already cleared the stored
+// expiry via ActionRevoke, and no further Tebex event ever arrives for a
+// settled one-time payment to correct it. This is the regression the fix
+// covers.
+func TestDisputeWonOnOneTimePurchaseCarriesBoundedExpiry(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+
+	opened := `{"id":"evt-dispute-open","type":"payment.dispute.opened","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"}}}`
+	resp := doWebhook(t, app, opened, testSecret, true)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	won := `{"id":"evt-dispute-won","type":"payment.dispute.won","date":"2026-07-05T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"},"products":[]}}`
+	resp = doWebhook(t, app, won, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.changes, 2)
+	assert.Equal(t, billingrpc.ActionRevoke, store.changes[0].Action)
+	assert.Equal(t, billingrpc.ActionCancelAborted, store.changes[1].Action)
+	require.NotNil(t, store.changes[1].ExpiresAt,
+		"a settled one-time payment must not reinstate premium with no expiry")
+	assert.Equal(t, "2026-08-05", store.changes[1].ExpiresAt.UTC().Format("2006-01-02"))
+}
+
+// A cancellation-requested event keeps the user paid until the term ends, so
+// it needs the same fallback as activation when the recurring subject carries
+// no next_payment_at.
+func TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{
+		"id":"evt-cancel-requested",
+		"type":"recurring-payment.cancellation.requested",
+		"date":"2026-07-02T00:00:00+00:00",
+		"subject":{
+			"reference":"tbx-r-1234",
+			"initial_payment":{
+				"transaction_id":"tbx-init",
+				"custom":{"user_id":"1001"}
+			}
+		}
+	}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionCancelRequested, store.changes[0].Action)
+	require.NotNil(t, store.changes[0].ExpiresAt,
+		"a cancellation without a next payment date must still carry a bounded expiry")
+	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
+}
+
+// The fallback must never override an expiry Tebex actually sent.
+func TestPaymentCompletedWithExplicitExpiryIsNotOverridden(t *testing.T) {
+
+	store := &fakeStore{}
+	app := newTestApp(store)
+	body := `{
+		"id":"evt-payment-expiry",
+		"type":"payment.completed",
+		"date":"2026-07-02T00:00:00+00:00",
+		"subject":{
+			"transaction_id":"tbx-5678",
+			"custom":{"user_id":"1001"},
+			"products":[{"expires_at":"2027-01-01T00:00:00+00:00"}]
+		}
+	}`
+
+	resp := doWebhook(t, app, body, testSecret, true)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Len(t, store.changes, 1)
+	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
+	require.NotNil(t, store.changes[0].ExpiresAt)
+	assert.Equal(t, "2027-01-01", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
+}
+
 func TestRefundRevokesEntitlementAndStoresProcessedState(t *testing.T) {
 
 	store := &fakeStore{}
