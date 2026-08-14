@@ -25,7 +25,6 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +35,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -265,28 +265,6 @@ func (p *api) resolveAccount(ctx context.Context, account string, isPremium bool
 
 // --- stats ---------------------------------------------------------------------
 
-// rawStatsResponse is the /api/v2/stats/{accountId} body: Epic's raw stats-v2
-// counters keyed br_<metric>_<input>_m0_playlist_<playlist>, plus unrelated
-// counters (battle-pass levels, arena leftovers) the key pattern filters out.
-type rawStatsResponse struct {
-	AccountID string             `json:"accountId"`
-	Stats     map[string]float64 `json:"stats"`
-}
-
-// statKeyRe picks the three counters the bot reads out of a raw stats key and
-// captures (metric, playlist). The input segment (keyboardmouse/gamepad/touch)
-// is summed over.
-var statKeyRe = regexp.MustCompile(`^br_(placetop1|kills|matchesplayed)_(?:keyboardmouse|gamepad|touch)_m0_playlist_(.+)$`)
-
-// coreModes maps the core Battle Royale playlists — build and zero-build pubs
-// — onto the reply's mode breakdown. Ranked (habanero) and LTM playlists count
-// only toward the overall roll-up.
-var coreModes = map[string]int{
-	"defaultsolo": 0, "nobuildbr_solo": 0,
-	"defaultduo": 1, "nobuildbr_duo": 1,
-	"defaultsquad": 2, "nobuildbr_squad": 2,
-}
-
 // modeAgg accumulates one bucket's counters before the derived values are
 // computed.
 type modeAgg struct {
@@ -311,36 +289,6 @@ func (a modeAgg) reply() gatewayrpc.FortniteModeStats {
 		KD:      float64(a.kills) / float64(deaths),
 		WinRate: winRate,
 	}
-}
-
-// add routes one counter into the aggregate.
-func (a *modeAgg) add(metric string, v int64) {
-	switch metric {
-	case "placetop1":
-		a.wins += v
-	case "kills":
-		a.kills += v
-	case "matchesplayed":
-		a.matches += v
-	}
-}
-
-// aggregate folds the raw counter blob into the overall and per-mode buckets:
-// overall spans every playlist (LTMs and ranked included), the mode buckets
-// span the core pubs playlists only.
-func aggregate(stats map[string]float64) (overall modeAgg, modes [3]modeAgg) {
-	for key, val := range stats {
-		m := statKeyRe.FindStringSubmatch(key)
-		if m == nil {
-			continue
-		}
-		metric, playlist := m[1], m[2]
-		overall.add(metric, int64(val))
-		if idx, ok := coreModes[playlist]; ok {
-			modes[idx].add(metric, int64(val))
-		}
-	}
-	return overall, modes
 }
 
 // statsQuery is one normalized stats lookup.
@@ -370,10 +318,55 @@ func (p *api) statsFetch(ctx context.Context, req gatewayrpc.Request, id provide
 	return p.fetchStats(ctx, q, req.IsPremium)
 }
 
+// resolveStatsWindow resolves the account and season window epoch. A cold
+// season query fires both concurrently to overlap their network I/O, but the
+// season leg runs under context.WithoutCancel(gctx) rather than gctx itself.
+// seasonStartTime is shared infrastructure, not a per-request fetch: it rides
+// core.Cached behind a singleflight keyed on the season cache key (see
+// cache.go), so on a cold cache every in-flight request joins the same one
+// upstream call. If that call inherited the account leg's cancellation, one
+// caller's mistyped display name would abort it — and, because
+// seasonStartTime swallows the error down to 0, silently downgrade every
+// other joined caller's season request to lifetime for no reason of their
+// own. Insulating the season leg costs at most one extra upstream call an
+// hour (the cold-cache case cancellation was trying to save); it buys
+// correctness for everyone else sharing the flight. The account error is
+// still the only one that ever propagates from this function; season stays
+// best-effort and degrades to 0 on its own failures regardless. The
+// manual-override window (p.seasonStart set) has no I/O to overlap, so it
+// skips the concurrent machinery entirely.
+func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery, isPremium bool) (accountRef, int64, error) {
+	if q.window != "season" {
+		ref, err := p.resolveAccount(ctx, q.account, isPremium)
+		return ref, 0, err
+	}
+	if p.seasonStart > 0 {
+		ref, err := p.resolveAccount(ctx, q.account, isPremium)
+		return ref, p.seasonStart, err
+	}
+
+	var ref accountRef
+	var season int64
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		r, err := p.resolveAccount(gctx, q.account, isPremium)
+		ref = r
+		return err
+	})
+	g.Go(func() error {
+		season = p.seasonStartTime(context.WithoutCancel(gctx), isPremium)
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return accountRef{}, 0, err
+	}
+	return ref, season, nil
+}
+
 // fetchStats resolves the account, spends the budget, pulls the raw counter
 // blob (window-filtered for season) and shapes the success reply.
 func (p *api) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gatewayrpc.FortniteStatsReply, error) {
-	ref, err := p.resolveAccount(ctx, q.account, isPremium)
+	ref, seasonStart, err := p.resolveStatsWindow(ctx, q, isPremium)
 	if err != nil {
 		return gatewayrpc.FortniteStatsReply{}, err
 	}
@@ -383,8 +376,8 @@ func (p *api) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gat
 
 	var query url.Values
 	if q.window == "season" {
-		if start := p.seasonStartTime(ctx, isPremium); start > 0 {
-			query = url.Values{"startTime": {strconv.FormatInt(start, 10)}}
+		if seasonStart > 0 {
+			query = url.Values{"startTime": {strconv.FormatInt(seasonStart, 10)}}
 		} else {
 			// No season start resolvable: serve lifetime and say so.
 			q.window = "lifetime"
@@ -395,14 +388,13 @@ func (p *api) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gat
 		return gatewayrpc.FortniteStatsReply{}, friendly404(err, "no stats for this player")
 	}
 
-	overall, modes := aggregate(resp.Stats)
 	return gatewayrpc.FortniteStatsReply{
 		Player:  ref.Name,
 		Window:  q.window,
-		Overall: overall.reply(),
-		Solo:    modes[0].reply(),
-		Duo:     modes[1].reply(),
-		Squad:   modes[2].reply(),
+		Overall: resp.Overall.reply(),
+		Solo:    resp.Modes[0].reply(),
+		Duo:     resp.Modes[1].reply(),
+		Squad:   resp.Modes[2].reply(),
 	}, nil
 }
 
