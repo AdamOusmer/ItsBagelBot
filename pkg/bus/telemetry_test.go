@@ -167,24 +167,6 @@ func TestMessagingResultsAreFinite(t *testing.T) {
 	}
 }
 
-func TestParseSampleRateFailsTowardSamplingEverything(t *testing.T) {
-	for _, tc := range []struct {
-		raw  string
-		want uint64
-	}{
-		{"", 1},
-		{"0", 1},
-		{"-1", 1},
-		{"every", 1},
-		{"1", 1},
-		{"100", 100},
-	} {
-		if got := parseSampleRate(tc.raw); got != tc.want {
-			t.Fatalf("parseSampleRate(%q) = %d, want %d", tc.raw, got, tc.want)
-		}
-	}
-}
-
 func TestLaneSamplerPicksOneInNStartingAtTheFirst(t *testing.T) {
 	for _, tc := range []struct {
 		rate uint64

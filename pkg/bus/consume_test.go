@@ -77,7 +77,7 @@ func TestConsumeLaneAtRateOneInstrumentsEveryMessage(t *testing.T) {
 	app := newLocalApplication(t, nil)
 
 	var seen []bool
-	lane := testLane(app, consumeSampleRate(), zap.NewNop(), handlerSawTransaction(&seen, nil))
+	lane := testLane(app, 1, zap.NewNop(), handlerSawTransaction(&seen, nil))
 
 	messages := make([]*Message, 4)
 	for i := range messages {
@@ -85,10 +85,11 @@ func TestConsumeLaneAtRateOneInstrumentsEveryMessage(t *testing.T) {
 		lane.process(messages[i])
 	}
 
-	// The shipped default is 1: every message keeps the full transaction it had
-	// before sampling existed, so the change lands dark.
-	if consumeSampleRate() != 1 {
-		t.Fatalf("default sample rate = %d, want 1", consumeSampleRate())
+	// The shipped rate is fixed at 1-in-100 (consumeNRSampleRate); rate 1 remains
+	// the degenerate case the sampler must keep exact, because it is what every
+	// message did before sampling existed.
+	if consumeNRSampleRate != 100 {
+		t.Fatalf("shipped sample rate = %d, want 100", consumeNRSampleRate)
 	}
 	for i, sampled := range seen {
 		if !sampled {
@@ -224,7 +225,7 @@ func TestNewConsumeLaneSharesOneCounterSetPerLane(t *testing.T) {
 	if first.stats != second.stats {
 		t.Fatal("two units on one lane got separate sampling cursors")
 	}
-	if first.stats.sampleRate != consumeSampleRate() {
-		t.Fatalf("lane sample rate = %d, want the process rate %d", first.stats.sampleRate, consumeSampleRate())
+	if first.stats.sampleRate != consumeNRSampleRate {
+		t.Fatalf("lane sample rate = %d, want the shipped rate %d", first.stats.sampleRate, consumeNRSampleRate)
 	}
 }

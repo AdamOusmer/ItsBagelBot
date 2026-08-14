@@ -71,7 +71,7 @@ func newConsumeLane(app *newrelic.Application, subject string, handle func(*Mess
 		subject: subject,
 		handle:  handle,
 		log:     log,
-		stats:   consumeTelemetry.register(app, subject, consumeSampleRate()),
+		stats:   consumeTelemetry.register(app, subject, consumeNRSampleRate),
 	}
 }
 
@@ -79,13 +79,12 @@ func newConsumeLane(app *newrelic.Application, subject string, handle func(*Mess
 // applies the ack/nack discipline shared by Consume and ConsumeWeighted: ack
 // only after handle returns nil, nack on any error so JetStream redelivers.
 //
-// One message in every NATS_CONSUME_NR_SAMPLE (default 1, i.e. every message,
-// so the sampling ships dark) pays for a full transaction: trace join, messaging
-// attributes, queue wait, a message.process segment, and — because the
-// transaction is in the handler's context — the instrumented database driver's
-// datastore spans. The rest run with no transaction at all. That is the point:
-// at 100k msg/s the whole consumer path has roughly 10µs per message, and one
-// go-agent transaction can spend that alone.
+// One message in every consumeNRSampleRate pays for a full transaction: trace
+// join, messaging attributes, queue wait, a message.process segment, and —
+// because the transaction is in the handler's context — the instrumented
+// database driver's datastore spans. The rest run with no transaction at all.
+// That is the point: at 100k msg/s the whole consumer path has roughly 10µs per
+// message, and one go-agent transaction can spend that alone.
 //
 // Two things are never sampled away. Handler failures that are not expected
 // backpressure are instrumented retroactively (see processUnsampled), and every

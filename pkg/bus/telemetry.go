@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -226,11 +224,16 @@ func (family destinationFamily) normalize(subject string) string {
 // entirely (see consumeLane.processUnsampled).
 
 const (
-	// consumeSampleRateEnv selects how many messages share one full New Relic
-	// transaction on the consume lanes. Default 1 means every message is
-	// sampled, which is exactly the pre-sampling behaviour: the change ships
-	// dark and hot lanes opt in from their manifest.
-	consumeSampleRateEnv = "NATS_CONSUME_NR_SAMPLE"
+	// consumeNRSampleRate is how many consumed messages share one full New Relic
+	// transaction, fixed rather than configurable: a full go-agent transaction
+	// costs ~7µs and 63 allocations — the entire per-message budget of a 100k
+	// msg/s lane — so paying it per message is the option that would need
+	// justifying. One fully traced message in a hundred keeps distributed traces
+	// and datastore spans flowing on every lane (a low-traffic lane still traces
+	// its first delivery immediately) while the other ninety-nine run the
+	// zero-allocation path and are counted by the side channel below. Errors
+	// bypass sampling entirely, so nothing that fails is ever invisible.
+	consumeNRSampleRate = 100
 
 	// laneTelemetryInterval paces the side channel. It is long enough that the
 	// flush cost is irrelevant next to the traffic it summarises, and short
@@ -244,24 +247,6 @@ const (
 	// event per lane per interval the map allocation is free.
 	laneTelemetryEventType = "BagelBusConsume"
 )
-
-// consumeSampleRate is read once per process. Config is a deploy-time constant
-// here, and re-reading the environment per message would cost more than the
-// sampling it configures.
-var consumeSampleRate = sync.OnceValue(func() uint64 {
-	return parseSampleRate(os.Getenv(consumeSampleRateEnv))
-})
-
-// parseSampleRate fails toward full observability: anything unparseable, absent
-// or zero means 1 (sample everything). A typo in a manifest must never silently
-// blind a lane.
-func parseSampleRate(raw string) uint64 {
-	rate, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || rate == 0 {
-		return 1
-	}
-	return rate
-}
 
 // laneStats is one lane's telemetry state: the sampling cursor plus the counters
 // that account for the messages sampling skipped. It is shared by pointer across
