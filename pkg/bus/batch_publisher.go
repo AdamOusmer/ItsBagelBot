@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -65,13 +66,21 @@ type batchPublisher struct {
 	wire   wireMode
 	modern jsapi.JetStream
 
-	mu       sync.RWMutex
-	workerMu sync.Mutex
-	closed   bool
-	workers  map[string]*publishBatchWorker
+	mu     sync.RWMutex
+	closed bool
+	// workersMu guards the worker map alone. It is separate from mu because the
+	// map is read on every publish while mu is held for reading, so the two can
+	// never be the same lock without serializing the hot path.
+	workersMu sync.RWMutex
+	workers   map[string]*publishBatchWorker
 
-	stateMu   sync.Mutex
-	accepted  uint64
+	stateMu sync.Mutex
+	// accepted counts messages a worker has taken, and is deliberately outside
+	// stateMu because nothing ever waits on it: Flush snapshots it once as its
+	// target and then waits only for completed to reach that snapshot. An
+	// accept-side notification could not satisfy any waiter, so accepting costs
+	// no lock, no channel close and no channel allocation.
+	accepted  atomic.Uint64
 	completed uint64
 	// firstErr is the first cohort failure no Flush has reported yet, and
 	// firstErrAt the completion position its cohort started at. Flush is a
@@ -171,9 +180,27 @@ func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.
 	}, nil
 }
 
+// nuidPool hands out NUID generators. The package-global nuid.Next() serializes
+// every publishing goroutine in the process on one mutex; a borrowed generator
+// produces the same identity with no shared lock. Each *nuid.NUID seeds its own
+// random prefix, so ids stay unique across generators and across restarts.
+var nuidPool = sync.Pool{New: func() any { return nuid.New() }}
+
+// nextNUID borrows a generator for exactly one id. Returning it immediately
+// keeps the pool sized to concurrent publishers rather than to every goroutine
+// that has ever published, and sync.Pool's per-P cache makes the round trip
+// cheaper than contending the global.
+func nextNUID() string {
+	generator := nuidPool.Get().(*nuid.NUID)
+	id := generator.Next()
+	nuidPool.Put(generator)
+	return id
+}
+
 func (p *publisherPool) PublishOwned(ctx context.Context, topic string, payload []byte) error {
-	// NUID avoids UUIDv7's wall-clock/random-source coordination on the hot path.
-	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: nuid.Next(), payload: payload})
+	// NUID avoids UUIDv7's wall-clock/random-source coordination on the hot path,
+	// and a pooled generator avoids nuid.Next's process-global lock as well.
+	return p.publish(publishCommand{ctx: ctx, topic: topic, msgID: nextNUID(), payload: payload})
 }
 
 func (p *publisherPool) PublishOwnedWithID(ctx context.Context, topic, msgID string, payload []byte) error {
@@ -230,13 +257,8 @@ func (p *publisherPool) Close() error {
 }
 
 func (p *batchPublisher) publish(command publishCommand) error {
-	wire := publishMessage(command)
-	worker, err := p.acceptingWorker(command.stream)
-	if err != nil {
-		return err
-	}
-	request := newPublishRequest(command, wire)
-	if err := p.admit(command.ctx, worker, request); err != nil {
+	request := newPublishRequest(command, publishMessage(command))
+	if err := p.admit(command.ctx, command.stream, request); err != nil {
 		return err
 	}
 	return awaitPublishConfirmation(command.ctx, request)
@@ -264,21 +286,6 @@ func publishMessage(command publishCommand) *nats.Msg {
 	return wire
 }
 
-func (p *batchPublisher) acceptingWorker(stream string) (*publishBatchWorker, error) {
-	p.mu.RLock()
-	if p.closed {
-		p.mu.RUnlock()
-		return nil, errors.New("bus: publisher is closed")
-	}
-	worker, err := p.workerLocked(stream)
-	if err != nil {
-		p.mu.RUnlock()
-		return nil, err
-	}
-	p.mu.RUnlock()
-	return worker, nil
-}
-
 func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
 	request := publishRequest{msg: wire}
 	if command.confirmed {
@@ -287,11 +294,23 @@ func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
 	return request
 }
 
-func (p *batchPublisher) admit(ctx context.Context, worker *publishBatchWorker, request publishRequest) error {
+// admit is the whole per-message critical section: the closed check, the worker
+// lookup, the queue send and the accept count all happen under one read lock.
+// Close is the only writer, so it cannot begin while any of that is in flight,
+// which is why the lock is deliberately held across a send that blocks when a
+// worker's queue is full. A sender parked there is already past the closed
+// check, and Close waits for it rather than pulling the queue out from under it.
+// The read lock does not serialize admissions against each other; the guards
+// covering the worker map and the accept count do their own ordering.
+func (p *batchPublisher) admit(ctx context.Context, stream string, request publishRequest) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.closed {
 		return errors.New("bus: publisher is closed")
+	}
+	worker, err := p.worker(stream)
+	if err != nil {
+		return err
 	}
 	select {
 	case worker.requests <- request:
@@ -314,14 +333,27 @@ func awaitPublishConfirmation(ctx context.Context, request publishRequest) error
 	}
 }
 
-// workerLocked is called with the publisher read lock held. Worker creation is
-// serialized separately because several first publishers may discover a stream
-// at once.
-func (p *batchPublisher) workerLocked(stream string) (*publishBatchWorker, error) {
-	// Upgrade briefly to an independent mutex by using the connection's worker
-	// map guard. The outer read lock prevents Close while this occurs.
-	p.workerMu.Lock()
-	defer p.workerMu.Unlock()
+// worker resolves a stream's worker and is called with the publisher read lock
+// held, which is what keeps Close out for the duration. Every publish after the
+// first on a stream is the read-only arm: taking an exclusive lock here just to
+// read the map would serialize the whole hot path behind one mutex.
+func (p *batchPublisher) worker(stream string) (*publishBatchWorker, error) {
+	p.workersMu.RLock()
+	worker := p.workers[stream]
+	p.workersMu.RUnlock()
+	if worker != nil {
+		return worker, nil
+	}
+	return p.startWorker(stream)
+}
+
+// startWorker creates a stream's worker. Worker creation is serialized on its
+// own guard because several first publishers may discover a stream at once, and
+// the map read above admits all of them; the re-check under the write lock is
+// what makes exactly one of them the creator.
+func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error) {
+	p.workersMu.Lock()
+	defer p.workersMu.Unlock()
 	if worker := p.workers[stream]; worker != nil {
 		return worker, nil
 	}
@@ -352,6 +384,9 @@ func (p *batchPublisher) Close() error {
 	flushErr := p.Flush(ctx)
 	cancel()
 
+	// The worker map needs no guard from here on: admissions create workers under
+	// the read lock, and every one of them now sees closed and returns before it
+	// reaches the map, so nothing can add a worker after the write lock above.
 	for _, worker := range p.workers {
 		close(worker.stop)
 	}
@@ -368,11 +403,11 @@ func (p *batchPublisher) Close() error {
 	return flushErr
 }
 
+// markAccepted records one message a worker has taken. It takes no lock and
+// wakes nobody: see the accepted field for why an accept can never be what a
+// Flush is waiting for. complete is still the only notifier, once per cohort.
 func (p *batchPublisher) markAccepted() {
-	p.stateMu.Lock()
-	p.accepted++
-	p.notifyLocked()
-	p.stateMu.Unlock()
+	p.accepted.Add(1)
 }
 
 func (p *batchPublisher) complete(count int, err error) {
@@ -398,8 +433,11 @@ func (p *batchPublisher) notifyLocked() {
 }
 
 func (p *batchPublisher) Flush(ctx context.Context) error {
+	// The target is a snapshot on purpose: a message accepted after this read
+	// belongs to a later Flush, so the wait cannot be extended out from under
+	// the caller by traffic it never emitted.
+	target := p.accepted.Load()
 	p.stateMu.Lock()
-	target := p.accepted
 	for p.completed < target {
 		changed := p.changed
 		p.stateMu.Unlock()
@@ -453,7 +491,13 @@ func (w *publishBatchWorker) nextBatch() ([]publishRequest, bool) {
 }
 
 func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishRequest, bool) {
-	batch := []publishRequest{first}
+	// A cohort never exceeds batchSize, so one allocation covers the worst case.
+	// Growing from a one-element slice instead costs a realloc and copy per
+	// doubling: thirteen of them per cohort on the fast wire's 8192. Every
+	// batchSize source clamps to at least one, so the capacity is never below
+	// the length set here.
+	batch := make([]publishRequest, 1, w.batchSize)
+	batch[0] = first
 	timer := time.NewTimer(w.batchWait)
 	defer stopAndDrainTimer(timer)
 	for len(batch) < w.batchSize {

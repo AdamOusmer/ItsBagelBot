@@ -359,19 +359,37 @@ func drainPullBatch(batch jsapi.MessageBatch) {
 // receipt the floor has not yet covered. A malformed payload is recorded too: it
 // WAS received, and leaving a hole in the floor for it would hold the shared
 // pending set open against every pod on the lane.
+//
+// The verdict is reconciled through a resolve callback rather than a goroutine
+// parked on Acked/Nacked, for the reason spelled out on the flow lane's deliver:
+// at lane rate that goroutine and its timer were pure overhead for an outcome
+// that usually does nothing. An ACK is receipt-level here — the batch floor
+// already owns it — and only a NACK costs anything, one scheduled retry, now run
+// on the handler's own goroutine. A delivery nobody resolves holds its inflight
+// count until shutdown bounds the wait at subscriberDrainTimeout.
 func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	delivery, ok := s.decode(wire)
 	if !ok {
 		s.noteReceipt(wire)
 		return true
 	}
+	// Both the count and the handler are in place before the message is visible
+	// to a handler: it can be resolved the instant the send completes.
+	s.inflight.Add(1)
+	delivery.msg.setResolveHandler(func(acked bool) {
+		defer s.inflight.Done()
+		if !acked {
+			s.scheduleRetry(delivery)
+		}
+	})
 	select {
 	case s.output <- delivery.msg:
 		s.noteReceipt(wire)
-		s.inflight.Add(1)
-		go s.awaitResult(delivery)
 		return true
 	case <-s.closeCh:
+		// Nobody took the message, so the callback will never run and the count
+		// it owns has to be released here or shutdown waits out its whole budget.
+		s.inflight.Done()
 		return false
 	}
 }
@@ -481,24 +499,6 @@ func (s *pullSubscriber) advanceFloorPeriodically() {
 		case <-ticker.C:
 			s.advanceFloor()
 		}
-	}
-}
-
-// awaitResult reconciles the handler's verdict. An ACK is receipt-level and
-// needs no traffic at all: the batch floor already owns it, exactly as the
-// flow-control responses do on the flow lane. Only a NACK costs anything, and it
-// costs one scheduled retry.
-func (s *pullSubscriber) awaitResult(delivery pullDelivery) {
-	defer s.inflight.Done()
-	timer := time.NewTimer(flowResultWait)
-	defer timer.Stop()
-
-	select {
-	case <-delivery.msg.Acked():
-	case <-delivery.msg.Nacked():
-		s.scheduleRetry(delivery)
-	case <-timer.C:
-	case <-s.closeCh:
 	}
 }
 

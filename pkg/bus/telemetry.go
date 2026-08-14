@@ -121,6 +121,34 @@ func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
 	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, httpHeaders)
 }
 
+// acceptMetadataTraceHeaders joins the publisher's trace from an already
+// decoded Metadata. It is the consume path's variant of acceptTraceHeaders and
+// exists to materialize one map per delivery instead of two: routing Metadata
+// through a temporary nats.Header only to copy it into an http.Header allocated
+// a whole intermediate header set on every message of every lane. Metadata,
+// nats.Header and http.Header are all string-keyed maps over the same wire
+// headers, so the intermediate carried no information.
+//
+// Set, not a verbatim map write: the canonicalization is load-bearing. Both
+// nats.Header and Metadata are case-sensitive over the casing the publisher put
+// on the wire (nats.go preserves the original case when it decodes a header
+// block, and fleetMetadata copies those keys through), so a publisher that sent
+// a lowercase "traceparent" leaves a lowercase key here. The New Relic agent
+// looks its trace headers up with http.Header.Get, which canonicalizes the
+// lookup key and therefore only ever finds a canonical map key. http.Header.Set
+// applies exactly the canonicalization http.Header.Add applied in the two-map
+// version, so this stays a pure allocation change.
+func acceptMetadataTraceHeaders(txn *newrelic.Transaction, metadata Metadata) {
+	if txn == nil || len(metadata) == 0 {
+		return
+	}
+	headers := make(http.Header, len(metadata))
+	for key, value := range metadata {
+		headers.Set(key, value)
+	}
+	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, headers)
+}
+
 func addMessagingTransactionAttributes(txn *newrelic.Transaction, attributes messagingAttributes) {
 	if txn == nil {
 		return

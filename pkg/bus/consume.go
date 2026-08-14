@@ -7,7 +7,6 @@ import (
 
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -32,26 +31,54 @@ func Consume(ctx context.Context, app *newrelic.Application, sub Subscriber, sub
 		return err
 	}
 
+	lane := newConsumeLane(app, subject, handle, log)
+
 	go func() {
 		for msg := range messages {
-			process(app, subject, msg, handle, log)
+			lane.process(msg)
 		}
 	}()
 
 	return nil
 }
 
+// consumeLane bundles the invariants of one subscription — everything process
+// needs that does not change between deliveries. It exists so the per-message
+// call carries only the message: the New Relic transaction name in particular
+// is derived from the subject, and deriving it here means the destination
+// normalization and the concatenation it feeds run once per subscription
+// rather than on every delivery of every lane.
+type consumeLane struct {
+	app     *newrelic.Application
+	txnName string
+	subject string
+	handle  func(*Message) error
+	log     *zap.Logger
+}
+
+func newConsumeLane(app *newrelic.Application, subject string, handle func(*Message) error, log *zap.Logger) consumeLane {
+	return consumeLane{
+		app:     app,
+		txnName: "consume " + normalizedDestination(subject),
+		subject: subject,
+		handle:  handle,
+		log:     log,
+	}
+}
+
 // process runs one message inside its own New Relic transaction and applies the
 // ack/nack discipline shared by Consume and ConsumeWeighted: ack only after
 // handle returns nil, nack on any error so JetStream redelivers. A nil app
-// makes the New Relic calls no-ops.
-func process(app *newrelic.Application, subject string, msg *Message, handle func(*Message) error, log *zap.Logger) {
+// makes the New Relic calls no-ops. The subject stays out of APM names (see
+// normalizedDestination) but belongs in the logs.
+func (lane consumeLane) process(msg *Message) {
+	subject, handle := lane.subject, lane.handle
 
-	txn := app.StartTransaction("consume " + normalizedDestination(subject))
-	acceptTraceHeaders(txn, metadataHeaders(msg.Metadata))
+	txn := lane.app.StartTransaction(lane.txnName)
+	acceptMetadataTraceHeaders(txn, msg.Metadata)
 	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 	txn.AddAttribute("messaging.queue_ms", float64(msg.deliveryWait(time.Now()).Microseconds())/1000)
-	log = monitor.TraceLogger(txn, log)
+	log := monitor.TraceLogger(txn, lane.log)
 
 	msg.SetContext(newrelic.NewContext(msg.Context(), txn))
 
@@ -89,14 +116,6 @@ func process(app *newrelic.Application, subject string, msg *Message, handle fun
 	txn.AddAttribute(resultAttribute, "ok")
 	txn.End()
 	msg.Ack()
-}
-
-func metadataHeaders(metadata Metadata) nats.Header {
-	headers := make(nats.Header, len(metadata))
-	for key, value := range metadata {
-		headers.Set(key, value)
-	}
-	return headers
 }
 
 func processResult(err error) string {

@@ -203,6 +203,58 @@ func TestPullNackUsesTheSharedRetryHelper(t *testing.T) {
 	}
 }
 
+// TestPullNackReachesTheRetryPathFromTheResolveCallback runs the verdict through
+// the real deliver path. There is no goroutine parked on the message's signals
+// any more, so the callback deliver installs is the only thing that can carry a
+// failure to the retry helper.
+func TestPullNackReachesTheRetryPathFromTheResolveCallback(t *testing.T) {
+	sub := testPullSubscriber()
+	defer close(sub.closeCh)
+
+	wire := fakePullDelivery(12)
+	// An exhausted budget refuses inside the shared helper before it reaches the
+	// connection, which is what lets the retry path run here without a broker.
+	wire.header.Set(RetryCountHeader, "1")
+
+	received := make(chan *Message, 1)
+	go func() { received <- <-sub.output }()
+	if !sub.deliver(wire) {
+		t.Fatal("delivery was refused while the binding was open")
+	}
+
+	msg := <-received
+	if !msg.Nack() {
+		t.Fatal("the first Nack must win")
+	}
+	// A losing call must not schedule the event a second time.
+	msg.Nack()
+
+	sub.inflight.Wait()
+	if sub.dropped.Load() != 1 || sub.retried.Load() != 0 {
+		t.Fatalf("dropped=%d retried=%d, want exactly one retry attempt",
+			sub.dropped.Load(), sub.retried.Load())
+	}
+}
+
+// TestPullDeliveryLostToShutdownReleasesItsInflightCount guards the one path
+// where the resolve callback provably never runs: the send lost the race to
+// closeCh, so no handler ever saw the message. Without the explicit release,
+// shutdown would spend its whole drain budget on a count nobody owns.
+func TestPullDeliveryLostToShutdownReleasesItsInflightCount(t *testing.T) {
+	sub := testPullSubscriber()
+	// Nothing reads the lane channel and the binding is already closing.
+	close(sub.closeCh)
+
+	if sub.deliver(fakePullDelivery(5)) {
+		t.Fatal("a delivery was accepted after the binding closed")
+	}
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	if !waitGroupBefore(&sub.inflight, deadline.C) {
+		t.Fatal("a delivery lost to shutdown leaked its inflight count")
+	}
+}
+
 // TestPullWireCarriesAStableIdentity guards the retry hop. The pull API's
 // message cannot be read through nats.go's subscription-bound metadata parser,
 // so without the stamp an ingress-origin event would get a fresh NUID per

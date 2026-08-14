@@ -23,7 +23,7 @@ type concurrentDurableSubscriber struct {
 	stream   string
 	consumer string
 	group    string
-	delay redeliveryDelay
+	delay    redeliveryDelay
 	// handlerDeadline is the ceiling on one handler's total run time, NOT the
 	// consumer's AckWait. Those are different clocks and used to share a name.
 	// awaitResult reports InProgress every `progress`, which resets the server's
@@ -318,13 +318,23 @@ func jetStreamIdentity(domain, stream string, sequence uint64) string {
 	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
 }
 
+// awaitResult reconciles one delivery off the subscription callback's path.
+//
+// It arms a single timer at s.progress and counts the fires, rather than a
+// deadline timer plus a progress ticker. Two runtime-timer registrations per
+// message buy nothing on the normal path, where the handler resolves in well
+// under one progress interval and neither timer ever fires: at lane rates that
+// is two registrations and cancellations per message on the runtime's timer
+// heap. Counting fires makes the deadline "at least handlerDeadline" instead of
+// exactly it, since each Reset restarts the interval from the moment this
+// goroutine was scheduled; the deadline is a coarse ceiling on a pathological
+// handler, not a clock anything is measured against.
 func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *Message) {
 	defer s.acks.Done()
-	timer := time.NewTimer(s.handlerDeadline)
+	timer := time.NewTimer(s.progress)
 	defer timer.Stop()
-	progress := time.NewTicker(s.progress)
-	defer progress.Stop()
 
+	var elapsed time.Duration
 	for {
 		select {
 		case <-msg.Acked():
@@ -333,14 +343,19 @@ func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *Messag
 		case <-msg.Nacked():
 			s.nack(natsMsg)
 			return
-		case <-timer.C:
-			// The server's AckWait owns redelivery. Do not emit another NAK after the
-			// deadline because it may already have redelivered to another replica.
-			return
 		case <-s.closeCh:
 			return
-		case <-progress.C:
+		case <-timer.C:
+			elapsed += s.progress
+			if elapsed >= s.handlerDeadline {
+				// The server's AckWait owns redelivery. Do not emit another NAK after the
+				// deadline because it may already have redelivered to another replica.
+				// Reporting progress here would be the opposite of the intent: it would
+				// renew the ownership the deadline exists to give up.
+				return
+			}
 			s.reportProgress(natsMsg)
+			timer.Reset(s.progress)
 		}
 	}
 }

@@ -345,7 +345,9 @@ func startReaders(ctx context.Context, app *newrelic.Application, lanes []Weight
 
 		wg.Add(1)
 		dispatched.Add(1)
-		go func(lane int, subject string, handle func(*Message) error, msgs <-chan *Message) {
+		// A lane's invariants (subject, transaction name, handler) never change,
+		// so they are bundled once here and carried into every dispatch.
+		go func(lane int, proc consumeLane, msgs <-chan *Message) {
 			defer wg.Done()
 			defer dispatched.Done()
 			for msg := range msgs {
@@ -358,10 +360,10 @@ func startReaders(ctx context.Context, app *newrelic.Application, lanes []Weight
 				go func(m *Message) {
 					defer dispatched.Done()
 					defer pool.release(lane)
-					process(app, subject, m, handle, log)
+					proc.process(m)
 				}(msg)
 			}
-		}(i, lane.Subject, lane.Handle, messages)
+		}(i, newConsumeLane(app, lane.Subject, lane.Handle, log), messages)
 	}
 
 	return &wg, nil

@@ -24,7 +24,6 @@ const (
 	flowControlHeartbeat = time.Second
 	flowMaxAckPending    = 20_000
 	flowRetryTimeout     = 5 * time.Second
-	flowResultWait       = 30 * time.Second
 
 	// flowProvisionTimeout bounds an ordinary create/update. The replacement path
 	// gets its own, much longer budget: a delete that succeeds followed by a
@@ -719,9 +718,16 @@ func (s *flowSubscriber) enqueue(wire *nats.Msg) {
 		// ramped flow-control window, so this stays an alert rather than a mode of
 		// operation — a sustained count here means the window grew past what
 		// flowQueueDepth was derived for and the derivation needs re-measuring.
-		s.log.Warn("lane receipt queue overflowed",
-			zap.String("subject", s.subject),
-			zap.Int64("overrun_total", s.overrun.Add(1)))
+		//
+		// Throttled like the stale counter, and for the same reason: sustained
+		// overflow is exactly the case where a line per drop would emit at the
+		// event rate of the lane. The counter still moves on every drop, so the
+		// magnitude is never lost — only the repetition is.
+		if overrun := s.overrun.Add(1); overrun == 1 || overrun%1_000 == 0 {
+			s.log.Warn("lane receipt queue overflowed",
+				zap.String("subject", s.subject),
+				zap.Int64("overrun_total", overrun))
+		}
 	}
 }
 
@@ -768,31 +774,38 @@ func (s *flowSubscriber) pump() {
 	}
 }
 
+// deliver hands one message to the lane channel with its verdict already wired
+// up. The reconciliation is a callback rather than a goroutine parked on
+// Acked/Nacked, because at lane rate that goroutine and its 30-second timer were
+// a spawn and a timer-heap insert per message for an outcome that, in the common
+// case, does nothing at all: an ACK is receipt-level here and needs no traffic,
+// since the flow-control responses already own the ack floor. Only a NACK costs
+// anything, and it costs one scheduled retry.
+//
+// Two consequences are deliberate. The retry now runs on the handler's own
+// goroutine, bounded by flowRetryTimeout, which is affordable because failure is
+// rare by contract on these lanes. And a handler that resolves neither way holds
+// its pending count until shutdown, where subscriberDrainTimeout bounds the wait
+// — the same 30 seconds the per-message timer used to spend, now paid once at
+// shutdown instead of being armed on every delivery.
 func (s *flowSubscriber) deliver(delivery flowDelivery) bool {
+	// Both the count and the handler are in place before the message is visible
+	// to a handler: it can be resolved the instant the send completes.
+	s.pending.Add(1)
+	delivery.msg.setResolveHandler(func(acked bool) {
+		defer s.pending.Done()
+		if !acked {
+			s.scheduleRetry(delivery)
+		}
+	})
 	select {
 	case s.output <- delivery.msg:
-		s.pending.Add(1)
-		go s.awaitResult(delivery)
 		return true
 	case <-s.closeCh:
+		// Nobody took the message, so the callback will never run and the count
+		// it owns has to be released here or shutdown waits out its whole budget.
+		s.pending.Done()
 		return false
-	}
-}
-
-// awaitResult reconciles the handler's verdict. An ACK is receipt-level and
-// needs no traffic at all: the flow-control responses already own the ack
-// floor. Only a NACK costs anything, and it costs one scheduled retry.
-func (s *flowSubscriber) awaitResult(delivery flowDelivery) {
-	defer s.pending.Done()
-	timer := time.NewTimer(flowResultWait)
-	defer timer.Stop()
-
-	select {
-	case <-delivery.msg.Acked():
-	case <-delivery.msg.Nacked():
-		s.scheduleRetry(delivery)
-	case <-timer.C:
-	case <-s.closeCh:
 	}
 }
 

@@ -30,18 +30,32 @@ func (m Metadata) Get(key string) string { return m[key] }
 func (m Metadata) Set(key, value string) { m[key] = value }
 
 // Message is the fleet-owned delivery unit shared by every bus consumer. Ack
-// and Nack are non-blocking, idempotent signals; the native NATS subscriber
-// reconciles the selected result with JetStream outside its serial callback.
+// and Nack are idempotent: the first call decides the result and every later one
+// is a no-op that reports the decision.
+//
+// How the result reaches the broker differs by subscriber, and so does what the
+// call costs. The explicit-ACK subscriber selects on Acked/Nacked from its own
+// goroutine, so both calls return immediately there. The receipt-level lane
+// adapters install a resolve handler instead (setResolveHandler) and run it on
+// the resolving goroutine: an ACK still costs nothing, because the flow-control
+// response or the batch floor already owns the ack floor, while a NACK publishes
+// the retry schedule inline.
 type Message struct {
 	UUID     string
 	Metadata Metadata
 	Payload  []byte
 
-	ack   chan struct{}
-	nack  chan struct{}
-	mu    sync.Mutex
-	state messageState
-	ctx   context.Context
+	// ack and nack are created on first use rather than per delivery. The hot
+	// lane adapters resolve through onResolve and never read either signal, so
+	// eager allocation was two channels of garbage per message at lane rate.
+	ack  chan struct{}
+	nack chan struct{}
+	// onResolve is the lane adapters' reconciliation hook. It is invoked exactly
+	// once, by whichever Ack/Nack wins, and never under mu.
+	onResolve func(acked bool)
+	mu        sync.Mutex
+	state     messageState
+	ctx       context.Context
 	// receivedAt is set at the native subscriber boundary. It lets the consumer
 	// transaction distinguish delivery/admission wait from handler execution.
 	receivedAt time.Time
@@ -66,11 +80,29 @@ func NewMessage(id string, payload []byte) *Message {
 	return newMessage(messageData{id: id, payload: payload, metadata: make(Metadata)})
 }
 
+// newMessage deliberately leaves both acknowledgement signals nil. Nothing on
+// the hot path reads them, and ensureChannelsLocked mints whichever one a caller
+// asks for in the state the message is already in.
 func newMessage(data messageData) *Message {
 	return &Message{
 		UUID: data.id, Metadata: data.metadata, Payload: data.payload,
-		ack: make(chan struct{}), nack: make(chan struct{}), receivedAt: time.Now(),
+		receivedAt: time.Now(),
 	}
+}
+
+// setResolveHandler installs the callback that reconciles this delivery with its
+// lane. It must be set before the message is handed to handlers: the handler is
+// read at resolution time, so one installed after the winning Ack/Nack is never
+// called at all.
+//
+// The callback runs exactly once, after the winning transition and OUTSIDE mu —
+// the lane adapters publish a retry schedule from it, and holding the message
+// lock across that network round trip would block every later Ack/Nack on it.
+// Losing Ack/Nack calls never re-enter it.
+func (m *Message) setResolveHandler(onResolve func(acked bool)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onResolve = onResolve
 }
 
 // Ack marks the message successfully handled. It returns false only when Nack
@@ -91,25 +123,49 @@ func (m *Message) Ack() bool {
 // The flow-controlled subscriber has no per-message pending state to NAK
 // against, so it schedules the event onto the lane's retry subject exactly once
 // instead (see RetryCountHeader); ordering is lost and a second failure drops
-// the event.
+// the event. That schedule is published from this call, on the caller's own
+// goroutine, so a Nack there blocks for as long as flowRetryTimeout allows —
+// which is affordable only because failure is rare by contract on those lanes.
 func (m *Message) Nack() bool {
 	return m.resolve(messageNacked)
 }
 
+// resolve commits the first result and then, with the lock released, hands it to
+// the lane adapter. The split is the whole point: the transition has to be
+// atomic, the callback must not be.
 func (m *Message) resolve(target messageState) bool {
+	won, onResolve := m.transition(target)
+	if onResolve != nil {
+		onResolve(target == messageAcked)
+	}
+	return won
+}
+
+// transition is the locked half. It reports whether this call was the winning
+// one and returns the resolve handler only to that winner, so a losing Ack or
+// Nack can never invoke it a second time.
+func (m *Message) transition(target messageState) (bool, func(bool)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.ensureChannelsLocked()
 	if m.state != messagePending {
-		return m.state == target
+		return m.state == target, nil
 	}
 	m.state = target
-	if target == messageAcked {
-		close(m.ack)
-	} else {
-		close(m.nack)
+	m.closeSignalLocked(target)
+	return true, m.onResolve
+}
+
+// closeSignalLocked closes the winning signal only when someone has already
+// asked for it. A nil one is not an omission: messageSignal mints it closed for
+// the resolved state whenever Acked or Nacked is finally called.
+func (m *Message) closeSignalLocked(target messageState) {
+	signal := m.ack
+	if target == messageNacked {
+		signal = m.nack
 	}
-	return true
+	if signal != nil {
+		close(signal)
+	}
 }
 
 // Acked is closed after the message is acknowledged.
