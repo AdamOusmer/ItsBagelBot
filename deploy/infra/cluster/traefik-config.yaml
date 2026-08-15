@@ -26,6 +26,12 @@ spec:
   valuesContent: |-
     deployment:
       kind: DaemonSet
+    providers:
+      kubernetesCRD:
+        # The web-error-pages fallback (deploy/k8s/web-error-pages.yaml) proxies
+        # unrouted hosts / dead-backend errors to the marketing site through an
+        # ExternalName Service, which the CRD provider refuses by default.
+        allowExternalNameServices: true
     service:
       type: ClusterIP
       spec:
