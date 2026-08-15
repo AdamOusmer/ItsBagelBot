@@ -169,7 +169,7 @@ spec:
             # grant the lane goes to zero events per second with no client-side
             # error at all (see nats-auth.conf, worker_bus).
             - name: NATS_CONSUME_FLOW
-              value: "off"
+              value: "on"
             - name: NATS_CONSUME_MODE
               value: pull
             # PARTITION FLAG. "on" reshapes the ingress lane catalog to the
