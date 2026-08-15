@@ -130,6 +130,13 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 	}
 }
 
+// BumpBot records one bot-scope counter delta under the reserved broadcaster-0
+// namespace: the narrow entry the pipeline's stats flusher uses, so callers
+// that only ever bump bot-wide counters don't carry the full Bump signature.
+func (r *LoyaltyReporter) BumpBot(name string, delta int64) {
+	r.Bump(0, name, data.CounterScopeBot, Viewer{}, "", delta)
+}
+
 // Bump records one counter delta. command keys the bucket of a command /
 // viewer+command bump ("" everywhere else). viewer carries the chatter's
 // display identity when the source knew it. Broadcaster 0 is the reserved bot

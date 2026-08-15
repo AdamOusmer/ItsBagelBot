@@ -22,8 +22,11 @@ import { RpcError } from '@bagel/shared/server/nats';
 
 // Paths that must stay reachable with a denied session: the login + OAuth flow
 // (a banned user must still be able to reach the callback's own gate), logout,
-// health probes, the locale switch and the pre-login delegation-accept landing.
-const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/lang', '/delegate/accept'];
+// health probes, the locale switch, the pre-login delegation-accept landing and
+// the public global-statistics page (it shows nobody's account state, so a
+// banned or ghost session has no more reason to be bounced off it than an
+// anonymous visitor does).
+const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/lang', '/delegate/accept', '/stats'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));

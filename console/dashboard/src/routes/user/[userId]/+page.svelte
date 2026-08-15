@@ -1,17 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Card } from '@bagel/shared';
+  import PublicNav from '$lib/components/public/PublicNav.svelte';
+  import PublicFooter from '$lib/components/public/PublicFooter.svelte';
 
   let { data } = $props();
 
   const commandLabel = $derived(data.commands.length === 1 ? 'command' : 'commands');
   const moduleLabel = $derived(data.modules.length === 1 ? 'module' : 'modules');
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
-
-  // Links point at the live marketing site so the public page shares one nav +
-  // footer with web/ (same buttons, routed to the original web).
-  const WEB = 'https://itsbagelbot.com';
-  const DASH = 'https://dashboard.itsbagelbot.com';
 
   let fieldEl = $state<HTMLCanvasElement | null>(null);
   let titleEl = $state<HTMLHeadingElement | null>(null);
@@ -143,25 +140,8 @@
   />
 </svelte:head>
 
-<!-- Shared marketing nav (ported from web/src/components/layout/Nav.astro):
-     logo + section links + CTA, all routed to the live site. -->
-<nav class="site-nav" aria-label="Primary">
-  <div class="site-nav__inner">
-    <a class="logo" href={WEB} aria-label="ItsBagelBot home">
-      <img src="/logo.png" alt="" width="35" height="35" />
-      <span>ItsBagelBot</span>
-    </a>
-
-    <ul class="links" aria-label="Primary">
-      <li>{@render navlink(`${WEB}/pricing`, 'Pricing')}</li>
-      <li>{@render navlink(`${WEB}/contact`, 'Contact')}</li>
-    </ul>
-
-    <div class="nav-cta">
-      <a class="cta-btn" href={DASH} target="_blank" rel="noopener noreferrer">Add to Twitch</a>
-    </div>
-  </div>
-</nav>
+<!-- Shared public chrome (see lib/components/public): the marketing nav + footer. -->
+<PublicNav />
 
 <main class="page">
   <!-- Hero in the marketing PageHero language: warm light-field + hearth glow
@@ -275,52 +255,7 @@
   </section>
 </main>
 
-<!-- Shared marketing footer (ported from web/src/components/layout/Footer.astro),
-     links routed to the live site. -->
-<footer class="site-footer">
-  <div class="signoff">
-    <p class="signoff__line">Baked late. Served fresh.</p>
-    <p class="signoff__sub">See you in chat.</p>
-  </div>
-
-  <div class="foot-top">
-    <div class="foot-brand">
-      <span class="foot-brand__logo"><img src="/logo.png" alt="ItsBagelBot Logo" width="55" height="55" /></span>
-      <div>
-        <span class="foot-name">ItsBagelBot</span>
-        <span class="foot-tagline">Your stream. Your rules.</span>
-      </div>
-    </div>
-
-    <div class="foot-cols">
-      <div class="foot-col">
-        <p>Product</p>
-        <a href={`${WEB}/pricing`}>Pricing</a>
-        <a href="https://docs.itsbagelbot.com" target="_blank" rel="noopener noreferrer">Developer</a>
-        <a href={DASH} target="_blank" rel="noopener noreferrer">Dashboard</a>
-      </div>
-      <div class="foot-col">
-        <p>Company</p>
-        <a href={`${WEB}/contact`}>Contact</a>
-        <a href="https://github.com/AdamOusmer/ItsBagelBot" target="_blank" rel="noopener noreferrer">GitHub</a>
-      </div>
-      <div class="foot-col">
-        <p>Community</p>
-        <a href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">Discord</a>
-        <a href="https://twitch.tv/itsbagelbot" target="_blank" rel="noopener noreferrer">Twitch</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="foot-bottom">
-    <span class="foot-copy">&copy; 2026 ItsBagelBot</span>
-    <span class="foot-note">No data sold · No trackers · No surprises</span>
-    <div class="foot-legal">
-      <a href={`${WEB}/privacy`}>Privacy Policy</a>
-      <a href={`${WEB}/terms`}>Terms of Service</a>
-    </div>
-  </div>
-</footer>
+<PublicFooter />
 
 {#snippet check()}
   <svg class="check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -341,185 +276,9 @@
   </li>
 {/snippet}
 
-<!-- NavLink motion glyph, ported from web/src/components/layout/NavLink.astro -->
-{#snippet navlink(href: string, label: string)}
-  <a class="nav-link-motion" {href} aria-label={label}>
-    <span class="nav-link-motion__mask" aria-hidden="true">
-      <span class="nav-link-motion__line nav-link-motion__line--rest">
-        {#each Array.from(label) as glyph, i}
-          <span class="nav-link-motion__glyph" style={`--glyph-index: ${i};`}>{glyph}</span>
-        {/each}
-      </span>
-      <span class="nav-link-motion__line nav-link-motion__line--active">
-        {#each Array.from(label) as glyph, i}
-          <span class="nav-link-motion__glyph" style={`--glyph-index: ${i};`}>{glyph}</span>
-        {/each}
-      </span>
-    </span>
-  </a>
-{/snippet}
 
 <style>
   h1, h2, h3, p { margin: 0; }
-
-  /* ── shared marketing nav ── */
-  .site-nav {
-    font-family: var(--bb-font-display);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: calc(76px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-inline: max(24px, 4vw);
-    border-bottom: 1px solid var(--bb-border);
-    z-index: 50;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    background: rgba(10, 10, 10, 0.7);
-  }
-  .site-nav__inner {
-    display: grid;
-    grid-template-columns: minmax(170px, 1fr) minmax(0, auto) minmax(170px, 1fr);
-    align-items: center;
-    gap: 24px;
-    width: min(100%, 1180px);
-    height: 100%;
-    margin: 0 auto;
-  }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    width: max-content;
-    color: var(--bb-white);
-    text-decoration: none;
-  }
-  .logo img { width: 35px; height: 35px; border-radius: 8px; }
-  .logo span {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 1.2rem;
-    color: var(--bb-white);
-    white-space: nowrap;
-  }
-  ul.links {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 30px;
-    min-width: 0;
-    padding: 0 1.5rem;
-    list-style: none;
-    margin: 0;
-  }
-  ul.links li { display: flex; align-items: center; }
-  .nav-cta { display: flex; justify-content: flex-end; align-items: center; gap: 14px; }
-
-  /* CTA — ported from SecondaryButton.astro */
-  .cta-btn {
-    font-family: var(--bb-font-mono);
-    font-size: 0.78rem;
-    padding: 10px 22px;
-    background: transparent;
-    border: 1px solid var(--bb-tan);
-    color: var(--bb-tan-light);
-    border-radius: 4px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    text-decoration: none;
-    white-space: nowrap;
-    display: inline-block;
-    transition: background 0.2s, color 0.2s;
-  }
-  .cta-btn:hover { background: var(--bb-tan); color: var(--bb-black); }
-
-  /* NavLink motion — ported from NavLink.astro */
-  .nav-link-motion {
-    --nav-link-shift: 1.22em;
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 32px;
-    padding: 0.42rem 0.08rem;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-mono);
-    font-size: 0.78rem;
-    font-weight: 500;
-    line-height: 1;
-    text-decoration: none;
-    text-transform: uppercase;
-    white-space: nowrap;
-    outline: none;
-    isolation: isolate;
-  }
-  .nav-link-motion::before {
-    content: "";
-    position: absolute;
-    left: 0; right: 0;
-    bottom: 0.28rem;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgba(224,196,154,0.15), rgba(224,196,154,0.78), rgba(82,183,136,0.54), transparent);
-    opacity: 0;
-    transform: scaleX(0.18);
-    transform-origin: center;
-  }
-  .nav-link-motion__mask {
-    position: relative;
-    display: block;
-    height: 1.12em;
-    overflow: hidden;
-    text-shadow: 0 3px 12px rgba(0,0,0,0.9), 0 0 18px rgba(224,196,154,0.18);
-  }
-  .nav-link-motion__line { display: inline-flex; align-items: baseline; color: inherit; }
-  .nav-link-motion__line--active {
-    position: absolute;
-    inset: 0 auto auto 0;
-    color: var(--bb-white);
-    text-shadow: 0 3px 12px rgba(0,0,0,0.9), 0 0 18px rgba(224,196,154,0.34), 0 0 26px rgba(82,183,136,0.18);
-  }
-  .nav-link-motion__glyph { display: inline-block; transform: translateY(0); }
-  .nav-link-motion__line--active .nav-link-motion__glyph {
-    opacity: 0.4;
-    transform: translateY(var(--nav-link-shift)) rotate(3deg);
-  }
-  .nav-link-motion:focus-visible { outline: 1px solid rgba(224,196,154,0.58); outline-offset: 6px; }
-
-  @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
-    .nav-link-motion { transition: color 180ms ease; }
-    .nav-link-motion::before {
-      transition: opacity 260ms ease, transform 620ms var(--bb-ease-out-expo);
-    }
-    .nav-link-motion__glyph {
-      transition: opacity 280ms ease, transform 420ms var(--bb-ease-out-expo);
-      transition-delay: calc(var(--glyph-index) * 16ms);
-      will-change: transform, opacity;
-    }
-    .nav-link-motion:is(:hover, :focus-visible) { color: var(--bb-white); }
-    .nav-link-motion:is(:hover, :focus-visible)::before { opacity: 1; transform: scaleX(1); }
-    .nav-link-motion:is(:hover, :focus-visible) .nav-link-motion__line--rest .nav-link-motion__glyph {
-      opacity: 0.32;
-      transform: translateY(calc(var(--nav-link-shift) * -1)) rotate(-3deg);
-    }
-    .nav-link-motion:is(:hover, :focus-visible) .nav-link-motion__line--active .nav-link-motion__glyph {
-      opacity: 1;
-      transform: translateY(0) rotate(0deg);
-      transition-delay: calc(72ms + (var(--glyph-index) * 18ms));
-    }
-  }
-
-  @media (max-width: 1120px) {
-    .site-nav__inner { grid-template-columns: minmax(155px, 1fr) minmax(0, auto) minmax(150px, 1fr); gap: 18px; }
-    ul.links { gap: 20px; padding-inline: 1rem; }
-    .logo span { font-size: 1.08rem; }
-  }
-  @media (max-width: 900px) {
-    .site-nav__inner { grid-template-columns: 1fr auto; gap: 16px; }
-    ul.links { display: none; }
-  }
 
   /* ── page shell ── */
   .page {
@@ -747,147 +506,6 @@
     padding: 7px 12px;
   }
   :global(.empty) { padding: 28px; color: var(--bb-muted); font-family: var(--bb-font-body); }
-
-  /* ── shared marketing footer ── */
-  .site-footer {
-    position: relative;
-    border-top: 1px solid var(--bb-border);
-    padding: 72px 4% 40px;
-    overflow: hidden;
-    color: var(--bb-white);
-  }
-  .site-footer::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 0;
-    width: 90vmin;
-    height: 40vmin;
-    translate: -50% -50%;
-    pointer-events: none;
-    background: radial-gradient(50% 60% at 50% 50%, rgba(201,168,124,0.09) 0%, transparent 70%);
-    filter: blur(12px);
-  }
-  .signoff { position: relative; text-align: center; margin-bottom: 72px; }
-  .signoff__line {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(1.7rem, 4.6vw, 2.9rem);
-    letter-spacing: -0.02em;
-    line-height: 1.08;
-    color: var(--bb-white);
-    margin: 0 0 10px;
-    text-shadow: 0 0 30px rgba(201,168,124,0.16);
-  }
-  .signoff__sub {
-    font-family: var(--bb-font-hand, "Caveat", cursive);
-    font-size: clamp(1.2rem, 2.6vw, 1.5rem);
-    font-weight: 500;
-    color: var(--bb-tan-light);
-    margin: 0;
-    rotate: -1deg;
-  }
-  .foot-top {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 60px;
-    margin-bottom: 60px;
-  }
-  .foot-brand { display: flex; align-items: center; gap: 15px; }
-  .foot-brand__logo {
-    display: inline-block;
-    line-height: 0;
-    transition: rotate 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .foot-brand__logo img { width: 55px; height: 55px; border-radius: 10px; }
-  @media (hover: hover) and (pointer: fine) {
-    .foot-brand:hover .foot-brand__logo { rotate: 14deg; }
-  }
-  .foot-brand div { display: flex; flex-direction: column; }
-  .foot-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--bb-white);
-    margin-bottom: 10px;
-  }
-  .foot-tagline { font-family: var(--bb-font-mono); font-size: 0.9rem; color: var(--bb-muted); letter-spacing: 0.05em; }
-  .foot-cols { display: flex; gap: 60px; }
-  .foot-col { display: flex; flex-direction: column; gap: 15px; }
-  .foot-col p {
-    font-family: var(--bb-font-mono);
-    font-size: 0.9rem;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: var(--bb-white);
-    margin: 0 0 4px 0;
-  }
-  .foot-col a {
-    position: relative;
-    width: fit-content;
-    font-family: var(--bb-font-body);
-    font-size: 0.85rem;
-    color: var(--bb-muted);
-    text-decoration: none;
-    transition: color 0.2s var(--bb-ease-out-expo), transform 0.3s var(--bb-ease-out-expo);
-  }
-  .foot-col a::before {
-    content: "";
-    position: absolute;
-    left: -12px;
-    top: 50%;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    translate: 0 -50%;
-    background: var(--bb-tan);
-    opacity: 0;
-    scale: 0;
-    transition: opacity 0.25s ease, scale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .foot-col a:hover { color: var(--bb-tan-light); transform: translateX(6px); }
-  .foot-col a:hover::before { opacity: 1; scale: 1; }
-  @media (prefers-reduced-motion: reduce) {
-    .foot-col a:hover { transform: none; }
-    .foot-col a::before { display: none; }
-    .foot-brand__logo { transition: none; }
-  }
-  .foot-bottom {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding-top: 30px;
-    border-top: 1px solid rgba(255,255,255,0.05);
-  }
-  .foot-copy, .foot-note {
-    font-family: var(--bb-font-mono);
-    font-size: 0.7rem;
-    color: var(--bb-muted);
-    letter-spacing: 0.06em;
-  }
-  .foot-note { letter-spacing: 0.08em; }
-  .foot-legal { display: flex; justify-content: flex-end; gap: 20px; }
-  .foot-legal a {
-    font-family: var(--bb-font-mono);
-    font-size: 0.7rem;
-    color: var(--bb-muted);
-    text-decoration: none;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: color 0.2s;
-  }
-  .foot-legal a:hover { color: var(--bb-tan-light); }
-
-  @media (max-width: 900px) {
-    .site-footer { padding: 56px 25px 30px; }
-    .signoff { margin-bottom: 56px; }
-    .foot-top { flex-direction: column; gap: 40px; }
-    .foot-cols { flex-wrap: wrap; gap: 30px; }
-    .foot-bottom { grid-template-columns: 1fr; gap: 10px; text-align: center; }
-    .foot-legal { justify-content: center; }
-  }
 
   @media (max-width: 760px) {
     .page { padding-inline: 18px; }
