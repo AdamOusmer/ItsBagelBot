@@ -29,7 +29,7 @@ type goveeWiring struct {
 
 // wireGovee subscribes the Govee API-key custody RPCs. The dashboard verbs
 // (set/clear/status) never echo the key; the internal decrypt verb is
-// account-scoped to the gateway, the one service that dials Govee — the same
+// account-scoped to gossip, the one service that dials Govee — the same
 // split the users service uses for tokens and contact email. It is a no-op when
 // key custody is disabled (nil store).
 func wireGovee(w goveeWiring) error {

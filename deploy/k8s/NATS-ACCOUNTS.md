@@ -27,7 +27,7 @@ service's Doppler project.
 | dashboard (console) | `dashboard_bus` | `dashboard_rpc` | DASHBOARD_RPC |
 | admin (console) | `admin_bus` | `admin_rpc` | ADMIN_RPC |
 | twitch-ingress | `twitch_ingress_bus` | `twitch_ingress_rpc` | TWITCH_INGRESS_RPC |
-| gateway | — (RPC-only, no BUS user) | `gateway_rpc` | GATEWAY_RPC |
+| gossip | — (RPC-only, no BUS user) | `gossip_rpc` | GOSSIP_RPC |
 
 ### JetStream stream ownership
 
@@ -101,7 +101,7 @@ All values are **bcrypt hashes**.
 `NATS_BCRYPT_PROJECTOR_RPC`, `NATS_BCRYPT_OUTGRESS_RPC`,
 `NATS_BCRYPT_WORKER_RPC`, `NATS_BCRYPT_DASHBOARD_RPC`, `NATS_BCRYPT_ADMIN_RPC`,
 `NATS_BCRYPT_TWITCH_INGRESS_RPC`, `NATS_BCRYPT_TRANSACTIONS_RPC`,
-`NATS_BCRYPT_NOTIFICATIONS_RPC`, `NATS_BCRYPT_GATEWAY_RPC`
+`NATS_BCRYPT_NOTIFICATIONS_RPC`, `NATS_BCRYPT_GOSSIP_RPC`
 
 **System account (1):** `NATS_BCRYPT_SYS`
 
@@ -116,7 +116,7 @@ is needed for the credentials — only the keys below.
 
 - **BUS-connected services:** `NATS_USER` = `<service>_bus`, `NATS_PASSWORD` =
   the BUS plaintext (matches `NATS_BCRYPT_<SERVICE>_BUS`). Notifications and
-  gateway are RPC-only and do not receive BUS credentials.
+  gossip are RPC-only and do not receive BUS credentials.
 - **All services:** `NATS_RPC_USER` = `<service>_rpc`, `NATS_RPC_PASSWORD` = the
   RPC plaintext (matches `NATS_BCRYPT_<SERVICE>_RPC`).
 

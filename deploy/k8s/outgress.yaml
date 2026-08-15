@@ -70,7 +70,7 @@ spec:
         # >= 1 per node.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -94,7 +94,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1785249561-8a92d66f005a@sha256:99f31f888a9959dbdf97d800fe0166c4260abcb742b80239fd0bb49d548dfa06 # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1786680766-c3f4c68c40b5@sha256:be36478807f57e68689f8bd29004fa6ca3b5604c6c6de27802cc2afa3146bf8f # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -261,7 +261,7 @@ spec:
     name: outgress
   pollingInterval: 15
   cooldownPeriod: 300
-  minReplicaCount: 4
+  minReplicaCount: 3
   # 4 per application node. Outgress is Twitch-rate-limited,
   # so headroom here is for lag-driven burst drain, not sustained throughput.
   maxReplicaCount: 12

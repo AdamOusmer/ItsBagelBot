@@ -11,7 +11,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
@@ -19,27 +19,27 @@ import (
 	"go.uber.org/zap"
 )
 
-func fortniteCmd(t *testing.T, gw engine.GatewayCaller, name string) module.Command {
+func fortniteCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := Fortnite(engine.Deps{Gateway: gw, Log: zap.NewNop()})
+	m := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()})
 	assert.Equal(t, "fortnite", m.Name)
 	assert.Equal(t, module.KindOptIn, m.Kind)
 	return findCmd(t, m, name)
 }
 
-func fortniteStatsReply() gatewayrpc.FortniteStatsReply {
-	return gatewayrpc.FortniteStatsReply{
+func fortniteStatsReply() gossiprpc.FortniteStatsReply {
+	return gossiprpc.FortniteStatsReply{
 		Player:  "Ninja",
 		Window:  "lifetime",
-		Overall: gatewayrpc.FortniteModeStats{Wins: 301, Matches: 6232, Kills: 21679, KD: 3.66, WinRate: 4.83},
-		Solo:    gatewayrpc.FortniteModeStats{Wins: 120, Matches: 2400, KD: 3.2},
-		Duo:     gatewayrpc.FortniteModeStats{Wins: 90, Matches: 1900, KD: 3.8},
-		Squad:   gatewayrpc.FortniteModeStats{Wins: 91, Matches: 1932, KD: 4.1},
+		Overall: gossiprpc.FortniteModeStats{Wins: 301, Matches: 6232, Kills: 21679, KD: 3.66, WinRate: 4.83},
+		Solo:    gossiprpc.FortniteModeStats{Wins: 120, Matches: 2400, KD: 3.2},
+		Duo:     gossiprpc.FortniteModeStats{Wins: 90, Matches: 1900, KD: 3.8},
+		Squad:   gossiprpc.FortniteModeStats{Wins: 91, Matches: 1932, KD: 4.1},
 	}
 }
 
 func TestFnstatsDefaultTemplate(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
+	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
 	cmd := fortniteCmd(t, gw, "fnstats")
 
 	var col collector
@@ -62,7 +62,7 @@ func TestFnstatsDefaultTemplate(t *testing.T) {
 func TestSeasonDefaultTemplate(t *testing.T) {
 	reply := fortniteStatsReply()
 	reply.Window = "season"
-	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": reply}}
+	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": reply}}
 	cmd := fortniteCmd(t, gw, "fnseason")
 
 	var col collector
@@ -75,7 +75,7 @@ func TestSeasonDefaultTemplate(t *testing.T) {
 }
 
 func TestFnstatsConfigPassthrough(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
+	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
 	cmd := fortniteCmd(t, gw, "fnstats")
 
 	var col collector
@@ -96,7 +96,7 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 }
 
 // A per-command "off" toggle keeps that command silent: no chat line and no
-// gateway call, for both fortnite commands.
+// gossip call, for both fortnite commands.
 func TestFortniteDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"fn", `{"statsEnabled":"off"}`},
@@ -107,7 +107,7 @@ func TestFortniteDisabledStaysSilent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gw := &fakeGateway{}
+			gw := &fakeGossip{}
 			cmd := fortniteCmd(t, gw, tc.name)
 
 			var col collector
@@ -128,7 +128,7 @@ func TestFnDispatch(t *testing.T) {
 
 	cases := []struct {
 		name, args      string
-		endpoint        string // gateway endpoint expected
+		endpoint        string // gossip endpoint expected
 		window, account string // stats requests only
 		replyValue      any
 	}{
@@ -136,13 +136,13 @@ func TestFnDispatch(t *testing.T) {
 		{"player arg is stats", "@SomePlayer extra", "stats", "lifetime", "SomePlayer", fortniteStatsReply()},
 		{"season subcommand", "season", "stats", "season", "streamer", seasonReply},
 		{"season with player", "season OtherGuy", "stats", "season", "OtherGuy", seasonReply},
-		{"session subcommand", "session", "session", "", "", gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}},
-		{"store subcommand", "store", "shop", "", "", gatewayrpc.FortniteShopReply{Date: "2026-07-10"}},
-		{"shop alias, any case", "SHOP", "shop", "", "", gatewayrpc.FortniteShopReply{Date: "2026-07-10"}},
+		{"session subcommand", "session", "session", "", "", gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}},
+		{"store subcommand", "store", "shop", "", "", gossiprpc.FortniteShopReply{Date: "2026-07-10"}},
+		{"shop alias, any case", "SHOP", "shop", "", "", gossiprpc.FortniteShopReply{Date: "2026-07-10"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gw := &fakeGateway{replies: map[string]any{"fortnite." + tc.endpoint: tc.replyValue}}
+			gw := &fakeGossip{replies: map[string]any{"fortnite." + tc.endpoint: tc.replyValue}}
 			cmd := fortniteCmd(t, gw, "fn")
 
 			var col collector
@@ -160,7 +160,7 @@ func TestFnDispatch(t *testing.T) {
 }
 
 func TestFnstatsReplyErrorChats(t *testing.T) {
-	gw := &fakeGateway{err: bus.RPCReplyError{Message: "player not found"}}
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
 	cmd := fortniteCmd(t, gw, "fnstats")
 
 	var col collector
@@ -169,19 +169,19 @@ func TestFnstatsReplyErrorChats(t *testing.T) {
 	assert.Equal(t, "Ghosty: player not found", col.out[0].Text)
 }
 
-// runFnSession runs !fnsession against a gateway stubbed with reply, under the
-// given module config and command argument, returning the gateway and collected
+// runFnSession runs !fnsession against a gossip stubbed with reply, under the
+// given module config and command argument, returning the gossip and collected
 // output for assertion.
-func runFnSession(t *testing.T, reply gatewayrpc.FortniteSessionReply, cfg, arg string) (*fakeGateway, collector) {
+func runFnSession(t *testing.T, reply gossiprpc.FortniteSessionReply, cfg, arg string) (*fakeGossip, collector) {
 	t.Helper()
-	gw := &fakeGateway{replies: map[string]any{"fortnite.session": reply}}
+	gw := &fakeGossip{replies: map[string]any{"fortnite.session": reply}}
 	var col collector
 	require.NoError(t, fortniteCmd(t, gw, "fnsession").Run(context.Background(), urchinCtx(cfg), arg, col.emit))
 	return gw, col
 }
 
 func TestFnSessionDefaultTemplate(t *testing.T) {
-	gw, col := runFnSession(t, gatewayrpc.FortniteSessionReply{
+	gw, col := runFnSession(t, gossiprpc.FortniteSessionReply{
 		Player: "Ninja", Wins: 3, Matches: 12, Kills: 48, KD: 5.33, WinRate: 25.0, HasSnapshot: true,
 	}, `{"account":"Ninja"}`, "")
 	require.Len(t, col.out, 1)
@@ -199,20 +199,20 @@ func TestFnSessionDefaultTemplate(t *testing.T) {
 // account.
 func TestFnSessionIgnoresArgument(t *testing.T) {
 	gw, _ := runFnSession(t,
-		gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}, `{"account":"Ninja"}`, "SomeoneElse")
+		gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}, `{"account":"Ninja"}`, "SomeoneElse")
 	assert.Equal(t, "Ninja", gw.lastCall(t).req.Account)
 }
 
 func TestFnSessionWithoutSnapshot(t *testing.T) {
-	_, col := runFnSession(t, gatewayrpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: false}, "", "")
+	_, col := runFnSession(t, gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: false}, "", "")
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "session tracking just started")
 }
 
 // fortniteOnlineHandler builds the module and returns its stream.online handler.
-func fortniteOnlineHandler(t *testing.T, gw engine.GatewayCaller) module.EventHandler {
+func fortniteOnlineHandler(t *testing.T, gw engine.GossipCaller) module.EventHandler {
 	t.Helper()
-	h := Fortnite(engine.Deps{Gateway: gw, Log: zap.NewNop()}).Events["stream.online"]
+	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.online"]
 	require.NotNil(t, h, "fortnite must handle stream.online")
 	return h
 }
@@ -231,8 +231,8 @@ func fortniteOnlineCtx(cfg string) *module.Context {
 // call is fire-and-forget on its own goroutine.
 func TestFnStreamOnlineSnapshots(t *testing.T) {
 	done := make(chan struct{})
-	gw := &fakeGateway{
-		replies: map[string]any{"fortnite.session_start": gatewayrpc.FortniteSnapshotReply{Player: "Ninja"}},
+	gw := &fakeGossip{
+		replies: map[string]any{"fortnite.session_start": gossiprpc.FortniteSnapshotReply{Player: "Ninja"}},
 		done:    done,
 	}
 	h := fortniteOnlineHandler(t, gw)
@@ -244,7 +244,7 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("stream.online never called the gateway")
+		t.Fatal("stream.online never called gossip")
 	}
 	call := gw.lastCall(t)
 	assert.Equal(t, "fortnite", call.provider)
@@ -257,7 +257,7 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 // With the session command toggled off, stream.online must not spend the daily
 // stats budget on a snapshot: the handler returns before spawning the call.
 func TestFnStreamOnlineSkipsWhenSessionOff(t *testing.T) {
-	gw := &fakeGateway{}
+	gw := &fakeGossip{}
 	h := fortniteOnlineHandler(t, gw)
 
 	var col collector
@@ -268,10 +268,10 @@ func TestFnStreamOnlineSkipsWhenSessionOff(t *testing.T) {
 }
 
 func TestStoreDefaultTemplate(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"fortnite.shop": gatewayrpc.FortniteShopReply{
+	gw := &fakeGossip{replies: map[string]any{"fortnite.shop": gossiprpc.FortniteShopReply{
 		Date:  "2026-07-09",
 		Count: 3,
-		Entries: []gatewayrpc.FortniteShopEntry{
+		Entries: []gossiprpc.FortniteShopEntry{
 			{Name: "Peely Bundle", Price: 2800},
 			{Name: "Renegade Raider", Price: 1200},
 			{Name: "Free Hat"},
@@ -291,9 +291,9 @@ func TestFormatShopEntriesBudget(t *testing.T) {
 	assert.Equal(t, "empty today", formatShopEntries("en", nil))
 
 	// A long shop truncates within the budget and reports the remainder.
-	var entries []gatewayrpc.FortniteShopEntry
+	var entries []gossiprpc.FortniteShopEntry
 	for i := 0; i < 60; i++ {
-		entries = append(entries, gatewayrpc.FortniteShopEntry{
+		entries = append(entries, gossiprpc.FortniteShopEntry{
 			Name: "Some Cosmetic Item " + strconv.Itoa(i), Price: 1200,
 		})
 	}
@@ -303,8 +303,8 @@ func TestFormatShopEntriesBudget(t *testing.T) {
 	assert.True(t, strings.HasPrefix(got, "Some Cosmetic Item 0 (1200), "))
 
 	// The first entry always renders, even when it alone blows the budget.
-	huge := gatewayrpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
-	got = formatShopEntries("en", []gatewayrpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
+	huge := gossiprpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
+	got = formatShopEntries("en", []gossiprpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
 	assert.True(t, strings.HasPrefix(got, huge.Name))
 	assert.Contains(t, got, "+1 more")
 }

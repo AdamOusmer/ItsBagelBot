@@ -28,7 +28,7 @@ export const GET: RequestHandler = ({ locals, request }) => {
         try {
           controller.enqueue(enc.encode(line));
         } catch {
-          closed = true; // controller already closed by a disconnect
+          cleanup(); // controller already closed by a disconnect
         }
       };
 

@@ -4,7 +4,7 @@ import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { delegateCanOpen } from '$lib/server/module-gate';
+import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
@@ -60,38 +60,60 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 };
 
+// resolveToggle gates the tile toggle against the module it actually names.
+// Rejections come back as `denied` for the action to hand straight back.
+// gateModules only proves the 'modules' section, so the per-module check
+// matters here: channel points is its own delegation grant and would
+// otherwise flip through this generic toggle.
+type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
+
+function resolveToggle(name: string, session: Session | null | undefined): ToggleTarget {
+  const def = moduleDef(name);
+  if (!def || def.toggleable === false) return { denied: fail(400, { ok: false, error: 'Unknown module.' }) };
+  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
+  return { uid: effectiveId(session) };
+}
+
 export const actions: Actions = {
   // Quick tile on/off: flips enabled while preserving the stored config.
   toggle: async ({ request, locals }) => {
     gateModules(locals.session);
-    const uid = effectiveId(locals.session);
     if (env.DEMO !== '1' && !locals.session) {
       return fail(401, { ok: false, error: 'Not signed in.' });
     }
 
     const f = await request.formData();
     const name = String(f.get('name') ?? '');
-    const def = moduleDef(name);
-    if (!def || def.toggleable === false) return fail(400, { ok: false, error: 'Unknown module.' });
+    const target = resolveToggle(name, locals.session);
+    if ('denied' in target) return target.denied;
     const enabled = f.get('is_enabled') === 'on';
 
     if (env.DEMO === '1') return { ok: true, name, enabled };
 
-    try {
-      // The tile only flips enabled: re-read the stored config and write it back
-      // untouched. Never rebuild it from the tile form — the page flattens every
-      // config value to a string for its reply inputs, which would corrupt the
-      // nested blobs some modules own (channel-points rewards, timers) into
-      // "[object Object]" and wipe them on a toggle.
-      const rows = await listModules(uid);
-      const config = rows.find((r) => r.name === name)?.configs;
-      await upsertModule(uid, name, enabled, config);
-    } catch (e) {
-      logger.error({ err: e }, `[modules] toggle ${name} failed`);
-      return fail(400, { ok: false });
-    }
-
-    auditDashboardImpersonation(locals.session, 'module:toggle', `${name}=${enabled}`);
-    return { ok: true, name, enabled };
+    return flipModule({ name, uid: target.uid, enabled }, locals.session);
   }
 };
+
+// flipModule writes the enable flag, preserving the stored config. The tile
+// only flips enabled: re-read the stored config and write it back untouched.
+// Never rebuild it from the tile form — the page flattens every config value
+// to a string for its reply inputs, which would corrupt the nested blobs some
+// modules own (channel-points rewards, timers) into "[object Object]" and wipe
+// them on a toggle.
+async function flipModule(
+  flip: { name: string; uid: string; enabled: boolean },
+  session: Session | null | undefined
+) {
+  const { name, uid, enabled } = flip;
+  try {
+    const rows = await listModules(uid);
+    const config = rows.find((r) => r.name === name)?.configs;
+    await upsertModule(uid, name, enabled, config);
+  } catch (e) {
+    logger.error({ err: e }, `[modules] toggle ${name} failed`);
+    return fail(400, { ok: false });
+  }
+
+  auditDashboardImpersonation(session, 'module:toggle', `${name}=${enabled}`);
+  return { ok: true, name, enabled };
+}

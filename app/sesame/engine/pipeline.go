@@ -69,6 +69,7 @@ type Pipeline struct {
 	uses     *useReporter
 	loyalty  LoyaltyStore
 	dedup    *EventDedup
+	stats    *botStats
 
 	botID            string
 	outgressPremium  string
@@ -111,14 +112,20 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
 	}
+	if d.Stats != nil {
+		p.stats = newBotStats(d.Stats)
+	}
 	return p
 }
 
-// Close flushes and stops the command-use reporter. Safe when it was never
-// started (CountUses false).
+// Close flushes and stops the command-use reporter and the bot-wide stats
+// flusher. Safe when either was never started.
 func (p *Pipeline) Close() {
 	if p.uses != nil {
 		p.uses.Close()
+	}
+	if p.stats != nil {
+		p.stats.Close()
 	}
 }
 
@@ -139,6 +146,8 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
+	// Bot-wide lifetime totals count everything that decoded, filtered or not.
+	p.stats.count(env.Type == chatType)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -264,7 +273,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 			return
 		}
 		// Slash-verbs route on EVERY path, not just custom commands: a module
-		// reply (alert, trigger word, reward, gateway) leading with /announce,
+		// reply (alert, trigger word, reward, gossip) leading with /announce,
 		// /shoutout or /pin becomes that native action here. Translate is a
 		// no-op on non-chat outputs, so the command path's per-line translation
 		// is never re-parsed. A translated action with no usable payload (an

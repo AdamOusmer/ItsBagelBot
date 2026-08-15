@@ -22,8 +22,11 @@ import { RpcError } from '@bagel/shared/server/nats';
 
 // Paths that must stay reachable with a denied session: the login + OAuth flow
 // (a banned user must still be able to reach the callback's own gate), logout,
-// health probes, the locale switch and the pre-login delegation-accept landing.
-const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/lang', '/delegate/accept'];
+// health probes, the locale switch, the pre-login delegation-accept landing and
+// the public global-statistics page (it shows nobody's account state, so a
+// banned or ghost session has no more reason to be bounced off it than an
+// anonymous visitor does).
+const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/lang', '/delegate/accept', '/stats'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
@@ -48,6 +51,32 @@ function delegateAllowedPaths(sections: readonly string[]): string[] {
   }
   if (sections.includes('commands')) allowed.push('/counters/list');
   return allowed;
+}
+
+// pathnameAllowed checks a request path against the delegate's allowed-path
+// list. An exact hit always passes; a prefix hit (a sub-route under a
+// granted section) usually does too, EXCEPT under '/modules': that prefix
+// covers the generic per-module reply page for every catalog module, but a
+// module can declare its own narrower delegateSections (channel points), so
+// admitting '/modules/<id>' on the strength of the bare 'modules' grant
+// would let it reach a module it was never granted. Recheck the specific
+// module's own scope in that one case; every other prefix (the counters
+// list, a bespoke href) carries no per-item scope of its own.
+function pathnameAllowed(pathname: string, allowed: string[], sections: readonly string[]): boolean {
+  if (allowed.includes(pathname)) return true;
+  const prefix = allowed.find((p) => pathname.startsWith(p + '/'));
+  if (!prefix) return false;
+  if (prefix !== '/modules') return true;
+  const id = pathname.slice(prefix.length + 1).split('/')[0];
+  return moduleSubpathAllowed(id, sections);
+}
+
+function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean {
+  const def = MODULE_CATALOG.find((d) => d.id === id);
+  // An id the catalog has never heard of 404s at the route itself; let the
+  // request through rather than duplicating that check here.
+  if (!def) return true;
+  return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
 
 // guardSession validates an already-opened session against authoritative
@@ -97,9 +126,11 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     // Section scope for everything under (app) — pages AND their actions
     // (the per-page gates remain as defense in depth).
     if (event.route.id?.startsWith('/(app)')) {
-      const allowed = delegateAllowedPaths(s.sections ?? []);
-      const ok = allowed.some((p) => event.url.pathname === p || event.url.pathname.startsWith(p + '/'));
-      if (!ok) throw redirect(303, allowed[0] ?? '/delegate/exit');
+      const sections = s.sections ?? [];
+      const allowed = delegateAllowedPaths(sections);
+      if (!pathnameAllowed(event.url.pathname, allowed, sections)) {
+        throw redirect(303, allowed[0] ?? '/delegate/exit');
+      }
     }
   }
 

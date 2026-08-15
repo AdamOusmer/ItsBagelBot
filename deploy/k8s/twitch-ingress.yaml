@@ -96,7 +96,7 @@ spec:
         # the steady-state placement exactly 1/1/1.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -117,7 +117,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1785249561-8a92d66f005a@sha256:37d5aa310a0126f242264b3fa44149c611bbd5d8a661e709b4910552e767cb15 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1786680065-c2a889b382b5@sha256:551cd1c2154443674032c2b57a3e9411a508f67bb4c5cf825b884f00d6c60b98 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

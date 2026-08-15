@@ -49,7 +49,7 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           matchLabelKeys: [pod-template-hash]
           labelSelector:
             matchLabels:
@@ -63,7 +63,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1785249561-8a92d66f005a@sha256:3190829d6fd6ed4e15e41a0f7694aa0eda70af44290978b3d5d80670e04f3c82 # {"$imagepolicy": "flux-system:transactions"}
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1786680766-c3f4c68c40b5@sha256:f986ee83529e227f4432152e4ea5dc4b15d95a6c9923fe17e61227d0a90e92f6 # {"$imagepolicy": "flux-system:transactions"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

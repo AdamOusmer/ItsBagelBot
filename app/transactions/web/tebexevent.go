@@ -87,6 +87,20 @@ var billingEventActions = map[string]struct {
 	"payment.dispute.lost":                     {billingrpc.ActionRevoke, false},
 }
 
+// grantsPaid reports whether action leaves the user paid, as opposed to
+// ActionRevoke which does not. Activate, CancelRequested (cancellation
+// pending but still paid until the term ends) and CancelAborted (a reversed
+// cancellation, or a chargeback the merchant won) all route to
+// applyPaidUpdate in app/users/repository/billing.go and land the user in
+// user.StatusPaid. Every one of them needs a bounded expiry on the way in
+// (see the fallback in applyBilling below), so the paid-producing set is
+// defined once here instead of duplicated per call site.
+func grantsPaid(action billingrpc.Action) bool {
+	return action == billingrpc.ActionActivate ||
+		action == billingrpc.ActionCancelRequested ||
+		action == billingrpc.ActionCancelAborted
+}
+
 // trialAction picks the billing action a trial event drives, or false when the
 // event (ending-soon reminder, trial ended) changes nothing.
 func trialAction(eventType string) (billingrpc.Action, bool) {

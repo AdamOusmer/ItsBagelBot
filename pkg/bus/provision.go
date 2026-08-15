@@ -39,6 +39,13 @@ const (
 	// left un-converged is a stream whose declared capabilities (batch publish,
 	// message schedules) the publishers are already assuming.
 	streamReconcileRetry = 30 * time.Second
+	// startupBudget bounds the synchronous provisioning at process start. It
+	// covers the broker quorum election a rolling restart or cluster boot puts
+	// in front of the first reconcile; past it the pod fails fast.
+	startupBudget = 45 * time.Second
+	// startupRetryInterval is how often the startup loop re-attempts inside
+	// that budget.
+	startupRetryInterval = 2 * time.Second
 )
 
 // EnsureStreams keeps the declared streams provisioned for the lifetime of the
@@ -46,7 +53,8 @@ const (
 // connection open until ctx is cancelled and reconciles the specs:
 //
 //   - once, synchronously, before returning — a failure here is fatal at
-//     startup, because the service cannot run without its streams;
+//     startup (with a bounded retry budget to tolerate transient broker quorum
+//     election races during rolling restarts or cluster boots);
 //   - again on every reconnect — if the broker restarted with empty JetStream
 //     storage (or the streams were deleted), they are recreated automatically;
 //   - and on a retry timer while any stream is still un-converged.
@@ -72,12 +80,14 @@ func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap
 	}
 
 	// Initial provisioning is synchronous and fatal: the service must not start
-	// serving if its streams could not be established.
-	for _, spec := range specs {
-		if err := guardian.reconcile(ctx, spec); err != nil {
-			nc.Close()
-			return err
-		}
+	// serving if its streams could not be established. It retries inside a
+	// bounded startup budget first, because the reconcile that matters most runs
+	// while the broker's quorum is still electing (rolling restarts, cluster
+	// boots) and failing the pod on that transient would just crashloop it into
+	// the same window.
+	if err := guardian.provisionAtStartup(ctx); err != nil {
+		nc.Close()
+		return err
 	}
 
 	// The reconnect handler is installed here rather than as a connect option on
@@ -119,6 +129,40 @@ type streamProvisioner interface {
 	Stream(ctx context.Context, name string) (jsapi.Stream, error)
 	CreateStream(ctx context.Context, cfg jsapi.StreamConfig) (jsapi.Stream, error)
 	UpdateStream(ctx context.Context, cfg jsapi.StreamConfig) (jsapi.Stream, error)
+}
+
+// provisionAtStartup runs the first reconcile pass, retrying inside the
+// startup budget so a transient quorum election does not crashloop the pod,
+// and failing fast once the budget is spent.
+func (g *streamGuardian) provisionAtStartup(ctx context.Context) error {
+	startupCtx, cancel := context.WithTimeout(ctx, startupBudget)
+	defer cancel()
+	for {
+		lastErr := g.reconcileOnce(startupCtx)
+		if lastErr == nil {
+			return nil
+		}
+		select {
+		case <-startupCtx.Done():
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("bus: failed to provision streams within %v: %w", startupBudget, lastErr)
+		case <-time.After(startupRetryInterval):
+			g.log.Warn("waiting for jetstream quorum to provision streams", zap.Error(lastErr))
+		}
+	}
+}
+
+// reconcileOnce is one full pass that stops at the first failure, which is the
+// startup contract: report the drifted stream rather than papering over it.
+func (g *streamGuardian) reconcileOnce(ctx context.Context) error {
+	for _, spec := range g.specs {
+		if err := g.reconcile(ctx, spec); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *streamGuardian) reconcileAll(ctx context.Context) {

@@ -10,7 +10,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
@@ -18,24 +18,24 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeGateway records calls and answers each provider.endpoint with a canned
+// fakeGossip records calls and answers each provider.endpoint with a canned
 // reply value (marshaled into the caller's typed out). err short-circuits.
-type fakeGateway struct {
+type fakeGossip struct {
 	mu      sync.Mutex
-	calls   []fakeGatewayCall
+	calls   []fakeGossipCall
 	replies map[string]any
 	err     error
 	done    chan struct{} // closed on first call, for async handlers
 }
 
-type fakeGatewayCall struct {
+type fakeGossipCall struct {
 	provider, endpoint string
-	req                gatewayrpc.Request
+	req                gossiprpc.Request
 }
 
-func (f *fakeGateway) Call(_ context.Context, provider, endpoint string, req gatewayrpc.Request, out any) error {
+func (f *fakeGossip) Call(_ context.Context, route engine.GossipRoute, req gossiprpc.Request, out any) error {
 	f.mu.Lock()
-	f.calls = append(f.calls, fakeGatewayCall{provider, endpoint, req})
+	f.calls = append(f.calls, fakeGossipCall{route.Provider, route.Endpoint, req})
 	if f.done != nil {
 		close(f.done)
 		f.done = nil
@@ -45,7 +45,7 @@ func (f *fakeGateway) Call(_ context.Context, provider, endpoint string, req gat
 	if f.err != nil {
 		return f.err
 	}
-	reply, ok := f.replies[provider+"."+endpoint]
+	reply, ok := f.replies[route.Provider+"."+route.Endpoint]
 	if !ok {
 		return bus.RPCReplyError{Message: "no responder"}
 	}
@@ -56,7 +56,7 @@ func (f *fakeGateway) Call(_ context.Context, provider, endpoint string, req gat
 	return json.Unmarshal(b, out)
 }
 
-func (f *fakeGateway) lastCall(t *testing.T) fakeGatewayCall {
+func (f *fakeGossip) lastCall(t *testing.T) fakeGossipCall {
 	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -84,17 +84,17 @@ func urchinCtx(config string) *module.Context {
 	return c
 }
 
-func urchinCmd(t *testing.T, gw engine.GatewayCaller, name string) module.Command {
+func urchinCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := Urchin(engine.Deps{Gateway: gw, Log: zap.NewNop()})
+	m := Urchin(engine.Deps{Gossip: gw, Log: zap.NewNop()})
 	assert.Equal(t, "urchin", m.Name)
 	assert.Equal(t, module.KindOptIn, m.Kind)
 	return findCmd(t, m, name)
 }
 
 func TestUrchinDailyDefaultTemplate(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"urchin.daily": gatewayrpc.UrchinSessionReply{
+	gw := &fakeGossip{replies: map[string]any{
+		"urchin.daily": gossiprpc.UrchinSessionReply{
 			Player: "Techno", Wins: 5, Losses: 2, FinalKills: 21, FinalDeaths: 3, BedsBroken: 9,
 		},
 	}}
@@ -112,7 +112,7 @@ func TestUrchinDailyDefaultTemplate(t *testing.T) {
 }
 
 func TestUrchinAccountResolution(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"urchin.weekly": gatewayrpc.UrchinSessionReply{Player: "X"}}}
+	gw := &fakeGossip{replies: map[string]any{"urchin.weekly": gossiprpc.UrchinSessionReply{Player: "X"}}}
 	cmd := urchinCmd(t, gw, "weekly")
 
 	var col collector
@@ -126,7 +126,7 @@ func TestUrchinAccountResolution(t *testing.T) {
 }
 
 func TestUrchinPerCommandToggleOff(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{"urchin.monthly": gatewayrpc.UrchinSessionReply{Player: "X"}}}
+	gw := &fakeGossip{replies: map[string]any{"urchin.monthly": gossiprpc.UrchinSessionReply{Player: "X"}}}
 	cmd := urchinCmd(t, gw, "monthly")
 
 	var col collector
@@ -136,10 +136,10 @@ func TestUrchinPerCommandToggleOff(t *testing.T) {
 }
 
 func TestUrchinCustomTemplate(t *testing.T) {
-	// !bwstats rides the gateway's hypixel provider (its own external system);
+	// !bwstats rides gossip's hypixel provider (its own external system);
 	// the command stays on the urchin dashboard module.
-	gw := &fakeGateway{replies: map[string]any{
-		"hypixel.stats": gatewayrpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
+	gw := &fakeGossip{replies: map[string]any{
+		"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
 	}}
 	cmd := urchinCmd(t, gw, "bwstats")
 
@@ -151,7 +151,7 @@ func TestUrchinCustomTemplate(t *testing.T) {
 }
 
 func TestUrchinReplyErrorChatsBack(t *testing.T) {
-	gw := &fakeGateway{err: bus.RPCReplyError{Message: "player not found"}}
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
 	cmd := urchinCmd(t, gw, "daily")
 
 	var col collector
@@ -160,11 +160,11 @@ func TestUrchinReplyErrorChatsBack(t *testing.T) {
 	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
 }
 
-// An infrastructure failure (cold lookup outliving the RPC budget, gateway
+// An infrastructure failure (cold lookup outliving the RPC budget, gossip
 // down) still chats a retry hint — the first attempt must not be silent — while
 // the error propagates for logging.
 func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {
-	gw := &fakeGateway{err: context.DeadlineExceeded}
+	gw := &fakeGossip{err: context.DeadlineExceeded}
 	cmd := urchinCmd(t, gw, "daily")
 
 	var col collector
@@ -174,10 +174,10 @@ func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {
 }
 
 func TestUrchinTagsFormatting(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"urchin.tags": gatewayrpc.UrchinTagsReply{
+	gw := &fakeGossip{replies: map[string]any{
+		"urchin.tags": gossiprpc.UrchinTagsReply{
 			Player: "Sus",
-			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
+			Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
 		},
 	}}
 	cmd := urchinCmd(t, gw, "tag")
@@ -189,8 +189,8 @@ func TestUrchinTagsFormatting(t *testing.T) {
 }
 
 func TestUrchinTagsClean(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"urchin.tags": gatewayrpc.UrchinTagsReply{Player: "Clean", Tags: nil},
+	gw := &fakeGossip{replies: map[string]any{
+		"urchin.tags": gossiprpc.UrchinTagsReply{Player: "Clean", Tags: nil},
 	}}
 	cmd := urchinCmd(t, gw, "tag")
 
@@ -201,10 +201,10 @@ func TestUrchinTagsClean(t *testing.T) {
 }
 
 func TestUrchinTagDescription(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"urchin.tags": gatewayrpc.UrchinTagsReply{
+	gw := &fakeGossip{replies: map[string]any{
+		"urchin.tags": gossiprpc.UrchinTagsReply{
 			Player: "Sus",
-			Tags:   []gatewayrpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
+			Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
 		},
 	}}
 	cmd := urchinCmd(t, gw, "tagdescription")
@@ -216,8 +216,8 @@ func TestUrchinTagDescription(t *testing.T) {
 }
 
 func TestUrchinSniperScore(t *testing.T) {
-	gw := &fakeGateway{replies: map[string]any{
-		"urchin.sniper": gatewayrpc.UrchinSniperReply{Player: "Aim", Score: 7.5, Mode: "warn", TagCount: 1},
+	gw := &fakeGossip{replies: map[string]any{
+		"urchin.sniper": gossiprpc.UrchinSniperReply{Player: "Aim", Score: 7.5, Mode: "warn", TagCount: 1},
 	}}
 	cmd := urchinCmd(t, gw, "sniper")
 

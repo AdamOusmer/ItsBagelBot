@@ -9,7 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
-	gatewayrpc "ItsBagelBot/internal/domain/rpc/gateway"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
@@ -47,13 +47,13 @@ func goveeCtx(payload, config string) *module.Context {
 	return c
 }
 
-func okGateway() *fakeGateway {
-	return &fakeGateway{replies: map[string]any{"govee.control": gatewayrpc.GoveeControlReply{OK: true}}}
+func okGossip() *fakeGossip {
+	return &fakeGossip{replies: map[string]any{"govee.control": gossiprpc.GoveeControlReply{OK: true}}}
 }
 
 func TestGoveeUnconfiguredNoop(t *testing.T) {
 	var col collector
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: okGateway()}
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: okGossip()}
 	// No device in the config -> not set up -> nothing happens.
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, `{"rewardId":"rw-1"}`), col.emit))
 	assert.Empty(t, col.out)
@@ -61,27 +61,27 @@ func TestGoveeUnconfiguredNoop(t *testing.T) {
 
 func TestGoveeUnmatchedRewardNoop(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"rewardId":"other","device":"AB:CD:EF","sku":"H6159"}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
 	assert.Empty(t, col.out)
 	assert.Empty(t, gw.calls, "must not drive lights for an unrelated reward")
 }
 
-func TestGoveeOfflineRefundsWithoutCallingGateway(t *testing.T) {
+func TestGoveeOfflineRefundsWithoutCallingGossip(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: false}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "offline must not reach the gateway")
+	assert.Empty(t, gw.calls, "offline must not reach gossip")
 	assertRefund(t, col.out)
 }
 
 func TestGoveeLiveCheckErrorRefunds(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{err: errors.New("live store unavailable")}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{err: errors.New("live store unavailable")}, Gossip: gw}
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
 	assert.Empty(t, gw.calls, "an unconfirmed live state must refund, not drive lights")
 	assertRefund(t, col.out)
@@ -89,18 +89,18 @@ func TestGoveeLiveCheckErrorRefunds(t *testing.T) {
 
 func TestGoveeUnknownColourRefunds(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	payload := `{"id":"redeem-1","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"chartreuseish","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "a bad colour must refund before the gateway")
+	assert.Empty(t, gw.calls, "a bad colour must refund before gossip")
 	assertRefund(t, col.out)
 }
 
 func TestGoveeSuccessDrivesLightsAndFulfills(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
 
 	call := gw.lastCall(t)
@@ -122,23 +122,23 @@ func TestGoveeSuccessDrivesLightsAndFulfills(t *testing.T) {
 
 func TestGoveeAllowOfflineDrivesLightsWhileOffline(t *testing.T) {
 	var col collector
-	gw := okGateway()
+	gw := okGossip()
 	// Stream offline, but the broadcaster opted out of live-only.
-	d := engine.Deps{Live: &fakeLive{live: false}, Gateway: gw}
+	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
 	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOffline":true}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
 
 	call := gw.lastCall(t)
-	assert.Equal(t, "control", call.endpoint, "allowOffline must reach the gateway even when offline")
+	assert.Equal(t, "control", call.endpoint, "allowOffline must reach gossip even when offline")
 	require.Len(t, col.out, 2)
 	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
 }
 
-func TestGoveeGatewayFailureRefunds(t *testing.T) {
+func TestGoveeGossipFailureRefunds(t *testing.T) {
 	var col collector
-	gw := okGateway()
+	gw := okGossip()
 	gw.err = bus.RPCReplyError{Message: "too many light changes, slow down"}
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
 	require.Len(t, col.out, 2)
 	assert.Contains(t, col.out[0].Text, "too many light changes")
@@ -147,8 +147,8 @@ func TestGoveeGatewayFailureRefunds(t *testing.T) {
 
 func TestGoveeSuccessLeavePolicyEmitsNoUpdate(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","onRedeem":"leave"}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
 	require.Len(t, col.out, 1, "leave policy chats but leaves the redemption for a mod")
@@ -157,8 +157,8 @@ func TestGoveeSuccessLeavePolicyEmitsNoUpdate(t *testing.T) {
 
 func TestGoveeOffActionPowersOffWhenAllowed(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOff":true}`
 	payload := `{"id":"redeem-2","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
@@ -173,20 +173,20 @@ func TestGoveeOffActionPowersOffWhenAllowed(t *testing.T) {
 
 func TestGoveeOffInputRefundsWhenNotAllowed(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	// Default config: the off action is not enabled, so "off" is just an
-	// unrecognized colour and refunds before the gateway.
+	// unrecognized colour and refunds before gossip.
 	payload := `{"id":"redeem-3","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "off must not reach the gateway when the action is disabled")
+	assert.Empty(t, gw.calls, "off must not reach gossip when the action is disabled")
 	assertRefund(t, col.out)
 }
 
 func TestGoveeCustomReplyTemplate(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":"{user} painted the room {color}"}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
 	require.Len(t, col.out, 2)
@@ -195,8 +195,8 @@ func TestGoveeCustomReplyTemplate(t *testing.T) {
 
 func TestGoveeMultiBindingDrivesMatchingLight(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`
 	// Redeeming the second reward must drive the second light, not the first.
 	payload := `{"id":"redeem-9","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"red","reward":{"id":"rw-2","title":"x","cost":1}}`
@@ -211,8 +211,8 @@ func TestGoveeMultiBindingDrivesMatchingLight(t *testing.T) {
 
 func TestGoveeMultiBindingUnmatchedRewardNoop(t *testing.T) {
 	var col collector
-	gw := okGateway()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gateway: gw}
+	gw := okGossip()
+	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`
 	payload := `{"id":"redeem-x","broadcaster_user_id":"2","user_name":"V","user_login":"v","user_input":"red","reward":{"id":"other","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))

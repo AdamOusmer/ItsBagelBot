@@ -44,7 +44,7 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Modules, prefix, queueGr
 	}
 
 	// The Govee key-custody verbs (set/clear/status for the dashboard, plus the
-	// gateway-only internal decrypt) are part of the modules service's RPC
+	// gossip-only internal decrypt) are part of the modules service's RPC
 	// surface, wired here so main keeps a single subscribe call. A no-op when
 	// key custody is disabled (no keyset).
 	return wireGovee(goveeWiring{nc: nc, creds: repo.Govee(), queueGroup: queueGroup, app: app, log: log})

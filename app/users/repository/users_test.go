@@ -288,6 +288,57 @@ func TestApplyBillingCancellationAndEnd(t *testing.T) {
 	assert.Empty(t, view.SubscriptionSource)
 }
 
+// A payment.dispute.won arrives as ActionCancelAborted after the preceding
+// payment.dispute.opened (ActionRevoke) already cleared the stored expiry.
+// If the transactions-side fallback were ever bypassed, ApplyBilling would
+// otherwise be asked to set StatusPaid with no expiry on a row that already
+// has none. The backstop in applyPaidUpdate must clamp this to a bounded
+// expiry rather than mint permanent premium: this is the invariant that
+// makes the bug structurally impossible from the users side, independent of
+// whether the transactions side got its fallback right.
+func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 5005, "Chargeback", "chargeback@example.com"))
+
+	started := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	expires := started.AddDate(0, 1, 0)
+	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 5005, EventID: "evt-start", Action: billingrpc.ActionActivate,
+		OccurredAt: started, ExpiresAt: &expires,
+	})
+	require.NoError(t, err)
+
+	// payment.dispute.opened: the revoke clears the stored expiry.
+	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 5005, EventID: "evt-dispute-open", Action: billingrpc.ActionRevoke,
+		OccurredAt: started.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	view, err := repo.Get(ctx, 5005)
+	require.NoError(t, err)
+	assert.Equal(t, "free", view.Status)
+	assert.Nil(t, view.SubscriptionExpiresAt)
+
+	// payment.dispute.won arrives as ActionCancelAborted with no expiry, the
+	// exact shape a one-time purchase produces without the transactions-side
+	// fallback.
+	won := started.Add(3 * 24 * time.Hour)
+	applied, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 5005, EventID: "evt-dispute-won", Action: billingrpc.ActionCancelAborted,
+		OccurredAt: won,
+	})
+	require.NoError(t, err)
+	assert.True(t, applied)
+
+	view, err = repo.Get(ctx, 5005)
+	require.NoError(t, err)
+	assert.Equal(t, "paid", view.Status)
+	require.NotNil(t, view.SubscriptionExpiresAt,
+		"a nil-expiry paid update against a NULL stored expiry must not mint an unbounded grant")
+	assert.Equal(t, won.AddDate(0, 1, 0), *view.SubscriptionExpiresAt)
+}
+
 func TestExpireSubscriptionsHonorsTebexGrace(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()

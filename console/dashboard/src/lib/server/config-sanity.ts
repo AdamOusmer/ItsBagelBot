@@ -23,7 +23,12 @@ export function dashboardL1CacheCapacity(env: Env): number {
 // Validate at boot (from the init hook), reading the injected env rather than
 // process.env so all runtime config flows through $env/dynamic/private.
 export function assertConfigSane(env: Env): void {
-  const origin = assertOrigin('ORIGIN', env.ORIGIN);
+  // ORIGIN is optional in production: the app answers under two hostnames
+  // (dashboard. and stats.itsbagelbot.com), so the deployment derives each
+  // request's origin from traefik's forwarded headers (HOST_HEADER /
+  // PROTOCOL_HEADER) instead of pinning one. When ORIGIN is set (dev, DEMO),
+  // it must still be a bare origin and must agree with the callback.
+  const origin = env.ORIGIN ? assertOrigin('ORIGIN', env.ORIGIN) : undefined;
   assertCallback('TWITCH_REDIRECT_URI', env.TWITCH_REDIRECT_URI, {
     origin,
     callbackPath: '/auth/callback'

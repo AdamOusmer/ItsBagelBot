@@ -85,3 +85,33 @@ Sesame maintains high throughput by avoiding database reads on the hot path:
 - **Live Store**: `ValkeyLiveStore` checks if a broadcaster is currently live. It caches locally, falls back to Valkey, and can trigger a system outgress lane check to Twitch if the key is cold.
 - **Domain State**: Cooldowns, timers, loyalty live views, greeting windows, and
   reputation state are backed by Valkey. Transport replay is not.
+
+### Follow-alert dedupe
+
+Twitch re-sends `channel.follow` on every re-follow, so an unfollow/refollow loop would otherwise drive the chat
+alert as fast as a viewer can click. The alerts module claims `alert:follow:<broadcaster>:<follower>` for 72 hours
+using the same `SET key 1 NX PX` idiom as a command cooldown, and posts the thank-you only when it wins the claim.
+Both halves of the key are Twitch numeric IDs, so a rename cannot reopen the window, and one channel's claim never
+suppresses another's. The claim is taken after the enable toggle is read, so a channel with follow alerts off never
+burns a window it would want the moment it turns them back on.
+
+Only follows are gated. Subs, gifts, cheers and raids each cost the sender something, and ad breaks are the
+channel's own event.
+
+Three properties of the fleet make a multi-day window safe to hold in Valkey:
+
+- **The claim always lands on the primary.** `SET ... NX` is a write, so replica lag cannot let two replicas both
+  believe they won the window.
+- **The window survives restarts.** The keyspace runs AOF with `appendfsync everysec` on a persistent volume
+  (`save ""`, no RDB snapshots). The AOF records expirations as absolute timestamps, so a pod restart or a full
+  fleet restart restores each claim with its *remaining* time, not a refreshed 72 hours. The only loss window is
+  the sub-second of writes an unclean kill can drop, plus the few milliseconds of unreplicated writes a Sentinel
+  failover discards. Both cost at most a duplicate alert.
+- **The key set stays small.** At 5,000 follows/day a channel holds roughly 15,000 claims of about 120 bytes each:
+  under 2 MiB against the 512 MiB `maxmemory` budget. The window could be raised to a week at the same order of
+  cost. The pressure to watch is not size but policy: `maxmemory-policy volatile-lru` evicts TTL-carrying keys
+  first, and these claims are written once and rarely read, making them the coldest keys in the keyspace.
+  Sustained memory pressure would evict them and reopen alerts.
+
+The gate fails open. With Valkey unreachable the alert still posts and the miss is logged, because a lost
+thank-you is a worse outcome than a duplicate, and the abuse the gate exists for cannot cause the outage.

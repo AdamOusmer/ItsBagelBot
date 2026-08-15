@@ -6,8 +6,8 @@
 //     modules service (Tink AEAD, that service's own keyset) and reached here
 //     only through set/clear/status verbs — the value never comes back, the UI
 //     shows "key on file" or not.
-//   - The device list is fetched live from Govee through the gateway
-//     (bagel.rpc.gateway.govee.devices), which authenticates with the stored
+//   - The device list is fetched live from Govee through the gossip service
+//     (bagel.rpc.gossip.govee.devices), which authenticates with the stored
 //     key, so the browser never sees it either.
 //   - The reward is a Twitch custom reward (owned by outgress, created under the
 //     broadcaster's token, same RPC the Channel Points tab uses) plus a local
@@ -257,10 +257,10 @@ export function goveeStore(userId: string): GoveeStore {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
         const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
-          `${SUB.gateway}.govee.devices`,
+          `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
-          // Just over the gateway's devices handler budget (8s) so this RPC
-          // never abandons a fetch the gateway is still completing.
+          // Just over gossip's devices handler budget (8s) so this RPC
+          // never abandons a fetch gossip is still completing.
           9000
         );
         if (r.error) throw new Error(r.error);

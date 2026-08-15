@@ -38,11 +38,11 @@ func resolveAccount(s accountSources) string {
 	return s.BroadcasterLogin
 }
 
-// chatReplyError turns a gateway failure into a chat line so the viewer gets an
+// chatReplyError turns a gossip failure into a chat line so the viewer gets an
 // answer instead of silence. A reply-level failure (player not found, rate
-// limited) chats the gateway's own message and reports handled=true. An
+// limited) chats gossip's own message and reports handled=true. An
 // infrastructure failure (timeout, no responder) also chats — a cold lookup can
-// outlive sesame's RPC budget while the gateway finishes and caches, so telling
+// outlive sesame's RPC budget while gossip finishes and caches, so telling
 // the viewer to retry is exactly right — but reports handled=false so the
 // caller still propagates the error for logging.
 func chatReplyError(c *module.Context, emit module.Emit, account string, err error) bool {

@@ -6,7 +6,7 @@
   // Two reply shapes:
   //  - event replies (shoutout, alerts): framed by the firing event (`tag`),
   //    bot line only.
-  //  - command replies (gateway modules: reply.command set): same surface as a
+  //  - command replies (gossip modules: reply.command set): same surface as a
   //    custom command — "Chat rehearsal" border, a sample viewer typing the
   //    trigger — and the token palette swaps to the reply's supported variables.
   // Both rehearse with kind="reply": ONLY this reply's previewSamples (plus the

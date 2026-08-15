@@ -80,10 +80,12 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
               app: console-dashboard
+          matchLabelKeys:
+            - pod-template-hash
       # DaemonSet placement keeps one dashboard pod per schedulable node, so
       # cloudflared -> traefik can prefer a local backend on every node.
       # Resolve external hosts (Twitch OAuth login) without the cluster
@@ -102,7 +104,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1785249561-8a92d66f005a@sha256:e52bac3accfc8de12590477a5143a73ee02c6c7e913e6f8fbab1cf4ea2903bd6 # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1786764530-e1ec13a8ddf1@sha256:b3e7167fc9e5ba97c2175e1e360bec57c56b52ec23e508f1a80b5450f30b0284 # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -117,10 +119,17 @@ spec:
               value: /etc/console/tls/tls.key
             - name: NODE_ENV
               value: production
-            # adapter-node sits behind cloudflared+traefik; ORIGIN lets SvelteKit
-            # validate form POSTs (origin-checked CSRF) against the public URL.
-            - name: ORIGIN
-              value: https://dashboard.itsbagelbot.com
+            # adapter-node sits behind cloudflared+traefik. The app answers
+            # under two public hostnames (dashboard. and stats.itsbagelbot.com),
+            # so instead of pinning one ORIGIN it derives each request's origin
+            # from traefik's forwarded headers — traefik always sets both, and
+            # overwrites client-supplied values, so the origin-checked CSRF on
+            # form POSTs stays sound. The stats host reroutes '/' to the public
+            # stats page in the app (src/hooks.ts).
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: HOST_HEADER
+              value: x-forwarded-host
             # Pin the in-cluster NATS endpoint. The Doppler secret's NATS_HOST is
             # a stale cross-namespace FQDN (nats.bagelbot...) that does not
             # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
@@ -288,8 +297,13 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`dashboard.itsbagelbot.com`)
+    - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
       kind: Rule
+      middlewares:
+        # Dead-backend 502-504 render web/'s coded 500 page instead of
+        # traefik's plain text (deploy/k8s/web-error-pages.yaml). App-rendered
+        # errors pass through untouched.
+        - name: web-error-pages
       services:
         - name: console-dashboard
           port: 80

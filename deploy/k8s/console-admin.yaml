@@ -61,7 +61,7 @@ spec:
               app: console-admin
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           # Scope the hard rule to the incoming ReplicaSet. With maxSurge=1
           # the first new pod may share a host with an old pod, while the
           # second new pod is forced onto the other normal node.
@@ -104,7 +104,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1785249561-8a92d66f005a@sha256:248042c56dad95003410358b486ecd59087ebe38229db291d46545ae011596d9 # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1786763145-e46ac95d96b9@sha256:a627a382afdae175c1104fe5d0335cf77df1ddc87888c39405de85ef559db455 # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
