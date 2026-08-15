@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ItsBagelBot/app/gossip/internal/config"
 	"ItsBagelBot/app/gossip/internal/core"
@@ -106,6 +107,28 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("gossip shutting down")
+	drainRPCHandlers(log)
+}
+
+// rpcDrainTimeout bounds the wait for in-flight RPC handlers at shutdown. It
+// fits inside the pod's budget: the preStop hook holds SIGTERM for 10s on
+// /drain and terminationGracePeriodSeconds is 45, so a handler blocked on its
+// own 10-15s upstream timeout is still given room to answer before the kubelet
+// escalates to SIGKILL.
+const rpcDrainTimeout = 15 * time.Second
+
+// drainRPCHandlers waits for handlers that are mid-request before main returns
+// and its deferred closes run. Handlers now execute on pool workers rather than
+// on the NATS callback goroutine, so without this a SIGTERM would close the NATS
+// connection and the Valkey client underneath a handler still using them: the
+// requester loses its reply and the log fills with use-after-close noise that
+// looks like a broker fault rather than a shutdown.
+func drainRPCHandlers(log *zap.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), rpcDrainTimeout)
+	defer cancel()
+	if err := bus.DrainRPCHandlers(ctx); err != nil {
+		log.Warn("rpc handlers did not drain before the deadline", zap.Error(err))
+	}
 }
 
 func subscribeRPCHealth(nc *nats.Conn, queueGroup string, log *zap.Logger) {
