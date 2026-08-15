@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -346,7 +347,7 @@ func TestPullModeStillRefusesLanesOutsideTheHotIngress(t *testing.T) {
 	t.Setenv("NATS_CONSUME_FLOW", "on")
 	t.Setenv("NATS_CONSUME_MODE", "pull")
 	subscriber := &fleetSubscriber{group: "worker"}
-	hot := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.event.standard"}
+	hot := subscriptionTarget{stream: TwitchIngressStandardStream.Name, topic: "twitch.ingress.event.standard"}
 	control := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.status.authz.revoked"}
 
 	if got := subscriber.laneModeFor(hot); got != laneModePull {
@@ -359,7 +360,187 @@ func TestPullModeStillRefusesLanesOutsideTheHotIngress(t *testing.T) {
 	}
 }
 
+// TestPullBindingReplacesThePushDurableOnTheModeFlip covers the transition the
+// shared consumer name makes unavoidable. durableName(group, subject) carries no
+// mode token, so flipping NATS_CONSUME_MODE to pull re-provisions the very
+// durable the explicit push consumer occupies — and nats-server refuses to
+// convert a push consumer to a pull one in place. Without the replacement the
+// flip fails every pod's lane binding identically and the lane just stops
+// consuming, which is the least visible way a lane can break.
+func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
+	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100)}
+	name := js.live.Config.Name
+
+	consumer, err := bindPullConsumer(
+		context.Background(), js, TwitchIngressStandardStream.Name,
+		pullConsumerConfig("twitch.ingress.event.standard", name),
+	)
+	if err != nil {
+		t.Fatalf("bindPullConsumer: %v", err)
+	}
+	if consumer == nil {
+		t.Fatal("conversion returned no consumer to fetch from")
+	}
+	if js.deletes != 1 {
+		t.Fatalf("deletes = %d, want exactly one: the conversion is the only thing that earns a delete", js.deletes)
+	}
+	if len(js.created) != 1 {
+		t.Fatalf("creates = %d, want one recreation", len(js.created))
+	}
+
+	got := js.created[0]
+	if got.DeliverSubject != "" {
+		t.Fatalf("replacement carries delivery subject %q; it is still a push consumer", got.DeliverSubject)
+	}
+	if got.AckPolicy != jsapi.AckAllPolicy {
+		t.Fatalf("replacement ack policy = %v, want the pull lane's floor-based AckAll", got.AckPolicy)
+	}
+	// The fleet's acknowledged position survives the delete: resuming anywhere
+	// earlier re-executes chat commands the previous consumer already handled.
+	if got.DeliverPolicy != jsapi.DeliverByStartSequencePolicy || got.OptStartSeq != 9_101 {
+		t.Fatalf("replacement resumed at %v/%d, want the predecessor's ack floor + 1",
+			got.DeliverPolicy, got.OptStartSeq)
+	}
+}
+
+func TestPullReplacementNeverOpensOnTheWholeRetainedFirehose(t *testing.T) {
+	// A push durable that never acked anything. Inheriting its DeliverAll would
+	// replay every retained event to the converted lane at once.
+	js := &pullConsumerSpy{live: livePushLaneConsumer(0)}
+
+	if _, err := bindPullConsumer(
+		context.Background(), js, TwitchIngressStandardStream.Name,
+		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
+	); err != nil {
+		t.Fatalf("bindPullConsumer: %v", err)
+	}
+	if got := js.created[0]; got.DeliverPolicy != jsapi.DeliverNewPolicy || got.OptStartSeq != 0 {
+		t.Fatalf("unknown ack floor resumed at %v/%d, want DeliverNew", got.DeliverPolicy, got.OptStartSeq)
+	}
+}
+
+// TestPullBindingBindsAConversionAnotherPodAlreadyMade is the guard on the
+// difference between the two receipt-level paths. A flow consumer is per-pod, so
+// replacing one costs the caller its own cursor; this durable is fleet-wide, so
+// a delete takes it out from under every other pod fetching from it. On a
+// simultaneous fleet restart every pod would otherwise delete the successor the
+// previous one just built.
+func TestPullBindingBindsAConversionAnotherPodAlreadyMade(t *testing.T) {
+	// The conversion lands between our INFO and our second update.
+	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), convertAfter: 2}
+
+	consumer, err := bindPullConsumer(
+		context.Background(), js, TwitchIngressStandardStream.Name,
+		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
+	)
+	if err != nil {
+		t.Fatalf("bindPullConsumer: %v", err)
+	}
+	if consumer == nil {
+		t.Fatal("raced conversion returned no consumer to fetch from")
+	}
+	if js.deletes != 0 {
+		t.Fatalf("deletes = %d, want none: the durable was already converted", js.deletes)
+	}
+}
+
+func TestPullBindingNeverDeletesOnATransientFailure(t *testing.T) {
+	// No responders during a meta election is the canonical one: deleting here
+	// would turn a retryable blip into a fleet-wide delivery reset.
+	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), createErr: nats.ErrNoResponders}
+
+	_, err := bindPullConsumer(
+		context.Background(), js, TwitchIngressStandardStream.Name,
+		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
+	)
+	if err == nil {
+		t.Fatal("a transient provisioning failure was swallowed")
+	}
+	if js.deletes != 0 {
+		t.Fatalf("deletes = %d, want none: only an immutable-field rejection earns a delete", js.deletes)
+	}
+}
+
 // ---- fakes -----------------------------------------------------------------
+
+// livePushLaneConsumer models the explicit-ACK durable a lane runs before the
+// mode flip: push (it has a delivery subject), per-message acks, opened at
+// DeliverAll.
+func livePushLaneConsumer(ackFloor uint64) *jsapi.ConsumerInfo {
+	name := "worker_twitch_ingress_event_standard"
+	info := &jsapi.ConsumerInfo{
+		Config: jsapi.ConsumerConfig{
+			Name:           name,
+			Durable:        name,
+			DeliverPolicy:  jsapi.DeliverAllPolicy,
+			AckPolicy:      jsapi.AckExplicitPolicy,
+			FilterSubject:  "twitch.ingress.event.standard",
+			DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
+			DeliverGroup:   "worker",
+		},
+	}
+	info.AckFloor.Stream = ackFloor
+	return info
+}
+
+// pullConsumerSpy stands in for the JetStream API the pull binding uses,
+// modelling the one server behaviour the replacement path exists for: a live
+// push consumer cannot be converted in place, and only a delete makes room.
+type pullConsumerSpy struct {
+	live      *jsapi.ConsumerInfo
+	createErr error
+	// convertAfter simulates another pod completing the conversion, on the Nth
+	// create attempt.
+	convertAfter int
+
+	attempts int
+	created  []jsapi.ConsumerConfig
+	deletes  int
+}
+
+// pullConsumerHandle satisfies jetstream.Consumer by embedding the interface, so
+// any method the binding does not call panics instead of returning a zero value.
+type pullConsumerHandle struct {
+	jsapi.Consumer
+	info *jsapi.ConsumerInfo
+}
+
+func (c *pullConsumerHandle) Info(context.Context) (*jsapi.ConsumerInfo, error) {
+	return c.info, nil
+}
+
+func (s *pullConsumerSpy) Consumer(context.Context, string, string) (jsapi.Consumer, error) {
+	if s.live == nil {
+		return nil, jsapi.ErrConsumerNotFound
+	}
+	return &pullConsumerHandle{info: s.live}, nil
+}
+
+func (s *pullConsumerSpy) CreateOrUpdateConsumer(
+	_ context.Context,
+	_ string,
+	cfg jsapi.ConsumerConfig,
+) (jsapi.Consumer, error) {
+	s.attempts++
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	if s.convertAfter > 0 && s.attempts >= s.convertAfter && s.live != nil {
+		s.live.Config.DeliverSubject = ""
+	}
+	if s.live != nil && s.live.Config.DeliverSubject != "" && cfg.DeliverSubject == "" {
+		return nil, errors.New("nats: can not update push consumer to pull based")
+	}
+	s.created = append(s.created, cfg)
+	s.live = &jsapi.ConsumerInfo{Config: cfg}
+	return &pullConsumerHandle{info: s.live}, nil
+}
+
+func (s *pullConsumerSpy) DeleteConsumer(context.Context, string, string) error {
+	s.deletes++
+	s.live = nil
+	return nil
+}
 
 func testPullSubscriber() *pullSubscriber {
 	return &pullSubscriber{

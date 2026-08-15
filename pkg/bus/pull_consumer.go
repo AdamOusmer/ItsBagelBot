@@ -161,6 +161,16 @@ func positiveInt(value, fallback int) int {
 	return value
 }
 
+// pullConsumerProvisioner is the slice of the JetStream API this binding uses.
+// Narrow for the same reason streamProvisioner is: the destructive verb is
+// visible in the type rather than buried in a call, and the tests can drive the
+// replacement path without a broker.
+type pullConsumerProvisioner interface {
+	Consumer(ctx context.Context, stream, name string) (jsapi.Consumer, error)
+	CreateOrUpdateConsumer(ctx context.Context, stream string, cfg jsapi.ConsumerConfig) (jsapi.Consumer, error)
+	DeleteConsumer(ctx context.Context, stream, name string) error
+}
+
 // ensurePullConsumer provisions the fleet-wide durable and returns a handle to
 // fetch from. Every pod runs this against the same name, so all but the first
 // are updates.
@@ -171,10 +181,62 @@ func ensurePullConsumer(nc *nats.Conn, stream string, desired jsapi.ConsumerConf
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), pullProvisionTimeout)
 	defer cancel()
+	return bindPullConsumer(ctx, js, stream, desired)
+}
 
+// bindPullConsumer converges the shared durable, replacing it only when the
+// server has refused the update for a field it will never let an update change.
+//
+// The replacement path exists because the lane consumer's NAME is the same in
+// every mode — durableName(group, subject), with no mode token — so flipping
+// NATS_CONSUME_MODE to pull re-provisions the durable a push consumer is already
+// occupying, and nats-server refuses that conversion in place. Without this the
+// flip fails every pod's lane binding, permanently and identically, with the
+// lane simply not consuming.
+func bindPullConsumer(
+	ctx context.Context,
+	js pullConsumerProvisioner,
+	stream string,
+	desired jsapi.ConsumerConfig,
+) (jsapi.Consumer, error) {
+	consumer, info, err := provisionPullConsumer(ctx, js, stream, desired)
+	if err == nil {
+		return consumer, nil
+	}
+	if !requiresConsumerReplacement(err) {
+		return nil, fmt.Errorf("bus: provision pull consumer %q: %w", desired.Name, err)
+	}
+
+	// Re-drive once against whatever shape the durable has NOW, before anything
+	// destructive. This is where the pull path differs from the flow path in
+	// kind, not degree: a flow consumer is per-pod, so replacing one costs the
+	// caller its own cursor, while this durable is fleet-wide and a delete takes
+	// it out from under every other pod fetching from it. A rejection can simply
+	// mean another pod completed the conversion between our INFO and our update,
+	// and against the successor's shape the same request is an ordinary no-op —
+	// so one wasted round trip here is what keeps a simultaneous fleet restart
+	// from turning into one delete per pod, each destroying the last one's work.
+	if consumer, _, raced := provisionPullConsumer(ctx, js, stream, desired); raced == nil {
+		return consumer, nil
+	}
+
+	carryLaneAckFloor(&desired, info)
+	return replacePullConsumer(js, stream, desired, err)
+}
+
+// provisionPullConsumer reads the durable's current shape, echoes the fields an
+// update may not change, and issues it. The live info comes back alongside the
+// error so the caller can carry the ack floor onto a replacement without a
+// second read.
+func provisionPullConsumer(
+	ctx context.Context,
+	js pullConsumerProvisioner,
+	stream string,
+	desired jsapi.ConsumerConfig,
+) (jsapi.Consumer, *jsapi.ConsumerInfo, error) {
 	info, err := pullConsumerInfo(ctx, js, stream, desired.Name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// The start position is immutable and belongs to whichever pod created the
 	// shared durable. Echoing the server's own value keeps every later pod's
@@ -185,13 +247,37 @@ func ensurePullConsumer(nc *nats.Conn, stream string, desired jsapi.ConsumerConf
 		desired.OptStartSeq = info.Config.OptStartSeq
 	}
 	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, desired)
+	return consumer, info, err
+}
+
+// replacePullConsumer performs the delete + recreate an immutable-field
+// transition requires, on its own budget so the create half cannot inherit an
+// already-spent deadline from the update that failed — a delete that succeeds
+// followed by a create that times out leaves the lane with no consumer at all.
+// The caller has rewritten desired's delivery position, so the recreation
+// resumes at the fleet's shared ack floor instead of replaying it.
+func replacePullConsumer(
+	js pullConsumerProvisioner,
+	stream string,
+	desired jsapi.ConsumerConfig,
+	cause error,
+) (jsapi.Consumer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), laneReplaceTimeout)
+	defer cancel()
+
+	if err := js.DeleteConsumer(ctx, stream, desired.Name); err != nil &&
+		!errors.Is(err, jsapi.ErrConsumerNotFound) {
+		return nil, fmt.Errorf(
+			"bus: provision pull consumer %q: %w (replace failed: %v)", desired.Name, cause, err)
+	}
+	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, desired)
 	if err != nil {
-		return nil, fmt.Errorf("bus: provision pull consumer %q: %w", desired.Name, err)
+		return nil, fmt.Errorf("bus: recreate pull consumer %q: %w", desired.Name, err)
 	}
 	return consumer, nil
 }
 
-func pullConsumerInfo(ctx context.Context, js jsapi.JetStream, stream, name string) (*jsapi.ConsumerInfo, error) {
+func pullConsumerInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
 	consumer, err := js.Consumer(ctx, stream, name)
 	if errors.Is(err, jsapi.ErrConsumerNotFound) {
 		return nil, nil

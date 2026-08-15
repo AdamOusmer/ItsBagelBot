@@ -19,9 +19,15 @@ func TestOnlyHotIngressLanesUseFlowControl(t *testing.T) {
 		want    bool
 	}{
 		{TwitchIngressStream.Name, "twitch.ingress.event.premium", true},
-		{TwitchIngressStream.Name, "twitch.ingress.event.standard", true},
+		// The standard lane qualifies on its own partition, not on the stream it
+		// was split from: the guard has to follow the subject to its new stream or
+		// the bulk lane silently drops back to explicit acks.
+		{TwitchIngressStandardStream.Name, "twitch.ingress.event.standard", true},
 		{TwitchIngressStream.Name, "twitch.ingress.event.stream", false},
 		{TwitchIngressStream.Name, "twitch.ingress.status.authz.revoked", false},
+		// The retry lane carries a .standard leaf too, and it is not a hot lane:
+		// the stream test is what keeps the subject suffix from over-matching.
+		{TwitchIngressRetryStream.Name, "twitch.ingress.retry.standard", false},
 		{OutgressStream.Name, "twitch.outgress.standard", false},
 		{BagelDataStream.Name, "data.users.updated", false},
 	} {
@@ -115,7 +121,7 @@ func TestCarriedAckFloorSurvivesConsumerReplacement(t *testing.T) {
 	info := &jsapi.ConsumerInfo{}
 	info.AckFloor.Stream = 4_200
 
-	carryFlowAckFloor(&desired, info)
+	carryLaneAckFloor(&desired, info)
 	if desired.DeliverPolicy != jsapi.DeliverByStartSequencePolicy || desired.OptStartSeq != 4_201 {
 		t.Fatalf("replacement resumed at %v/%d", desired.DeliverPolicy, desired.OptStartSeq)
 	}
@@ -128,7 +134,7 @@ func TestUnknownAckFloorNeverInheritsThePredecessorPolicy(t *testing.T) {
 	desired.DeliverPolicy = jsapi.DeliverAllPolicy
 	desired.OptStartSeq = 77
 
-	carryFlowAckFloor(&desired, &jsapi.ConsumerInfo{})
+	carryLaneAckFloor(&desired, &jsapi.ConsumerInfo{})
 	if desired.DeliverPolicy != jsapi.DeliverNewPolicy || desired.OptStartSeq != 0 {
 		t.Fatalf("zero ack floor resumed at %v/%d, want DeliverNew", desired.DeliverPolicy, desired.OptStartSeq)
 	}
@@ -142,10 +148,19 @@ func TestOnlyImmutableFieldErrorsReplaceTheConsumer(t *testing.T) {
 		{errors.New("nats: ack policy can not be updated"), true},
 		{errors.New("nats: flow control can not be updated"), true},
 		{errors.New("nats: heart beats can not be updated"), true},
+		// The mode flip: every lane consumer keeps one name across modes, so
+		// switching NATS_CONSUME_MODE re-provisions the same durable with the other
+		// shape and the server refuses the conversion in place.
+		{errors.New("nats: can not update push consumer to pull based"), true},
+		{errors.New("nats: can not update pull consumer to push based"), true},
 		{context.DeadlineExceeded, false},
 		{nats.ErrNoResponders, false},
 		{jsapi.ErrConsumerNotFound, false},
 		{errors.New("nats: max waiting can not be updated"), false},
+		// Not an immutable field at all: the server is reporting that the old
+		// delivery subject still has a live subscriber, so deleting would yank the
+		// consumer out from under a pod that is currently being delivered to.
+		{errors.New("nats: consumer name already in use"), false},
 		{nil, false},
 	} {
 		if got := requiresConsumerReplacement(test.err); got != test.want {
@@ -663,6 +678,45 @@ func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 	t.Setenv("NATS_CONSUME_FLOW", "off")
 	if subscriber.laneModeFor(hot) != laneModeExplicit {
 		t.Fatal("NATS_CONSUME_FLOW=off still bound a flow consumer")
+	}
+}
+
+// TestPartitionedLanesBindReceiptLevelConsumers walks the binding the service
+// path actually takes — topic to stream to acknowledgement contract — because
+// the partition changes the middle step and nothing else notices. targetForTopic
+// is what a consumer provisions against, so a standard lane still pointing at
+// TWITCH_INGRESS would create its consumer on a stream that no longer captures
+// the subject: no error, no delivery. Both receipt-level modes are checked
+// because each has its own provisioning path.
+func TestPartitionedLanesBindReceiptLevelConsumers(t *testing.T) {
+	for _, mode := range []struct {
+		configured string
+		want       laneConsumeMode
+	}{
+		{"pull", laneModePull},
+		{"flow", laneModeFlow},
+	} {
+		t.Run(mode.configured, func(t *testing.T) {
+			t.Setenv("NATS_CONSUME_FLOW", "on")
+			t.Setenv("NATS_CONSUME_MODE", mode.configured)
+			subscriber := &fleetSubscriber{group: "worker"}
+
+			for subject, stream := range map[string]string{
+				"twitch.ingress.event.standard": TwitchIngressStandardStream.Name,
+				"twitch.ingress.event.premium":  TwitchIngressStream.Name,
+			} {
+				target, err := targetForTopic(subject)
+				if err != nil {
+					t.Fatalf("targetForTopic(%q): %v", subject, err)
+				}
+				if target.stream != stream {
+					t.Fatalf("%q binds stream %q, want %q", subject, target.stream, stream)
+				}
+				if got := subscriber.laneModeFor(target); got != mode.want {
+					t.Fatalf("%q on %q got mode %q, want %q", subject, target.stream, got, mode.want)
+				}
+			}
+		})
 	}
 }
 

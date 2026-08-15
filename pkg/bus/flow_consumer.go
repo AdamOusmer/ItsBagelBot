@@ -29,7 +29,7 @@ const (
 	// gets its own, much longer budget: a delete that succeeds followed by a
 	// create that times out leaves the stream with no consumer at all.
 	flowProvisionTimeout = 5 * time.Second
-	flowReplaceTimeout   = 20 * time.Second
+	laneReplaceTimeout   = 20 * time.Second
 
 	// The server pins this ack policy's heartbeat to exactly one second, so three
 	// missed beats is the earliest safe conclusion that the consumer behind this
@@ -150,8 +150,16 @@ const (
 // process exits has a much larger blast radius than replaying a chat event.
 // Work-queue streams are excluded by the same rule: their retention deletes on
 // ack and therefore requires per-message explicit acknowledgement.
+//
+// Two streams qualify, not one, because the lanes are partitioned across two
+// RAFT leaders: premium stays on TWITCH_INGRESS and standard lives on
+// TWITCH_INGRESS_STANDARD. The subject test still decides which lane it is —
+// the stream test only decides that the subject is an ingress lane at all — so
+// a lane keeps its acknowledgement contract across the partition. Omitting the
+// second stream here is silent: the standard lane would simply fall back to
+// explicit acks and the receipt-level path would be premium-only.
 func isHotIngressLane(stream, subject string) bool {
-	if stream != TwitchIngressStream.Name {
+	if stream != TwitchIngressStream.Name && stream != TwitchIngressStandardStream.Name {
 		return false
 	}
 	return strings.HasSuffix(subject, ".premium") || strings.HasSuffix(subject, ".standard")
@@ -360,10 +368,28 @@ func recoveryFlowConsumerConfig(subject, name string, position flowPosition) jsa
 // meta layer, no responders during an election, a lost race with another replica
 // — must propagate unchanged: deleting on those turns a transient API failure
 // into a lane-wide delivery reset for every pod bound to the stream.
+//
+// The two conversion errors are what a mode flip actually hits. Every lane
+// consumer is named durableName(group, subject) whatever mode binds it, so
+// switching NATS_CONSUME_MODE re-provisions the SAME durable with the other
+// shape, and nats-server refuses that in place (checkNewConsumerConfig). Which
+// message comes back depends only on the field order of that check: the flip
+// this fleet performs today trips "ack policy" first (explicit push is
+// AckExplicit, pull is AckAll), and the conversion messages surface whenever the
+// ack policies happen to agree. Both are the same one-way door.
+//
+// Deliberately absent: "deliver policy"/"start sequence", which both provisioning
+// paths echo from the server precisely so they cannot mismatch — a rejection
+// there means the echo is broken, and destroying a consumer would hide the bug;
+// "max waiting", which is left to fail loudly rather than earn a delete; and
+// JSConsumerNameExist, which is not an immutable field at all but the server
+// reporting that the old delivery subject still has a live subscriber.
 var immutableConsumerFieldErrors = []string{
 	"ack policy can not be updated",
 	"flow control can not be updated",
 	"heart beats can not be updated",
+	"can not update push consumer to pull based",
+	"can not update pull consumer to push based",
 }
 
 func requiresConsumerReplacement(err error) bool {
@@ -411,7 +437,7 @@ func ensureFlowConsumer(nc *nats.Conn, stream string, desired jsapi.ConsumerConf
 		return "", fmt.Errorf("bus: update flow consumer %q: %w", desired.Name, err)
 	}
 
-	carryFlowAckFloor(&desired, info)
+	carryLaneAckFloor(&desired, info)
 	return desired.DeliverSubject, replaceFlowConsumer(js, stream, desired, err)
 }
 
@@ -440,7 +466,7 @@ func replaceFlowConsumer(
 	desired jsapi.ConsumerConfig,
 	cause error,
 ) error {
-	ctx, cancel := context.WithTimeout(context.Background(), flowReplaceTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), laneReplaceTimeout)
 	defer cancel()
 
 	if err := js.DeleteConsumer(ctx, stream, desired.Name); err != nil &&
@@ -453,13 +479,14 @@ func replaceFlowConsumer(
 	return nil
 }
 
-// carryFlowAckFloor pins the replacement's start position. An unknown ack floor
-// must never fall through to the predecessor's own DeliverPolicy: the
-// explicit-ACK lane consumer this replaces is DeliverAll, so inheriting it opens
-// the replacement on the whole retained firehose and re-executes every chat
-// command in the window. DeliverNew loses the unacked tail instead, which is the
-// bounded failure of the two.
-func carryFlowAckFloor(desired *jsapi.ConsumerConfig, info *jsapi.ConsumerInfo) {
+// carryLaneAckFloor pins the replacement's start position, for either
+// receipt-level path: both replace the same explicit-ACK durable, so both
+// inherit the same hazard. An unknown ack floor must never fall through to the
+// predecessor's own DeliverPolicy: the explicit-ACK lane consumer this replaces
+// is DeliverAll, so inheriting it opens the replacement on the whole retained
+// firehose and re-executes every chat command in the window. DeliverNew loses the
+// unacked tail instead, which is the bounded failure of the two.
+func carryLaneAckFloor(desired *jsapi.ConsumerConfig, info *jsapi.ConsumerInfo) {
 	if info == nil || info.AckFloor.Stream == 0 {
 		desired.DeliverPolicy = jsapi.DeliverNewPolicy
 		desired.OptStartSeq = 0
@@ -644,8 +671,8 @@ func newFlowLaneSubscriber(cfg flowLaneConfig) (*flowSubscriber, error) {
 // There is deliberately no exported constructor that takes a stream and subject
 // directly. One existed for the load rig, and it was the only way past the two
 // guards the service path applies: streamForTopic, which refuses a subject the
-// catalog does not own, and isHotIngressLane, which refuses any stream but
-// TWITCH_INGRESS. With the rig gone, every caller goes through NewSubscriber and
+// catalog does not own, and isHotIngressLane, which refuses any stream but the
+// two ingress lane streams. With the rig gone, every caller goes through NewSubscriber and
 // those two keep deciding which lanes get receipt-level acknowledgement.
 
 func newFlowSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer, deliver string) *flowSubscriber {
