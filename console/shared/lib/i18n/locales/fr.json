@@ -82,6 +82,37 @@
     "lede": "Votre compte, vos commandes et vos liens ont été supprimés. Merci d'avoir fait partie de la boulangerie. La porte reste toujours ouverte si vous revenez.",
     "cta": "Retour à itsbagelbot.com"
   },
+  "public": {
+    "nav": {
+      "aria": "Principal",
+      "home": "Accueil ItsBagelBot",
+      "pricing": "Tarifs",
+      "guides": "Guides",
+      "contact": "Contact",
+      "stats": "Statistiques",
+      "cta": "Ajouter à Twitch"
+    },
+    "footer": {
+      "signoff": "Préparé tard. Servi frais.",
+      "signoffSub": "À bientôt dans le chat.",
+      "logoAlt": "Logo ItsBagelBot",
+      "tagline": "Votre stream. Vos règles.",
+      "product": "Produit",
+      "pricing": "Tarifs",
+      "guides": "Guides",
+      "builder": "Constructeur de commandes",
+      "developer": "Développeur",
+      "dashboard": "Tableau de bord",
+      "company": "Entreprise",
+      "contact": "Contact",
+      "community": "Communauté",
+      "copyright": "© 2026 ItsBagelBot",
+      "note": "Aucune donnée vendue · Aucun traceur · Aucune surprise",
+      "privacy": "Politique de confidentialité",
+      "terms": "Conditions d'utilisation",
+      "creatorTerms": "Codes de créateur"
+    }
+  },
   "stats": {
     "title": "Statistiques en direct",
     "metaDescription": "Compteurs globaux d'ItsBagelBot en direct : total des messages de chat et des événements Twitch traités sur toutes les chaînes, et le débit actuel.",

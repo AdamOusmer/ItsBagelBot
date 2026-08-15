@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { AuroraBg, LightField, AlertBanner, Icon, getI18n, type IconName } from '@bagel/shared';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
+  import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n, type IconName } from '@bagel/shared';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -278,8 +277,6 @@
 <AuroraBg />
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
-<div class="lang-corner"><LangSwitch /></div>
-
 <main class="stats-page">
   <header class="hero">
     <div class="eyebrow reveal" style="--i:0">{t('stats.eyebrow')}</div>
@@ -306,16 +303,23 @@
   {/if}
 
   <section class="tiles" aria-label={t('stats.headline')}>
+    <!-- The surface is the shared Card the management pages and the public
+         channel page use, with `hover` on: cursor-tracked tan spotlight, border
+         brighten, small lift. The staggered rise stays on a wrapper, because
+         `.reveal` ends on a filled `transform` that would otherwise outrank the
+         card's own hover lift. -->
     {#each tiles as tile, i (tile.label)}
-      <article class="tile reveal" style="--i:{5 + i * 0.5}">
-        <div class="tile-head">
-          <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
-          <span class="label">{tile.label}</span>
-        </div>
-        <div class="value">
-          <span class="num">{tile.value}</span>{#if tile.unit}<small class="unit">{tile.unit}</small>{/if}
-        </div>
-      </article>
+      <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
+        <Card hover class="tile">
+          <div class="tile-head">
+            <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
+            <span class="label">{tile.label}</span>
+          </div>
+          <div class="value">
+            <span class="num">{tile.value}</span>{#if tile.unit}<small class="unit">{tile.unit}</small>{/if}
+          </div>
+        </Card>
+      </div>
     {/each}
   </section>
 
@@ -335,20 +339,16 @@
     pointer-events: none;
   }
 
-  .lang-corner {
-    position: fixed;
-    top: max(16px, env(safe-area-inset-top, 0px));
-    right: max(16px, env(safe-area-inset-right, 0px));
-    z-index: 5;
-  }
-
   .stats-page {
     position: relative;
     z-index: 1;
-    min-height: 100vh;
+    /* Clears the fixed 76px public nav the same way the channel page's hero
+       does, then keeps its own breathing room above the eyebrow. */
+    min-height: calc(100vh - 76px);
     max-width: var(--bb-content-max);
     margin: 0 auto;
-    padding: clamp(72px, 12vh, 140px) var(--bb-space-5) var(--bb-space-8);
+    padding: calc(76px + env(safe-area-inset-top, 0px) + clamp(40px, 8vh, 96px)) var(--bb-space-5)
+      var(--bb-space-8);
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-6);
@@ -401,35 +401,27 @@
     gap: var(--bb-space-4);
   }
 
-  /* Same glass-card family as the management pages, scaled up: the numerals are
-     the subject here, so the surface stays quiet and the type gets the room. */
-  .tile {
-    position: relative;
-    overflow: hidden;
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-lg);
-    box-shadow: var(--bb-shadow-soft);
-    padding: clamp(24px, 3.4vw, 40px);
+  /* The shared Card, scaled up: the numerals are the subject here, so the tile
+     just gets more padding and a column layout. Everything else — surface,
+     hairline border, radius, hover spotlight/lift — is the Card's own. */
+  .tile-wrap { min-width: 0; }
+
+  .tiles :global(.card) {
+    --card-pad: clamp(24px, 3.4vw, 40px);
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-5);
     min-width: 0;
-    transition:
-      border-color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
   }
-  /* Hairline of light along the top edge, as on the marketing surfaces. */
-  .tile::before {
+  /* Hairline of light along the top edge, as on the marketing surfaces. Free to
+     use: Card's own ::before only paints under the (unused) `sheen` variant. */
+  .tiles :global(.card)::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
-  }
-  .tile:hover {
-    border-color: var(--bb-border-strong);
-    transform: translateY(-2px);
   }
 
   .tile-head { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
@@ -509,6 +501,5 @@
 
   @media (prefers-reduced-motion: reduce) {
     .pip { animation: none; }
-    .tile:hover { transform: none; }
   }
 </style>
