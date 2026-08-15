@@ -7,7 +7,6 @@ namespace: valkey
 # container flags for retained PVCs. topology_test.go is discovered by the
 # repository's normal `go test ./...` CI run and rejects configuration drift.
 resources:
-  - benchmark-priority-class.yaml
   - services.yaml
   - pdb.yaml
   - dopplersecrets.yaml

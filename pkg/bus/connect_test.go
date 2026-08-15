@@ -1,6 +1,50 @@
 package bus
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
+)
+
+// Every bus connection must install the async error handler. Permission
+// violations are reported out-of-band — the publish already returned nil — so
+// without a handler nats.go discards them entirely, which is how a missing
+// $JS.FC grant stopped both hot ingress lanes with no log line, no metric and
+// no error anywhere.
+func TestBaseOptionsInstallAsyncErrorHandler(t *testing.T) {
+	var opts nats.Options
+	for _, option := range baseOptions(connectionIdentity{name: "test"}) {
+		if err := option(&opts); err != nil {
+			t.Fatalf("apply option: %v", err)
+		}
+	}
+	if opts.AsyncErrorCB == nil {
+		t.Fatal("no asynchronous error handler; permission violations would be discarded silently")
+	}
+
+	core, logs := observer.New(zap.ErrorLevel)
+	defer zap.ReplaceGlobals(zap.New(core))()
+
+	// nats.go passes a nil subscription for a publish violation and puts the
+	// subject in the error text, so the handler has to read it from there.
+	opts.AsyncErrorCB(nil, nil, errors.New(
+		`nats: permissions violation: Permissions Violation for Publish to "$JS.FC.TWITCH_INGRESS.worker_premium.abcd"`))
+	// A subscribe violation carries a real subscription.
+	opts.AsyncErrorCB(nil, &nats.Subscription{Subject: "twitch.ingress.event.premium"}, errors.New("nats: permissions violation"))
+
+	entries := logs.All()
+	if len(entries) != 2 {
+		t.Fatalf("logged %d asynchronous errors, want 2", len(entries))
+	}
+	for i, want := range []string{"$JS.FC.TWITCH_INGRESS.worker_premium.abcd", "twitch.ingress.event.premium"} {
+		if got := entries[i].ContextMap()["subject"]; got != want {
+			t.Fatalf("logged subject = %v, want %q", got, want)
+		}
+	}
+}
 
 // The JetStream plane must dial the hub directly while the RPC plane stays
 // leaf-first. In production NATS_LEAF_URL is set, so serverList prefers the leaf;

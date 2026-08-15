@@ -142,8 +142,12 @@ defmodule Ingress.Nats.PublisherTest do
       conn = :gnat_bus_pub_batch_test
       previous_size = Application.get_env(:ingress, :publish_batch_size)
       previous_wait = Application.get_env(:ingress, :publish_batch_wait_ms)
+      previous_wire = Application.get_env(:ingress, :publish_wire)
       Application.put_env(:ingress, :publish_batch_size, 2)
       Application.put_env(:ingress, :publish_batch_wait_ms, 100)
+      # These cases are about the single wire specifically; the shipped default
+      # is :atomic, which would send this cohort as one batch instead.
+      Application.put_env(:ingress, :publish_wire, :single)
 
       start_supervised!({FakeGnat, [name: conn, test: self()]})
       start_supervised!({Publisher, [index: 0, conn: conn]})
@@ -153,6 +157,7 @@ defmodule Ingress.Nats.PublisherTest do
         :persistent_term.erase({Publisher, :n})
         restore_env(:publish_batch_size, previous_size)
         restore_env(:publish_batch_wait_ms, previous_wait)
+        restore_env(:publish_wire, previous_wire)
       end)
 
       %{publisher: Publisher.process_name(0)}
@@ -227,6 +232,89 @@ defmodule Ingress.Nats.PublisherTest do
       })
 
       _state = :sys.get_state(publisher)
+    end
+  end
+
+  describe "the sweep never outruns replies already in its own mailbox" do
+    setup do
+      conn = :gnat_bus_pub_sweep_test
+      previous_wire = Application.get_env(:ingress, :publish_wire)
+      previous_size = Application.get_env(:ingress, :publish_batch_size)
+      Application.put_env(:ingress, :publish_wire, :single)
+      Application.put_env(:ingress, :publish_batch_size, 1)
+
+      start_supervised!({FakeGnat, [name: conn, test: self()]})
+      start_supervised!({Publisher, [index: 0, conn: conn]})
+      :persistent_term.put({Publisher, :n}, 1)
+
+      on_exit(fn ->
+        :persistent_term.erase({Publisher, :n})
+        restore_env(:publish_wire, previous_wire)
+        restore_env(:publish_batch_size, previous_size)
+      end)
+
+      %{publisher: Publisher.process_name(0), ctx: :persistent_term.get({Publisher, :ctx, 0})}
+    end
+
+    test "a PubAck queued behind the tick resolves its row instead of expiring it", %{
+      publisher: publisher,
+      ctx: ctx
+    } do
+      # Every wire write is a blocking GenServer.call. While the collector sits
+      # in one, a :sweep tick and the PubAcks it should have applied both pile
+      # up — and the monotonic clock the sweep reads advanced through the block
+      # too. Reading that clock first expires every row whose acknowledgement
+      # is sitting a few messages further down THIS mailbox: up to
+      # publish_max_pending = 16384 stored events counted as publish failures
+      # per shard, from one stalled socket write.
+      assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
+      assert_receive {:pub, _topic, _json, opts}, 500
+      reply = Keyword.fetch!(opts, :reply_to)
+
+      # Suspend first so no real sweep can run while the scenario is staged.
+      :sys.suspend(publisher)
+      age_pending_rows(ctx)
+      send(publisher, :sweep)
+      send(publisher, {:msg, %{topic: reply, body: ~s({"stream":"TWITCH_INGRESS","seq":1})}})
+      :sys.resume(publisher)
+      _state = :sys.get_state(publisher)
+
+      # Counter 3 is acked, 5 is failed, 1 is the in-flight window.
+      assert :atomics.get(ctx.counter, 3) == 1
+      assert :atomics.get(ctx.counter, 5) == 0
+      assert :atomics.get(ctx.counter, 1) == 0
+      assert :ets.info(ctx.table, :size) == 0
+    end
+  end
+
+  describe "connection monitors" do
+    test "the monitor is taken only by the path that stores it" do
+      # Gnat.sub/3 is a 5s GenServer.call, so a connection that never answers
+      # holds the collector inside it — the same call that a hub roll makes
+      # exit outright, which is the branch that used to drop the ref on the
+      # floor. GenServer.call takes its own monitor for the duration of the
+      # call, so exactly one entry here means this module took none of its own.
+      conn = :gnat_bus_pub_monitor_test
+      silent = spawn(fn -> Process.sleep(:infinity) end)
+      Process.register(silent, conn)
+      on_exit(fn -> Process.exit(silent, :kill) end)
+
+      start_supervised!({Publisher, [index: 0, conn: conn]})
+      :persistent_term.put({Publisher, :n}, 1)
+      on_exit(fn -> :persistent_term.erase({Publisher, :n}) end)
+
+      publisher = Process.whereis(Publisher.process_name(0))
+      Process.sleep(100)
+
+      assert Process.info(publisher, :monitors) == {:monitors, [process: silent]}
+    end
+  end
+
+  defp age_pending_rows(ctx) do
+    expired = System.monotonic_time(:millisecond) - 10_000_000
+
+    for {id, :single, subject, payload, attempts, _stamp} <- :ets.tab2list(ctx.table) do
+      :ets.insert(ctx.table, {id, :single, subject, payload, attempts, expired})
     end
   end
 

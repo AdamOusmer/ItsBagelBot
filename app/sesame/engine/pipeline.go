@@ -68,6 +68,7 @@ type Pipeline struct {
 	cooldown CooldownStore
 	uses     *useReporter
 	loyalty  LoyaltyStore
+	dedup    *EventDedup
 	stats    *botStats
 
 	botID            string
@@ -97,6 +98,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		live:             d.Live,
 		cooldown:         d.Cooldown,
 		loyalty:          d.Loyalty,
+		dedup:            d.Dedup,
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,

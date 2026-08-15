@@ -1,7 +1,9 @@
 package bus
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -40,6 +42,98 @@ func TestZeroValueMessageInitializesAcknowledgementSignals(t *testing.T) {
 	}
 	assertSignalState(t, nacked.Nacked(), true, "nacked")
 	assertSignalState(t, nacked.Acked(), false, "acked after nack")
+}
+
+// TestNewMessageDoesNotPreallocateSignals is a cost assertion, not a behaviour
+// one. The receipt-level lane adapters resolve through the callback and never
+// read either signal, so allocating both per delivery was two channels of pure
+// garbage at lane rate.
+func TestNewMessageDoesNotPreallocateSignals(t *testing.T) {
+	msg := NewMessage("id", nil)
+	if msg.ack != nil || msg.nack != nil {
+		t.Fatal("acknowledgement signals were allocated before anyone asked for one")
+	}
+	// A caller that does ask still gets the pair in the state the message is in.
+	assertSignalState(t, msg.Acked(), false, "acked")
+	assertSignalState(t, msg.Nacked(), false, "nacked")
+	if !msg.Ack() {
+		t.Fatal("a message with lazily created signals could not ack")
+	}
+	assertSignalState(t, msg.Acked(), true, "acked after ack")
+	assertSignalState(t, msg.Nacked(), false, "nacked after ack")
+}
+
+// TestResolveHandlerFiresOnceOnTheWinningResult is the lane adapters' contract.
+// They replaced a per-message goroutine with this callback, so a second
+// invocation schedules a second retry and a missing one leaks the adapter's
+// pending count until shutdown times the drain out.
+func TestResolveHandlerFiresOnceOnTheWinningResult(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		resolve func(*Message) bool
+		acked   bool
+	}{
+		{name: "ack", resolve: (*Message).Ack, acked: true},
+		{name: "nack", resolve: (*Message).Nack, acked: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var calls, ackedCalls atomic.Int64
+			msg := NewMessage("id", nil)
+			msg.setResolveHandler(func(acked bool) {
+				calls.Add(1)
+				if acked {
+					ackedCalls.Add(1)
+				}
+			})
+
+			if !testCase.resolve(msg) {
+				t.Fatal("the first resolution must win")
+			}
+			// Every later call, winning side or losing side, is a no-op.
+			msg.Ack()
+			msg.Nack()
+
+			if calls.Load() != 1 {
+				t.Fatalf("resolve handler ran %d times, want exactly one", calls.Load())
+			}
+			if wasAcked := ackedCalls.Load() == 1; wasAcked != testCase.acked {
+				t.Fatalf("handler was told acked=%v, want %v", wasAcked, testCase.acked)
+			}
+			assertSignalState(t, msg.Acked(), testCase.acked, "acked")
+			assertSignalState(t, msg.Nacked(), !testCase.acked, "nacked")
+		})
+	}
+}
+
+// TestResolveHandlerRunsOutsideTheMessageLock is what makes the callback safe to
+// do real work in: the lane adapters publish a retry schedule from it. Touching
+// the message from inside is the cheap proof — Ack and Nack hold a plain
+// sync.Mutex, so a callback invoked under it would deadlock here instead of
+// returning, and it also shows the transition is already committed when the
+// callback sees it.
+func TestResolveHandlerRunsOutsideTheMessageLock(t *testing.T) {
+	msg := NewMessage("id", nil)
+	sawResolved := make(chan bool, 1)
+	msg.setResolveHandler(func(bool) {
+		select {
+		case <-msg.Acked():
+			sawResolved <- true
+		default:
+			sawResolved <- false
+		}
+	})
+
+	done := make(chan struct{})
+	go func() { defer close(done); msg.Ack() }()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the resolve handler was invoked while the message lock was held")
+	}
+	if !<-sawResolved {
+		t.Fatal("the resolve handler ran before the acknowledgement was committed")
+	}
 }
 
 func assertSignalState(t *testing.T, signal <-chan struct{}, wantClosed bool, name string) {

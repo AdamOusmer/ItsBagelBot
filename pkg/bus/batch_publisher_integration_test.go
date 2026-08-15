@@ -16,6 +16,19 @@ import (
 // Run with NATS_INTEGRATION_URL against NATS 2.14+ (testdata/nats-2.14.conf).
 // The ordinary suite skips it so CI does not need an external broker.
 func TestBatchPublisherIntegration(t *testing.T) {
+	t.Setenv("NATS_PUBLISH_WIRE", "single")
+	url, pub := openIntegrationPublisher(t)
+	defer closeIntegrationPublisher(t, url, pub)
+	const messages = 64
+	publishIntegrationMessages(t, pub, messages)
+	flushIntegrationPublisher(t, pub, 5*time.Second)
+	assertIntegrationStream(t, url, messages)
+}
+
+// TestFastBatchPublisherIntegration exercises the default Fast-Ingest wire
+// end-to-end: a flow-controlled session must land whole on one commit.
+func TestFastBatchPublisherIntegration(t *testing.T) {
+	t.Setenv("NATS_PUBLISH_WIRE", "fast")
 	url, pub := openIntegrationPublisher(t)
 	defer closeIntegrationPublisher(t, url, pub)
 	const messages = 64
@@ -151,9 +164,9 @@ func assertBatchFeatures(t *testing.T, nc *nats.Conn) {
 }
 
 // BenchmarkBatchPublisherIntegration measures the exact fleet Publisher
-// contract, including UUID generation, trace-header preparation, routing,
-// admission and bounded official nats.go PubAck cohorts. Run it against the
-// repository's NATS 2.14 test configuration:
+// contract, including message-ID generation, trace-header preparation, routing,
+// admission and whichever cohort wire NATS_PUBLISH_WIRE selects. Run it against
+// the repository's NATS 2.14 test configuration:
 //
 //	NATS_INTEGRATION_URL=nats://127.0.0.1:14222 \
 //	go test ./pkg/bus -run '^$' -bench BenchmarkBatchPublisherIntegration -benchmem
@@ -162,8 +175,8 @@ func BenchmarkBatchPublisherIntegration(b *testing.B) {
 	defer closeIntegrationPublisher(b, url, pub)
 	payload := integrationPayload(256)
 	configureIntegrationBenchmark(b, len(payload))
-	// Keep enough calls in flight to fill the 128-message connection-local PubAck
-	// cohorts; this measures saturated capacity, not the 1 ms collection timer.
+	// Keep enough calls in flight to fill the connection-local cohorts; this
+	// measures saturated capacity, not the collection timer.
 	b.ResetTimer()
 	runIntegrationBenchmark(b, pub, payload)
 	flushIntegrationPublisher(b, pub, 30*time.Second)

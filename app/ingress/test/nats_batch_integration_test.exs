@@ -8,7 +8,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
   @stream "ELIXIR_BATCH_TEST"
 
   test "Gnat-managed connection receives individual PubAcks from NATS" do
-    with_integration_publisher([], fn conn, ctx ->
+    with_integration_publisher([publish_wire: :single], fn conn, ctx ->
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1})) == :ok
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2})) == :ok
 

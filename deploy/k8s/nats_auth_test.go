@@ -29,12 +29,12 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"modules_bus":   {"BAGEL_DATA"},
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":    {"BAGEL_DATA"},
-		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
+		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus": {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
@@ -54,6 +54,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				consumerStreams: consumers[user],
 				ownedStreams:    owners[user],
 				flowControl:     flowControlStreams[user],
+				pullFetch:       pullFetchStreams[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -62,10 +63,14 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	}
 }
 
-// TestAdminBenchmarkStreamPermissionsAreExact keeps the production capacity
-// runner confined to its disposable stream. The admin retains its existing KV
-// ownership, but may not gain wildcard mutation access to the BUS account.
-func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
+// TestAdminStreamMutationGrantsAreOnlyItsOwnKV holds admin_bus to the one
+// stream it actually owns. It used to also carry create/update/delete,
+// leader-stepdown and $JS.FC on a fixed benchmark stream name so a load rig
+// could run without a config push. That is standing ack-floor and
+// stream-mutation authority for a workload that is not running, and it outlived
+// the rig by itself — which is exactly how a permission becomes permanent.
+// A future load test brings its own grant for the duration of its run.
+func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
 	if !ok {
@@ -74,22 +79,16 @@ func TestAdminBenchmarkStreamPermissionsAreExact(t *testing.T) {
 
 	var got []string
 	for _, subject := range block.jetStreamSubjects() {
-		if streamMutationPattern.MatchString(subject) || strings.Contains(subject, "R3_SHADOW_BENCH") {
+		if streamMutationPattern.MatchString(subject) {
 			got = append(got, subject)
+		}
+		if strings.Contains(subject, "BENCH") || strings.Contains(subject, "SHADOW") {
+			t.Errorf("admin_bus still grants a benchmark-stream subject: %s", subject)
 		}
 	}
 	want := []string{
 		"$JS.API.STREAM.CREATE.KV_admin_lanes",
-		"$JS.API.STREAM.CREATE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.DELETE.R3_SHADOW_BENCH",
-		"$JS.API.STREAM.LEADER.STEPDOWN.R3_SHADOW_BENCH",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
-		// UPDATE lets bus.EnsureStreams converge a drifted bench stream; the
-		// FC reply subject is how an AckFlowControl consumer acknowledges at
-		// all, scoped to the disposable stream and nothing else.
-		"$JS.API.STREAM.UPDATE.R3_SHADOW_BENCH",
-		"$JS.EVENT.ADVISORY.STREAM.LEADER_ELECTED.R3_SHADOW_BENCH",
-		"$JS.FC.R3_SHADOW_BENCH.>",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -105,8 +104,12 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	}
 	check := streamOwnershipCheck{
 		want: map[string]string{
-			"users":    "[]bus.StreamSpec{bus.BagelDataStream}",
-			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream}",
+			"users": "[]bus.StreamSpec{bus.BagelDataStream}",
+			// Both ingress lane streams, in this order. EnsureStreams reconciles
+			// the slice in order and the partition's narrowing update must run
+			// before the new stream claims the subject, so the order is part of
+			// the assertion, not incidental formatting.
+			"sesame":   "bus.IngressLaneSpecs()",
 			"outgress": "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
 		seen: make(map[string]bool, 3),
@@ -137,13 +140,26 @@ type sourceFile struct {
 // is ack-equivalent authority on that consumer, which is why it is scoped to a
 // single stream and asserted here rather than folded into the per-stream set.
 var flowControlStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS"},
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+}
+
+// pullFetchStreams names, per user, the streams whose lanes may bind a
+// shared-durable pull consumer. MSG.NEXT is that consumer's fetch verb and no
+// push consumer ever sends it, so it is listed separately rather than folded
+// into the per-stream consumer set: granting it to a service that only binds
+// push consumers is authority for a call that service never makes, and NOT
+// granting it to one that pulls is a silent zero-delivery lane rather than a
+// visible error. Only the hot ingress lanes qualify for receipt-level
+// consumption (pkg/bus isHotIngressLane), and sesame is their only consumer.
+var pullFetchStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 }
 
 type streamGrants struct {
 	consumerStreams []string
 	ownedStreams    []string
 	flowControl     []string
+	pullFetch       []string
 }
 
 type authConfig struct {
@@ -176,6 +192,9 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 	set := make(map[string]struct{})
 	for _, stream := range grants.flowControl {
 		set["$JS.FC."+stream+".>"] = struct{}{}
+	}
+	for _, stream := range grants.pullFetch {
+		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
 	}
 	for _, stream := range grants.consumerStreams {
 		for _, subject := range []string{

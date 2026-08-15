@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -24,9 +25,19 @@ type concurrentDurableSubscriber struct {
 	consumer string
 	group    string
 	delay    redeliveryDelay
-	ackWait  time.Duration
-	progress time.Duration
-	log      *zap.Logger
+	// handlerDeadline is the ceiling on one handler's total run time, NOT the
+	// consumer's AckWait. Those are different clocks and used to share a name.
+	// awaitResult reports InProgress every `progress`, which resets the server's
+	// AckWait for as long as the handler lives, so the server does not redeliver
+	// underneath a slow-but-healthy handler. This is what stops that from being
+	// unbounded: past it the subscriber stops reporting progress and lets AckWait
+	// take the message back.
+	handlerDeadline time.Duration
+	progress        time.Duration
+	// ackSync confirms each acknowledgement with the server instead of firing it
+	// asynchronously. It is set for work-queue retention only; see ack.
+	ackSync bool
+	log     *zap.Logger
 
 	mu      sync.Mutex
 	closed  bool
@@ -60,7 +71,32 @@ type concurrentSubscriberConfig struct {
 const (
 	terminateDelivery      = time.Duration(-1)
 	subscriberDrainTimeout = 30 * time.Second
+	// laneAckWait is the server-side redelivery clock every lane consumer is
+	// created with (see laneConsumerConfig). It is named here because two things
+	// in this file are sized against it and a literal in three places drifts.
+	laneAckWait = 4 * time.Second
+	// ackSyncTimeout bounds the confirmed acknowledgement on work-queue lanes. It
+	// stays under laneAckWait so a failed confirmation still has room to
+	// NAK before the server redelivers on its own clock.
+	ackSyncTimeout = laneAckWait / 2
 )
+
+// workQueueRetention reports whether a catalog stream deletes messages on
+// acknowledgement. The two acknowledgement contracts differ in what a lost ACK
+// costs, so the subscriber picks its ack mode from the retention policy rather
+// than from a caller-supplied flag that can drift from the catalog.
+func workQueueRetention(stream string) bool {
+	specs := make([]StreamSpec, 0, len(DataStreams)+2)
+	specs = append(specs, DataStreams...)
+	specs = append(specs, OutgressStream, OutgressSystemStream)
+
+	for _, spec := range specs {
+		if spec.Name == stream {
+			return spec.Retention == nats.WorkQueuePolicy
+		}
+	}
+	return false
+}
 
 // redeliveryDelay keeps retry pacing behind the native subscriber abstraction.
 // retry is JetStream's one-based NumDelivered counter.
@@ -90,8 +126,9 @@ func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentD
 	}
 	s := &concurrentDurableSubscriber{
 		nc: cfg.nc, js: cfg.js, stream: cfg.stream, consumer: cfg.consumer, group: cfg.group,
-		delay: cfg.delay, ackWait: 30 * time.Second, progress: time.Second, log: cfg.log,
-		subs: make(map[*nats.Subscription]*callbackGate), closeCh: make(chan struct{}),
+		delay: cfg.delay, handlerDeadline: 30 * time.Second, progress: time.Second, log: cfg.log,
+		ackSync: workQueueRetention(cfg.stream),
+		subs:    make(map[*nats.Subscription]*callbackGate), closeCh: make(chan struct{}),
 	}
 	// Keep the WaitGroup positive until Close has unsubscribed every callback;
 	// this prevents an Add racing a Wait while a final delivery is arriving.
@@ -181,7 +218,7 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 		select {
 		case output <- msg:
 			s.acks.Add(1)
-			go s.awaitResult(natsMsg, msg)
+			s.watchResult(natsMsg, msg)
 		case <-ctx.Done():
 		case <-s.closeCh:
 		case <-callbacks.stopped():
@@ -266,45 +303,118 @@ func messageIdentity(wire *nats.Msg) string {
 		return id
 	}
 	if metadata, err := wire.Metadata(); err == nil && metadata.Sequence.Stream > 0 {
-		return fmt.Sprintf("js:%s:%s:%d", metadata.Domain, metadata.Stream, metadata.Sequence.Stream)
+		return jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream)
 	}
 	// This path covers legacy/core messages without JetStream reply metadata.
 	// NUID is process-safe and avoids introducing UUID machinery.
 	return nuid.Next()
 }
 
-func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *Message) {
-	defer s.acks.Done()
-	timer := time.NewTimer(s.ackWait)
-	defer timer.Stop()
-	progress := time.NewTicker(s.progress)
-	defer progress.Stop()
+// jetStreamIdentity is the fallback identity for an event whose publisher set
+// none. It is derived rather than random so it survives a retry hop: the pull
+// adapter stamps it from the pull API's own metadata (see pullWireMessage),
+// which cannot reach nats.go's subscription-bound parser, and both paths must
+// produce the same string for the same delivery.
+func jetStreamIdentity(domain, stream string, sequence uint64) string {
+	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
+}
 
-	for {
-		select {
-		case <-msg.Acked():
-			s.confirmAck(natsMsg)
-			return
-		case <-msg.Nacked():
-			s.nack(natsMsg)
-			return
-		case <-timer.C:
-			// The server's AckWait owns redelivery. Do not emit another NAK after the
-			// deadline because it may already have redelivered to another replica.
-			return
-		case <-s.closeCh:
-			return
-		case <-progress.C:
-			s.reportProgress(natsMsg)
+// watchResult reconciles one delivery without parking a goroutine on it.
+//
+// The resolve callback runs the acknowledgement on the worker goroutine that
+// finished the handler, and an AfterFunc keepalive covers the slow-handler
+// case: each fire reports InProgress (renewing the server's AckWait) until the
+// coarse handlerDeadline, after which ownership is deliberately given up to
+// AckWait redelivery. On the normal path the handler resolves inside one
+// progress interval, so the whole mechanism costs one timer registration and
+// one cancellation per message — no goroutine, no channel park. The finished
+// flag is the single arbiter between a late resolve and the deadline: whoever
+// swaps it first owns the acks slot, exactly one of them releases it.
+func (s *concurrentDurableSubscriber) watchResult(natsMsg *nats.Msg, msg *Message) {
+	w := &resultWatch{s: s, natsMsg: natsMsg}
+	w.timer = time.AfterFunc(s.progress, w.keepAlive)
+	msg.setResolveHandler(w.resolve)
+}
+
+type resultWatch struct {
+	s       *concurrentDurableSubscriber
+	natsMsg *nats.Msg
+	timer   *time.Timer
+	// elapsed is touched only inside keepAlive; AfterFunc serializes the
+	// callback with its own Reset, so it needs no lock.
+	elapsed  time.Duration
+	finished atomic.Bool
+}
+
+func (w *resultWatch) resolve(acked bool) {
+	w.timer.Stop()
+	if !w.finished.CompareAndSwap(false, true) {
+		// The deadline already surrendered this delivery to AckWait; another
+		// ACK or NAK here would address a message the server may have
+		// redelivered elsewhere.
+		return
+	}
+	defer w.s.acks.Done()
+	select {
+	case <-w.s.closeCh:
+		return
+	default:
+	}
+	if acked {
+		w.s.ack(w.natsMsg)
+		return
+	}
+	w.s.nack(w.natsMsg)
+}
+
+func (w *resultWatch) keepAlive() {
+	if w.finished.Load() {
+		return
+	}
+	w.elapsed += w.s.progress
+	if w.elapsed >= w.s.handlerDeadline {
+		// The server's AckWait owns redelivery now. Do not emit another NAK
+		// after the deadline because it may already have redelivered to
+		// another replica, and reporting progress would renew the ownership
+		// the deadline exists to give up.
+		if w.finished.CompareAndSwap(false, true) {
+			w.s.acks.Done()
 		}
+		return
+	}
+	w.s.reportProgress(w.natsMsg)
+	w.timer.Reset(w.s.progress)
+}
+
+// ack applies the acknowledgement contract the stream's retention actually
+// needs. On a limits/interest stream the ACK only advances a cursor, so it is
+// fired asynchronously: the double-ack proved the cursor had moved at the cost
+// of a round trip per message, which becomes a RAFT quorum round trip per
+// message once the lane's stream is replicated. Handlers are idempotent by
+// contract (ADR 0003), so a lost ACK there only risks one redelivery after
+// AckWait, which is safe; a stalled quorum on every ACK is not.
+func (s *concurrentDurableSubscriber) ack(msg *nats.Msg) {
+	if s.ackSync {
+		s.ackWorkQueue(msg)
+		return
+	}
+	if err := msg.Ack(); err != nil {
+		s.log.Warn("durable message ack failed; leaving redelivery to AckWait",
+			zap.String("subject", msg.Subject), zap.Error(err))
 	}
 }
 
-func (s *concurrentDurableSubscriber) confirmAck(msg *nats.Msg) {
-	// Double-ack so a successful return proves the consumer cursor advanced.
-	// This network wait remains outside the serial subscription callback.
-	if err := msg.AckSync(nats.AckWait(2 * time.Second)); err != nil {
-		s.log.Warn("durable message confirmed ack failed; requesting replay", zap.String("subject", msg.Subject), zap.Error(err))
+// ackWorkQueue confirms the acknowledgement reached the server. Work-queue
+// retention deletes the message on ack, so an ACK that never lands is not a
+// stale cursor but a redelivery of work that already ran — on TWITCH_OUTGRESS
+// that is the same chat line sent twice. A failed confirmation NAKs instead, so
+// the redelivery is deliberate and paced rather than an AckWait surprise; if the
+// ACK did land and only its reply was lost, the NAK addresses a message the
+// server has already removed and does nothing.
+func (s *concurrentDurableSubscriber) ackWorkQueue(msg *nats.Msg) {
+	if err := msg.AckSync(nats.AckWait(ackSyncTimeout)); err != nil {
+		s.log.Warn("work-queue message ack was not confirmed; nacking to force a paced redelivery",
+			zap.String("subject", msg.Subject), zap.Error(err))
 		s.nack(msg)
 	}
 }

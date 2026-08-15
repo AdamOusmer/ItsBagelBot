@@ -185,6 +185,43 @@ spec:
               value: "128"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS
               value: "1"
+            # Cohort wire, set explicitly even though it matches the shipped
+            # default, because that is what makes the rollback a value edit here
+            # rather than a rebuild. "atomic" writes the cohort as one ADR-050
+            # batch and resolves it with a single commit PubAck, so the R3 lane
+            # stream pays RAFT quorum latency once per cohort instead of once per
+            # event; "single" is the per-event PubAck compatibility path.
+            #
+            # Blast radius, which is what an operator flips this for: on
+            # "atomic" an ambiguous outcome (ack timeout, malformed reply, a send
+            # error mid-batch) drops the WHOLE cohort — up to
+            # INGRESS_PUBLISH_BATCH_SIZE=128 events — where the same outcome on
+            # "single" costs exactly 1. Nothing is lost silently: every drop
+            # lands in Nats/PublishFailed. The signal is that counter's SHAPE —
+            # cohort-sized steps rather than one event at a time. Step-shaped
+            # growth means set this to "single" and take the per-event quorum
+            # cost back. Anything other than these two values warns on stderr
+            # and stays "atomic".
+            - name: INGRESS_PUBLISH_WIRE
+              value: "atomic"
+            # Unresolved atomic batches per shard, sized so the FLEET stays under
+            # the broker's stock cap of 50 open atomic batches per stream — every
+            # shard opens against the same TWITCH_INGRESS. 3 replicas x 2
+            # schedulers (+S 2:2) = 6 shards, so 8 each = 48.
+            #
+            # This arithmetic is load-bearing. Raise `replicas` above, change the
+            # +S flag in ERL_FLAGS, or raise this number, and the fleet crosses
+            # the cap: every open past it comes back 10210/429 and re-drives per
+            # message, which silently removes the batching the wire above exists
+            # for, and does so exactly when the fleet is busiest.
+            # app/ingress/test/nats_publisher_wire_test.exs asserts the product,
+            # so changing one of the three without the others fails a test.
+            #
+            # Nats/PublishBatchFallback rising with 429s means the fleet is over
+            # the cap; Nats/PublishBatchBypassed means this local window filled,
+            # which is a commit-latency alarm rather than a budget one.
+            - name: INGRESS_PUBLISH_BATCH_INFLIGHT
+              value: "8"
             # Match normal and dirty schedulers to the two-CPU cgroup below.
             # `short` normal-scheduler busy-wait was modestly faster than
             # `none` across repeated direct-dispatch runs, while dirty
