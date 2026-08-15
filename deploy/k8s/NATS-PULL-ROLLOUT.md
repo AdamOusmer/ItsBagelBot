@@ -2,23 +2,24 @@
 
 Operator runbook for the bus relanding: moving sesame's hot ingress lanes from
 per-message explicit acknowledgement to the shared-durable **pull** consumer,
-plus the two broker changes that ship beside it (the BUS account's own RAFT
-egress, and the hub leader-balance CronJob).
+plus the broker change that ships beside it (the BUS account's own RAFT
+egress).
 
 Grants live in [nats-auth.conf](nats-auth.conf); the account model is in
 [NATS-ACCOUNTS.md](NATS-ACCOUNTS.md). Run everything from the operator context
 (`k8s-operator.tail451e6d.ts.net`).
 
-The rollout is four stages and they are ordered by what breaks if they are not:
+The rollout is three stages and they are ordered by what breaks if they are not:
 
 | Stage | Change | Delivery | Reversible by |
 |---|---|---|---|
 | 1 | ACL grants (`MSG.NEXT`, `TWITCH_INGRESS_STANDARD`), `cluster_traffic: owner` | git merge, then reload + hub roll | revert commit, roll again |
-| 2 | `leader_balance_bus` credential + CronJob | nats-secrets.py, then hub roll | suspend the CronJob |
-| 3 | Canary: `NATS_CONSUME_FLOW=on` on sesame | git commit | `NATS_CONSUME_FLOW=off` |
-| 4 | `TWITCH_INGRESS_STANDARD` partition | service reconcile on image rollout | see section 6 |
+| 2 | Canary: `NATS_CONSUME_FLOW=on` on sesame | git commit | `NATS_CONSUME_FLOW=off` |
+| 3 | `TWITCH_INGRESS_STANDARD` partition | service reconcile on image rollout | see section 6 |
 
-Stages 1 and 2 change no lane behaviour. Stage 3 is the only one chat can feel.
+Stage 1 changes no lane behaviour. Stage 2 is the only one chat can feel.
+No new credentials ship with this rollout: every grant lands on existing users,
+so nats-secrets.py is not involved.
 
 ## 1. Merge before Flux resumes
 
@@ -29,7 +30,7 @@ name is stable and the content is replaced in place). Git is therefore the only
 durable copy of the broker config: anything applied to the live ConfigMap by
 hand is overwritten at the next reconcile, at the latest on the 1h interval.
 
-That is why `cluster_traffic: owner` and the leader-balance verbs must be **on
+That is why `cluster_traffic: owner` and the new grants must be **on
 main before `apps` is resumed or reconciled**. Resuming against an older conf
 does not merely fail to add them, it removes what is live: the reloader sees the
 content change, SIGHUPs, and the BUS account loses its own RAFT egress goroutine
@@ -57,50 +58,34 @@ If `apps` is suspended for an unrelated reason, resume it only after the merge:
 flux -n flux-system resume kustomization apps
 ```
 
-## 2. Credentials: nats-secrets.py and the leader-balance project
+## 2. Leader spread: a manual policy, on purpose
 
-`leader_balance_bus` is a new BUS identity, so it needs a bcrypt hash in the
-broker (`NATS_BCRYPT_LEADER_BALANCE_BUS`) and the matching plaintext in Doppler.
-[nats-secrets.py](nats-secrets.py) already carries it (`leader_balance` in
-`SERVICES`, BUS-only via `NO_RPC`).
+Stream leaders drift on member restarts (elections are roulette, not
+round-robin), and a member co-leading with TWITCH_INGRESS serves its other
+lanes 25-40% slower (measured 2026-08-15). The assigned spread, set live that
+night and still current:
 
-Prerequisites, both outside the repo and both required before the first run:
+| Stream | Leader |
+|---|---|
+| TWITCH_INGRESS | nats-1 |
+| TWITCH_OUTGRESS | nats-2 |
+| BAGEL_DATA, TWITCH_OUTGRESS_SYSTEM | nats-0 |
 
-1. A Doppler project named `leader-balance` with a `prd` config. The script
-   writes `NATS_USER` / `NATS_PASSWORD` into it and fails if it does not exist.
-2. A `leader-balance-doppler-token` secret in `production` holding a read-only
-   service token for that project. The DopplerSecret in
-   [nats-leader-balance.yaml](nats-leader-balance.yaml) reads it to sync the
-   `leader-balance-env` secret the CronJob mounts.
-
-```sh
-python3 deploy/k8s/nats-secrets.py --dry-run   # prints the keys per project
-python3 deploy/k8s/nats-secrets.py
-```
-
-**Re-running the script is a full rotation.** It regenerates every NATS password
-in the fleet, not just the new one. Plan it as such: the hashes are env-injected
-into the broker, so the brokers must restart, and the Doppler operator restarts
-the app services on its own once their projects update.
+There is no automation, deliberately: at the current 60-80k operating load even
+a fully piled-up member still clears the lanes, so drift is a growth concern
+(relevant approaching ~130k aggregate), not an incident. After any hub roll,
+re-check and restore the spread as the last step of the roll:
 
 ```sh
-kubectl -n production rollout restart statefulset/nats
-kubectl -n production rollout status  statefulset/nats --timeout=10m
-kubectl -n production rollout restart daemonset/nats-leaf
-kubectl -n production rollout status  daemonset/nats-leaf --timeout=10m
+kubectl -n production exec nats-0 -c nats -- \
+  wget -q -O- 'http://127.0.0.1:8222/jsz?streams=true' # leaders per stream
 ```
 
-Verify the identity works by running the CronJob once by hand:
-
-```sh
-kubectl -n production create job --from=cronjob/nats-leader-balance lb-verify
-kubectl -n production logs job/lb-verify
-kubectl -n production delete job lb-verify
-```
-
-A balanced cluster prints nothing and exits 0. `WARN: no leader reported` means
-the request was refused or timed out, which at this point is an authentication
-or ACL problem, not drift.
+Restoring a leader means a `$JS.API.STREAM.LEADER.STEPDOWN.<stream>` request
+with `{"placement":{"preferred":"nats-N"}}`. No standing identity carries that
+verb (kept off the ACLs until automation is actually needed); use the SYS
+account, or splice a temporary scoped user for the four streams the way the
+bench grants were done, and remove it after.
 
 ## 3. Reload rules: what SIGHUPs and what has to roll
 
@@ -117,8 +102,8 @@ existing user, new users whose `$NATS_BCRYPT_*` variable is already present in
 
 - A user referencing a **new** `$NATS_BCRYPT_*` placeholder. `nats-auth-env` is
   consumed with `envFrom`, and environment is read once at container start, so
-  the placeholder resolves to nothing until the pod restarts. This is why stage
-  2 rolls the hub and the leaf.
+  the placeholder resolves to nothing until the pod restarts. (No user in this
+  rollout does that; noted for the next one that does.)
 - Anything in the accounts block's `jetstream` settings, including
   `cluster_traffic: owner`. Reload semantics there are not trusted.
 
@@ -132,8 +117,8 @@ kubectl -n production exec nats-0 -c nats -- \
 
 Roll members one at a time and wait for readiness between them. Each restart
 costs stream and consumer RAFT re-sync, and elections land leaders wherever the
-returning member wins them, which is what the leader-balance CronJob exists to
-undo. The `nats` StatefulSet's PDB allows one unavailable member.
+returning member wins them; restore the spread per section 2 as the last step.
+The `nats` StatefulSet's PDB allows one unavailable member.
 
 ## 4. The canary
 
@@ -153,10 +138,12 @@ instead of NAKed.
 
 **Before flipping**, check the existing durables. The pull consumer takes the
 same name today's push consumer has (`worker_twitch_ingress_event_premium` and
-`worker_twitch_ingress_event_standard`), and `ensurePullConsumer` only issues
-create-or-update, with no delete-and-recreate fallback. If the server refuses to
-convert a push consumer to a pull consumer in place, every sesame pod fails its
-lane binding at startup. Read the current shape first:
+`worker_twitch_ingress_event_standard`). The server refuses to convert a push
+consumer to a pull consumer in place; the binding handles that with a
+delete-and-recreate that carries the ack floor (bindPullConsumer in
+pkg/bus/pull_consumer.go), so the flip is expected to log one replacement per
+lane. Read the current shape first anyway, so the post-flip picture has a
+before:
 
 ```sh
 kubectl -n production port-forward pod/nats-0 8222:8222 &
@@ -170,10 +157,11 @@ curl -s 'http://127.0.0.1:8222/jsz?acc=BUS&consumers=true&config=true' \
 ```
 
 Consumer state is served by the member that hosts it, so repeat for `nats-1` and
-`nats-2` if a consumer is missing from the first answer. If the flip fails on a
-consumer update error, delete the two durables and let the fleet recreate them
-(the lane's retention is 10s, so a fresh `DeliverNew` durable skips at most that
-much; the lane's staleness policy already says a late answer is worse than none).
+`nats-2` if a consumer is missing from the first answer. If the flip still fails on a
+consumer error the fallback did not cover, delete the two durables by hand and
+let the fleet recreate them (the lane's retention is 10s, so a fresh
+`DeliverNew` durable skips at most that much; the lane's staleness policy
+already says a late answer is worse than none).
 
 **Flip:** edit [sesame.yaml](sesame.yaml), change `NATS_CONSUME_FLOW` from
 `"off"` to `"on"`, commit, push. `NATS_CONSUME_MODE` is already pinned to `pull`.
@@ -215,22 +203,12 @@ lane across pods where the flow shape copied it to each.
 
 ## 5. Rollback, per stage
 
-**Stage 3 (canary).** `NATS_CONSUME_FLOW=off` is the kill switch and it outranks
+**Stage 2 (canary).** `NATS_CONSUME_FLOW=off` is the kill switch and it outranks
 `NATS_CONSUME_MODE`, deliberately, so nobody has to know a second variable exists
 during an incident. Set it back to `"off"`, commit, push, reconcile. The lanes
 return to explicit per-message acks, the retry lane stops being provisioned and
 stops being read, and the pull durables go inactive (they self-delete after the
 5m inactive threshold). Nothing else has to be undone.
-
-**Stage 2 (leader balance).** Suspend the CronJob; it is advisory placement, not
-a dependency of anything.
-
-```sh
-kubectl -n production patch cronjob nats-leader-balance -p '{"spec":{"suspend":true}}'
-```
-
-Do not roll back the credential: the rotation touched every service, so reverting
-it means another full rotation and another fleet restart.
 
 **Stage 1 (ACLs and cluster traffic).** Revert the commit on main and reconcile.
 The ACL half reloads. Removing `cluster_traffic: owner` needs the same hub roll
@@ -263,14 +241,12 @@ Deploy-side ordering, which is this file's half:
    reads the stream and authz subjects, all of which stay on `TWITCH_INGRESS`.
    If the partition's subject list ever grows, the consumer verb sets for
    `projector_bus` and `outgress_bus` move with it, in the same commit.
-3. **Leader balance is not updated yet, and must be.** The whole point of two
-   streams is two leaders, and `DESIRED_LEADERS` in
-   [nats-leader-balance.yaml](nats-leader-balance.yaml) does not name the new
-   stream. Add it, along with `STREAM.INFO` and `STREAM.LEADER.STEPDOWN` for it
-   on `leader_balance_bus`, in the commit that creates the stream. Not before:
-   the job reports `WARN: no leader reported` for a stream that does not exist
-   and exits 1, turning a balanced cluster into a failing CronJob. Pair it with
-   whichever member is not already carrying `TWITCH_INGRESS`.
+3. **The new stream needs a leader assignment.** The whole point of two
+   streams is two leaders. After the partition's first rollout, check where the
+   new stream's leader landed and move it per section 2 if the election paired
+   it with `TWITCH_INGRESS`'s member — the two lane leaders on one box is the
+   exact shape the partition exists to avoid. Add the stream to section 2's
+   spread table in the same commit that creates it.
 4. **KEDA triggers follow the consumer.** The `nats-jetstream` triggers in
    [sesame.yaml](sesame.yaml) name `stream: TWITCH_INGRESS` for both durables.
    The standard trigger has to name `TWITCH_INGRESS_STANDARD` once the consumer
