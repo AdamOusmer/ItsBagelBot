@@ -575,9 +575,10 @@ func (s *pullConsumerSpy) CreateOrUpdateConsumer(
 	}
 	if s.racedConversionLanded() {
 		s.live.Config.DeliverSubject = ""
+		s.live.Config.MemoryStorage = true
 	}
-	if s.refusesPushToPull(cfg) {
-		return nil, errors.New("nats: can not update push consumer to pull based")
+	if err := s.refusesImmutableUpdate(cfg); err != nil {
+		return nil, err
 	}
 	s.created = append(s.created, cfg)
 	s.live = &jsapi.ConsumerInfo{Config: cfg}
@@ -590,10 +591,23 @@ func (s *pullConsumerSpy) racedConversionLanded() bool {
 	return s.convertAfter > 0 && s.attempts >= s.convertAfter && s.live != nil
 }
 
-// refusesPushToPull is the server rule the whole conversion path exists for: an
-// update may not turn a live push consumer into a pull one.
-func (s *pullConsumerSpy) refusesPushToPull(cfg jsapi.ConsumerConfig) bool {
-	return s.live != nil && s.live.Config.DeliverSubject != "" && cfg.DeliverSubject == ""
+// refusesImmutableUpdate is the server rule the whole conversion path exists
+// for, in checkNewConsumerConfig's own field order: storage type is checked
+// before the push/pull deliver subject, so the storage message — wrapped the
+// way the client wraps an API error — is what a real flip surfaces first
+// (production, 2026-08-15). The conversion message only appears when the
+// storage types happen to agree.
+func (s *pullConsumerSpy) refusesImmutableUpdate(cfg jsapi.ConsumerConfig) error {
+	if s.live == nil {
+		return nil
+	}
+	if s.live.Config.MemoryStorage != cfg.MemoryStorage {
+		return errors.New("nats: API error: code=500 err_code=10012 description=storage type can not be updated")
+	}
+	if s.live.Config.DeliverSubject != "" && cfg.DeliverSubject == "" {
+		return errors.New("nats: can not update push consumer to pull based")
+	}
+	return nil
 }
 
 func (s *pullConsumerSpy) DeleteConsumer(context.Context, string, string) error {

@@ -173,14 +173,18 @@ func recoveryFlowConsumerConfig(lane laneBinding, position flowPosition) jsapi.C
 // — must propagate unchanged: deleting on those turns a transient API failure
 // into a lane-wide delivery reset for every pod bound to the stream.
 //
-// The two conversion errors are what a mode flip actually hits. Every lane
+// The conversion errors are what a mode flip actually hits. Every lane
 // consumer is named durableName(group, subject) whatever mode binds it, so
 // switching NATS_CONSUME_MODE re-provisions the SAME durable with the other
 // shape, and nats-server refuses that in place (checkNewConsumerConfig). Which
-// message comes back depends only on the field order of that check: the flip
-// this fleet performs today trips "ack policy" first (explicit push is
-// AckExplicit, pull is AckAll), and the conversion messages surface whenever the
-// ack policies happen to agree. Both are the same one-way door.
+// message comes back depends only on the field order of that check, and in
+// 2.14 that order is: deliver policy, storage, start sequence/time, ack
+// policy, replay policy, heartbeat, flow control, then the push/pull deliver
+// subject check. The flip this fleet performs trips "storage type" first (the
+// pull lane durable is memory/R1 by design, the explicit push consumer it
+// replaces is file), then "ack policy" (explicit push is AckExplicit, pull is
+// AckAll), and the conversion messages surface only when both of those happen
+// to agree. All are the same one-way door.
 //
 // Deliberately absent: "deliver policy"/"start sequence", which both provisioning
 // paths echo from the server precisely so they cannot mismatch — a rejection
@@ -190,6 +194,7 @@ func recoveryFlowConsumerConfig(lane laneBinding, position flowPosition) jsapi.C
 // reporting that the old delivery subject still has a live subscriber.
 var immutableConsumerFieldErrors = []string{
 	"ack policy can not be updated",
+	"storage type can not be updated",
 	"flow control can not be updated",
 	"heart beats can not be updated",
 	"can not update push consumer to pull based",
