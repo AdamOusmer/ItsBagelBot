@@ -167,7 +167,10 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 	}
 
 	cacheKey := core.Key(providerName, "devices", broadcaster)
-	b, err := core.CachedBytes(ctx, p.cache, cacheKey, func(ctx context.Context) ([]byte, time.Duration, error) {
+	// No budget: the device list is read with the broadcaster's OWN Govee key, so
+	// it spends their quota rather than a shared one, and the pacing that matters
+	// is on control (enforceRate), which is what actually drives their hardware.
+	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
 		b, ttl, _, err := core.BuildReply(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp deviceListResponse
