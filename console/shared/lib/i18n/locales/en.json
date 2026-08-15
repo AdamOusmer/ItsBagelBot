@@ -82,6 +82,20 @@
     "lede": "Your account, commands, and links have been removed. Thanks for being part of the bakery. The door's always open if you come back.",
     "cta": "Back to itsbagelbot.com"
   },
+  "stats": {
+    "title": "Live statistics",
+    "metaDescription": "Live global counters for ItsBagelBot: total chat messages and Twitch events processed across every channel, plus how many are flowing through right now.",
+    "eyebrow": "Global counters",
+    "headline": "Everything ItsBagelBot has handled",
+    "tagline": "Chat messages and Twitch events processed across every channel we serve, counted since day one and refreshed live.",
+    "messagesLabel": "Total messages processed",
+    "eventsLabel": "Total events processed",
+    "messageRateLabel": "Messages per second",
+    "eventRateLabel": "Events per second",
+    "perSecond": "/s",
+    "liveNote": "Updated every 5 seconds",
+    "degraded": "Live counters are temporarily unavailable, so the numbers below are not current. They will catch up on their own."
+  },
   "overview": {
     "statusHeading": "Bot status",
     "statusPausedDetail": "Your bot is switched off. Turn it back on to rejoin chat.",

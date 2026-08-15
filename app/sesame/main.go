@@ -87,6 +87,7 @@ func main() {
 	guard := automod.New()
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
+		stats: loyaltyReporter,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)

@@ -82,6 +82,20 @@
     "lede": "Votre compte, vos commandes et vos liens ont été supprimés. Merci d'avoir fait partie de la boulangerie. La porte reste toujours ouverte si vous revenez.",
     "cta": "Retour à itsbagelbot.com"
   },
+  "stats": {
+    "title": "Statistiques en direct",
+    "metaDescription": "Compteurs globaux d'ItsBagelBot en direct : total des messages de chat et des événements Twitch traités sur toutes les chaînes, et le débit actuel.",
+    "eyebrow": "Compteurs globaux",
+    "headline": "Tout ce qu'ItsBagelBot a traité",
+    "tagline": "Les messages de chat et les événements Twitch traités sur l'ensemble des chaînes que nous servons, comptés depuis le premier jour et actualisés en direct.",
+    "messagesLabel": "Messages traités au total",
+    "eventsLabel": "Événements traités au total",
+    "messageRateLabel": "Messages par seconde",
+    "eventRateLabel": "Événements par seconde",
+    "perSecond": "/s",
+    "liveNote": "Actualisé toutes les 5 secondes",
+    "degraded": "Les compteurs en direct sont momentanément indisponibles : les chiffres ci-dessous ne sont donc pas à jour. Ils se remettront à niveau tout seuls."
+  },
   "overview": {
     "statusHeading": "État du bot",
     "statusPausedDetail": "Votre bot est désactivé. Réactivez-le pour rejoindre le chat.",
