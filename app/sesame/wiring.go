@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/sesame/internal/consumer"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -107,8 +108,31 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
+		Dedup: newDedup(w),
+
 		PublicBaseURL: cfg.PublicBaseURL,
 	}
+}
+
+// idempotency guard tuning. The prefix follows the fleet's colon-delimited
+// keyspace convention; the LRU absorbs the same-pod redelivery burst before it
+// reaches Valkey.
+const (
+	sesameSeenPrefix       = "sesame:seen:"
+	idempotencyLRUCapacity = 100_000
+)
+
+// newDedup builds the consumer-side dedup guard over the shared Valkey client:
+// a per-pod LRU tier in front of a master-pinned SET NX store. The kill switch
+// (SESAME_IDEMPOTENCY=off) returns nil, which engine.EventDedup treats as
+// fail-open everywhere — effects run, nothing is deduped.
+func newDedup(w wireCtx) *engine.EventDedup {
+	if !w.cfg.IdempotencyEnabled {
+		return nil
+	}
+	store := idempotency.NewTiered(idempotencyLRUCapacity,
+		idempotency.NewValkeyStore(w.in.vc, sesameSeenPrefix, w.log))
+	return engine.NewEventDedup(store, sesameSeenPrefix, w.cfg.IdempotencyTTL, w.log)
 }
 
 // newProjection builds the settings-projection reader (in-process cache fronting

@@ -127,7 +127,7 @@ func testNativeBroadcastFanout(t *testing.T, integration nativeSubscriberIntegra
 
 func openNativeBroadcastIntegrationSubscriber(t *testing.T, url, name, stream string) Subscriber {
 	t.Helper()
-	nc, err := nats.Connect(url, busOptions(name)...)
+	nc, err := nats.Connect(url, busOptions(clientName(name))...)
 	if err != nil {
 		t.Fatal(err)
 	}

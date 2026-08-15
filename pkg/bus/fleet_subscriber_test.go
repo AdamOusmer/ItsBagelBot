@@ -31,6 +31,57 @@ func TestFleetSubscriberCloseWaitsForAdmittedRegistration(t *testing.T) {
 	requireRegistrationRejected(t, subscriber)
 }
 
+func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
+	owner := &fleetSubscriber{}
+	binding := testFlowSubscriber()
+
+	lane, err := owner.rememberFlowLane("TWITCH_INGRESS|twitch.ingress.event.standard", binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A second consumer unit joins the pod's existing consumer instead of
+	// creating one of its own, so the pod keeps a single receipt cursor.
+	requireFlowLaneShared(t, owner, lane, binding)
+
+	if err := owner.releaseFlowLane(lane); err != nil {
+		t.Fatal(err)
+	}
+	requireFlowLaneBinding(t, owner, lane.key, true)
+
+	_ = owner.releaseFlowLane(lane) // the last unit closes the binding
+	requireFlowLaneBinding(t, owner, lane.key, false)
+}
+
+// requireFlowLaneShared states the join: the second unit takes the bound lane
+// itself and raises its reference count, never a lane of its own.
+func requireFlowLaneShared(t *testing.T, owner *fleetSubscriber, lane *sharedFlowLane, binding Subscriber) {
+	t.Helper()
+	shared, surplus, err := owner.storeFlowLane(lane.key, binding)
+	if err != nil {
+		t.Fatalf("second unit: %v", err)
+	}
+	if !surplus {
+		t.Fatalf("second unit created a lane of its own (lane=%p)", shared)
+	}
+	if shared != lane {
+		t.Fatalf("second unit joined lane %p, want the bound lane %p", shared, lane)
+	}
+	if lane.refs != 2 {
+		t.Fatalf("reference count = %d, want both units", lane.refs)
+	}
+}
+
+// requireFlowLaneBinding states whether the pod still holds the lane binding.
+func requireFlowLaneBinding(t *testing.T, owner *fleetSubscriber, key string, want bool) {
+	t.Helper()
+	if _, bound := owner.flowLanes[key]; bound != want {
+		if want {
+			t.Fatal("retiring one unit tore down the pod's lane binding")
+		}
+		t.Fatal("the last unit left the binding behind")
+	}
+}
+
 func requireRegistrationAdmitted(t *testing.T, subscriber *fleetSubscriber) {
 	t.Helper()
 	if !subscriber.beginRegistration() {

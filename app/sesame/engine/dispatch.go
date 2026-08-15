@@ -103,15 +103,22 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		return nil
 	}
 
-	// Count the successful run. The reporter sums ticks locally and publishes one
-	// event per command per flush window, so chat spam never floods NATS. cc.Name
-	// is the canonical key (an alias lookup resolves to it), so alias invocations
-	// all count against the one command.
-	if p.uses != nil {
-		p.uses.Record(c.BroadcasterID, cc.Name)
-	}
-
+	// Count the successful run. cc.Name is the canonical key (an alias lookup
+	// resolves to it), so alias invocations all count against the one command.
+	p.recordUse(ctx, c, cc.Name)
 	return nil
+}
+
+// recordUse counts one successful command run. The reporter sums ticks locally
+// and publishes one event per command per flush window, so chat spam never
+// floods NATS. It is deduped so a redelivered command line does not inflate the
+// summed count: the use counter is one of the effects that is not naturally
+// idempotent, and a quorum loss redelivers whatever was in flight.
+func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
+	if p.uses == nil || p.dedup.Duplicate(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: effectUse}) {
+		return
+	}
+	p.uses.Record(c.BroadcasterID, name)
 }
 
 // emitResponse expands a custom command once and prepares one action per
