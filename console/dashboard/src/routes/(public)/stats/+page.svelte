@@ -268,6 +268,11 @@
 <svelte:head>
   <title>{t('stats.title')}</title>
   <meta name="description" content={t('stats.metaDescription')} />
+  <!-- The page answers on two hosts (stats.itsbagelbot.com root and
+       dashboard.itsbagelbot.com/stats); the subdomain is the one search
+       engines and shares should converge on. -->
+  <link rel="canonical" href="https://stats.itsbagelbot.com/" />
+  <meta property="og:url" content="https://stats.itsbagelbot.com/" />
   <meta property="og:title" content={t('stats.title')} />
   <meta property="og:description" content={t('stats.metaDescription')} />
   <meta name="twitter:title" content={t('stats.title')} />

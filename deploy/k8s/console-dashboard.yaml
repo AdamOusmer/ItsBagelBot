@@ -119,10 +119,17 @@ spec:
               value: /etc/console/tls/tls.key
             - name: NODE_ENV
               value: production
-            # adapter-node sits behind cloudflared+traefik; ORIGIN lets SvelteKit
-            # validate form POSTs (origin-checked CSRF) against the public URL.
-            - name: ORIGIN
-              value: https://dashboard.itsbagelbot.com
+            # adapter-node sits behind cloudflared+traefik. The app answers
+            # under two public hostnames (dashboard. and stats.itsbagelbot.com),
+            # so instead of pinning one ORIGIN it derives each request's origin
+            # from traefik's forwarded headers — traefik always sets both, and
+            # overwrites client-supplied values, so the origin-checked CSRF on
+            # form POSTs stays sound. The stats host reroutes '/' to the public
+            # stats page in the app (src/hooks.ts).
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: HOST_HEADER
+              value: x-forwarded-host
             # Pin the in-cluster NATS endpoint. The Doppler secret's NATS_HOST is
             # a stale cross-namespace FQDN (nats.bagelbot...) that does not
             # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
@@ -290,7 +297,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`dashboard.itsbagelbot.com`)
+    - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
       kind: Rule
       services:
         - name: console-dashboard
