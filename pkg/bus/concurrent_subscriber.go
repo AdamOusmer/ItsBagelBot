@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -217,7 +218,7 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 		select {
 		case output <- msg:
 			s.acks.Add(1)
-			go s.awaitResult(natsMsg, msg)
+			s.watchResult(natsMsg, msg)
 		case <-ctx.Done():
 		case <-s.closeCh:
 		case <-callbacks.stopped():
@@ -318,46 +319,71 @@ func jetStreamIdentity(domain, stream string, sequence uint64) string {
 	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
 }
 
-// awaitResult reconciles one delivery off the subscription callback's path.
+// watchResult reconciles one delivery without parking a goroutine on it.
 //
-// It arms a single timer at s.progress and counts the fires, rather than a
-// deadline timer plus a progress ticker. Two runtime-timer registrations per
-// message buy nothing on the normal path, where the handler resolves in well
-// under one progress interval and neither timer ever fires: at lane rates that
-// is two registrations and cancellations per message on the runtime's timer
-// heap. Counting fires makes the deadline "at least handlerDeadline" instead of
-// exactly it, since each Reset restarts the interval from the moment this
-// goroutine was scheduled; the deadline is a coarse ceiling on a pathological
-// handler, not a clock anything is measured against.
-func (s *concurrentDurableSubscriber) awaitResult(natsMsg *nats.Msg, msg *Message) {
-	defer s.acks.Done()
-	timer := time.NewTimer(s.progress)
-	defer timer.Stop()
+// The resolve callback runs the acknowledgement on the worker goroutine that
+// finished the handler, and an AfterFunc keepalive covers the slow-handler
+// case: each fire reports InProgress (renewing the server's AckWait) until the
+// coarse handlerDeadline, after which ownership is deliberately given up to
+// AckWait redelivery. On the normal path the handler resolves inside one
+// progress interval, so the whole mechanism costs one timer registration and
+// one cancellation per message — no goroutine, no channel park. The finished
+// flag is the single arbiter between a late resolve and the deadline: whoever
+// swaps it first owns the acks slot, exactly one of them releases it.
+func (s *concurrentDurableSubscriber) watchResult(natsMsg *nats.Msg, msg *Message) {
+	w := &resultWatch{s: s, natsMsg: natsMsg}
+	w.timer = time.AfterFunc(s.progress, w.keepAlive)
+	msg.setResolveHandler(w.resolve)
+}
 
-	var elapsed time.Duration
-	for {
-		select {
-		case <-msg.Acked():
-			s.ack(natsMsg)
-			return
-		case <-msg.Nacked():
-			s.nack(natsMsg)
-			return
-		case <-s.closeCh:
-			return
-		case <-timer.C:
-			elapsed += s.progress
-			if elapsed >= s.handlerDeadline {
-				// The server's AckWait owns redelivery. Do not emit another NAK after the
-				// deadline because it may already have redelivered to another replica.
-				// Reporting progress here would be the opposite of the intent: it would
-				// renew the ownership the deadline exists to give up.
-				return
-			}
-			s.reportProgress(natsMsg)
-			timer.Reset(s.progress)
-		}
+type resultWatch struct {
+	s       *concurrentDurableSubscriber
+	natsMsg *nats.Msg
+	timer   *time.Timer
+	// elapsed is touched only inside keepAlive; AfterFunc serializes the
+	// callback with its own Reset, so it needs no lock.
+	elapsed  time.Duration
+	finished atomic.Bool
+}
+
+func (w *resultWatch) resolve(acked bool) {
+	w.timer.Stop()
+	if !w.finished.CompareAndSwap(false, true) {
+		// The deadline already surrendered this delivery to AckWait; another
+		// ACK or NAK here would address a message the server may have
+		// redelivered elsewhere.
+		return
 	}
+	defer w.s.acks.Done()
+	select {
+	case <-w.s.closeCh:
+		return
+	default:
+	}
+	if acked {
+		w.s.ack(w.natsMsg)
+		return
+	}
+	w.s.nack(w.natsMsg)
+}
+
+func (w *resultWatch) keepAlive() {
+	if w.finished.Load() {
+		return
+	}
+	w.elapsed += w.s.progress
+	if w.elapsed >= w.s.handlerDeadline {
+		// The server's AckWait owns redelivery now. Do not emit another NAK
+		// after the deadline because it may already have redelivered to
+		// another replica, and reporting progress would renew the ownership
+		// the deadline exists to give up.
+		if w.finished.CompareAndSwap(false, true) {
+			w.s.acks.Done()
+		}
+		return
+	}
+	w.s.reportProgress(w.natsMsg)
+	w.timer.Reset(w.s.progress)
 }
 
 // ack applies the acknowledgement contract the stream's retention actually
