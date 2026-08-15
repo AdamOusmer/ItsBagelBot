@@ -38,10 +38,13 @@ import (
 // widened from one pod to the fleet. Handlers must stay idempotent and
 // replay-sensitive control lanes must stay on explicit ACK, exactly as before.
 const (
-	// defaultPullFetchBatch is how many messages one request asks for. Batching
-	// is the whole economy of the pull path: one request and one floor ack cover
-	// the batch, so the per-message API cost falls as the batch grows.
-	defaultPullFetchBatch = 500
+	// defaultPullFetchBatch is how many messages one pull request asks for and
+	// the receipt cadence of the floor ack. Batching is the whole economy of
+	// the pull path: one request and one floor ack cover the batch, so the
+	// per-message API cost falls as the batch grows. The continuous iterator
+	// keeps a refill for this many in flight while the current buffer is
+	// dispatched, and MaxAckPending must stay comfortably above twice this.
+	defaultPullFetchBatch = 1000
 
 	// defaultPullFetchMaxWait bounds an unfilled batch. It is the lane's idle
 	// latency floor and the loop's own spin rate, so it is short enough that a
@@ -320,39 +323,60 @@ func (s *pullSubscriber) Subscribe(_ context.Context, subject string) (<-chan *M
 
 func (s *pullSubscriber) pump() {
 	defer s.workers.Done()
-	for s.fetchOnce() {
+	for s.pumpIterator() {
 	}
 }
 
-// fetchOnce pulls one batch, hands every delivery to the lane channel, and then
-// advances the ack floor to the last of them — one publish for up to s.batch
-// messages, because AckAll acknowledges every sequence at or below the one it
-// names. It returns false once the binding is closing.
-func (s *pullSubscriber) fetchOnce() bool {
-	batch, err := s.consumer.Fetch(s.batch, jsapi.FetchMaxWait(s.maxWait))
+// pumpIterator opens one continuous-pull iterator and drains it until shutdown
+// or a transport error. The iterator keeps a refill request in flight while the
+// current buffer is being dispatched, so handlers no longer sit idle for a
+// fetch round trip between batches the way the batch-by-batch loop did — under
+// load that bubble was a fixed RTT out of every batch's wall clock. The floor
+// still advances on the receipt cadence: every s.batch receipts here, plus the
+// timer in advanceFloorPeriodically for a buffer that is only partially handed
+// out.
+func (s *pullSubscriber) pumpIterator() bool {
+	iter, err := s.consumer.Messages(jsapi.PullMaxMessages(s.batch))
 	if err != nil {
 		return s.noteFetchError(err)
 	}
-	for wire := range batch.Messages() {
-		if s.deliver(wire) {
-			continue
+	release := s.stopIteratorOnClose(iter)
+	defer release()
+	sinceFloor := 0
+	for {
+		wire, err := iter.Next()
+		if err != nil {
+			// Cover everything already handed out before deciding whether the
+			// error is shutdown or a transport failure worth backing off on.
+			s.advanceFloor()
+			if s.closed.Load() {
+				return false
+			}
+			return s.noteFetchError(err)
 		}
-		// Drained rather than abandoned: nats.go feeds this channel from a live
-		// subscription, and walking away mid-batch parks that goroutine on a send
-		// nobody will ever take.
-		drainPullBatch(batch)
-		return false
+		if !s.deliver(wire) {
+			return false
+		}
+		if sinceFloor++; sinceFloor >= s.batch {
+			s.advanceFloor()
+			sinceFloor = 0
+		}
 	}
-	s.advanceFloor()
-	if err := batch.Error(); err != nil {
-		return s.noteFetchError(err)
-	}
-	return true
 }
 
-func drainPullBatch(batch jsapi.MessageBatch) {
-	for range batch.Messages() {
-	}
+// stopIteratorOnClose unparks a blocked Next the moment the binding closes.
+// The returned release tears the watcher down when the iterator ends first;
+// stopping twice is safe.
+func (s *pullSubscriber) stopIteratorOnClose(iter jsapi.MessagesContext) func() {
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-s.closeCh:
+		case <-done:
+		}
+		iter.Stop()
+	}()
+	return func() { close(done) }
 }
 
 // deliver hands one message to the lane channel and records it as the newest

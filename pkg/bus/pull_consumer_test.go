@@ -307,7 +307,7 @@ func TestPullSubscriberIsBoundToOneSubject(t *testing.T) {
 	}
 }
 
-func TestConsumeModeIsThreeWayAndDefaultsToFlow(t *testing.T) {
+func TestConsumeModeIsThreeWayAndDefaultsToPull(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		flow string
@@ -321,8 +321,11 @@ func TestConsumeModeIsThreeWayAndDefaultsToFlow(t *testing.T) {
 		{"flow", "on", "flow", laneModeFlow},
 		{"pull", "on", "pull", laneModePull},
 		{"explicit", "on", "explicit", laneModeExplicit},
-		// A typo must not silently reshape the lane.
-		{"garbage", "on", "puull", laneModeFlow},
+		// A typo must not silently reshape the lane away from the default.
+		{"garbage", "on", "puull", laneModePull},
+		// Unset mode with the opt-in takes the pull default: the fan-out flow
+		// shape multiplies delivery per pod, pull divides it.
+		{"default", "on", "", laneModePull},
 		// NATS_CONSUME_FLOW=off is the deployed kill switch and outranks the mode
 		// outright: an operator reaching for it must not have to know that a
 		// second variable exists.

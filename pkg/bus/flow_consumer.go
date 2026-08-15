@@ -199,19 +199,29 @@ const (
 // NATS_CONSUME_FLOW=off predates NATS_CONSUME_MODE and still wins outright,
 // because it is set in deployed manifests as the kill switch back to explicit
 // acks — an operator reaching for it during an incident must not have to know
-// that a second variable exists. An unrecognised mode falls back to flow for the
-// same reason: a typo must not silently change the lane's shape.
+// that a second variable exists. An unrecognised mode falls back to pull for
+// the same reason: a typo must not silently change the lane's shape.
+//
+// Pull is the default receipt-level shape. The flow consumer fans out per
+// consumer name, so every pod added by the autoscaler receives a full copy of
+// the lane and multiplies the broker's delivery egress; the shared-durable pull
+// consumer divides the lane instead (live-measured 2026-08-15: two pull
+// instances per stream drained a 180k/s two-stream load the fan-out shape
+// could not, at 1x delivery egress). Ordering stays intact where it matters:
+// multi-line responses ship as one TypeBatch event, so cross-pod interleave
+// only touches independent events. Flow remains selectable per deployment for
+// any lane later shown to need a per-pod cursor.
 func consumeMode() laneConsumeMode {
 	if !FlowConsumeEnabled() {
 		return laneModeExplicit
 	}
-	switch laneConsumeMode(env.Get("NATS_CONSUME_MODE", string(laneModeFlow))) {
-	case laneModePull:
-		return laneModePull
+	switch laneConsumeMode(env.Get("NATS_CONSUME_MODE", string(laneModePull))) {
+	case laneModeFlow:
+		return laneModeFlow
 	case laneModeExplicit:
 		return laneModeExplicit
 	default:
-		return laneModeFlow
+		return laneModePull
 	}
 }
 

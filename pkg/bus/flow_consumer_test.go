@@ -646,6 +646,9 @@ func TestFlowConsumptionIsOptIn(t *testing.T) {
 
 func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 	t.Setenv("NATS_CONSUME_FLOW", "on")
+	// Pin flow explicitly: the receipt-level default is pull, and this test is
+	// about the flow adapter's scope guard, not the mode selection.
+	t.Setenv("NATS_CONSUME_MODE", "flow")
 	subscriber := &fleetSubscriber{group: "worker"}
 	hot := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.event.premium"}
 	control := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.status.authz.revoked"}
