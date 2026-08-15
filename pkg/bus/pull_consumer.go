@@ -357,7 +357,7 @@ func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
 
 	// The connection name separates the acknowledgement contracts in NATS
 	// monitoring, so a mixed rollout is legible from connz alone.
-	nc, err := nats.Connect(busURL(cfg.url), busOptions(cfg.group+"-pull")...)
+	nc, err := nats.Connect(busURL(endpoint(cfg.url)), busOptions(clientName(cfg.group)+"-pull")...)
 	if err != nil {
 		return nil, err
 	}

@@ -17,11 +17,7 @@ func TestRetryScheduleMatchesTheServerScheduleContract(t *testing.T) {
 
 	schedule := retryScheduleMsg("twitch.ingress.event.premium", wire, 3*time.Second, now)
 
-	for _, header := range []struct {
-		name    string
-		want    string
-		failure string
-	}{
+	for _, header := range []scheduleHeaderTerm{
 		{jsapi.ScheduleHeader, "@at 2026-07-27T12:00:03Z", "schedule pattern must be a one-shot @at three seconds out"},
 		{jsapi.ScheduleTargetHeader, "twitch.ingress.retry.premium", "schedule target"},
 		// The server rejects @at outright when a time zone header is present, even UTC.
@@ -35,19 +31,25 @@ func TestRetryScheduleMatchesTheServerScheduleContract(t *testing.T) {
 		{MessageIDHeader, "logical-id", "fleet identity was dropped"},
 		{"Nats-Expected-Last-Sequence", "", "an expectation header rode the retry"},
 	} {
-		requireScheduleHeader(t, schedule, header.name, header.want, header.failure)
+		requireScheduleHeader(t, schedule, header)
 	}
 	if string(schedule.Data) != `{"text":"hello"}` {
 		t.Fatalf("retry payload = %q", schedule.Data)
 	}
 }
 
-// requireScheduleHeader states one term of the schedule contract: an empty want
-// is the requirement that the header never rode the retry at all.
-func requireScheduleHeader(t *testing.T, schedule *nats.Msg, name, want, failure string) {
+// scheduleHeaderTerm is one term of the schedule contract: an empty want is the
+// requirement that the header never rode the retry at all.
+type scheduleHeaderTerm struct {
+	name    string
+	want    string
+	failure string
+}
+
+func requireScheduleHeader(t *testing.T, schedule *nats.Msg, term scheduleHeaderTerm) {
 	t.Helper()
-	if got := schedule.Header.Get(name); got != want {
-		t.Fatalf("%s: %s = %q, want %q (headers: %#v)", failure, name, got, want, schedule.Header)
+	if got := schedule.Header.Get(term.name); got != term.want {
+		t.Fatalf("%s: %s = %q, want %q (headers: %#v)", term.failure, term.name, got, term.want, schedule.Header)
 	}
 }
 

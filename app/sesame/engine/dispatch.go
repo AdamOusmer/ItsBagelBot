@@ -115,7 +115,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 // summed count: the use counter is one of the effects that is not naturally
 // idempotent, and a quorum loss redelivers whatever was in flight.
 func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
-	if p.uses == nil || p.dedup.Duplicate(ctx, EventIdentity(&c.Env), effectUse) {
+	if p.uses == nil || p.dedup.Duplicate(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: effectUse}) {
 		return
 	}
 	p.uses.Record(c.BroadcasterID, name)

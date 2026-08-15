@@ -38,16 +38,23 @@ import (
 // domain-qualified to reach the authoritative hub streams.
 func JSDomain() string { return env.Get("NATS_JS_DOMAIN", "hub") }
 
+// clientName is the name a connection reports to NATS monitoring, and endpoint
+// is a NATS URL or comma-separated server list. Both are distinct types so a
+// call site cannot transpose them into a connection that dials its own name.
+type clientName string
+
+type endpoint string
+
 // serverList returns the RPC endpoint. In split-plane production the leaf
 // Service itself supplies same-node preference and cross-node leaf failover;
 // adding the hub here would violate the RPC-only leaf / streams-only hub split.
 // With no split configured, override keeps local development on one server.
-func serverList(override string) string {
+func serverList(override endpoint) string {
 	leaf := env.Get("NATS_LEAF_URL", "")
 	if leaf != "" {
 		return leaf
 	}
-	return override
+	return string(override)
 }
 
 // connectionIdentity is who a connection dials as: the client name NATS
@@ -168,9 +175,9 @@ func tlsSecureOption() nats.Option {
 // rpcOptions authenticate the per-service account on the RPC plane. The creds
 // fall back to NATS_USER/NATS_PASSWORD so local dev and the phased rollout (RPC
 // creds not yet provisioned) keep working against the shared user.
-func rpcOptions(name string) []nats.Option {
+func rpcOptions(name clientName) []nats.Option {
 	opts := baseOptions(connectionIdentity{
-		name: name,
+		name: string(name),
 		user: env.Get("NATS_RPC_USER", env.Get("NATS_USER", "")),
 		pass: env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", "")),
 	})
@@ -188,9 +195,9 @@ func rpcOptions(name string) []nats.Option {
 }
 
 // busOptions authenticate the shared BUS account on the JetStream plane.
-func busOptions(name string) []nats.Option {
+func busOptions(name clientName) []nats.Option {
 	return baseOptions(connectionIdentity{
-		name: name,
+		name: string(name),
 		user: env.Get("NATS_USER", ""),
 		pass: env.Get("NATS_PASSWORD", ""),
 	})
@@ -200,7 +207,7 @@ func busOptions(name string) []nats.Option {
 // subscriptions on the per-service account through the leaf tier. name identifies the
 // service in NATS monitoring.
 func Connect(url string, name string) (*nats.Conn, error) {
-	return nats.Connect(serverList(url), rpcOptions(name)...)
+	return nats.Connect(serverList(endpoint(url)), rpcOptions(clientName(name))...)
 }
 
 // jsDomainOption is the JetStream connect option that targets the hub domain.
@@ -224,7 +231,7 @@ func RPCURL(busURL string) string {
 // console/shared/lib/server/nats.ts). Falls back to the configured endpoint
 // when no hub is configured (local dev / single-endpoint deploys). RPC stays
 // on the leaf via RPCURL/serverList.
-func busURL(url string) string {
+func busURL(url endpoint) string {
 	if hub := env.Get("NATS_HUB_URL", ""); hub != "" {
 		return hub
 	}
@@ -237,7 +244,7 @@ func busURL(url string) string {
 // routes the commit to the stream's RAFT leader. Consumers may still pin
 // NATS_HUB_URL to the member leading their stream, so publish and consume
 // locality remain independent. Local development falls back to busURL.
-func busPublishURL(url string) string {
+func busPublishURL(url endpoint) string {
 	if publish := env.Get("NATS_HUB_PUBLISH_URL", ""); publish != "" {
 		return publish
 	}

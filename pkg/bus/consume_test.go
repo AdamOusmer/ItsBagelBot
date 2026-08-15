@@ -202,12 +202,18 @@ func processQueued(lane *consumeLane, queued time.Duration, ids ...string) {
 	}
 }
 
-func requireLaneCounters(t *testing.T, stats *laneStats, wantOK, wantDeferred, wantFailed uint64) {
+// laneCounts is a lane's outcome ledger read as one value, so the whole state
+// is compared at once and reported at once.
+type laneCounts struct {
+	ok, deferred, failed uint64
+}
+
+func requireLaneCounters(t *testing.T, stats *laneStats, want laneCounts) {
 	t.Helper()
-	ok, def, failed := stats.ok.Load(), stats.deferred.Load(), stats.failed.Load()
-	if ok != wantOK || def != wantDeferred || failed != wantFailed {
+	got := laneCounts{ok: stats.ok.Load(), deferred: stats.deferred.Load(), failed: stats.failed.Load()}
+	if got != want {
 		t.Fatalf("counters = ok:%d deferred:%d failed:%d, want %d/%d/%d",
-			ok, def, failed, wantOK, wantDeferred, wantFailed)
+			got.ok, got.deferred, got.failed, want.ok, want.deferred, want.failed)
 	}
 }
 
@@ -228,7 +234,7 @@ func TestConsumeLaneCountsEveryOutcomeWithoutAnApplication(t *testing.T) {
 
 	processQueued(&lane, 3*time.Millisecond, "ok", "deferred", "failed", "ok")
 
-	requireLaneCounters(t, lane.stats, 2, 1, 1)
+	requireLaneCounters(t, lane.stats, laneCounts{ok: 2, deferred: 1, failed: 1})
 	requireQueueWaitRecorded(t, lane.stats, 3000, 12000)
 }
 

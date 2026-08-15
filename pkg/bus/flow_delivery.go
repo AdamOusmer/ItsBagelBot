@@ -125,7 +125,7 @@ func newFlowLaneSubscriber(cfg flowLaneConfig) (*flowSubscriber, error) {
 
 	// The connection name separates the two acknowledgement contracts in NATS
 	// monitoring, so a mixed rollout is legible from connz alone.
-	nc, err := nats.Connect(busURL(cfg.url), busOptions(cfg.group+"-flow")...)
+	nc, err := nats.Connect(busURL(endpoint(cfg.url)), busOptions(clientName(cfg.group)+"-flow")...)
 	if err != nil {
 		return nil, err
 	}

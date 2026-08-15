@@ -126,8 +126,10 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert [headers: _, reply_to: _] = traced_opts
       assert [reply_to: _] = plain_opts
-      assert is_list(Gnat.Command.build(:pub, @subject, traced, traced_opts))
-      assert is_list(Gnat.Command.build(:pub, @subject, plain, plain_opts))
+
+      for {json, opts} <- [{traced, traced_opts}, {plain, plain_opts}] do
+        assert is_list(Gnat.Command.build(:pub, @subject, json, opts))
+      end
     end
   end
 
@@ -178,9 +180,10 @@ defmodule Ingress.Nats.Publisher.WireTest do
       for module <- [Single, Atomic] do
         Code.ensure_loaded!(module)
         assert Wire in module.module_info(:attributes)[:behaviour]
-        assert function_exported?(module, :send_cohort, 2)
-        assert function_exported?(module, :ack, 3)
-        assert function_exported?(module, :expire, 2)
+
+        for {fun, arity} <- [send_cohort: 2, ack: 3, expire: 2] do
+          assert function_exported?(module, fun, arity)
+        end
       end
     end
 
@@ -213,10 +216,14 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.ack(commit_ref(wire, 3), @stored, wire) == :ok
 
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_acked(wire.counter) == 3
-      assert Pending.batches_inflight(wire.counter) == 0
-      assert :ets.info(wire.table, :size) == 0
+      assert counter_ledger(wire) == %{
+               pending: 0,
+               acked: 3,
+               failed: 0,
+               fallback: 0,
+               inflight: 0,
+               rows: 0
+             }
     end
   end
 
@@ -272,9 +279,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       for _ <- 1..3 do
         assert_receive {:pub, @subject, _json, opts}, 500
-        assert Keyword.fetch!(opts, :reply_to) =~ ".s."
-        refute headers(opts)["nats-batch-id"]
-        refute headers(opts)["nats-msg-id"]
+        assert_dedup_free_single(opts)
       end
 
       assert Pending.pending(wire.counter) == 3
@@ -328,9 +333,15 @@ defmodule Ingress.Nats.Publisher.WireTest do
       assert Atomic.ack(start_ref(wire, 3), "", wire) == :ok
 
       refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 3
-      assert Pending.batches_inflight(wire.counter) == 1
-      assert :ets.info(wire.table, :size) == 1
+
+      assert counter_ledger(wire) == %{
+               pending: 3,
+               acked: 0,
+               failed: 0,
+               fallback: 0,
+               inflight: 1,
+               rows: 1
+             }
     end
 
     test "atomic drops a swept cohort whole", %{wire: wire} do
@@ -398,12 +409,15 @@ defmodule Ingress.Nats.Publisher.WireTest do
       assert Atomic.ack(start_ref(wire, 3), @stored, wire) == :ok
 
       refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_acked(wire.counter) == 3
-      assert Pending.take_failed(wire.counter) == 0
-      assert Pending.take_batch_fallback(wire.counter) == 0
-      assert Pending.batches_inflight(wire.counter) == 0
-      assert :ets.info(wire.table, :size) == 0
+
+      assert counter_ledger(wire) == %{
+               pending: 0,
+               acked: 3,
+               failed: 0,
+               fallback: 0,
+               inflight: 0,
+               rows: 0
+             }
     end
 
     test "the outcome is counted apart from every failure counter", %{wire: wire} do
@@ -441,6 +455,29 @@ defmodule Ingress.Nats.Publisher.WireTest do
     Enum.each(1..count, fn _ -> drain_reply() end)
     [row] = :ets.tab2list(wire.table)
     row
+  end
+
+  # The wire's whole outcome ledger read as one value: counters, inflight
+  # batches, and the pending table, so a settle's entire end state is one
+  # comparison. take_* reads reset their counter, exactly as the per-line
+  # assertions they replaced did.
+  defp counter_ledger(wire) do
+    %{
+      pending: Pending.pending(wire.counter),
+      acked: Pending.take_acked(wire.counter),
+      failed: Pending.take_failed(wire.counter),
+      fallback: Pending.take_batch_fallback(wire.counter),
+      inflight: Pending.batches_inflight(wire.counter),
+      rows: :ets.info(wire.table, :size)
+    }
+  end
+
+  # A fallback re-publish is a plain single: a per-message reply inbox and none
+  # of the batch or dedup headers the atomic wire stamps.
+  defp assert_dedup_free_single(opts) do
+    assert Keyword.fetch!(opts, :reply_to) =~ ".s."
+    refute headers(opts)["nats-batch-id"]
+    refute headers(opts)["nats-msg-id"]
   end
 
   # Every dedup-free drop resolves the same way, whichever wire and whichever

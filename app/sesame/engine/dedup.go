@@ -73,16 +73,24 @@ func EventIdentity(env *lane.Envelope) string {
 	return env.EventID
 }
 
-// Duplicate claims (identity, effect) and reports whether it was ALREADY held —
-// a replay whose effect must be skipped. It never releases the claim; use it for
+// EffectRef names one guarded effect of one event: the event's stable identity
+// and the effect discriminator partitioning its claim namespace. Carried as one
+// value so the pair that claims is byte-for-byte the pair that releases.
+type EffectRef struct {
+	Identity string
+	Effect   string
+}
+
+// Duplicate claims ref and reports whether it was ALREADY held — a replay whose
+// effect must be skipped. It never releases the claim; use it for
 // loss-tolerant, fire-and-forget effects (the reporter deltas) where a
 // guard-then-apply that a crash could lose is acceptable. Fails OPEN (returns
 // false = apply).
-func (d *EventDedup) Duplicate(ctx context.Context, identity, effect string) bool {
-	if !d.active(identity) {
+func (d *EventDedup) Duplicate(ctx context.Context, ref EffectRef) bool {
+	if !d.active(ref.Identity) {
 		return false
 	}
-	seen, _ := d.store.Seen(ctx, dedupKey(identity, effect), d.ttl)
+	seen, _ := d.store.Seen(ctx, dedupKey(ref), d.ttl)
 	if seen {
 		d.dupes.Add(1)
 	}
@@ -94,12 +102,12 @@ func (d *EventDedup) Duplicate(ctx context.Context, identity, effect string) boo
 // false) the caller runs the effect and calls release() if it then errors, so a
 // redelivery re-runs it. On a duplicate or a fail-open admission, release is a
 // no-op.
-func (d *EventDedup) Claim(ctx context.Context, identity, effect string) (dup bool, release func()) {
+func (d *EventDedup) Claim(ctx context.Context, ref EffectRef) (dup bool, release func()) {
 	noop := func() {}
-	if !d.active(identity) {
+	if !d.active(ref.Identity) {
 		return false, noop
 	}
-	key := dedupKey(identity, effect)
+	key := dedupKey(ref)
 	seen, err := d.store.Seen(ctx, key, d.ttl)
 	if seen {
 		d.dupes.Add(1)
@@ -125,7 +133,7 @@ func (d *EventDedup) CounterClaim(env *lane.Envelope, name string) (string, time
 	if !d.active(identity) {
 		return "", 0
 	}
-	return idempotency.Key(d.prefix, dedupKey(identity, CounterEffect(name))), d.ttl
+	return idempotency.Key(d.prefix, dedupKey(EffectRef{Identity: identity, Effect: CounterEffect(name)})), d.ttl
 }
 
 // Duplicates is the running count of skipped replays, for logging/telemetry.
@@ -143,8 +151,8 @@ func (d *EventDedup) active(identity string) bool {
 	return d != nil && d.store != nil && identity != ""
 }
 
-func dedupKey(identity, effect string) string {
-	return identity + ":" + effect
+func dedupKey(ref EffectRef) string {
+	return ref.Identity + ":" + ref.Effect
 }
 
 // CounterTarget names the one counter a peek reads: the channel's counter by

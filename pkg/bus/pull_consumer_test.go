@@ -411,18 +411,17 @@ func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
 	}
 
 	got := js.created[0]
-	if got.DeliverSubject != "" {
-		t.Fatalf("replacement carries delivery subject %q; it is still a push consumer", got.DeliverSubject)
-	}
-	if got.AckPolicy != jsapi.AckAllPolicy {
-		t.Fatalf("replacement ack policy = %v, want the pull lane's floor-based AckAll", got.AckPolicy)
-	}
-	// The fleet's acknowledged position survives the delete: resuming anywhere
-	// earlier re-executes chat commands the previous consumer already handled.
-	if got.DeliverPolicy != jsapi.DeliverByStartSequencePolicy || got.OptStartSeq != 9_101 {
-		t.Fatalf("replacement resumed at %v/%d, want the predecessor's ack floor + 1",
-			got.DeliverPolicy, got.OptStartSeq)
-	}
+	requireContract(t,
+		contractClause{got.DeliverSubject == "",
+			fmt.Sprintf("replacement carries delivery subject %q; it is still a push consumer", got.DeliverSubject)},
+		contractClause{got.AckPolicy == jsapi.AckAllPolicy,
+			fmt.Sprintf("replacement ack policy = %v, want the pull lane's floor-based AckAll", got.AckPolicy)},
+		// The fleet's acknowledged position survives the delete: resuming anywhere
+		// earlier re-executes chat commands the previous consumer already handled.
+		contractClause{got.DeliverPolicy == jsapi.DeliverByStartSequencePolicy && got.OptStartSeq == 9_101,
+			fmt.Sprintf("replacement resumed at %v/%d, want the predecessor's ack floor + 1",
+				got.DeliverPolicy, got.OptStartSeq)},
+	)
 }
 
 func TestPullReplacementNeverOpensOnTheWholeRetainedFirehose(t *testing.T) {

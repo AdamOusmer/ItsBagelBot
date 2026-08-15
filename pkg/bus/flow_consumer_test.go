@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -39,28 +40,27 @@ func TestOnlyHotIngressLanesUseFlowControl(t *testing.T) {
 func TestFlowConsumerConfigIsAcceptedByTheServerContract(t *testing.T) {
 	cfg := flowConsumerConfig(laneBinding{subject: "twitch.ingress.event.premium", consumer: "worker_premium_pod_1"})
 
-	if cfg.AckPolicy != jsapi.AckFlowControlPolicy {
-		t.Fatalf("ack policy = %v, want AckFlowControl", cfg.AckPolicy)
-	}
-	// The server rejects an AckFlowControl consumer that is not a push consumer,
-	// has flow control off, or uses any heartbeat other than one second.
-	if !cfg.FlowControl || cfg.DeliverSubject == "" || cfg.IdleHeartbeat != time.Second {
-		t.Fatalf("flow contract violated: %#v", cfg)
-	}
-	if cfg.MaxAckPending != flowMaxAckPending {
-		t.Fatalf("max ack pending = %d, want %d", cfg.MaxAckPending, flowMaxAckPending)
-	}
-	// R1 memory consumer state on the R3 stream: replicating per-consumer ack
-	// state is leader RAFT work the receipt-level design never needed. Loss of
-	// the consumer means this pod re-provisions from its own cursor and the
-	// idempotency guard absorbs the redelivered window.
-	if cfg.Replicas != 1 || !cfg.MemoryStorage {
-		t.Fatalf("consumer state must be R1 in memory: %#v", cfg)
-	}
-	// A first creation must not replay the retained firehose.
-	if cfg.DeliverPolicy != jsapi.DeliverNewPolicy {
-		t.Fatalf("deliver policy = %v, want DeliverNew", cfg.DeliverPolicy)
-	}
+	requireContract(t,
+		contractClause{cfg.AckPolicy == jsapi.AckFlowControlPolicy,
+			fmt.Sprintf("ack policy = %v, want AckFlowControl", cfg.AckPolicy)},
+		// The server rejects an AckFlowControl consumer that is not a push consumer,
+		// has flow control off, or uses any heartbeat other than one second.
+		contractClause{cfg.FlowControl, "flow contract violated: flow control off"},
+		contractClause{cfg.DeliverSubject != "", "flow contract violated: not a push consumer"},
+		contractClause{cfg.IdleHeartbeat == time.Second,
+			fmt.Sprintf("idle heartbeat = %v, want the mandated second", cfg.IdleHeartbeat)},
+		contractClause{cfg.MaxAckPending == flowMaxAckPending,
+			fmt.Sprintf("max ack pending = %d, want %d", cfg.MaxAckPending, flowMaxAckPending)},
+		// R1 memory consumer state on the R3 stream: replicating per-consumer ack
+		// state is leader RAFT work the receipt-level design never needed. Loss of
+		// the consumer means this pod re-provisions from its own cursor and the
+		// idempotency guard absorbs the redelivered window.
+		contractClause{cfg.Replicas == 1 && cfg.MemoryStorage,
+			fmt.Sprintf("consumer state must be R1 in memory: %#v", cfg)},
+		// A first creation must not replay the retained firehose.
+		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
+			fmt.Sprintf("deliver policy = %v, want DeliverNew", cfg.DeliverPolicy)},
+	)
 }
 
 func TestFlowConsumerIsSingleSubscriberPerPod(t *testing.T) {

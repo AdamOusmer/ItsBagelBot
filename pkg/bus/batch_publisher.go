@@ -159,7 +159,7 @@ func newPublisherPoolForStream(url, fixedStream string, log *zap.Logger) (Publis
 }
 
 func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.Logger) (*batchPublisher, error) {
-	nc, err := nats.Connect(busPublishURL(url), busOptions(fmt.Sprintf("batch-publisher-%d", index))...)
+	nc, err := nats.Connect(busPublishURL(endpoint(url)), busOptions(clientName(fmt.Sprintf("batch-publisher-%d", index)))...)
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect batch publisher: %w", err)
 	}

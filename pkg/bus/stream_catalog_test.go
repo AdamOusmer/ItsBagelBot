@@ -1,6 +1,7 @@
 package bus
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -144,24 +145,21 @@ func requireStreamForTopic(t *testing.T, subject, want string) {
 func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
 	t.Setenv("NATS_INGRESS_PARTITION", "off")
 	lanes := IngressLaneSpecs()
-	if len(lanes) != 1 || lanes[0].Name != TwitchIngressStream.Name {
+	if len(lanes) != 1 {
 		t.Fatalf("lane specs with the partition off = %#v, want the single legacy stream", lanes)
 	}
-	if got := lanes[0].Subjects; len(got) != 2 || got[0] != "twitch.ingress.event.>" {
-		t.Fatalf("legacy subjects = %v, want the event wildcard restored", got)
-	}
-	if lanes[0].MaxBytes != 1<<30 {
-		t.Fatalf("legacy MaxBytes = %d, want the whole gigabyte", lanes[0].MaxBytes)
-	}
-	for subject, want := range map[string]string{
-		"twitch.ingress.event.standard": TwitchIngressStream.Name,
-		"twitch.ingress.event.premium":  TwitchIngressStream.Name,
-	} {
-		got, err := streamForTopic(subject)
-		if err != nil || got != want {
-			t.Fatalf("streamForTopic(%q) = %q, %v; want %q on the legacy shape", subject, got, err, want)
-		}
-	}
+	legacy := lanes[0]
+	requireContract(t,
+		contractClause{legacy.Name == TwitchIngressStream.Name,
+			fmt.Sprintf("legacy stream = %q, want %q", legacy.Name, TwitchIngressStream.Name)},
+		contractClause{len(legacy.Subjects) == 2 && legacy.Subjects[0] == "twitch.ingress.event.>",
+			fmt.Sprintf("legacy subjects = %v, want the event wildcard restored", legacy.Subjects)},
+		contractClause{legacy.MaxBytes == 1<<30,
+			fmt.Sprintf("legacy MaxBytes = %d, want the whole gigabyte", legacy.MaxBytes)},
+	)
+	// Both lanes resolve to the one legacy stream while the partition is off.
+	requireStreamForTopic(t, "twitch.ingress.event.standard", TwitchIngressStream.Name)
+	requireStreamForTopic(t, "twitch.ingress.event.premium", TwitchIngressStream.Name)
 }
 
 func TestSystemSubjectResolvesToSystemStream(t *testing.T) {

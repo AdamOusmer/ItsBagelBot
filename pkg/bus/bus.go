@@ -81,7 +81,7 @@ func NewLaneSubscriber(cfg LaneConfig, log *zap.Logger) (Subscriber, error) {
 func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay redeliveryDelay, log *zap.Logger) (Subscriber, *nats.Conn, error) {
 	consumer := durableName(cfg.Group, cfg.Subject)
 
-	nc, err := nats.Connect(busURL(cfg.URL), busOptions(cfg.Group)...)
+	nc, err := nats.Connect(busURL(endpoint(cfg.URL)), busOptions(clientName(cfg.Group))...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -491,7 +491,7 @@ func (s *fleetSubscriber) logger() *zap.Logger {
 // replay storms: every instance gets every message (cache invalidation). The
 // explicit stream binding avoids an account-wide stream-name lookup.
 func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
-	nc, err := nats.Connect(busURL(s.url), busOptions("broadcast-"+subjectToken(target.topic))...)
+	nc, err := nats.Connect(busURL(endpoint(s.url)), busOptions(clientName("broadcast-"+subjectToken(target.topic)))...)
 	if err != nil {
 		return nil, nil, err
 	}

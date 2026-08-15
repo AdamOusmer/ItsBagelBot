@@ -59,7 +59,7 @@ const (
 func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap.Logger) error {
 	guardian := &streamGuardian{specs: specs, log: log}
 
-	nc, err := nats.Connect(busURL(url), busOptions("stream-guardian")...)
+	nc, err := nats.Connect(busURL(endpoint(url)), busOptions("stream-guardian")...)
 	if err != nil {
 		return fmt.Errorf("bus: connect for provisioning: %w", err)
 	}
