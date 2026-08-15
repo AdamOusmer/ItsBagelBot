@@ -66,14 +66,85 @@ func TestCachedMissFillsThenHits(t *testing.T) {
 		return payload{Name: "x", N: 7}, nil
 	}
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, fetch)
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, fetch)
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "x", N: 7}, got)
 
-	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, fetch)
+	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, fetch)
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "x", N: 7}, got)
 	assert.Equal(t, int32(1), fetches.Load(), "second read must come from cache")
+}
+
+// A hit must cost NO budget: the buckets meter upstream spend, and charging a
+// hit would meter chat volume instead.
+func TestCachedAdmitSkippedOnHit(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	fill := func(context.Context) (payload, error) { return payload{Name: "x", N: 1}, nil }
+
+	_, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill)
+	require.NoError(t, err)
+
+	got, err := Cached(ctx, c, "k", time.Minute, time.Minute, func(context.Context) error {
+		t.Error("a hit must not spend budget")
+		return nil
+	}, fill)
+	require.NoError(t, err)
+	assert.Equal(t, payload{Name: "x", N: 1}, got)
+}
+
+// The envelope path's half of the premium-reserve regression (CachedBytes has
+// its own). Concurrent callers for one key collapse into a single flight, and
+// the budget check used to live inside it, so whichever caller won ran the check
+// for everyone: a standard caller with a drained bucket handed its 429 to
+// premium callers entitled to the reserve. Admission is per caller now.
+func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+
+	const callers = 8
+	var fetches atomic.Int32
+	release := make(chan struct{})
+	// Park the fill until every caller has been admitted, so they share one
+	// flight instead of the early finisher filling the key for the rest.
+	fill := func(context.Context) (payload, error) {
+		<-release
+		fetches.Add(1)
+		return payload{Name: "x", N: 1}, nil
+	}
+
+	errs := make([]error, callers)
+	var admitted, wg sync.WaitGroup
+	admitted.Add(callers)
+	wg.Add(callers)
+	for i := range callers {
+		go func(i int) {
+			defer wg.Done()
+			// Odd callers are the drained standard lane, even ones premium.
+			admit := func(context.Context) error {
+				admitted.Done()
+				if i%2 == 1 {
+					return denied
+				}
+				return nil
+			}
+			_, errs[i] = Cached(ctx, c, "k", time.Minute, time.Minute, admit, fill)
+		}(i)
+	}
+	admitted.Wait()
+	close(release)
+	wg.Wait()
+
+	for i, err := range errs {
+		if i%2 == 1 {
+			assert.ErrorIs(t, err, denied, "caller %d was denied by its own lane", i)
+			continue
+		}
+		assert.NoError(t, err, "caller %d must not inherit another lane's denial", i)
+	}
+	assert.Equal(t, int32(1), fetches.Load(), "the flight must still cost one upstream call")
 }
 
 func TestCachedErrorNotCached(t *testing.T) {
@@ -81,13 +152,13 @@ func TestCachedErrorNotCached(t *testing.T) {
 	var fetches atomic.Int32
 	boom := errors.New("boom")
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{}, boom
 	})
 	require.ErrorIs(t, err, boom)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{Name: "ok"}, nil
 	})
@@ -101,13 +172,13 @@ func TestCachedNegativeCache(t *testing.T) {
 	var fetches atomic.Int32
 	notFound := &UpstreamError{Status: 404, Message: "player not found"}
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{}, notFound
 	})
 	assert.Equal(t, notFound, err)
 
-	_, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{}, notFound
 	})
@@ -120,7 +191,7 @@ func TestCachedPoisonEntryRefetched(t *testing.T) {
 	require.NoError(t, st.Set(context.Background(), "k", []byte("{not json"), time.Minute))
 	c := NewCache(st)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		return payload{Name: "fresh"}, nil
 	})
 	require.NoError(t, err)
@@ -137,14 +208,14 @@ func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
 	require.NoError(t, st.Set(context.Background(), "k", []byte(`{"name":"old-format","n":42}`), time.Minute))
 	c := NewCache(st)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		return payload{Name: "fresh", N: 7}, nil
 	})
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "fresh", N: 7}, got)
 
 	// And the refreshed entry now serves without another fetch.
-	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		t.Error("must not refetch a repaired entry")
 		return payload{}, nil
 	})
@@ -159,7 +230,7 @@ func TestCachedZeroValueSuccessRoundTrips(t *testing.T) {
 	var fetches atomic.Int32
 
 	for range 2 {
-		v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (string, error) {
+		v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (string, error) {
 			fetches.Add(1)
 			return "", nil
 		})
@@ -176,13 +247,13 @@ func TestCachedRateLimitNotCached(t *testing.T) {
 	var fetches atomic.Int32
 	busy := &UpstreamError{Status: 429, Message: "busy"}
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{}, busy
 	})
 	assert.Equal(t, busy, err)
 
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		fetches.Add(1)
 		return payload{Name: "recovered"}, nil
 	})
@@ -198,13 +269,13 @@ func TestCachedNegativeSharedAcrossInstances(t *testing.T) {
 	st := newMemStore()
 	notFound := &UpstreamError{Status: 404, Message: "player not found"}
 
-	_, err := Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err := Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		return payload{}, notFound
 	})
 	assert.Equal(t, notFound, err)
 
 	// A different Cache instance (another replica) sharing the same store.
-	_, err = Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+	_, err = Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		t.Error("second replica must serve the negative from the shared store")
 		return payload{}, nil
 	})
@@ -224,7 +295,7 @@ func TestCachedSingleflightCollapses(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = Cached(context.Background(), c, "k", time.Minute, time.Minute, func(context.Context) (payload, error) {
+			_, _ = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 				fetches.Add(1)
 				<-release
 				return payload{Name: "one"}, nil

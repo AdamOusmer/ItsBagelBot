@@ -140,7 +140,18 @@ func decodeEnvelope[T any](b []byte) (v T, negative *UpstreamError, ok bool) {
 // with status 400 or 404 (e.g. "player not found"), which are negatively cached
 // for negativeTTL to prevent repeated lookups of missing resources. A Store
 // read/write error degrades to a direct fetch rather than failing the lookup.
-func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL time.Duration, fetch func(context.Context) (T, error)) (T, error) {
+//
+// admit runs ONCE PER CALLER that reaches the miss path, before that caller joins
+// the flight, and its error is that caller's alone; fetch runs once for the whole
+// flight. This is the same split CachedBytes makes, for the same reason: a flight
+// answers "who pays for the upstream call" and admission answers "may THIS request
+// spend budget", and writing the budget check inside fetch collapsed the two, so
+// whichever caller won the flight decided for everyone joined to it. The concrete
+// failure was the premium reserve — a standard caller with a drained bucket handed
+// its denial to premium callers entitled to the 25% reserve. Admission runs after
+// the hit check because a hit costs no upstream call and so must cost no budget.
+// A nil admit means the lookup spends none.
+func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL time.Duration, admit func(context.Context) error, fetch func(context.Context) (T, error)) (T, error) {
 	var zero T
 	if b, ok, err := c.store.Get(ctx, key); err == nil && ok {
 		if v, negative, decoded := decodeEnvelope[T](b); decoded {
@@ -151,6 +162,12 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 		}
 		// Poison entry (shape drift after a deploy): drop it and refetch.
 		_ = c.store.Del(ctx, key)
+	}
+
+	if admit != nil {
+		if err := admit(ctx); err != nil {
+			return zero, err
+		}
 	}
 
 	res, err, _ := c.sf.Do(key, func() (any, error) {

@@ -94,18 +94,37 @@ func unwrapEntry(b []byte) (int64, []byte, bool) {
 // A fresh hit returns as-is; a stale hit returns the stored bytes and revalidates
 // in the background. Concurrent misses for one key collapse through singleflight.
 // A Store error degrades to a direct build rather than failing the lookup.
-func CachedBytes(ctx context.Context, c *Cache, key string, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+//
+// admit runs ONCE PER CALLER that reaches the miss path, before that caller joins
+// the flight, and its error is that caller's alone. build runs once for the whole
+// flight. The split exists because those two things answer different questions: a
+// flight is "who pays for the upstream call", admission is "may THIS request spend
+// budget", and collapsing them let one caller's answer stand in for another's. The
+// concrete failure was the premium reserve — a standard caller that won the flight
+// ran the budget check for everyone joined to it, so a drained standard bucket
+// denied a premium caller the 25% reserve premium is entitled to, and reversing the
+// roles let a standard caller spend on the premium lane's ticket. Admission sits
+// after the fresh-hit check on purpose: a hit costs no upstream call, so it must
+// cost no budget either, or the buckets would meter chat volume instead of upstream
+// spend. A nil admit means the endpoint has no per-caller budget.
+func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
 	if b, ok, err := c.store.Get(ctx, key); err == nil && ok {
 		if fresh, payload, valid := unwrapEntry(b); valid {
 			if time.Now().UnixMilli() < fresh {
 				return payload, nil
 			}
 			// Stale but still retained: serve it now, revalidate behind the scenes.
-			c.refreshBytes(key, build)
+			c.refreshBytes(key, admit, build)
 			return payload, nil
 		}
 		// Poison entry (legacy or foreign format): drop it and refetch.
 		_ = c.store.Del(ctx, key)
+	}
+
+	if admit != nil {
+		if err := admit(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	res, err, _ := c.sf.Do(key, func() (any, error) {
@@ -164,7 +183,18 @@ func storeEntry(ctx context.Context, c *Cache, key string, payload []byte, ttl t
 // fresh, so nothing re-triggers anyway; a failed refresh is swallowed and the
 // stale entry keeps serving until its physical TTL, so an upstream blip
 // degrades to slightly-old data rather than an error.
-func (c *Cache) refreshBytes(key string, build func(context.Context) ([]byte, time.Duration, error)) {
+//
+// The refresh spends budget through admit, exactly like a foreground miss, and it
+// does so AFTER winning the claim so only the one replica that will actually call
+// the upstream pays for it. Skipping admission here would let revalidation traffic
+// bypass the buckets entirely: the whole point of moving the budget check out of
+// build and onto the caller (see CachedBytes) is that build no longer carries one,
+// so a refresh that did not admit would be an unmetered upstream call. A denial
+// leaves the stale entry serving, which is the same outcome as any other failed
+// refresh. The lane charged is that of the caller whose stale read triggered this;
+// that caller was served for free from the stale entry, so the one call the refresh
+// makes is fairly billed to it.
+func (c *Cache) refreshBytes(key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) {
 	if _, busy := c.refreshing.LoadOrStore(key, struct{}{}); busy {
 		return
 	}
@@ -176,6 +206,11 @@ func (c *Cache) refreshBytes(key string, build func(context.Context) ([]byte, ti
 			// Lost claim: another replica is refreshing. Claim error: leave the
 			// stale entry serving; the next read retries the claim.
 			return
+		}
+		if admit != nil {
+			if err := admit(ctx); err != nil {
+				return
+			}
 		}
 		_, _, _ = c.sf.Do(key, func() (any, error) {
 			payload, ttl, err := build(ctx)
