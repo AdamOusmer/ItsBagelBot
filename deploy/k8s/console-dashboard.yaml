@@ -299,11 +299,6 @@ spec:
   routes:
     - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
       kind: Rule
-      middlewares:
-        # Dead-backend 502-504 render web/'s coded 500 page instead of
-        # traefik's plain text (deploy/k8s/web-error-pages.yaml). App-rendered
-        # errors pass through untouched.
-        - name: web-error-pages
       services:
         - name: console-dashboard
           port: 80

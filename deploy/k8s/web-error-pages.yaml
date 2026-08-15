@@ -1,17 +1,11 @@
-# Pretty edge errors, served from the marketing site (web/, Cloudflare-hosted).
-# Two failure classes swap traefik's plain-text defaults for web/'s coded error
-# pages:
-#
-#   1. A hostname the tunnel wildcard admits but no router claims (a stray
-#      *.itsbagelbot.com subdomain): the lowest-priority catch-all router below
-#      proxies the request to the marketing origin with the path forced to one
-#      that cannot exist, so Cloudflare answers with web/'s 404 page AND a real
-#      404 status.
-#   2. A routed backend that cannot answer (all pods gone -> traefik's own
-#      502-504): the errors middleware fetches web/'s /500 page and serves it
-#      under the original status code. App-rendered errors (SvelteKit's own
-#      404/500 pages) pass through untouched — the middleware watches only the
-#      status range traefik itself generates.
+# Unrouted hostnames at the traefik edge (anything the tunnel wildcard admits
+# that no router claims) proxy straight through to the marketing site, path
+# intact. An unknown path gets web/'s coded 404 page under a genuine 404
+# status — and because the path is NOT rewritten, the page's own assets
+# (/_astro/*, styles, fonts) resolve through the same catch-all to the real
+# files with the right MIME types. (The first cut rewrote every path to a
+# 404-forcing one, which turned each asset request into an HTML error page:
+# MIME refusals and CSP noise all the way down.)
 #
 # The marketing apex resolves to Cloudflare's static hosting directly (NOT back
 # through the tunnel — verified: the apex serves with no tunnel route present),
@@ -43,37 +37,6 @@ spec:
   serverName: itsbagelbot.com
 ---
 apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: web-error-pages
-  namespace: production
-spec:
-  errors:
-    # Only the codes traefik generates when a backend is unreachable. The apps'
-    # own 404/500 renders must never be swallowed.
-    status: ["502-504"]
-    service:
-      name: web-origin
-      port: 443
-      scheme: https
-      serversTransport: web-origin-transport
-      # Host must be the marketing site for Cloudflare to route it.
-      passHostHeader: false
-    query: "/500"
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: web-not-found
-  namespace: production
-spec:
-  # A path that cannot exist on the marketing site: Cloudflare then returns
-  # web/'s 404 page with a genuine 404 status, which is exactly what an
-  # unrouted hostname deserves.
-  replacePath:
-    path: /edge-unrouted-host
----
-apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: unrouted-host-fallback
@@ -86,12 +49,11 @@ spec:
     - match: HostRegexp(`^.+$`)
       kind: Rule
       priority: 1
-      middlewares:
-        - name: web-not-found
       services:
         - name: web-origin
           port: 443
           scheme: https
           serversTransport: web-origin-transport
+          # Host must be the marketing site for Cloudflare to route it.
           passHostHeader: false
   tls: {}
