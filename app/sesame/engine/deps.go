@@ -88,6 +88,10 @@ type Deps struct {
 	// stream (the loyalty module's viewtime clock); ValkeyLoyaltyClock is the
 	// default. nil disables it.
 	LoyaltyTick LoyaltyTicker
+	// Stats sinks the bot-wide lifetime totals the pipeline keeps (bot-scope
+	// counters under broadcaster 0); LoyaltyReporter is the default. nil starts
+	// no flusher, so tests leak no goroutine and publish nothing.
+	Stats CounterBumper
 	// PublicBaseURL is the origin of the public console pages; the !cmd module
 	// builds the channel command-page link from it. Empty falls back to the
 	// production dashboard origin.
@@ -195,6 +199,12 @@ type LoyaltyStore interface {
 	CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error)
 	CounterDelete(ctx context.Context, broadcasterID uint64, name string) error
 	CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error)
+}
+
+// CounterBumper is the narrow slice of LoyaltyReporter the pipeline's bot-wide
+// stats flusher needs: one batched, loss-tolerant bot-scope counter delta.
+type CounterBumper interface {
+	BumpBot(name string, delta int64)
 }
 
 // LoyaltyTicker arms and disarms a broadcaster's watch tick for the length of

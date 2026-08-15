@@ -72,6 +72,7 @@ type engineRuntime struct {
 	guard   *automod.Gate
 	loyalty engine.LoyaltyStore
 	tick    *engine.ValkeyLoyaltyClock
+	stats   *engine.LoyaltyReporter
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -102,6 +103,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 
 		Loyalty:     rt.loyalty,
 		LoyaltyTick: rt.tick,
+		Stats:       rt.stats,
 
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
