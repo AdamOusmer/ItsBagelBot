@@ -28,6 +28,9 @@ resources:
   - sesame.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
+  # Edge error pages: unrouted hosts + dead-backend 5xx get web/'s coded
+  # 404/500 instead of traefik's plain-text defaults.
+  - web-error-pages.yaml
   - nats.yaml
   - nats-leaf.yaml
   - nats-auth-dopplersecret.yaml
