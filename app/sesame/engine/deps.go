@@ -202,9 +202,9 @@ type LoyaltyStore interface {
 }
 
 // CounterBumper is the narrow slice of LoyaltyReporter the pipeline's bot-wide
-// stats flusher needs: one batched, loss-tolerant counter delta.
+// stats flusher needs: one batched, loss-tolerant bot-scope counter delta.
 type CounterBumper interface {
-	Bump(broadcasterID uint64, name, scope string, viewer Viewer, command string, delta int64)
+	BumpBot(name string, delta int64)
 }
 
 // LoyaltyTicker arms and disarms a broadcaster's watch tick for the length of

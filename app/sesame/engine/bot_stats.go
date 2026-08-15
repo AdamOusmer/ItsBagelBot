@@ -3,8 +3,6 @@ package engine
 import (
 	"sync/atomic"
 	"time"
-
-	"ItsBagelBot/internal/domain/event/data"
 )
 
 const (
@@ -78,7 +76,7 @@ func (s *botStats) bump(name string, delta int64) {
 	if delta == 0 {
 		return
 	}
-	s.bumper.Bump(0, name, data.CounterScopeBot, Viewer{}, "", delta)
+	s.bumper.BumpBot(name, delta)
 }
 
 // Close stops the ticker and flushes the remainder.

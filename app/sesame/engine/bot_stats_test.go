@@ -17,10 +17,8 @@ import (
 
 // bumpCall is one recorded CounterBumper call.
 type bumpCall struct {
-	broadcasterID uint64
-	name          string
-	scope         string
-	delta         int64
+	name  string
+	delta int64
 }
 
 // fakeBumper records the flusher's bumps. The ticker goroutine and Close can
@@ -30,10 +28,10 @@ type fakeBumper struct {
 	got []bumpCall
 }
 
-func (b *fakeBumper) Bump(broadcasterID uint64, name, scope string, _ Viewer, _ string, delta int64) {
+func (b *fakeBumper) BumpBot(name string, delta int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.got = append(b.got, bumpCall{broadcasterID: broadcasterID, name: name, scope: scope, delta: delta})
+	b.got = append(b.got, bumpCall{name: name, delta: delta})
 }
 
 func (b *fakeBumper) calls() []bumpCall {
@@ -118,10 +116,9 @@ func TestBotStatsFlushBumpsAndResets(t *testing.T) {
 	for _, c := range calls {
 		byName[c.name] = c
 	}
-	events := byName[counterEventsProcessed]
-	assert.Equal(t, int64(3), events.delta)
-	assert.Equal(t, uint64(0), events.broadcasterID) // reserved bot namespace
-	assert.Equal(t, data.CounterScopeBot, events.scope)
+	// The reserved-namespace shape (broadcaster 0, bot scope) is BumpBot's job,
+	// proven against the real reporter in TestBotStatsBumpsPassReporterGuard.
+	assert.Equal(t, int64(3), byName[counterEventsProcessed].delta)
 	assert.Equal(t, int64(2), byName[counterMessagesProcessed].delta)
 
 	// The swap reset both totals: an idle window bumps nothing.
