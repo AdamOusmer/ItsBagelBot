@@ -125,8 +125,9 @@ var OutgressStream = StreamSpec{
 	MaxAge: 5 * time.Second,
 	// 256 MiB is also the per-node memory this stream can occupy: under R3 every
 	// hub peer holds a full replica, so the budget against the broker's 4GB
-	// max_mem is 1 GiB (TWITCH_INGRESS) + 256 MiB here ≈ 1.3 GiB on every member,
-	// not on one. See nats-server.conf.
+	// max_mem is 1 GiB (the TWITCH_INGRESS lane pair, which splits that gigabyte
+	// rather than adding to it) + 256 MiB here ≈ 1.3 GiB on every member, not on
+	// one. See nats-server.conf.
 	MaxBytes: 256 << 20, // 256 MiB
 	// A 5s work queue never outlives a broker restart, so paying disk I/O per
 	// send is pure overhead. Memory-backed removes the write bottleneck; the
@@ -194,12 +195,27 @@ var BagelDataStream = StreamSpec{
 	Replicas: 3,
 }
 
-// TwitchIngressStream is the replayable Twitch ingress firehose. Sesame owns
-// its stream reconciliation because it is the primary lane consumer; ingress
-// itself only publishes captured subjects and needs no JetStream API access.
+// TwitchIngressStream is the replayable Twitch ingress firehose, minus the
+// standard lane: that lane is partitioned onto TwitchIngressStandardStream, and
+// this stream keeps premium, the stream (live) lane and the status subjects.
+// Sesame owns the reconciliation of both because it is the primary lane
+// consumer; ingress itself only publishes captured subjects and needs no
+// JetStream API access.
 var TwitchIngressStream = StreamSpec{
-	Name:     "TWITCH_INGRESS",
-	Subjects: []string{"twitch.ingress.event.>", "twitch.ingress.status.>"},
+	Name: "TWITCH_INGRESS",
+	// Enumerated rather than twitch.ingress.event.>, and that is forced rather
+	// than chosen: two streams may not claim the same subject
+	// (JSStreamSubjectOverlap), so the wildcard cannot survive the standard lane
+	// moving out from under it. The cost is that an unforeseen
+	// twitch.ingress.event.* subject is now captured by NOTHING rather than
+	// landing here — a lane subject renamed through NATS_SUBJECT_LANE_* without
+	// the matching catalog edit publishes into no stream at all. Adding a lane
+	// means adding it here (or to a partition of its own).
+	Subjects: []string{
+		"twitch.ingress.event.premium",
+		"twitch.ingress.event.stream",
+		"twitch.ingress.status.>",
+	},
 	// Chat is live or it is nothing. This was 5 minutes, and on 2026-07-27 that
 	// window is what turned a recovery into a chat flood: ingress kept publishing
 	// while sesame crashlooped on a JetStream quorum loss, five minutes of events
@@ -244,31 +260,38 @@ var TwitchIngressStream = StreamSpec{
 	// The per-publish quorum latency that made R1 the throughput choice is gone
 	// from the per-message path: the ADR-050 atomic wire and the NATS 2.14
 	// fast-ingest wire commit a whole batch behind one quorum round-trip. What
-	// remains is the known R3 single-stream ceiling — one serialized RAFT
-	// proposal loop per stream, measured at roughly 60k msg/s with the leader
-	// saturating two of its cores. That ceiling is accepted as the current
-	// operating point; the lever beyond it is partitioning the lane across
-	// several streams, which is roadmap and deliberately not done here (one
-	// stream per lane keeps the subject contract and the ACLs unchanged).
+	// remains is the R3 single-stream ceiling — one serialized RAFT proposal
+	// loop per stream, measured end to end at ~98k msg/s on this hub. That
+	// ceiling is per STREAM, not per cluster, which is the whole reason
+	// TwitchIngressStandardStream exists: two streams elect two leaders and run
+	// two loops, live-measured at ~171.7k msg/s across the pair.
 	//
 	// No placement: an R3 stream needs all three peers, and the hub's tags are
 	// per-pod ordinals that exist on one server each (see PlacementTags).
 	Replicas: 3,
-	// MaxBytes is 1 GiB, and under R3 that is 1 GiB on *every* hub peer, not on
-	// one: each member holds a full replica. Against the broker's 4GB max_mem
-	// the memory-backed budget is 1 GiB here + 256 MiB (TWITCH_OUTGRESS) ≈ 1.3
-	// GiB per node, leaving room for dedup ids and broker state — see the
-	// max_mem block in nats-server.conf. MaxAge is moot under load: MaxBytes
-	// (stream-wide, oldest-first) evicts first, and 1 GiB is the consumer lag
-	// budget in bytes (~6s at 100k/s, ~4s at 150k/s). Raising it means raising
-	// max_mem on all three members at once.
-	MaxBytes: 1 << 30, // 1 GiB
-	// The premium, standard and stream lanes are distinct literal subjects
-	// sharing this stream, and MaxBytes eviction is stream-wide oldest-first:
-	// without a per-subject cap a standard-lane flood fills the stream and
-	// evicts retained premium and stream.online events. 400k messages per
-	// lane makes a flooded lane wrap itself while the other lanes keep their
-	// retention (and stays within the 1 GiB stream cap).
+	// MaxBytes is 384 MiB, and under R3 that is 384 MiB on *every* hub peer, not
+	// on one: each member holds a full replica. It was 1 GiB before the standard
+	// lane was partitioned out, and the partition SPLITS that gigabyte rather
+	// than adding to it — 384 MiB here plus 640 MiB on
+	// TwitchIngressStandardStream — so the memory-backed budget against the
+	// broker's 4GB max_mem is unchanged at 1 GiB of ingress + 256 MiB
+	// (TWITCH_OUTGRESS) ≈ 1.3 GiB per node. See the max_mem block in
+	// nats-server.conf. MaxAge is moot under load: MaxBytes (stream-wide,
+	// oldest-first) evicts first, so this is the consumer lag budget in bytes.
+	//
+	// The 3:5 share against the standard lane follows the traffic. What is left
+	// here is premium (premium broadcasters plus the special IDs) and two
+	// trickles — the stream lane carries only stream.online/offline, and the
+	// status subjects carry authorization lifecycle events.
+	MaxBytes: 384 << 20, // 384 MiB
+	// The premium, stream and status subjects share this stream, and MaxBytes
+	// eviction is stream-wide oldest-first: without a per-subject cap a
+	// premium-lane flood fills the stream and evicts retained stream.online and
+	// authz events. The cap stays at 400k messages, which at the ~865 B measured
+	// on the wire per event is ~330 MiB — still under the 384 MiB stream cap, so
+	// a flooded premium lane wraps itself before it can evict its neighbours.
+	// That inequality (MaxMsgsPer × wire bytes < MaxBytes) is the invariant this
+	// field exists for; re-check it whenever either number moves.
 	MaxMsgsPer: 400_000,
 	// The dedup window only applies to messages that carry a Nats-Msg-Id.
 	// Production ingress attaches none (see the MaxAge note above), so lane
@@ -276,6 +299,80 @@ var TwitchIngressStream = StreamSpec{
 	// 10s to bound dedup state for any id-carrying publisher on these subjects —
 	// at 200k/s a 30s window would track ~6M ids, a 10s window ~2M. streamConfig
 	// clamps it to MaxAge regardless, so the two cannot drift apart.
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
+// TwitchIngressStandardStream is the standard lane, partitioned onto a stream of
+// its own. It exists for one reason: a JetStream stream has ONE serialized RAFT
+// proposal loop, so an R3 stream tops out around 98k msg/s end to end on this
+// hub however the publishers are shaped. Two streams elect two leaders and run
+// two loops — live-measured at ~171.7k msg/s across the pair — and standard is
+// the only lane big enough to be worth moving: it carries every non-premium
+// broadcaster plus every event with no extractable broadcaster, while premium,
+// the stream lane and the status subjects stay on TwitchIngressStream.
+//
+// Everything not stated below is deliberately identical to the lane it split
+// from — memory tier, R3, the 10s staleness window, batch publishing — and
+// sesame owns it for the same reason it owns the other: one runtime owner per
+// stream is what keeps the STREAM.CREATE/UPDATE grants narrow (nats-auth.conf).
+//
+// MIGRATION ORDER, and it is the whole safety argument. The subject moves from
+// one live stream to another, and the broker lets neither an overlap nor a gap
+// be expressed atomically, so the two API calls must run in this order:
+//
+//  1. UpdateStream TWITCH_INGRESS, dropping twitch.ingress.event.standard;
+//  2. CreateStream TWITCH_INGRESS_STANDARD, claiming it.
+//
+// EnsureStreams reconciles its spec slice in order, so the ordering is enforced
+// by listing TwitchIngressStream first — here in DataStreams and in the owner's
+// slice (app/sesame/main.go). Between the two calls no stream claims the
+// subject: that window is one JetStream API round trip, on the first pod that
+// converges, and publishes inside it get no PubAck and are dropped by ingress's
+// dedup-free rule. Every later pod finds both streams converged and writes
+// nothing.
+//
+// The reverse order is not a smaller window, it is a deadlock. Creating this
+// stream while TWITCH_INGRESS still captures twitch.ingress.event.> is refused
+// with JSStreamSubjectOverlap; EnsureStreams returns that error; the owner
+// treats a failed initial provision as fatal. The narrowing that would clear the
+// overlap then never runs, on any pod, ever.
+//
+// An old-image pod reconciling mid-rollout cannot undo step 1 either: its wider
+// TWITCH_INGRESS update now overlaps this stream, so the server refuses it and
+// the pod logs a reconcile error on its retry timer until it is replaced.
+var TwitchIngressStandardStream = StreamSpec{
+	Name: "TWITCH_INGRESS_STANDARD",
+	// Exactly one subject, and it must be the one TwitchIngressStream no longer
+	// enumerates. Claimed by both streams it is a create error; claimed by
+	// neither it is a publish into nothing.
+	Subjects: []string{"twitch.ingress.event.standard"},
+	// The same 10s window as the lane it split from, and not independently
+	// tunable in practice: the window IS the staleness policy for chat, so two
+	// halves of one firehose expiring on different clocks would let a standard
+	// answer outlive a premium one.
+	MaxAge:  10 * time.Second,
+	Storage: nats.MemoryStorage,
+	// R3 like every fleet stream. The point of the partition is two leaders, not
+	// fewer replicas: an R1 half would take its whole window and its consumers
+	// with whichever peer held it.
+	Replicas: 3,
+	// 640 MiB of the 1 GiB the unpartitioned stream held, with 384 MiB left on
+	// TWITCH_INGRESS. The partition must not grow the hub's memory-backed
+	// footprint, so this is a split of a fixed gigabyte rather than an addition
+	// to it, and the larger share follows the larger lane. At the ~865 B
+	// measured on the wire per event, 640 MiB is ~776k events of consumer lag —
+	// ~7.8s at 100k/s, ~5.2s at 150k/s.
+	MaxBytes: 640 << 20, // 640 MiB
+	// No MaxMsgsPer, deliberately. A per-subject cap exists to stop one lane's
+	// flood from evicting its neighbours, and this stream has no neighbours:
+	// carrying the sibling's 400k over would only add a second ceiling (~330 MiB
+	// at the measured wire size) that binds before MaxBytes and cuts the lag
+	// budget this stream was just given roughly in half.
+	//
+	// Dedup window as on the lane it split from: ingress attaches no
+	// Nats-Msg-Id, so it is inert on the hot path and only bounds dedup state
+	// for an id-carrying publisher. streamConfig clamps it to MaxAge anyway.
 	Duplicates:   10 * time.Second,
 	BatchPublish: true,
 }
@@ -291,7 +388,7 @@ var TwitchIngressStream = StreamSpec{
 //
 // NOT PROVISIONED TODAY. Membership of DataStreams resolves subjects to streams;
 // it does not create anything. Every service reconciles an explicit list, and
-// sesame's is still []StreamSpec{TwitchIngressStream} — deliberately, because
+// sesame's carries only the two ingress lane streams — deliberately, because
 // receipt-level lane consumers ship disabled (NATS_CONSUME_FLOW defaults off), so
 // nothing schedules onto this lane and a stream nobody drains would only consume
 // hub memory. Provisioning it is part of enabling flow consumption, not of
@@ -333,10 +430,23 @@ var TwitchIngressRetryStream = StreamSpec{
 // to tests and operator tooling; runtime services reconcile only the named
 // stream they own above. Outgress commands are deliberately excluded because
 // they are perishable work, not event history.
-var DataStreams = []StreamSpec{BagelDataStream, TwitchIngressStream, TwitchIngressRetryStream}
+//
+// TwitchIngressStream precedes TwitchIngressStandardStream and that order is
+// load-bearing wherever this slice is reconciled: the narrowing must land before
+// the create, or the create is refused for overlap. See the migration note on
+// TwitchIngressStandardStream.
+var DataStreams = []StreamSpec{
+	BagelDataStream,
+	TwitchIngressStream,
+	TwitchIngressStandardStream,
+	TwitchIngressRetryStream,
+}
 
 // streamForTopic resolves the catalog stream that captures a subject, so
 // subscribers can bind explicitly instead of paying an account-wide lookup.
+// Every catalog subject set is disjoint (the broker enforces it, and
+// TestCatalogStreamsClaimDisjointSubjects pins it), so the first match is the
+// only match and iteration order does not decide the answer.
 func streamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, DataStreams...)

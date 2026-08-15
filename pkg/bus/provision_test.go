@@ -99,14 +99,60 @@ func TestOutgressSystemStreamIsDurableWorkQueue(t *testing.T) {
 	}
 }
 
-func TestOutgressStreamsDoNotOverlap(t *testing.T) {
-	// A subject may belong to exactly one stream; overlap makes AddStream fail.
-	for _, chat := range OutgressStream.Subjects {
-		for _, sys := range OutgressSystemStream.Subjects {
-			if chat == sys {
-				t.Fatalf("chat and system streams both claim %q", chat)
+// TestCatalogStreamsClaimDisjointSubjects is the create-time gate for the whole
+// catalog, not just the outgress pair. A subject may belong to exactly one
+// stream: the broker refuses an overlapping create outright
+// (JSStreamSubjectOverlap), and the failure lands at service startup where a
+// failed initial provision is fatal. It also underwrites streamForTopic's
+// first-match resolution — with disjoint filters the first match is the only
+// one, so catalog ORDER cannot silently decide which stream a lane binds.
+//
+// Wildcard-aware in both directions, which is the case the ingress partition
+// actually hits: twitch.ingress.event.standard is invisible to a literal
+// comparison against twitch.ingress.event.>.
+func TestCatalogStreamsClaimDisjointSubjects(t *testing.T) {
+	specs := fleetStreamSpecs()
+	for i := range specs {
+		for j := i + 1; j < len(specs); j++ {
+			for _, a := range specs[i].Subjects {
+				for _, b := range specs[j].Subjects {
+					if matchSubject(a, b) || matchSubject(b, a) {
+						t.Fatalf("streams %s (%q) and %s (%q) both claim the same subject space",
+							specs[i].Name, a, specs[j].Name, b)
+					}
+				}
 			}
 		}
+	}
+}
+
+// TestIngressLanesResolveToTheirPartitions pins the subject→stream map the
+// partition creates. Consumers bind the stream streamForTopic hands back (see
+// targetForTopic), so this map IS the consumer binding: a standard-lane
+// subscriber that still resolved to TWITCH_INGRESS would provision a consumer
+// on a stream that no longer captures its subject and receive nothing, silently.
+func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
+	for subject, want := range map[string]string{
+		"twitch.ingress.event.standard":       TwitchIngressStandardStream.Name,
+		"twitch.ingress.event.premium":        TwitchIngressStream.Name,
+		"twitch.ingress.event.stream":         TwitchIngressStream.Name,
+		"twitch.ingress.status.authz.revoked": TwitchIngressStream.Name,
+		"twitch.ingress.retry.standard":       TwitchIngressRetryStream.Name,
+	} {
+		got, err := streamForTopic(subject)
+		if err != nil {
+			t.Fatalf("streamForTopic(%q): %v", subject, err)
+		}
+		if got != want {
+			t.Fatalf("stream for %q = %q, want %q", subject, got, want)
+		}
+	}
+
+	// The wildcard that used to catch every lane is gone, and nothing may quietly
+	// re-introduce it: a stream still claiming twitch.ingress.event.> would
+	// overlap the standard partition and fail to create.
+	if got, err := streamForTopic("twitch.ingress.event.unknown"); err == nil {
+		t.Fatalf("streamForTopic(unknown lane) = %q, want a refusal; a wildcard is back in the catalog", got)
 	}
 }
 
@@ -510,9 +556,10 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 	// retention tier (survives a full-quorum restart). Both are stated in the
 	// catalog, so a tier change is a visible edit rather than a dropped field.
 	memory := map[string]bool{
-		TwitchIngressStream.Name:      true,
-		TwitchIngressRetryStream.Name: true,
-		OutgressStream.Name:           true,
+		TwitchIngressStream.Name:         true,
+		TwitchIngressStandardStream.Name: true,
+		TwitchIngressRetryStream.Name:    true,
+		OutgressStream.Name:              true,
 	}
 	for _, spec := range fleetStreamSpecs() {
 		want := jsapi.FileStorage
@@ -540,6 +587,11 @@ func TestMemoryStreamsFitTheHubMemoryBudget(t *testing.T) {
 	//
 	// Keep these three constants in step with deploy/k8s/nats-server.conf and the
 	// nats StatefulSet's limits.
+	//
+	// Note the per-STREAM term: partitioning a lane onto a second stream is not
+	// free here even when the byte budget is split rather than raised, because
+	// each stream carries its own ingest queue. That is the cost the ingress
+	// partition pays, and this test is where it has to stay affordable.
 	const (
 		maxMem          = 4 << 30   // jetstream.max_mem
 		podMemoryLimit  = 5 << 30   // nats container limits.memory
@@ -574,6 +626,97 @@ func TestMemoryStreamsFitTheHubMemoryBudget(t *testing.T) {
 		t.Fatalf("worst-case per-member memory %d (streams %d + WAL + %d ingest queues) exceeds the %d pod limit",
 			worstCase, streamBytes, streams, int64(podMemoryLimit))
 	}
+}
+
+// TestIngressPartitionSplitsOneGigabyteRatherThanAddingOne is the memory
+// contract of the partition, stated as the arithmetic an operator would
+// otherwise have to redo: the two lane streams together reserve exactly what the
+// single stream reserved before the split. Under R3 that reservation is per hub
+// peer, so a partition that quietly "rounded up" each half to a comfortable
+// number would raise the per-node floor by that rounding on all three members at
+// once, against a max_mem nobody edited.
+func TestIngressPartitionSplitsOneGigabyteRatherThanAddingOne(t *testing.T) {
+	const unpartitioned = 1 << 30 // what TWITCH_INGRESS alone held before the split
+
+	premium := streamConfig(TwitchIngressStream).MaxBytes
+	standard := streamConfig(TwitchIngressStandardStream).MaxBytes
+	if got := premium + standard; got != unpartitioned {
+		t.Fatalf("ingress lane streams reserve %d bytes per node, want the unpartitioned %d",
+			got, int64(unpartitioned))
+	}
+	// The bulk lane gets the bulk of the budget: standard carries every
+	// non-premium broadcaster plus every event with no extractable broadcaster,
+	// and the byte cap is the consumer lag budget.
+	if standard <= premium {
+		t.Fatalf("standard lane budget %d does not exceed the premium/stream/status budget %d",
+			standard, premium)
+	}
+	// The per-subject cap on the shared stream must stay under its byte cap, or
+	// the isolation it provides is theoretical: one lane would have to evict its
+	// neighbours before it could wrap itself.
+	const wireBytesPerEvent = 865 // live-measured on the R3 lane
+	if capBytes := streamConfig(TwitchIngressStream).MaxMsgsPerSubject * wireBytesPerEvent; capBytes >= premium {
+		t.Fatalf("per-subject cap is %d bytes against a %d stream cap; a flooded lane evicts its neighbours first",
+			capBytes, premium)
+	}
+	// And the partition's own stream must NOT carry that cap: with one subject it
+	// would only be a second, tighter ceiling on the same bytes.
+	if got := streamConfig(TwitchIngressStandardStream).MaxMsgsPerSubject; got != -1 {
+		t.Fatalf("standard partition per-subject cap = %d, want the unlimited sentinel on a single-subject stream", got)
+	}
+}
+
+// TestIngressPartitionNarrowsBeforeItCreates covers the one ordering a rolling
+// deploy cannot get wrong twice. The subject moves between two live streams, and
+// the broker refuses both an overlap and offers no atomic move, so the narrowing
+// UpdateStream has to precede the CreateStream that claims the subject.
+// EnsureStreams walks its slice in order, which makes catalog order the
+// enforcement mechanism — and makes it worth a test, because the failure mode of
+// the reverse order is not a lost message but a permanent crashloop: the create
+// is refused, the initial provision is fatal, and the narrowing that would clear
+// the overlap never runs.
+func TestIngressPartitionNarrowsBeforeItCreates(t *testing.T) {
+	narrowed, created := catalogIndex(t, TwitchIngressStream.Name), catalogIndex(t, TwitchIngressStandardStream.Name)
+	if narrowed > created {
+		t.Fatalf("catalog reconciles %s before %s; the create would be refused for subject overlap",
+			TwitchIngressStandardStream.Name, TwitchIngressStream.Name)
+	}
+
+	// The live shape a first converge meets: the pre-partition stream, still
+	// wildcarded and still holding the whole gigabyte.
+	live := streamConfig(TwitchIngressStream)
+	live.Subjects = []string{"twitch.ingress.event.>", "twitch.ingress.status.>"}
+	live.MaxBytes = 1 << 30
+	js := &streamManagerSpy{info: liveStream(live)}
+
+	if err := reconcile(t, js, TwitchIngressStream); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if js.updateCount != 1 {
+		t.Fatalf("update calls = %d, want one narrowing pass", js.updateCount)
+	}
+	if js.addCalled {
+		t.Fatal("narrowing a live stream must not recreate it; the runtime credentials cannot delete streams")
+	}
+	if !sameSubjects(js.updated.Subjects, TwitchIngressStream.Subjects) {
+		t.Fatalf("narrowing update carried subjects %v, want %v", js.updated.Subjects, TwitchIngressStream.Subjects)
+	}
+	for _, subject := range js.updated.Subjects {
+		if matchSubject("twitch.ingress.event.standard", subject) {
+			t.Fatalf("narrowing update still claims the standard lane through %q", subject)
+		}
+	}
+}
+
+func catalogIndex(t *testing.T, name string) int {
+	t.Helper()
+	for i := range DataStreams {
+		if DataStreams[i].Name == name {
+			return i
+		}
+	}
+	t.Fatalf("stream %s missing from the catalog", name)
+	return -1
 }
 
 func TestReplaceConsumerCarriesAckFloor(t *testing.T) {

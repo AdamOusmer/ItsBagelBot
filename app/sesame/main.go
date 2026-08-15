@@ -51,8 +51,17 @@ func main() {
 
 	cfg := config.Load()
 
-	// Sesame owns TWITCH_INGRESS stream reconciliation. Other ingress consumers
-	// receive consumer-only ACLs and twitch-ingress itself is publish-only.
+	// Sesame owns both ingress lane streams' reconciliation. Other ingress
+	// consumers receive consumer-only ACLs and twitch-ingress itself is
+	// publish-only.
+	//
+	// ORDER IS LOAD-BEARING. TWITCH_INGRESS must be narrowed (dropping
+	// twitch.ingress.event.standard) before TWITCH_INGRESS_STANDARD claims that
+	// subject: EnsureStreams reconciles this slice in order, and the reverse
+	// order is refused for subject overlap on a live broker — which, because a
+	// failed initial provision is fatal below, would crashloop every sesame pod
+	// without ever performing the narrowing that clears it. See the migration
+	// note on bus.TwitchIngressStandardStream.
 	//
 	// TWITCH_INGRESS_RETRY is provisioned only when the lanes actually bind
 	// receipt-level consumers, because only those schedule onto it: a flow
@@ -62,7 +71,7 @@ func main() {
 	// member for a lane nothing writes to. The same flag decides whether the
 	// consumer subscribes it (see internal/consumer), so the stream and its
 	// reader appear and disappear together and enabling flow stays one env flip.
-	owned := []bus.StreamSpec{bus.TwitchIngressStream}
+	owned := []bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressStandardStream}
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
 	}
