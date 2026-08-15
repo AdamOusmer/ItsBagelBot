@@ -94,12 +94,19 @@ defmodule Ingress.Config.Publish do
   # so 8 covers an 8 ms commit ack at the full flush rate. The number is chosen
   # by the FLEET budget rather than by that latency, because the broker caps
   # concurrently-open atomic batches at 50 PER STREAM
-  # (streamDefaultMaxAtomicBatchInflightPerStream) and every shard opens against
-  # the same TWITCH_INGRESS:
+  # (streamDefaultMaxAtomicBatchInflightPerStream):
   #
   #     3 replicas (deploy/k8s/twitch-ingress.yaml)
   #       × 2 schedulers (`+S 2:2`)
   #       × 8 = 48 concurrently open batches, against 50.
+  #
+  # That arithmetic is now conservative rather than exact, and deliberately left
+  # alone. Cohorts are staged per subject, so a shard's 8 slots are shared across
+  # the lane streams (premium and the stream lane on TWITCH_INGRESS, standard on
+  # TWITCH_INGRESS_STANDARD) instead of all landing on one. 48 is the ceiling for
+  # the SUM, so no single stream can reach it; sizing to the sum keeps the number
+  # safe no matter how the lanes are partitioned or how the traffic splits
+  # between them.
   #
   # 50 is what the hub actually runs: deploy/k8s/nats-server.conf ships no
   # `limits { batch { … } }` block on purpose, because JetStreamLimits is not

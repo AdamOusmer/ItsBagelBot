@@ -2,8 +2,10 @@ defmodule Ingress.Nats.Publisher do
   @moduledoc """
   One scheduler-local, bounded JetStream cohort publisher.
 
-  Calls arriving within `publish_batch_wait_ms` are staged as a local cohort,
-  then handed to the wire selected by `Ingress.Config.Publish.wire/0`:
+  Calls arriving within `publish_batch_wait_ms` are staged as a local cohort —
+  one per subject, because a cohort is a per-stream object and the lanes span
+  two streams (see `flush_subject/2`) — then handed to the wire selected by
+  `Ingress.Config.Publish.wire/0`:
 
     * `:atomic` (default) — the cohort is written as one ADR-050 atomic batch
       (NATS 2.14) and resolved by a single commit PubAck, so a replicated
@@ -160,7 +162,7 @@ defmodule Ingress.Nats.Publisher do
       batch_wait_ms: PublishConfig.batch_wait_ms(),
       wire_mode: PublishConfig.wire(),
       batch_inflight_cap: PublishConfig.batch_inflight(),
-      queue: [],
+      queues: %{},
       queue_count: 0,
       flush_token: nil
     }
@@ -191,15 +193,23 @@ defmodule Ingress.Nats.Publisher do
     enqueue_entry({subject, json, trace_headers, nil}, state)
   end
 
+  # Staged per subject, not per shard, because a cohort is a per-STREAM object;
+  # see `flush_subject/2`. The batch-size trip is therefore per subject too: it
+  # bounds the size of one atomic batch, and the broker applies that ceiling to
+  # a batch, never to a shard's total backlog.
   defp enqueue_entry(entry, state) do
+    subject = elem(entry, 0)
+    {count, entries} = Map.get(state.queues, subject, {0, []})
+    count = count + 1
+
     state = %{
       state
-      | queue: [entry | state.queue],
+      | queues: Map.put(state.queues, subject, {count, [entry | entries]}),
         queue_count: state.queue_count + 1
     }
 
-    if state.queue_count >= state.batch_size do
-      {:noreply, flush_queue(state)}
+    if count >= state.batch_size do
+      {:noreply, flush_subject(state, subject)}
     else
       {:noreply, ensure_flush_scheduled(state)}
     end
@@ -263,8 +273,42 @@ defmodule Ingress.Nats.Publisher do
   defp flush_queue(%{queue_count: 0} = state), do: %{state | flush_token: nil}
 
   defp flush_queue(state) do
-    entries = Enum.reverse(state.queue)
-    state = %{state | queue: [], queue_count: 0, flush_token: nil}
+    state = Enum.reduce(Map.keys(state.queues), state, &flush_subject(&2, &1))
+    %{state | flush_token: nil}
+  end
+
+  # One cohort per subject, never one per shard.
+  #
+  # A cohort travels as a single ADR-050 atomic batch, and a batch belongs to
+  # ONE stream: the broker resolves each message's stream from its subject and
+  # keeps the batch state on that stream's mset. A batch whose messages span two
+  # streams therefore arrives at each of them as a sequence that does not start
+  # at 1, and the server answers that with JSAtomicPublishIncompleteBatch — on
+  # messages that carry no reply inbox, so the rejection is silent and the events
+  # are simply gone. Since the standard lane was partitioned onto
+  # TWITCH_INGRESS_STANDARD (see pkg/bus/streams.go) that is the ordinary case,
+  # not an edge one: every mixed premium/standard cohort would be lost.
+  #
+  # Grouped by subject rather than by stream on purpose. A subject belongs to
+  # exactly one stream by construction, so subject groups can never be coarser
+  # than stream groups, and ingress stays correct across any future partition
+  # without carrying a copy of the broker's stream catalog that would drift from
+  # it. What it costs is that premium and the stream lane no longer amortize
+  # together even though they share a stream — the stream lane carries only
+  # stream.online/offline, which flushes as singles either way.
+  #
+  # The shard's in-flight batch budget (`Ingress.Config.Publish.batch_inflight`)
+  # is counted across all subjects, so splitting cohorts this way can only move
+  # the fleet further under the broker's per-stream cap, never over it.
+  defp flush_subject(state, subject) do
+    case Map.pop(state.queues, subject) do
+      {nil, _queues} -> state
+      {{count, entries}, queues} -> send_cohort(state, queues, count, Enum.reverse(entries))
+    end
+  end
+
+  defp send_cohort(state, queues, count, entries) do
+    state = %{state | queues: queues, queue_count: state.queue_count - count}
     Pending.cohort(state.wire.counter)
 
     cohort_wire(state, entries).send_cohort(entries, state.wire)
