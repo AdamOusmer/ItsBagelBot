@@ -15,7 +15,7 @@ The rollout is three stages and they are ordered by what breaks if they are not:
 |---|---|---|---|
 | 1 | ACL grants (`MSG.NEXT`, `TWITCH_INGRESS_STANDARD`), `cluster_traffic: owner` | git merge, then reload + hub roll | revert commit, roll again |
 | 2 | Canary: `NATS_CONSUME_FLOW=on` on sesame | git commit | `NATS_CONSUME_FLOW=off` |
-| 3 | `TWITCH_INGRESS_STANDARD` partition | service reconcile on image rollout | see section 6 |
+| 3 | `TWITCH_INGRESS_STANDARD` partition | `NATS_INGRESS_PARTITION=on` flip | see section 6 |
 
 Stage 1 changes no lane behaviour. Stage 2 is the only one chat can feel.
 No new credentials ship with this rollout: every grant lands on existing users,
@@ -221,10 +221,26 @@ to revert stage 1 alone.
 
 The standard lane moves onto its own stream so the two hot lanes stop sharing
 one serialized RAFT proposal loop. Nothing in `deploy/k8s` creates it: sesame
-reconciles it at startup, so the stream appears when the image carrying the
-partition rolls. The safety analysis for the subject move, including why
-`TWITCH_INGRESS` must be narrowed before the new stream claims the subject and
-why the reverse order deadlocks, lives with the partition change itself
+reconciles it at startup, gated behind `NATS_INGRESS_PARTITION` (pinned `"off"`
+in [sesame.yaml](sesame.yaml)), so merging the code changes nothing and the
+partition is an operator flip in its own window — the same one-word-diff shape
+as the canary.
+
+**Hard prerequisite for the flip:** every twitch-ingress pod must already run
+an image with per-subject cohort staging. An old ingress image publishes mixed
+premium/standard atomic batches, and once the partition exists the broker
+rejects those with `JSAtomicPublishIncompleteBatch` on messages that carry no
+reply inbox — silent loss, on both lanes in the batch. Verify the ingress
+rollout is fully converged on a post-partition image digest before flipping.
+Flipping BACK after the partition has been created is also not free: the legacy
+wildcard shape then overlaps the created stream and sesame's reconcile is
+refused, so a rollback of the flag requires deleting `TWITCH_INGRESS_STANDARD`
+first (10s of standard retention is the maximum loss, by the lane's own
+staleness policy).
+
+The safety analysis for the subject move, including why `TWITCH_INGRESS` must
+be narrowed before the new stream claims the subject and why the reverse order
+deadlocks, lives with the partition change itself
 (`bus.TwitchIngressStandardStream` in pkg/bus/streams.go). Read it there rather
 than trusting a summary here.
 

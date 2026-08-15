@@ -109,7 +109,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 			// the slice in order and the partition's narrowing update must run
 			// before the new stream claims the subject, so the order is part of
 			// the assertion, not incidental formatting.
-			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressStandardStream}",
+			"sesame":   "bus.IngressLaneSpecs()",
 			"outgress": "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
 		seen: make(map[string]bool, 3),

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/env"
+
 	"github.com/nats-io/nats.go"
 )
 
@@ -442,15 +444,55 @@ var DataStreams = []StreamSpec{
 	TwitchIngressRetryStream,
 }
 
+// IngressPartitionEnabled gates the standard-lane partition. It exists so that
+// merging the partition code is a zero-behaviour deploy: the fleet's images
+// roll in whatever order Flux lands them, and until every ingress publisher
+// carries the per-subject cohort staging, the first sesame pod to execute the
+// partition would turn each of old ingress's mixed premium/standard atomic
+// batches into a silent JSAtomicPublishIncompleteBatch drop. The flip is an
+// operator action taken after the fleet has converged, in its own window
+// (NATS-PULL-ROLLOUT.md section 6), exactly like the pull-consumer canary.
+func IngressPartitionEnabled() bool {
+	return env.Get("NATS_INGRESS_PARTITION", "off") == "on"
+}
+
+// IngressLaneSpecs is the ingress lane catalog the owner reconciles and the
+// subject resolver consults, in reconcile order. Partition off is the
+// pre-partition production shape, derived from the partitioned spec rather
+// than kept as a second literal so the two shapes cannot drift apart in any
+// field other than the two the partition changes.
+func IngressLaneSpecs() []StreamSpec {
+	if IngressPartitionEnabled() {
+		return []StreamSpec{TwitchIngressStream, TwitchIngressStandardStream}
+	}
+	return []StreamSpec{legacyTwitchIngressStream()}
+}
+
+// legacyTwitchIngressStream is the unpartitioned lane: the event wildcard and
+// the whole gigabyte, exactly what production runs before the flip. Reconciling
+// this shape while the partitioned stream exists would be refused for subject
+// overlap, which is the correct failure: the flag must not be flipped back
+// after the partition has been created without deleting the partition first.
+func legacyTwitchIngressStream() StreamSpec {
+	spec := TwitchIngressStream
+	spec.Subjects = []string{"twitch.ingress.event.>", "twitch.ingress.status.>"}
+	spec.MaxBytes = 1 << 30
+	return spec
+}
+
 // streamForTopic resolves the catalog stream that captures a subject, so
 // subscribers can bind explicitly instead of paying an account-wide lookup.
 // Every catalog subject set is disjoint (the broker enforces it, and
 // TestCatalogStreamsClaimDisjointSubjects pins it), so the first match is the
-// only match and iteration order does not decide the answer.
+// only match and iteration order does not decide the answer. The ingress lanes
+// come from IngressLaneSpecs rather than DataStreams: before the partition
+// flip the standard subject must resolve to TWITCH_INGRESS, where it still
+// lives, or every standard consumer would bind a stream that does not exist.
 func streamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
-	specs = append(specs, DataStreams...)
-	specs = append(specs, OutgressStream, OutgressSystemStream)
+	specs = append(specs, BagelDataStream)
+	specs = append(specs, IngressLaneSpecs()...)
+	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

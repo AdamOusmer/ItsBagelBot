@@ -55,13 +55,14 @@ func main() {
 	// consumers receive consumer-only ACLs and twitch-ingress itself is
 	// publish-only.
 	//
-	// ORDER IS LOAD-BEARING. TWITCH_INGRESS must be narrowed (dropping
-	// twitch.ingress.event.standard) before TWITCH_INGRESS_STANDARD claims that
-	// subject: EnsureStreams reconciles this slice in order, and the reverse
-	// order is refused for subject overlap on a live broker — which, because a
-	// failed initial provision is fatal below, would crashloop every sesame pod
-	// without ever performing the narrowing that clears it. See the migration
-	// note on bus.TwitchIngressStandardStream.
+	// The lane shape comes from IngressLaneSpecs: one wildcard stream until the
+	// partition flip, the narrowed pair after it (NATS_INGRESS_PARTITION). The
+	// slice order inside the partitioned shape is load-bearing — TWITCH_INGRESS
+	// must be narrowed before TWITCH_INGRESS_STANDARD claims the standard
+	// subject; EnsureStreams reconciles in order and the reverse is refused for
+	// subject overlap, which a fatal initial provision would turn into a
+	// crashloop that never performs the narrowing. See the migration note on
+	// bus.TwitchIngressStandardStream.
 	//
 	// TWITCH_INGRESS_RETRY is provisioned only when the lanes actually bind
 	// receipt-level consumers, because only those schedule onto it: a flow
@@ -71,7 +72,7 @@ func main() {
 	// member for a lane nothing writes to. The same flag decides whether the
 	// consumer subscribes it (see internal/consumer), so the stream and its
 	// reader appear and disappear together and enabling flow stays one env flip.
-	owned := []bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressStandardStream}
+	owned := bus.IngressLaneSpecs()
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
 	}

@@ -173,6 +173,16 @@ spec:
               value: "off"
             - name: NATS_CONSUME_MODE
               value: pull
+            # PARTITION FLAG. "on" reshapes the ingress lane catalog to the
+            # two-stream partition (narrow TWITCH_INGRESS, create
+            # TWITCH_INGRESS_STANDARD) on the next sesame reconcile. Ships off
+            # so the code merge is a zero-behaviour deploy; flipping it is its
+            # own operator window and REQUIRES every twitch-ingress pod to
+            # already run per-subject cohort staging, or mixed atomic batches
+            # from an old ingress image are silently rejected. Procedure and
+            # ordering: NATS-PULL-ROLLOUT.md section 6.
+            - name: NATS_INGRESS_PARTITION
+              value: "off"
             # Reuse the worker's shared lane consumer so this is a true drop-in:
             # no DeliverAll replay, and rollout overlap load-balances instead of
             # double-processing.

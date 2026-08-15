@@ -132,6 +132,7 @@ func TestCatalogStreamsClaimDisjointSubjects(t *testing.T) {
 // subscriber that still resolved to TWITCH_INGRESS would provision a consumer
 // on a stream that no longer captures its subject and receive nothing, silently.
 func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
+	t.Setenv("NATS_INGRESS_PARTITION", "on")
 	for subject, want := range map[string]string{
 		"twitch.ingress.event.standard":       TwitchIngressStandardStream.Name,
 		"twitch.ingress.event.premium":        TwitchIngressStream.Name,
@@ -153,6 +154,33 @@ func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
 	// overlap the standard partition and fail to create.
 	if got, err := streamForTopic("twitch.ingress.event.unknown"); err == nil {
 		t.Fatalf("streamForTopic(unknown lane) = %q, want a refusal; a wildcard is back in the catalog", got)
+	}
+}
+
+// TestPartitionFlagOffKeepsThePrePartitionShape is the deploy-safety half of
+// the partition gate: merging the partition code must change nothing until the
+// operator flips NATS_INGRESS_PARTITION in its own window, after the fleet's
+// ingress images all carry per-subject cohort staging.
+func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
+	t.Setenv("NATS_INGRESS_PARTITION", "off")
+	lanes := IngressLaneSpecs()
+	if len(lanes) != 1 || lanes[0].Name != TwitchIngressStream.Name {
+		t.Fatalf("lane specs with the partition off = %#v, want the single legacy stream", lanes)
+	}
+	if got := lanes[0].Subjects; len(got) != 2 || got[0] != "twitch.ingress.event.>" {
+		t.Fatalf("legacy subjects = %v, want the event wildcard restored", got)
+	}
+	if lanes[0].MaxBytes != 1<<30 {
+		t.Fatalf("legacy MaxBytes = %d, want the whole gigabyte", lanes[0].MaxBytes)
+	}
+	for subject, want := range map[string]string{
+		"twitch.ingress.event.standard": TwitchIngressStream.Name,
+		"twitch.ingress.event.premium":  TwitchIngressStream.Name,
+	} {
+		got, err := streamForTopic(subject)
+		if err != nil || got != want {
+			t.Fatalf("streamForTopic(%q) = %q, %v; want %q on the legacy shape", subject, got, err, want)
+		}
 	}
 }
 

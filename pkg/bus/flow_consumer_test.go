@@ -689,6 +689,7 @@ func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 // the subject: no error, no delivery. Both receipt-level modes are checked
 // because each has its own provisioning path.
 func TestPartitionedLanesBindReceiptLevelConsumers(t *testing.T) {
+	t.Setenv("NATS_INGRESS_PARTITION", "on")
 	for _, mode := range []struct {
 		configured string
 		want       laneConsumeMode
