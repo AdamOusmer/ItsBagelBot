@@ -167,6 +167,7 @@ func positiveInt(value, fallback int) int {
 // replacement path without a broker.
 type pullConsumerProvisioner interface {
 	Consumer(ctx context.Context, stream, name string) (jsapi.Consumer, error)
+	PushConsumer(ctx context.Context, stream, name string) (jsapi.PushConsumer, error)
 	CreateOrUpdateConsumer(ctx context.Context, stream string, cfg jsapi.ConsumerConfig) (jsapi.Consumer, error)
 	DeleteConsumer(ctx context.Context, stream, name string) error
 }
@@ -282,10 +283,39 @@ func pullConsumerInfo(ctx context.Context, js pullConsumerProvisioner, stream, n
 	if errors.Is(err, jsapi.ErrConsumerNotFound) {
 		return nil, nil
 	}
+	// jetstream.Consumer refuses to describe a push consumer even for a plain
+	// INFO read, and the mode flip by definition finds the push durable
+	// occupying this name — the one moment the caller must see the occupant's
+	// shape and ack floor to carry them onto the replacement. Read the
+	// occupant through the accessor that matches its mode instead of failing
+	// the whole flip on the lookup.
+	if errors.Is(err, jsapi.ErrNotPullConsumer) {
+		return pushOccupantInfo(ctx, js, stream, name)
+	}
 	if err != nil {
 		return nil, err
 	}
 	info, err := consumer.Info(ctx)
+	if errors.Is(err, jsapi.ErrConsumerNotFound) {
+		return nil, nil
+	}
+	return info, err
+}
+
+// pushOccupantInfo describes the push consumer currently holding the lane
+// durable's name. Finding the name deleted — or already pull — here means
+// another pod moved it between the two reads; returning nil info lets the
+// provision attempt proceed against the current truth, and bindPullConsumer's
+// re-drive absorbs the rejection that follows if the race went the other way.
+func pushOccupantInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
+	occupant, err := js.PushConsumer(ctx, stream, name)
+	if errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrNotPushConsumer) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	info, err := occupant.Info(ctx)
 	if errors.Is(err, jsapi.ErrConsumerNotFound) {
 		return nil, nil
 	}
