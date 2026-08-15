@@ -534,7 +534,34 @@ func (s *pullConsumerSpy) Consumer(context.Context, string, string) (jsapi.Consu
 	if s.live == nil {
 		return nil, jsapi.ErrConsumerNotFound
 	}
+	// The real client refuses to describe a push consumer through the pull
+	// accessor; modelling that here is what keeps these tests honest about
+	// the conversion (the fake used to hand the info back and the flip
+	// failed in production on this exact lookup).
+	if s.live.Config.DeliverSubject != "" {
+		return nil, jsapi.ErrNotPullConsumer
+	}
 	return &pullConsumerHandle{info: s.live}, nil
+}
+
+// pushConsumerHandle mirrors pullConsumerHandle for the push accessor.
+type pushConsumerHandle struct {
+	jsapi.PushConsumer
+	info *jsapi.ConsumerInfo
+}
+
+func (c *pushConsumerHandle) Info(context.Context) (*jsapi.ConsumerInfo, error) {
+	return c.info, nil
+}
+
+func (s *pullConsumerSpy) PushConsumer(context.Context, string, string) (jsapi.PushConsumer, error) {
+	if s.live == nil {
+		return nil, jsapi.ErrConsumerNotFound
+	}
+	if s.live.Config.DeliverSubject == "" {
+		return nil, jsapi.ErrNotPushConsumer
+	}
+	return &pushConsumerHandle{info: s.live}, nil
 }
 
 func (s *pullConsumerSpy) CreateOrUpdateConsumer(
