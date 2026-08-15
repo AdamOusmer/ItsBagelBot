@@ -44,10 +44,9 @@
 # valkey-core-secret (Doppler-managed) at /secrets/valkey and the integration
 # reads /secrets/valkey/VALKEY_CORE_PASSWORD (proven live path, key NOT renamed).
 #
-# MIGRATION / CUTOVER RUNBOOK lives in deploy/flux/clusters/production/newrelic-RUNBOOK.md.
-# Read it before letting Flux reconcile this for the first time: helm-controller
-# WILL fail with "exists and cannot be imported into the current release" unless
-# the orphaned kubectl-applied resources are handled first.
+# First reconcile over a kubectl-era install: helm-controller WILL fail with
+# "exists and cannot be imported into the current release" unless the orphaned
+# kubectl-applied resources are handled first.
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
@@ -306,7 +305,7 @@ spec:
     # config, so the DaemonSet mount is stable either way.
     # If this dual-owner overlap is ever a problem, upgrade newrelic-logging to a
     # version with `fluentBit.config.existingConfigMap` and drop the standalone
-    # CM. Tracked in the RUNBOOK "logging split" section.
+    # CM.
     # =======================================================================
     newrelic-logging:
       enabled: true

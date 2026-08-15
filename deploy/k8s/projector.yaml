@@ -143,7 +143,7 @@ spec:
             # this service reads, and that change owes projector_bus a
             # $JS.API.CONSUMER.MSG.NEXT grant in nats-auth.conf in the same
             # commit: a denied fetch is a silent zero-delivery lane, not an
-            # error. See NATS-PULL-ROLLOUT.md.
+            # error.
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY

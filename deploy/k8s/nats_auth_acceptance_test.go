@@ -57,7 +57,8 @@ type violationExpectation struct {
 
 // TestScopedBusUsersBindAllowedStreams exercises the same pkg/bus stream and
 // consumer calls the services make in production. It is opt-in because it
-// needs the local NATS 2.14 fixture documented in NATS-ACCOUNTS.md.
+// needs a local NATS 2.14 fixture running this directory's auth config;
+// point NATS_AUTHZ_ACCEPTANCE_URL and NATS_AUTHZ_ACCEPTANCE_PASSWORD at it.
 func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness := newAcceptanceHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
