@@ -143,6 +143,22 @@ spec:
               value: valkey-local.valkey.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
+            # Receipt-level consumption is deliberately absent here, not merely
+            # unset. Outgress drains work-queue streams, whose retention deletes
+            # a message on ack and therefore requires a per-message explicit ack
+            # (pkg/bus isHotIngressLane excludes them by that rule); its
+            # TWITCH_INGRESS bindings are the stream and authz subjects, which
+            # the same guard declines. Both shapes are structurally wrong for
+            # this service, so these stay commented and outgress_bus holds no
+            # $JS.API.CONSUMER.MSG.NEXT grant to match:
+            #
+            #   - name: NATS_CONSUME_FLOW
+            #     value: "on"
+            #   - name: NATS_CONSUME_MODE
+            #     value: pull
+            #
+            # The rollout that flips the hot lanes is sesame's alone. See
+            # NATS-PULL-ROLLOUT.md.
             # Sized for the 50-100k firehose (see sesame.yaml). A high MIN keeps
             # send concurrency resident so throughput does not wait on the slow
             # +1-per-tick autoscaler to climb from a cold floor under a burst.

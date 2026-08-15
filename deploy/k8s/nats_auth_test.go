@@ -29,12 +29,12 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"modules_bus":   {"BAGEL_DATA"},
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
+		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":    {"BAGEL_DATA"},
-		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY"},
+		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus": {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
@@ -54,6 +54,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				consumerStreams: consumers[user],
 				ownedStreams:    owners[user],
 				flowControl:     flowControlStreams[user],
+				pullFetch:       pullFetchStreams[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -103,8 +104,12 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	}
 	check := streamOwnershipCheck{
 		want: map[string]string{
-			"users":    "[]bus.StreamSpec{bus.BagelDataStream}",
-			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream}",
+			"users": "[]bus.StreamSpec{bus.BagelDataStream}",
+			// Both ingress lane streams, in this order. EnsureStreams reconciles
+			// the slice in order and the partition's narrowing update must run
+			// before the new stream claims the subject, so the order is part of
+			// the assertion, not incidental formatting.
+			"sesame":   "[]bus.StreamSpec{bus.TwitchIngressStream, bus.TwitchIngressStandardStream}",
 			"outgress": "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
 		seen: make(map[string]bool, 3),
@@ -135,13 +140,26 @@ type sourceFile struct {
 // is ack-equivalent authority on that consumer, which is why it is scoped to a
 // single stream and asserted here rather than folded into the per-stream set.
 var flowControlStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS"},
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+}
+
+// pullFetchStreams names, per user, the streams whose lanes may bind a
+// shared-durable pull consumer. MSG.NEXT is that consumer's fetch verb and no
+// push consumer ever sends it, so it is listed separately rather than folded
+// into the per-stream consumer set: granting it to a service that only binds
+// push consumers is authority for a call that service never makes, and NOT
+// granting it to one that pulls is a silent zero-delivery lane rather than a
+// visible error. Only the hot ingress lanes qualify for receipt-level
+// consumption (pkg/bus isHotIngressLane), and sesame is their only consumer.
+var pullFetchStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 }
 
 type streamGrants struct {
 	consumerStreams []string
 	ownedStreams    []string
 	flowControl     []string
+	pullFetch       []string
 }
 
 type authConfig struct {
@@ -174,6 +192,9 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 	set := make(map[string]struct{})
 	for _, stream := range grants.flowControl {
 		set["$JS.FC."+stream+".>"] = struct{}{}
+	}
+	for _, stream := range grants.pullFetch {
+		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
 	}
 	for _, stream := range grants.consumerStreams {
 		for _, subject := range []string{

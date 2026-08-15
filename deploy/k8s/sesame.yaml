@@ -146,6 +146,33 @@ spec:
               value: valkey-local.valkey.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
+            # CANARY FLAG FOR THE PULL ROLLOUT. Flipping NATS_CONSUME_FLOW to
+            # "on" is the canary: it moves both hot ingress lanes from
+            # per-message explicit acks to the shared-durable pull consumer, and
+            # it provisions TWITCH_INGRESS_RETRY plus its reader in the same
+            # step. Sesame carries it because sesame is the only service that
+            # can: pkg/bus admits receipt-level consumption on the hot ingress
+            # lanes alone (isHotIngressLane), and nothing else binds them. The
+            # read-side consumers on BAGEL_DATA and the outgress work queues are
+            # push consumers by construction and the flag is inert there, so
+            # there is no lower-risk service to soak it on first. Full procedure,
+            # including what to watch and how to back out: NATS-PULL-ROLLOUT.md.
+            #
+            # Shipped off, and off is a real state rather than a missing one: it
+            # is the kill switch an operator reaches for during an incident, so
+            # it is pinned here where they will look. Both values are pinned so
+            # the canary is a one-word diff and the rollback is the same word
+            # back; the mode is spelled out rather than defaulted so the lane's
+            # shape cannot change under the fleet from a library default.
+            #
+            # The broker ACL is a hard prerequisite and lands first: a pull
+            # consumer fetches on $JS.API.CONSUMER.MSG.NEXT, and without that
+            # grant the lane goes to zero events per second with no client-side
+            # error at all (see nats-auth.conf, worker_bus).
+            - name: NATS_CONSUME_FLOW
+              value: "off"
+            - name: NATS_CONSUME_MODE
+              value: pull
             # Reuse the worker's shared lane consumer so this is a true drop-in:
             # no DeliverAll replay, and rollout overlap load-balances instead of
             # double-processing.

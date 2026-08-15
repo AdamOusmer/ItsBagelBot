@@ -40,11 +40,19 @@ deliberately narrow:
 | `TWITCH_INGRESS` | `worker_bus` (sesame) | exact projector/outgress consumer APIs; twitch-ingress is subject-only |
 | `TWITCH_OUTGRESS` | `outgress_bus` | exact outgress consumer APIs; subject-only publishers |
 | `TWITCH_OUTGRESS_SYSTEM` | `outgress_bus` | exact outgress consumer APIs; subject-only publishers |
+| `TWITCH_INGRESS_STANDARD` | `worker_bus` (sesame) | pre-authorized; the stream is created by the lane partition, see [NATS-PULL-ROLLOUT.md](NATS-PULL-ROLLOUT.md) |
 
 Owners receive only `STREAM.INFO/CREATE/UPDATE` for their named stream.
 Consumers receive only `STREAM.INFO`, consumer create/info/delete, and ACK
 subjects for their named stream. No ordinary service credential receives
 `STREAM.PURGE`, `STREAM.DELETE`, account-wide discovery, or `$JS.>`.
+
+Two verbs are granted narrower still, per stream and only to the identity that
+binds the consumer, because each is acknowledgement authority rather than
+consumer plumbing: `$JS.FC` (a flow consumer's only way to advance the ack
+floor) and `$JS.API.CONSUMER.MSG.NEXT` (a pull consumer's fetch). Only
+`worker_bus` holds either, on the two ingress lane streams. Everything else in
+the fleet binds push consumers, which never send `MSG.NEXT` at all.
 
 The static regression test runs with the normal Go suite:
 

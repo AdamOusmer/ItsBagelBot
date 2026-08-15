@@ -66,6 +66,7 @@ func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness.reconcileOwnedStreams(t, ctx)
 	harness.assertAllowedBindings(t)
 	harness.assertRequiredAckPermissions(t)
+	harness.assertPullFetchPermission(t)
 	harness.assertConsumerIsolation(t)
 	harness.assertDestructiveOperationsDenied(t)
 	harness.assertNodeLocalRPCImport(t)
@@ -186,6 +187,21 @@ func (h *acceptanceHarness) assertPublishAllowed(t *testing.T, probe publishProb
 	case err := <-permissionErr:
 		t.Fatalf("%s could not publish required ACK %s: %v", probe.identity.user, probe.subject, err)
 	case <-time.After(25 * time.Millisecond):
+	}
+}
+
+// assertPullFetchPermission covers the verb the receipt-level pull lane runs on.
+// A denied MSG.NEXT is invisible from the client side: the consumer is created,
+// the stream fills, and every fetch is refused, so the lane reports zero events
+// per second with nothing but a broker-log violation to read. The permission is
+// gated on the publish, which is what this probes; the consumer name in the
+// subject only has to be inside the granted prefix.
+func (h *acceptanceHarness) assertPullFetchPermission(t *testing.T) {
+	t.Helper()
+	identity := serviceIdentity{"worker_bus"}
+	for _, stream := range []string{"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"} {
+		subject := "$JS.API.CONSUMER.MSG.NEXT." + stream + ".worker_twitch_ingress_event_standard"
+		h.assertPublishAllowed(t, publishProbe{identity, subject})
 	}
 }
 

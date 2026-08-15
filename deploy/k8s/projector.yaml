@@ -125,6 +125,25 @@ spec:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.valkey.svc.cluster.local:6380
+            # Receipt-level consumption is deliberately absent here, not merely
+            # unset. The projector's bindings are the BAGEL_DATA folds and
+            # twitch.ingress.event.stream, and pkg/bus admits the pull and flow
+            # shapes on the hot ingress lanes alone (isHotIngressLane), so these
+            # two would be accepted, declined per subject, and logged as
+            # "receipt-level consumption declined outside the hot ingress
+            # lanes". Setting them would read as a canary that soaks and prove
+            # nothing about the shape sesame actually runs.
+            #
+            #   - name: NATS_CONSUME_FLOW
+            #     value: "on"
+            #   - name: NATS_CONSUME_MODE
+            #     value: pull
+            #
+            # They become meaningful only if the scope guard widens to a subject
+            # this service reads, and that change owes projector_bus a
+            # $JS.API.CONSUMER.MSG.NEXT grant in nats-auth.conf in the same
+            # commit: a denied fetch is a silent zero-delivery lane, not an
+            # error. See NATS-PULL-ROLLOUT.md.
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             - name: PROJECTOR_WRITE_CONCURRENCY
