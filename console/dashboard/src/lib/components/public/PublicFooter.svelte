@@ -69,6 +69,10 @@
     padding: 72px 4% 40px;
     overflow: hidden;
     color: var(--bb-white);
+    /* web/'s footer sits on the body's solid ink; here fixed background
+       canvases (aurora, starfield) run the whole page, so the footer paints
+       its own ground to occlude them the same way. */
+    background: var(--bb-bg-0);
   }
   .site-footer::before {
     content: "";
