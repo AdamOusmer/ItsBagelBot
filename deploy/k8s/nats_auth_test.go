@@ -64,12 +64,16 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 }
 
 // TestAdminStreamMutationGrantsAreOnlyItsOwnKV holds admin_bus to the one
-// stream it actually owns. It used to also carry create/update/delete,
-// leader-stepdown and $JS.FC on a fixed benchmark stream name so a load rig
-// could run without a config push. That is standing ack-floor and
-// stream-mutation authority for a workload that is not running, and it outlived
-// the rig by itself — which is exactly how a permission becomes permanent.
-// A future load test brings its own grant for the duration of its run.
+// stream it actually owns, plus the leader-stepdown verb that implements the
+// manual leader-spread policy after hub rolls. It used to also carry
+// create/update/delete and $JS.FC on a fixed benchmark stream name so a load
+// rig could run without a config push. That is standing ack-floor and
+// stream-mutation authority for a workload that is not running, and it
+// outlived the rig by itself — which is exactly how a permission becomes
+// permanent. A future load test brings its own grant for the duration of its
+// run. Stepdown is the deliberate exception: it moves leaders and nothing
+// else, and the spread must be restorable during an incident without a config
+// push.
 func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
@@ -88,6 +92,7 @@ func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	}
 	want := []string{
 		"$JS.API.STREAM.CREATE.KV_admin_lanes",
+		"$JS.API.STREAM.LEADER.STEPDOWN.>",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
 	}
 	if !slices.Equal(got, want) {

@@ -36,7 +36,7 @@
 #   - Intentionally NOT carried over: falco.http_output.url pointing at the
 #     long-gone falco-falcosidekick Service. http_output is disabled, the URL
 #     was inert cruft from the era when falcosidekick was installed (its
-#     leftover SAs/Roles get deleted in the cutover, see the RUNBOOK).
+#     leftover SAs/Roles get deleted in the cutover).
 #
 # CUSTOM RULES (the reason this exists: ~6,500 events/day to New Relic, nearly
 # all false positives from the stock ruleset)
@@ -49,11 +49,9 @@
 # `falco -V /etc/falco/falco_rules.yaml -V <this file>` inside a live falco
 # pod (falco 0.43.1, rules artifact falco-rules:5): zero errors, zero warnings.
 #
-# MIGRATION / CUTOVER RUNBOOK: deploy/flux/clusters/production/falco-RUNBOOK.md.
-# Same orphaned-release problem newrelic-RUNBOOK.md documents: helm-controller
-# WILL fail with "exists and cannot be imported into the current release"
-# until the kubectl-owned orphans are deleted. Read it before letting Flux
-# reconcile this the first time.
+# First reconcile over a kubectl-era install: helm-controller WILL fail with
+# "exists and cannot be imported into the current release" until the
+# kubectl-owned orphans are deleted (same orphaned-release shape as newrelic).
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository

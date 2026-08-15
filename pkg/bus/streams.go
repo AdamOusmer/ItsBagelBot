@@ -450,8 +450,8 @@ var DataStreams = []StreamSpec{
 // carries the per-subject cohort staging, the first sesame pod to execute the
 // partition would turn each of old ingress's mixed premium/standard atomic
 // batches into a silent JSAtomicPublishIncompleteBatch drop. The flip is an
-// operator action taken after the fleet has converged, in its own window
-// (NATS-PULL-ROLLOUT.md section 6), exactly like the pull-consumer canary.
+// operator action taken after the fleet has converged, in its own window,
+// exactly like the pull-consumer canary.
 func IngressPartitionEnabled() bool {
 	return env.Get("NATS_INGRESS_PARTITION", "off") == "on"
 }

@@ -39,7 +39,8 @@ recognise and awkward to fake convincingly.
 
 A tick in the body proves nothing on its own, anyone can copy pixels. What
 actually stops spoofing is the sending domain, set up on the DNS / Resend side.
-Full state and runbook: [`deploy/dns/email-auth.md`](../deploy/dns/email-auth.md).
+The zone records are managed by hand through the Cloudflare API
+(`CLOUDFLARE_API_TOKEN`, Doppler project `cloudflared`, config `prd`).
 
 - **SPF, DKIM, DMARC** on `itsbagelbot.com` — live. DKIM is set for both Zoho
   and Resend, both aligned. DMARC is at `p=quarantine; pct=100` (spoofed
