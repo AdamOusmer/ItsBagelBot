@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { AuroraBg, AlertBanner, Icon, getI18n, type IconName } from '@bagel/shared';
+  import { AuroraBg, LightField, AlertBanner, Icon, getI18n, type IconName } from '@bagel/shared';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import type { PageData } from './$types';
 
@@ -8,22 +8,43 @@
 
   const { t, locale } = getI18n();
 
+  // Fallback poll of /stats/data, armed only while the SSE stream is failed.
   const POLL_MS = 5000;
-  const ANIM_MS = 900;
+  // 0 -> value rise on first paint (ease-out-quart, as the shared countUp action).
+  const INTRO_MS = 900;
+  // Time constant of the chase that re-bases the odometer onto a fresh snapshot:
+  // ~95% of the correction lands within 3τ ≈ 600ms, which reads as a drift
+  // rather than a jump.
+  const TAU_MS = 200;
+  // Rates are a read-out, not an odometer — settle them a touch more slowly.
+  const RATE_TAU_MS = 300;
+  // A throttled tab (or a slept laptop) must not integrate minutes of rate into
+  // a single frame.
+  const MAX_DT_MS = 250;
+  // How far past the last snapshot we are willing to extrapolate. A stalled
+  // stream should coast to a stop, not invent a number nobody can vouch for.
+  const MAX_PROJECT_S = 10;
+  // Slowest the totals may move while a downward correction is being absorbed,
+  // as a share of the live rate. The counters are meant to read as running, so
+  // they crawl through a correction rather than parking on one value.
+  const MIN_CRAWL = 0.25;
 
   // The SSR snapshot is a seed, not a binding: from hydration on, this page's
-  // numbers come from its own poll, never from a re-run of the page load. Read
+  // numbers come from its own stream, never from a re-run of the page load. Read
   // it untracked so that intent is explicit (and so the seed-vs-prop reactivity
   // warning does not fire on a deliberate one-time copy).
   const seed = untrack(() => data.stats);
+  type Snapshot = typeof seed;
 
-  // Last snapshot from the server: seeded by SSR, replaced by each poll.
+  // Last snapshot from the server: seeded by SSR, replaced by each SSE frame.
+  // `live` only ever holds healthy numbers; `degraded` tracks the banner on its
+  // own so an outage frame cannot rebase the odometer (see applySnapshot).
   let live = $state(seed);
+  let degraded = $state(seed.degraded);
 
   // What the tiles actually print. Seeded from the SSR numbers so the no-JS /
   // pre-hydration render already carries the real values; onMount then runs the
-  // same 0 -> value rise the shared `countUp` action does, and every later poll
-  // tweens from the current display instead of snapping.
+  // 0 -> value rise and hands over to the ticking loop below.
   let display = $state({
     messages: seed.messages_total,
     events: seed.events_total,
@@ -33,14 +54,30 @@
 
   type Frame = typeof display;
 
+  // Trajectory bookkeeping — deliberately not $state: it is read and written by
+  // the animation frame, never rendered.
+  let snapAt = 0; // performance.now() when the current snapshot landed
+  let introAt = 0; // start of the 0 -> value rise
+  let lastFrame = 0;
   let raf = 0;
+  let reduced = false;
+  let streamDown = false;
 
-  function targetFrame(): Frame {
+  /**
+   * Where the totals should stand *right now*: the last snapshot's numbers plus
+   * its rate times the time since it landed. This is what makes the counters
+   * live — between snapshots the display keeps climbing at the fleet's own
+   * rate instead of sitting still for 2s and then stepping.
+   */
+  function targetFrame(now: number): Frame {
+    const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
+    const msgRate = live.msg_rate ?? 0;
+    const eventRate = live.event_rate ?? 0;
     return {
-      messages: live.messages_total,
-      events: live.events_total,
-      msgRate: live.msg_rate ?? 0,
-      eventRate: live.event_rate ?? 0
+      messages: live.messages_total + msgRate * secs,
+      events: live.events_total + eventRate * secs,
+      msgRate,
+      eventRate
     };
   }
 
@@ -48,26 +85,74 @@
     return from + (to - from) * eased;
   }
 
-  function animateTo(target: Frame): void {
-    cancelAnimationFrame(raf);
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      display = target;
-      return;
-    }
-    const from = { ...display };
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - t0) / ANIM_MS);
-      const eased = 1 - Math.pow(1 - p, 4); // ease-out-quart, as in countUp
-      display = {
-        messages: lerp(from.messages, target.messages, eased),
-        events: lerp(from.events, target.events, eased),
-        msgRate: lerp(from.msgRate, target.msgRate, eased),
-        eventRate: lerp(from.eventRate, target.eventRate, eased)
-      };
-      if (p < 1) raf = requestAnimationFrame(tick);
+  /**
+   * Fraction of the remaining gap to close on this frame.
+   *
+   * After the intro it is an exponential chase (time constant TAU_MS): the
+   * target moves continuously, so a fixed-duration tween would have to be
+   * restarted on every snapshot; a chase absorbs a moving target for free.
+   * During the intro it is the same ease-out-quart the shared countUp uses,
+   * rewritten as a per-frame closing fraction so the moving target does not
+   * break the curve.
+   */
+  function closingFraction(now: number, dt: number): number {
+    const p = (now - introAt) / INTRO_MS;
+    if (p >= 1) return 1 - Math.exp(-dt / TAU_MS);
+    const before = Math.max(0, (now - dt - introAt) / INTRO_MS);
+    return 1 - Math.pow((1 - p) / (1 - before), 4);
+  }
+
+  /**
+   * One frame of one total: chase the (moving) target, but never below a crawl.
+   *
+   * The floor does both jobs the odometer needs. It is monotonic, so a downward
+   * correction is never visible as digits running backwards; and it keeps a
+   * fraction of the live rate flowing, so the digits stay in motion even while
+   * an over-extrapolation is being corrected away instead of parking for a few
+   * hundred ms. A rate of 0 floors to a standstill, which is the honest reading.
+   */
+  function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
+    return Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL);
+  }
+
+  function tick(now: number): void {
+    const dt = Math.min(now - lastFrame, MAX_DT_MS);
+    lastFrame = now;
+    const target = targetFrame(now);
+    const k = closingFraction(now, dt);
+    const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
+    display = {
+      messages: advance(display.messages, target.messages, target.msgRate, dt, k),
+      events: advance(display.events, target.events, target.eventRate, dt, k),
+      msgRate: lerp(display.msgRate, target.msgRate, rateK),
+      eventRate: lerp(display.eventRate, target.eventRate, rateK)
     };
     raf = requestAnimationFrame(tick);
+  }
+
+  /** Land on the current truth immediately (reduced motion, tab re-shown). */
+  function snap(now: number): void {
+    lastFrame = now;
+    display = targetFrame(now);
+  }
+
+  function applySnapshot(next: Snapshot): void {
+    degraded = next.degraded;
+    // A degraded snapshot carries zeros, not truth: raise the banner and keep
+    // the last good numbers coasting rather than rebasing the odometer onto
+    // nothing (which the reset branch below would read as a counter reset).
+    if (next.degraded) return;
+    const prev = live;
+    live = next;
+    snapAt = performance.now();
+    if (reduced) {
+      snap(snapAt); // no extrapolation for reduced motion: each snapshot lands as-is
+      return;
+    }
+    // A total that genuinely went down is a counter reset, not over-extrapolation:
+    // drop the monotonic floor with it instead of freezing the tile forever.
+    if (next.messages_total < prev.messages_total) display.messages = next.messages_total;
+    if (next.events_total < prev.events_total) display.events = next.events_total;
   }
 
   async function refresh(): Promise<void> {
@@ -77,40 +162,77 @@
     try {
       const res = await fetch('/stats/data', { headers: { accept: 'application/json' } });
       if (!res.ok) return;
-      live = await res.json();
+      applySnapshot(await res.json());
     } catch {
       // Keep the last good snapshot on a network blip rather than blanking.
     }
   }
 
-  onMount(() => {
-    display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
-    animateTo(targetFrame());
+  /**
+   * Live snapshots over SSE. EventSource reconnects on its own, so a failure
+   * only needs to arm the old 5s poll of /stats/data as a stand-in and stand it
+   * down again once the stream is back.
+   */
+  function openStream(): EventSource {
+    const es = new EventSource('/stats/stream');
+    es.onopen = () => (streamDown = false);
+    es.onerror = () => (streamDown = true);
+    es.onmessage = (ev) => {
+      try {
+        applySnapshot(JSON.parse(ev.data) as Snapshot);
+      } catch {
+        // Malformed frame: ignore it, the next one is 2s out.
+      }
+    };
+    return es;
+  }
 
-    const timer = setInterval(refresh, POLL_MS);
+  onMount(() => {
+    reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const now = performance.now();
+    snapAt = now;
+    introAt = now;
+    lastFrame = now;
+    if (reduced) {
+      snap(now);
+    } else {
+      display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
+      raf = requestAnimationFrame(tick);
+    }
+
+    const es = openStream();
+    const timer = setInterval(() => {
+      if (streamDown) void refresh();
+    }, POLL_MS);
+
     const onVisible = () => {
-      if (!document.hidden) refresh();
+      if (document.hidden) return;
+      // rAF is suspended while hidden: land on the truth, then resume ticking.
+      snap(performance.now());
+      if (!reduced) {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(tick);
+      }
+      if (streamDown) void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
+
     return () => {
+      es.close();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(raf);
     };
   });
 
-  // Re-tween whenever a poll lands a new snapshot. The animation itself reads
-  // and writes `display`, so it runs untracked — tracking it would make the
-  // effect its own dependency and re-arm on every frame.
-  $effect(() => {
-    const target = targetFrame();
-    untrack(() => animateTo(target));
-  });
-
   const totalFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const rateFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
 
   const PENDING = '—';
+
+  // Split at render time, not in the catalogs: the stagger is presentation, and
+  // the headline stays one translatable sentence.
+  const headline = $derived(t('stats.headline').split(' '));
 
   const tiles = $derived([
     {
@@ -154,25 +276,38 @@
 </svelte:head>
 
 <AuroraBg />
+<div class="starfield" aria-hidden="true"><LightField /></div>
 
 <div class="lang-corner"><LangSwitch /></div>
 
 <main class="stats-page">
   <header class="hero">
     <div class="eyebrow reveal" style="--i:0">{t('stats.eyebrow')}</div>
-    <h1 class="headline reveal" style="--i:1">{t('stats.headline')}</h1>
-    <p class="lede reveal" style="--i:2">{t('stats.tagline')}</p>
+    <!-- Word-by-word entrance, as on /login. The shared `.reveal` steps in 80ms
+         per unit of --i, so fractional steps give the words a tighter cadence
+         than the sections around them. -->
+    <h1 class="headline">
+      {#each headline as word, i (i)}
+        <span
+          class="word reveal"
+          style="--i:{1 + i * 0.5}"
+          class:tan={i === 0}
+          class:green={i === headline.length - 1}>{word}&nbsp;</span
+        >
+      {/each}
+    </h1>
+    <p class="lede reveal" style="--i:4">{t('stats.tagline')}</p>
   </header>
 
-  {#if live.degraded}
-    <div class="notice reveal" style="--i:3">
+  {#if degraded}
+    <div class="notice reveal" style="--i:4.5">
       <AlertBanner variant="warn" icon="clock">{t('stats.degraded')}</AlertBanner>
     </div>
   {/if}
 
   <section class="tiles" aria-label={t('stats.headline')}>
     {#each tiles as tile, i (tile.label)}
-      <article class="tile reveal" style="--i:{4 + i}">
+      <article class="tile reveal" style="--i:{5 + i * 0.5}">
         <div class="tile-head">
           <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
           <span class="label">{tile.label}</span>
@@ -191,7 +326,21 @@
 </main>
 
 <style>
-  .lang-corner { position: absolute; top: 18px; right: 18px; z-index: 3; }
+  /* Mote field sits above the aurora (z-index 0) but below content (z-index 1).
+     Own stacking context so LightField's z-index:-1 canvas stays contained. */
+  .starfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .lang-corner {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    z-index: 5;
+  }
 
   .stats-page {
     position: relative;
@@ -205,7 +354,13 @@
     gap: var(--bb-space-6);
   }
 
-  .hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--bb-space-3); }
+  .hero {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--bb-space-3);
+  }
 
   .eyebrow {
     font-family: var(--bb-font-mono);
@@ -217,14 +372,17 @@
 
   .headline {
     font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(32px, 5.4vw, 62px);
+    font-weight: 800;
+    font-size: clamp(34px, 6vw, 72px);
     line-height: 1.02;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
     margin: 0;
-    max-width: 18ch;
+    max-width: 16ch;
   }
+  .headline .word { display: inline-block; }
+  .headline .tan { color: var(--bb-tan); }
+  .headline .green { color: var(--bb-green); }
 
   .lede {
     font-family: var(--bb-font-body);
@@ -243,19 +401,36 @@
     gap: var(--bb-space-4);
   }
 
+  /* Same glass-card family as the management pages, scaled up: the numerals are
+     the subject here, so the surface stays quiet and the type gets the room. */
   .tile {
+    position: relative;
+    overflow: hidden;
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-lg);
     box-shadow: var(--bb-shadow-soft);
-    padding: clamp(20px, 3vw, 34px);
+    padding: clamp(24px, 3.4vw, 40px);
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-5);
     min-width: 0;
-    transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo);
+    transition:
+      border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+      transform var(--bb-dur-base) var(--bb-ease-out-expo);
   }
-  .tile:hover { border-color: var(--bb-border-strong); }
+  /* Hairline of light along the top edge, as on the marketing surfaces. */
+  .tile::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  }
+  .tile:hover {
+    border-color: var(--bb-border-strong);
+    transform: translateY(-2px);
+  }
 
   .tile-head { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
 
@@ -287,11 +462,15 @@
 
   .num {
     font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(38px, 6.4vw, 76px);
+    font-weight: 800;
+    /* Sized so a ten-digit total (13 characters with separators) still fits on
+       one line in the narrowest two-column tile, just above the 720px collapse. */
+    font-size: clamp(30px, 5vw, 60px);
     line-height: 1;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
+    /* Tabular figures: a digit that changes 60 times a second must not reflow
+       the ones beside it. */
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
@@ -330,5 +509,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .pip { animation: none; }
+    .tile:hover { transform: none; }
   }
 </style>

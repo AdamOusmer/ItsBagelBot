@@ -93,7 +93,7 @@
     "messageRateLabel": "Messages par seconde",
     "eventRateLabel": "Événements par seconde",
     "perSecond": "/s",
-    "liveNote": "Actualisé toutes les 5 secondes",
+    "liveNote": "Comptage en direct",
     "degraded": "Les compteurs en direct sont momentanément indisponibles : les chiffres ci-dessous ne sont donc pas à jour. Ils se remettront à niveau tout seuls."
   },
   "overview": {

@@ -93,7 +93,7 @@
     "messageRateLabel": "Messages per second",
     "eventRateLabel": "Events per second",
     "perSecond": "/s",
-    "liveNote": "Updated every 5 seconds",
+    "liveNote": "Counting live",
     "degraded": "Live counters are temporarily unavailable, so the numbers below are not current. They will catch up on their own."
   },
   "overview": {
