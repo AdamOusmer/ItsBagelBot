@@ -16,7 +16,7 @@ import (
 // no error anywhere.
 func TestBaseOptionsInstallAsyncErrorHandler(t *testing.T) {
 	var opts nats.Options
-	for _, option := range baseOptions("test", "", "") {
+	for _, option := range baseOptions(connectionIdentity{name: "test"}) {
 		if err := option(&opts); err != nil {
 			t.Fatalf("apply option: %v", err)
 		}

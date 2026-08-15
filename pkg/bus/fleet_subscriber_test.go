@@ -41,6 +41,21 @@ func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
 	}
 	// A second consumer unit joins the pod's existing consumer instead of
 	// creating one of its own, so the pod keeps a single receipt cursor.
+	requireFlowLaneShared(t, owner, lane, binding)
+
+	if err := owner.releaseFlowLane(lane); err != nil {
+		t.Fatal(err)
+	}
+	requireFlowLaneBinding(t, owner, lane.key, true, "retiring one unit tore down the pod's lane binding")
+
+	_ = owner.releaseFlowLane(lane) // the last unit closes the binding
+	requireFlowLaneBinding(t, owner, lane.key, false, "the last unit left the binding behind")
+}
+
+// requireFlowLaneShared states the join: the second unit takes the bound lane
+// itself and raises its reference count, never a lane of its own.
+func requireFlowLaneShared(t *testing.T, owner *fleetSubscriber, lane *sharedFlowLane, binding Subscriber) {
+	t.Helper()
 	shared, surplus, err := owner.storeFlowLane(lane.key, binding)
 	if err != nil || !surplus || shared != lane {
 		t.Fatalf("second unit got lane=%p surplus=%v err=%v", shared, surplus, err)
@@ -48,17 +63,13 @@ func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
 	if lane.refs != 2 {
 		t.Fatalf("reference count = %d, want both units", lane.refs)
 	}
+}
 
-	if err := owner.releaseFlowLane(lane); err != nil {
-		t.Fatal(err)
-	}
-	if _, bound := owner.flowLanes[lane.key]; !bound {
-		t.Fatal("retiring one unit tore down the pod's lane binding")
-	}
-
-	_ = owner.releaseFlowLane(lane) // the last unit closes the binding
-	if _, bound := owner.flowLanes[lane.key]; bound {
-		t.Fatal("the last unit left the binding behind")
+// requireFlowLaneBinding states whether the pod still holds the lane binding.
+func requireFlowLaneBinding(t *testing.T, owner *fleetSubscriber, key string, want bool, failure string) {
+	t.Helper()
+	if _, bound := owner.flowLanes[key]; bound != want {
+		t.Fatal(failure)
 	}
 }
 

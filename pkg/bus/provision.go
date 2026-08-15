@@ -163,20 +163,34 @@ func (g *streamGuardian) retryUntilConverged(ctx context.Context) {
 	}
 }
 
+// streamReconciler is the environment one converge pass runs in: the narrow
+// JetStream API slice it may call, and the logger its drift is reported through.
+// Both are fixed for the whole pass, so they ride on the receiver instead of
+// being threaded through every step alongside the spec — which is what put five
+// positional arguments on a create.
+type streamReconciler struct {
+	js  streamProvisioner
+	log *zap.Logger
+}
+
 func reconcileStream(ctx context.Context, js streamProvisioner, spec StreamSpec, log *zap.Logger) error {
+	return streamReconciler{js: js, log: log}.reconcile(ctx, spec)
+}
+
+func (r streamReconciler) reconcile(ctx context.Context, spec StreamSpec) error {
 	desired := streamConfig(spec)
 
-	stream, err := js.Stream(ctx, spec.Name)
+	stream, err := r.js.Stream(ctx, spec.Name)
 	switch {
 	case err == nil:
 		info := stream.CachedInfo()
 		if info == nil {
 			return fmt.Errorf("bus: inspect stream %q: no cached configuration", spec.Name)
 		}
-		return convergeStream(ctx, js, spec, streamShape{live: info.Config, desired: desired}, log)
+		return r.converge(ctx, spec, streamShape{live: info.Config, desired: desired})
 
 	case errors.Is(err, jsapi.ErrStreamNotFound):
-		return createStream(ctx, js, spec, desired, log)
+		return r.create(ctx, spec, desired)
 
 	default:
 		return fmt.Errorf("bus: inspect stream %q: %w", spec.Name, err)
@@ -190,21 +204,15 @@ type streamShape struct {
 	desired jsapi.StreamConfig
 }
 
-func createStream(
-	ctx context.Context,
-	js streamProvisioner,
-	spec StreamSpec,
-	desired jsapi.StreamConfig,
-	log *zap.Logger,
-) error {
-	if _, err := js.CreateStream(ctx, desired); err != nil {
+func (r streamReconciler) create(ctx context.Context, spec StreamSpec, desired jsapi.StreamConfig) error {
+	if _, err := r.js.CreateStream(ctx, desired); err != nil {
 		// Another guardian won the create race.
 		if errors.Is(err, jsapi.ErrStreamNameAlreadyInUse) {
 			return nil
 		}
 		return fmt.Errorf("bus: create stream %q: %w", spec.Name, err)
 	}
-	log.Info("provisioned jetstream stream",
+	r.log.Info("provisioned jetstream stream",
 		zap.String("stream", spec.Name),
 		zap.Strings("subjects", spec.Subjects),
 		zap.String("retention", desired.Retention.String()),
@@ -212,14 +220,8 @@ func createStream(
 	return nil
 }
 
-func convergeStream(
-	ctx context.Context,
-	js streamProvisioner,
-	spec StreamSpec,
-	shape streamShape,
-	log *zap.Logger,
-) error {
-	warnStorageDrift(spec, shape, log)
+func (r streamReconciler) converge(ctx context.Context, spec StreamSpec, shape streamShape) error {
+	r.warnStorageDrift(spec, shape)
 
 	// Everything converges in one update, including the two changes the R3
 	// catalog introduces on a live broker: the replica bump (the meta leader
@@ -239,7 +241,7 @@ func convergeStream(
 		return err
 	}
 
-	if _, err := js.UpdateStream(ctx, update); err != nil {
+	if _, err := r.js.UpdateStream(ctx, update); err != nil {
 		// Work-queue replacement used to happen automatically here. Keep the
 		// destructive fallback operator-only so a leaked runtime credential
 		// cannot erase the stream it owns.
@@ -251,7 +253,7 @@ func convergeStream(
 		}
 		return fmt.Errorf("bus: update stream %q: %w", spec.Name, err)
 	}
-	log.Info("converged jetstream stream",
+	r.log.Info("converged jetstream stream",
 		zap.String("stream", spec.Name),
 		zap.Strings("subjects", spec.Subjects),
 		zap.String("retention", shape.desired.Retention.String()),
@@ -266,11 +268,11 @@ func convergeStream(
 // currently holds — safe for these perishable streams but disruptive enough that
 // it is a deliberate operator step, not something the guardian does under
 // traffic. Warn so the drift is visible; keep serving the existing stream.
-func warnStorageDrift(spec StreamSpec, shape streamShape, log *zap.Logger) {
+func (r streamReconciler) warnStorageDrift(spec StreamSpec, shape streamShape) {
 	if shape.live.Storage == shape.desired.Storage {
 		return
 	}
-	log.Warn("jetstream stream storage differs from spec; manual recreate required to converge",
+	r.log.Warn("jetstream stream storage differs from spec; manual recreate required to converge",
 		zap.String("stream", spec.Name),
 		zap.String("current", shape.live.Storage.String()),
 		zap.String("desired", shape.desired.Storage.String()),

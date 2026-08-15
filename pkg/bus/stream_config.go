@@ -141,10 +141,21 @@ func placement(tags []string) *jsapi.Placement {
 // normalizedPlacement drops an empty placement object the same way the server
 // does, so an empty struct and nil compare equal instead of drifting forever.
 func normalizedPlacement(p *jsapi.Placement) *jsapi.Placement {
-	if p == nil || (p.Cluster == "" && len(p.Tags) == 0) {
+	if placementConstrainsNothing(p) {
 		return nil
 	}
 	return p
+}
+
+// placementConstrainsNothing reports the placements the server stores as nil: a
+// missing one, and one that names neither a cluster nor a tag. Both leave the
+// stream free to be assigned anywhere, so both must normalise to the same value
+// or samePlacement sees drift that no update can close.
+func placementConstrainsNothing(p *jsapi.Placement) bool {
+	if p == nil {
+		return true
+	}
+	return p.Cluster == "" && len(p.Tags) == 0
 }
 
 func streamMatches(got, want jsapi.StreamConfig) bool {

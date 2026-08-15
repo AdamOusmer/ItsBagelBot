@@ -180,35 +180,56 @@ func TestConsumeLaneUnsampledBackpressureCreatesNoTransaction(t *testing.T) {
 	}
 }
 
+// laneOutcomeByID maps a delivery id onto the outcome its counter must record.
+func laneOutcomeByID(msg *Message) error {
+	switch msg.UUID {
+	case "deferred":
+		return testExpectedNack{}
+	case "failed":
+		return errors.New("boom")
+	default:
+		return nil
+	}
+}
+
+// processQueued runs deliveries that already spent the given wait in the lane
+// queue, which is what the queue-time counters measure.
+func processQueued(lane *consumeLane, queued time.Duration, ids ...string) {
+	for _, id := range ids {
+		msg := NewMessage(id, nil)
+		msg.receivedAt = time.Now().Add(-queued)
+		lane.process(msg)
+	}
+}
+
+func requireLaneCounters(t *testing.T, stats *laneStats, wantOK, wantDeferred, wantFailed uint64) {
+	t.Helper()
+	ok, def, failed := stats.ok.Load(), stats.deferred.Load(), stats.failed.Load()
+	if ok != wantOK || def != wantDeferred || failed != wantFailed {
+		t.Fatalf("counters = ok:%d deferred:%d failed:%d, want %d/%d/%d",
+			ok, def, failed, wantOK, wantDeferred, wantFailed)
+	}
+}
+
+func requireQueueWaitRecorded(t *testing.T, stats *laneStats, wantPeak, wantSum uint64) {
+	t.Helper()
+	if peak := stats.queueMaxMicros.Load(); peak < wantPeak {
+		t.Fatalf("queue high-water mark = %dµs, want at least %d", peak, wantPeak)
+	}
+	if sum := stats.queueMicros.Load(); sum < wantSum {
+		t.Fatalf("queue wait sum = %dµs, want at least %d across four deliveries", sum, wantSum)
+	}
+}
+
 func TestConsumeLaneCountsEveryOutcomeWithoutAnApplication(t *testing.T) {
 	// A nil application is the local-development and unit-test shape: both the
 	// sampled and unsampled paths must run clean through it.
-	lane := testLane(nil, 2, zap.NewNop(), func(msg *Message) error {
-		switch msg.UUID {
-		case "deferred":
-			return testExpectedNack{}
-		case "failed":
-			return errors.New("boom")
-		default:
-			return nil
-		}
-	})
+	lane := testLane(nil, 2, zap.NewNop(), laneOutcomeByID)
 
-	for _, id := range []string{"ok", "deferred", "failed", "ok"} {
-		msg := NewMessage(id, nil)
-		msg.receivedAt = time.Now().Add(-3 * time.Millisecond)
-		lane.process(msg)
-	}
+	processQueued(&lane, 3*time.Millisecond, "ok", "deferred", "failed", "ok")
 
-	if ok, def, failed := lane.stats.ok.Load(), lane.stats.deferred.Load(), lane.stats.failed.Load(); ok != 2 || def != 1 || failed != 1 {
-		t.Fatalf("counters = ok:%d deferred:%d failed:%d, want 2/1/1", ok, def, failed)
-	}
-	if peak := lane.stats.queueMaxMicros.Load(); peak < 3000 {
-		t.Fatalf("queue high-water mark = %dµs, want at least 3000", peak)
-	}
-	if sum := lane.stats.queueMicros.Load(); sum < 12000 {
-		t.Fatalf("queue wait sum = %dµs, want at least 12000 across four deliveries", sum)
-	}
+	requireLaneCounters(t, lane.stats, 2, 1, 1)
+	requireQueueWaitRecorded(t, lane.stats, 3000, 12000)
 }
 
 func TestNewConsumeLaneSharesOneCounterSetPerLane(t *testing.T) {

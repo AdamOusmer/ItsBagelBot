@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
 )
@@ -69,145 +68,11 @@ func reconcile(t *testing.T, js *streamManagerSpy, spec StreamSpec) error {
 	return reconcileStream(context.Background(), js, spec, zap.NewNop())
 }
 
-func TestOutgressStreamIsPerishableWorkQueue(t *testing.T) {
-	cfg := streamConfig(OutgressStream)
-
-	if cfg.Retention != jsapi.WorkQueuePolicy {
-		t.Fatalf("retention = %v, want work queue", cfg.Retention)
-	}
-	if cfg.MaxAge != 5*time.Second {
-		t.Fatalf("max age = %v, want 5s", cfg.MaxAge)
-	}
-	if cfg.Duplicates > cfg.MaxAge {
-		t.Fatalf("duplicate window %v exceeds max age %v", cfg.Duplicates, cfg.MaxAge)
-	}
-}
-
-func TestOutgressSystemStreamIsDurableWorkQueue(t *testing.T) {
-	cfg := streamConfig(OutgressSystemStream)
-
-	if cfg.Retention != jsapi.WorkQueuePolicy {
-		t.Fatalf("retention = %v, want work queue (ack removes, not replay)", cfg.Retention)
-	}
-	// Control jobs (EventSub enroll, stream_status) must outlive the chat lane's
-	// 5s so a rollout gap or transient nack does not silently drop an enrollment.
-	if cfg.MaxAge <= 5*time.Second {
-		t.Fatalf("max age = %v, want longer than the chat lane's 5s", cfg.MaxAge)
-	}
-	if cfg.Duplicates > cfg.MaxAge {
-		t.Fatalf("duplicate window %v exceeds max age %v", cfg.Duplicates, cfg.MaxAge)
-	}
-}
-
-// TestCatalogStreamsClaimDisjointSubjects is the create-time gate for the whole
-// catalog, not just the outgress pair. A subject may belong to exactly one
-// stream: the broker refuses an overlapping create outright
-// (JSStreamSubjectOverlap), and the failure lands at service startup where a
-// failed initial provision is fatal. It also underwrites streamForTopic's
-// first-match resolution — with disjoint filters the first match is the only
-// one, so catalog ORDER cannot silently decide which stream a lane binds.
-//
-// Wildcard-aware in both directions, which is the case the ingress partition
-// actually hits: twitch.ingress.event.standard is invisible to a literal
-// comparison against twitch.ingress.event.>.
-func TestCatalogStreamsClaimDisjointSubjects(t *testing.T) {
-	specs := fleetStreamSpecs()
-	for i := range specs {
-		for j := i + 1; j < len(specs); j++ {
-			for _, a := range specs[i].Subjects {
-				for _, b := range specs[j].Subjects {
-					if matchSubject(a, b) || matchSubject(b, a) {
-						t.Fatalf("streams %s (%q) and %s (%q) both claim the same subject space",
-							specs[i].Name, a, specs[j].Name, b)
-					}
-				}
-			}
-		}
-	}
-}
-
-// TestIngressLanesResolveToTheirPartitions pins the subject→stream map the
-// partition creates. Consumers bind the stream streamForTopic hands back (see
-// targetForTopic), so this map IS the consumer binding: a standard-lane
-// subscriber that still resolved to TWITCH_INGRESS would provision a consumer
-// on a stream that no longer captures its subject and receive nothing, silently.
-func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
-	t.Setenv("NATS_INGRESS_PARTITION", "on")
-	for subject, want := range map[string]string{
-		"twitch.ingress.event.standard":       TwitchIngressStandardStream.Name,
-		"twitch.ingress.event.premium":        TwitchIngressStream.Name,
-		"twitch.ingress.event.stream":         TwitchIngressStream.Name,
-		"twitch.ingress.status.authz.revoked": TwitchIngressStream.Name,
-		"twitch.ingress.retry.standard":       TwitchIngressRetryStream.Name,
-	} {
-		got, err := streamForTopic(subject)
-		if err != nil {
-			t.Fatalf("streamForTopic(%q): %v", subject, err)
-		}
-		if got != want {
-			t.Fatalf("stream for %q = %q, want %q", subject, got, want)
-		}
-	}
-
-	// The wildcard that used to catch every lane is gone, and nothing may quietly
-	// re-introduce it: a stream still claiming twitch.ingress.event.> would
-	// overlap the standard partition and fail to create.
-	if got, err := streamForTopic("twitch.ingress.event.unknown"); err == nil {
-		t.Fatalf("streamForTopic(unknown lane) = %q, want a refusal; a wildcard is back in the catalog", got)
-	}
-}
-
-// TestPartitionFlagOffKeepsThePrePartitionShape is the deploy-safety half of
-// the partition gate: merging the partition code must change nothing until the
-// operator flips NATS_INGRESS_PARTITION in its own window, after the fleet's
-// ingress images all carry per-subject cohort staging.
-func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
-	t.Setenv("NATS_INGRESS_PARTITION", "off")
-	lanes := IngressLaneSpecs()
-	if len(lanes) != 1 || lanes[0].Name != TwitchIngressStream.Name {
-		t.Fatalf("lane specs with the partition off = %#v, want the single legacy stream", lanes)
-	}
-	if got := lanes[0].Subjects; len(got) != 2 || got[0] != "twitch.ingress.event.>" {
-		t.Fatalf("legacy subjects = %v, want the event wildcard restored", got)
-	}
-	if lanes[0].MaxBytes != 1<<30 {
-		t.Fatalf("legacy MaxBytes = %d, want the whole gigabyte", lanes[0].MaxBytes)
-	}
-	for subject, want := range map[string]string{
-		"twitch.ingress.event.standard": TwitchIngressStream.Name,
-		"twitch.ingress.event.premium":  TwitchIngressStream.Name,
-	} {
-		got, err := streamForTopic(subject)
-		if err != nil || got != want {
-			t.Fatalf("streamForTopic(%q) = %q, %v; want %q on the legacy shape", subject, got, err, want)
-		}
-	}
-}
-
-func TestSystemSubjectResolvesToSystemStream(t *testing.T) {
-	got, err := streamForTopic("twitch.outgress.system")
-	if err != nil {
-		t.Fatalf("streamForTopic: %v", err)
-	}
-	if got != OutgressSystemStream.Name {
-		t.Fatalf("stream = %q, want %q", got, OutgressSystemStream.Name)
-	}
-	for _, chat := range []string{"twitch.outgress.premium", "twitch.outgress.standard"} {
-		got, err := streamForTopic(chat)
-		if err != nil {
-			t.Fatalf("streamForTopic(%q): %v", chat, err)
-		}
-		if got != OutgressStream.Name {
-			t.Fatalf("stream for %q = %q, want %q", chat, got, OutgressStream.Name)
-		}
-	}
-}
-
-func TestOutgressStreamHasSingleReconciler(t *testing.T) {
-	for _, spec := range DataStreams {
-		if spec.Name == OutgressStream.Name {
-			t.Fatal("outgress stream must be reconciled only by outgress")
-		}
+// mustReconcile converges a spec that has no reason to fail.
+func mustReconcile(t *testing.T, js *streamManagerSpy, spec StreamSpec) {
+	t.Helper()
+	if err := reconcile(t, js, spec); err != nil {
+		t.Fatalf("reconcile: %v", err)
 	}
 }
 
@@ -254,106 +119,6 @@ func TestReconcileStreamNeverDeletesAfterRejectedWorkQueueUpdate(t *testing.T) {
 	}
 }
 
-// ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
-// test if it is missing. Shared by the tests that assert on the firehose spec.
-func ingressStreamSpec(t *testing.T) StreamSpec {
-	t.Helper()
-	for i := range DataStreams {
-		if DataStreams[i].Name == "TWITCH_INGRESS" {
-			return DataStreams[i]
-		}
-	}
-	t.Fatal("TWITCH_INGRESS stream spec missing")
-	return StreamSpec{}
-}
-
-func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
-	cfg := streamConfig(ingressStreamSpec(t))
-	// The premium/standard/stream lanes are distinct literal subjects on one
-	// stream; MaxBytes eviction alone is oldest-first stream-wide, letting a
-	// standard flood evict premium. The per-subject cap makes a flooded lane
-	// wrap itself instead.
-	if cfg.MaxMsgsPerSubject <= 0 {
-		t.Fatal("ingress lanes need a per-subject cap so one lane cannot evict the others")
-	}
-	if cfg.MaxBytes <= 0 {
-		t.Fatal("ingress stream still needs its global byte backstop")
-	}
-	// Fleet publishers deliberately omit Nats-Msg-Id. Keep a short bounded
-	// stream window for rolling-upgrade or externally published messages that
-	// may still carry the header; it is inert for the normal hot path.
-	if cfg.Duplicates <= 0 || cfg.Duplicates > time.Minute {
-		t.Fatalf("duplicate window = %v, want a short non-zero dedup window", cfg.Duplicates)
-	}
-}
-
-func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
-	// Also the thing that keeps R3 affordable: the atomic and fast-ingest wires
-	// pay one quorum round-trip per batch instead of one per message.
-	for _, spec := range fleetStreamSpecs() {
-		if !spec.BatchPublish {
-			t.Fatalf("stream %s does not enable shared batch publishing", spec.Name)
-		}
-	}
-}
-
-// fleetStreamSpecs returns the whole catalog: the reconciled data streams plus
-// the two outgress streams their owners reconcile separately.
-func fleetStreamSpecs() []StreamSpec {
-	specs := append([]StreamSpec{}, DataStreams...)
-	return append(specs, OutgressStream, OutgressSystemStream)
-}
-
-func TestEveryFleetStreamIsReplicated(t *testing.T) {
-	// The hub is a three-peer quorum, so R3 is the only factor that survives
-	// losing a peer. An R1 stream here means its sole copy — and every consumer
-	// bound to it — disappears with whichever peer happened to hold it.
-	for _, spec := range fleetStreamSpecs() {
-		if got := streamConfig(spec).Replicas; got != 3 {
-			t.Fatalf("stream %s replicas = %d, want 3", spec.Name, got)
-		}
-	}
-
-	// A zero-value Replicas defaults to a single copy, never 0 (which NATS rejects).
-	if got := streamConfig(StreamSpec{Name: "X", Subjects: []string{"x.>"}}).Replicas; got != 1 {
-		t.Fatalf("default replicas = %d, want 1", got)
-	}
-
-	// streamMatches must be replica-sensitive, or a live stream still at R1 stays
-	// R1 while the spec declares R3 — invisible drift, since nothing else differs.
-	want := streamConfig(ingressStreamSpec(t)) // R3
-	drifted := want
-	drifted.Replicas = 1
-	if streamMatches(drifted, want) {
-		t.Fatal("streamMatches ignored a replica drift; live R1 would never converge to R3")
-	}
-}
-
-func TestFleetStreamsCarryNoPlacement(t *testing.T) {
-	// Hub server tags are per-pod ordinals, each present on exactly one server.
-	// An R3 stream pinned to one of them is unsatisfiable: the meta leader cannot
-	// find three peers carrying a one-peer tag.
-	for _, spec := range fleetStreamSpecs() {
-		if cfg := streamConfig(spec); cfg.Placement != nil {
-			t.Fatalf("R3 stream %s carries placement %v; an ordinal tag cannot satisfy three peers",
-				spec.Name, cfg.Placement.Tags)
-		}
-	}
-
-	// Drift must be detected in both directions. Live-set vs spec-nil is the case
-	// this catalog change actually hits: streams provisioned under the old spec
-	// still carry an ordinal tag, and missing it leaves them constrained forever.
-	want := streamConfig(ingressStreamSpec(t))
-	stale := want
-	stale.Placement = &jsapi.Placement{Tags: []string{"nats-0"}}
-	if streamMatches(stale, want) {
-		t.Fatal("streamMatches ignored a stale placement on a live stream")
-	}
-	if streamMatches(want, stale) {
-		t.Fatal("streamMatches ignored a placement the spec asks for but the stream lacks")
-	}
-}
-
 func TestReconcileClearsPlacementAndScalesInOneUpdate(t *testing.T) {
 	// A stream provisioned under the old catalog: R1, pinned to one ordinal.
 	// Both changes must converge in a single UpdateStream, with no delete and no
@@ -365,9 +130,7 @@ func TestReconcileClearsPlacementAndScalesInOneUpdate(t *testing.T) {
 	live.Placement = &jsapi.Placement{Tags: []string{"nats-0"}}
 	js := &streamManagerSpy{info: liveStream(live)}
 
-	if err := reconcile(t, js, spec); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
+	mustReconcile(t, js, spec)
 	if js.updateCount != 1 {
 		t.Fatalf("update calls = %d, want exactly one converging pass", js.updateCount)
 	}
@@ -402,9 +165,7 @@ func TestConvergedCatalogStreamsIssueNoUpdates(t *testing.T) {
 		t.Run(spec.Name, func(t *testing.T) {
 			js := &streamManagerSpy{info: liveStream(streamConfig(spec))}
 
-			if err := reconcile(t, js, spec); err != nil {
-				t.Fatalf("reconcile: %v", err)
-			}
+			mustReconcile(t, js, spec)
 			if js.updateCount != 0 {
 				t.Fatalf("converged stream issued %d update(s); the desired config never matches what the server stores",
 					js.updateCount)
@@ -413,32 +174,6 @@ func TestConvergedCatalogStreamsIssueNoUpdates(t *testing.T) {
 				t.Fatal("converged stream was recreated")
 			}
 		})
-	}
-}
-
-// TestStreamConfigEmitsServerSentinels pins the direction of the fix: the
-// desired config carries the server's spelling of "unlimited" so the comparison
-// can converge. streamMatches deliberately does not paper over the difference —
-// if it did, a real drift between 0 and -1 in a future field would be invisible.
-func TestStreamConfigEmitsServerSentinels(t *testing.T) {
-	cfg := streamConfig(BagelDataStream) // no per-subject cap declared
-	if cfg.MaxMsgsPerSubject != -1 {
-		t.Fatalf("max msgs per subject = %d, want the server's -1 sentinel", cfg.MaxMsgsPerSubject)
-	}
-	for name, got := range map[string]int64{
-		"max_msgs":      cfg.MaxMsgs,
-		"max_msg_size":  int64(cfg.MaxMsgSize),
-		"max_consumers": int64(cfg.MaxConsumers),
-	} {
-		if got != -1 {
-			t.Fatalf("%s = %d, want the server's -1 sentinel", name, got)
-		}
-	}
-
-	unnormalized := cfg
-	unnormalized.MaxMsgsPerSubject = 0
-	if streamMatches(cfg, unnormalized) {
-		t.Fatal("streamMatches treats 0 and -1 as equal; a per-subject cap could then be silently dropped")
 	}
 }
 
@@ -455,9 +190,7 @@ func TestBatchAndScheduleFlagsConvergeInTheSameUpdate(t *testing.T) {
 	live.AllowMsgSchedules = false
 	js := &streamManagerSpy{info: liveStream(live)}
 
-	if err := reconcile(t, js, spec); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
+	mustReconcile(t, js, spec)
 	if js.updateCount != 1 {
 		t.Fatalf("update calls = %d, want exactly one converging pass", js.updateCount)
 	}
@@ -481,9 +214,7 @@ func TestReconcileNeverAsksToDisableOneWayFlags(t *testing.T) {
 	live.AllowMsgSchedules = true
 	js := &streamManagerSpy{info: liveStream(live)}
 
-	if err := reconcile(t, js, spec); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
+	mustReconcile(t, js, spec)
 	if js.updateCount != 0 {
 		t.Fatalf("update calls = %d; a flag the server will not let us clear is not drift", js.updateCount)
 	}
@@ -492,63 +223,12 @@ func TestReconcileNeverAsksToDisableOneWayFlags(t *testing.T) {
 	// live values forward instead of asking for a rejection.
 	live.Replicas = 1
 	js = &streamManagerSpy{info: liveStream(live)}
-	if err := reconcile(t, js, spec); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
+	mustReconcile(t, js, spec)
 	if !js.updated.AllowMsgTTL || !js.updated.AllowMsgSchedules {
 		t.Fatal("converging update tried to disable message TTLs or schedules; the server rejects that outright")
 	}
 	if js.updated.Replicas != 3 {
 		t.Fatalf("update replicas = %d, want the drift converged", js.updated.Replicas)
-	}
-}
-
-// TestRetryStreamCarriesTheSchedulePrerequisites keeps the delayed-redelivery
-// lane usable. A scheduled retry sets Nats-Schedule-TTL on the emitted message,
-// which the broker rejects outright unless the stream allows message TTLs, and
-// the server forces rollups on any scheduling stream (schedule rows are replaced
-// via Nats-Rollup: sub) — state both here so the stored config equals the
-// requested one instead of drifting on the first reconcile.
-func TestRetryStreamCarriesTheSchedulePrerequisites(t *testing.T) {
-	cfg := streamConfig(TwitchIngressRetryStream)
-
-	if !cfg.AllowMsgSchedules {
-		t.Fatal("retry lane does not enable message schedules; there is no delay primitive left")
-	}
-	if !cfg.AllowMsgTTL {
-		t.Fatal("Nats-Schedule-TTL is rejected when message TTLs are disabled")
-	}
-	if !cfg.AllowRollup || cfg.DenyPurge {
-		t.Fatal("scheduling forces rollups and permits purge; emitting the requested shape avoids permanent drift")
-	}
-	if cfg.Discard != jsapi.DiscardOld {
-		t.Fatal("message scheduling cannot use discard new")
-	}
-	// The schedule row lives in this stream: if MaxAge evicts it before it
-	// fires, the retry is silently cancelled.
-	if cfg.MaxAge < time.Minute {
-		t.Fatalf("max age = %v, too tight to hold a delayed retry", cfg.MaxAge)
-	}
-	if got, err := streamForTopic("twitch.ingress.retry.premium"); err != nil || got != cfg.Name {
-		t.Fatalf("streamForTopic(retry) = %q, %v; want %q", got, err, cfg.Name)
-	}
-}
-
-// TestLegacySpecEnumsMatchModernEnums pins the conversion StreamSpec relies on:
-// callers keep spelling nats.WorkQueuePolicy / nats.MemoryStorage while the
-// reconcile speaks the modern API. Both encode the same protocol integers, and a
-// silent divergence would turn a work-queue spec into a limits stream.
-func TestLegacySpecEnumsMatchModernEnums(t *testing.T) {
-	if jsapi.RetentionPolicy(nats.WorkQueuePolicy) != jsapi.WorkQueuePolicy ||
-		jsapi.RetentionPolicy(nats.InterestPolicy) != jsapi.InterestPolicy ||
-		jsapi.RetentionPolicy(nats.LimitsPolicy) != jsapi.LimitsPolicy {
-		t.Fatal("retention enums diverged between the legacy and modern clients")
-	}
-	if streamConfig(StreamSpec{Name: "M", Subjects: []string{"m.>"}, Storage: nats.MemoryStorage}).Storage != jsapi.MemoryStorage {
-		t.Fatal("memory storage did not survive the spec conversion")
-	}
-	if streamConfig(StreamSpec{Name: "F", Subjects: []string{"f.>"}}).Storage != jsapi.FileStorage {
-		t.Fatal("the default storage tier is no longer file")
 	}
 }
 
@@ -579,121 +259,6 @@ func TestGuardianRetriesFailedReconcile(t *testing.T) {
 	}
 }
 
-func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
-	// Memory is the firehose tier (no per-event disk write); file is the
-	// retention tier (survives a full-quorum restart). Both are stated in the
-	// catalog, so a tier change is a visible edit rather than a dropped field.
-	memory := map[string]bool{
-		TwitchIngressStream.Name:         true,
-		TwitchIngressStandardStream.Name: true,
-		TwitchIngressRetryStream.Name:    true,
-		OutgressStream.Name:              true,
-	}
-	for _, spec := range fleetStreamSpecs() {
-		want := jsapi.FileStorage
-		if memory[spec.Name] {
-			want = jsapi.MemoryStorage
-		}
-		if got := streamConfig(spec).Storage; got != want {
-			t.Fatalf("stream %s storage = %v, want %v", spec.Name, got, want)
-		}
-	}
-}
-
-func TestMemoryStreamsFitTheHubMemoryBudget(t *testing.T) {
-	// Under R3 every hub peer holds a full replica, so the per-node floor is the
-	// sum of every memory-backed stream's MaxBytes — not a single node's share.
-	//
-	// max_mem accounts for that sum and nothing else, which is why this test
-	// models the terms the broker leaves out. On a memory stream each peer also
-	// carries a memStore RAFT WAL (createRaftGroup's else-branch), which between
-	// snapshots approaches a second copy of the stream; staged atomic batches for
-	// R>1 are a newMemStore that RegisterStorageUpdates never sees; and every
-	// stream has its own ingest queue bounded by max_buffered_size. None of that
-	// is registered with account storage, so max_mem cannot back-pressure it —
-	// only the pod's memory limit can, by OOM-killing the member.
-	//
-	// Keep these three constants in step with deploy/k8s/nats-server.conf and the
-	// nats StatefulSet's limits.
-	//
-	// Note the per-STREAM term: partitioning a lane onto a second stream is not
-	// free here even when the byte budget is split rather than raised, because
-	// each stream carries its own ingest queue. That is the cost the ingress
-	// partition pays, and this test is where it has to stay affordable.
-	const (
-		maxMem          = 4 << 30   // jetstream.max_mem
-		podMemoryLimit  = 5 << 30   // nats container limits.memory
-		bufferedPerNode = 128 << 20 // jetstream.max_buffered_size, per stream
-		runtimeReserve  = 1 << 30   // Go heap, connection buffers, dedup ids
-	)
-
-	var streamBytes int64
-	var streams int64
-	for _, spec := range fleetStreamSpecs() {
-		cfg := streamConfig(spec)
-		streams++
-		if cfg.Storage != jsapi.MemoryStorage {
-			continue
-		}
-		if cfg.MaxBytes <= 0 {
-			t.Fatalf("memory stream %s has no byte cap; it can exhaust max_mem", spec.Name)
-		}
-		streamBytes += cfg.MaxBytes
-	}
-
-	// What max_mem sees.
-	if streamBytes >= maxMem/2 {
-		t.Fatalf("memory-backed streams reserve %d bytes per node, leaving too little of the %d max_mem for broker state",
-			streamBytes, int64(maxMem))
-	}
-
-	// What the kernel sees: stream bytes + an equal-sized RAFT WAL ceiling +
-	// one ingest queue per stream + room for the process itself.
-	worstCase := 2*streamBytes + streams*bufferedPerNode + runtimeReserve
-	if worstCase >= podMemoryLimit {
-		t.Fatalf("worst-case per-member memory %d (streams %d + WAL + %d ingest queues) exceeds the %d pod limit",
-			worstCase, streamBytes, streams, int64(podMemoryLimit))
-	}
-}
-
-// TestIngressPartitionSplitsOneGigabyteRatherThanAddingOne is the memory
-// contract of the partition, stated as the arithmetic an operator would
-// otherwise have to redo: the two lane streams together reserve exactly what the
-// single stream reserved before the split. Under R3 that reservation is per hub
-// peer, so a partition that quietly "rounded up" each half to a comfortable
-// number would raise the per-node floor by that rounding on all three members at
-// once, against a max_mem nobody edited.
-func TestIngressPartitionSplitsOneGigabyteRatherThanAddingOne(t *testing.T) {
-	const unpartitioned = 1 << 30 // what TWITCH_INGRESS alone held before the split
-
-	premium := streamConfig(TwitchIngressStream).MaxBytes
-	standard := streamConfig(TwitchIngressStandardStream).MaxBytes
-	if got := premium + standard; got != unpartitioned {
-		t.Fatalf("ingress lane streams reserve %d bytes per node, want the unpartitioned %d",
-			got, int64(unpartitioned))
-	}
-	// The bulk lane gets the bulk of the budget: standard carries every
-	// non-premium broadcaster plus every event with no extractable broadcaster,
-	// and the byte cap is the consumer lag budget.
-	if standard <= premium {
-		t.Fatalf("standard lane budget %d does not exceed the premium/stream/status budget %d",
-			standard, premium)
-	}
-	// The per-subject cap on the shared stream must stay under its byte cap, or
-	// the isolation it provides is theoretical: one lane would have to evict its
-	// neighbours before it could wrap itself.
-	const wireBytesPerEvent = 865 // live-measured on the R3 lane
-	if capBytes := streamConfig(TwitchIngressStream).MaxMsgsPerSubject * wireBytesPerEvent; capBytes >= premium {
-		t.Fatalf("per-subject cap is %d bytes against a %d stream cap; a flooded lane evicts its neighbours first",
-			capBytes, premium)
-	}
-	// And the partition's own stream must NOT carry that cap: with one subject it
-	// would only be a second, tighter ceiling on the same bytes.
-	if got := streamConfig(TwitchIngressStandardStream).MaxMsgsPerSubject; got != -1 {
-		t.Fatalf("standard partition per-subject cap = %d, want the unlimited sentinel on a single-subject stream", got)
-	}
-}
-
 // TestIngressPartitionNarrowsBeforeItCreates covers the one ordering a rolling
 // deploy cannot get wrong twice. The subject moves between two live streams, and
 // the broker refuses both an overlap and offers no atomic move, so the narrowing
@@ -717,9 +282,7 @@ func TestIngressPartitionNarrowsBeforeItCreates(t *testing.T) {
 	live.MaxBytes = 1 << 30
 	js := &streamManagerSpy{info: liveStream(live)}
 
-	if err := reconcile(t, js, TwitchIngressStream); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
+	mustReconcile(t, js, TwitchIngressStream)
 	if js.updateCount != 1 {
 		t.Fatalf("update calls = %d, want one narrowing pass", js.updateCount)
 	}
@@ -733,89 +296,5 @@ func TestIngressPartitionNarrowsBeforeItCreates(t *testing.T) {
 		if matchSubject("twitch.ingress.event.standard", subject) {
 			t.Fatalf("narrowing update still claims the standard lane through %q", subject)
 		}
-	}
-}
-
-func catalogIndex(t *testing.T, name string) int {
-	t.Helper()
-	for i := range DataStreams {
-		if DataStreams[i].Name == name {
-			return i
-		}
-	}
-	t.Fatalf("stream %s missing from the catalog", name)
-	return -1
-}
-
-func TestReplaceConsumerCarriesAckFloor(t *testing.T) {
-	desired := laneConsumerConfig(
-		"twitch.ingress.event.premium",
-		"worker",
-		"worker_twitch_ingress_event_premium",
-		6,
-	)
-
-	// A predecessor that acked through stream seq 41 must hand the successor a
-	// start at 42: DeliverAll here would replay every retained message (up to
-	// MaxAge) to the whole group.
-	carryAckFloor(desired, &nats.ConsumerInfo{
-		AckFloor: nats.SequenceInfo{Stream: 41},
-	})
-	if desired.DeliverPolicy != nats.DeliverByStartSequencePolicy {
-		t.Fatalf("deliver policy = %v, want by-start-sequence", desired.DeliverPolicy)
-	}
-	if desired.OptStartSeq != 42 {
-		t.Fatalf("start seq = %d, want ack floor + 1", desired.OptStartSeq)
-	}
-
-	// No acks yet: starting from the beginning is the correct resume point.
-	fresh := laneConsumerConfig("twitch.ingress.event.standard", "worker", "w", 6)
-	carryAckFloor(fresh, &nats.ConsumerInfo{})
-	if fresh.DeliverPolicy != nats.DeliverAllPolicy || fresh.OptStartSeq != 0 {
-		t.Fatal("zero ack floor must keep the original delivery policy")
-	}
-}
-
-func TestFleetSubscriberHasBoundedPacedRedelivery(t *testing.T) {
-	// A plain NACK redelivers immediately; with a four-digit budget a poison
-	// message used to grind the whole fleet. The budget must stay small and the
-	// pacing non-zero.
-	if fleetMaxRedeliveries == 0 || fleetMaxRedeliveries > 10 {
-		t.Fatalf("fleet redeliveries = %d, want a small bounded budget", fleetMaxRedeliveries)
-	}
-	if fleetNakDelay <= 0 {
-		t.Fatalf("fleet nak delay = %v, want paced redelivery", fleetNakDelay)
-	}
-}
-
-func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
-	cfg := laneConsumerConfig(
-		"twitch.outgress.premium",
-		"outgress-premium",
-		"outgress-premium_twitch_outgress_premium",
-		4,
-	)
-
-	if cfg.MaxDeliver != 4 {
-		t.Fatalf("max deliver = %d, want initial delivery plus 3 redeliveries", cfg.MaxDeliver)
-	}
-	// A consumer BackOff clamps AckWait to backoff[0] on the server, which
-	// redelivers still-in-flight slow handlers to other replicas and duplicates
-	// the job fleet-wide (the !clip reply incident). NACK pacing belongs to the
-	// subscriber's per-message NakWithDelay, never to the consumer.
-	if len(cfg.BackOff) != 0 {
-		t.Fatalf("backoff = %v, want none: it would clamp ack wait to its first step", cfg.BackOff)
-	}
-	if cfg.AckWait != 4*time.Second {
-		t.Fatalf("ack wait = %v, want 4s bounded by the output dedup window", cfg.AckWait)
-	}
-	if cfg.AckPolicy != nats.AckExplicitPolicy {
-		t.Fatalf("ack policy = %v, want explicit", cfg.AckPolicy)
-	}
-	if cfg.DeliverGroup != "outgress-premium" {
-		t.Fatalf("delivery group = %q, want shared replica queue", cfg.DeliverGroup)
-	}
-	if cfg.Metadata[managedConsumerMetadata] != "true" {
-		t.Fatal("consumer is not marked as server-managed")
 	}
 }

@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -34,30 +35,26 @@ func TestPullConsumerIsOneSharedDurableForTheWholeFleet(t *testing.T) {
 func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
 	cfg := pullConsumerConfig("twitch.ingress.event.premium", "worker_twitch_ingress_event_premium")
 
-	// A floor ack costs one publish per batch; explicit acks would cost one per
-	// message, which is the ack stream this lane shape exists to avoid.
-	if cfg.AckPolicy != jsapi.AckAllPolicy {
-		t.Fatalf("ack policy = %v, want AckAll", cfg.AckPolicy)
-	}
-	// A pull consumer must carry no delivery subject: one would make it a push
-	// consumer and the server would stop honouring MSG.NEXT for it.
-	if cfg.DeliverSubject != "" || cfg.FlowControl {
-		t.Fatalf("pull consumer was given push delivery: %#v", cfg)
-	}
-	if cfg.DeliverPolicy != jsapi.DeliverNewPolicy {
-		t.Fatalf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)
-	}
-	// R1 memory consumer state on an R3 stream: replicating per-consumer ack
-	// state is leader RAFT work on the hot path this design does not need.
-	if cfg.Replicas != 1 || !cfg.MemoryStorage {
-		t.Fatalf("consumer state must be R1 in memory: %#v", cfg)
-	}
-	if cfg.InactiveThreshold != flowInactiveThreshold {
-		t.Fatalf("inactive threshold = %v, want %v", cfg.InactiveThreshold, flowInactiveThreshold)
-	}
-	if cfg.AckWait != defaultPullAckWait || cfg.MaxAckPending != defaultPullMaxAckPending {
-		t.Fatalf("ack budget = %v/%d, want the shipped defaults", cfg.AckWait, cfg.MaxAckPending)
-	}
+	requireContract(t,
+		// A floor ack costs one publish per batch; explicit acks would cost one per
+		// message, which is the ack stream this lane shape exists to avoid.
+		contractClause{cfg.AckPolicy == jsapi.AckAllPolicy,
+			fmt.Sprintf("ack policy = %v, want AckAll", cfg.AckPolicy)},
+		// A pull consumer must carry no delivery subject: one would make it a push
+		// consumer and the server would stop honouring MSG.NEXT for it.
+		contractClause{cfg.DeliverSubject == "" && !cfg.FlowControl,
+			fmt.Sprintf("pull consumer was given push delivery: %#v", cfg)},
+		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
+			fmt.Sprintf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)},
+		// R1 memory consumer state on an R3 stream: replicating per-consumer ack
+		// state is leader RAFT work on the hot path this design does not need.
+		contractClause{cfg.Replicas == 1 && cfg.MemoryStorage,
+			fmt.Sprintf("consumer state must be R1 in memory: %#v", cfg)},
+		contractClause{cfg.InactiveThreshold == flowInactiveThreshold,
+			fmt.Sprintf("inactive threshold = %v, want %v", cfg.InactiveThreshold, flowInactiveThreshold)},
+		contractClause{cfg.AckWait == defaultPullAckWait && cfg.MaxAckPending == defaultPullMaxAckPending,
+			fmt.Sprintf("ack budget = %v/%d, want the shipped defaults", cfg.AckWait, cfg.MaxAckPending)},
+	)
 }
 
 func TestPullConsumerKnobsRejectNonPositiveOverrides(t *testing.T) {
@@ -88,36 +85,61 @@ func TestPullFloorAckCoversTheWholeBatch(t *testing.T) {
 	sub := testPullSubscriber()
 	drain := drainLane(sub)
 
-	batch := []*fakePullMsg{fakePullDelivery(1), fakePullDelivery(2), fakePullDelivery(3)}
-	for _, wire := range batch {
+	batch := deliverPullBatch(t, sub, 1, 2, 3)
+	// Nothing is acked until the batch is done: the floor is what makes the
+	// per-message ack unnecessary, so a per-message ack here would be the bug.
+	requireNoAcksYet(t, batch)
+
+	sub.advanceFloor()
+	requireFloorAckedOnce(t, batch)
+
+	// The floor is published once per receipt: a second flush with nothing new
+	// received must not re-ack a sequence the server already has.
+	sub.advanceFloor()
+	if last := batch[len(batch)-1]; last.acks() != 1 {
+		t.Fatalf("floor was re-published: acks = %d", last.acks())
+	}
+	close(sub.closeCh)
+	drain()
+}
+
+// deliverPullBatch hands the subscriber one fetch batch through the real deliver
+// path, in sequence order.
+func deliverPullBatch(t *testing.T, sub *pullSubscriber, sequences ...uint64) []*fakePullMsg {
+	t.Helper()
+	batch := make([]*fakePullMsg, 0, len(sequences))
+	for _, sequence := range sequences {
+		wire := fakePullDelivery(sequence)
 		if !sub.deliver(wire) {
 			t.Fatal("delivery was refused while the binding was open")
 		}
+		batch = append(batch, wire)
 	}
-	// Nothing is acked until the batch is done: the floor is what makes the
-	// per-message ack unnecessary, so a per-message ack here would be the bug.
+	return batch
+}
+
+func requireNoAcksYet(t *testing.T, batch []*fakePullMsg) {
+	t.Helper()
 	for _, wire := range batch {
 		if wire.acks() != 0 {
 			t.Fatalf("message %d was acked individually", wire.sequence)
 		}
 	}
+}
 
-	sub.advanceFloor()
-	if batch[2].acks() != 1 {
-		t.Fatalf("last-of-batch acks = %d, want exactly one floor ack", batch[2].acks())
+// requireFloorAckedOnce states the cadence: one publish for the whole batch,
+// naming its last message and no other.
+func requireFloorAckedOnce(t *testing.T, batch []*fakePullMsg) {
+	t.Helper()
+	last := batch[len(batch)-1]
+	if last.acks() != 1 {
+		t.Fatalf("last-of-batch acks = %d, want exactly one floor ack", last.acks())
 	}
-	if batch[0].acks() != 0 || batch[1].acks() != 0 {
-		t.Fatal("AckAll floor was published per message instead of per batch")
+	for _, wire := range batch[:len(batch)-1] {
+		if wire.acks() != 0 {
+			t.Fatal("AckAll floor was published per message instead of per batch")
+		}
 	}
-
-	// The floor is published once per receipt: a second flush with nothing new
-	// received must not re-ack a sequence the server already has.
-	sub.advanceFloor()
-	if batch[2].acks() != 1 {
-		t.Fatalf("floor was re-published: acks = %d", batch[2].acks())
-	}
-	close(sub.closeCh)
-	drain()
 }
 
 // TestPullFloorAckTimerCoversAPartiallyDrainedBatch is the other half of the

@@ -58,6 +58,27 @@ type messagingAttributes struct {
 	destination string
 }
 
+func (span messagingSpan) attributes() messagingAttributes {
+	return messagingAttributes{operation: span.operation, destination: span.destination}
+}
+
+// attributeSink is the write side both New Relic carriers share. Segment and
+// Transaction spell the same method, so the messaging triple is written in one
+// place; two copies of it could report a segment and its transaction under
+// different destinations.
+type attributeSink interface {
+	AddAttribute(key string, value any)
+}
+
+// addMessagingAttributes writes the bounded messaging triple. The destination is
+// normalized here rather than at the call sites, so no carrier can ever be given
+// a raw wire subject.
+func addMessagingAttributes(sink attributeSink, attributes messagingAttributes) {
+	sink.AddAttribute(messagingSystemAttribute, "nats")
+	sink.AddAttribute(messagingOperationAttribute, attributes.operation)
+	sink.AddAttribute(messagingDestinationAttribute, normalizedDestination(attributes.destination))
+}
+
 var ingressDestinations = destinationFamily{
 	fallback: ingressDestinationPrefix + "other",
 	allowed: map[string]struct{}{
@@ -85,9 +106,7 @@ func startMessagingSegment(ctx context.Context, span messagingSpan) *newrelic.Se
 		return nil
 	}
 	segment := txn.StartSegment(span.name)
-	segment.AddAttribute(messagingSystemAttribute, "nats")
-	segment.AddAttribute(messagingOperationAttribute, span.operation)
-	segment.AddAttribute(messagingDestinationAttribute, normalizedDestination(span.destination))
+	addMessagingAttributes(segment, span.attributes())
 	return segment
 }
 
@@ -122,17 +141,35 @@ func insertTraceHeaders(ctx context.Context, msg *nats.Msg) {
 	}
 }
 
+// traceHeaderBuffer allocates the agent-shaped map a consume path fills, or
+// reports false when there is no transaction to join or nothing to join it from.
+// The guard and the sizing live here so the two carriers below cannot disagree
+// about which deliveries are traceable.
+func traceHeaderBuffer(txn *newrelic.Transaction, size int) (http.Header, bool) {
+	if txn == nil || size == 0 {
+		return nil, false
+	}
+	return make(http.Header, size), true
+}
+
+// acceptQueueTrace joins the publisher's trace. The transport kind is named in
+// one place: every delivery this package accepts is a queue hop, and a second
+// spelling would split one distributed trace in two.
+func acceptQueueTrace(txn *newrelic.Transaction, headers http.Header) {
+	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, headers)
+}
+
 func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
-	if txn == nil || len(headers) == 0 {
+	httpHeaders, ok := traceHeaderBuffer(txn, len(headers))
+	if !ok {
 		return
 	}
-	httpHeaders := make(http.Header, len(headers))
 	for key, values := range headers {
 		for _, value := range values {
 			httpHeaders.Add(key, value)
 		}
 	}
-	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, httpHeaders)
+	acceptQueueTrace(txn, httpHeaders)
 }
 
 // acceptMetadataTraceHeaders joins the publisher's trace from an already
@@ -153,23 +190,21 @@ func acceptTraceHeaders(txn *newrelic.Transaction, headers nats.Header) {
 // applies exactly the canonicalization http.Header.Add applied in the two-map
 // version, so this stays a pure allocation change.
 func acceptMetadataTraceHeaders(txn *newrelic.Transaction, metadata Metadata) {
-	if txn == nil || len(metadata) == 0 {
+	headers, ok := traceHeaderBuffer(txn, len(metadata))
+	if !ok {
 		return
 	}
-	headers := make(http.Header, len(metadata))
 	for key, value := range metadata {
 		headers.Set(key, value)
 	}
-	txn.AcceptDistributedTraceHeaders(newrelic.TransportQueue, headers)
+	acceptQueueTrace(txn, headers)
 }
 
 func addMessagingTransactionAttributes(txn *newrelic.Transaction, attributes messagingAttributes) {
 	if txn == nil {
 		return
 	}
-	txn.AddAttribute(messagingSystemAttribute, "nats")
-	txn.AddAttribute(messagingOperationAttribute, attributes.operation)
-	txn.AddAttribute(messagingDestinationAttribute, normalizedDestination(attributes.destination))
+	addMessagingAttributes(txn, attributes)
 }
 
 // normalizedDestination intentionally reports a configured family rather than

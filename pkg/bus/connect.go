@@ -50,12 +50,23 @@ func serverList(override string) string {
 	return override
 }
 
+// connectionIdentity is who a connection dials as: the client name NATS
+// monitoring reports it under, and the account credentials it authenticates
+// with. The three were a positional string triple, where transposing the user
+// and the password authenticates as the wrong account and the broker's rejection
+// is the only place that shows.
+type connectionIdentity struct {
+	name string
+	user string
+	pass string
+}
+
 // baseOptions are shared by every connection the fleet opens, core or
 // JetStream: endless reconnects, a stable endpoint that is never shuffled, a
 // client name for monitoring, and the supplied credentials.
 // Local development runs against an open server, so empty credentials are fine;
 // the broker is the one enforcing them.
-func baseOptions(name, user, pass string) []nats.Option {
+func baseOptions(identity connectionIdentity) []nats.Option {
 	opts := []nats.Option{
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
@@ -95,12 +106,12 @@ func baseOptions(name, user, pass string) []nats.Option {
 		opts = append(opts, option)
 	}
 
-	if name != "" {
-		opts = append(opts, nats.Name(name))
+	if identity.name != "" {
+		opts = append(opts, nats.Name(identity.name))
 	}
 
-	if user != "" {
-		opts = append(opts, nats.UserInfo(user, pass))
+	if identity.user != "" {
+		opts = append(opts, nats.UserInfo(identity.user, identity.pass))
 	}
 
 	return opts
@@ -158,9 +169,11 @@ func tlsSecureOption() nats.Option {
 // fall back to NATS_USER/NATS_PASSWORD so local dev and the phased rollout (RPC
 // creds not yet provisioned) keep working against the shared user.
 func rpcOptions(name string) []nats.Option {
-	user := env.Get("NATS_RPC_USER", env.Get("NATS_USER", ""))
-	pass := env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", ""))
-	opts := baseOptions(name, user, pass)
+	opts := baseOptions(connectionIdentity{
+		name: name,
+		user: env.Get("NATS_RPC_USER", env.Get("NATS_USER", "")),
+		pass: env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", "")),
+	})
 	// Leaf failback applies ONLY to the RPC plane, which is leaf-first: recycle a
 	// connection displaced onto a fallback leaf back to the node-local leaf once it
 	// recovers. The BUS plane (busOptions) dials the hub directly (NATS_HUB_URL),
@@ -176,7 +189,11 @@ func rpcOptions(name string) []nats.Option {
 
 // busOptions authenticate the shared BUS account on the JetStream plane.
 func busOptions(name string) []nats.Option {
-	return baseOptions(name, env.Get("NATS_USER", ""), env.Get("NATS_PASSWORD", ""))
+	return baseOptions(connectionIdentity{
+		name: name,
+		user: env.Get("NATS_USER", ""),
+		pass: env.Get("NATS_PASSWORD", ""),
+	})
 }
 
 // Connect opens a core NATS connection for request-reply RPC and ephemeral

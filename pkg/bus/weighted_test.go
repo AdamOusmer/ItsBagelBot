@@ -490,25 +490,7 @@ func (l *laneSub) Close() error { return nil }
 // gate caps standard below it — the reserved slot always has an idle worker.
 func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	sub := newLaneSub("premium", "standard")
-
-	entered := make(chan struct{}, 8)
-	release := make(chan struct{})
-	var mu sync.Mutex
-	var standardNow, standardPeak int
-	standard := func(*Message) error {
-		mu.Lock()
-		standardNow++
-		if standardNow > standardPeak {
-			standardPeak = standardNow
-		}
-		mu.Unlock()
-		entered <- struct{}{}
-		<-release
-		mu.Lock()
-		standardNow--
-		mu.Unlock()
-		return nil
-	}
+	load := newHeldLoad()
 
 	premiumRan := make(chan struct{}, 1)
 	premium := func(*Message) error {
@@ -523,43 +505,26 @@ func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	// hold all 4, so the fourth slot and the fourth worker are premium's alone.
 	w, err := ConsumeWeighted(ctx, nil, []WeightedLane{
 		{Sub: sub, Subject: "premium", Handle: premium, Reserve: 25},
-		{Sub: sub, Subject: "standard", Handle: standard},
+		{Sub: sub, Subject: "standard", Handle: load.handle},
 	}, ScalePolicy{MinRoutines: 4, MaxRoutines: 4, MaxConsumers: 1}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("ConsumeWeighted: %v", err)
 	}
 
-	flood := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-flood:
-				return
-			case sub.lanes["standard"] <- NewMessage("standard", nil):
-			}
-		}
-	}()
-
+	stopFlood := floodLane(sub.lanes["standard"], "standard")
 	for i := 0; i < 3; i++ {
-		<-entered // standard is holding its whole allowance, and blocking in it
+		<-load.entered // standard is holding its whole allowance, and blocking in it
 	}
 
 	sub.lanes["premium"] <- NewMessage("premium", nil)
-	select {
-	case <-premiumRan:
-	case <-time.After(2 * time.Second):
-		t.Fatal("premium was starved by the standard flood")
-	}
+	awaitSignal(t, premiumRan, "premium was starved by the standard flood")
 
-	mu.Lock()
-	peak := standardPeak
-	mu.Unlock()
-	if peak > 3 {
+	if peak := load.highWater(); peak > 3 {
 		t.Fatalf("standard held %d slots at once, want at most 3 (premium reserves one of four)", peak)
 	}
 
-	close(flood)
-	close(release)
+	stopFlood()
+	close(load.release)
 	cancel()
 
 	dctx, dcancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -567,6 +532,67 @@ func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	if err := w.Drain(dctx); err != nil {
 		t.Fatalf("Drain: %v", err)
 	}
+}
+
+// heldLoad is a handler that parks every delivery inside itself until release is
+// closed, and records how many were inside at once. That high-water mark is the
+// lane's real slot occupancy, which is what a reserve has to hold below the
+// fleet size.
+type heldLoad struct {
+	entered chan struct{}
+	release chan struct{}
+
+	mu   sync.Mutex
+	now  int
+	peak int
+}
+
+func newHeldLoad() *heldLoad {
+	return &heldLoad{entered: make(chan struct{}, 8), release: make(chan struct{})}
+}
+
+func (l *heldLoad) handle(*Message) error {
+	l.enter()
+	l.entered <- struct{}{}
+	<-l.release
+	l.leave()
+	return nil
+}
+
+func (l *heldLoad) enter() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.now++
+	if l.now > l.peak {
+		l.peak = l.now
+	}
+}
+
+func (l *heldLoad) leave() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.now--
+}
+
+func (l *heldLoad) highWater() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.peak
+}
+
+// floodLane keeps one lane saturated until the returned stop function is called.
+func floodLane(lane chan<- *Message, id string) func() {
+	flood := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-flood:
+				return
+			case lane <- NewMessage(id, nil):
+			}
+		}
+	}()
+	return func() { close(flood) }
 }
 
 // BenchmarkDispatchHandoff and BenchmarkDispatchGoroutinePerMessage measure the
