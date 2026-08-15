@@ -229,29 +229,36 @@ func TestPartitionedLanesBindReceiptLevelConsumers(t *testing.T) {
 			t.Setenv("NATS_CONSUME_MODE", mode.configured)
 			subscriber := &fleetSubscriber{group: "worker"}
 
-			for subject, stream := range map[string]string{
-				"twitch.ingress.event.standard": TwitchIngressStandardStream.Name,
-				"twitch.ingress.event.premium":  TwitchIngressStream.Name,
+			for _, want := range []laneExpectation{
+				{subject: "twitch.ingress.event.standard", stream: TwitchIngressStandardStream.Name, mode: mode.want},
+				{subject: "twitch.ingress.event.premium", stream: TwitchIngressStream.Name, mode: mode.want},
 			} {
-				requireLaneBinding(t, subscriber, subject, stream, mode.want)
+				requireLaneBinding(t, subscriber, want)
 			}
 		})
 	}
 }
 
+// laneExpectation is the binding one subject must walk into: the stream it
+// resolves to and the acknowledgement contract its lane gets.
+type laneExpectation struct {
+	subject string
+	stream  string
+	mode    laneConsumeMode
+}
+
 // requireLaneBinding walks one subject through the binding a consumer
-// provisions against: the stream it resolves to and the acknowledgement
-// contract its lane gets.
-func requireLaneBinding(t *testing.T, subscriber *fleetSubscriber, subject, stream string, want laneConsumeMode) {
+// provisions against.
+func requireLaneBinding(t *testing.T, subscriber *fleetSubscriber, want laneExpectation) {
 	t.Helper()
-	target, err := targetForTopic(subject)
+	target, err := targetForTopic(want.subject)
 	if err != nil {
-		t.Fatalf("targetForTopic(%q): %v", subject, err)
+		t.Fatalf("targetForTopic(%q): %v", want.subject, err)
 	}
-	if target.stream != stream {
-		t.Fatalf("%q binds stream %q, want %q", subject, target.stream, stream)
+	if target.stream != want.stream {
+		t.Fatalf("%q binds stream %q, want %q", want.subject, target.stream, want.stream)
 	}
-	if got := subscriber.laneModeFor(target); got != want {
-		t.Fatalf("%q on %q got mode %q, want %q", subject, target.stream, got, want)
+	if got := subscriber.laneModeFor(target); got != want.mode {
+		t.Fatalf("%q on %q got mode %q, want %q", want.subject, target.stream, got, want.mode)
 	}
 }

@@ -323,10 +323,17 @@ func TestRetryStreamCarriesTheSchedulePrerequisites(t *testing.T) {
 // reconcile speaks the modern API. Both encode the same protocol integers, and a
 // silent divergence would turn a work-queue spec into a limits stream.
 func TestLegacySpecEnumsMatchModernEnums(t *testing.T) {
-	if jsapi.RetentionPolicy(nats.WorkQueuePolicy) != jsapi.WorkQueuePolicy ||
-		jsapi.RetentionPolicy(nats.InterestPolicy) != jsapi.InterestPolicy ||
-		jsapi.RetentionPolicy(nats.LimitsPolicy) != jsapi.LimitsPolicy {
-		t.Fatal("retention enums diverged between the legacy and modern clients")
+	for _, retention := range []struct {
+		legacy nats.RetentionPolicy
+		modern jsapi.RetentionPolicy
+	}{
+		{nats.WorkQueuePolicy, jsapi.WorkQueuePolicy},
+		{nats.InterestPolicy, jsapi.InterestPolicy},
+		{nats.LimitsPolicy, jsapi.LimitsPolicy},
+	} {
+		if jsapi.RetentionPolicy(retention.legacy) != retention.modern {
+			t.Fatal("retention enums diverged between the legacy and modern clients")
+		}
 	}
 	if streamConfig(StreamSpec{Name: "M", Subjects: []string{"m.>"}, Storage: nats.MemoryStorage}).Storage != jsapi.MemoryStorage {
 		t.Fatal("memory storage did not survive the spec conversion")

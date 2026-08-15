@@ -206,9 +206,15 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.ack(single_ref(wire), @stored, wire) == :ok
 
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_acked(wire.counter) == 1
-      assert :ets.info(wire.table, :size) == 0
+      assert counter_ledger(wire) == %{
+               pending: 0,
+               acked: 1,
+               failed: 0,
+               retried: 0,
+               fallback: 0,
+               inflight: 0,
+               rows: 0
+             }
     end
 
     test "atomic settles the whole cohort on one commit ack", %{wire: wire} do
@@ -220,6 +226,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
                pending: 0,
                acked: 3,
                failed: 0,
+               retried: 0,
                fallback: 0,
                inflight: 0,
                rows: 0
@@ -235,13 +242,18 @@ defmodule Ingress.Nats.Publisher.WireTest do
       assert Single.ack(ref, @rejected, wire) == :ok
 
       assert_receive {:pub, @subject, _json, retry_opts}, 500
-      assert Keyword.fetch!(retry_opts, :reply_to) =~ ".s."
-      refute headers(retry_opts)["nats-msg-id"]
+      require_dedup_free_single(retry_opts)
 
       # Still outstanding: the retry is a fresh attempt on the same row.
-      assert Pending.pending(wire.counter) == 1
-      assert Pending.take_retried(wire.counter) == 1
-      assert Pending.take_failed(wire.counter) == 0
+      assert counter_ledger(wire) == %{
+               pending: 1,
+               acked: 0,
+               failed: 0,
+               retried: 1,
+               fallback: 0,
+               inflight: 0,
+               rows: 1
+             }
     end
 
     test "a retry that never leaves the VM settles now, not at the sweep", %{wire: wire} do
@@ -256,7 +268,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.ack(ref, @rejected, offline) == :ok
 
-      assert_dropped(wire, 1)
+      require_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
       assert :ets.info(wire.table, :size) == 0
     end
@@ -268,7 +280,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.ack(ref, @rejected, wire) == :ok
 
-      assert_dropped(wire, 1)
+      require_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
     end
 
@@ -279,7 +291,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       for _ <- 1..3 do
         assert_receive {:pub, @subject, _json, opts}, 500
-        assert_dedup_free_single(opts)
+        require_dedup_free_single(opts)
       end
 
       assert Pending.pending(wire.counter) == 3
@@ -303,7 +315,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.ack(single_ref(wire), @malformed, wire) == :ok
 
-      assert_dropped(wire, 1)
+      require_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
       assert :ets.info(wire.table, :size) == 0
     end
@@ -314,7 +326,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.expire(row, wire) == :ok
 
-      assert_dropped(wire, 1)
+      require_dropped(wire, 1)
     end
 
     test "atomic drops a malformed commit without falling back", %{wire: wire} do
@@ -322,7 +334,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.ack(commit_ref(wire, 3), @malformed, wire) == :ok
 
-      assert_dropped(wire, 3)
+      require_dropped(wire, 3)
       assert Pending.take_batch_fallback(wire.counter) == 0
       assert Pending.batches_inflight(wire.counter) == 0
     end
@@ -338,6 +350,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
                pending: 3,
                acked: 0,
                failed: 0,
+               retried: 0,
                fallback: 0,
                inflight: 1,
                rows: 1
@@ -350,7 +363,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.expire(row, wire) == :ok
 
-      assert_dropped(wire, 3)
+      require_dropped(wire, 3)
     end
   end
 
@@ -365,19 +378,21 @@ defmodule Ingress.Nats.Publisher.WireTest do
       {id, :batch, _entries, stamp} = row = swept_row(wire, 3)
 
       assert Atomic.expire(row, wire) == :ok
-
-      assert Pending.batches_inflight(wire.counter) == 1
-      # The hold carries the ORIGINAL open stamp, so it retires on the broker's
-      # clock rather than restarting one at sweep time.
-      assert [{^id, :batch_hold, ^stamp} = hold] = :ets.tab2list(wire.table)
+      hold = require_batch_hold(wire, id, stamp)
 
       assert Atomic.expire(hold, wire) == :ok
 
-      assert Pending.batches_inflight(wire.counter) == 0
-      assert :ets.info(wire.table, :size) == 0
-      # The hold row carries no events, so retiring it settles nothing.
-      assert Pending.take_failed(wire.counter) == 3
-      assert Pending.take_acked(wire.counter) == 0
+      # The hold row carries no events, so retiring it settles nothing beyond
+      # the failures the sweep already counted.
+      assert counter_ledger(wire) == %{
+               pending: 0,
+               acked: 0,
+               failed: 3,
+               retried: 0,
+               fallback: 0,
+               inflight: 0,
+               rows: 0
+             }
     end
 
     test "a late reply proves the broker is done and hands the slot back", %{wire: wire} do
@@ -389,11 +404,16 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.ack(ref, @stored, wire) == :ok
 
-      assert Pending.batches_inflight(wire.counter) == 0
-      assert :ets.info(wire.table, :size) == 0
       # The events were already dropped by the dedup-free rule and stay dropped.
-      assert Pending.take_acked(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 3
+      assert counter_ledger(wire) == %{
+               pending: 0,
+               acked: 0,
+               failed: 3,
+               retried: 0,
+               fallback: 0,
+               inflight: 0,
+               rows: 0
+             }
     end
   end
 
@@ -414,6 +434,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
                pending: 0,
                acked: 3,
                failed: 0,
+               retried: 0,
                fallback: 0,
                inflight: 0,
                rows: 0
@@ -466,15 +487,25 @@ defmodule Ingress.Nats.Publisher.WireTest do
       pending: Pending.pending(wire.counter),
       acked: Pending.take_acked(wire.counter),
       failed: Pending.take_failed(wire.counter),
+      retried: Pending.take_retried(wire.counter),
       fallback: Pending.take_batch_fallback(wire.counter),
       inflight: Pending.batches_inflight(wire.counter),
       rows: :ets.info(wire.table, :size)
     }
   end
 
+  # The slot survives the sweep as a hold row carrying the ORIGINAL open stamp,
+  # so it retires on the broker's clock rather than restarting one at sweep
+  # time. Returns the hold row for the caller to retire.
+  defp require_batch_hold(wire, id, stamp) do
+    assert Pending.batches_inflight(wire.counter) == 1
+    assert [{^id, :batch_hold, ^stamp} = hold] = :ets.tab2list(wire.table)
+    hold
+  end
+
   # A fallback re-publish is a plain single: a per-message reply inbox and none
   # of the batch or dedup headers the atomic wire stamps.
-  defp assert_dedup_free_single(opts) do
+  defp require_dedup_free_single(opts) do
     assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     refute headers(opts)["nats-batch-id"]
     refute headers(opts)["nats-msg-id"]
@@ -483,7 +514,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
   # Every dedup-free drop resolves the same way, whichever wire and whichever
   # ambiguous outcome produced it: nothing re-driven, no pending work left, and
   # every event in the cohort counted failed.
-  defp assert_dropped(wire, count) do
+  defp require_dropped(wire, count) do
     refute_receive {:pub, _, _, _}, 100
     assert Pending.pending(wire.counter) == 0
     assert Pending.take_failed(wire.counter) == count

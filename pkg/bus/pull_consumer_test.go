@@ -546,15 +546,27 @@ func (s *pullConsumerSpy) CreateOrUpdateConsumer(
 	if s.createErr != nil {
 		return nil, s.createErr
 	}
-	if s.convertAfter > 0 && s.attempts >= s.convertAfter && s.live != nil {
+	if s.racedConversionLanded() {
 		s.live.Config.DeliverSubject = ""
 	}
-	if s.live != nil && s.live.Config.DeliverSubject != "" && cfg.DeliverSubject == "" {
+	if s.refusesPushToPull(cfg) {
 		return nil, errors.New("nats: can not update push consumer to pull based")
 	}
 	s.created = append(s.created, cfg)
 	s.live = &jsapi.ConsumerInfo{Config: cfg}
 	return &pullConsumerHandle{info: s.live}, nil
+}
+
+// racedConversionLanded plays the other pod: after the configured number of
+// attempts, the live push durable has already been converted underneath us.
+func (s *pullConsumerSpy) racedConversionLanded() bool {
+	return s.convertAfter > 0 && s.attempts >= s.convertAfter && s.live != nil
+}
+
+// refusesPushToPull is the server rule the whole conversion path exists for: an
+// update may not turn a live push consumer into a pull one.
+func (s *pullConsumerSpy) refusesPushToPull(cfg jsapi.ConsumerConfig) bool {
+	return s.live != nil && s.live.Config.DeliverSubject != "" && cfg.DeliverSubject == ""
 }
 
 func (s *pullConsumerSpy) DeleteConsumer(context.Context, string, string) error {
