@@ -27,8 +27,15 @@ type lruStore struct {
 	cache *ttlLRU
 }
 
+// claimKey is a caller's idempotency key as the local tier holds it. The cache
+// is keyed on the UNPREFIXED key the caller passed, never on the prefix-composed
+// string ValkeyStore writes; the two are the same width and the same underlying
+// type, and mixing them would leave a local claim no lookup ever finds. Naming
+// the local one is what stops the conversion from being silent.
+type claimKey string
+
 func (l *lruStore) Seen(ctx context.Context, key string, ttl time.Duration) (bool, error) {
-	if l.cache.has(key) {
+	if l.cache.has(claimKey(key)) {
 		return true, nil // already claimed on this pod
 	}
 	seen, err := l.inner.Seen(ctx, key, ttl)
@@ -37,14 +44,14 @@ func (l *lruStore) Seen(ctx context.Context, key string, ttl time.Duration) (boo
 		// once the backend recovers, and caching would mask the outage.
 		return seen, err
 	}
-	l.cache.add(key, ttl)
+	l.cache.add(claimKey(key), ttl)
 	return seen, nil
 }
 
 func (l *lruStore) Release(ctx context.Context, key string) error {
 	// Drop the local claim too, or a same-pod redelivery of the FAILED effect
 	// would short-circuit to "duplicate" and never re-run.
-	l.cache.remove(key)
+	l.cache.remove(claimKey(key))
 	return l.inner.Release(ctx, key)
 }
 
@@ -55,12 +62,12 @@ type ttlLRU struct {
 	mu    sync.Mutex
 	cap   int
 	ll    *list.List
-	items map[string]*list.Element
+	items map[claimKey]*list.Element
 	now   func() time.Time
 }
 
 type lruEntry struct {
-	key     string
+	key     claimKey
 	expires time.Time
 }
 
@@ -74,13 +81,13 @@ func newTTLLRU(capacity int, now func() time.Time) *ttlLRU {
 	return &ttlLRU{
 		cap:   capacity,
 		ll:    list.New(),
-		items: make(map[string]*list.Element, capacity),
+		items: make(map[claimKey]*list.Element, capacity),
 		now:   now,
 	}
 }
 
 // has reports whether key holds a live claim, dropping it if it has expired.
-func (c *ttlLRU) has(key string) bool {
+func (c *ttlLRU) has(key claimKey) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	el, ok := c.items[key]
@@ -96,7 +103,7 @@ func (c *ttlLRU) has(key string) bool {
 }
 
 // add records a claim for ttl, refreshing an existing key in place.
-func (c *ttlLRU) add(key string, ttl time.Duration) {
+func (c *ttlLRU) add(key claimKey, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	expires := c.now().Add(ttl)
@@ -112,7 +119,7 @@ func (c *ttlLRU) add(key string, ttl time.Duration) {
 	}
 }
 
-func (c *ttlLRU) remove(key string) {
+func (c *ttlLRU) remove(key claimKey) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if el, ok := c.items[key]; ok {

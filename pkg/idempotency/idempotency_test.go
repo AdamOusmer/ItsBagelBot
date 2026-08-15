@@ -221,7 +221,7 @@ func TestGuardDuplicateSkip(t *testing.T) {
 	calls := 0
 	handler := func(*bus.Message) error { calls++; return nil }
 
-	guarded := Guard(f, MessageUUIDKey, time.Minute, nil, m)(handler)
+	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute, Metrics: m})(handler)
 
 	msg := bus.NewMessage("evt-1", nil)
 	if err := guarded(msg); err != nil {
@@ -243,7 +243,7 @@ func TestGuardErrorReleases(t *testing.T) {
 	boom := errors.New("handler failed")
 	handler := func(*bus.Message) error { return boom }
 
-	guarded := Guard(f, MessageUUIDKey, time.Minute, nil, nil)(handler)
+	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(handler)
 
 	if err := guarded(bus.NewMessage("evt-2", nil)); !errors.Is(err, boom) {
 		t.Fatalf("guard should propagate the handler error, got %v", err)
@@ -258,7 +258,7 @@ func TestGuardErrorReleases(t *testing.T) {
 
 	// A redelivery of the failed event runs the handler again.
 	ran := false
-	retry := Guard(f, MessageUUIDKey, time.Minute, nil, nil)(func(*bus.Message) error { ran = true; return nil })
+	retry := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(func(*bus.Message) error { ran = true; return nil })
 	if err := retry(bus.NewMessage("evt-2", nil)); err != nil {
 		t.Fatalf("redelivery: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestGuardFailOpenRunsHandler(t *testing.T) {
 	f.err = errors.New("valkey down")
 	m := &countMetrics{}
 	calls := 0
-	guarded := Guard(f, MessageUUIDKey, time.Minute, nil, m)(func(*bus.Message) error { calls++; return nil })
+	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute, Metrics: m})(func(*bus.Message) error { calls++; return nil })
 
 	// Two deliveries during the outage both run: a guard must never drop a live
 	// event because its backend is unavailable.
@@ -289,7 +289,7 @@ func TestGuardFailOpenRunsHandler(t *testing.T) {
 func TestGuardUnguardablePassesThrough(t *testing.T) {
 	f := newFakeStore()
 	calls := 0
-	guarded := Guard(f, MessageUUIDKey, time.Minute, nil, nil)(func(*bus.Message) error { calls++; return nil })
+	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(func(*bus.Message) error { calls++; return nil })
 
 	// An empty UUID is not guardable: the handler runs and the store is untouched.
 	if err := guarded(bus.NewMessage("", nil)); err != nil {
@@ -315,7 +315,7 @@ func TestGuardConcurrentDuplicates(t *testing.T) {
 		mu.Unlock()
 		return nil
 	}
-	guarded := Guard(f, MessageUUIDKey, time.Minute, nil, nil)(handler)
+	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(handler)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 2; i++ {

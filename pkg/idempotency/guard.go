@@ -45,6 +45,40 @@ func MessageUUIDKey(m *bus.Message) (string, bool) {
 	return m.UUID, true
 }
 
+// Config is what Guard needs to wrap a handler. It is a struct rather than a
+// positional argument list because three of the five are optional and defaulted:
+// as arguments, a caller that wanted to override only the last one still had to
+// spell every slot before it, in an order where two adjacent nils are
+// interchangeable to the compiler and are not interchangeable at run time.
+type Config struct {
+	// Store is the atomic claim primitive. It has no default: a guard with no
+	// store is a guard that cannot claim.
+	Store Store
+	// Key defaults to MessageUUIDKey.
+	Key KeyFunc
+	// TTL bounds one claim. It is also the window a claim left behind by a hard
+	// crash between claim and error survives for; see Guard.
+	TTL time.Duration
+	// Log defaults to a no-op logger, Metrics to a no-op sink.
+	Log     *zap.Logger
+	Metrics Metrics
+}
+
+// withDefaults resolves the optional dependencies once, at wrap time, so the
+// per-delivery path never re-tests them.
+func (cfg Config) withDefaults() Config {
+	if cfg.Log == nil {
+		cfg.Log = zap.NewNop()
+	}
+	if cfg.Metrics == nil {
+		cfg.Metrics = nopMetrics{}
+	}
+	if cfg.Key == nil {
+		cfg.Key = MessageUUIDKey
+	}
+	return cfg
+}
+
 // Guard wraps a consume handler so a duplicate delivery of the same key does not
 // re-run it. The claim lifecycle is CLAIM-BEFORE, RELEASE-ON-ERROR:
 //
@@ -62,41 +96,33 @@ func MessageUUIDKey(m *bus.Message) (string, bool) {
 //
 // A duplicate is treated as success (nil), so the caller acks/drops it and the
 // effect is not re-run.
-func Guard(store Store, key KeyFunc, ttl time.Duration, log *zap.Logger, metrics Metrics) func(Handler) Handler {
-	if log == nil {
-		log = zap.NewNop()
-	}
-	if metrics == nil {
-		metrics = nopMetrics{}
-	}
-	if key == nil {
-		key = MessageUUIDKey
-	}
+func Guard(cfg Config) func(Handler) Handler {
+	guard := cfg.withDefaults()
 	return func(next Handler) Handler {
 		return func(m *bus.Message) error {
-			return guardOne(store, key, ttl, log, metrics, next, m)
+			return guard.guardOne(next, m)
 		}
 	}
 }
 
-func guardOne(store Store, key KeyFunc, ttl time.Duration, log *zap.Logger, metrics Metrics, next Handler, m *bus.Message) error {
-	k, ok := key(m)
+func (cfg *Config) guardOne(next Handler, m *bus.Message) error {
+	k, ok := cfg.Key(m)
 	if !ok {
 		return next(m) // no stable identity: never guess one
 	}
 	ctx := m.Context()
-	seen, err := store.Seen(ctx, k, ttl)
+	seen, err := cfg.Store.Seen(ctx, k, cfg.TTL)
 	if err != nil {
-		metrics.FailOpen()
-		log.Warn("idempotency guard failing open", zap.String("key", k), zap.Error(err))
+		cfg.Metrics.FailOpen()
+		cfg.Log.Warn("idempotency guard failing open", zap.String("key", k), zap.Error(err))
 		return next(m)
 	}
 	if seen {
-		metrics.Duplicate()
+		cfg.Metrics.Duplicate()
 		return nil // duplicate: skip the handler, ack as success
 	}
 	if herr := next(m); herr != nil {
-		_ = store.Release(ctx, k)
+		_ = cfg.Store.Release(ctx, k)
 		return herr
 	}
 	return nil
