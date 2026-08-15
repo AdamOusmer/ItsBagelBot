@@ -1,0 +1,112 @@
+# Leader balance: keeps the hub streams' RAFT leaders on their assigned
+# members. Elections after a member restart drift every leader onto whichever
+# member came back first; a member leading three streams serves each lane
+# 25-40% slower (measured 2026-08-15), so the spread below pairs each member
+# with roughly one heavy stream:
+#
+#   TWITCH_INGRESS         -> nats-1  (heaviest: full firehose)
+#   TWITCH_OUTGRESS        -> nats-2
+#   BAGEL_DATA + _SYSTEM   -> nats-0  (two light streams)
+#
+# The job compares each stream's current leader against the map and issues a
+# placement-preferred STEPDOWN only on drift, so a balanced cluster sees four
+# INFO calls and nothing else. Identity: leader_balance_bus, scoped in
+# nats-auth.conf to exactly these INFO/STEPDOWN verbs. Credentials come from
+# the `leader-balance` Doppler project via nats-secrets.py (NATS_USER /
+# NATS_PASSWORD), synced by the operator through the DopplerSecret below —
+# create the Doppler project and its service token secret
+# (leader-balance-doppler-token) before first deploy.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: leader-balance-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: leader-balance-doppler-token
+  managedSecret:
+    name: leader-balance-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nats-leader-balance
+  namespace: production
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: nats-leader-balance
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: balance
+              image: natsio/nats-box:0.18.0@sha256:abdc9f9f0120bb8adfbf674eb037d1551db55356eb198b7bd4ffed377f6950a6
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  status=0
+                  for pair in $DESIRED_LEADERS; do
+                    stream=${pair%%=*}; want=${pair#*=}
+                    cur=$(nats req "\$JS.API.STREAM.INFO.$stream" '' 2>/dev/null \
+                      | sed -n 's/.*"leader":"\([^"]*\)".*/\1/p')
+                    if [ -z "$cur" ]; then
+                      echo "WARN: no leader reported for $stream"; status=1; continue
+                    fi
+                    [ "$cur" = "$want" ] && continue
+                    echo "moving $stream leader: $cur -> $want"
+                    nats req "\$JS.API.STREAM.LEADER.STEPDOWN.$stream" \
+                      "{\"placement\":{\"preferred\":\"$want\"}}" >/dev/null
+                    sleep 3
+                  done
+                  exit $status
+              env:
+                - name: DESIRED_LEADERS
+                  value: "TWITCH_INGRESS=nats-1 TWITCH_OUTGRESS=nats-2 BAGEL_DATA=nats-0 TWITCH_OUTGRESS_SYSTEM=nats-0"
+                - name: NATS_URL
+                  value: tls://nats:4222
+                # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
+                - name: NATS_CA
+                  value: /etc/fleet-ca/ca.pem
+              envFrom:
+                - secretRef:
+                    name: leader-balance-env
+              volumeMounts:
+                - name: fleet-ca
+                  mountPath: /etc/fleet-ca
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: fleet-ca
+              configMap:
+                name: fleet-ca

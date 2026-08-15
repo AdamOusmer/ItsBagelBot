@@ -44,8 +44,12 @@ SERVICES = {
     "transactions": "transactions",
     "notifications": "notifications",
     "gateway": "gateway",
+    # Not a service: the leader-balance CronJob's scoped identity (stream INFO
+    # + placement-preferred STEPDOWN on the four hub streams, nothing else).
+    "leader_balance": "leader-balance",
 }
-NO_RPC: set[str] = set()
+# leader_balance is BUS-only: it never touches the RPC plane.
+NO_RPC: set[str] = {"leader_balance"}
 # gateway is RPC-only (no JetStream/event plane), so it gets no BUS user.
 NO_BUS: set[str] = {"gateway"}
 
