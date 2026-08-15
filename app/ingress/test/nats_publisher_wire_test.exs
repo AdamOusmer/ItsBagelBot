@@ -13,6 +13,15 @@ defmodule Ingress.Nats.Publisher.WireTest do
   @rejected ~s({"error":{"code":503,"description":"no responders"}})
   @malformed "truncated"
 
+  # Both fake connections a wire is exercised against, told apart by one option
+  # rather than by a second copy of the GenServer boilerplate:
+  #
+  #   * the default answers every publish and forwards it to the test process;
+  #   * `stalled: true` is alive, connected, and never answers — the wedged
+  #     socket write (TLS renegotiation, a full kernel send buffer, the
+  #     server's slow-consumer write deadline) that Gnat's own 5s call default
+  #     would sit through. It forwards nothing, so a stalled connection cannot
+  #     put a message in a mailbox a later refute_receive reads.
   defmodule FakeGnat do
     use GenServer
 
@@ -20,29 +29,17 @@ defmodule Ingress.Nats.Publisher.WireTest do
       do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
 
     @impl true
-    def init(opts), do: {:ok, %{test: Keyword.fetch!(opts, :test)}}
+    def init(opts),
+      do: {:ok, %{test: Keyword.get(opts, :test), stalled: Keyword.get(opts, :stalled, false)}}
 
     @impl true
+    def handle_call({:pub, _topic, _message, _opts}, _from, %{stalled: true} = state),
+      do: {:noreply, state}
+
     def handle_call({:pub, topic, message, opts}, _from, state) do
       send(state.test, {:pub, topic, message, opts})
       {:reply, :ok, state}
     end
-  end
-
-  # Alive, connected, and never answers: the wedged socket write (TLS
-  # renegotiation, a full kernel send buffer, the server's slow-consumer write
-  # deadline) that Gnat's own 5s call default would sit through.
-  defmodule StalledGnat do
-    use GenServer
-
-    def start_link(opts),
-      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
-
-    @impl true
-    def init(_opts), do: {:ok, %{}}
-
-    @impl true
-    def handle_call({:pub, _topic, _message, _opts}, _from, state), do: {:noreply, state}
   end
 
   setup do
@@ -98,18 +95,20 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
     test "a connection that never answers surfaces as :not_connected", %{wire: wire} do
       conn = :gnat_bus_pub_wire_stalled
-      start_supervised!({StalledGnat, [name: conn]})
+      # Own child id: the answering connection from setup is already supervised
+      # under the module's default one.
+      start_supervised!({FakeGnat, [name: conn, stalled: true]}, id: :stalled_gnat)
 
       started = System.monotonic_time(:millisecond)
       opts = [reply_to: AckPath.single(wire.prefix, 1), headers: [{"traceparent", "00-a-b-01"}]]
 
-      assert Wire.safe_pub(conn, @subject, "{}", opts, 150) == {:error, :not_connected}
+      assert Wire.safe_pub(conn, {@subject, "{}", opts}, 150) == {:error, :not_connected}
 
       assert System.monotonic_time(:millisecond) - started < 1_000
     end
 
     test "an absent connection is :not_connected without waiting at all" do
-      assert Wire.safe_pub(:gnat_bus_pub_wire_absent, @subject, "{}", [], 5_000) ==
+      assert Wire.safe_pub(:gnat_bus_pub_wire_absent, {@subject, "{}", []}, 5_000) ==
                {:error, :not_connected}
     end
 
@@ -200,8 +199,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "a stored PubAck resolves the pending work" do
     test "single settles the one event", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
+      publish_single(wire)
 
       assert Single.ack(single_ref(wire), @stored, wire) == :ok
 
@@ -211,8 +209,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "atomic settles the whole cohort on one commit ack", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(commit_ref(wire, 3), @stored, wire) == :ok
 
@@ -225,8 +222,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "a definite rejection re-drives, because nothing was stored" do
     test "single retries the event inside the attempt budget", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
+      publish_single(wire)
       ref = single_ref(wire)
 
       assert Single.ack(ref, @rejected, wire) == :ok
@@ -242,8 +238,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "a retry that never leaves the VM settles now, not at the sweep", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
+      publish_single(wire)
       ref = single_ref(wire)
 
       # The BUS connection flapped between the rejection and the republish, so
@@ -254,30 +249,24 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Single.ack(ref, @rejected, offline) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 1
+      assert_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
       assert :ets.info(wire.table, :size) == 0
     end
 
     test "single drops once the attempt budget is spent", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
+      publish_single(wire)
       {:single, id} = ref = single_ref(wire)
       Pending.insert_single(wire.table, id, @subject, "{}", wire.max_attempts)
 
       assert Single.ack(ref, @rejected, wire) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 1
+      assert_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
     end
 
     test "atomic falls back to dedup-free per-message publishes", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(commit_ref(wire, 3), @rejected, wire) == :ok
 
@@ -294,8 +283,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "atomic falls back on a rejected open without waiting for the commit", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(start_ref(wire, 3), @rejected, wire) == :ok
 
@@ -306,47 +294,36 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "an ambiguous outcome drops, because a replay could double-store" do
     test "single drops a malformed PubAck", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
+      publish_single(wire)
 
       assert Single.ack(single_ref(wire), @malformed, wire) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 1
+      assert_dropped(wire, 1)
       assert Pending.take_retried(wire.counter) == 0
       assert :ets.info(wire.table, :size) == 0
     end
 
     test "single drops a swept ack timeout without republishing", %{wire: wire} do
-      admit(wire, 1)
-      Single.send_cohort([entry(1)], wire)
-      drain(1)
-      [row] = :ets.tab2list(wire.table)
+      publish_single(wire)
+      row = swept_row(wire, 1)
 
       assert Single.expire(row, wire) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 1
+      assert_dropped(wire, 1)
     end
 
     test "atomic drops a malformed commit without falling back", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(commit_ref(wire, 3), @malformed, wire) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 3
+      assert_dropped(wire, 3)
       assert Pending.take_batch_fallback(wire.counter) == 0
       assert Pending.batches_inflight(wire.counter) == 0
     end
 
     test "atomic keeps a zero-byte open reply pending for its commit", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(start_ref(wire, 3), "", wire) == :ok
 
@@ -357,16 +334,12 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "atomic drops a swept cohort whole", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
-      drain(3)
-      [row] = :ets.tab2list(wire.table)
+      publish_cohort(wire, 3)
+      row = swept_row(wire, 3)
 
       assert Atomic.expire(row, wire) == :ok
 
-      refute_receive {:pub, _, _, _}, 100
-      assert Pending.pending(wire.counter) == 0
-      assert Pending.take_failed(wire.counter) == 3
+      assert_dropped(wire, 3)
     end
   end
 
@@ -377,10 +350,8 @@ defmodule Ingress.Nats.Publisher.WireTest do
       # until its own inactivity timer. Freeing the local slot at the ack
       # deadline would let this shard recycle its whole cap several times
       # through a budget the broker has not released.
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
-      drain(3)
-      [{id, :batch, _entries, stamp} = row] = :ets.tab2list(wire.table)
+      publish_cohort(wire, 3)
+      {id, :batch, _entries, stamp} = row = swept_row(wire, 3)
 
       assert Atomic.expire(row, wire) == :ok
 
@@ -399,8 +370,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "a late reply proves the broker is done and hands the slot back", %{wire: wire} do
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
       ref = commit_ref(wire, 3)
       [row] = :ets.tab2list(wire.table)
       Atomic.expire(row, wire)
@@ -423,8 +393,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
       # and an error PubAck for every rejection, allow_atomic being off
       # included). The cohort is on the stream, so counting it failed would
       # report total data loss during healthy ingest.
-      admit(wire, 3)
-      Atomic.send_cohort(Enum.map(1..3, &entry/1), wire)
+      publish_cohort(wire, 3)
 
       assert Atomic.ack(start_ref(wire, 3), @stored, wire) == :ok
 
@@ -438,8 +407,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "the outcome is counted apart from every failure counter", %{wire: wire} do
-      admit(wire, 2)
-      Atomic.send_cohort(Enum.map(1..2, &entry/1), wire)
+      publish_cohort(wire, 2)
 
       Atomic.ack(start_ref(wire, 2), @stored, wire)
 
@@ -455,6 +423,34 @@ defmodule Ingress.Nats.Publisher.WireTest do
   defp admit(wire, count), do: Enum.each(1..count, fn _ -> Pending.reserve(wire.counter) end)
 
   defp entry(n), do: {@subject, ~s({"n":#{n}}), nil}
+
+  # The two steps every case opens with: charge admission for the cohort, then
+  # hand it to a wire. Named per wire because which one wrote the cohort is the
+  # whole point of the case that follows.
+  defp publish_single(wire), do: publish(Single, wire, 1)
+  defp publish_cohort(wire, count), do: publish(Atomic, wire, count)
+
+  defp publish(wire_impl, wire, count) do
+    admit(wire, count)
+    wire_impl.send_cohort(Enum.map(1..count, &entry/1), wire)
+  end
+
+  # The pending row the sweep would find. The cohort's own writes are drained
+  # first so a later refute_receive can only trip on a re-drive.
+  defp swept_row(wire, count) do
+    Enum.each(1..count, fn _ -> drain_reply() end)
+    [row] = :ets.tab2list(wire.table)
+    row
+  end
+
+  # Every dedup-free drop resolves the same way, whichever wire and whichever
+  # ambiguous outcome produced it: nothing re-driven, no pending work left, and
+  # every event in the cohort counted failed.
+  defp assert_dropped(wire, count) do
+    refute_receive {:pub, _, _, _}, 100
+    assert Pending.pending(wire.counter) == 0
+    assert Pending.take_failed(wire.counter) == count
+  end
 
   defp single_ref(wire) do
     assert_receive {:pub, @subject, _json, opts}, 500
@@ -480,10 +476,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
     assert_receive {:pub, @subject, _json, opts}, 500
     Keyword.get(opts, :reply_to)
   end
-
-  # Clears the cohort's own writes so a later refute_receive can only trip on a
-  # re-drive.
-  defp drain(count), do: Enum.each(1..count, fn _ -> drain_reply() end)
 
   defp tagged?(nil, _tag), do: false
   defp tagged?(reply, tag), do: String.contains?(reply, tag)

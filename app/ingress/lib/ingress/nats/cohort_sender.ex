@@ -102,5 +102,5 @@ defmodule Ingress.Nats.CohortSender do
     do: {:error, :not_connected}
 
   defp lane_publish(true, connection, subject, payload, opts, timeout),
-    do: Wire.safe_pub(connection, subject, payload, opts, timeout)
+    do: Wire.safe_pub(connection, {subject, payload, opts}, timeout)
 end

@@ -67,6 +67,15 @@ defmodule Ingress.Nats.Publisher.Wire do
   @type outcome :: :ok | :rejected | :ambiguous
 
   @typedoc """
+  One write in the shape the connection takes it: subject, payload, and the
+  publish options (`:reply_to`, `:headers`) the caller has already built. The
+  three travel together because no wire ever has one without the others —
+  `t:Ingress.Nats.CohortSender.request/0` is the same shape with a lane token
+  in front.
+  """
+  @type message :: {String.t(), iodata(), keyword()}
+
+  @typedoc """
   Immutable per-shard context. Built once by the collector at init and passed
   to every wire call; nothing in it changes over the shard's life.
   """
@@ -122,17 +131,14 @@ defmodule Ingress.Nats.Publisher.Wire do
   def parts({subject, json, _from}), do: {subject, json, []}
   def parts({subject, json, trace_headers, _from}), do: {subject, json, trace_headers}
 
-  @spec pub(GenServer.server(), String.t(), iodata(), String.t(), Gnat.headers(), pos_integer()) ::
-          :ok | {:error, term()}
-  def pub(conn, subject, json, reply, trace_headers, timeout),
-    do: safe_pub(conn, subject, json, publish_opts([reply_to: reply], trace_headers), timeout)
-
   @spec publish_opts(keyword(), Gnat.headers()) :: keyword()
   def publish_opts(opts, []), do: opts
   def publish_opts(opts, headers), do: Keyword.put(opts, :headers, headers)
 
   @doc """
-  One wire write, bounded by `timeout` and never allowed to raise.
+  One wire write, bounded by `timeout` and never allowed to raise. The message
+  arrives as one value because `subject`, payload and options are built
+  together at every call site and mean nothing apart.
 
   `Gnat.pub/4` hardcodes the 5s `GenServer.call` default, which outlives the
   publisher's whole ack budget: while the collector blocks in it, it applies no
@@ -146,9 +152,8 @@ defmodule Ingress.Nats.Publisher.Wire do
   "the message never left the VM", so callers resolve the row immediately
   instead of holding a slot until the sweep.
   """
-  @spec safe_pub(GenServer.server(), String.t(), iodata(), keyword(), pos_integer()) ::
-          :ok | {:error, term()}
-  def safe_pub(conn, subject, json, opts, timeout) do
+  @spec safe_pub(GenServer.server(), message(), pos_integer()) :: :ok | {:error, term()}
+  def safe_pub(conn, {subject, json, opts}, timeout) do
     started = :erlang.monotonic_time()
     result = GenServer.call(conn, {:pub, subject, json, prepare_headers(opts)}, timeout)
     latency = :erlang.monotonic_time() - started

@@ -74,7 +74,7 @@ defmodule Ingress.Nats.Publisher.Wire.Atomic do
       headers = batch_headers(batch_id, seq, last) ++ trace_headers
       opts = pub_opts(headers, reply_for(seq, last, id, wire))
 
-      case Wire.safe_pub(wire.conn, subject, json, opts, wire.call_timeout_ms) do
+      case Wire.safe_pub(wire.conn, {subject, json, opts}, wire.call_timeout_ms) do
         :ok -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end

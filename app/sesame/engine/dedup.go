@@ -147,11 +147,23 @@ func dedupKey(identity, effect string) string {
 	return identity + ":" + effect
 }
 
+// CounterTarget names the one counter a peek reads: the channel's counter by
+// name, plus the viewer and command buckets its scope may select (each ignored
+// when the scope does not use it). It is LoyaltyStore.CounterPeek's identifying
+// tuple carried as one value, so a replayed bump names its counter the same way
+// the bump that produced the value did.
+type CounterTarget struct {
+	BroadcasterID uint64
+	Name          string
+	ViewerID      uint64
+	Command       string
+}
+
 // CounterPeekValue reads a counter's current value without incrementing it — the
 // value a REPLAYED bump should render instead of double-incrementing. Empty when
 // unknown, which renders the same as an unbound counter token.
-func CounterPeekValue(ctx context.Context, s LoyaltyStore, broadcasterID uint64, name string, viewerID uint64, command string) string {
-	c, found, err := s.CounterPeek(ctx, broadcasterID, name, viewerID, command)
+func CounterPeekValue(ctx context.Context, s LoyaltyStore, target CounterTarget) string {
+	c, found, err := s.CounterPeek(ctx, target.BroadcasterID, target.Name, target.ViewerID, target.Command)
 	if err != nil || !found {
 		return ""
 	}

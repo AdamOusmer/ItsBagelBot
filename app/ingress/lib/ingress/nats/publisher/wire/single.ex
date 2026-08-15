@@ -77,9 +77,9 @@ defmodule Ingress.Nats.Publisher.Wire.Single do
   # Malformed acknowledgements are ambiguous and therefore fail closed too.
   defp settle(:ambiguous, row, wire), do: drop(row, wire)
 
-  defp retry_or_drop({id, :single, subject, payload, attempts, _stamp} = row, wire) do
+  defp retry_or_drop({_id, :single, _subject, _payload, attempts, _stamp} = row, wire) do
     if attempts < wire.max_attempts do
-      retry(id, subject, payload, attempts, wire)
+      retry(row, wire)
     else
       drop(row, wire)
     end
@@ -92,12 +92,12 @@ defmodule Ingress.Nats.Publisher.Wire.Single do
   # saturated for attempts × ack_timeout after the connection is already gone,
   # shedding new events as :overloaded instead of the accurate :not_connected —
   # and would count a retry that never happened.
-  defp retry(id, subject, payload, attempts, wire) do
+  defp retry({id, :single, subject, payload, attempts, _stamp}, wire) do
     Pending.insert_single(wire.table, id, subject, payload, attempts + 1)
     {json, trace_headers} = payload_parts(payload)
-    reply = AckPath.single(wire.prefix, id)
+    opts = Wire.publish_opts([reply_to: AckPath.single(wire.prefix, id)], trace_headers)
 
-    case Wire.pub(wire.conn, subject, json, reply, trace_headers, wire.call_timeout_ms) do
+    case Wire.safe_pub(wire.conn, {subject, json, opts}, wire.call_timeout_ms) do
       :ok -> Pending.retried(wire.counter)
       {:error, _reason} -> settle_failed(id, wire)
     end

@@ -36,7 +36,10 @@ func TestRetryLanesAreDrainedAlongsideTheHotLanes(t *testing.T) {
 	}
 	// The retry lanes carry exceptional traffic and must not hold pool slots away
 	// from live chat.
-	if lanes[0].Reserve != 25 || lanes[2].Reserve != 0 || lanes[3].Reserve != 0 {
+	premiumKeepsItsReserve := lanes[0].Reserve == 25
+	retryLanesHoldNoSlots := lanes[2].Reserve == 0 && lanes[3].Reserve == 0
+	reservesFollowTheLanePolicy := premiumKeepsItsReserve && retryLanesHoldNoSlots
+	if !reservesFollowTheLanePolicy {
 		t.Fatalf("reserves = %d/%d/%d", lanes[0].Reserve, lanes[2].Reserve, lanes[3].Reserve)
 	}
 }
