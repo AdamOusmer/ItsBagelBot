@@ -181,7 +181,7 @@ spec:
             # from an old ingress image are silently rejected. Verify the
             # ingress rollout is converged on a post-partition image first.
             - name: NATS_INGRESS_PARTITION
-              value: "off"
+              value: "on"
             # Reuse the worker's shared lane consumer so this is a true drop-in:
             # no DeliverAll replay, and rollout overlap load-balances instead of
             # double-processing.
@@ -355,7 +355,11 @@ spec:
       metadata:
         natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
         account: BUS
-        stream: TWITCH_INGRESS
+        # The standard durable lives on the partitioned stream. Naming the old
+        # stream here after the partition would read a consumer that no longer
+        # exists, and KEDA fails soft: it serves the static `fallback` replicas
+        # while the HPA still reads healthy.
+        stream: TWITCH_INGRESS_STANDARD
         consumer: worker_twitch_ingress_event_standard
         # Do not add a whole pod for breadcrumbs: at the five-pod floor this
         # scales only beyond ~30k queued standard events at the five-pod floor,
