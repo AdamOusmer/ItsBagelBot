@@ -39,6 +39,17 @@ spec:
       type: ClusterIP
       spec:
         trafficDistribution: PreferClose
+        # cloudflared (kube-system-adjacent, cloudflared ns) lands on exactly
+        # the same 3 worker nodes as this traefik DaemonSet (both gated by
+        # itsbagelbot.dev/role != cp). PreferClose is a best-effort zone hint
+        # and can still spill a request to a traefik pod on another node;
+        # internalTrafficPolicy: Local makes the node-local hop a hard
+        # requirement instead, closing the cross-node hairpin. Safe here
+        # specifically because cloudflared's node set is a subset of
+        # traefik's -- Local never leaves a node with zero endpoints.
+        # If cloudflared's placement rules ever diverge from traefik's,
+        # this must be revisited before it silently fails closed.
+        internalTrafficPolicy: Local
     resources:
       requests:
         cpu: 100m
