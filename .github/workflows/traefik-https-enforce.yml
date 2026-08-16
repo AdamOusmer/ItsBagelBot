@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+#
+# Staged target path: .github/workflows/traefik-https-enforce.yml
+#
+# "traefik -> backend is always https, no exceptions", enforced mechanically:
+# Traefik 3.6 has no global default-backend-scheme flag, so the only honest
+# enforcement point is walking every route object under deploy/ and failing
+# on any backend scheme that isn't https. See .github/scripts/check_route_schemes.py
+# for exactly what is (and, documented explicitly, is not) covered.
+#
+# KNOWN RED ON FIRST RUN: as of this staging, deploy/flux/clusters/production/
+# flux-system/ingress-webhook.yaml (webhook-receiver -> notification-controller)
+# and deploy/k8s/transactions.yaml (transactions-webhooks -> transactions) are
+# both still http. notification-controller (upstream Flux, v1.8.4 binary,
+# --help confirms zero TLS flags on --receiverAddr) cannot serve TLS without a
+# sidecar; transactions' Go listener is plain net/http.ListenAndServe with no
+# TLS_CERT_FILE-style wiring the way console-dashboard has. Both need real
+# app-level work, not a YAML flip -- see the investigation notes. This
+# workflow is meant to go red and stay red until those land, not to be
+# loosened to let them through.
+name: Traefik HTTPS backend enforcement
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths:
+      - 'deploy/**.yaml'
+      - 'deploy/**.yml'
+      - '.github/workflows/traefik-https-enforce.yml'
+      - '.github/scripts/check_route_schemes.py'
+  push:
+    paths:
+      - 'deploy/**.yaml'
+      - 'deploy/**.yml'
+      - '.github/workflows/traefik-https-enforce.yml'
+      - '.github/scripts/check_route_schemes.py'
+  workflow_dispatch:
+jobs:
+  check:
+    name: All Traefik routes must back onto https
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyyaml==6.0.2
+      - run: python3 .github/scripts/check_route_schemes.py
