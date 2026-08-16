@@ -33,11 +33,37 @@ func clientTLSConfig() (*tls.Config, error) {
 	if serverName == "" {
 		serverName = defaultTLSServerName
 	}
-	return &tls.Config{
+	config := &tls.Config{
 		RootCAs:    pool,
 		ServerName: serverName,
 		MinVersion: tls.VersionTLS12,
-	}, nil
+	}
+
+	// mTLS: Valkey's tls-auth-clients yes rejects any connection (data port
+	// AND Sentinel port -- both share this one config) that does not present
+	// a cert chaining to the CA above. Deliberately file-based, not a PEM env
+	// var like VALKEY_TLS_CA_PEM: that CA is public, this is a private key,
+	// and a Secret volume mount keeps it out of `kubectl describe pod`, env
+	// dumps, and any log/panic handler that serializes the process env.
+	certFile := os.Getenv("VALKEY_TLS_CLIENT_CERT_FILE")
+	keyFile := os.Getenv("VALKEY_TLS_CLIENT_KEY_FILE")
+	if certFile == "" && keyFile == "" {
+		// Deliberately permissive: unset means "server not requiring client
+		// auth yet," which is the state every consumer is in until its own
+		// Deployment is updated with the cert volume. This is what makes the
+		// per-service mount + cert-issuance rollout a no-op ahead of the
+		// tls-auth-clients flip, instead of a synchronized flag day.
+		return config, nil
+	}
+	if certFile == "" || keyFile == "" {
+		return nil, fmt.Errorf("valkey: VALKEY_TLS_CLIENT_CERT_FILE and VALKEY_TLS_CLIENT_KEY_FILE must both be set or both be empty")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("valkey: loading client cert/key: %w", err)
+	}
+	config.Certificates = []tls.Certificate{cert}
+	return config, nil
 }
 
 func cloneTLSConfig(config *tls.Config) *tls.Config {
