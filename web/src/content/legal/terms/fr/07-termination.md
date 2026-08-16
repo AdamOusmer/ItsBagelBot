@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Résiliation"
 plain: "Nous pouvons fermer un compte qui enfreint les règles. Vous pouvez partir en tout temps."
 ---

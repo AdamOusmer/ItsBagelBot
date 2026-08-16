@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Inline reward editor (create + edit share it), rendered in the page's
   // docked inspector — the same surface as the command editor. The whole draft
   // travels as one JSON field; the server validates and normalizes it.

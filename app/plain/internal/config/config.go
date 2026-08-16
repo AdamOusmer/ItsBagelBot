@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package config loads the worker's runtime settings from the environment.
 //
 // The worker sits between ingress and outgress: it drains the two of ingress

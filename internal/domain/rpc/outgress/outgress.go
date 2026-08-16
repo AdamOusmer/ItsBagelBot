@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package outgress defines request/reply contracts for authenticated Twitch
 // reads exposed by the outgress service to Sesame.
 package outgress

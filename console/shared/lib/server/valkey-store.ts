@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Read-only Valkey view of the settings projection (tier 2 of the read path).
 //
 // The Go projector owns and writes the `settings:<user_id>` hash; console only

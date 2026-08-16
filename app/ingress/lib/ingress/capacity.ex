@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Capacity do
   @moduledoc """
   Authoritative capacity values shared by the autoscaler and admin snapshot.

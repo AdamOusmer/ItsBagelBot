@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package govee is the gossip provider for the Govee smart-light Developer
 // API (openapi.api.govee.com). Unlike the stats providers it holds no service
 // API key of its own: every call authenticates with the broadcaster's own key,

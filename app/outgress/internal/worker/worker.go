@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package worker drains one outgress lane: it enforces the channel registry,
 // the Twitch rate limits, and the premium reservation, then executes the
 // Helix request. Handlers nack on anything retryable and rely on the lane

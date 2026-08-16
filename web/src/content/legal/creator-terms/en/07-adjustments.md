@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Refunds, Chargebacks & Adjustments"
 plain: "If a purchase is refunded or charged back, the matching share is reversed."
 ---

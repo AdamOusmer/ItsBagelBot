@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Custom-cursor preference toggle. Binds to the shared `customCursor` store so
   // flipping it changes the cursor live (no reload), then POSTs to /cursor to
   // persist the choice to the account + preference cookie. A persistence failure

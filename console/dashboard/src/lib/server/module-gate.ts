@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Delegate gate for the bespoke module pages (quotes, timers, govee, ...).
 // Which delegation grants open a page comes from the module catalog
 // (moduleDelegateSections), the same source guard.ts uses for route scoping —

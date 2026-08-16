@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Quotes store: the channel quote book behind the quotes module.
 //
 // Unlike timers (whose list lives inside the module blob), quotes are

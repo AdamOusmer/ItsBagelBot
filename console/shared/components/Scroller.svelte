@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // A scroll region wearing the console's thin tan scrollbar instead of the
   // browser's default chrome bar. Drop it anywhere a panel needs to scroll:
   // the account menu's shared-dashboards list, the command inspector, and so on.

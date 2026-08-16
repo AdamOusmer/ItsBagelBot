@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Data We Don't Collect"
 plain: "No personal browsing profiles, ad data, or IP-based tracking by us."
 ---

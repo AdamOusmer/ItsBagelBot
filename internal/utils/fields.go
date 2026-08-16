@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 package utils
 
 // BoolField encodes a bool as a compact Valkey/Redis hash field value: "1" for

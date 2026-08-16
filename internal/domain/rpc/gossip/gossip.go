@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package gossiprpc holds the shared wire types for the gossip service RPC
 // surface: the one request shape every provider endpoint accepts, and the typed
 // reply each endpoint answers with.

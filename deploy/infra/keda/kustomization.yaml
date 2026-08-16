@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # KEDA (operator + metrics-server + admission webhooks), reconciled by the Flux
 # "keda" Kustomization (deploy/flux/clusters/production/keda.yaml). No
 # `namespace:` field: targetNamespace stays unset so the HelmRepository (in

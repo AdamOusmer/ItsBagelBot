@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: RPC contracts
 description: Every NATS request-reply endpoint in ItsBagelBot. Subjects, JSON request/reply shapes, owners, and timeouts.
 ---

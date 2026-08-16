@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Renseignements recueillis"
 plain: "Votre identifiant Twitch, le clavardage traité sur le moment, des statistiques d’utilisation agrégées et un courriel de contact facultatif."
 ---

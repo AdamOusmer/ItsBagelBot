@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The permission group for a share link: a real <fieldset><legend> so the set
   // of section checkboxes is announced as one labelled group. Each CheckButton
   // carries its own name so the enclosing form submits `<section>=on`. When the

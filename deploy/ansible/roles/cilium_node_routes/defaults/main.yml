@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # Source-hint routes for a node whose Cilium node IP is NOT the address the
 # kernel would pick for outbound traffic on its primary interface.

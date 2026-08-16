@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Children's Privacy"
 plain: "The service is not for children under 13, and we do not knowingly collect their data."
 ---

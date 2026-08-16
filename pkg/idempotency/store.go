@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package idempotency is the fleet's consumer-side duplicate guard. A JetStream
 // redelivery (a quorum-loss resend of the same stored message) and a
 // schedule-retry hop (the flow consumer re-emits a failed event) both deliver

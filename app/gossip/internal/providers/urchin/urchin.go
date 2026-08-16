@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package urchin is the gossip provider for the urchin.gg Coral API: Hypixel
 // Bed Wars session deltas (daily/weekly/monthly) and the Urchin cheater
 // blacklist (sniper score, tags). Lifetime stats live in the hypixel provider:

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 package moderation
 
 // A compact Aho-Corasick matcher: one pass over the text finds whether any of a

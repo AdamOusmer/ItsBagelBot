@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 # Wrapper around adr-tools that points it at the project-local template
 # and post-processes `adr new` output so the frontmatter title uses the
 # zero-padded NNNN format (matching the filename), instead of the raw

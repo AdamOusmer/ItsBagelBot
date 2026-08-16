@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Hub NATS server. The nats-config configmap is generated from
 # nats-server.conf + nats-auth.conf by the Flux kustomize configMapGenerator
 # (deploy/k8s/kustomization.yaml); bcrypt hashes come from the nats-auth-env

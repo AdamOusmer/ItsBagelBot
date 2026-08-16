@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView } from '@bagel/shared';
 import { MODULE_CATALOG } from '@bagel/shared';

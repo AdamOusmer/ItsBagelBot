@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import type { Snippet } from 'svelte';
   let { eyebrow, title, description, children }:
     { eyebrow?: string; title?: string; description?: string; children?: Snippet } = $props();

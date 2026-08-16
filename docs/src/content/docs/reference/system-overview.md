@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: System state
 description: The current shape of ItsBagelBot. Services, the data plane, the message bus, and how a chat message becomes a reply.
 ---

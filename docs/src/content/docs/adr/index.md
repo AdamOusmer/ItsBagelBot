@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: Architecture Decision Records
 description: The decision log for ItsBagelBot. Why the system looks the way it does.
 ---

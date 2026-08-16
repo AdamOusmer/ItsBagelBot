@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Modifications"
 plain: "Les conditions peuvent changer; continuer à utiliser le service signifie que vous acceptez les nouvelles conditions."
 ---

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 # Provision a fresh RHEL-family box into the fleet, secrets injected by Doppler.
 #
 # Usage:

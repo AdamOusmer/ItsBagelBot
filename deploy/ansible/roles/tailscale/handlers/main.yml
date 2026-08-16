@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 - name: Restart tailscaled
   ansible.builtin.shell: sleep 2 && systemctl restart tailscaled

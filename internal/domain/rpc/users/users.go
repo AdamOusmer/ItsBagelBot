@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package usersrpc holds the shared wire types for the users service RPC surface.
 // These types are transcribed verbatim from app/users/rpc so that consumers can
 // reference a single, import-friendly package without pulling in the full service.

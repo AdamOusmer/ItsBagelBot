@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Rpc do
   @moduledoc """
   Node-local-first Core NATS routing with the generic queue retained for HA.

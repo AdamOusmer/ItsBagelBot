@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Local, in-page section navigation for the Settings page. Real <a href="#id">
   // anchors (NOT ARIA tabs): each one scrolls to and focuses a <section> whose
   // tabindex=-1 + scroll-margin-top lands it below the sticky topbar. Plain

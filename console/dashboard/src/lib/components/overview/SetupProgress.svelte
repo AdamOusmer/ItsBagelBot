@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Incomplete accounts: a short, ordered setup checklist instead of an empty
   // "top commands" card. Each step says what it is, whether it is done (in words,
   // not just a tick), and links to where it gets done. `receiving` is main's honest

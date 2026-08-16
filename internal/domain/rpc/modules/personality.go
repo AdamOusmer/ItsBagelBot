@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 package modulesrpc
 
 // FeedBumpRequest asks the modules service to increment the permanent global

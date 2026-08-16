@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
+     Proprietary and unlicensed. See LICENSE.md. -->
 # Translating ItsBagelBot
 
 Every user-facing string lives in plain data files: JSON for interface text and chat replies, Markdown for the legal pages. Adding or improving a language never requires touching code, and nothing in a translation file is ever executed. You edit data, open a pull request, and CI rebuilds everything.

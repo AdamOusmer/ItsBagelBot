@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Config.Squash do
   @moduledoc """
   Chat-squash tuning (see `Ingress.Squash` and its partition pool).

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Stroke icons lifted from the design bundle (Dashboard.html). Values are the
 // inner markup of a `viewBox="0 0 24 24"` SVG; Icon.svelte wraps them. Static
 // constants only — never interpolate user input here.

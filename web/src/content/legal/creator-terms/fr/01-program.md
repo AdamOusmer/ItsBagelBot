@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Le programme de codes de créateur"
 plain: "Les créateurs approuvés reçoivent un code. Les achats faits avec ce code soutiennent le créateur, et certains codes offrent un rabais."
 ---

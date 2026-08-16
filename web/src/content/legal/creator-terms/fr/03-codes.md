@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Votre code"
 plain: "Votre code est personnel et incessible. Nous pouvons le modifier ou le désactiver au besoin."
 ---

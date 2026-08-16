@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package providers wires every external API system gossip serves, the
 // twin of sesame's app/sesame/modules package: each system lives in its own
 // subpackage, and adding one is writing that package plus one entry here.

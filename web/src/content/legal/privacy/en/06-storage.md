@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Data Storage, Retention & Transfers"
 plain: "Chat is processed live, not kept. Settings stay encrypted in Canada for as long as your account exists."
 ---

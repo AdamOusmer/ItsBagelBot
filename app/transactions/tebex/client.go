@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package tebex is the minimal Tebex Headless API client the checkout RPC
 // needs: create a basket carrying the buyer's user id and put the premium
 // package in it. Everything else (payment, receipts, subscription state)

@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Compact EN/FR toggle. Posts to /lang (plain form, no fetch) with the current
   // path as `next` so the switch keeps you on the same page in the new language.
   import { page } from '$app/state';

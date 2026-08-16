@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import type { TimerDef } from '@bagel/shared';
 import { blankTimer } from '@bagel/shared';

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Bounded in-process cache: LRU eviction + stale-while-revalidate + single-flight.
 //
 // This is tier 1 of the read path (per-replica, microsecond hits). Freshness is

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { RequestHandler } from './$types';
 import { subscribe } from '$lib/server/live-hub';
 import { env } from '$env/dynamic/private';

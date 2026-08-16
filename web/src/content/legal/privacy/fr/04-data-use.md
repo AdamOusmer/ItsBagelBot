@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Utilisation et fondements juridiques"
 plain: "Nous utilisons les renseignements pour fournir et sécuriser le service. Nous ne les vendons ni ne les louons."
 ---

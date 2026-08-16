@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Bot-global counters: the reserved loyalty namespace shared across every
   // channel (e.g. the personality module's lifetime tallies). Managers create,
   // set and delete them here; system modules bump them from Go. Broadcasters

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Signed "view as" tokens shared by the admin issuer and dashboard verifier.
 // Keys are base64-encoded DER: PKCS8 for the private key and SPKI for the
 // public key. Defaults come from the Node process environment; injectable

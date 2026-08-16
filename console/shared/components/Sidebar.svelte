@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import Brand from './Brand.svelte';
   import NavGroup from './NavGroup.svelte';
   import AccountFoot from './AccountFoot.svelte';

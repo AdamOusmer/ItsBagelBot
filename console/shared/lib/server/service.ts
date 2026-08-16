@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Declarative RPC service definitions.
 //
 // Both consoles' service layers are the same shape repeated ~25 times: an RPC

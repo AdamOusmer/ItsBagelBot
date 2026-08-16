@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.ClusterResolver do
   @moduledoc """
   Error-tolerant resolver shim for the libcluster `Cluster.Strategy.Kubernetes.DNS`

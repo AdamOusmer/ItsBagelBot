@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // CacheFabric: one per-app facade over the hybrid read path.
 //
 //   L1  SwrCache        — in-process, SWR + single-flight + generations.

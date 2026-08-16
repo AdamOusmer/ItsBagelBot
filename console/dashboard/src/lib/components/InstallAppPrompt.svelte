@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // A floating "Install app" pill that lets phone users add the dashboard to
   // their home screen as a PWA. Two install paths are supported:
   //   - Chromium (Android/desktop): captures the `beforeinstallprompt` event and

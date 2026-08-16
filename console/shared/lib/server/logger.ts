@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Server-only structured logger, shared by both consoles.
 //
 // Why pino (not console.*): the New Relic Node agent auto-instruments pino and,

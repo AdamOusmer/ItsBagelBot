@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 /**
  * Decode-on-view text — the brand's "decrypt" reveal, reused from the
  * encryption scene as a shared utility. Tag an element `data-decode`; the

@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
+     Proprietary and unlicensed. See LICENSE.md. -->
 # Twitch Ingress
 
 Elixir/BEAM service that owns the Twitch EventSub **Conduit** and its WebSocket shards, filters incoming payloads,

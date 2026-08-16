@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package goveerpc holds the shared wire types for the Govee API-key custody
 // RPC the modules service owns. The key is a broadcaster secret: it is stored
 // encrypted at rest (Tink AEAD, the modules service's own keyset) and never
