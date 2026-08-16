@@ -4,8 +4,18 @@
 package bus
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -85,6 +95,94 @@ func TestBusPublishURLPrefersNodeLocalOverride(t *testing.T) {
 
 	if got := busPublishURL("ignored"); got != "nats://nats:4222" {
 		t.Fatalf("busPublishURL = %q, want node-local hub Service", got)
+	}
+}
+
+// loadClientCert must not treat a missing mount as an error worth logging —
+// that is the expected state before the cert/mount has rolled out fleet-wide,
+// and tlsSecureOption relies on errNoClientCert specifically to stay quiet
+// about it (see the "NOT YET REQUIRED" comment there).
+func TestLoadClientCertMissingFileIsQuiet(t *testing.T) {
+	dir := t.TempDir()
+	_, err := loadClientCert(filepath.Join(dir, "tls.crt"), filepath.Join(dir, "tls.key"))
+	if !errors.Is(err, errNoClientCert) {
+		t.Fatalf("err = %v, want errNoClientCert", err)
+	}
+}
+
+// A cert file that exists but is not a valid PEM keypair is a real
+// misconfiguration (a corrupt mount, wrong Secret key, ...), not the staged
+// rollout's "not there yet" state, so it must NOT collapse to
+// errNoClientCert — tlsSecureOption logs this branch.
+func TestLoadClientCertCorruptFileIsNotSilent(t *testing.T) {
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	if err := os.WriteFile(certFile, []byte("not a cert"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, []byte("not a key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadClientCert(certFile, keyFile)
+	if err == nil {
+		t.Fatal("want an error for a corrupt cert file")
+	}
+	if errors.Is(err, errNoClientCert) {
+		t.Fatal("a corrupt file must not be reported as errNoClientCert — that hides a real misconfiguration")
+	}
+}
+
+// A valid keypair at the mount path must load successfully — the fleet-wide
+// mount's whole purpose.
+func TestLoadClientCertValidKeypairLoads(t *testing.T) {
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	writeSelfSignedKeypair(t, certFile, keyFile)
+
+	cert, err := loadClientCert(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("loadClientCert: %v", err)
+	}
+	if len(cert.Certificate) == 0 {
+		t.Fatal("loaded certificate has no DER bytes")
+	}
+}
+
+// writeSelfSignedKeypair generates a throwaway ECDSA cert/key pair and writes
+// it as PEM to the given paths — enough for tls.LoadX509KeyPair to parse
+// successfully; the fleet CA chain-of-trust itself is exercised by
+// tlsSecureOption's RootCAs pool, not by this loader.
+func writeSelfSignedKeypair(t *testing.T, certFile, keyFile string) {
+	t.Helper()
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test-client"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keyBytes, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyBytes}), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -6,6 +6,9 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
+	"os"
 	"regexp"
 	"time"
 
@@ -35,6 +38,32 @@ import (
 // posture, keepalives, server_name prefix; see the header there for the full
 // list) and deploy/k8s/nats-server.conf (hub). Change either side with the
 // other open.
+//
+// mTLS: both the hub's client listener (4222, nats-server.conf) and the
+// leaf's client listener (4223, nats-leaf-server.conf) require a client
+// certificate once their tls.verify:true lands. clientCertFile/clientKeyFile
+// below is the ONE fixed mount path every service gets, fleet-wide, from the
+// kustomize patch in deploy/k8s/kustomization.yaml (the shared
+// nats-bus-client-tls Secret, issued in deploy/infra/pki/certificates.yaml)
+// — not a per-service env var. tlsSecureOption is shared by rpcOptions and
+// busOptions (in fact by every nats.Connect call site in this package:
+// bus.go, batch_publisher.go, flow_delivery.go, provision.go,
+// pull_consumer.go all fall through busOptions/rpcOptions), so this one
+// function is the entire Go-side chokepoint — pkg/svcboot's MustNATS has no
+// TLS logic of its own, it composes bus.Connect/NewPublisher/NewSubscriber
+// like every other caller. Account isolation (bcrypt user/password ->
+// account, auth.conf) is unchanged: this is chain-of-trust verify:true, not
+// verify_and_map, so it layers under the existing auth rather than replacing
+// any part of it.
+//
+// KNOWN GAP: nothing here watches the mounted client cert file for renewal.
+// The NATS server pods have a config-reloader sidecar for their own server
+// cert; this client has no equivalent. cert-manager rotates
+// nats-bus-client-tls in place before expiry, but a long-lived connection
+// that never reconnects across the rotation window keeps using the
+// certificate that was loaded into memory at process start — surfacing as
+// an unexplained connect failure weeks after deploy (the next reconnect,
+// not a graceful cert swap), not at deploy time. Not solved here.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be
@@ -158,11 +187,55 @@ func logAsyncError(_ *nats.Conn, sub *nats.Subscription, err error) {
 		zap.Error(err))
 }
 
+// clientCertFile / clientKeyFile are the fixed mount path every service's
+// manifest gets via the fleet-wide kustomize patch in
+// deploy/k8s/kustomization.yaml (the nats-bus-client-tls Secret, issued in
+// deploy/infra/pki/certificates.yaml). Fixed and non-configurable per
+// service on purpose: a per-service env var meant every manifest had to
+// remember to set it, and a forgotten one connected with no client cert and
+// only failed once the server's verify:true landed — silent until then. One
+// baked-in path means the only way to not present a cert is to not mount
+// the Secret, which the fleet-wide patch does unconditionally for every
+// Deployment/CronJob that dials NATS.
+const (
+	clientCertFile = "/etc/nats/client-certs/tls.crt"
+	clientKeyFile  = "/etc/nats/client-certs/tls.key"
+)
+
+// errNoClientCert marks "no cert at the mount path" as distinct from "a cert
+// is there but broken." tlsSecureOption treats the two differently: absent is
+// the expected state before the cert/mount has rolled out fleet-wide (or
+// before the enforcing commit lands), broken never is.
+var errNoClientCert = errors.New("no client certificate at mount path")
+
+// loadClientCert reads this service's mTLS client certificate from the fixed
+// mount path. Returns errNoClientCert, not a hard failure, when the files
+// simply are not there yet.
+func loadClientCert(certFile, keyFile string) (tls.Certificate, error) {
+	if _, err := os.Stat(certFile); err != nil {
+		return tls.Certificate{}, errNoClientCert
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("load client cert %s: %w", certFile, err)
+	}
+	return cert, nil
+}
+
 // tlsSecureOption returns a nats.Secure option that verifies the broker's server
 // cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
 // fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
-// plaintext server stays plaintext. Server-auth only: the client still
-// authenticates with its bcrypt user/password, not a client cert.
+// plaintext server stays plaintext. Also presents this service's own client
+// certificate (clientCertFile/clientKeyFile) when the fleet-wide mount has
+// one — needed once the hub's 4222 and leaf's 4223 listeners set
+// verify:true, since a connection without one then fails the TLS handshake
+// before auth.conf's bcrypt user/password check ever runs.
+//
+// NOT YET REQUIRED: a missing cert silently falls back to the server-auth-only
+// behavior this had before, so the cert and its fleet-wide mount can ship and
+// be confirmed present on every pod ahead of the hub/leaf verify:true that
+// will actually require it. A cert that IS present but unreadable/corrupt is
+// still logged — that is a real misconfiguration, not a staged-rollout state.
 func tlsSecureOption() nats.Option {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
@@ -172,7 +245,14 @@ func tlsSecureOption() nats.Option {
 	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
 		return nil
 	}
-	return nats.Secure(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
+	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+
+	if cert, err := loadClientCert(clientCertFile, clientKeyFile); err == nil {
+		cfg.Certificates = []tls.Certificate{cert}
+	} else if !errors.Is(err, errNoClientCert) {
+		zap.L().Error("nats client cert unreadable", zap.String("cert_file", clientCertFile), zap.Error(err))
+	}
+	return nats.Secure(cfg)
 }
 
 // rpcOptions authenticate the per-service account on the RPC plane. The creds

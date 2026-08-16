@@ -5,6 +5,7 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   connect,
   JSONCodec,
@@ -17,6 +18,37 @@ import {
 import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
 
 const jc = JSONCodec();
+
+// mTLS: fixed mount path this Deployment gets via the fleet-wide kustomize
+// patch in deploy/k8s/kustomization.yaml (the nats-bus-client-tls Secret,
+// issued in deploy/infra/pki/certificates.yaml) — not a per-service env var.
+// Same path pkg/bus/connect.go and app/ingress/config/runtime.exs read by
+// default; see connect.go's header for why a fixed path replaced the
+// original per-service env var design.
+const CLIENT_CERT_FILE = '/etc/nats/client-certs/tls.crt';
+const CLIENT_KEY_FILE = '/etc/nats/client-certs/tls.key';
+
+// loadClientCert reads this service's mTLS client certificate from the fixed
+// mount path, or returns undefined when the files are not there yet (not a
+// hard failure — see the NOT YET REQUIRED note on its call site) or fail to
+// read.
+//
+// KNOWN GAP: nothing here watches these files for renewal. cert-manager
+// rotates nats-bus-client-tls in place before expiry; this process only
+// reads the files when a connection actually (re)dials, so a long-running
+// pod that never reconnects across the rotation window keeps presenting the
+// expired cert in memory until its next TLS handshake — an unexplained
+// connect failure weeks after deploy, not a startup-time error. Not solved
+// here.
+function loadClientCert(): { cert: string; key: string } | undefined {
+  if (!existsSync(CLIENT_CERT_FILE) || !existsSync(CLIENT_KEY_FILE)) return undefined;
+  try {
+    return { cert: readFileSync(CLIENT_CERT_FILE, 'utf8'), key: readFileSync(CLIENT_KEY_FILE, 'utf8') };
+  } catch (err) {
+    console.error('nats client cert unreadable', CLIENT_CERT_FILE, err);
+    return undefined;
+  }
+}
 
 // Collapse numeric/id path tokens so per-subject RPC segments stay low-cardinality
 // in New Relic (e.g. `...status.12345` -> `...status.*`).
@@ -181,6 +213,24 @@ function options(role: Role): ConnectionOptions {
   // (local dev against a plaintext server) keeps the connection plaintext.
   const caPem = process.env.NATS_CA_PEM;
   if (caPem) opts.tls = { ca: caPem };
+  // mTLS: both the hub's 4222 listener (role 'bus') and the leaf's 4223
+  // listener (role 'rpc') require a client cert once their tls.verify:true
+  // lands (nats-server.conf / nats-leaf-server.conf). Applied to both roles
+  // — presenting a client cert to a listener that does not (yet) require one
+  // is harmless, and this console lib is the single TS chokepoint both
+  // console-dashboard and console-admin import, so one change here covers
+  // both deployments' 'bus' and 'rpc' connections.
+  //
+  // NOT YET REQUIRED: a missing cert leaves opts.tls exactly as assigned
+  // above (server-auth only, today's behavior), so this can ship and be
+  // confirmed present on both pods ahead of the verify:true that will
+  // actually require it.
+  if (caPem) {
+    const clientCert = loadClientCert();
+    if (clientCert) {
+      opts.tls = { ca: caPem, cert: clientCert.cert, key: clientCert.key };
+    }
+  }
   return opts;
 }
 
