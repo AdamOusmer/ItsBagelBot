@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the timers deck, built on the shared ManagementRow so the
   // clickable primary is a real button and the quick actions (pause/resume
   // switch, delete) are siblings of it — never nested inside it. The page passes

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Standardized row-list container card. Its only job is guaranteeing identical
   // container padding + class across list pages (timers/commands/etc). The row
   // items themselves are supplied by callers as children.

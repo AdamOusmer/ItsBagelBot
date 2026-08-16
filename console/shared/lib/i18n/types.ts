@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // The console i18n surface. A locale is any catalog shipped in this package: the
 // closed set is not a type union any more but the data itself — the JSON files in

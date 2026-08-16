@@ -1,6 +1,6 @@
 <script module lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Per-row save/propagation indicator. States mirror the real pipeline:
   //   saving — form round trip in flight
   //   saved  — service accepted the write (write-behind flush pending)

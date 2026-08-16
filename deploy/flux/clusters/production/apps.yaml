@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # This Kustomization applies the digest-pinned application manifests under deploy/k8s/.
 # ImageUpdateAutomation keeps those manifests current by committing updated image digests

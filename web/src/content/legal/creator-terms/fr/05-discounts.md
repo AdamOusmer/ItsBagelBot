@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Rabais pour les acheteurs"
 plain: "Certains codes donnent un rabais au paiement. Les codes n’ont aucune valeur en argent et ne sont pas cumulables."
 ---

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Ambient motion background for the onboarding. Pure CSS — a few blurred brand
   // orbs drifting on independent loops. No JS, no conic mesh, modest blur: keeps
   // it cheap so login/logout stay smooth. Freezes for reduced-motion.

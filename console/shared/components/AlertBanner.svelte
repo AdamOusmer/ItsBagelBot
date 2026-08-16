@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Inline status/degraded banner. `danger` reproduces the old page-local
   // .degraded look; `warn` is the tan variant. Message goes in the default
   // slot; an optional action snippet trails on the right.

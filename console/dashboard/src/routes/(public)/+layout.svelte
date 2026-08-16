@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Signed-out surface: the marketing site's chrome around a dashboard-rendered
   // page. Deliberately NO robots noindex (unlike (app)) — these pages are meant
   // to be found. The nav's off-site links follow the visitor's locale; the one

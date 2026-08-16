@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Admin access control. Authorization is DB-backed: a request must carry a
 // valid session whose Twitch user_id is an active row in the admin allowlist

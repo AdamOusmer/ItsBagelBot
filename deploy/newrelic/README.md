@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
-     Proprietary and unlicensed. See LICENSE.md. -->
+     Proprietary. No license granted. See LICENSE.md. -->
 # New Relic observability (account-side config as code)
 
 New Relic has two halves. The **agents** (metrics, logs, kube-state) ship from

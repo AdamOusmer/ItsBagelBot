@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: "0006 - Adoption of Elixir for Twitch Ingress"
 description: "Architecture decision record: Adoption of Elixir for Twitch Ingress"
 ---

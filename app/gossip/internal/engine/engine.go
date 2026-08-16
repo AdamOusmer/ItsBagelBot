@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package engine is the gossip service's runtime, mirroring sesame's module/engine
 // split: providers (app/gossip/internal/providers) declare what they answer,

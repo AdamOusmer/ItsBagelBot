@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
-     Proprietary and unlicensed. See LICENSE.md. -->
+     Proprietary. No license granted. See LICENSE.md. -->
 # Sesame Automod — Implementation Plan
 
 Each phase below is a shippable PR, grounded in the current sesame code (`app/sesame/engine`, `app/sesame/module`, `app/sesame/modules`) and the live ingress squash (folded `channel.chat.message` cohorts).

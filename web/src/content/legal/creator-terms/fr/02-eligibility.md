@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Admissibilité et candidatures"
 plain: "Vous soumettez une candidature, nous l’évaluons. L’approbation est à notre discrétion et votre compte doit rester en règle."
 ---

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package repository persists loyalty standings and counters. All high-volume
 // writes arrive as summed deltas from the worker (data.loyalty.* events),

@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: "0007 - Adoption of Per-Schema Data Microservices"
 description: "Architecture decision record: Adoption of per-schema data microservices
 as bounded contexts under app/, each owning its own MySQL schema"

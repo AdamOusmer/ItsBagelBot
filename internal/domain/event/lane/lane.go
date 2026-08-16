@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package lane holds the shared wire contract ingress publishes on the premium,
 // standard and stream lanes and the worker consumes. It is the single source of

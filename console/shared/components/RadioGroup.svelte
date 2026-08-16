@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Styled radio group backed by real <input type="radio"> elements (unlike
   // SegmentedControl, which is JS-only chip state) so it still posts via
   // native form submission / progressive enhancement.

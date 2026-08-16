@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: Caching and write-behind
 description: "The read path with stampede protection and the write path through the
 coalescing batcher, as UML sequence and state machine diagrams."

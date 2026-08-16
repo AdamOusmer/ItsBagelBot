@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # Sesame keeps the established pkg/bus consumer group ("worker"), but owns its
 # Doppler project and read-only service token. The old worker token is retained

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package projectorrpc holds the shared wire types for the projector service RPC surface.
 // The projector's commandsReply and modulesReply are field-identical to

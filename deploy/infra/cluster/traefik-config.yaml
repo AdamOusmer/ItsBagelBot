@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # k3s-managed traefik (HelmChartConfig overlays the bundled chart values).
 # Lives in /var/lib/rancher/k3s/server/manifests conceptually; we apply it

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package modules holds sesame's shipped features, one file per module. Each is
 // a func that takes the engine Deps and returns a built module.Module; all() in

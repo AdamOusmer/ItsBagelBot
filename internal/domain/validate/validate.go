@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package validate holds the input rules enforced at every trust boundary:
 // repository methods fed by RPC or webhooks, and event payloads consumed from

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Call-sign strip: with the sidebar gone this is the only chrome above the
   // content — station mark, route readout, wall clock, and the signed-in
   // operator. One thin ruled line, everything else is page.

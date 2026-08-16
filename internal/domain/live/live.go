@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package live holds the shared contract for the broadcaster live-status
 // projection: the Valkey key both the worker (reader/writer) and outgress (the

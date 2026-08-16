@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
-     Proprietary and unlicensed. See LICENSE.md. -->
+     Proprietary. No license granted. See LICENSE.md. -->
 # ItsBagelBot marketing site
 
 Static Astro site for [itsbagelbot.com](https://itsbagelbot.com): landing page,
