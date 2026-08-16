@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Loading placeholder for streamed sections. Shape follows the content it
   // stands in for: text lines, a pill, or a block (card/tile).
   let {

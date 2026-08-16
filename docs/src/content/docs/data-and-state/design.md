@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: Class design
 description: "UML class diagrams of the shared infrastructure and the repositories,
 and the design patterns the data plane is built on."

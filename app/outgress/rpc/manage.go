@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package rpc exposes the outgress management API over NATS request-reply,
 // mirroring the bagel.rpc.* conventions of the other services. It covers the

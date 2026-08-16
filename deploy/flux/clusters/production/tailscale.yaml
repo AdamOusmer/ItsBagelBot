@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # Tailscale operator resources (ProxyClass / ProxyGroup). Separate Kustomization
 # with targetNamespace unset so the cluster-scoped ProxyClass and the

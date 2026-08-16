@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 # Pin the flannel/CNI interfaces to firewalld's trusted zone.
 #
 # firewalld starts at boot BEFORE k3s creates cni0 and the flannel transport, so

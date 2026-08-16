@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Page callers degrade to

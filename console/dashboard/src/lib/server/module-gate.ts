@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Delegate gate for the bespoke module pages (quotes, timers, govee, ...).
 // Which delegation grants open a page comes from the module catalog

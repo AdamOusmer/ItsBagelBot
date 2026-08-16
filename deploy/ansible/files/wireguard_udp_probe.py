@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 """Verify bidirectional UDP reachability for K3s wireguard-native endpoints."""
 
 import argparse

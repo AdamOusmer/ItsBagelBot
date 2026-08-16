@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the command deck, on the shared ManagementRow: the
   // clickable primary is a real button and the quick actions (toggle, delete)
   // are siblings of it, never nested inside. The page passes the enhance

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package automod is sesame's inline chat guard. It runs before command dispatch
 // on every chat line and returns a Verdict; in shadow mode the pipeline logs the

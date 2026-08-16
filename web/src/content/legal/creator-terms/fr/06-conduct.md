@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Conduite du créateur"
 plain: "Faites une promotion honnête, divulguez que votre code vous rapporte et ne trichez pas."
 ---

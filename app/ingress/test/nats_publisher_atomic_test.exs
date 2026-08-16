@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.PublisherAtomicTest do
   # async: false — the publisher uses a named process, a named ETS table and a

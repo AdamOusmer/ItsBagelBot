@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Server-only NATS RPC client. One lazily-dialed, process-wide connection
 // reused across requests (connection setup is the expensive part; a warm conn

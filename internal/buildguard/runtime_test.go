@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package buildguard holds build-level regression guards that ordinary unit
 // tests cannot catch. Its only test asserts every data service binary links in

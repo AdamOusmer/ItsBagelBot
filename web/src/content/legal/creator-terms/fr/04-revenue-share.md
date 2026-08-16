@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Partage des revenus et versements"
 plain: "Votre part est fixée à l’approbation. Tebex en assure le suivi et le versement selon ses règles."
 ---

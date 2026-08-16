@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Third-Party Services"
 plain: "Tebex handles payments, Resend our automated emails, Zoho our correspondence, support runs on Discord, and Govee powers the optional smart-light feature."
 ---

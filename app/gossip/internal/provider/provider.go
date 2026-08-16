@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package provider is the gossip service's provider authoring surface, the twin of
 // sesame's module package: one Provider wraps one external system (urchin,

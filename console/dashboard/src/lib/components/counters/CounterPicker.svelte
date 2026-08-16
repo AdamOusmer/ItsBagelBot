@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Palette chip that opens a small panel: insert an existing counter's token
   // at the cursor, or create a counter (name + scope) right here and insert
   // it. The list lazy-loads from /counters/list on first open; create posts

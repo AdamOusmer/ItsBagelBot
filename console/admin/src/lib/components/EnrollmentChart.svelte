@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Daily enrollment vs registered base, as two aligned panels sharing one
   // x-axis: bars for signups per UTC day (magnitude), a line for the
   // registered-users total derived backwards from today's count. Two panels —

@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Services tiers"
 plain: "Tebex traite les paiements, Resend nos courriels automatisés, Zoho notre correspondance, le soutien passe aussi par Discord, et Govee alimente la fonction facultative de lumières connectées."
 ---

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Admin session: the shared AES-256-GCM codec instantiated over the admin's own
 // Session shape and its OWN isolated SESSION_KEY (separate Doppler config).

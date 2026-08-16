@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Vie privée des enfants"
 plain: "Le service ne s’adresse pas aux enfants de moins de 13 ans et nous ne recueillons pas sciemment leurs renseignements."
 ---

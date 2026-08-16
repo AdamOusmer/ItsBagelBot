@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // First-visit onboarding: a short stepper shown once when a new user reaches
   // the dashboard (they're already connected by then, so it starts at the step
   // people actually miss — modding the bot). Dismissal is remembered in

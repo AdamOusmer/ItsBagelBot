@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # Fleet internal PKI root. A self-signed bootstrap issuer signs one long-lived CA,
 # and a CA ClusterIssuer issues every server cert from it. cert-manager renews the

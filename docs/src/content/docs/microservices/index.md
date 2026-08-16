@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: Service registry
 description: The services that make up ItsBagelBot, what they own, how they talk, and how they authenticate to each other.
 ---

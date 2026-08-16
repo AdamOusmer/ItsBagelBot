@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
-     Proprietary and unlicensed. See LICENSE.md. -->
+     Proprietary. No license granted. See LICENSE.md. -->
 [forks-shield]: https://img.shields.io/github/forks/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
 [forks-url]: https://github.com/AdamOusmer/ItsBagelBot/network/members

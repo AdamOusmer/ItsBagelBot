@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package ratelimit implements a Valkey-backed token bucket. Capacity and
 // refill rate are properties of the bucket, not the caller: every caller of

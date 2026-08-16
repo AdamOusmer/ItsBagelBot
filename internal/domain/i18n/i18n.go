@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package i18n is a tiny, dependency-free catalog for the Go services'
 // user-facing chat and notification copy. sesame's built-in (system) commands
