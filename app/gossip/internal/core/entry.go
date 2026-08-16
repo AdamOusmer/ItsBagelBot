@@ -92,7 +92,10 @@ func cutPrefix(b, sep []byte) ([]byte, bool) {
 // of 2*ttl, so the entry outlives its fresh window into a stale tail where it is
 // served while a background refresh runs. ttl<=0 is not cached (a friendly
 // rate-limit denial must retry on the next request, never pin).
-func storeEntry(ctx context.Context, c *Cache, key string, payload []byte, ttl time.Duration) {
+//
+// It hangs off the Cache, like readBytes: the store it writes through is the
+// receiver's, not a parameter a caller could pass a different one for.
+func (c *Cache) storeEntry(ctx context.Context, key string, payload []byte, ttl time.Duration) {
 	if ttl <= 0 {
 		return
 	}

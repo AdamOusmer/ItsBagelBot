@@ -79,7 +79,7 @@ func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.C
 		if berr != nil {
 			return nil, berr
 		}
-		storeEntry(ctx, c, key, payload, ttl)
+		c.storeEntry(ctx, key, payload, ttl)
 		return payload, nil
 	})
 	if err != nil {
@@ -114,7 +114,30 @@ func spend(ctx context.Context, admit func(context.Context) error) error {
 	return admit(ctx)
 }
 
-// storeEntry writes payload with a fresh window of ttl and a physical retention
+// refreshBytes revalidates one stale key in the background. Deduplication is
+// fleet-wide: the refresh is gated on a SET NX EX claim in the shared store, so
+// exactly ONE replica refreshes a stale key no matter how a burst spreads
+// across the queue group — without the claim each pod would fire its own
+// refresh and one stale key would cost one upstream call per replica. The
+// pod-local c.refreshing map is only a cheap pre-filter that keeps one pod from
+// stacking goroutines on a hot key; the claim in Valkey is the authority.
+//
+// The claim expires on its own (never deleted early), so refresh attempts for
+// one key are floored to one per swrRefreshTimeout fleet-wide — a deliberate
+// backoff that shields the upstream. A successful refresh rewrites the entry
+// fresh, so nothing re-triggers anyway; a failed refresh is swallowed and the
+// stale entry keeps serving until its physical TTL, so an upstream blip
+// degrades to slightly-old data rather than an error.
+//
+// The refresh spends budget through admit, exactly like a foreground miss, and it
+// does so AFTER winning the claim so only the one replica that will actually call
+// the upstream pays for it. Skipping admission here would let revalidation traffic
+// bypass the buckets entirely: the whole point of moving the budget check out of
+// build and onto the caller (see CachedBytes) is that build no longer carries one,
+// so a refresh that did not admit would be an unmetered upstream call. A denial
+// leaves the stale entry serving, which is the same outcome as any other failed
+// refresh. The lane charged is that of the caller whose stale read triggered this;
+// that caller was served for free from the stale entry, so the one call the refresh
 // makes is fairly billed to it.
 func (c *Cache) refreshBytes(key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) {
 	if _, busy := c.refreshing.LoadOrStore(key, struct{}{}); busy {
@@ -137,7 +160,7 @@ func (c *Cache) refreshBytes(key string, admit func(context.Context) error, buil
 			if err != nil {
 				return nil, err
 			}
-			storeEntry(ctx, c, key, payload, ttl)
+			c.storeEntry(ctx, key, payload, ttl)
 			return payload, nil
 		})
 	}()
