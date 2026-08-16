@@ -46,16 +46,16 @@ defmodule Ingress.Nats.Publisher.AckPath do
     plen = byte_size(prefix)
 
     case topic do
-      <<^prefix::binary-size(plen), "bs.", id::binary>> ->
+      <<^prefix::binary-size(^plen), "bs.", id::binary>> ->
         tagged(:batch_start, id)
 
-      <<^prefix::binary-size(plen), "bc.", id::binary>> ->
+      <<^prefix::binary-size(^plen), "bc.", id::binary>> ->
         tagged(:batch_commit, id)
 
-      <<^prefix::binary-size(plen), "s.", id::binary>> ->
+      <<^prefix::binary-size(^plen), "s.", id::binary>> ->
         tagged(:single, id)
 
-      <<^prefix::binary-size(plen), id::binary>> ->
+      <<^prefix::binary-size(^plen), id::binary>> ->
         # Backwards-compatible parser for in-flight replies across a rolling
         # upgrade and for the public id_from_topic/2 contract.
         tagged(:single, id)

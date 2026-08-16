@@ -1,0 +1,73 @@
+name: Ingress Elixir Pipeline
+
+# app/ingress is the only BEAM service in the repo, so nothing in the Go
+# pipeline covers it. Two defects reached main unnoticed for want of this job:
+# a mix.lock pinning req 0.6.1 against a mix.exs requiring ~> 0.7 (the tree
+# could not compile at all), and formatter drift. Both are checked below.
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'app/ingress/**'
+      - '.github/workflows/ingress.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'app/ingress/**'
+      - '.github/workflows/ingress.yml'
+
+jobs:
+  test:
+    name: Ingress Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: app/ingress
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Must match app/ingress/Containerfile exactly. Elixir 1.19 does not emit
+      # 1.20's set-theoretic type warnings, so a job on an older pair reports
+      # clean on code that fails the compiler the container actually ships.
+      - name: Set up Elixir
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          elixir-version: '1.20'
+          otp-version: '28'
+
+      - name: Cache deps and build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/ingress/deps
+            app/ingress/_build
+          key: ingress-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/ingress/mix.lock') }}
+          restore-keys: ingress-${{ runner.os }}-otp28-elixir1.20-
+
+      - name: Fetch dependencies
+        run: mix deps.get
+
+      # `mix deps.get` rewrites mix.lock when the committed one does not satisfy
+      # mix.exs, which is exactly how the req 0.6.1 / ~> 0.7 mismatch stayed
+      # invisible: every local `mix deps.get` silently repaired it in the
+      # working tree and nobody committed the result. If the lockfile moved
+      # here, the committed one was stale.
+      #
+      # `mix deps.get --check-locked` does NOT catch this — it exits 0 and
+      # re-resolves. Comparing the file is what actually fails.
+      - name: Verify mix.lock is in sync with mix.exs
+        run: git diff --exit-code mix.lock
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile
+        run: MIX_ENV=test mix compile --warnings-as-errors
+
+      - name: Run Tests
+        run: MIX_ENV=test mix test
