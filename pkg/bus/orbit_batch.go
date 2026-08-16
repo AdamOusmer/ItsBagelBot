@@ -223,7 +223,7 @@ func fastPublishFlow(batchSize int, outstanding uint16) uint16 {
 	// static analysis, which does not see through the generic builtins.
 	bounded := min(max(flow, 1), maxUseful)
 	if bounded > math.MaxUint16 {
-		bounded = math.MaxUint16
+		return math.MaxUint16
 	}
 	return uint16(bounded)
 }
@@ -231,7 +231,7 @@ func fastPublishFlow(batchSize int, outstanding uint16) uint16 {
 func fastPublishOutstanding() uint16 {
 	outstanding := max(env.GetInt("NATS_FAST_PUBLISH_OUTSTANDING_ACKS", 8), 1)
 	if outstanding > math.MaxUint16 {
-		outstanding = math.MaxUint16
+		return math.MaxUint16
 	}
 	return uint16(outstanding)
 }
