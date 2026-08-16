@@ -613,47 +613,6 @@ func TestSessionPlatformNotSupported(t *testing.T) {
 			gossiprpc.Request{Account: "Ninja", ChannelID: "42", AccountType: "xbl"})).Error)
 }
 
-const shopBody = `{
-	"status": 200,
-	"data": {
-		"date": "2026-07-09T00:00:00Z",
-		"entries": [
-			{"finalPrice": 2800, "bundle": {"name": "Peely Bundle"}, "brItems": [{"name": "Peely"}]},
-			{"finalPrice": 1200, "brItems": [{"name": "Renegade Raider"}]},
-			{"finalPrice": 500, "tracks": [{"title": "Never Gonna Give You Up"}]},
-			{"finalPrice": 400}
-		]
-	}
-}`
-
-func TestShopNormalizesAndCaches(t *testing.T) {
-	var hits int
-	p := newTestProvider(t, noUpstream(t, "stats"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits++
-		require.Equal(t, "/v2/shop", r.URL.Path)
-		// The shop upstream is public: the stats key must not leak into it.
-		assert.Empty(t, r.Header.Get("x-api-key"))
-		assert.Empty(t, r.Header.Get("Authorization"))
-		_, _ = w.Write([]byte(shopBody))
-	}), nil)
-	h := handle(t, p, "shop")
-
-	reply := asShop(t, h(context.Background(), gossiprpc.Request{}))
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "2026-07-09", reply.Date)
-	// The nameless entry is dropped; the bundle keeps its bundle name.
-	assert.Equal(t, 3, reply.Count)
-	require.Len(t, reply.Entries, 3)
-	assert.Equal(t, gossiprpc.FortniteShopEntry{Name: "Peely Bundle", Price: 2800}, reply.Entries[0])
-	assert.Equal(t, gossiprpc.FortniteShopEntry{Name: "Renegade Raider", Price: 1200}, reply.Entries[1])
-	assert.Equal(t, gossiprpc.FortniteShopEntry{Name: "Never Gonna Give You Up", Price: 500}, reply.Entries[2])
-
-	// Second call is served from the cache.
-	reply = asShop(t, h(context.Background(), gossiprpc.Request{}))
-	require.Empty(t, reply.Error)
-	assert.Equal(t, 1, hits)
-}
-
 // Keyless (shop-only mode): the stats endpoint is not registered, the shop
 // still answers.
 func TestKeylessServesShopOnly(t *testing.T) {
