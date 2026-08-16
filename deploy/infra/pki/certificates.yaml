@@ -1,10 +1,16 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Server certs issued from the fleet CA. Each writes a tls.crt/tls.key/ca.crt
-# Secret in production; the NATS and console pods mount it as their server cert.
-# Clients verify the server against the CA (distributed as the fleet-ca ConfigMap,
-# see trust.yaml) — no per-client certs.
+# Server certs issued from the fleet intermediate CA (deploy/infra/pki/issuers.yaml),
+# not the root — the root now only ever signs the one intermediate. Each writes a
+# tls.crt/tls.key/ca.crt Secret in production; the NATS and console pods mount it
+# as their server cert. cert-manager's CA issuer walks the signing secret's own
+# ca.crt when building the output bundle, so ca.crt here still ends up as the
+# ROOT certificate (not the intermediate) and tls.crt ends up as leaf+intermediate
+# — unchanged consumer-facing shape, verified against cert-manager v1.17.4 source
+# and against the live secrets before this file changed. Clients verify the
+# server against the CA (distributed as the fleet-ca ConfigMap, see trust.yaml) —
+# no per-client certs.
 #
 # SANs must cover every name a peer dials: the Service name, its FQDN, and (for
 # the hub) the per-pod headless names used by the cluster routes.
@@ -22,7 +28,7 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: fleet-ca-issuer
+    name: fleet-intermediate-issuer
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
@@ -52,7 +58,7 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: fleet-ca-issuer
+    name: fleet-intermediate-issuer
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
@@ -79,7 +85,7 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: fleet-ca-issuer
+    name: fleet-intermediate-issuer
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
@@ -99,7 +105,7 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: fleet-ca-issuer
+    name: fleet-intermediate-issuer
     kind: ClusterIssuer
     group: cert-manager.io
   dnsNames:
@@ -119,7 +125,7 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: fleet-ca-issuer
+    name: fleet-intermediate-issuer
     kind: ClusterIssuer
     group: cert-manager.io
   # Clients dial the Service name or a stable StatefulSet peer name. One shared cert is
