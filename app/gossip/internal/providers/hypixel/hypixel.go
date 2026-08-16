@@ -82,6 +82,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("stats").Timeout(handlerTimeout).
 		Cached(statsTTL, negativeTTL).
 		Reply(statsErrReply).
+		Budget(p.statsBudget).
 		Fallback("stats lookup failed").
 		Fetch(p.statsFetch)
 	return b.Build()
@@ -119,8 +120,30 @@ func statsErrReply(id, msg string) any {
 }
 
 // statsFetch adapts fetchStats to the flow's fetch signature.
-func (p *api) statsFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-	return p.fetchStats(ctx, id.Display, req.IsPremium)
+func (p *api) statsFetch(ctx context.Context, _ gossiprpc.Request, id provider.ID) (any, error) {
+	return p.fetchStats(ctx, id.Display)
+}
+
+// statsBudget spends one request's share of BOTH upstreams a cold stats lookup
+// touches, in that request's own lane. Mojang and Hypixel are separate services
+// with separate allowances and separate buckets, so each is debited in turn: a
+// resolve that exhausts Mojang's per-IP allowance must be visible as such, not
+// hidden behind a Hypixel key that still looks unspent.
+//
+// It is declared on the endpoint rather than written inside the fetch because a
+// fetch runs once per singleflight flight. A check in there is charged to
+// whichever caller won the flight and its verdict is served to everyone joined
+// to it, which is how a drained standard bucket denied premium callers the
+// reserve they are entitled to.
+//
+// An account given as a raw uuid needs no Mojang call and is debited for one
+// anyway. That over-counts a rare input against a budget whose purpose is to
+// stay under an allowance, which is the safe direction to be wrong in.
+func (p *api) statsBudget(ctx context.Context, req gossiprpc.Request) error {
+	if err := p.mojangBuckets.Enforce(ctx, p.limiter, req.IsPremium); err != nil {
+		return err
+	}
+	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
 }
 
 // accountKey normalizes the player identifier for cache keys.
@@ -160,15 +183,12 @@ func looksLikeUUID(account string) bool {
 // from answering 429 on its own terms: it throttles per source IP, so an
 // unguarded resolve could exhaust the fleet's allowance while the Hypixel key
 // — whose bucket is only reached further down — still showed a full budget.
-func (p *api) resolveUUID(ctx context.Context, account string, isPremium bool) (string, error) {
+func (p *api) resolveUUID(ctx context.Context, account string) (string, error) {
 	if looksLikeUUID(account) {
 		return strings.ReplaceAll(account, "-", ""), nil
 	}
 	key := core.Key(providerName, "uuid", accountKey(account))
-	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, func(ctx context.Context) (string, error) {
-		if err := p.mojangBuckets.Enforce(ctx, p.limiter, isPremium); err != nil {
-			return "", err
-		}
+	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, nil, func(ctx context.Context) (string, error) {
 		var profile mojangProfile
 		if err := p.mojang.GetJSON(ctx, "/users/profiles/minecraft/"+account, nil, &profile); err != nil {
 			return "", err
@@ -205,15 +225,11 @@ type playerResponse struct {
 
 // fetchStats resolves the uuid, spends the Hypixel budget, and shapes the
 // success reply.
-func (p *api) fetchStats(ctx context.Context, account string, isPremium bool) (gossiprpc.HypixelStatsReply, error) {
-	uuid, err := p.resolveUUID(ctx, account, isPremium)
+func (p *api) fetchStats(ctx context.Context, account string) (gossiprpc.HypixelStatsReply, error) {
+	uuid, err := p.resolveUUID(ctx, account)
 	if err != nil {
 		return gossiprpc.HypixelStatsReply{}, err
 	}
-	if err := p.buckets.Enforce(ctx, p.limiter, isPremium); err != nil {
-		return gossiprpc.HypixelStatsReply{}, err
-	}
-
 	var resp playerResponse
 	if err := p.http.GetJSON(ctx, "/v2/player", url.Values{"uuid": {uuid}}, &resp); err != nil {
 		return gossiprpc.HypixelStatsReply{}, err

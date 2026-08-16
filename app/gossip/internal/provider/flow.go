@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -64,14 +65,29 @@ type FetchFunc func(ctx context.Context, req gossiprpc.Request, id ID) (any, err
 // a friendly upstream failure, and the infrastructure fallback.
 type ReplyFunc func(id, msg string) any
 
+// AdmitFunc spends one request's share of an endpoint's upstream budget,
+// returning a typed *core.UpstreamError (a 429 with LocalDeny set) when this
+// request may not spend it. It is the endpoint's premium/standard lane decision,
+// so it MUST read the lane from the request it is given rather than from any
+// request captured earlier.
+//
+// It belongs here, declared alongside the fetch, rather than inside the fetch
+// itself. A fetch runs once per singleflight flight; an AdmitFunc runs once per
+// caller. Budget checks written inside a fetch are therefore charged to whichever
+// caller happened to win the flight, and its verdict is served to everyone joined
+// to it — which is how a drained standard bucket came to deny premium callers the
+// reserve they are entitled to.
+type AdmitFunc func(ctx context.Context, req gossiprpc.Request) error
+
 // flowSpec is one declared byte-flow endpoint: the caching windows plus the
-// identity, reply shaping and fetch the FlowBuilder chained.
+// identity, reply shaping, budget and fetch the FlowBuilder chained.
 type flowSpec struct {
 	ttl         time.Duration
 	negativeTTL time.Duration
 	id          IDFunc
 	reply       ReplyFunc
 	fallback    string
+	admit       AdmitFunc
 	fetch       FetchFunc
 }
 
@@ -100,6 +116,14 @@ func (fb *FlowBuilder) Reply(fn ReplyFunc) *FlowBuilder {
 // unreachable, cache marshal); the default is "lookup failed".
 func (fb *FlowBuilder) Fallback(msg string) *FlowBuilder {
 	fb.f.fallback = msg
+	return fb
+}
+
+// Budget sets the flow's per-caller upstream budget check. An endpoint without
+// one spends no budget: only endpoints that actually call a metered upstream
+// declare it.
+func (fb *FlowBuilder) Budget(fn AdmitFunc) *FlowBuilder {
+	fb.f.admit = fn
 	return fb
 }
 
@@ -147,6 +171,7 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 			return f.reply(id.Display, reject)
 		}
 		b, err := core.CachedBytes(ctx, cache, core.Key(ref.provider, ref.endpoint, id.Key),
+			f.admitter(req),
 			func(ctx context.Context) ([]byte, time.Duration, error) {
 				b, ttl, friendly, err := core.BuildReply(ctx, f.ttl, f.negativeTTL,
 					func(ctx context.Context) (any, error) { return f.fetch(ctx, req, id) },
@@ -156,15 +181,51 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 				return b, ttl, err
 			})
 		if err != nil {
-			log.Warn("gossip fetch failed",
-				zap.String("provider", ref.provider),
-				zap.String("endpoint", ref.endpoint),
-				zap.String("id", id.Display),
-				zap.Error(err))
-			return f.reply(id.Display, fallback)
+			return replier{spec: f, log: log, ref: ref, fallback: fallback}.failure(id, err)
 		}
 		return json.RawMessage(b)
 	}
+}
+
+// replier is the per-endpoint context every failure reply needs: the flow that
+// shapes it, and the logger, endpoint identity and fallback message that are
+// fixed once at Build time. They travel together so failure takes only what
+// varies per request.
+type replier struct {
+	spec     *flowSpec
+	log      *zap.Logger
+	ref      endpointRef
+	fallback string
+}
+
+// admitter binds one request to the flow's budget check, or returns nil when the
+// endpoint declares none. The request is bound per call and never captured across
+// calls: the lane it carries is the whole point of the check.
+func (f *flowSpec) admitter(req gossiprpc.Request) func(context.Context) error {
+	if f.admit == nil {
+		return nil
+	}
+	return func(ctx context.Context) error { return f.admit(ctx, req) }
+}
+
+// failure answers one lookup that produced an error rather than reply bytes. A
+// budget denial arrives here rather than through BuildReply — it is raised before
+// the flight the fetch runs in — so it is shaped through the same friendly mapping
+// the fetch path uses, or the caller would be told "lookup failed" for a rate
+// limit that has a perfectly good message of its own.
+func (r replier) failure(id ID, err error) any {
+	if msg, _ := core.FriendlyUpstream(err); msg != "" {
+		var friendly *core.UpstreamError
+		errors.As(err, &friendly)
+		logFriendly(r.log, r.ref, id, friendly)
+		return r.spec.reply(id.Display, msg)
+	}
+	r.log.Warn("gossip fetch failed",
+		zap.String("provider", r.ref.provider),
+		zap.String("endpoint", r.ref.endpoint),
+		zap.String("id", id.Display),
+		zap.Error(err))
+	return r.spec.reply(id.Display, r.fallback)
 }
 
 // logFriendly records the friendly failures that would otherwise be invisible:

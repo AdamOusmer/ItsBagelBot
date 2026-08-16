@@ -86,6 +86,13 @@ func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject strin
 
 // QueueSubscribeJSON registers a queue RPC handler with common JSON decode,
 // timeout, response, slow-call logging and subscription flushing behavior.
+//
+// handle runs inline on the subscription's delivery goroutine, so requests on a
+// subscription are answered one at a time. Moving this path onto an RPCPool
+// waits on the read-modify-write handlers behind it (outgress channel.set, users
+// ApplyBilling) and on the DB_MAX_OPEN_CONNS=4 budget every database service
+// ships, either of which would turn added concurrency into lost updates or
+// gate-blocked handlers rather than throughput.
 func QueueSubscribeJSON[Req any, Resp any](
 	nc *nats.Conn,
 	subject string,

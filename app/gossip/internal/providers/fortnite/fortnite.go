@@ -19,6 +19,10 @@
 // answer a friendly error for now. All endpoints are byte-flow: the reply is shaped
 // and marshaled once on fetch, and a cache hit answers with the stored wire
 // bytes untouched.
+//
+// !fn (session) reads the SAME lifetime entry !fnstats fills rather than
+// keeping a private copy of identical numbers — see cachedLifetimeStats. A
+// channel running both commands pays one upstream round trip for both, not two.
 package fortnite
 
 import (
@@ -34,6 +38,7 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -57,6 +62,18 @@ const (
 
 	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
+	// seasonResolveTimeout bounds the best-effort season-start leg of a cold
+	// season lookup (see resolveStatsWindow). The downstream budget picks the
+	// number: sesame's !fnstats RPC gives gossip 12s (gossipRPCTimeout in
+	// app/sesame/engine/gossip_rpc.go), and the mandatory /api/v2/stats call
+	// that follows window resolution can itself spend httpTimeout, so
+	// everything the window resolution spends past 12s - 10s = 2s comes
+	// straight out of the stats call's budget. A healthy /api/v1/season
+	// answers in well under half a second, so 2s is several times its real
+	// cost, and exceeding it degrades the reply to lifetime — the same
+	// documented fallback a failed season fetch already takes — instead of
+	// holding the command open.
+	seasonResolveTimeout = 2 * time.Second
 
 	// shopWindowSeconds is the fortnite-api.com budget window; it publishes no
 	// hard per-key budget, so the limit stays a conservative per-minute
@@ -92,6 +109,24 @@ type Config struct {
 // providerName is the subject token this provider answers under.
 const providerName = "fortnite"
 
+// statsEndpoint is the subject token the byte-flow stats endpoint is declared
+// under, and therefore the middle segment of its cache key. The session path
+// reads that very entry (see lifetimeStatsKey), so both spell it from this one
+// constant: renaming the endpoint moves the session path with it instead of
+// silently splitting one shared entry back into the two duplicate fetches this
+// constant exists to prevent.
+const statsEndpoint = "stats"
+
+// windowLifetime and windowSeason are the two stats windows. The session path
+// pins itself to windowLifetime as a literal constant rather than routing a
+// request-derived string through normalizeWindow, so no request field can ever
+// steer a session read at a season entry — a season rollover mid-stream would
+// corrupt a delta taken across it (see snapshot).
+const (
+	windowLifetime = "lifetime"
+	windowSeason   = "season"
+)
+
 // api holds the provider's runtime pieces; the declared endpoints capture it.
 type api struct {
 	shop  *core.HTTPClient
@@ -121,13 +156,15 @@ func (p *api) build() provider.Provider {
 		Cached(shopTTL, negativeTTL).
 		ID(provider.StaticID("current")).
 		Reply(shopErrReply).
+		Budget(p.shopBudget).
 		Fallback("item shop lookup failed").
 		Fetch(p.shopFetch)
 	if p.keyed {
-		b.Endpoint("stats").Timeout(handlerTimeout).
+		b.Endpoint(statsEndpoint).Timeout(handlerTimeout).
 			Cached(statsTTL, negativeTTL).
 			ID(statsID).
 			Reply(statsErrReply).
+			Budget(p.statsBudget).
 			Fallback("stats lookup failed").
 			Fetch(p.statsFetch)
 		b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
@@ -173,14 +210,37 @@ func statsErrReply(id, msg string) any {
 	return gossiprpc.FortniteStatsReply{Player: id, Error: msg}
 }
 
+// statsBudget and shopBudget spend one request's share of their upstream's
+// allowance IN THAT REQUEST'S OWN LANE. They are declared on the endpoint rather
+// than written inside a fetch because a fetch runs once per singleflight flight:
+// a check in there is charged to whichever caller won the flight and its verdict
+// is served to everyone joined to it, which let a drained standard bucket deny
+// premium callers the reserve they are entitled to.
+func (p *api) statsBudget(ctx context.Context, req gossiprpc.Request) error {
+	return p.statsBucket.Enforce(ctx, p.deps.Limiter, req.IsPremium)
+}
+
+func (p *api) shopBudget(ctx context.Context, req gossiprpc.Request) error {
+	return p.shopBucket.Enforce(ctx, p.deps.Limiter, req.IsPremium)
+}
+
+// statsAdmit binds the stats budget to one lane for the session path, which
+// reads the shared lifetime entry through CachedBytes directly and so has no
+// endpoint declaration to carry the check for it.
+func (p *api) statsAdmit(isPremium bool) func(context.Context) error {
+	return func(ctx context.Context) error {
+		return p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium)
+	}
+}
+
 // normalizeWindow maps the dashboard's window setting onto the requested
 // window; whether "season" can actually be served is decided at fetch time
 // (seasonStartTime), where it may degrade to lifetime.
 func normalizeWindow(w string) string {
-	if strings.ToLower(strings.TrimSpace(w)) == "season" {
-		return "season"
+	if strings.ToLower(strings.TrimSpace(w)) == windowSeason {
+		return windowSeason
 	}
-	return "lifetime"
+	return windowLifetime
 }
 
 // seasonResponse is the /api/v1/season body subset gossip reads.
@@ -192,15 +252,15 @@ type seasonResponse struct {
 // override when configured, otherwise the upstream's own current-season
 // begin date, cached an hour so a rollover is picked up automatically. 0
 // means no start could be resolved (the caller degrades to lifetime).
-func (p *api) seasonStartTime(ctx context.Context, isPremium bool) int64 {
+//
+// It spends no budget of its own: every path that reaches it comes through
+// fetchStats, which debits once for the whole request (see fetchStats).
+func (p *api) seasonStartTime(ctx context.Context) int64 {
 	if p.seasonStart > 0 {
 		return p.seasonStart
 	}
 	key := core.Key(providerName, "season", "start")
-	start, err := core.Cached(ctx, p.cache, key, seasonTTL, negativeTTL, func(ctx context.Context) (int64, error) {
-		if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
-			return 0, err
-		}
+	start, err := core.Cached(ctx, p.cache, key, seasonTTL, negativeTTL, nil, func(ctx context.Context) (int64, error) {
 		var resp seasonResponse
 		if err := p.stats.GetJSON(ctx, "/api/v1/season", nil, &resp); err != nil {
 			return 0, err
@@ -245,13 +305,12 @@ func friendly404(err error, msg string) error {
 }
 
 // resolveAccount turns a display name into the account ref via the stats
-// upstream, cached for a day. An unknown name 404s and negative-caches.
-func (p *api) resolveAccount(ctx context.Context, account string, isPremium bool) (accountRef, error) {
+// upstream, cached for a day. An unknown name 404s and negative-caches. Like
+// seasonStartTime it spends no budget of its own: fetchStats, its only caller,
+// debits once for the whole request.
+func (p *api) resolveAccount(ctx context.Context, account string) (accountRef, error) {
 	key := core.Key(providerName, "account", strings.ToLower(account))
-	return core.Cached(ctx, p.cache, key, accountTTL, negativeTTL, func(ctx context.Context) (accountRef, error) {
-		if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
-			return accountRef{}, err
-		}
+	return core.Cached(ctx, p.cache, key, accountTTL, negativeTTL, nil, func(ctx context.Context) (accountRef, error) {
 		var ref accountRef
 		if err := p.stats.GetJSON(ctx, "/api/v1/account/displayName/"+url.PathEscape(account), nil, &ref); err != nil {
 			return accountRef{}, friendly404(err, "player not found")
@@ -297,6 +356,17 @@ type statsQuery struct {
 	window  string
 }
 
+// statsCacheID is the byte-flow cache identity of one stats lookup: the
+// normalized window, then the case-folded account, so season and lifetime
+// replies for one player never collide. It is the single definition of that
+// layout — the session path derives the lifetime identity from this same
+// function (lifetimeStatsKey) instead of spelling the layout out a second
+// time, because two independent spellings of one key is exactly how !fn and
+// !fnstats came to fetch identical numbers under two keys.
+func statsCacheID(window, account string) string {
+	return normalizeWindow(window) + ":" + strings.ToLower(strings.TrimSpace(account))
+}
+
 // statsID validates the stats identity: an Epic display name, cache-keyed by
 // the requested window as well as the account so season and lifetime replies
 // never collide.
@@ -308,14 +378,14 @@ func statsID(req gossiprpc.Request) (provider.ID, string) {
 	if msg := epicOnly(req.AccountType); msg != "" {
 		return provider.ID{Display: a}, msg
 	}
-	return provider.ID{Display: a, Key: normalizeWindow(req.TimeWindow) + ":" + strings.ToLower(a)}, ""
+	return provider.ID{Display: a, Key: statsCacheID(req.TimeWindow, a)}, ""
 }
 
 // statsFetch answers fortnite.stats (sesame's !fnstats) with the player's
 // aggregated Battle Royale stats over the requested window.
 func (p *api) statsFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	q := statsQuery{account: id.Display, window: normalizeWindow(req.TimeWindow)}
-	return p.fetchStats(ctx, q, req.IsPremium)
+	return p.fetchStats(ctx, q)
 }
 
 // resolveStatsWindow resolves the account and season window epoch. A cold
@@ -335,13 +405,26 @@ func (p *api) statsFetch(ctx context.Context, req gossiprpc.Request, id provider
 // best-effort and degrades to 0 on its own failures regardless. The
 // manual-override window (p.seasonStart set) has no I/O to overlap, so it
 // skips the concurrent machinery entirely.
-func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery, isPremium bool) (accountRef, int64, error) {
-	if q.window != "season" {
-		ref, err := p.resolveAccount(ctx, q.account, isPremium)
+//
+// context.WithoutCancel drops the deadline along with the cancellation — it
+// returns a context whose Deadline reports no deadline and whose Done is nil
+// — so the insulation alone left the season leg bounded by nothing nearer
+// than httpTimeout. That is not a season-only cost: g.Wait() waits for BOTH
+// legs, so a mistyped display name that 404s on the account leg in ~200ms
+// still parked the caller for up to 10s on a cold season cache against a
+// slow upstream. seasonResolveTimeout layers an explicit bound back over the
+// insulated context to restore the missing half. The two are not the same
+// knob: cancellation from the account leg is arbitrary and per-caller (one
+// caller's typo), while this bound is deterministic and identical for every
+// caller joined to the flight, so applying it cannot degrade one caller's
+// season window on account of another's mistake.
+func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery) (accountRef, int64, error) {
+	if q.window != windowSeason {
+		ref, err := p.resolveAccount(ctx, q.account)
 		return ref, 0, err
 	}
 	if p.seasonStart > 0 {
-		ref, err := p.resolveAccount(ctx, q.account, isPremium)
+		ref, err := p.resolveAccount(ctx, q.account)
 		return ref, p.seasonStart, err
 	}
 
@@ -349,12 +432,14 @@ func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery, isPremium bo
 	var season int64
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		r, err := p.resolveAccount(gctx, q.account, isPremium)
+		r, err := p.resolveAccount(gctx, q.account)
 		ref = r
 		return err
 	})
 	g.Go(func() error {
-		season = p.seasonStartTime(context.WithoutCancel(gctx), isPremium)
+		sctx, cancel := context.WithTimeout(context.WithoutCancel(gctx), seasonResolveTimeout)
+		defer cancel()
+		season = p.seasonStartTime(sctx)
 		return nil
 	})
 	if err := g.Wait(); err != nil {
@@ -363,24 +448,32 @@ func (p *api) resolveStatsWindow(ctx context.Context, q statsQuery, isPremium bo
 	return ref, season, nil
 }
 
-// fetchStats resolves the account, spends the budget, pulls the raw counter
+// fetchStats resolves the account and the season window, pulls the raw counter
 // blob (window-filtered for season) and shapes the success reply.
-func (p *api) fetchStats(ctx context.Context, q statsQuery, isPremium bool) (gossiprpc.FortniteStatsReply, error) {
-	ref, seasonStart, err := p.resolveStatsWindow(ctx, q, isPremium)
+//
+// It spends NO budget. It cannot: every path into it runs inside a singleflight
+// flight, and a budget check inside a flight is charged to whichever caller won
+// the flight and its verdict is handed to everyone joined to it. That is how a
+// drained standard bucket came to deny premium callers the reserve they are
+// entitled to. The debit belongs to the caller, so it lives at the door: the
+// stats endpoint declares Budget(p.statsBudget), the session path passes
+// p.statsAdmit to CachedBytes, and sessionStart spends it inline before calling
+// here. One debit per request either way, which is what the three that used to
+// sit inside resolveAccount, seasonStartTime and this function amounted to
+// anyway — at three Valkey round trips on a command's critical path.
+func (p *api) fetchStats(ctx context.Context, q statsQuery) (gossiprpc.FortniteStatsReply, error) {
+	ref, seasonStart, err := p.resolveStatsWindow(ctx, q)
 	if err != nil {
-		return gossiprpc.FortniteStatsReply{}, err
-	}
-	if err := p.statsBucket.Enforce(ctx, p.deps.Limiter, isPremium); err != nil {
 		return gossiprpc.FortniteStatsReply{}, err
 	}
 
 	var query url.Values
-	if q.window == "season" {
+	if q.window == windowSeason {
 		if seasonStart > 0 {
 			query = url.Values{"startTime": {strconv.FormatInt(seasonStart, 10)}}
 		} else {
 			// No season start resolvable: serve lifetime and say so.
-			q.window = "lifetime"
+			q.window = windowLifetime
 		}
 	}
 	var resp rawStatsResponse
@@ -415,15 +508,69 @@ type snapshot struct {
 
 func snapshotKey(channelID string) string { return core.Key("fortnite", "session", channelID) }
 
-// cachedLifetimeStats reads a player's live lifetime stats behind the shared
-// staleness budget. It is keyed apart from the byte-flow !fnstats path (that
-// path stores pre-marshaled wire bytes, not the envelope core.Cached needs),
-// so repeated !fn session calls within the window cost one upstream hit.
+// lifetimeStatsKey is the cache key the stats endpoint's LIFETIME entry lives
+// at — provider token, endpoint token, statsCacheID — assembled exactly as the
+// flow layer assembles it (core.Key(ref.provider, ref.endpoint, id.Key), see
+// provider/flow.go). The window is the windowLifetime constant, never a
+// request field, so this key cannot address a season entry.
+func lifetimeStatsKey(account string) string {
+	return core.Key(providerName, statsEndpoint, statsCacheID(windowLifetime, account))
+}
+
+// lifetimeEntryBuild produces the byte-flow entry for one player's lifetime
+// stats: the same fetch, the same TTLs and the same friendly-error shaping the
+// stats endpoint's own flow produces, so the entry is byte-identical whichever
+// command fills it first.
+func (p *api) lifetimeEntryBuild(account string) func(context.Context) ([]byte, time.Duration, error) {
+	return func(ctx context.Context) ([]byte, time.Duration, error) {
+		b, ttl, _, err := core.BuildReply(ctx, statsTTL, negativeTTL,
+			func(ctx context.Context) (any, error) {
+				return p.fetchStats(ctx, statsQuery{account: account, window: windowLifetime})
+			},
+			func(msg string) any { return statsErrReply(account, msg) },
+		)
+		return b, ttl, err
+	}
+}
+
+// cachedLifetimeStats reads a player's live lifetime stats through THE SAME
+// byte-flow entry !fnstats fills. The two commands ask the upstream the same
+// question — the lifetime counter blob for one account — so they answer out of
+// one entry: a warm !fnstats makes !fn free, a warm !fn makes !fnstats free,
+// and a channel running both pays one /api/v2/stats call and one account
+// resolve per staleness window instead of two of each.
+//
+// The session path is the one that pays for the sharing, and it is the right
+// one to: it needs the decoded struct (it diffs the counters against the stored
+// snapshot), so it eats one unmarshal of the stored bytes here. That buys the
+// removal of an entire upstream round trip. The stats path pays nothing — a hit
+// there still returns the stored wire bytes untouched, no envelope unmarshal
+// and no reply re-marshal, which is the whole point of the byte flow.
+//
+// The session delta is therefore bounded by the same staleness !fnstats already
+// serves (statsTTL fresh, then a stale-while-revalidate tail). The two commands
+// agreeing on the numbers is worth more than the session keeping a private,
+// marginally fresher copy of them.
+// The reply it returns may be a SHAPED FAILURE rather than counters. The byte
+// flow stores friendly failures ("player not found") as ordinary replies with a
+// short TTL, so a hit can legitimately decode to a FortniteStatsReply carrying
+// Error and zero counters. The caller must check Error before diffing: a zeroed
+// reply run through sessionDelta would silently report a clean session for a
+// player the upstream does not know.
+//
+// The budget stays nil here because fortnite still spends it inside fetchStats;
+// when this provider moves to a declared Budget the check belongs in that
+// declaration, not in this call.
 func (p *api) cachedLifetimeStats(ctx context.Context, account string, isPremium bool) (gossiprpc.FortniteStatsReply, error) {
-	key := core.Key(providerName, "session-live", strings.ToLower(strings.TrimSpace(account)))
-	return core.Cached(ctx, p.cache, key, statsTTL, negativeTTL, func(ctx context.Context) (gossiprpc.FortniteStatsReply, error) {
-		return p.fetchStats(ctx, statsQuery{account: account, window: "lifetime"}, isPremium)
-	})
+	b, err := core.CachedBytes(ctx, p.cache, lifetimeStatsKey(account), p.statsAdmit(isPremium), p.lifetimeEntryBuild(account))
+	if err != nil {
+		return gossiprpc.FortniteStatsReply{}, err
+	}
+	var live gossiprpc.FortniteStatsReply
+	if err := sonic.Unmarshal(b, &live); err != nil {
+		return gossiprpc.FortniteStatsReply{}, err
+	}
+	return live, nil
 }
 
 // writeSnapshot stores the channel's stream-start standing under the snapshot
@@ -460,7 +607,13 @@ func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 	if msg := epicOnly(req.AccountType); msg != "" {
 		return gossiprpc.FortniteSnapshotReply{Player: account, Error: msg}
 	}
-	stats, err := p.fetchStats(ctx, statsQuery{account: account, window: "lifetime"}, req.IsPremium)
+	// Spent inline: this path deliberately bypasses the cache (the snapshot is the
+	// session baseline and must not predate the stream), so there is no flow
+	// declaration and no CachedBytes admission to carry the debit for it.
+	if err := p.statsBudget(ctx, req); err != nil {
+		return gossiprpc.FortniteSnapshotReply{Player: account, Error: p.sessionError("snapshot", account, err)}
+	}
+	stats, err := p.fetchStats(ctx, statsQuery{account: account, window: windowLifetime})
 	if err != nil {
 		return gossiprpc.FortniteSnapshotReply{Player: account, Error: p.sessionError("snapshot", account, err)}
 	}
@@ -530,6 +683,11 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	if err != nil {
 		return gossiprpc.FortniteSessionReply{Player: account, Error: p.sessionError("session", account, err)}
 	}
+	// A shaped failure shares the entry with the counters (see cachedLifetimeStats).
+	// Diffing it would report a clean session for a player that does not exist.
+	if live.Error != "" {
+		return gossiprpc.FortniteSessionReply{Player: account, Error: live.Error}
+	}
 
 	snap, ok := p.loadSnapshot(ctx, req.ChannelID, account)
 	if !ok {
@@ -577,11 +735,7 @@ type shopResponse struct {
 // item-shop rotation: it spends the budget, queries /v2/shop and normalizes
 // each offer to name + final price. Offers with nothing displayable are
 // dropped. The shop is global, so the flow's StaticID carries no request state.
-func (p *api) shopFetch(ctx context.Context, req gossiprpc.Request, _ provider.ID) (any, error) {
-	if err := p.shopBucket.Enforce(ctx, p.deps.Limiter, req.IsPremium); err != nil {
-		return nil, err
-	}
-
+func (p *api) shopFetch(ctx context.Context, _ gossiprpc.Request, _ provider.ID) (any, error) {
 	var resp shopResponse
 	if err := p.shop.GetJSON(ctx, "/v2/shop", nil, &resp); err != nil {
 		return gossiprpc.FortniteShopReply{}, err

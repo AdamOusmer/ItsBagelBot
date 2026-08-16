@@ -451,10 +451,6 @@ func TestStatsSeasonSurvivesAccountFailure(t *testing.T) {
 	assert.Equal(t, int32(1), race.calls(), "season endpoint must be hit once, cached thereafter")
 }
 
-// The p.seasonStart > 0 override still yields the configured value with no
-// concurrent machinery: since resolveStatsWindow takes the plain serial path,
-// a broken season endpoint (which would 500 the concurrent path's fetch, were
-// it reachable) never gets called and never affects the result.
 func TestStatsSeasonOverrideSkipsConcurrentPath(t *testing.T) {
 	var reqs []*http.Request
 	stats := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

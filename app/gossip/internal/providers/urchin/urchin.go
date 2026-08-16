@@ -81,17 +81,20 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		b.Endpoint(period).Timeout(handlerTimeout).
 			Cached(sessionTTL, negativeTTL).
 			Reply(sessionErrReply).
+			Budget(p.budget).
 			Fallback("stats lookup failed").
 			Fetch(p.sessionFetch(period))
 	}
 	b.Endpoint("sniper").Timeout(handlerTimeout).
 		Cached(sniperTTL, negativeTTL).
 		Reply(sniperErrReply).
+		Budget(p.sniperBudget).
 		Fallback("score lookup failed").
 		Fetch(p.sniperFetch)
 	b.Endpoint("tags").Timeout(handlerTimeout).
 		Cached(tagsTTL, negativeTTL).
 		Reply(tagsErrReply).
+		Budget(p.budget).
 		Fallback("tags lookup failed").
 		Fetch(p.tagsFetch)
 	return b.Build()
@@ -119,6 +122,28 @@ func sessionErrReply(id, msg string) any {
 }
 func sniperErrReply(id, msg string) any { return gossiprpc.UrchinSniperReply{Player: id, Error: msg} }
 func tagsErrReply(id, msg string) any   { return gossiprpc.UrchinTagsReply{Player: id, Error: msg} }
+
+// budget spends one Coral token in the request's OWN lane. It is declared on the
+// endpoint rather than written inside a fetch or a cache fill because both of
+// those run once per singleflight flight: a check in there is charged to
+// whichever caller won the flight and its verdict is served to everyone joined
+// to it, so a drained standard bucket denied premium callers the 25% reserve
+// they are entitled to.
+func (p *api) budget(ctx context.Context, req gossiprpc.Request) error {
+	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
+}
+
+// sniperBudget spends TWO tokens because a cold sniper lookup makes two Coral
+// calls: the tags fetch that resolves the uuid, then the cubelify score itself.
+// A warm tags entry makes the first one free and this over-counts by one, which
+// is the safe direction against an allowance whose whole job is to keep the
+// fleet under Coral's measured burst wall.
+func (p *api) sniperBudget(ctx context.Context, req gossiprpc.Request) error {
+	if err := p.budget(ctx, req); err != nil {
+		return err
+	}
+	return p.budget(ctx, req)
+}
 
 // account is a Minecraft player identifier (a username or UUID; Coral resolves
 // usernames through Mojang) as supplied by the caller. It is a distinct type so
@@ -175,9 +200,6 @@ func numDelta(raw json.RawMessage) int64 {
 // sessionFetch spends one Coral token and pulls the period's session delta.
 func (p *api) sessionFetch(period string) provider.FetchFunc {
 	return func(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
-		if err := p.buckets.Enforce(ctx, p.limiter, req.IsPremium); err != nil {
-			return nil, err
-		}
 		return p.fetchSession(ctx, period, account(id.Display))
 	}
 }
@@ -236,12 +258,9 @@ func (p *api) fetchTags(ctx context.Context, acct account) (tagsResponse, error)
 // two, and a missing player negative-caches once and satisfies both. It spends
 // one rate-limit token only on a real upstream fetch (the enforce lives inside
 // the cache's fill, so a hit costs nothing).
-func (p *api) playerTags(ctx context.Context, acct account, isPremium bool) (tagsResponse, error) {
+func (p *api) playerTags(ctx context.Context, acct account) (tagsResponse, error) {
 	key := core.Key(providerName, "playertags", acct.cacheKey())
-	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, func(ctx context.Context) (tagsResponse, error) {
-		if err := p.buckets.Enforce(ctx, p.limiter, isPremium); err != nil {
-			return tagsResponse{}, err
-		}
+	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, nil, func(ctx context.Context) (tagsResponse, error) {
 		return p.fetchTags(ctx, acct)
 	})
 }
@@ -249,7 +268,7 @@ func (p *api) playerTags(ctx context.Context, acct account, isPremium bool) (tag
 // tagsFetch reads the shared tags cache and shapes the blacklist-tags reply.
 func (p *api) tagsFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	acct := account(id.Display)
-	resp, err := p.playerTags(ctx, acct, req.IsPremium)
+	resp, err := p.playerTags(ctx, acct)
 	if err != nil {
 		return nil, err
 	}
@@ -277,8 +296,8 @@ type cubelifyResponse struct {
 // already have made instead of dialing Coral again. An empty uuid on a 200 is
 // shaped like a 404 so the downstream cubelify call is never made with a blank
 // id.
-func (p *api) resolveUUID(ctx context.Context, acct account, isPremium bool) (string, error) {
-	resp, err := p.playerTags(ctx, acct, isPremium)
+func (p *api) resolveUUID(ctx context.Context, acct account) (string, error) {
+	resp, err := p.playerTags(ctx, acct)
 	if err != nil {
 		return "", err
 	}
@@ -292,11 +311,8 @@ func (p *api) resolveUUID(ctx context.Context, acct account, isPremium bool) (st
 // Coral token, and pulls the cubelify sniper score.
 func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	acct := account(id.Display)
-	uuid, err := p.resolveUUID(ctx, acct, req.IsPremium)
+	uuid, err := p.resolveUUID(ctx, acct)
 	if err != nil {
-		return nil, err
-	}
-	if err := p.buckets.Enforce(ctx, p.limiter, req.IsPremium); err != nil {
 		return nil, err
 	}
 	// The cubelify endpoint authenticates via the key query parameter (it is
