@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Nats.PublisherAtMostOnceTest do
   # async: false — the publisher uses a named process, a named ETS table and a
   # global persistent_term context, so it cannot share the VM with a parallel

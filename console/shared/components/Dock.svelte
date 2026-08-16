@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The dock: navigation floats in a rounded bar at the bottom, the same
   // pattern at every breakpoint. It scales without bloating: when the app
   // declares more than one nav group (admin), each multi-item group collapses

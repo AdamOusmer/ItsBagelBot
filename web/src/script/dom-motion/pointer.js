@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 /**
  * Pointer tracker. Owns the raw input listeners and exposes the cursor
  * position as `nx`/`ny` normalized to [-1, 1] from the viewport center.

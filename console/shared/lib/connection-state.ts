@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Honest bot-connection state. The dashboard used to fold three separate reads
 // (Twitch grant, users-service active flag, outgress enroll state) into a single
 // `receiving` boolean with `subState !== 'unenrolled'`, which let `pending`,

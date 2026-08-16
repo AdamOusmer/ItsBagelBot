@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { channelSubState } from '$lib/server/services';

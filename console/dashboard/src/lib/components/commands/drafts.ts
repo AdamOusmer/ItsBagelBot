@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // sessionStorage-backed command drafts: the editor mirrors work-in-progress
 // here so a stray navigation or refresh can't eat it; the list shows an
 // "unsaved" chip for rows with a lingering draft and restores it on reopen.

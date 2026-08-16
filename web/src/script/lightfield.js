@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 /**
  * Standalone warm light-field for non-scrubbed surfaces (inner-page heroes).
  * Any `<canvas data-field>` gets the same drifting mote field the cinematic

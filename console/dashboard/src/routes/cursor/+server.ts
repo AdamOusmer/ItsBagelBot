@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { json } from '@sveltejs/kit';
 import { CURSOR_COOKIE, type Session } from '$lib/server/session';
 import { setCursor } from '$lib/server/services';

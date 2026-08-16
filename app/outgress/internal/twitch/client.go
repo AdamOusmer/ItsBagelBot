@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package twitch is the egress-side Helix client: token lifecycle, the
 // retry-once-on-401 dance, and the one user-token lookup the workers need.
 package twitch

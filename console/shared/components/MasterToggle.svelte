@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Server-form "master enable" bar: a POST form whose submit button is worn as
   // a switch, plus a label/hint column. Replaces the copy-pasted
   // <form ?/toggle> + button.toggle + master-text block on timers/loyalty/etc.

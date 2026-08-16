@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Thin bindable wrapper over the shared Switch, kept for the existing
   // `bind:on` call sites. New code can use Switch directly. `label` defaults for
   // back-compat but callers should pass a real accessible name.

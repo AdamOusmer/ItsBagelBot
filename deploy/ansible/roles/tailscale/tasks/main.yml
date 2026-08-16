@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # Install Tailscale and join the tailnet as a NEW node, pre-authorized via a
 # tagged auth key (tag:itsbagelbot). Tailscale SSH is enabled so the box stays reachable

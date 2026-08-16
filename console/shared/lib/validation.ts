@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Isomorphic link detection, kept in lock-step with the Go source of truth at
 // internal/domain/validate/link.go. The dashboard uses it twice on the gift
 // path: live in the browser (instant feedback while typing) and again in the

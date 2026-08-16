@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { describe, expect, test } from 'bun:test';
 import {

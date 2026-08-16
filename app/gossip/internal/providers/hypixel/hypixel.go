@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package hypixel is the gossip provider for the direct Hypixel API: lifetime
 // Bed Wars stats for sesame's !bwstats. It is its own provider — not a path
 // inside urchin — because it is a separate external system with its own key,

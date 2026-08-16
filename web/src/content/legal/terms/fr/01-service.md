@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Le service"
 plain: "Un bot Twitch de modération, de commandes et de participation, fourni tel quel. Les organisations doivent utiliser le forfait Entreprise ou un code de créateur."
 ---

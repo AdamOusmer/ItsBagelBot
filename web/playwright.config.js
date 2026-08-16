@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { defineConfig } from '@playwright/test';
 
 // Serves the already-built static output in dist/ on :4321 for the suite.

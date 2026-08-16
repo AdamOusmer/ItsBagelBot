@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Redeem an admin "view as" link: verify the signed token, burn its jti (a
 // link is single-use), then seal a short (1h) dashboard session for the target
 // user that also carries the acting admin (impersonator_*). hooks.server.ts

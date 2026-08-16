@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // One light in the govee deck, on the shared ManagementRow: the clickable
   // primary is a real button (aria-controls the reward inspector); the
   // remove-reward action is its sibling, never nested inside it. Selecting a row

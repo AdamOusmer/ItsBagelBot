@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Cloudflare, témoins et analytique"
 plain: "Cloudflare héberge, protège et achemine le service. L’analytique est sans témoin; des témoins de sécurité peuvent être utilisés au besoin."
 ---

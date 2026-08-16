@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Typed cache-key registry + policy table.
 //
 // Every cached read in the consoles belongs to one of a handful of data

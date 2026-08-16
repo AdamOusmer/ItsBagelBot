@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
 import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM, blankReward } from '@bagel/shared';

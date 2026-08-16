@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Confirmation wrapper over the shared Modal (which owns Escape + backdrop
   // close). Use for destructive or hard-to-reverse actions; prefer optimistic
   // apply + undo toast for cheap-to-restore ones.

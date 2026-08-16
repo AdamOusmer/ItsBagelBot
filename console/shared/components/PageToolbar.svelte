@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Horizontal control row for a page header area: a lead slot, a flexible
   // spacer, and a trail slot. Self-contained (does not lean on the global
   // .toolbar rule) so it looks identical wherever it's dropped.

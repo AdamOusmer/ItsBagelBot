@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Builder inspector for one trigger-word rule — the module twin of ReplyEditor,
   // extended with the two fields a trigger owns: the phrase to watch for and how
   // it matches. The response reuses the exact command builder surface

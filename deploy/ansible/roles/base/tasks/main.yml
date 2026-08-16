@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # Base system: node identity, hostname, packages, kernel modules, sysctl, ulimits.
 # Hardening/optimizations mirror node1 (Oracle); sysctl copied from the running fleet.

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package core holds gossip's provider-neutral runtime pieces: the
 // Valkey-backed reply cache and the outbound HTTP fetcher. Providers compose
 // these; core knows nothing about any specific external API.

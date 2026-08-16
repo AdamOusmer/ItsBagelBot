@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Inspector pane for a built-in command. Built-ins have no editable response,
   // so this is intentionally read-only: it shows what the command does, example
   // usage, a preview of the chat line the bot posts, and a single on/off toggle.

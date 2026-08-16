@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.BroadcasterCache do
   @moduledoc """
   In-process read-through cache for broadcaster lane status, so the hot chat

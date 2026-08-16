@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Channel-points store: bridges the two homes of a reward.
 //
 //   - The Twitch custom reward itself is owned by outgress and mutated

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Dashboard session: the shared AES-256-GCM codec instantiated over the
 // dashboard's own Session shape and its own isolated SESSION_KEY.
 //

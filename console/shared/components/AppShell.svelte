@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The stage layout: no sidebar. A thin call-sign strip on top, one centered
   // reading column for the page, and the floating command dock at the bottom —
   // the same navigation pattern at every breakpoint.

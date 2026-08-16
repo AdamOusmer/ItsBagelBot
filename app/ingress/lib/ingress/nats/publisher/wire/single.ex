@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Nats.Publisher.Wire.Single do
   @moduledoc """
   Per-event wire: every member of the cohort is an ordinary JetStream publish

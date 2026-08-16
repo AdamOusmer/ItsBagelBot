@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Regenerate lib/i18n/keys.d.ts from the English catalog. Run after adding or
 // renaming keys in locales/en.json:
 //   bun scripts/gen-i18n-keys.mjs   (or: bun run i18n:keys)

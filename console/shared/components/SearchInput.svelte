@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Search field with the standard icon, an optional debounce for callers that
   // trigger work per keystroke, and a one-tap clear.
   import Icon from './Icon.svelte';

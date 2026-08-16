@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package transactionsrpc holds the shared wire types for the transactions
 // service RPC surface, so consumers can reference them without pulling in the
 // full service.

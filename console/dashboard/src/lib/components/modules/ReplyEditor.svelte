@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Builder inspector for one module reply — the same surface as editing a custom
   // command's response: the shared ResponseEditor (message + token chips) and the
   // ChatPreview rehearsal (ItsBagelBot name + logo).

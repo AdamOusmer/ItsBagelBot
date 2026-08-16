@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Vos droits (RGPD, LPRPDE, Loi 25, CCPA)"
 plain: "Vous pouvez demander l’accès, la rectification, la portabilité ou la suppression de vos renseignements. Les résidents de la Californie bénéficient aussi des droits prévus par la CCPA. Vous pouvez également porter plainte auprès d’un organisme de protection de la vie privée."
 ---

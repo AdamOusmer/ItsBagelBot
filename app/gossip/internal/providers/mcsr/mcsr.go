@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package mcsr is the gossip provider for the MCSR Ranked public API: a
 // player's current ranked standing, plus the per-channel stream-session delta
 // sesame's !session command shows.

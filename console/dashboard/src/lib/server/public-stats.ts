@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Public (unauthenticated) global counters for /stats.
 //
 // Two lifetime, bot-scope counters live in the loyalty service — the same

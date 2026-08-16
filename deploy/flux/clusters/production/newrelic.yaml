@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # New Relic nri-bundle, brought under Flux (HelmRelease) from an out-of-band
 # `helm template | kubectl apply` install. This is the FIRST HelmRelease in the
 # repo, so it also introduces the New Relic HelmRepository source.

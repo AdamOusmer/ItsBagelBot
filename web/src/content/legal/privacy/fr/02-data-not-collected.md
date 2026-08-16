@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Renseignements non recueillis"
 plain: "Aucun profil de navigation personnel, aucune donnée publicitaire et aucun suivi par adresse IP de notre part."
 ---

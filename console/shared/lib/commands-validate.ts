@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Command validation shared by the dashboard server action and the client
 // editor, so the instant client-side feedback and the authoritative server
 // check can never disagree.

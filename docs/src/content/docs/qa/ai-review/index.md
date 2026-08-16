@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: AI code reviews
 description: Model-assisted reads of a subsystem or PR. Records the model's verdict alongside human triage.
 ---

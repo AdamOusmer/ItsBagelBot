@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package clashroyale exposes the official Supercell Clash Royale player API
 // through RoyaleAPI's supported proxy. The stats, decks, ranked, and
 // trophy_road endpoints all derive from GET /players/{playerTag}; a shared

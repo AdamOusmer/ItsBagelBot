@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Twitch.AppToken do
   @moduledoc """
   Holds the Twitch app access token (client-credentials grant) and refreshes it

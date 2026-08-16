@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { Actions, PageServerLoad } from './$types';
 import { moduleDef, type ModuleDef } from '@bagel/shared';
 import { listModules, upsertModule, patchModule } from '$lib/server/commands-store';

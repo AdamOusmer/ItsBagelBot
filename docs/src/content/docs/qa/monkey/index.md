@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: Monkey tests
 description: Randomized and property-style runs against running services. Used to find crashes, deadlocks, and unexpected state.
 ---

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Server certs issued from the fleet CA. Each writes a tls.crt/tls.key/ca.crt
 # Secret in production; the NATS and console pods mount it as their server cert.
 # Clients verify the server against the CA (distributed as the fleet-ca ConfigMap,

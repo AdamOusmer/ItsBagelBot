@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package health serves the tiny HTTP endpoint Kubernetes probes hit.
 package health
 

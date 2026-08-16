@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Falco, brought under Flux (HelmRelease) from an out-of-band install.
 # `helm list -n falco` is empty: the live DaemonSet/ConfigMaps/Service/SA carry
 # helm.sh/chart labels but no helm release secret exists, i.e. they are

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Fault-isolation primitives shared by the console SSR backends.
 //
 // The SSR hot path fans out to several independent dependencies (Valkey, the

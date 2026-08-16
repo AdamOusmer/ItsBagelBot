@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Needs-attention strip. Surfaces ONLY issues the status panel does not already
   // own (the whole connection story lives there), and only when they are REAL —
   // an empty issue set renders nothing at all. Each row names the problem in plain

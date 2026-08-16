@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The bot status panel: the page's anchor. It tells the streamer, in words,
   // exactly what state the connection is in and offers the recovery action that
   // state needs. Colour + dot are decoration on top of the text label, never the

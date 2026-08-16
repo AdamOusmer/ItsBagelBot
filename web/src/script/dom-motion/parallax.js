@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 /**
  * Page-level parallax. Writes CSS custom properties on the document root that
  * the global stylesheet consumes via `translate` and `transform` on top-level

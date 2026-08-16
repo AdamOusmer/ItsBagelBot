@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Request-level account gates, run from hooks.server.ts on EVERY request.
 //
 // These gates used to live in the (app) layout load, but SvelteKit never runs

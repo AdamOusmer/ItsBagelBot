@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import { getI18n } from '../lib/i18n/context';

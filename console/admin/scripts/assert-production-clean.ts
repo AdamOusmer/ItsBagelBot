@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { readdir, readFile } from 'node:fs/promises';
 import { extname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';

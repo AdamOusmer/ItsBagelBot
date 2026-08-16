@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Marketing-site i18n. The catalogs are now pure data: one JSON file per locale
 // under ./locales, discovered from the filesystem at build time. English is the
 // source of truth (en.json); every other locale falls back to it per-key, so a

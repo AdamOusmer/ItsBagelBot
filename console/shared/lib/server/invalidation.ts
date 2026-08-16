@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Cache-invalidation bus consumer: durable transport + data-driven key routing.
 //
 // Go services publish `${prefix}.<scope>` with a `{ broadcaster_id }` body when

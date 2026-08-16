@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Fleet PKI: the cert-manager issuers, the server Certificates, and the
 # trust-manager Bundle that publishes the CA to apps. Applied by the `pki`
 # Kustomization (deploy/flux/clusters/production/pki.yaml), which dependsOn

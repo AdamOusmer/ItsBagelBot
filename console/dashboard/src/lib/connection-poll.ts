@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 export type ConnectionPollGoal = 'connected' | 'disconnected';
 
 export const CONNECTION_POLL_FAST_MS = 500;

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Commands + modules store: the read path and the optimistic write pipeline.
 //
 // Reads are the fabric's hybrid path (L1 -> Valkey projection -> projector RPC).

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // In-process fan-out of cache-invalidation events to connected browser clients.
 //
 // The Go cache-invalidation bus already fans every write out to EVERY console

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress do
   @moduledoc """
   Twitch ingress: the Elixir/BEAM service that owns the Twitch EventSub

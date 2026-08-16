@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Loyalty store: the points economy's two homes.
 //
 //   - The rates (points per sub/cheer/watch tick, the currency's name) live in

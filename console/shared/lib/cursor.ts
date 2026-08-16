@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { writable } from 'svelte/store';
 
 // Client-side source of truth for the custom-cursor preference. Kept out of the

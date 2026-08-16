@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import NavItem from './NavItem.svelte';
   import type { NavLink } from '../lib/types';
   let { label, items, startIndex = 1 }: { label?: string; items: NavLink[]; startIndex?: number } = $props();

@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Payments, Refunds & Chargebacks"
 plain: "Purchases are handled by Tebex. All sales are final. Chargebacks result in an immediate ban."
 ---

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 """Generate and load the NATS per-account credentials into Doppler.
 
 This is the single source of truth for rotating NATS auth. NATS stores bcrypt

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 

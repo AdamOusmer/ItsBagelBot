@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Twitch.Api do
   @moduledoc """
   Helix calls the ingress needs: conduit lifecycle and shard binding.
