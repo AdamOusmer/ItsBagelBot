@@ -282,8 +282,8 @@ spec:
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
-              exec:
-                command: ["/bin/sh", "-c", "sleep 10"]
+              sleep:
+                seconds: 10
           livenessProbe:
             httpGet: {path: /healthz, port: 3000}
             periodSeconds: 30
