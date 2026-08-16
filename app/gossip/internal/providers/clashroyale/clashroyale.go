@@ -87,6 +87,7 @@ func (p *api) view(b *provider.Builder, name string, errReply provider.ReplyFunc
 		Cached(profileTTL, negativeTTL).
 		ID(tagID).
 		Reply(errReply).
+		Budget(p.profileBudget).
 		Fallback(name + " lookup failed").
 		Fetch(p.profileFetch(shape))
 }
@@ -103,10 +104,20 @@ func tagID(req gossiprpc.Request) (provider.ID, string) {
 }
 
 // profileFetch loads the shared profile and projects it through shape.
+// profileBudget spends one request's share of the Clash Royale allowance in that
+// request's own lane. Every view shares one profile entry, so it is declared on
+// each endpoint rather than written inside the shared fill: a check in there runs
+// once per singleflight flight, is charged to whichever caller won it, and hands
+// that verdict to everyone joined — which let a drained standard bucket deny
+// premium callers the reserve they are entitled to.
+func (p *api) profileBudget(ctx context.Context, req gossiprpc.Request) error {
+	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
+}
+
 func (p *api) profileFetch(shape func(playerProfile) any) provider.FetchFunc {
-	return func(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
+	return func(ctx context.Context, _ gossiprpc.Request, id provider.ID) (any, error) {
 		tag, _ := parsePlayerTag(id.Display) // already validated by tagID
-		profile, err := p.profile(ctx, tag, req.IsPremium)
+		profile, err := p.profile(ctx, tag)
 		if err != nil {
 			return nil, err
 		}
@@ -274,12 +285,9 @@ type trophyRoadReply struct {
 	Error        string `json:"error,omitempty"`
 }
 
-func (p *api) profile(ctx context.Context, tag playerTag, isPremium bool) (playerProfile, error) {
+func (p *api) profile(ctx context.Context, tag playerTag) (playerProfile, error) {
 	key := core.Key(providerName, "profile", tag.cacheKey())
-	return core.Cached(ctx, p.cache, key, profileTTL, negativeTTL, func(ctx context.Context) (playerProfile, error) {
-		if err := p.buckets.Enforce(ctx, p.limiter, isPremium); err != nil {
-			return playerProfile{}, err
-		}
+	return core.Cached(ctx, p.cache, key, profileTTL, negativeTTL, nil, func(ctx context.Context) (playerProfile, error) {
 		var profile playerProfile
 		path := "/players/" + url.PathEscape(tag.String())
 		if err := p.http.GetJSON(ctx, path, nil, &profile); err != nil {

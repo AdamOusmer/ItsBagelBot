@@ -150,11 +150,17 @@ func (p *api) enforceRateLimit(ctx context.Context, isPremium bool) error {
 	return p.buckets.Enforce(ctx, p.limiter, isPremium)
 }
 
+// admit binds the budget to one lane for a cached lookup. It is handed to
+// core.Cached rather than written inside the fill because a fill runs once per
+// singleflight flight: a check in there is charged to whichever caller won the
+// flight and its verdict is served to everyone joined to it, so a drained
+// standard bucket would deny premium callers the reserve they are entitled to.
+func (p *api) admit(isPremium bool) func(context.Context) error {
+	return func(ctx context.Context) error { return p.enforceRateLimit(ctx, isPremium) }
+}
+
 // fetchUser loads a player's live standing straight from the API.
-func (p *api) fetchUser(ctx context.Context, account string, isPremium bool) (gossiprpc.McsrUserReply, error) {
-	if err := p.enforceRateLimit(ctx, isPremium); err != nil {
-		return gossiprpc.McsrUserReply{}, err
-	}
+func (p *api) fetchUser(ctx context.Context, account string) (gossiprpc.McsrUserReply, error) {
 	var resp userResponse
 	if err := p.http.GetJSON(ctx, "/users/"+strings.TrimSpace(account), nil, &resp); err != nil {
 		return gossiprpc.McsrUserReply{}, err
@@ -195,8 +201,8 @@ func (p *api) fetchUser(ctx context.Context, account string, isPremium bool) (go
 // cachedUser is fetchUser behind the shared 60s cache.
 func (p *api) cachedUser(ctx context.Context, account string, isPremium bool) (gossiprpc.McsrUserReply, error) {
 	key := core.Key(providerName, "user", strings.ToLower(strings.TrimSpace(account)))
-	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, func(ctx context.Context) (gossiprpc.McsrUserReply, error) {
-		return p.fetchUser(ctx, account, isPremium)
+	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, p.admit(isPremium), func(ctx context.Context) (gossiprpc.McsrUserReply, error) {
+		return p.fetchUser(ctx, account)
 	})
 }
 
@@ -228,7 +234,13 @@ func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 	if account == "" || req.ChannelID == "" {
 		return gossiprpc.McsrSnapshotReply{Error: "missing account or channel"}
 	}
-	user, err := p.fetchUser(ctx, account, req.IsPremium)
+	// Spent inline: this path deliberately bypasses the cache (the snapshot is the
+	// session baseline and must not predate the stream), so no cached admission
+	// carries the debit for it.
+	if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
+		return gossiprpc.McsrSnapshotReply{Error: friendlyError(err)}
+	}
+	user, err := p.fetchUser(ctx, account)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
 			return gossiprpc.McsrSnapshotReply{Error: msg}

@@ -49,12 +49,101 @@ func (e *UpstreamError) Error() string {
 // timeouts still live on the individual clients.
 var sharedTransport = newSharedTransport()
 
+const (
+	// h2ReadIdleTimeout is how long an HTTP/2 connection may go without
+	// reading a frame before the transport pings it to prove it is alive.
+	// Zero — the value the h2 transport is born with, since
+	// http2setConfigDefaults assigns no default to SendPingTimeout — disarms
+	// the health-check timer entirely, and the h2 transport funnels every
+	// request to a host down ONE TCP connection. So a connection that dies
+	// silently (a conntrack or middlebox reap, a path change across this
+	// fleet's Cilium WireGuard pod plane or its VLAN mesh) is never noticed:
+	// the transport keeps writing requests into a socket nobody is reading,
+	// and each one hangs for the full http.Client timeout. IdleConnTimeout
+	// covers only the case where the connection stays idle for its whole
+	// window, not a reap inside that window and not a stall mid-flight — and
+	// the wider that window grows the more of its life a connection spends
+	// unproven, which is why idleConnTimeout below is written as the other
+	// half of this setting. 15s is short enough that a reap is caught many
+	// times over inside the idle window while costing at most one PING frame
+	// per connection per 15 idle seconds; the pings do not defeat idle
+	// reaping, which tracks lastIdle separately.
+	h2ReadIdleTimeout = 15 * time.Second
+	// h2PingTimeout is how long the health check waits for the PONG before
+	// declaring the connection lost and closing it. It must fit inside a
+	// request's own budget to be worth anything: the h2 default is 15s,
+	// longer than the 10s NewHTTPClient timeout, so a stalled request would
+	// die at its own deadline before the ping ever returned a verdict. 3s
+	// leaves the verdict — and the retry onto a fresh connection — comfortably
+	// inside the 10s budget, while staying far above any real RTT to an
+	// upstream (single-digit ms) or between fleet nodes (sub-ms).
+	h2PingTimeout = 3 * time.Second
+	// idleConnTimeout is how long a pooled connection may sit unused before it
+	// is closed. net/http's stock 90s is wrong for this service's shape: gossip
+	// serves chat commands — a burst when viewers ask, then a long quiet
+	// stretch — and that burst is split across three replicas, so any one
+	// replica's gap to any one upstream runs roughly three times the channel's
+	// own. Minutes between calls to api.hypixel.net or fortnite-api.com is the
+	// normal case here, not the tail, which means at 90s the idle pool is
+	// essentially never hit and the first request of every burst pays DNS, TCP
+	// and a full TLS handshake to a remote third-party API — 100-300ms in front
+	// of a command a viewer is waiting on, all day long. 10 minutes is the
+	// length of a quiet stretch inside a live session; past it the channel
+	// using that provider has almost certainly gone away and the socket buys
+	// nothing. Overshooting costs close to nothing anyway, because the
+	// effective lifetime is min(this, the upstream's own keep-alive) and a
+	// server-side close arrives as a GOAWAY or FIN the read loop acts on at
+	// once — a too-long value degrades into re-dialing exactly as a short one
+	// would. Undershooting has no such escape: it is a handshake we chose to
+	// pay.
+	//
+	// This is only safe because h2ReadIdleTimeout is armed, and the two are one
+	// setting — lowering either alone reintroduces the original failure. While
+	// SendPingTimeout was zero a long-lived idle connection was a liability: it
+	// sat silent, so a conntrack or middlebox reap, or a path change across
+	// this fleet's Cilium WireGuard pod plane or its VLAN mesh, blackholed it
+	// invisibly, and the transport went on handing that dead socket to request
+	// after request, each hanging for the full 10s client timeout — and never
+	// self-clearing, since a connection with streams in flight is not idle and
+	// the idle timer never fires on it. The 15s ping closes both ends of that:
+	// it is real traffic on the wire, so the flow never looks idle to a reaper
+	// whose window is 300s or 3600s, and when the path dies anyway the missing
+	// PONG closes the connection within h2ReadIdleTimeout+h2PingTimeout instead
+	// of never. The pings do not extend this window in exchange — only
+	// forgetStreamID moves lastIdle, so frame reads keep the wire warm without
+	// touching our own deadline.
+	idleConnTimeout = 10 * time.Minute
+)
+
 func newSharedTransport() *http.Transport {
 	t := http.DefaultTransport.(*http.Transport).Clone()
+	// These two size the HTTP/1 idle pool and nothing else. The bundled h2
+	// transport keeps its connections in its own clientConnPool, which reads
+	// neither field, and h2 multiplexes every request to a host onto a single
+	// connection regardless — so against upstreams that negotiate h2 (all of
+	// today's, being TLS APIs behind modern edges) both numbers are inert.
+	// They stay as the correct sizing for any upstream that falls back to
+	// HTTP/1.1, where the alternative is the stock 2-idle-conns-per-host that
+	// would hand a burst of stats lookups a fresh handshake apiece.
 	t.MaxIdleConns = 200
 	t.MaxIdleConnsPerHost = 32
-	t.IdleConnTimeout = 90 * time.Second
+	// IdleConnTimeout does reach the h2 connections: configureTransports leaves
+	// http2Transport.IdleConnTimeout zero and keeps a back-pointer to us, and
+	// http2Transport.idleConnTimeout falls through to t1's value, which then
+	// arms each h2 ClientConn's idle timer and backs its tooIdleLocked check.
+	t.IdleConnTimeout = idleConnTimeout
 	t.ForceAttemptHTTP2 = true
+	// net/http's own HTTP2Config, not golang.org/x/net/http2.ConfigureTransports:
+	// ForceAttemptHTTP2 makes the bundled h2 transport the owner of this
+	// transport's TLSNextProto, and configureTransports keeps a back-pointer
+	// to us (t1), so configFromTransport merges these fields in via
+	// fillNetHTTPConfig on every connection it builds. Reaching for x/net
+	// instead would install a second, competing h2 implementation and
+	// promote an indirect dependency to a direct one for no gain.
+	t.HTTP2 = &http.HTTP2Config{
+		SendPingTimeout: h2ReadIdleTimeout,
+		PingTimeout:     h2PingTimeout,
+	}
 	return t
 }
 

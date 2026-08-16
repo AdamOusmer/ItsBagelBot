@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,11 +25,11 @@ func TestCachedBytesMissFillsThenHits(t *testing.T) {
 	c := NewCache(newMemStore())
 	var builds atomic.Int32
 
-	b, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"player":"x"}`, time.Minute, &builds))
+	b, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"player":"x"}`, time.Minute, &builds))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"player":"x"}`, string(b))
 
-	b, err = CachedBytes(context.Background(), c, "k", buildStatic(`{"player":"other"}`, time.Minute, &builds))
+	b, err = CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"player":"other"}`, time.Minute, &builds))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"player":"x"}`, string(b), "hit must serve the stored bytes")
 	assert.Equal(t, int32(1), builds.Load())
@@ -40,10 +41,10 @@ func TestCachedBytesZeroTTLNotStored(t *testing.T) {
 	c := NewCache(newMemStore())
 	var builds atomic.Int32
 
-	_, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"error":"busy"}`, 0, &builds))
+	_, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"error":"busy"}`, 0, &builds))
 	require.NoError(t, err)
 
-	b, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"player":"x"}`, time.Minute, &builds))
+	b, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"player":"x"}`, time.Minute, &builds))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"player":"x"}`, string(b))
 	assert.Equal(t, int32(2), builds.Load(), "a ttl-zero reply must not be cached")
@@ -53,13 +54,13 @@ func TestCachedBytesBuildErrorPropagates(t *testing.T) {
 	c := NewCache(newMemStore())
 	boom := errors.New("boom")
 
-	_, err := CachedBytes(context.Background(), c, "k", func(context.Context) ([]byte, time.Duration, error) {
+	_, err := CachedBytes(context.Background(), c, "k", nil, func(context.Context) ([]byte, time.Duration, error) {
 		return nil, 0, boom
 	})
 	require.ErrorIs(t, err, boom)
 
 	// Nothing cached: the next build runs and succeeds.
-	b, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"ok":true}`, time.Minute, nil))
+	b, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"ok":true}`, time.Minute, nil))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"ok":true}`, string(b))
 }
@@ -71,12 +72,12 @@ func TestCachedBytesLegacyEntryRefetched(t *testing.T) {
 	require.NoError(t, st.Set(context.Background(), "k", []byte(`{"player":"old-format"}`), time.Minute))
 	c := NewCache(st)
 
-	b, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"player":"fresh"}`, time.Minute, nil))
+	b, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"player":"fresh"}`, time.Minute, nil))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"player":"fresh"}`, string(b))
 
 	// The repaired entry serves without another build.
-	b, err = CachedBytes(context.Background(), c, "k", func(context.Context) ([]byte, time.Duration, error) {
+	b, err = CachedBytes(context.Background(), c, "k", nil, func(context.Context) ([]byte, time.Duration, error) {
 		t.Error("must not rebuild a repaired entry")
 		return nil, 0, nil
 	})
@@ -87,10 +88,10 @@ func TestCachedBytesLegacyEntryRefetched(t *testing.T) {
 // Entries survive across Cache instances (replicas sharing the valkey store).
 func TestCachedBytesSharedAcrossInstances(t *testing.T) {
 	st := newMemStore()
-	_, err := CachedBytes(context.Background(), NewCache(st), "k", buildStatic(`{"player":"x"}`, time.Minute, nil))
+	_, err := CachedBytes(context.Background(), NewCache(st), "k", nil, buildStatic(`{"player":"x"}`, time.Minute, nil))
 	require.NoError(t, err)
 
-	b, err := CachedBytes(context.Background(), NewCache(st), "k", func(context.Context) ([]byte, time.Duration, error) {
+	b, err := CachedBytes(context.Background(), NewCache(st), "k", nil, func(context.Context) ([]byte, time.Duration, error) {
 		t.Error("second replica must serve from the shared store")
 		return nil, 0, nil
 	})
@@ -123,7 +124,7 @@ func TestCachedBytesStaleServedThenRevalidated(t *testing.T) {
 	ctx := context.Background()
 
 	// Cold fill, fresh for 20ms.
-	b, err := CachedBytes(ctx, c, "k", buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
+	b, err := CachedBytes(ctx, c, "k", nil, buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"n":1}`, string(b))
 	require.Equal(t, int32(1), builds.Load())
@@ -133,13 +134,13 @@ func TestCachedBytesStaleServedThenRevalidated(t *testing.T) {
 	time.Sleep(40 * time.Millisecond)
 
 	// Stale hit: returns the OLD bytes at once and kicks one background rebuild.
-	b, err = CachedBytes(ctx, c, "k", buildStatic(`{"n":2}`, time.Minute, &builds))
+	b, err = CachedBytes(ctx, c, "k", nil, buildStatic(`{"n":2}`, time.Minute, &builds))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"n":1}`, string(b), "stale hit must serve the old bytes")
 
 	// The revalidation lands the new value; once fresh, later reads serve it.
 	require.Eventually(t, func() bool {
-		got, gerr := CachedBytes(ctx, c, "k", buildStatic(`{"n":2}`, time.Minute, &builds))
+		got, gerr := CachedBytes(ctx, c, "k", nil, buildStatic(`{"n":2}`, time.Minute, &builds))
 		return gerr == nil && string(got) == `{"n":2}`
 	}, time.Second, 10*time.Millisecond)
 }
@@ -155,25 +156,138 @@ func TestCachedBytesStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 	var builds atomic.Int32
 	ctx := context.Background()
 
-	_, err := CachedBytes(ctx, podA, "k", buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
+	_, err := CachedBytes(ctx, podA, "k", nil, buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
 	require.NoError(t, err)
 	require.Equal(t, int32(1), builds.Load())
 	time.Sleep(40 * time.Millisecond)
 
 	// Both pods take a stale hit and each spawns its refresh goroutine; the
 	// claim lets exactly one through.
-	rebuild := buildStatic(`{"n":2}`, time.Minute, &builds)
+	//
+	// The rebuild parks until both stale reads are done. An instant rebuild lets
+	// the winning pod's refresh store the fresh value BETWEEN the two reads, and
+	// the second pod then takes an ordinary fresh hit and serves {"n":2} — a
+	// perfectly correct outcome, but not the stale path this test exists to
+	// pin down, so the assertion below would fail on a timing accident rather
+	// than on a real regression.
+	release := make(chan struct{})
+	rebuild := func(rctx context.Context) ([]byte, time.Duration, error) {
+		<-release
+		return buildStatic(`{"n":2}`, time.Minute, &builds)(rctx)
+	}
 	for _, pod := range []*Cache{podA, podB} {
-		b, gerr := CachedBytes(ctx, pod, "k", rebuild)
+		b, gerr := CachedBytes(ctx, pod, "k", nil, rebuild)
 		require.NoError(t, gerr)
 		assert.JSONEq(t, `{"n":1}`, string(b), "stale hit must serve the old bytes")
 	}
+	close(release)
 
 	require.Eventually(t, func() bool {
-		got, gerr := CachedBytes(ctx, podA, "k", rebuild)
+		got, gerr := CachedBytes(ctx, podA, "k", nil, rebuild)
 		return gerr == nil && string(got) == `{"n":2}`
 	}, time.Second, 10*time.Millisecond)
 	assert.Equal(t, int32(2), builds.Load(), "one cold fill + exactly one fleet-wide refresh")
+}
+
+// A cache hit must cost NO budget. The buckets meter upstream spend, so charging
+// a hit would meter chat volume instead and drain a daily allowance on requests
+// that never left the pod.
+func TestCachedBytesAdmitSkippedOnFreshHit(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+
+	_, err := CachedBytes(ctx, c, "k", nil, buildStatic(`{"n":1}`, time.Minute, nil))
+	require.NoError(t, err)
+
+	b, err := CachedBytes(ctx, c, "k", func(context.Context) error {
+		t.Error("a fresh hit must not spend budget")
+		return nil
+	}, buildStatic(`{"n":2}`, time.Minute, nil))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"n":1}`, string(b))
+}
+
+// A denial belongs to the caller that earned it and must not be cached: the
+// bucket refills in seconds, so the very next request has to be able to retry.
+func TestCachedBytesAdmitDenialIsNotCached(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+
+	_, err := CachedBytes(ctx, c, "k", func(context.Context) error { return denied },
+		func(context.Context) ([]byte, time.Duration, error) {
+			t.Error("a denied caller must never reach the upstream")
+			return nil, 0, nil
+		})
+	require.ErrorIs(t, err, denied)
+
+	b, err := CachedBytes(ctx, c, "k", nil, buildStatic(`{"n":1}`, time.Minute, nil))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"n":1}`, string(b), "a denial must not poison the key")
+}
+
+// THE premium-reserve regression test. Concurrent callers for one key collapse
+// into a single flight, and the budget check used to live inside that flight —
+// so whichever caller won it ran the check for everyone, and a standard caller
+// with a drained bucket handed its 429 to premium callers who were entitled to
+// the reserve. Admission is per caller now: every denied caller gets its own
+// denial, every allowed caller gets the bytes, and the flight still costs ONE
+// upstream call.
+func TestCachedBytesAdmitIsPerCallerUnderOneFlight(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+
+	const perLane = 4
+	var builds atomic.Int32
+	release := make(chan struct{})
+	// The build parks until every caller has been admitted, forcing them all into
+	// the same flight; otherwise an early finisher fills the key and the later
+	// callers take fresh hits and never exercise admission at all.
+	build := func(bctx context.Context) ([]byte, time.Duration, error) {
+		<-release
+		return buildStatic(`{"n":1}`, time.Minute, &builds)(bctx)
+	}
+
+	premium, standard := make([]laneOutcome, perLane), make([]laneOutcome, perLane)
+	var admitted, wg sync.WaitGroup
+	admitted.Add(2 * perLane)
+	fire := func(out []laneOutcome, verdict error) {
+		for i := range out {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				admit := func(context.Context) error {
+					admitted.Done()
+					return verdict
+				}
+				body, err := CachedBytes(ctx, c, "k", admit, build)
+				out[i] = laneOutcome{body: body, err: err}
+			}(i)
+		}
+	}
+	fire(premium, nil)
+	fire(standard, denied)
+
+	admitted.Wait()
+	close(release)
+	wg.Wait()
+
+	for i, got := range premium {
+		require.NoError(t, got.err, "premium caller %d must not inherit the standard lane's denial", i)
+		assert.JSONEq(t, `{"n":1}`, string(got.body))
+	}
+	for i, got := range standard {
+		assert.ErrorIs(t, got.err, denied, "standard caller %d must be denied by its own lane", i)
+	}
+	assert.Equal(t, int32(1), builds.Load(), "the flight must still cost one upstream call")
+}
+
+// laneOutcome is one concurrent caller's answer: the bytes it was served and the
+// error it was given, kept per caller so the two lanes can be asserted apart.
+type laneOutcome struct {
+	body []byte
+	err  error
 }
 
 // The reply-bytes hit path is gossip's hot path: after the store read it
@@ -181,7 +295,7 @@ func TestCachedBytesStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 func BenchmarkCachedBytesHit(b *testing.B) {
 	st := newMemStore()
 	c := NewCache(st)
-	_, err := CachedBytes(context.Background(), c, "k", buildStatic(`{"player":"Techno","wins":5,"losses":2}`, time.Hour, nil))
+	_, err := CachedBytes(context.Background(), c, "k", nil, buildStatic(`{"player":"Techno","wins":5,"losses":2}`, time.Hour, nil))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -190,7 +304,7 @@ func BenchmarkCachedBytesHit(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if _, err := CachedBytes(ctx, c, "k", nil); err != nil {
+		if _, err := CachedBytes(ctx, c, "k", nil, nil); err != nil {
 			b.Fatal(err)
 		}
 	}

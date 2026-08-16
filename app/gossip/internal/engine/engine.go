@@ -29,10 +29,34 @@ const defaultTimeout = 5 * time.Second
 // badRequestReply is the fixed reply for an undecodable request body.
 var badRequestReply = []byte(`{"error":"bad request"}`)
 
+// handlerPolicy is the concurrency budget each endpoint gets. It is PER
+// SUBJECT, one fleet per endpoint, and that is the point: a subject can only
+// ever starve itself. govee.control spends a 12s budget on two sequential 6s
+// HTTP calls, and a shared fleet would let four of those park a fortnite.stats
+// cache hit that answers in microseconds. Per-subject fleets keep the slow
+// endpoint's misery local, which is the property the serial callbacks had and
+// the only one worth keeping from them.
+//
+// Four is deliberately modest, and sized against memory rather than CPU — see
+// bus.RPCPoolPolicy's defaults for the arithmetic against gossip's
+// GOMEMLIMIT=96MiB, its 128Mi limit, and the 4MiB per-response buffer in
+// app/gossip/internal/core/http.go. The bug being fixed is head-of-line
+// blocking behind one slow handler, and four removes it.
+var handlerPolicy = bus.RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 4, QueueDepth: 4}
+
 // Serve subscribes every endpoint of every provider at
 // "<prefix>.<provider>.<endpoint>" in queueGroup, so replicas share the load.
 // It flushes once after all subscriptions so a deploy never answers a subject
 // list it has not fully registered.
+//
+// Each endpoint is served by its own handler pool (handlerPolicy), so HANDLERS
+// RUN CONCURRENTLY WITH THEMSELVES: one endpoint answers up to four requests at
+// a time instead of holding them behind whichever one is fetching. A provider
+// handler that closes over mutable state must guard it; the byte-flow handlers
+// the builder assembles only read the cache and the upstream, and the bespoke
+// ones (govee, sessions) hold no cross-request state. The pools register
+// themselves with bus.DrainRPCHandlers, which main calls on shutdown before the
+// NATS and Valkey connections close.
 func Serve(nc *nats.Conn, prefix, queueGroup string, providers []provider.Provider, nrApp *newrelic.Application, log *zap.Logger) error {
 	for _, p := range providers {
 		for _, ep := range p.Endpoints() {
@@ -49,7 +73,13 @@ func Serve(nc *nats.Conn, prefix, queueGroup string, providers []provider.Provid
 	return nil
 }
 
-// subscribe registers one endpoint handler.
+// subscribe registers one endpoint handler on its own pool.
+//
+// Everything below runs on a pool worker, including the New Relic transaction.
+// That is a requirement, not a convenience: a newrelic.Transaction has goroutine
+// affinity, so starting one on the delivery goroutine and ending it on a worker
+// would corrupt exactly the trace this instrumentation exists to produce. The
+// delivery goroutine touches nothing but the *nats.Msg.
 func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, nrApp *newrelic.Application, log *zap.Logger) error {
 	timeout := ep.Timeout
 	if timeout <= 0 {
@@ -57,7 +87,8 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 	}
 	handle := ep.Handle
 
-	err := bus.QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
+	registration := bus.RPCSubscription{Subject: subject, QueueGroup: queueGroup, Policy: handlerPolicy}
+	_, err := bus.QueueSubscribeRPCConcurrent(nc, registration, func(msg *nats.Msg) {
 		start := time.Now()
 
 		txn := nrApp.StartTransaction("rpc " + subject)
