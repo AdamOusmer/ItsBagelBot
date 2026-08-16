@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 )
 
 type dashboardRPC struct {
@@ -93,9 +93,9 @@ func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.Dashboard
 		return reply
 	}
 
-	partial := map[string]json.RawMessage{}
+	partial := map[string]codec.RawMessage{}
 	if len(req.Configs) > 0 {
-		if err := json.Unmarshal(req.Configs, &partial); err != nil {
+		if err := codec.Unmarshal(req.Configs, &partial); err != nil {
 			return modulesrpc.DashboardReply{Error: "invalid configs"}
 		}
 	}

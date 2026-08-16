@@ -7,9 +7,8 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
-
-	"github.com/bytedance/sonic"
 
 	"go.uber.org/zap"
 )
@@ -61,7 +60,7 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzUser
-	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
+	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
 		log.Error("dropping malformed authz.granted event", zap.Error(err))
 		return nil
 	}
@@ -123,7 +122,7 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzUser
-	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
+	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
 		log.Error("dropping malformed authz.revoked event", zap.Error(err))
 		return nil
 	}
@@ -149,7 +148,7 @@ func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev authzSubRevoked
-	if err := sonic.Unmarshal(msg.Payload, &ev); err != nil || ev.BroadcasterID == "" {
+	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.BroadcasterID == "" {
 		log.Error("dropping malformed authz.subrevoked event", zap.Error(err))
 		return nil
 	}

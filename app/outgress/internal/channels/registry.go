@@ -8,7 +8,6 @@ package channels
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math/rand/v2"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -135,7 +135,7 @@ func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *
 func (r *Registry) subscribeChannelInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
 	return r.nc.Subscribe(prefix+"."+cacheInvalidateScope, func(msg *nats.Msg) {
 		var payload invalidate.DTO
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		if err := codec.Unmarshal(msg.Data, &payload); err != nil {
 			log.Debug("channel cache invalidation: bad payload", zap.Error(err))
 			return
 		}
@@ -149,7 +149,7 @@ func (r *Registry) subscribeChannelInvalidation(prefix string, log *zap.Logger) 
 func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
 	return r.nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
 		var event pauseEvent
-		if err := json.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
+		if err := codec.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
 			log.Debug("pause cache invalidation: bad payload", zap.Error(err))
 			return
 		}
@@ -583,7 +583,7 @@ func (r *Registry) publishPause(paused bool, version int64) {
 	if r.nc == nil || r.invalidatePrefix == "" {
 		return
 	}
-	body, err := json.Marshal(pauseEvent{Paused: paused, Version: version})
+	body, err := codec.Marshal(pauseEvent{Paused: paused, Version: version})
 	if err == nil {
 		err = r.nc.Publish(r.invalidatePrefix+"."+pauseInvalidateScope, body)
 	}

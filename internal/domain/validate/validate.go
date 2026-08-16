@@ -7,7 +7,7 @@
 package validate
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -261,7 +261,7 @@ func ConfigsJSON(configs []byte) error {
 		return nil // absent configs are fine, modules can be pure toggles
 	}
 
-	if len(configs) > maxConfigsBytes || !json.Valid(configs) {
+	if len(configs) > maxConfigsBytes || !codec.Valid(configs) {
 		return ErrConfigsInvalid
 	}
 
@@ -271,7 +271,7 @@ func ConfigsJSON(configs []byte) error {
 	// carry no free text. Nested shapes are walked; the 16KiB cap above bounds
 	// the work.
 	var doc any
-	if err := json.Unmarshal(configs, &doc); err != nil {
+	if err := codec.Unmarshal(configs, &doc); err != nil {
 		return ErrConfigsInvalid
 	}
 	return floorCleanValues(doc)

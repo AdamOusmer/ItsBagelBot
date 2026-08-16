@@ -3,9 +3,9 @@
 package twitch
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -252,7 +252,7 @@ func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, 
 			Type string `json:"type"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return false, err
 	}
 	for _, s := range payload.Data {
@@ -288,7 +288,7 @@ func (c *Client) getUser(ctx context.Context, query string) (helixUser, bool, er
 	var payload struct {
 		Data []helixUser `json:"data"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return helixUser{}, false, err
 	}
 	if len(payload.Data) == 0 {
@@ -339,7 +339,7 @@ func (c *Client) FollowedAt(ctx context.Context, broadcasterID, targetID string)
 			FollowedAt time.Time `json:"followed_at"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return time.Time{}, false, err
 	}
 	if len(payload.Data) == 0 {
@@ -501,7 +501,7 @@ func scanModeratedPage(res *http.Response, broadcasterID string) (bool, string, 
 		} `json:"pagination"`
 	}
 
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&page); err != nil {
 		return false, "", err
 	}
 

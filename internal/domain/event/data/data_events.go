@@ -1,6 +1,6 @@
 package data
 
-import "encoding/json"
+import "ItsBagelBot/pkg/codec"
 
 // Subjects form the public contract between the data services, their caches
 // and the projector (see ADR 0003). Renaming one is a breaking change.
@@ -40,10 +40,10 @@ type UserDeletedDTO struct {
 }
 
 type ModuleChangedDTO struct {
-	UserID    uint64          `json:"user_id"`
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
+	UserID    uint64           `json:"user_id"`
+	Name      string           `json:"name"`
+	IsEnabled bool             `json:"is_enabled"`
+	Configs   codec.RawMessage `json:"configs,omitempty"`
 }
 
 type CommandChangedDTO struct {

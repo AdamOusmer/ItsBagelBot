@@ -7,8 +7,8 @@ import (
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 )
 
@@ -58,7 +58,7 @@ func (g *GossipRPC) Call(ctx context.Context, route GossipRoute, req gossiprpc.R
 	ctx, cancel := context.WithTimeout(ctx, gossipRPCTimeout)
 	defer cancel()
 
-	body, err := sonic.Marshal(req)
+	body, err := codec.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
@@ -67,13 +67,10 @@ func (g *GossipRPC) Call(ctx context.Context, route GossipRoute, req gossiprpc.R
 		return fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 
-	var envelope struct {
-		Error string `json:"error"`
+	if message := bus.ReplyErrorMessage(msg.Data); message != "" {
+		return bus.RPCReplyError{Subject: subject, Message: message}
 	}
-	if err := sonic.Unmarshal(msg.Data, &envelope); err == nil && envelope.Error != "" {
-		return bus.RPCReplyError{Subject: subject, Message: envelope.Error}
-	}
-	if err := sonic.Unmarshal(msg.Data, out); err != nil {
+	if err := codec.Unmarshal(msg.Data, out); err != nil {
 		return fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
 	return nil

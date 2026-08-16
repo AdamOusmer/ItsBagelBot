@@ -9,16 +9,15 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -99,7 +98,7 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 		// required fields on the zero-value request.
 		var req gossiprpc.Request
 		if len(msg.Data) > 0 {
-			if err := sonic.Unmarshal(msg.Data, &req); err != nil {
+			if err := codec.Unmarshal(msg.Data, &req); err != nil {
 				txn.NoticeError(err)
 				respondAndLog(msg, subject, start, log, badRequestReply)
 				return
@@ -118,16 +117,16 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 }
 
 // encode renders one handler result for the wire. Pre-marshaled bytes (a
-// json.RawMessage from the byte-flow cache) pass through untouched — that is
-// the zero-work hit path; anything else is marshaled once with sonic.
+// codec.RawMessage from the byte-flow cache) pass through untouched — that is
+// the zero-work hit path; anything else is marshaled once through pkg/codec.
 func encode(subject string, result any, log *zap.Logger) []byte {
 	switch v := result.(type) {
-	case json.RawMessage:
+	case codec.RawMessage:
 		return v
 	case []byte:
 		return v
 	default:
-		b, err := sonic.Marshal(v)
+		b, err := codec.Marshal(v)
 		if err != nil {
 			log.Error("gossip reply marshal failed", zap.String("subject", subject), zap.Error(err))
 			return []byte(`{"error":"internal error"}`)

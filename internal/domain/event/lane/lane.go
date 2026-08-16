@@ -5,7 +5,7 @@
 package lane
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"strconv"
 )
 
@@ -64,7 +64,7 @@ type Envelope struct {
 	Senders []Sender `json:"senders,omitempty"`
 
 	// Raw EventSub event object (set for every non-chat type).
-	Event json.RawMessage `json:"event,omitempty"`
+	Event codec.RawMessage `json:"event,omitempty"`
 
 	MsgID   string `json:"msg_id,omitempty"`
 	ShardID int    `json:"shard_id,omitempty"`
@@ -100,7 +100,7 @@ func (e Envelope) BroadcasterID() (uint64, bool) {
 			ToBroadcasterUserID string `json:"to_broadcaster_user_id"`
 		}
 		if len(e.Event) > 0 {
-			_ = json.Unmarshal(e.Event, &ev)
+			_ = codec.Unmarshal(e.Event, &ev)
 		}
 		raw = ev.BroadcasterUserID
 		if raw == "" {

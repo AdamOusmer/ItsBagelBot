@@ -1,7 +1,7 @@
 package bus
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 )
@@ -17,6 +17,6 @@ func Respond(msg *nats.Msg, v any) error {
 	return sendResponse(msg, body)
 }
 
-func marshalResponse(v any) ([]byte, error) { return json.Marshal(v) }
+func marshalResponse(v any) ([]byte, error) { return codec.Marshal(v) }
 
 func sendResponse(msg *nats.Msg, body []byte) error { return msg.Respond(body) }

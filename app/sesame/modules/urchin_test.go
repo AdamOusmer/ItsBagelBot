@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,11 +49,11 @@ func (f *fakeGossip) Call(_ context.Context, route engine.GossipRoute, req gossi
 	if !ok {
 		return bus.RPCReplyError{Message: "no responder"}
 	}
-	b, err := json.Marshal(reply)
+	b, err := codec.Marshal(reply)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(b, out)
+	return codec.Unmarshal(b, out)
 }
 
 func (f *fakeGossip) lastCall(t *testing.T) fakeGossipCall {

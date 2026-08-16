@@ -8,8 +8,8 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -59,7 +59,7 @@ func statsPipeline(t *testing.T, bumper CounterBumper) *Pipeline {
 
 func eventMsg(t *testing.T, eventType string) *bus.Message {
 	t.Helper()
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                eventType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -153,7 +153,7 @@ func TestBotStatsBumpsPassReporterGuard(t *testing.T) {
 	published := pub.payloads[data.SubjectLoyaltyCounters]
 	require.Len(t, published, 1)
 	var dto data.CounterBumpedDTO
-	require.NoError(t, sonic.Unmarshal(published[0], &dto))
+	require.NoError(t, codec.Unmarshal(published[0], &dto))
 	assert.Equal(t, uint64(0), dto.UserID)
 	assert.Len(t, dto.Bumps, 2)
 }

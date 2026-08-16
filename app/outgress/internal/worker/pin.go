@@ -2,13 +2,13 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -147,7 +147,7 @@ type sendChatReply struct {
 // so callers must check both return values before pinning.
 func sentChatMessageID(r io.Reader) (messageID string, sent bool, err error) {
 	var reply sendChatReply
-	if err := json.NewDecoder(io.LimitReader(r, 4096)).Decode(&reply); err != nil {
+	if err := codec.NewDecoder(io.LimitReader(r, 4096)).Decode(&reply); err != nil {
 		return "", false, err
 	}
 	if len(reply.Data) == 0 {

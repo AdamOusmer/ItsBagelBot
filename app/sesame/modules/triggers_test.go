@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,7 @@ func triggersCtx(text, rules string) *module.Context {
 // rulesBlob marshals a rules string into the {"rules":"…"} Configs blob, matching
 // what the dashboard persists. Marshaling a single string field never errors.
 func rulesBlob(rules string) []byte {
-	b, _ := json.Marshal(triggersConfig{Rules: rules})
+	b, _ := codec.Marshal(triggersConfig{Rules: rules})
 	return b
 }
 
@@ -218,6 +218,6 @@ func TestRulesJSONDefaults(t *testing.T) {
 // quote JSON-encodes a string (with surrounding quotes) for embedding in a rule
 // array literal.
 func quote(s string) string {
-	b, _ := json.Marshal(s)
+	b, _ := codec.Marshal(s)
 	return string(b)
 }

@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 )
 
@@ -77,7 +77,7 @@ func respondOK(msg *nats.Msg)               { bus.Respond(msg, map[string]any{"o
 // decodeRequest unmarshals the message body into T, responding "bad request"
 // and returning ok=false on a malformed payload.
 func decodeRequest[T any](msg *nats.Msg) (req T, ok bool) {
-	if err := json.Unmarshal(msg.Data, &req); err != nil {
+	if err := codec.Unmarshal(msg.Data, &req); err != nil {
 		respondErr(msg, "bad request")
 		return req, false
 	}

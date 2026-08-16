@@ -1,12 +1,12 @@
 package automod
 
 import (
-	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/pkg/codec"
 )
 
 // termStrings flattens normalized term bytes for one-shot comparisons.
@@ -52,11 +52,11 @@ func TestParseConfig(t *testing.T) {
 	if ParseConfig(nil) != nil {
 		t.Fatal("empty blob must yield nil (global default)")
 	}
-	if ParseConfig(json.RawMessage(`{bad`)) != nil {
+	if ParseConfig(codec.RawMessage(`{bad`)) != nil {
 		t.Fatal("malformed blob must yield nil, never a fail-closed config")
 	}
 	// The dashboard form writes flat strings; terms split on commas and newlines.
-	c := ParseConfig(json.RawMessage(`{"level":"all","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
+	c := ParseConfig(codec.RawMessage(`{"level":"all","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
 	if c == nil {
 		t.Fatal("config must parse")
 	}
@@ -73,7 +73,7 @@ func TestParseConfig(t *testing.T) {
 
 // The legacy "profile" key is still honored as a level alias.
 func TestParseConfigLegacyProfileAlias(t *testing.T) {
-	c := ParseConfig(json.RawMessage(`{"profile":"adult"}`))
+	c := ParseConfig(codec.RawMessage(`{"profile":"adult"}`))
 	if c == nil || c.Level != LevelBasic {
 		t.Fatalf("legacy profile alias: got %+v", c)
 	}
@@ -134,7 +134,7 @@ func TestFloorImmovableAcrossLevels(t *testing.T) {
 		`{"level":"none","allow_terms":"grabify.link"}`,
 		`{"level":"all"}`,
 	} {
-		cfg := ParseConfig(json.RawMessage(raw))
+		cfg := ParseConfig(codec.RawMessage(raw))
 		if v := g.InspectWith(module.RoleEveryone, ipLoggerLine, cfg); v.Rule != "ip_logger" {
 			t.Fatalf("floor must hold for %s: got rule=%s action=%s", raw, v.Rule, v.Action)
 		}
@@ -152,7 +152,7 @@ func TestLevelNoneDropsStyle(t *testing.T) {
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
 		t.Fatalf("moderate caps should flag, got %s", v.Action)
 	}
-	none := ParseConfig(json.RawMessage(`{"level":"none"}`))
+	none := ParseConfig(codec.RawMessage(`{"level":"none"}`))
 	if v := g.InspectWith(module.RoleEveryone, shout, none); v.Action != ActionNone {
 		t.Fatalf("level none drops the caps check, got %s", v.Action)
 	}
@@ -163,7 +163,7 @@ func TestStrictTightensCaps(t *testing.T) {
 	if v := g.InspectWith(module.RoleEveryone, capsMid, nil); v.Action != ActionNone {
 		t.Fatalf("moderate: mid-caps under threshold should pass, got %s", v.Action)
 	}
-	strict := ParseConfig(json.RawMessage(`{"level":"all"}`))
+	strict := ParseConfig(codec.RawMessage(`{"level":"all"}`))
 	if v := g.InspectWith(module.RoleEveryone, capsMid, strict); v.Action != ActionDelete {
 		t.Fatalf("strict: mid-caps should flag at the tighter threshold, got %s", v.Action)
 	}
@@ -171,7 +171,7 @@ func TestStrictTightensCaps(t *testing.T) {
 
 func TestBlockTermFlags(t *testing.T) {
 	g := New()
-	cfg := ParseConfig(json.RawMessage(`{"block_terms":"badword"}`))
+	cfg := ParseConfig(codec.RawMessage(`{"block_terms":"badword"}`))
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", cfg); v.Rule != "block_term" {
 		t.Fatalf("channel block term should flag, got rule=%s", v.Rule)
 	}
@@ -180,7 +180,7 @@ func TestBlockTermFlags(t *testing.T) {
 		t.Fatalf("no config: line should be clean, got %s", v.Action)
 	}
 	// A disabled row does not apply channel block terms (floor-only).
-	dis := ParseConfig(json.RawMessage(`{"block_terms":"badword"}`))
+	dis := ParseConfig(codec.RawMessage(`{"block_terms":"badword"}`))
 	dis.Disabled = true
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", dis); v.Action != ActionNone {
 		t.Fatalf("disabled row must ignore block terms, got %s", v.Action)
@@ -193,11 +193,11 @@ func TestAllowTermSuppressesNonFloor(t *testing.T) {
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
 		t.Fatalf("baseline caps should flag, got %s", v.Action)
 	}
-	cfg := ParseConfig(json.RawMessage(`{"allow_terms":"hello"}`))
+	cfg := ParseConfig(codec.RawMessage(`{"allow_terms":"hello"}`))
 	if v := g.InspectWith(module.RoleEveryone, shout, cfg); v.Action != ActionNone {
 		t.Fatalf("allow term should suppress the heuristic, got %s", v.Action)
 	}
-	both := ParseConfig(json.RawMessage(`{"block_terms":"badword","allow_terms":"badword"}`))
+	both := ParseConfig(codec.RawMessage(`{"block_terms":"badword","allow_terms":"badword"}`))
 	if v := g.InspectWith(module.RoleEveryone, "look a badword here", both); v.Action != ActionNone {
 		t.Fatalf("allow should cancel its own block term, got %s", v.Action)
 	}

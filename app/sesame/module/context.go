@@ -1,9 +1,8 @@
 package module
 
 import (
-	"encoding/json"
-
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -26,7 +25,7 @@ type Context struct {
 
 	// Config is this module's raw configuration blob from its ModuleView; the
 	// engine sets it before calling a named module. Empty for core modules.
-	Config json.RawMessage
+	Config codec.RawMessage
 
 	// Num is the inline numeric suffix a NumericSuffix command absorbed from its
 	// trigger ("30" for "!clip30"), or empty when none was typed or the command
@@ -54,7 +53,7 @@ func (c *Context) Decode(out any) error {
 	if len(c.Config) == 0 {
 		return nil
 	}
-	return json.Unmarshal(c.Config, out)
+	return codec.Unmarshal(c.Config, out)
 }
 
 // Reset zeroes the per-message fields so the Context can be reused from a pool.

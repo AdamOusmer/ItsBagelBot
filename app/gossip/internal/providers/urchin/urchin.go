@@ -13,7 +13,6 @@ package urchin
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"strings"
 	"time"
@@ -22,9 +21,8 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
-
-	"github.com/bytedance/sonic"
 )
 
 // Cache TTLs. Session deltas move while the player is online, so they stay
@@ -163,31 +161,31 @@ func (a account) cacheKey() string { return strings.ToLower(strings.TrimSpace(st
 // omitted, changed numeric stats as bare numbers, non-numeric changes as
 // {old,new} objects.
 type sessionResponse struct {
-	UUID        string          `json:"uuid"`
-	DisplayName *string         `json:"displayname"`
-	From        int64           `json:"from"`
-	Delta       json.RawMessage `json:"delta"`
+	UUID        string           `json:"uuid"`
+	DisplayName *string          `json:"displayname"`
+	From        int64            `json:"from"`
+	Delta       codec.RawMessage `json:"delta"`
 }
 
-// sessionDelta is the Bed Wars slice of the diff. Fields use json.RawMessage +
+// sessionDelta is the Bed Wars slice of the diff. Fields use codec.RawMessage +
 // numDelta because a stat can surface as a bare number or, for a returning
 // player diffed against a partial snapshot, as an {old,new} object we skip.
 type sessionDelta struct {
 	Stats struct {
-		Bedwars map[string]json.RawMessage `json:"Bedwars"`
+		Bedwars map[string]codec.RawMessage `json:"Bedwars"`
 	} `json:"stats"`
-	Achievements map[string]json.RawMessage `json:"achievements"`
+	Achievements map[string]codec.RawMessage `json:"achievements"`
 }
 
 // numDelta reads a numeric session diff. Bare numbers are true period deltas;
 // the {old,new} object form means the baseline was missing (a lifetime total
 // would masquerade as a period gain), so it reads as 0.
-func numDelta(raw json.RawMessage) int64 {
+func numDelta(raw codec.RawMessage) int64 {
 	if len(raw) == 0 {
 		return 0
 	}
-	var n json.Number
-	if err := sonic.Unmarshal(raw, &n); err != nil {
+	var n codec.Number
+	if err := codec.Unmarshal(raw, &n); err != nil {
 		return 0
 	}
 	f, err := n.Float64()
@@ -217,7 +215,7 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 	}
 	if len(resp.Delta) > 0 {
 		var d sessionDelta
-		if err := sonic.Unmarshal(resp.Delta, &d); err == nil {
+		if err := codec.Unmarshal(resp.Delta, &d); err == nil {
 			bw := d.Stats.Bedwars
 			reply.Wins = numDelta(bw["wins_bedwars"])
 			reply.Losses = numDelta(bw["losses_bedwars"])
@@ -288,7 +286,7 @@ type cubelifyResponse struct {
 		Value float64 `json:"value"`
 		Mode  string  `json:"mode"`
 	} `json:"score"`
-	Tags []json.RawMessage `json:"tags"`
+	Tags []codec.RawMessage `json:"tags"`
 }
 
 // resolveUUID turns a username into the canonical uuid, reading through the

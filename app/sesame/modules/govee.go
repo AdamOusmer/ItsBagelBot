@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -213,7 +213,7 @@ func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, boo
 		return goveeConfig{}, redemptionEvent{}, false
 	}
 	var ev redemptionEvent
-	if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 		return goveeConfig{}, ev, false
 	}
 	if ev.BroadcasterUserID == "" {

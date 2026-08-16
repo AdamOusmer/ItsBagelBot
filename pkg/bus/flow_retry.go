@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 
-	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/nuid"
@@ -165,7 +165,7 @@ func pubAckError(ack *nats.Msg) error {
 			Description string `json:"description"`
 		} `json:"error"`
 	}
-	if err := sonic.Unmarshal(ack.Data, &response); err != nil {
+	if err := codec.Unmarshal(ack.Data, &response); err != nil {
 		return fmt.Errorf("bus: unreadable retry publish acknowledgement: %w", err)
 	}
 	if response.Error != nil {
