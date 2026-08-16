@@ -21,6 +21,22 @@
 // Nothing outside this file names the backend: the exported surface is
 // functions, locally declared interfaces, and aliases of encoding/json's own
 // wire types. Replacing Sonic means editing this file and nothing else.
+//
+// # Go version ceiling
+//
+// Sonic only compiles its fast path on a Go release it has validated, because
+// that path is generated assembly reading runtime internals that move between
+// releases. In v1.15.2 the ceiling is Go 1.27: sonic.go carries a !go1.27
+// constraint, and compat.go, a thin wrapper over encoding/json, takes over
+// from 1.27 onward.
+//
+// That swap is silent. Same API, same semantics, no build error and no test
+// failure, just the standard library encoder back again and the entire reason
+// this package exists gone with it. The fleet therefore stays on Go 1.26.5:
+// pinned by the go directive, by image digest in every service Containerfile,
+// and in CI. Raising it is a deliberate step gated on a Sonic release that
+// lifts the ceiling, and TestSonicFastPathIsLive fails if the fallback ever
+// engages.
 package codec
 
 import (
