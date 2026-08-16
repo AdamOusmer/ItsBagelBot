@@ -71,15 +71,13 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Split planes: the BUS JetStream publisher dials the hub directly
-            # (NATS_HUB_URL) so it never pays a leaf forwarding hop; the
-            # TRANSACTIONS_RPC checkout responder stays on the node-local leaf.
+            # transactions is RPC-only: the checkout/billing/gift-notify verbs
+            # all ride the TRANSACTIONS_RPC responder on the node-local leaf; it
+            # never touches JetStream, so no NATS_HUB_URL and no BUS credential.
             # RPC creds (NATS_RPC_USER/PASSWORD) and the Tebex Headless secrets
             # (TEBEX_WEBSTORE_TOKEN, TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
             - name: NATS_URL
               value: nats://nats-leaf:4222
-            - name: NATS_HUB_URL
-              value: nats://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
