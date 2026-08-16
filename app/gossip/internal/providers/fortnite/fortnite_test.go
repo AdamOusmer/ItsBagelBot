@@ -66,6 +66,14 @@ func (s *memStore) SetNX(_ context.Context, key string, val []byte, _ time.Durat
 // directly; endpoint handlers come from build() via handle.
 func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)) *api {
 	t.Helper()
+	p, _ := newTestProviderWithStore(t, stats, shop, extra)
+	return p
+}
+
+// newTestProviderWithStore is newTestProvider plus the backing store, for the
+// tests that need to age one cache entry out from under the provider.
+func newTestProviderWithStore(t *testing.T, stats, shop http.Handler, extra func(*Config)) (*api, *memStore) {
+	t.Helper()
 	statsSrv := httptest.NewServer(stats)
 	t.Cleanup(statsSrv.Close)
 	shopSrv := httptest.NewServer(shop)
@@ -74,7 +82,8 @@ func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)
 	if extra != nil {
 		extra(&cfg)
 	}
-	return newAPI(cfg, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	store := newMemStore()
+	return newAPI(cfg, provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}), store
 }
 
 func noUpstream(t *testing.T, name string) http.Handler {
