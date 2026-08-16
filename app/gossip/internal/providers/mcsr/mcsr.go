@@ -25,9 +25,14 @@ import (
 )
 
 const (
-	// userTTL keeps chat spam off the MCSR API (500 req / 10 min fleet-wide)
-	// while staying fresh enough that a finished match shows within a minute.
-	userTTL = time.Minute
+	// userTTL keeps chat spam off the MCSR API (500 req / 10 min fleet-wide).
+	// Sized against the game, not against a round number: the world record sits
+	// around 6:35, so no run can start and finish inside this window, and a
+	// viewer asking twice about the same player is asking about the same run.
+	// At one minute the entry expired faster than the upstream answered on a
+	// cold call, so essentially every !mcsr paid a full round trip to an API
+	// that returns the same numbers.
+	userTTL = 6 * time.Minute
 	// snapshotTTL outlives any plausible single stream; Twitch caps broadcasts
 	// at 48h.
 	snapshotTTL = 49 * time.Hour
