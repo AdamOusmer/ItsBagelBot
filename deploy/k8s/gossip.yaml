@@ -90,7 +90,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1786838877-0038678a5ec3@sha256:320c1a1a2d99e7a8970431eb929aeb43c5ddaf3354ed88f8ac98750521859b04 # {"$imagepolicy": "flux-system:gossip"}
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1786839875-6a325f1f18c9@sha256:f6c4e494088c8ce9630efab609387a00b6ce7f1cf615302fd0da9dfebbbd7076 # {"$imagepolicy": "flux-system:gossip"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
