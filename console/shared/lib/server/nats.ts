@@ -221,15 +221,19 @@ function options(role: Role): ConnectionOptions {
   // console-dashboard and console-admin import, so one change here covers
   // both deployments' 'bus' and 'rpc' connections.
   //
-  // NOT YET REQUIRED: a missing cert leaves opts.tls exactly as assigned
-  // above (server-auth only, today's behavior), so this can ship and be
-  // confirmed present on both pods ahead of the verify:true that will
-  // actually require it.
+  // NOW REQUIRED whenever TLS itself is on (caPem set): both console
+  // deployments were confirmed presenting a cert under the prior, permissive
+  // commit before this one shipped, so a missing/unreadable cert here is a
+  // thrown error at connect time, loud and in one place, not a silent gap
+  // that only surfaces once the hub/leaf verify:true lands.
   if (caPem) {
     const clientCert = loadClientCert();
-    if (clientCert) {
-      opts.tls = { ca: caPem, cert: clientCert.cert, key: clientCert.key };
+    if (!clientCert) {
+      throw new Error(
+        `nats mTLS client certificate required but unavailable at ${CLIENT_CERT_FILE}`
+      );
     }
+    opts.tls = { ca: caPem, cert: clientCert.cert, key: clientCert.key };
   }
   return opts;
 }

@@ -226,16 +226,18 @@ func loadClientCert(certFile, keyFile string) (tls.Certificate, error) {
 // cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
 // fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
 // plaintext server stays plaintext. Also presents this service's own client
-// certificate (clientCertFile/clientKeyFile) when the fleet-wide mount has
-// one — needed once the hub's 4222 and leaf's 4223 listeners set
-// verify:true, since a connection without one then fails the TLS handshake
-// before auth.conf's bcrypt user/password check ever runs.
+// certificate (clientCertFile/clientKeyFile), which is now REQUIRED whenever
+// TLS itself is on: the hub's 4222 and leaf's 4223 listeners set
+// verify:true, so a connection with no client cert fails the TLS handshake
+// before auth.conf's bcrypt user/password check ever runs, and a process
+// that dialed with no cert would only find that out at connect time, over
+// and over, never coming up healthy.
 //
-// NOT YET REQUIRED: a missing cert silently falls back to the server-auth-only
-// behavior this had before, so the cert and its fleet-wide mount can ship and
-// be confirmed present on every pod ahead of the hub/leaf verify:true that
-// will actually require it. A cert that IS present but unreadable/corrupt is
-// still logged — that is a real misconfiguration, not a staged-rollout state.
+// NOW REQUIRED, no longer the permissive fallback of the prior commit: every
+// service was confirmed presenting a cert under that commit before this one
+// shipped, so a missing/unreadable cert here is a boot-time crash, loud and
+// in one place, not a silent gap that only surfaces once the hub/leaf
+// verify:true lands.
 func tlsSecureOption() nats.Option {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
@@ -247,11 +249,12 @@ func tlsSecureOption() nats.Option {
 	}
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 
-	if cert, err := loadClientCert(clientCertFile, clientKeyFile); err == nil {
-		cfg.Certificates = []tls.Certificate{cert}
-	} else if !errors.Is(err, errNoClientCert) {
-		zap.L().Error("nats client cert unreadable", zap.String("cert_file", clientCertFile), zap.Error(err))
+	cert, err := loadClientCert(clientCertFile, clientKeyFile)
+	if err != nil {
+		zap.L().Fatal("nats mTLS client certificate required but unavailable",
+			zap.String("cert_file", clientCertFile), zap.Error(err))
 	}
+	cfg.Certificates = []tls.Certificate{cert}
 	return nats.Secure(cfg)
 }
 

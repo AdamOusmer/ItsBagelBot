@@ -263,10 +263,11 @@ nats_cacerts =
 # this is the single Elixir chokepoint: presenting a client cert to a
 # listener that does not (yet) require one is harmless.
 #
-# NOT YET REQUIRED: nats_client_cert_present being false just leaves ssl_opts
-# exactly as it was (server-auth only, today's behavior), so this can ship
-# and be confirmed present on the pod ahead of the hub/leaf verify:true that
-# will actually require it.
+# NOW REQUIRED whenever TLS itself is on (nats_cacerts set): this Deployment
+# was confirmed presenting a cert under the prior, permissive commit before
+# this one shipped, so the raise below turns a missing/unreadable cert into a
+# boot-time crash, loud and in one place, not a silent gap that only
+# surfaces once the hub/leaf verify:true lands.
 #
 # KNOWN GAP: nothing here watches these files for renewal. Gnat's :ssl option
 # reads certfile/keyfile from disk once, at connect time; cert-manager
@@ -280,6 +281,10 @@ nats_client_keyfile = "/etc/nats/client-certs/tls.key"
 nats_client_cert_present =
   File.exists?(nats_client_certfile) and File.exists?(nats_client_keyfile)
 
+if nats_cacerts && !nats_client_cert_present do
+  raise "nats mTLS client certificate required but not found at #{nats_client_certfile}"
+end
+
 nats_server = fn host, user, pass ->
   # Required for local-first HA: a missing node-qualified responder must return
   # immediately so Ingress.Rpc can safely fall back to the generic queue.
@@ -288,21 +293,17 @@ nats_server = fn host, user, pass ->
   base =
     if nats_cacerts do
       # SNI must match a cert SAN — the Service name (nats / nats-leaf).
-      ssl_opts = [
-        verify: :verify_peer,
-        cacerts: nats_cacerts,
-        server_name_indication: String.to_charlist(host),
-        depth: 3
-      ]
-
-      ssl_opts =
-        if nats_client_cert_present do
-          Keyword.merge(ssl_opts, certfile: nats_client_certfile, keyfile: nats_client_keyfile)
-        else
-          ssl_opts
-        end
-
-      Map.merge(base, %{tls: true, ssl_opts: ssl_opts})
+      Map.merge(base, %{
+        tls: true,
+        ssl_opts: [
+          verify: :verify_peer,
+          cacerts: nats_cacerts,
+          server_name_indication: String.to_charlist(host),
+          depth: 3,
+          certfile: nats_client_certfile,
+          keyfile: nats_client_keyfile
+        ]
+      })
     else
       base
     end
