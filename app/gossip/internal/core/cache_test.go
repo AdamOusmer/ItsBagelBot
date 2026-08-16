@@ -104,7 +104,7 @@ func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 	ctx := context.Background()
 	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
 
-	const callers = 8
+	const perLane = 4
 	var fetches atomic.Int32
 	release := make(chan struct{})
 	// Park the fill until every caller has been admitted, so they share one
@@ -115,34 +115,34 @@ func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 		return payload{Name: "x", N: 1}, nil
 	}
 
-	errs := make([]error, callers)
+	premium, standard := make([]error, perLane), make([]error, perLane)
 	var admitted, wg sync.WaitGroup
-	admitted.Add(callers)
-	wg.Add(callers)
-	for i := range callers {
-		go func(i int) {
-			defer wg.Done()
-			// Odd callers are the drained standard lane, even ones premium.
-			admit := func(context.Context) error {
-				admitted.Done()
-				if i%2 == 1 {
-					return denied
+	admitted.Add(2 * perLane)
+	fire := func(out []error, verdict error) {
+		for i := range out {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				admit := func(context.Context) error {
+					admitted.Done()
+					return verdict
 				}
-				return nil
-			}
-			_, errs[i] = Cached(ctx, c, "k", time.Minute, time.Minute, admit, fill)
-		}(i)
+				_, out[i] = Cached(ctx, c, "k", time.Minute, time.Minute, admit, fill)
+			}(i)
+		}
 	}
+	fire(premium, nil)
+	fire(standard, denied)
+
 	admitted.Wait()
 	close(release)
 	wg.Wait()
 
-	for i, err := range errs {
-		if i%2 == 1 {
-			assert.ErrorIs(t, err, denied, "caller %d was denied by its own lane", i)
-			continue
-		}
-		assert.NoError(t, err, "caller %d must not inherit another lane's denial", i)
+	for i, err := range premium {
+		assert.NoError(t, err, "premium caller %d must not inherit the standard lane's denial", i)
+	}
+	for i, err := range standard {
+		assert.ErrorIs(t, err, denied, "standard caller %d must be denied by its own lane", i)
 	}
 	assert.Equal(t, int32(1), fetches.Load(), "the flight must still cost one upstream call")
 }

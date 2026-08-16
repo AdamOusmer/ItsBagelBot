@@ -238,7 +238,7 @@ func TestCachedBytesAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 	ctx := context.Background()
 	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
 
-	const callers = 8
+	const perLane = 4
 	var builds atomic.Int32
 	release := make(chan struct{})
 	// The build parks until every caller has been admitted, forcing them all into
@@ -249,42 +249,45 @@ func TestCachedBytesAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 		return buildStatic(`{"n":1}`, time.Minute, &builds)(bctx)
 	}
 
-	type outcome struct {
-		body []byte
-		err  error
-	}
-	results := make([]outcome, callers)
+	premium, standard := make([]laneOutcome, perLane), make([]laneOutcome, perLane)
 	var admitted, wg sync.WaitGroup
-	admitted.Add(callers)
-	wg.Add(callers)
-	for i := range callers {
-		go func(i int) {
-			defer wg.Done()
-			// Odd callers are the drained standard lane, even ones are premium.
-			admit := func(context.Context) error {
-				admitted.Done()
-				if i%2 == 1 {
-					return denied
+	admitted.Add(2 * perLane)
+	fire := func(out []laneOutcome, verdict error) {
+		for i := range out {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				admit := func(context.Context) error {
+					admitted.Done()
+					return verdict
 				}
-				return nil
-			}
-			body, err := CachedBytes(ctx, c, "k", admit, build)
-			results[i] = outcome{body: body, err: err}
-		}(i)
+				body, err := CachedBytes(ctx, c, "k", admit, build)
+				out[i] = laneOutcome{body: body, err: err}
+			}(i)
+		}
 	}
+	fire(premium, nil)
+	fire(standard, denied)
+
 	admitted.Wait()
 	close(release)
 	wg.Wait()
 
-	for i, got := range results {
-		if i%2 == 1 {
-			assert.ErrorIs(t, got.err, denied, "caller %d was denied by its own lane", i)
-			continue
-		}
-		require.NoError(t, got.err, "caller %d must not inherit another lane's denial", i)
+	for i, got := range premium {
+		require.NoError(t, got.err, "premium caller %d must not inherit the standard lane's denial", i)
 		assert.JSONEq(t, `{"n":1}`, string(got.body))
 	}
+	for i, got := range standard {
+		assert.ErrorIs(t, got.err, denied, "standard caller %d must be denied by its own lane", i)
+	}
 	assert.Equal(t, int32(1), builds.Load(), "the flight must still cost one upstream call")
+}
+
+// laneOutcome is one concurrent caller's answer: the bytes it was served and the
+// error it was given, kept per caller so the two lanes can be asserted apart.
+type laneOutcome struct {
+	body []byte
+	err  error
 }
 
 // The reply-bytes hit path is gossip's hot path: after the store read it

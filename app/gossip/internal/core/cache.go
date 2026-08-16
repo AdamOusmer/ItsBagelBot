@@ -164,10 +164,8 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 		_ = c.store.Del(ctx, key)
 	}
 
-	if admit != nil {
-		if err := admit(ctx); err != nil {
-			return zero, err
-		}
+	if err := spend(ctx, admit); err != nil {
+		return zero, err
 	}
 
 	res, err, _ := c.sf.Do(key, func() (any, error) {

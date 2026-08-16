@@ -181,10 +181,21 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 				return b, ttl, err
 			})
 		if err != nil {
-			return f.failure(log, ref, id, fallback, err)
+			return replier{spec: f, log: log, ref: ref, fallback: fallback}.failure(id, err)
 		}
 		return json.RawMessage(b)
 	}
+}
+
+// replier is the per-endpoint context every failure reply needs: the flow that
+// shapes it, and the logger, endpoint identity and fallback message that are
+// fixed once at Build time. They travel together so failure takes only what
+// varies per request.
+type replier struct {
+	spec     *flowSpec
+	log      *zap.Logger
+	ref      endpointRef
+	fallback string
 }
 
 // admitter binds one request to the flow's budget check, or returns nil when the
@@ -202,19 +213,19 @@ func (f *flowSpec) admitter(req gossiprpc.Request) func(context.Context) error {
 // the flight the fetch runs in — so it is shaped through the same friendly mapping
 // the fetch path uses, or the caller would be told "lookup failed" for a rate
 // limit that has a perfectly good message of its own.
-func (f *flowSpec) failure(log *zap.Logger, ref endpointRef, id ID, fallback string, err error) any {
+func (r replier) failure(id ID, err error) any {
 	if msg, _ := core.FriendlyUpstream(err); msg != "" {
 		var friendly *core.UpstreamError
 		errors.As(err, &friendly)
-		logFriendly(log, ref, id, friendly)
-		return f.reply(id.Display, msg)
+		logFriendly(r.log, r.ref, id, friendly)
+		return r.spec.reply(id.Display, msg)
 	}
-	log.Warn("gossip fetch failed",
-		zap.String("provider", ref.provider),
-		zap.String("endpoint", ref.endpoint),
+	r.log.Warn("gossip fetch failed",
+		zap.String("provider", r.ref.provider),
+		zap.String("endpoint", r.ref.endpoint),
 		zap.String("id", id.Display),
 		zap.Error(err))
-	return f.reply(id.Display, fallback)
+	return r.spec.reply(id.Display, r.fallback)
 }
 
 // logFriendly records the friendly failures that would otherwise be invisible:

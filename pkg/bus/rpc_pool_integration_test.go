@@ -5,7 +5,6 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -17,18 +16,7 @@ import (
 // proves the subscription is actually wired to it. The ordinary suite skips it
 // so CI does not need an external server.
 func TestQueueSubscribeRPCConcurrentIntegration(t *testing.T) {
-	url := os.Getenv("NATS_INTEGRATION_URL")
-	if url == "" {
-		t.Skip("NATS_INTEGRATION_URL is not set")
-	}
-	t.Setenv("NODE_NAME", "pooltest")
-
-	nc, err := nats.Connect(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer nc.Close()
-
+	nc := dialIntegrationBroker(t)
 	subject := "bagel.rpc.pooltest." + nuid.Next()
 	probe := newOverlapProbe(4)
 
@@ -57,9 +45,46 @@ func TestQueueSubscribeRPCConcurrentIntegration(t *testing.T) {
 		t.Fatalf("registered subjects = %v, want the generic and node-local pair", subjects)
 	}
 
-	replies := make(chan error, 4)
+	replies, requests := requestEach(nc, subjects, 4)
+
+	// Two handlers must be running at once; the old inline callback would have
+	// started exactly one per subscription and finished neither.
+	probe.awaitArrivals(t, 2)
+	close(probe.release)
+
+	waitGroupWithin(t, requests, "the four requests to be answered")
+	requireNoReplyErrors(t, replies)
+
+	if got := int(probe.peak.Load()); got != 2 {
+		t.Fatalf("peak concurrent handlers across both subjects = %d, want 2", got)
+	}
+	requireDrained(t, drainAsync(pool))
+}
+
+// dialIntegrationBroker connects to the broker the integration tests need, or
+// skips when none is configured.
+func dialIntegrationBroker(t *testing.T) *nats.Conn {
+	t.Helper()
+	url := os.Getenv("NATS_INTEGRATION_URL")
+	if url == "" {
+		t.Skip("NATS_INTEGRATION_URL is not set")
+	}
+	t.Setenv("NODE_NAME", "pooltest")
+
+	nc, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(nc.Close)
+	return nc
+}
+
+// requestEach fires n requests spread round-robin across subjects, so both the
+// generic and the node-local subscription receive traffic.
+func requestEach(nc *nats.Conn, subjects []string, n int) (<-chan error, *sync.WaitGroup) {
+	replies := make(chan error, n)
 	var requests sync.WaitGroup
-	for i := 0; i < 4; i++ {
+	for i := range n {
 		requests.Add(1)
 		go func(routed string) {
 			defer requests.Done()
@@ -67,28 +92,18 @@ func TestQueueSubscribeRPCConcurrentIntegration(t *testing.T) {
 			defer cancel()
 			_, err := nc.RequestWithContext(ctx, routed, []byte(`{}`))
 			replies <- err
-		}(subjects[i%2])
+		}(subjects[i%len(subjects)])
 	}
+	return replies, &requests
+}
 
-	// Two handlers must be running at once; the old inline callback would have
-	// started exactly one per subscription and finished neither.
-	probe.awaitArrivals(t, 2)
-	close(probe.release)
-
-	waitGroupWithin(t, &requests, "the four requests to be answered")
-	close(replies)
-	for err := range replies {
-		if err != nil {
+// requireNoReplyErrors drains the collected request outcomes and fails on the
+// first error.
+func requireNoReplyErrors(t *testing.T, replies <-chan error) {
+	t.Helper()
+	for len(replies) > 0 {
+		if err := <-replies; err != nil {
 			t.Fatalf("request failed: %v", err)
 		}
-	}
-	if got := int(probe.peak.Load()); got != 2 {
-		t.Fatalf("peak concurrent handlers across both subjects = %d, want 2", got)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := pool.Drain(ctx); err != nil {
-		t.Fatalf("Drain() = %v", err)
 	}
 }

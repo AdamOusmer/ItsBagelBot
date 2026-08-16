@@ -80,6 +80,42 @@ func submitAll(pool *RPCPool, n int, handler nats.MsgHandler) *sync.WaitGroup {
 	return &senders
 }
 
+// drainAsync starts Drain off the test goroutine so the test can observe that it
+// is still waiting, which is the property these tests are about.
+func drainAsync(pool *RPCPool) <-chan error {
+	drained := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), rpcPoolTestTimeout)
+		defer cancel()
+		drained <- pool.Drain(ctx)
+	}()
+	return drained
+}
+
+// requireStillDraining fails if Drain has already returned; handlers are parked
+// mid-request and shutdown must not walk away from them.
+func requireStillDraining(t *testing.T, drained <-chan error) {
+	t.Helper()
+	select {
+	case err := <-drained:
+		t.Fatalf("Drain() returned %v while handlers were still running", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// requireDrained waits for Drain to return and fails on an error or a timeout.
+func requireDrained(t *testing.T, drained <-chan error) {
+	t.Helper()
+	select {
+	case err := <-drained:
+		if err != nil {
+			t.Fatalf("Drain() = %v", err)
+		}
+	case <-time.After(rpcPoolTestTimeout):
+		t.Fatal("Drain() never returned after the handlers finished")
+	}
+}
+
 func waitGroupWithin(t *testing.T, group *sync.WaitGroup, what string) {
 	t.Helper()
 	done := make(chan struct{})
@@ -247,31 +283,12 @@ func TestRPCPoolDrainWaitsForInFlightHandlers(t *testing.T) {
 	senders := submitAll(pool, 4, probe.handle)
 	probe.awaitArrivals(t, 4)
 
-	drained := make(chan error, 1)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), rpcPoolTestTimeout)
-		defer cancel()
-		drained <- pool.Drain(ctx)
-	}()
-
-	// Drain must still be waiting: four handlers are parked mid-request.
-	select {
-	case err := <-drained:
-		t.Fatalf("Drain() returned %v while handlers were still running", err)
-	case <-time.After(50 * time.Millisecond):
-	}
+	drained := drainAsync(pool)
+	requireStillDraining(t, drained)
 
 	close(probe.release)
 	waitGroupWithin(t, senders, "submits to return")
-
-	select {
-	case err := <-drained:
-		if err != nil {
-			t.Fatalf("Drain() = %v", err)
-		}
-	case <-time.After(rpcPoolTestTimeout):
-		t.Fatal("Drain() never returned after the handlers finished")
-	}
+	requireDrained(t, drained)
 
 	if got := int(probe.completed.Load()); got != 4 {
 		t.Fatalf("completed handlers = %d, want 4", got)

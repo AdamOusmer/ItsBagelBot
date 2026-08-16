@@ -108,23 +108,17 @@ func unwrapEntry(b []byte) (int64, []byte, bool) {
 // cost no budget either, or the buckets would meter chat volume instead of upstream
 // spend. A nil admit means the endpoint has no per-caller budget.
 func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
-	if b, ok, err := c.store.Get(ctx, key); err == nil && ok {
-		if fresh, payload, valid := unwrapEntry(b); valid {
-			if time.Now().UnixMilli() < fresh {
-				return payload, nil
-			}
-			// Stale but still retained: serve it now, revalidate behind the scenes.
+	if payload, stale, ok := c.readBytes(ctx, key); ok {
+		if stale {
+			// Still retained past its fresh window: serve it now, revalidate behind
+			// the scenes.
 			c.refreshBytes(key, admit, build)
-			return payload, nil
 		}
-		// Poison entry (legacy or foreign format): drop it and refetch.
-		_ = c.store.Del(ctx, key)
+		return payload, nil
 	}
 
-	if admit != nil {
-		if err := admit(ctx); err != nil {
-			return nil, err
-		}
+	if err := spend(ctx, admit); err != nil {
+		return nil, err
 	}
 
 	res, err, _ := c.sf.Do(key, func() (any, error) {
@@ -146,6 +140,32 @@ func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.C
 		return nil, err
 	}
 	return res.([]byte), nil
+}
+
+// readBytes reads one stored entry, reporting the payload and whether it has
+// passed its fresh window. ok is false when there is nothing usable: no entry, a
+// store error, or an entry whose format does not parse — the last of which is
+// dropped here so the caller's refetch replaces it rather than serving a
+// zero-value reply out of a legacy or foreign record.
+func (c *Cache) readBytes(ctx context.Context, key string) (payload []byte, stale, ok bool) {
+	b, found, err := c.store.Get(ctx, key)
+	if err != nil || !found {
+		return nil, false, false
+	}
+	fresh, payload, valid := unwrapEntry(b)
+	if !valid {
+		_ = c.store.Del(ctx, key)
+		return nil, false, false
+	}
+	return payload, time.Now().UnixMilli() >= fresh, true
+}
+
+// spend runs one caller's budget check, treating an undeclared budget as free.
+func spend(ctx context.Context, admit func(context.Context) error) error {
+	if admit == nil {
+		return nil
+	}
+	return admit(ctx)
 }
 
 // storeEntry writes payload with a fresh window of ttl and a physical retention
@@ -207,10 +227,8 @@ func (c *Cache) refreshBytes(key string, admit func(context.Context) error, buil
 			// stale entry serving; the next read retries the claim.
 			return
 		}
-		if admit != nil {
-			if err := admit(ctx); err != nil {
-				return
-			}
+		if err := spend(ctx, admit); err != nil {
+			return
 		}
 		_, _, _ = c.sf.Do(key, func() (any, error) {
 			payload, ttl, err := build(ctx)
