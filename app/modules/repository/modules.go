@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"ItsBagelBot/app/modules/ent"
@@ -13,6 +12,7 @@ import (
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 
@@ -110,7 +110,7 @@ func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error)
 
 // Set validates and queues a toggle or config change. Consecutive changes to
 // the same module coalesce into the latest state before the next flush.
-func (r *Modules) Set(userID uint64, name string, enabled bool, configs json.RawMessage) error {
+func (r *Modules) Set(userID uint64, name string, enabled bool, configs codec.RawMessage) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -225,7 +225,7 @@ type PatchResult struct {
 // row is created at revision 1. Unlike Set, Patch is synchronous and does not go
 // through the write-behind batcher: config edits are low-frequency, and the
 // compare-and-swap needs the current row, so batching would defeat the check.
-func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]json.RawMessage, expectedRev *int) (PatchResult, error) {
+func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, error) {
 	if err := validate.UserID(userID); err != nil {
 		return PatchResult{}, err
 	}
@@ -263,11 +263,11 @@ func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled
 
 // patchInsert creates a module row at revision 1. A non-zero expected revision on
 // a missing row is a conflict (the row the caller thought it was editing is gone).
-func (r *Modules) patchInsert(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]json.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
+func (r *Modules) patchInsert(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
 	if expectedRev != nil && *expectedRev != 0 {
 		return PatchResult{Conflict: true}, nil, nil
 	}
-	blob, err := mergedBlob(map[string]json.RawMessage{}, partial, 1)
+	blob, err := mergedBlob(map[string]codec.RawMessage{}, partial, 1)
 	if err != nil {
 		return PatchResult{}, nil, err
 	}
@@ -285,7 +285,7 @@ func (r *Modules) patchInsert(ctx context.Context, userID uint64, name string, e
 // the write lands only if the revision is still what we read, so a concurrent
 // patch that landed in between loses the race and its caller retries. Portable and
 // lock-free (a conditional UPDATE, no FOR UPDATE).
-func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled bool, partial map[string]json.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
+func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
 	if expectedRev != nil && *expectedRev != row.Revision {
 		return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
 	}
@@ -308,10 +308,10 @@ func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled boo
 
 // mergedBlob overlays partial onto cur, stamps the revision mirror, and marshals
 // the validated config blob.
-func mergedBlob(cur, partial map[string]json.RawMessage, rev int) ([]byte, error) {
+func mergedBlob(cur, partial map[string]codec.RawMessage, rev int) ([]byte, error) {
 	mergeConfig(cur, partial)
 	setRev(cur, rev)
-	blob, err := json.Marshal(cur)
+	blob, err := codec.Marshal(cur)
 	if err != nil {
 		return nil, err
 	}
@@ -335,12 +335,12 @@ func (r *Modules) announcePatch(ctx context.Context, userID uint64, name string,
 
 // decodeConfig parses a stored config blob into a mutable key map; a nil or
 // corrupt blob yields an empty map so a patch can still proceed.
-func decodeConfig(raw []byte) map[string]json.RawMessage {
-	out := map[string]json.RawMessage{}
+func decodeConfig(raw []byte) map[string]codec.RawMessage {
+	out := map[string]codec.RawMessage{}
 	if len(raw) == 0 {
 		return out
 	}
-	_ = json.Unmarshal(raw, &out)
+	_ = codec.Unmarshal(raw, &out)
 	return out
 }
 
@@ -351,7 +351,7 @@ const revKey = "__rev"
 
 // mergeConfig overlays partial's keys onto cfg (partial wins), ignoring any
 // client-sent revision mirror — the server owns it.
-func mergeConfig(cfg, partial map[string]json.RawMessage) {
+func mergeConfig(cfg, partial map[string]codec.RawMessage) {
 	for k, v := range partial {
 		if k == revKey {
 			continue
@@ -361,8 +361,8 @@ func mergeConfig(cfg, partial map[string]json.RawMessage) {
 }
 
 // setRev writes the revision mirror into the config blob.
-func setRev(cfg map[string]json.RawMessage, rev int) {
-	b, _ := json.Marshal(rev)
+func setRev(cfg map[string]codec.RawMessage, rev int) {
+	b, _ := codec.Marshal(rev)
 	cfg[revKey] = b
 }
 

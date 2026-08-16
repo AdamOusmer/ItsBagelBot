@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -18,6 +17,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
@@ -56,7 +56,7 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 func invalidateOnChange(repo *repository.Commands) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		var dto data.CommandChangedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
 		}
 		repo.Invalidate(dto.UserID)
@@ -70,7 +70,7 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CommandUsedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad command_used payload", zap.Error(err))
 			return nil
 		}
@@ -85,7 +85,7 @@ func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Mess
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.UserDeletedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("commands: bad user_deleted payload", zap.Error(err))
 			return nil
 		}

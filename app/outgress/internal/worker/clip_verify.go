@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -119,7 +119,7 @@ func (w *Worker) clipAbsent(ctx context.Context, probe clipProbe) (bool, error) 
 		return false, fmt.Errorf("get clips: %d", res.StatusCode)
 	}
 	var reply clipCreateReply
-	if err := json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&reply); err != nil {
+	if err := codec.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&reply); err != nil {
 		return false, err
 	}
 	return len(reply.Data) == 0, nil

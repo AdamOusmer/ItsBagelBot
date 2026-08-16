@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -173,7 +173,7 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 			return nil
 		}
 		var ev T
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
 		line, ok := render(ctx, ev)

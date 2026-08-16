@@ -9,8 +9,8 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,7 +24,7 @@ func hostileCohort(t *testing.T, n int, text string) *bus.Message {
 	for i := range senders {
 		senders[i] = map[string]any{"chatter_user_id": strconv.Itoa(i + 1)}
 	}
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -144,7 +144,7 @@ func TestBuildOutgressShieldMode(t *testing.T) {
 	require.NoError(t, err)
 
 	var msg outgress.Message
-	require.NoError(t, sonic.Unmarshal(body, &msg))
+	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeShieldMode, msg.Type)
 	assert.Equal(t, "77", msg.BroadcasterID)
 	assert.JSONEq(t, `{"is_active":true}`, string(msg.Payload))

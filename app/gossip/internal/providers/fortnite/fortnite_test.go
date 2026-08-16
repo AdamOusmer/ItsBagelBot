@@ -2,7 +2,6 @@ package fortnite
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,10 +100,10 @@ func asReply[T any](t *testing.T, res any) T {
 	if v, ok := res.(T); ok {
 		return v
 	}
-	raw, ok := res.(json.RawMessage)
+	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
 	var v T
-	require.NoError(t, json.Unmarshal(raw, &v))
+	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
 
@@ -245,7 +245,7 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	body, err := os.ReadFile("testdata/stats_v2_real.json")
 	require.NoError(t, err)
 	var resp rawStatsResponse
-	require.NoError(t, json.Unmarshal(body, &resp))
+	require.NoError(t, codec.Unmarshal(body, &resp))
 
 	wantOverall := modeAgg{wins: 11472, matches: 33287, kills: 221742}
 	wantModes := [3]modeAgg{
@@ -263,7 +263,7 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	var mapResp struct {
 		Stats map[string]float64 `json:"stats"`
 	}
-	require.NoError(t, json.Unmarshal(body, &mapResp))
+	require.NoError(t, codec.Unmarshal(body, &mapResp))
 	mapOverall, mapModes := aggregate(mapResp.Stats)
 	assert.Equal(t, wantOverall, mapOverall)
 	assert.Equal(t, wantModes, mapModes)
@@ -711,7 +711,7 @@ func BenchmarkStatsLegacyMapAggregate(b *testing.B) {
 	var mapResp struct {
 		Stats map[string]float64 `json:"stats"`
 	}
-	if err := json.Unmarshal(data, &mapResp); err != nil {
+	if err := codec.Unmarshal(data, &mapResp); err != nil {
 		b.Fatal(err)
 	}
 	b.ResetTimer()

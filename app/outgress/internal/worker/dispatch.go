@@ -6,9 +6,9 @@ import (
 
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/bytedance/sonic"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -130,11 +130,11 @@ func textActionMessage(broadcasterID string, sc outgress.SlashCommand) (*outgres
 // action posts the line first and then pins it for the current stream.
 func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, error) {
 	if sc.Type == outgress.TypeAnnounce {
-		return sonic.Marshal(struct {
+		return codec.Marshal(&struct {
 			Message string `json:"message"`
 		}{sc.Text})
 	}
-	return sonic.Marshal(struct {
+	return codec.Marshal(&struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
 	}{broadcasterID, sc.Text})
@@ -145,7 +145,7 @@ func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, err
 // sender injection, per-channel chat rate bucket — exactly as if a lane job
 // carried it.
 func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) error {
-	body, err := sonic.Marshal(struct {
+	body, err := codec.Marshal(&struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
 	}{broadcasterID, text})

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 
 	"ItsBagelBot/app/modules/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
@@ -14,6 +13,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
@@ -83,7 +83,7 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *bus.Message) error {
 
 		var dto data.ModuleChangedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
 		}
 
@@ -112,7 +112,7 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 func deleteUser(msg *bus.Message, w eventsWiring) error {
 	log := monitor.TxnLogger(msg.Context(), w.log)
 	var dto data.UserDeletedDTO
-	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 		log.Warn("modules: bad user_deleted payload", zap.Error(err))
 		return nil
 	}

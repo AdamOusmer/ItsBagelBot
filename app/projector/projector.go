@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -13,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
@@ -70,7 +70,7 @@ func NewProjector(d Deps) *Projector {
 func (p *Projector) HandleUserChanged(msg *bus.Message) error {
 
 	var dto data.UserChangedDTO
-	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 		p.drop(msg, data.SubjectUserChanged, err)
 		return nil
 	}
@@ -99,7 +99,7 @@ func (p *Projector) HandleUserChanged(msg *bus.Message) error {
 func (p *Projector) HandleUserDeleted(msg *bus.Message) error {
 
 	var dto data.UserDeletedDTO
-	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 		p.drop(msg, data.SubjectUserDeleted, err)
 		return nil
 	}
@@ -150,7 +150,7 @@ func (p *Projector) broadcastInvalidate(userID uint64) {
 func (p *Projector) HandleModuleChanged(msg *bus.Message) error {
 
 	var dto data.ModuleChangedDTO
-	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 		p.drop(msg, data.SubjectModuleChanged, err)
 		return nil
 	}
@@ -181,7 +181,7 @@ func (p *Projector) HandleModuleChanged(msg *bus.Message) error {
 
 func (p *Projector) HandleCommandChanged(msg *bus.Message) error {
 	var dto data.CommandChangedDTO
-	if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 		p.drop(msg, data.SubjectCommandChanged, err)
 		return nil
 	}

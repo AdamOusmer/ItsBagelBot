@@ -2,13 +2,13 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 )
 
 const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
@@ -48,7 +48,7 @@ func Shoutout(_ engine.Deps) module.Module {
 			return nil
 		}
 		var ev raidEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
 		if ev.FromBroadcasterUserLogin == "" {

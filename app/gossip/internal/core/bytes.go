@@ -1,10 +1,9 @@
 package core
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
 	"time"
-
-	"github.com/bytedance/sonic"
 )
 
 // Byte-flow caching with stale-while-revalidate: the pass-through endpoints
@@ -168,4 +167,4 @@ func (c *Cache) refreshBytes(key string, admit func(context.Context) error, buil
 
 // MarshalReply renders one reply value for the wire (and for CachedBytes
 // storage) through sonic, the fleet's hot-path JSON codec.
-func MarshalReply(v any) ([]byte, error) { return sonic.Marshal(v) }
+func MarshalReply(v any) ([]byte, error) { return codec.Marshal(v) }

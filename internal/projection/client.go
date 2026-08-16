@@ -21,7 +21,6 @@ package projection
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -206,7 +206,7 @@ func (c *Client) StartInvalidationListener(prefix string) {
 // its scope (the subject's last token) names.
 func (c *Client) onInvalidation(msg *nats.Msg) {
 	var payload invalidate.DTO
-	if err := json.Unmarshal(msg.Data, &payload); err != nil {
+	if err := codec.Unmarshal(msg.Data, &payload); err != nil {
 		c.log.Debug("projection: cache invalidation: bad payload", zap.Error(err), zap.String("subject", msg.Subject))
 		return
 	}

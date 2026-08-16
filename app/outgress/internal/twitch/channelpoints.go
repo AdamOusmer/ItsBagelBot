@@ -1,8 +1,8 @@
 package twitch
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -151,14 +151,14 @@ func (c *Client) ListCustomRewards(ctx context.Context, broadcasterID string) ([
 // CreateCustomReward creates one reward and returns it with the Twitch-assigned
 // id.
 func (c *Client) CreateCustomReward(ctx context.Context, broadcasterID string, r CustomReward) (CustomReward, error) {
-	body, _ := json.Marshal(rewardBody(r))
+	body, _ := codec.Marshal(rewardBody(r))
 	endpoint := customRewardsPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID)
 	return c.rewardMutate(ctx, broadcasterID, http.MethodPost, endpoint, body)
 }
 
 // UpdateCustomReward updates one reward (a pause toggle is just is_paused here).
 func (c *Client) UpdateCustomReward(ctx context.Context, broadcasterID, rewardID string, r CustomReward) (CustomReward, error) {
-	body, _ := json.Marshal(rewardBody(r))
+	body, _ := codec.Marshal(rewardBody(r))
 	endpoint := customRewardsPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID) + "&id=" + url.QueryEscape(rewardID)
 	return c.rewardMutate(ctx, broadcasterID, http.MethodPatch, endpoint, body)
 }
@@ -186,7 +186,7 @@ func (c *Client) DeleteCustomReward(ctx context.Context, broadcasterID, rewardID
 func (c *Client) UpdateRedemptionStatus(ctx context.Context, broadcasterID, rewardID, redemptionID, status string) error {
 	endpoint := "/helix/channel_points/custom_rewards/redemptions?broadcaster_id=" + url.QueryEscape(broadcasterID) +
 		"&reward_id=" + url.QueryEscape(rewardID) + "&id=" + url.QueryEscape(redemptionID)
-	body, _ := json.Marshal(struct {
+	body, _ := codec.Marshal(struct {
 		Status string `json:"status"`
 	}{status})
 	res, err := c.ExecuteAs(ctx, IdentityBroadcaster, broadcasterID, HelixCall{Method: http.MethodPatch, Endpoint: endpoint, Body: body})
@@ -229,7 +229,7 @@ func (c *Client) rewardCall(ctx context.Context, broadcasterID, method, endpoint
 	var payload struct {
 		Data []helixReward `json:"data"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return nil, err
 	}
 	return payload.Data, nil

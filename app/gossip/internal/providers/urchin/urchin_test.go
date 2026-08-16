@@ -2,7 +2,6 @@ package urchin
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,17 +77,17 @@ func endpoint(t *testing.T, p provider.Provider, name string) func(context.Conte
 }
 
 // asReply decodes one handler result into T. Byte-flow endpoints answer
-// pre-marshaled wire bytes (json.RawMessage); guard-path failures answer the
+// pre-marshaled wire bytes (codec.RawMessage); guard-path failures answer the
 // typed reply directly. Both decode the same on the wire.
 func asReply[T any](t *testing.T, res any) T {
 	t.Helper()
 	if v, ok := res.(T); ok {
 		return v
 	}
-	raw, ok := res.(json.RawMessage)
+	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
 	var v T
-	require.NoError(t, json.Unmarshal(raw, &v))
+	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
 
@@ -172,7 +172,7 @@ func TestSessionHitIsRawBytes(t *testing.T) {
 
 	_ = h(context.Background(), gossiprpc.Request{Account: "Techno"})
 	res := h(context.Background(), gossiprpc.Request{Account: "Techno"})
-	_, isRaw := res.(json.RawMessage)
+	_, isRaw := res.(codec.RawMessage)
 	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
 }
 

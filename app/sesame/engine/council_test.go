@@ -10,8 +10,8 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -46,7 +46,7 @@ func councilPipeline(pub *fakePublisher, camp Campaign) *Pipeline {
 // with a message id so deletes can be exercised.
 func linkChat(t *testing.T, chatter string) *bus.Message {
 	t.Helper()
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -97,7 +97,7 @@ func TestCampaignEscalatesFlaggedDeleteToTimeout(t *testing.T) {
 
 	// A caps heuristic line (delete verdict) corroborated by the campaign juror
 	// becomes a timeout.
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -116,7 +116,7 @@ func TestHarassmentWarnPairsWithDelete(t *testing.T) {
 	pub := &fakePublisher{}
 	p := councilPipeline(pub, nil)
 
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -153,7 +153,7 @@ func TestBuildOutgressDeleteAndWarn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	var msg outgress.Message
-	require.NoError(t, sonic.Unmarshal(body, &msg))
+	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeDelete, msg.Type)
 	assert.Equal(t, "abc-123", msg.MsgID)
 	// A nil RawMessage marshals as JSON null: no body either way.
@@ -166,10 +166,10 @@ func TestBuildOutgressDeleteAndWarn(t *testing.T) {
 		Reason:        "automod:lex:harassment:x",
 	})
 	require.NoError(t, err)
-	require.NoError(t, sonic.Unmarshal(body, &msg))
+	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeWarn, msg.Type)
 	var wire banBodyWire
-	require.NoError(t, sonic.Unmarshal(msg.Payload, &wire))
+	require.NoError(t, codec.Unmarshal(msg.Payload, &wire))
 	assert.Equal(t, "999", wire.Data.UserID)
 	assert.Equal(t, "automod:lex:harassment:x", wire.Data.Reason)
 }

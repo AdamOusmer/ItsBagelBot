@@ -1,10 +1,10 @@
 package bus
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
 	"errors"
 
-	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 )
 
@@ -67,7 +67,7 @@ func PublishJSON(ctx context.Context, pub Publisher, subject string, payload any
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.publish.encode", operation: "publish", destination: subject,
 	})
-	body, err := sonic.ConfigFastest.Marshal(payload)
+	body, err := codec.FastMarshal(payload)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
 		return err

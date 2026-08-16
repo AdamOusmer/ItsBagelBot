@@ -1,13 +1,13 @@
 package ratelimit
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
 	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/Yiling-J/theine-go"
-	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/nats-io/nuid"
@@ -119,7 +119,7 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 	now := time.Now()
 	request.RequestID = nuid.Next()
 	request.DeadlineMS = borrowDeadline(ctx, now).UnixMilli()
-	data, err := sonic.Marshal(&request)
+	data, err := codec.Marshal(&request)
 	if err != nil {
 		return BorrowReply{}, err
 	}
@@ -128,7 +128,7 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 		return BorrowReply{}, err
 	}
 	var reply BorrowReply
-	if err := sonic.Unmarshal(msg.Data, &reply); err != nil {
+	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
 		return BorrowReply{}, err
 	}
 	if !reply.validFor(request) {
@@ -150,7 +150,7 @@ func (r BorrowReply) validFor(request BorrowRequest) bool {
 
 func (ps *PermitService) handleRequest(req micro.Request) {
 	var borrow BorrowRequest
-	if err := sonic.Unmarshal(req.Data(), &borrow); err != nil {
+	if err := codec.Unmarshal(req.Data(), &borrow); err != nil {
 		_ = req.Error("400", "invalid request", nil)
 		return
 	}
@@ -215,7 +215,7 @@ func agedGrant(cached cachedGrant) BorrowReply {
 }
 
 func (ps *PermitService) respond(req micro.Request, reply BorrowReply) {
-	data, err := sonic.Marshal(&reply)
+	data, err := codec.Marshal(&reply)
 	if err != nil {
 		_ = req.Error("500", "encode failure", nil)
 		return

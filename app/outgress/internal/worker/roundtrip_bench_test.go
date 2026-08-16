@@ -1,30 +1,28 @@
 package worker
 
 import (
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/internal/domain/outgress"
-
-	"github.com/bytedance/sonic"
+	"ItsBagelBot/pkg/codec"
 )
 
 // oldWithSenderID reconstructs the pre-rewrite chat-body identity injection: it
-// decoded the body into a map[string]json.RawMessage and re-marshaled it on every
+// decoded the body into a map[string]codec.RawMessage and re-marshaled it on every
 // chat send. Kept here only to benchmark against the new withField byte-splice.
 func oldWithSenderID(body []byte, senderID string) []byte {
-	m := map[string]json.RawMessage{}
+	m := map[string]codec.RawMessage{}
 	if len(body) > 0 {
-		if err := json.Unmarshal(body, &m); err != nil {
+		if err := codec.Unmarshal(body, &m); err != nil {
 			return body
 		}
 	}
 	if _, ok := m["sender_id"]; !ok {
-		if b, err := json.Marshal(senderID); err == nil {
+		if b, err := codec.Marshal(senderID); err == nil {
 			m["sender_id"] = b
 		}
 	}
-	out, err := json.Marshal(m)
+	out, err := codec.Marshal(m)
 	if err != nil {
 		return body
 	}
@@ -37,7 +35,7 @@ func BenchmarkRTEnvelopeStdlib(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		var message outgress.Message
-		if err := json.Unmarshal(rtEnvelope, &message); err != nil {
+		if err := codec.Unmarshal(rtEnvelope, &message); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -47,7 +45,7 @@ func BenchmarkRTEnvelopeSonic(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		var message outgress.Message
-		if err := sonic.Unmarshal(rtEnvelope, &message); err != nil {
+		if err := codec.Unmarshal(rtEnvelope, &message); err != nil {
 			b.Fatal(err)
 		}
 	}

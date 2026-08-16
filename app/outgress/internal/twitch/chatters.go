@@ -1,8 +1,8 @@
 package twitch
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -88,7 +88,7 @@ func decodeChattersPage(res *http.Response) ([]Chatter, string, error) {
 			Cursor string `json:"cursor"`
 		} `json:"pagination"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return nil, "", err
 	}
 	batch := make([]Chatter, 0, len(payload.Data))

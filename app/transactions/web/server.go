@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/go-chi/chi/v5"
@@ -143,7 +143,7 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var event tebexEvent
-	if err := json.Unmarshal(body, &event); err != nil {
+	if err := codec.Unmarshal(body, &event); err != nil {
 		monitor.TxnLogger(r.Context(), s.log).Warn("tebex webhook json rejected", zap.Error(err))
 		sendJSON(w, http.StatusBadRequest, errorBody{Error: "bad json"})
 		return
@@ -410,5 +410,5 @@ func sendOK(w http.ResponseWriter) {
 func sendJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	_ = codec.NewEncoder(w).Encode(payload)
 }

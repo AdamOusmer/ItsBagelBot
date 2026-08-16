@@ -2,13 +2,13 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 )
@@ -40,7 +40,7 @@ func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Reque
 	ctx, cancel := context.WithTimeout(ctx, loyaltyRPCTimeout)
 	defer cancel()
 
-	body, err := json.Marshal(req)
+	body, err := codec.Marshal(req)
 	if err != nil {
 		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s marshal request: %w", subject, err)
 	}
@@ -49,7 +49,7 @@ func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Reque
 		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 	var reply loyaltyrpc.Reply
-	if err := json.Unmarshal(msg.Data, &reply); err != nil {
+	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
 		return loyaltyrpc.Reply{}, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
 	if reply.Error != "" {

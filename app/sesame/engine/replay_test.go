@@ -5,8 +5,8 @@ import (
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 // chatEvent is chatMsg with separate EventSub delivery and Twitch chat IDs.
 func chatEvent(t *testing.T, laneName, text, eventID string) *bus.Message {
 	t.Helper()
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                laneName,
 		"broadcaster_user_id": "123",

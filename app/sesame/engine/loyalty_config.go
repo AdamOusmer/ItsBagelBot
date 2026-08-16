@@ -2,9 +2,9 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/codec"
 )
 
 // LoyaltyModuleName is the ModuleView key the dashboard's (future) Loyalty tab
@@ -106,7 +106,7 @@ func loyaltyModuleConfig(ctx context.Context, proj projection.Reader, broadcaste
 		}
 		var cfg LoyaltyModuleConfig
 		if len(v.Configs) > 0 {
-			_ = json.Unmarshal(v.Configs, &cfg)
+			_ = codec.Unmarshal(v.Configs, &cfg)
 		}
 		return cfg, true
 	}
