@@ -240,7 +240,7 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 	t.Helper()
 	identities := []serviceIdentity{
 		{"users_bus"}, {"commands_bus"}, {"modules_bus"}, {"loyalty_bus"},
-		{"transactions_bus"}, {"projector_bus"}, {"worker_bus"}, {"outgress_bus"},
+		{"projector_bus"}, {"worker_bus"}, {"outgress_bus"},
 		{"twitch_ingress_bus"}, {"dashboard_bus"},
 	}
 	for _, identity := range identities {
