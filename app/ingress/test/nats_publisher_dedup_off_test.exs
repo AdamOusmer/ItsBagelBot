@@ -186,7 +186,11 @@ defmodule Ingress.Nats.PublisherAtMostOnceTest do
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":#{n}})) == :ok
     end
 
-    publishes = for _ <- 1..3, do: assert_receive({:pub, _, _, opts}, 500) && opts
+    publishes =
+      for _ <- 1..3 do
+        assert_receive({:pub, _, _, opts}, 500)
+        opts
+      end
 
     commit =
       Enum.find_value(publishes, fn opts ->

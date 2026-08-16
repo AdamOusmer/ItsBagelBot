@@ -31,7 +31,6 @@ defmodule Ingress.Squash do
   """
 
   use GenServer
-  require Logger
 
   alias Ingress.Config.Squash, as: SquashConfig
   alias Ingress.{Config, Metrics, Nats}
@@ -153,8 +152,12 @@ defmodule Ingress.Squash do
           :ets.delete(state.table, key)
 
           case Map.pop(state.cohorts, cohort_key) do
-            {nil, cohorts} -> %{state | cohorts: cohorts}
-            {cohort, cohorts} -> emit(cohort, state) && %{state | cohorts: cohorts}
+            {nil, cohorts} ->
+              %{state | cohorts: cohorts}
+
+            {cohort, cohorts} ->
+              emit(cohort, state)
+              %{state | cohorts: cohorts}
           end
 
         _ ->
@@ -202,8 +205,12 @@ defmodule Ingress.Squash do
           :ets.delete(state.table, key)
 
           case Map.pop(acc, {key, generation}) do
-            {nil, acc} -> acc
-            {cohort, acc} -> emit(cohort, state) && acc
+            {nil, acc} ->
+              acc
+
+            {cohort, acc} ->
+              emit(cohort, state)
+              acc
           end
         else
           acc

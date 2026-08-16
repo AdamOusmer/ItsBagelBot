@@ -12,8 +12,6 @@ defmodule Ingress.WS do
   reconnect handshake.
   """
 
-  require Logger
-
   defstruct [:conn, :ref, :websocket, :status, :headers]
 
   @type t :: %__MODULE__{}

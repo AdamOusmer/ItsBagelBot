@@ -1,7 +1,9 @@
 # Twitch Ingress (Elixir) - build with podman or docker:
 #   podman build -t itsbagelbot/twitch-ingress -f Containerfile .
-# OTP 27 provides the native `:json` module used on the ingress firehose.
-FROM docker.io/library/elixir:1.20-otp-27@sha256:998bb64cb24209d959eb48af9bac1a087f4b5b4d32e91f6e67d666659af04bcd AS build
+# OTP 27 introduced the native `:json` module used on the ingress firehose; 28
+# is the newest OTP an official Elixir image is published for, so it is what
+# local, CI and this build all pin to.
+FROM docker.io/library/elixir:1.20-otp-28@sha256:88f1a25b768c94416ca19568eba11316f9958ebc85d465081be48f96871d7352 AS build
 
 ENV MIX_ENV=prod
 WORKDIR /src

@@ -78,9 +78,6 @@ defmodule Ingress.Nats.Publisher do
 
       {:error, reason} = error when reason in [:overloaded, :not_connected] ->
         enqueue_from(rem(index + 1, n), remaining - 1, subject, json, trace_headers, error)
-
-      error ->
-        error
     end
   end
 
