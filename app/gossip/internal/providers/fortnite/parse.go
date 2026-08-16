@@ -3,8 +3,8 @@ package fortnite
 import (
 	"bytes"
 	"errors"
-	"math"
-	"strconv"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 // errNoStatsObject is returned when the response body has no locatable "stats"
@@ -13,16 +13,16 @@ import (
 var errNoStatsObject = errors.New("fortnite: stats object missing from response")
 
 // rawStatsResponse is the /api/v2/stats/{accountId} body: Epic's raw stats-v2
-// counters. It implements json.Unmarshaler with a zero-allocation byte scanner
-// that folds the raw counter blob directly into overall and per-mode aggregates
-// on decode without allocating maps, strings, or intermediate heap objects.
+// counters. It implements json.Unmarshaler so the ~1000-key counter blob folds
+// straight into overall and per-mode aggregates on decode, without ever
+// materializing the map, strings, and boxed floats a struct decode would build
+// for the counters nobody reads.
 type rawStatsResponse struct {
 	Overall modeAgg
 	Modes   [3]modeAgg
 }
 
-// UnmarshalJSON scans the raw stats JSON directly without allocating maps,
-// strings, or intermediate heap objects.
+// UnmarshalJSON folds the raw stats JSON into the aggregates in one pass.
 func (r *rawStatsResponse) UnmarshalJSON(data []byte) error {
 	overall, modes, err := parseRawStats(data)
 	if err != nil {
@@ -56,104 +56,23 @@ const (
 	metricMatches = 3
 )
 
-// statScanner encapsulates byte scanning state.
-type statScanner struct {
-	data []byte
-	i    int
-}
-
-func isWhitespace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
-}
-
-func (s *statScanner) skipWhitespace() {
-	for s.i < len(s.data) && (isWhitespace(s.data[s.i]) || s.data[s.i] == ',') {
-		s.i++
+// parseNumberBytes decodes one counter value. Epic writes most counters as
+// plain integers but not all of them -- floats and scientific notation both
+// appear in real bodies -- so anything the integer decoder rejects is retried
+// as a float. A token past int64 is rejected the same way and lands on that
+// float path too, which is the point: an unrepresentable counter must not wrap
+// around into a plausible-looking negative. A value neither decoder accepts
+// folds to 0, since one malformed counter out of a thousand is not worth
+// failing the whole lookup over.
+func parseNumberBytes(raw []byte) int64 {
+	if val, err := codec.ParseInt(raw); err == nil {
+		return val
 	}
-}
-
-func (s *statScanner) skipColon() {
-	for s.i < len(s.data) && (isWhitespace(s.data[s.i]) || s.data[s.i] == ':') {
-		s.i++
-	}
-}
-
-func (s *statScanner) readKey() ([]byte, bool) {
-	if s.i >= len(s.data) || s.data[s.i] != '"' {
-		return nil, false
-	}
-	s.i++ // past opening '"'
-	start := s.i
-	for s.i < len(s.data) && s.data[s.i] != '"' {
-		if s.data[s.i] == '\\' && s.i+1 < len(s.data) {
-			s.i++
-		}
-		s.i++
-	}
-	if s.i >= len(s.data) {
-		return nil, false
-	}
-	end := s.i
-	s.i++ // past closing '"'
-	return s.data[start:end], true
-}
-
-func (s *statScanner) readNumber() int64 {
-	valStart := s.i
-	for s.i < len(s.data) && s.data[s.i] != ',' && s.data[s.i] != '}' && !isWhitespace(s.data[s.i]) {
-		s.i++
-	}
-	if s.i == valStart {
-		return 0
-	}
-	return parseNumberBytes(s.data[valStart:s.i])
-}
-
-// maxInt64Div10 bounds the fast accumulation path in parseNumberBytes: once val
-// exceeds it, one more digit could overflow int64.
-const maxInt64Div10 = math.MaxInt64 / 10
-
-// willOverflowInt64 reports whether accumulating digit c into val would overflow
-// int64 accumulation in parseNumberBytes.
-func willOverflowInt64(val int64, c byte) bool {
-	return val > maxInt64Div10 || (val == maxInt64Div10 && c > '7')
-}
-
-// parseNumberFallback handles tokens the fast integer path can't: floats,
-// scientific notation, and integers too large for int64 accumulation.
-func parseNumberFallback(raw []byte) int64 {
-	f, err := strconv.ParseFloat(string(raw), 64)
+	f, err := codec.ParseFloat(raw)
 	if err != nil {
 		return 0
 	}
 	return int64(f)
-}
-
-// parseNumberBytes parses a numeric token, defaulting to fast integer accumulation
-// and falling back to ParseFloat for scientific notation, floats, or overflow.
-func parseNumberBytes(raw []byte) int64 {
-	var val int64
-	var isNeg bool
-	idx := 0
-	if raw[0] == '-' {
-		isNeg = true
-		idx++
-	}
-	for idx < len(raw) {
-		c := raw[idx]
-		if c < '0' || c > '9' {
-			return parseNumberFallback(raw)
-		}
-		if willOverflowInt64(val, c) {
-			return parseNumberFallback(raw)
-		}
-		val = val*10 + int64(c-'0')
-		idx++
-	}
-	if isNeg {
-		return -val
-	}
-	return val
 }
 
 // matchMetricPrefix matches and extracts metric constant and remainder.
@@ -225,121 +144,59 @@ func addMetric(a *modeAgg, metric int, val int64) {
 	}
 }
 
-// foldStatEntry matches the stat key and accumulates the value into overall and modes.
-func foldStatEntry(overall *modeAgg, modes *[3]modeAgg, key []byte, val int64) {
+// statsPath is built once rather than per call: a path built at the call site
+// is the one heap allocation the whole parse would otherwise make. It is
+// read-only; the extract API never writes through it.
+var statsPath = codec.Path{"stats"}
+
+// statsFold is the aggregation state the walk carries. It is one struct so the
+// callback closes over a single pointer instead of four separate variables.
+type statsFold struct {
+	overall modeAgg
+	modes   [3]modeAgg
+	// entered records that the walk reached at least one member of the stats
+	// object, which is what separates "no stats here" from "stats truncated
+	// partway through". See parseRawStats.
+	entered bool
+}
+
+// fold matches one raw counter and accumulates it. The number is decoded only
+// after the key routes somewhere: the blob is a thousand counters wide and a
+// couple dozen of them are tracked, so decoding every value up front would be
+// almost entirely wasted work. Non-numeric members (Epic ships a few string and
+// object siblings) carry no counter and are skipped outright.
+func (f *statsFold) fold(key, value []byte, kind codec.Kind) error {
+	f.entered = true
+	if kind != codec.KindNumber {
+		return nil
+	}
 	metric, pl, ok := matchStatKeyBytes(key)
 	if !ok {
-		return
+		return nil
 	}
-	addMetric(overall, metric, val)
+	val := parseNumberBytes(value)
+	addMetric(&f.overall, metric, val)
 	if idx, ok := coreModeIndexBytes(pl); ok {
-		addMetric(&modes[idx], metric, val)
+		addMetric(&f.modes[idx], metric, val)
 	}
+	return nil
 }
 
-// findStatsStart locates the opening '{' of the "stats" object. Returns -1 if not found.
-func findStatsStart(data []byte) int {
-	idx := bytes.Index(data, []byte(`"stats"`))
-	if idx == -1 {
-		return -1
+// parseRawStats walks the "stats" object and folds its counters into overall
+// and mode aggregates. It errors when no stats object can be located, rather
+// than returning zeroed aggregates that a caller could mistake for a
+// legitimately empty response -- note that a present-but-empty object is a real
+// response shape (a brand new account) and is not an error.
+func parseRawStats(data []byte) (modeAgg, [3]modeAgg, error) {
+	var f statsFold
+	if err := codec.ExtractEach(data, f.fold, statsPath); err != nil && !f.entered {
+		// Nothing was read at all: the field is absent, or it is present as
+		// something that is not an object (null, a string, an HTML error page
+		// that never parsed). Both are the missing-stats case.
+		return modeAgg{}, [3]modeAgg{}, errNoStatsObject
 	}
-	i := idx + 7
-	for i < len(data) && data[i] != '{' {
-		i++
-	}
-	if i >= len(data) {
-		return -1
-	}
-	return i + 1
-}
-
-// skipString advances past a JSON string literal (opening quote already
-// current), honoring backslash escapes so an escaped quote doesn't end it early.
-func (s *statScanner) skipString() {
-	s.i++ // past opening '"'
-	for s.i < len(s.data) {
-		c := s.data[s.i]
-		if c == '\\' && s.i+1 < len(s.data) {
-			s.i += 2
-			continue
-		}
-		if c == '"' {
-			s.i++
-			return
-		}
-		s.i++
-	}
-}
-
-// skipContainer advances past a balanced object or array value, tracking
-// nesting depth so an inner "}"/"]" doesn't end the scan early. String
-// literals are consumed whole so braces/brackets inside them don't count.
-func (s *statScanner) skipContainer() {
-	depth := 0
-	for s.i < len(s.data) {
-		switch c := s.data[s.i]; {
-		case c == '"':
-			s.skipString()
-			continue
-		case c == '{' || c == '[':
-			depth++
-		case c == '}' || c == ']':
-			depth--
-		}
-		s.i++
-		if depth == 0 {
-			return
-		}
-	}
-}
-
-// readValue consumes one JSON value -- number, string, object, or array --
-// keeping the scanner synchronized with sibling keys either way. Only numeric
-// tokens are meaningful stat values, so strings/objects/arrays fold to 0.
-func (s *statScanner) readValue() int64 {
-	if s.i >= len(s.data) {
-		return 0
-	}
-	switch s.data[s.i] {
-	case '"':
-		s.skipString()
-		return 0
-	case '{', '[':
-		s.skipContainer()
-		return 0
-	default:
-		return s.readNumber()
-	}
-}
-
-// scanEntry parses one stat key/value pair. Returns true to continue scanning.
-func (s *statScanner) scanEntry(overall *modeAgg, modes *[3]modeAgg) bool {
-	s.skipWhitespace()
-	if s.i >= len(s.data) || s.data[s.i] == '}' {
-		return false
-	}
-	key, ok := s.readKey()
-	if !ok {
-		s.i++
-		return true
-	}
-	s.skipColon()
-	val := s.readValue()
-	foldStatEntry(overall, modes, key, val)
-	return true
-}
-
-// parseRawStats scans the stats JSON body directly and folds the counters
-// into overall and mode aggregates with zero memory allocations. It errors
-// when no "stats" object can be located, rather than returning zeroed
-// aggregates that a caller could mistake for a legitimately empty response.
-func parseRawStats(data []byte) (overall modeAgg, modes [3]modeAgg, err error) {
-	start := findStatsStart(data)
-	if start == -1 {
-		return overall, modes, errNoStatsObject
-	}
-	s := statScanner{data: data, i: start}
-	for s.scanEntry(&overall, &modes) {
-	}
-	return overall, modes, nil
+	// A walk that failed after some members did reach the fold is a truncated
+	// body -- rare transport damage -- and the counters already read are worth
+	// more than discarding the response over the tail that never arrived.
+	return f.overall, f.modes, nil
 }
