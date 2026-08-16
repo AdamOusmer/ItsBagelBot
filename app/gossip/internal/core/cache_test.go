@@ -328,3 +328,129 @@ func TestSnapshotRoundTrip(t *testing.T) {
 func TestKey(t *testing.T) {
 	assert.Equal(t, "gossip:urchin:daily:techno", Key("urchin", "daily", "techno"))
 }
+
+// A stale entry must be served IMMEDIATELY and revalidated behind the caller.
+// This is the property the fortnite account resolve depends on: it runs before
+// the stats call, so an expired entry that blocked would put a whole upstream
+// round trip in front of an otherwise warm command.
+func TestCachedStaleServedThenRevalidated(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	var fetches atomic.Int32
+
+	fill := func(n int) func(context.Context) (payload, error) {
+		return func(context.Context) (payload, error) {
+			fetches.Add(1)
+			return payload{Name: "x", N: n}, nil
+		}
+	}
+
+	// Fresh for 20ms, retained for twice that.
+	got, err := Cached(ctx, c, "k", 20*time.Millisecond, time.Minute, nil, fill(1))
+	require.NoError(t, err)
+	require.Equal(t, 1, got.N)
+	time.Sleep(40 * time.Millisecond)
+
+	// Stale read: the OLD value comes back at once, and one refresh is kicked.
+	got, err = Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill(2))
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.N, "a stale read must serve the stored value, not block on the refetch")
+
+	require.Eventually(t, func() bool {
+		v, gerr := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill(2))
+		return gerr == nil && v.N == 2
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one revalidation")
+}
+
+// The revalidation is claimed once across replicas, exactly as the byte path
+// does it: two Cache instances over one store model two pods, and without the
+// shared claim each would fire its own upstream call for one stale key.
+func TestCachedStaleRefreshClaimedOnceFleetWide(t *testing.T) {
+	st := newMemStore()
+	podA, podB := NewCache(st), NewCache(st)
+	ctx := context.Background()
+	var fetches atomic.Int32
+
+	_, err := Cached(ctx, podA, "k", 20*time.Millisecond, time.Minute, nil,
+		func(context.Context) (payload, error) {
+			fetches.Add(1)
+			return payload{Name: "x", N: 1}, nil
+		})
+	require.NoError(t, err)
+	time.Sleep(40 * time.Millisecond)
+
+	// The refetch parks until both pods have taken their stale read, so the
+	// winner's write cannot land in between and turn the second into a fresh hit.
+	release := make(chan struct{})
+	refetch := func(context.Context) (payload, error) {
+		<-release
+		fetches.Add(1)
+		return payload{Name: "x", N: 2}, nil
+	}
+	for _, pod := range []*Cache{podA, podB} {
+		got, gerr := Cached(ctx, pod, "k", time.Minute, time.Minute, nil, refetch)
+		require.NoError(t, gerr)
+		assert.Equal(t, 1, got.N, "stale read must serve the old value")
+	}
+	close(release)
+
+	require.Eventually(t, func() bool {
+		v, gerr := Cached(ctx, podA, "k", time.Minute, time.Minute, nil, refetch)
+		return gerr == nil && v.N == 2
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one fleet-wide refresh")
+}
+
+// A negative stands for an absence, so revalidating it in the background would
+// spend upstream budget to re-learn nothing. It expires instead.
+func TestCachedNegativeIsNotRevalidated(t *testing.T) {
+	c := NewCache(newMemStore())
+	ctx := context.Background()
+	missing := &UpstreamError{Status: 404, Message: "player not found"}
+	var fetches atomic.Int32
+
+	fetch := func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{}, missing
+	}
+
+	// The first answer is the fetch's own error; the next two are decoded back
+	// out of the entry, so they are equal by value and NOT the same pointer.
+	for range 3 {
+		_, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fetch)
+		var ue *UpstreamError
+		require.ErrorAs(t, err, &ue)
+		assert.Equal(t, 404, ue.Status)
+		assert.Equal(t, "player not found", ue.Message)
+	}
+	// Give any (incorrect) background refresh a chance to run before asserting.
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, int32(1), fetches.Load(), "a cached negative must not be refetched")
+}
+
+// An entry written before the fresh stamp existed decodes it as zero, which
+// reads as already stale. It is served once and refreshed, so the format rolls
+// forward on its own instead of needing a cache flush at deploy.
+func TestCachedLegacyEntryWithoutStampRefreshes(t *testing.T) {
+	st := newMemStore()
+	ctx := context.Background()
+	require.NoError(t, st.Set(ctx, "k", []byte(`{"v":{"name":"old","n":1}}`), time.Minute))
+	c := NewCache(st)
+	var fetches atomic.Int32
+
+	got, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil,
+		func(context.Context) (payload, error) {
+			fetches.Add(1)
+			return payload{Name: "new", N: 2}, nil
+		})
+	require.NoError(t, err)
+	assert.Equal(t, "old", got.Name, "the legacy value is still served, not discarded")
+
+	require.Eventually(t, func() bool {
+		v, gerr := Cached(ctx, c, "k", time.Minute, time.Minute, nil,
+			func(context.Context) (payload, error) { return payload{Name: "new", N: 2}, nil })
+		return gerr == nil && v.Name == "new"
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(1), fetches.Load())
+}
