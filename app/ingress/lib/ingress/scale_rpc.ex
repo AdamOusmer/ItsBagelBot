@@ -26,20 +26,23 @@ defmodule Ingress.ScaleRpc do
   use Gnat.Server
   require Logger
 
-  alias Ingress.{AdminRpc, ShardScaler}
+  alias Ingress.{AdminRpc, JSON, ShardScaler}
 
   @impl true
   def request(%{body: body}) do
     reply =
-      with {:ok, %{"count" => n}} when is_integer(n) <- Jason.decode(body),
+      with {:ok, %{"count" => n}} when is_integer(n) <- JSON.decode(body),
            :ok <- ShardScaler.set_target(n) do
         AdminRpc.snapshot()
       else
         {:ok, _other} ->
           %{error: "body must be {\"count\": <integer>}"}
 
-        {:error, %Jason.DecodeError{} = e} ->
-          %{error: "json decode error: #{Exception.message(e)}"}
+        # `Ingress.JSON.decode/1` reports the caught kind/reason (or trailing
+        # data) as a pair, which is what separates a decode failure from the
+        # scaler's own atom errors below.
+        {:error, {_kind, _reason} = decode_error} ->
+          %{error: "json decode error: #{inspect(decode_error)}"}
 
         {:error, :not_running} ->
           %{error: "shard_scaler not running"}
@@ -48,7 +51,7 @@ defmodule Ingress.ScaleRpc do
           %{error: inspect(reason)}
       end
 
-    {:reply, Jason.encode!(reply)}
+    {:reply, JSON.encode(reply)}
   end
 
   @impl true

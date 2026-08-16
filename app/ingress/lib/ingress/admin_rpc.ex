@@ -22,13 +22,13 @@ defmodule Ingress.AdminRpc do
   use Gnat.Server
   require Logger
 
-  alias Ingress.{Capacity, ShardScaler}
+  alias Ingress.{Capacity, JSON, ShardScaler}
 
   @call_timeout_ms 2_000
 
   @impl true
   def request(%{body: _body}) do
-    {:reply, Jason.encode!(snapshot())}
+    {:reply, JSON.encode(snapshot())}
   end
 
   @impl true
