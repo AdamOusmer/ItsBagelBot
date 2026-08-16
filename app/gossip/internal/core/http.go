@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 // maxBody bounds an upstream response read. The largest legitimate payload the
@@ -190,7 +192,19 @@ func (c *HTTPClient) Do(ctx context.Context, r Request, out any) error {
 	if err != nil {
 		return err
 	}
+
+	// Report the call to New Relic as an external segment. Without this a
+	// handler's transaction is one opaque block, so "the provider is slow" and
+	// "we are slow" are indistinguishable in the only place that has the whole
+	// picture — which is exactly the question a slow !fnstats raises, and one
+	// that cost a manual round of curl-from-a-probe-pod to answer once. The
+	// segment ends before the body is read, so it measures the upstream's time
+	// to first byte and not our decode; decodeJSON's read and unmarshal stay in
+	// the surrounding transaction, which is where they belong.
+	segment := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
 	resp, err := c.hc.Do(req)
+	segment.Response = resp
+	segment.End()
 	if err != nil {
 		return err
 	}
