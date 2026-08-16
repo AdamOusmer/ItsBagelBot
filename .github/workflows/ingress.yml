@@ -31,14 +31,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Match app/ingress/Containerfile: the native `:json` module the firehose
-      # encodes and decodes with arrives in OTP 27, so testing on anything
-      # older would not exercise the code that ships.
+      # Must match app/ingress/Containerfile exactly. Elixir 1.19 does not emit
+      # 1.20's set-theoretic type warnings, so a job on an older pair reports
+      # clean on code that fails the compiler the container actually ships.
       - name: Set up Elixir
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.20'
-          otp-version: '27'
+          otp-version: '28'
 
       - name: Cache deps and build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -46,8 +46,8 @@ jobs:
           path: |
             app/ingress/deps
             app/ingress/_build
-          key: ingress-${{ runner.os }}-otp27-elixir1.20-${{ hashFiles('app/ingress/mix.lock') }}
-          restore-keys: ingress-${{ runner.os }}-otp27-elixir1.20-
+          key: ingress-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/ingress/mix.lock') }}
+          restore-keys: ingress-${{ runner.os }}-otp28-elixir1.20-
 
       - name: Fetch dependencies
         run: mix deps.get
