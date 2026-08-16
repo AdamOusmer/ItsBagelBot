@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -217,12 +218,22 @@ func fastPublishFlow(batchSize int, outstanding uint16) uint16 {
 	// has no effect on the achieved rate. It is kept because it still decides
 	// when Orbit's local stall fires, not because it tunes throughput.
 	maxUseful := max((batchSize-1)/max(int(outstanding), 1), 1)
-	return uint16(min(max(flow, 1), min(maxUseful, int(^uint16(0)))))
+	// The ceiling is spelled as a comparison rather than folded into the min
+	// chain so the uint16 conversion is provably bounded to a reader and to
+	// static analysis, which does not see through the generic builtins.
+	bounded := min(max(flow, 1), maxUseful)
+	if bounded > math.MaxUint16 {
+		bounded = math.MaxUint16
+	}
+	return uint16(bounded)
 }
 
 func fastPublishOutstanding() uint16 {
-	outstanding := env.GetInt("NATS_FAST_PUBLISH_OUTSTANDING_ACKS", 8)
-	return uint16(min(max(outstanding, 1), int(^uint16(0))))
+	outstanding := max(env.GetInt("NATS_FAST_PUBLISH_OUTSTANDING_ACKS", 8), 1)
+	if outstanding > math.MaxUint16 {
+		outstanding = math.MaxUint16
+	}
+	return uint16(outstanding)
 }
 
 // atomicCohortPublisher is the seam Orbit's BatchPublisher fills, so cohort
