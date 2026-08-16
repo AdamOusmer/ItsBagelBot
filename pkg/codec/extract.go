@@ -27,6 +27,21 @@ import (
 // distinct from a field that is present and null, which yields KindNull.
 var ErrNotFound = errors.New("codec: key path not found")
 
+// Path names a field by the object keys leading to it, outermost first: the
+// "wins" inside "stats" is Path{"stats", "wins"}. An empty Path means the
+// document's own top level.
+//
+// It is a declared type rather than a variadic string list so a caller can
+// build it once and keep it. On a hot path that matters: a variadic argument is
+// a fresh slice on every call, and for an extraction that otherwise allocates
+// nothing it would be the only allocation left. Hoist it instead:
+//
+//	var statsPath = codec.Path{"stats"}
+//
+// The extract functions only read the Path they are given, so one value is safe
+// to share across calls and goroutines.
+type Path []string
+
 // Kind is the JSON type of an extracted value.
 type Kind uint8
 
@@ -80,7 +95,7 @@ func kindOf(t jsonparser.ValueType) Kind {
 
 // extractErr normalizes a backend error, mapping a missing path onto ErrNotFound
 // so callers can branch on it with errors.Is and never name the backend.
-func extractErr(err error, path []string) error {
+func extractErr(err error, path Path) error {
 	if err == nil {
 		return nil
 	}
@@ -96,7 +111,7 @@ func extractErr(err error, path []string) error {
 // knowing: a string is returned unquoted and still escaped, so it is not by
 // itself valid JSON. Pass it to ParseString to get the decoded text. Object and
 // array values are returned whole and are valid JSON.
-func ExtractValue(data []byte, path ...string) ([]byte, Kind, error) {
+func ExtractValue(data []byte, path Path) ([]byte, Kind, error) {
 	value, valueType, _, err := jsonparser.Get(data, path...)
 	if err != nil {
 		return nil, KindInvalid, extractErr(err, path)
@@ -106,25 +121,25 @@ func ExtractValue(data []byte, path ...string) ([]byte, Kind, error) {
 
 // ExtractString returns the decoded string at path. It allocates only when the
 // value contains escape sequences.
-func ExtractString(data []byte, path ...string) (string, error) {
+func ExtractString(data []byte, path Path) (string, error) {
 	v, err := jsonparser.GetString(data, path...)
 	return v, extractErr(err, path)
 }
 
 // ExtractInt returns the integer at path.
-func ExtractInt(data []byte, path ...string) (int64, error) {
+func ExtractInt(data []byte, path Path) (int64, error) {
 	v, err := jsonparser.GetInt(data, path...)
 	return v, extractErr(err, path)
 }
 
 // ExtractFloat returns the number at path as a float64.
-func ExtractFloat(data []byte, path ...string) (float64, error) {
+func ExtractFloat(data []byte, path Path) (float64, error) {
 	v, err := jsonparser.GetFloat(data, path...)
 	return v, extractErr(err, path)
 }
 
 // ExtractBool returns the boolean at path.
-func ExtractBool(data []byte, path ...string) (bool, error) {
+func ExtractBool(data []byte, path Path) (bool, error) {
 	v, err := jsonparser.GetBoolean(data, path...)
 	return v, extractErr(err, path)
 }
@@ -142,7 +157,7 @@ func ExtractBool(data []byte, path ...string) (bool, error) {
 //
 // Returning an error from fn stops the walk and returns that error unchanged,
 // so a sentinel can be used to stop early.
-func ExtractEach(data []byte, fn func(key, value []byte, kind Kind) error, path ...string) error {
+func ExtractEach(data []byte, fn func(key, value []byte, kind Kind) error, path Path) error {
 	err := jsonparser.ObjectEach(data, func(key, value []byte, valueType jsonparser.ValueType, _ int) error {
 		return fn(key, value, kindOf(valueType))
 	}, path...)
@@ -160,7 +175,7 @@ func ExtractEach(data []byte, fn func(key, value []byte, kind Kind) error, path 
 // ExtractArray calls fn once for every element of the array at path, in order,
 // passing the element's raw value. Elements are views into data and are not
 // copied.
-func ExtractArray(data []byte, fn func(value []byte, kind Kind) error, path ...string) error {
+func ExtractArray(data []byte, fn func(value []byte, kind Kind) error, path Path) error {
 	_, err := jsonparser.ArrayEachErr(data, func(value []byte, valueType jsonparser.ValueType, _ int, elemErr error) error {
 		if elemErr != nil {
 			return elemErr
