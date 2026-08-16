@@ -2,7 +2,6 @@ package govee
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,10 +88,10 @@ func asReply[T any](t *testing.T, res any) T {
 	if v, ok := res.(T); ok {
 		return v
 	}
-	raw, ok := res.(json.RawMessage)
+	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
 	var v T
-	require.NoError(t, json.Unmarshal(raw, &v))
+	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
 
@@ -144,7 +144,7 @@ func TestControlPowersOnThenSetsColor(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		b, _ := io.ReadAll(r.Body)
 		var body map[string]any
-		require.NoError(t, json.Unmarshal(b, &body))
+		require.NoError(t, codec.Unmarshal(b, &body))
 		mu.Lock()
 		gotKey = r.Header.Get("Govee-API-Key")
 		bodies = append(bodies, body)

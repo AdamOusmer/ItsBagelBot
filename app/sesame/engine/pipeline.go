@@ -13,8 +13,8 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
@@ -182,9 +182,13 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	return emission.err
 }
 
+// decodeEnvelope runs once per inbound event, the busiest decode in the fleet,
+// so it uses the zero-copy codec: the envelope's strings stay views into the
+// lane payload rather than copies. The payload is owned for the whole
+// synchronous handler, which outlives every stage that reads the envelope.
 func decodeEnvelope(ctx context.Context, payload []byte, env *lane.Envelope) error {
 	segment := startStage(ctx, "sesame.decode")
-	err := sonic.Unmarshal(payload, env)
+	err := codec.FastUnmarshal(payload, env)
 	endStageForError(segment, err, "invalid")
 	return err
 }

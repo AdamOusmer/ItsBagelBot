@@ -1,8 +1,8 @@
 package twitch
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,7 +100,7 @@ func ClientSubscriptions(clientID string) []SubSpec {
 // partially applied job converges instead of failing.
 func (c *Client) CreateEventSub(ctx context.Context, spec SubSpec, conduitID string) error {
 
-	body, _ := json.Marshal(map[string]any{
+	body, _ := codec.Marshal(map[string]any{
 		"type":      spec.Type,
 		"version":   spec.Version,
 		"condition": spec.Condition,
@@ -166,7 +166,7 @@ func (c *Client) ListEventSubs(ctx context.Context, userID, cursor string) ([]Ev
 			Cursor string `json:"cursor"`
 		} `json:"pagination"`
 	}
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&page); err != nil {
 		return nil, "", err
 	}
 	return page.Data, page.Pagination.Cursor, nil

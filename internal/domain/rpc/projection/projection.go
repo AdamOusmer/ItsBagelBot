@@ -3,7 +3,7 @@
 // messages on the users, commands, and modules projection subjects.
 package projection
 
-import "encoding/json"
+import "ItsBagelBot/pkg/codec"
 
 // Request is the common input shape for all projection lookups.
 type Request struct {
@@ -30,9 +30,9 @@ type CommandView struct {
 // ModuleView is the canonical wire shape for one module row as stored in the
 // Valkey projection. Field set and json tags match internal/projection.ModuleView exactly.
 type ModuleView struct {
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
+	Name      string           `json:"name"`
+	IsEnabled bool             `json:"is_enabled"`
+	Configs   codec.RawMessage `json:"configs,omitempty"`
 	// Revision is the optimistic-concurrency token a client echoes back on a
 	// patch; a stale value is rejected. Omitted (0) for legacy rows.
 	Revision int `json:"revision,omitempty"`

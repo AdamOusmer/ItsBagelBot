@@ -1,8 +1,8 @@
 package automod
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -157,5 +157,5 @@ func (f *EmoteFetcher) getJSON(ctx context.Context, url string, dst any) error {
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s: status %d", url, res.StatusCode)
 	}
-	return json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(dst)
+	return codec.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(dst)
 }

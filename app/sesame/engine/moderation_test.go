@@ -7,8 +7,8 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,12 +32,12 @@ func TestBuildOutgressBanOmitsDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	var msg outgress.Message
-	require.NoError(t, sonic.Unmarshal(body, &msg))
+	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeBan, msg.Type)
 	assert.Equal(t, "77", msg.BroadcasterID)
 
 	var got banBodyWire
-	require.NoError(t, sonic.Unmarshal(msg.Payload, &got))
+	require.NoError(t, codec.Unmarshal(msg.Payload, &got))
 	assert.Equal(t, "999", got.Data.UserID)
 	assert.Equal(t, "hate raid", got.Data.Reason)
 	assert.Equal(t, 0, got.Data.Duration, "a permanent ban must omit duration")
@@ -55,11 +55,11 @@ func TestBuildOutgressTimeoutCarriesDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	var msg outgress.Message
-	require.NoError(t, sonic.Unmarshal(body, &msg))
+	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeTimeout, msg.Type)
 
 	var got banBodyWire
-	require.NoError(t, sonic.Unmarshal(msg.Payload, &got))
+	require.NoError(t, codec.Unmarshal(msg.Payload, &got))
 	assert.Equal(t, "999", got.Data.UserID)
 	assert.Equal(t, 600, got.Data.Duration)
 	assert.Equal(t, "spam", got.Data.Reason)
@@ -74,7 +74,7 @@ func TestProcessCohortSkipsCommandDispatch(t *testing.T) {
 		cmdFound: true,
 	}
 
-	cohort, err := sonic.Marshal(map[string]any{
+	cohort, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",

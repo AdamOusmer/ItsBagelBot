@@ -139,7 +139,7 @@ const (
 	// otherwise, and memory is the binding constraint. gossip runs with requests
 	// 10m CPU / 32Mi, limits 250m CPU / 128Mi and GOMEMLIMIT=96MiB, and
 	// app/gossip/internal/core/http.go reads each upstream response into a single
-	// buffer bounded by maxBody = 4MiB, then sonic.Unmarshal allocates the
+	// buffer bounded by maxBody = 4MiB, then codec.Unmarshal allocates the
 	// decoded value on top of that still-live buffer.
 	//
 	// Only a RUNNING handler holds that memory. A message waiting in the work

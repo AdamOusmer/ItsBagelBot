@@ -2,16 +2,16 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -149,7 +149,7 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 			return nil
 		}
 		var ev T
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
 		a := award(cfg, ev)

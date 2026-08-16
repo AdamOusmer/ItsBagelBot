@@ -1,8 +1,8 @@
 package tebex
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,10 +35,10 @@ func TestCreateBasket(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
 		createAuth = r.Header.Get("Authorization")
-		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
 			t.Fatalf("decode create body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-1",
 				"links": []any{},
@@ -46,10 +46,10 @@ func TestCreateBasket(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-1/packages", func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&packageBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&packageBody); err != nil {
 			t.Fatalf("decode package body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-1",
 				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-1-final"},
@@ -104,10 +104,10 @@ func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
 		createAuth = r.Header.Get("Authorization")
-		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
 			t.Fatalf("decode create body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-legacy",
 				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
@@ -115,7 +115,7 @@ func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-legacy/packages", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-legacy",
 				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
@@ -166,10 +166,10 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
 			t.Fatalf("decode create body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-gift",
 				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
@@ -177,10 +177,10 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-gift/packages", func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&packageBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&packageBody); err != nil {
 			t.Fatalf("decode package body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"ident": "bkt-gift",
 				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
@@ -221,15 +221,15 @@ func giftCustom(t *testing.T, spec BasketSpec) map[string]any {
 	var createBody map[string]any
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&createBody); err != nil {
+		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
 			t.Fatalf("decode create body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = codec.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gm"}},
 		})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-gm/packages", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{}}})
+		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{}}})
 	})
 	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), spec); err != nil {
 		t.Fatalf("CreateBasket: %v", err)
@@ -279,7 +279,7 @@ func TestCreateBasketUpstreamError(t *testing.T) {
 func TestCreateBasketMissingIdent(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
+		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
 	})
 
 	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 1}); err == nil {

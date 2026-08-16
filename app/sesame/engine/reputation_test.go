@@ -8,8 +8,8 @@ import (
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -51,7 +51,7 @@ func TestCohortFansOutReputationPerSender(t *testing.T) {
 	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Reputation: rep}
 	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",

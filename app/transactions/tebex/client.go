@@ -5,9 +5,9 @@
 package tebex
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -82,7 +82,7 @@ func (l *basketLinks) UnmarshalJSON(data []byte) error {
 		var obj struct {
 			Checkout string `json:"checkout"`
 		}
-		if err := json.Unmarshal(data, &obj); err != nil {
+		if err := codec.Unmarshal(data, &obj); err != nil {
 			return err
 		}
 		l.Checkout = obj.Checkout
@@ -95,7 +95,7 @@ func (l *basketLinks) UnmarshalJSON(data []byte) error {
 			URL      string `json:"url"`
 			Checkout string `json:"checkout"`
 		}
-		if err := json.Unmarshal(data, &arr); err != nil {
+		if err := codec.Unmarshal(data, &arr); err != nil {
 			return err
 		}
 		for _, link := range arr {
@@ -117,7 +117,7 @@ func (l *basketLinks) UnmarshalJSON(data []byte) error {
 		return nil
 	case '"':
 		var checkout string
-		if err := json.Unmarshal(data, &checkout); err != nil {
+		if err := codec.Unmarshal(data, &checkout); err != nil {
 			return err
 		}
 		l.Checkout = checkout
@@ -231,7 +231,7 @@ func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, err
 
 func (c *Client) post(ctx context.Context, path string, payload any, out any) error {
 
-	body, err := json.Marshal(payload)
+	body, err := codec.Marshal(payload)
 	if err != nil {
 		return err
 	}
@@ -263,7 +263,7 @@ func (c *Client) post(ctx context.Context, path string, payload any, out any) er
 		return fmt.Errorf("tebex responded %d: %s", resp.StatusCode, truncate(data, 300))
 	}
 
-	return json.Unmarshal(data, out)
+	return codec.Unmarshal(data, out)
 }
 
 func truncate(b []byte, n int) string {

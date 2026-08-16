@@ -2,13 +2,13 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -112,7 +112,7 @@ func ChannelPoints(d engine.Deps) module.Module {
 		}
 
 		var ev redemptionEvent
-		if err := json.Unmarshal(c.Env.Event, &ev); err != nil {
+		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
 		if ev.Reward.ID == "" || ev.BroadcasterUserID == "" {

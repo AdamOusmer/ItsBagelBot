@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -10,6 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 )
 
 // maxTriggers caps how many trigger rules the module evaluates per message. A
@@ -145,7 +145,7 @@ func (cfg triggersConfig) rules() []triggerWord {
 // phrase or response are skipped; the match mode is normalised to a known value.
 func jsonRules(s string) []triggerWord {
 	var raw []triggerRuleJSON
-	if err := json.Unmarshal([]byte(s), &raw); err != nil {
+	if err := codec.Unmarshal([]byte(s), &raw); err != nil {
 		return nil
 	}
 	var out []triggerWord

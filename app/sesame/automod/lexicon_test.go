@@ -1,13 +1,13 @@
 package automod
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/moderation"
+	"ItsBagelBot/pkg/codec"
 )
 
 // A slur from the embedded floor list, written out only via obfuscation in the
@@ -33,7 +33,7 @@ func TestLexiconHateFloorImmovable(t *testing.T) {
 	}
 
 	// Neither the adult profile nor an allow-term covering the slur moves it.
-	cfg := ParseConfig(json.RawMessage(`{"profile":"adult","allow_terms":"` + slur + `"}`))
+	cfg := ParseConfig(codec.RawMessage(`{"profile":"adult","allow_terms":"` + slur + `"}`))
 	if v := g.InspectWith(module.RoleEveryone, line, cfg); v.Action != ActionTimeout {
 		t.Fatalf("hate floor must be immovable: got %s rule=%s", v.Action, v.Rule)
 	}
@@ -88,7 +88,7 @@ func TestLexiconHarassmentWarns(t *testing.T) {
 	}
 
 	// Harassment is NOT floor: a channel allow-term suppresses it.
-	cfg := ParseConfig(json.RawMessage(`{"allow_terms":"kill yourself"}`))
+	cfg := ParseConfig(codec.RawMessage(`{"allow_terms":"kill yourself"}`))
 	if v := g.InspectWith(module.RoleEveryone, line, cfg); v.Action != ActionNone {
 		t.Fatalf("allow-term should suppress harassment: got %s", v.Action)
 	}
@@ -100,8 +100,8 @@ func TestLexiconProfileGates(t *testing.T) {
 	profane := "that was some absolute bullshit refs are blind i swear" // "bullshit" is not in the list; use a listed word
 	profane = "well shit that was a terrible play from the team today"
 
-	pg := ParseConfig(json.RawMessage(`{"profile":"pg"}`))
-	adult := ParseConfig(json.RawMessage(`{"profile":"adult"}`))
+	pg := ParseConfig(codec.RawMessage(`{"profile":"pg"}`))
+	adult := ParseConfig(codec.RawMessage(`{"profile":"adult"}`))
 
 	// Sexual: deleted for pg and moderate (default), ignored for adult.
 	if v := g.Inspect(module.RoleEveryone, sexual); v.Action != ActionDelete {
@@ -122,7 +122,7 @@ func TestLexiconProfileGates(t *testing.T) {
 
 func TestLexiconWordBounded(t *testing.T) {
 	g := New()
-	pg := ParseConfig(json.RawMessage(`{"profile":"pg"}`))
+	pg := ParseConfig(codec.RawMessage(`{"profile":"pg"}`))
 	// "class"/"assignment" contain "ass"; "cocktail" contains "cock". Word
 	// bounding keeps them clean even under the strictest profile.
 	line := "the class assignment about cocktail recipes is due tomorrow evening"

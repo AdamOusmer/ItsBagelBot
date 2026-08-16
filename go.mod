@@ -6,6 +6,7 @@ require (
 	entgo.io/ent v0.14.6
 	github.com/Yiling-J/theine-go v0.6.2
 	github.com/abadojack/whatlanggo v1.0.1
+	github.com/buger/jsonparser v1.6.1
 	github.com/bytedance/sonic v1.15.2
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/go-chi/chi/v5 v5.3.1

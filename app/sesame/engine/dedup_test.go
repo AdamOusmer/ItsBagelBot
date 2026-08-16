@@ -9,8 +9,8 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -56,13 +56,13 @@ func usedCount(t *testing.T, pub *rawPublisher) uint64 {
 	msgs := pub.payloads[data.SubjectCommandUsed]
 	require.Len(t, msgs, 1, "expected exactly one summed command-use publish")
 	var dto data.CommandUsedDTO
-	require.NoError(t, sonic.Unmarshal(msgs[0], &dto))
+	require.NoError(t, codec.Unmarshal(msgs[0], &dto))
 	return dto.Count
 }
 
 func commandMsg(t *testing.T, msgID, text string) *bus.Message {
 	t.Helper()
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"msg_id":              msgID,

@@ -8,8 +8,8 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -42,7 +42,7 @@ func chatMessageText(t *testing.T, m outgress.Message) string {
 	var inner struct {
 		Message string `json:"message"`
 	}
-	require.NoError(t, sonic.Unmarshal(m.Payload, &inner))
+	require.NoError(t, codec.Unmarshal(m.Payload, &inner))
 	return inner.Message
 }
 
@@ -185,7 +185,7 @@ func TestCustomMultiLineBatchSurvivesPublish(t *testing.T) {
 	require.Len(t, pub.got, 1)
 	assert.Equal(t, outgress.TypeBatch, pub.got[0].msg.Type)
 	var batch outgress.Batch
-	require.NoError(t, sonic.Unmarshal(pub.got[0].msg.Payload, &batch))
+	require.NoError(t, codec.Unmarshal(pub.got[0].msg.Payload, &batch))
 	assert.NotEmpty(t, batch.ID)
 	require.Len(t, batch.Items, 2)
 	assert.Equal(t, outgress.TypeChat, batch.Items[0].Type)

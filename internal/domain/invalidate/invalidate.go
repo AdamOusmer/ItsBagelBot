@@ -4,7 +4,7 @@
 package invalidate
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 )
@@ -26,7 +26,7 @@ func Publish(nc *nats.Conn, prefix, scope, broadcasterID string) error {
 // PublishKeys is Publish with a granular key list. Subscribers that understand
 // Keys evict only those entries; others fall back to TTL or whole-scope drop.
 func PublishKeys(nc *nats.Conn, prefix, scope, broadcasterID string, keys ...string) error {
-	body, err := json.Marshal(DTO{BroadcasterID: broadcasterID, Keys: keys})
+	body, err := codec.Marshal(DTO{BroadcasterID: broadcasterID, Keys: keys})
 	if err != nil {
 		return err
 	}

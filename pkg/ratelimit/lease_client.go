@@ -1,8 +1,8 @@
 package ratelimit
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -91,7 +91,7 @@ func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int,
 	key := fmt.Sprintf("outgress:plan:v2:%d", plan.Epoch)
 	commitKey := key + ":committed"
 
-	data, err := json.Marshal(plan)
+	data, err := codec.Marshal(plan)
 	if err != nil {
 		return false, err
 	}
@@ -112,7 +112,7 @@ func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int,
 		// barrier and publishing its commit marker.
 		_ = conn.Do(ctx, conn.B().Unwatch().Build()).Error()
 		var existing Plan
-		if err := json.Unmarshal(existingData, &existing); err != nil {
+		if err := codec.Unmarshal(existingData, &existing); err != nil {
 			return false, err
 		}
 		if err := existing.Validate(); err != nil {
@@ -185,7 +185,7 @@ func (c *LeaseClient) LoadPlan(ctx context.Context, epoch uint64) (*Plan, error)
 	}
 
 	var plan Plan
-	if err := json.Unmarshal(data, &plan); err != nil {
+	if err := codec.Unmarshal(data, &plan); err != nil {
 		return nil, err
 	}
 

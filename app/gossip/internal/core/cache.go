@@ -4,14 +4,13 @@
 package core
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/valkey-io/valkey-go"
 	"golang.org/x/sync/singleflight"
 )
@@ -116,10 +115,10 @@ type cacheEnvelope[T any] struct {
 // expired. That exact bug shipped once; the marker check is its regression guard.
 func decodeEnvelope[T any](b []byte) (v T, negative *UpstreamError, ok bool) {
 	var probe struct {
-		Value json.RawMessage `json:"v"`
-		Error *UpstreamError  `json:"e"`
+		Value codec.RawMessage `json:"v"`
+		Error *UpstreamError   `json:"e"`
 	}
-	if err := sonic.Unmarshal(b, &probe); err != nil {
+	if err := codec.Unmarshal(b, &probe); err != nil {
 		return v, nil, false
 	}
 	if probe.Error != nil && probe.Error.Status != 0 {
@@ -128,7 +127,7 @@ func decodeEnvelope[T any](b []byte) (v T, negative *UpstreamError, ok bool) {
 	if len(probe.Value) == 0 {
 		return v, nil, false // no marker: legacy or foreign format
 	}
-	if err := sonic.Unmarshal(probe.Value, &v); err != nil {
+	if err := codec.Unmarshal(probe.Value, &v); err != nil {
 		var zero T
 		return zero, nil, false
 	}
@@ -196,7 +195,7 @@ func Cached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL t
 			cacheTTL = ttl
 		}
 
-		if b, merr := sonic.Marshal(env); merr == nil {
+		if b, merr := codec.Marshal(env); merr == nil {
 			_ = c.store.Set(ctx, key, b, cacheTTL)
 		}
 
@@ -221,7 +220,7 @@ func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) 
 	if err != nil || !ok {
 		return false, err
 	}
-	if err := sonic.Unmarshal(b, out); err != nil {
+	if err := codec.Unmarshal(b, out); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -229,7 +228,7 @@ func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) 
 
 // SetJSON writes a raw entry for ttl.
 func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duration) error {
-	b, err := sonic.Marshal(v)
+	b, err := codec.Marshal(v)
 	if err != nil {
 		return err
 	}

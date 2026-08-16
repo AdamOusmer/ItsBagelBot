@@ -1,7 +1,7 @@
 package twitch
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"strconv"
 )
 
@@ -37,7 +37,7 @@ func (e eventSubEnvelope) effectiveType() string {
 // unparseable broadcaster ID also returns (zero, false).
 func DecodeStreamStatus(raw []byte) (StreamStatus, bool) {
 	var env eventSubEnvelope
-	if err := json.Unmarshal(raw, &env); err != nil {
+	if err := codec.Unmarshal(raw, &env); err != nil {
 		return StreamStatus{}, false
 	}
 

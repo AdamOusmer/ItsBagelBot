@@ -9,8 +9,8 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
-	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -39,7 +39,7 @@ func (p *fakePublisher) PublishOwnedWithID(_ context.Context, subject, id string
 		return p.failErr
 	}
 	var om outgress.Message
-	_ = sonic.Unmarshal(payload, &om)
+	_ = codec.Unmarshal(payload, &om)
 	p.got = append(p.got, captured{subject: subject, id: id, msg: om})
 	return nil
 }
@@ -84,7 +84,7 @@ func newPipelineWith(pub bus.Publisher, reader projection.Reader, mods ...module
 
 func chatMsg(t *testing.T, laneName, text string) *bus.Message {
 	t.Helper()
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                laneName,
 		"broadcaster_user_id": "123",
@@ -196,7 +196,7 @@ func TestProcessMalformedEnvelopeDropped(t *testing.T) {
 func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{user: projection.User{Locale: "fr"}}, emitLocaleModule("stream.online"))
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                "stream.online",
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
@@ -230,7 +230,7 @@ func TestProcessChatEmittedToStandardLane(t *testing.T) {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
 	}
-	require.NoError(t, sonic.Unmarshal(pub.got[0].msg.Payload, &inner))
+	require.NoError(t, codec.Unmarshal(pub.got[0].msg.Payload, &inner))
 	assert.Equal(t, "pong", inner.Message)
 	assert.Equal(t, "123", inner.BroadcasterID)
 }
@@ -275,7 +275,7 @@ func TestEmitTranslatesSlashVerbOnModulePath(t *testing.T) {
 	var inner struct {
 		Message string `json:"message"`
 	}
-	require.NoError(t, sonic.Unmarshal(pub.got[0].msg.Payload, &inner))
+	require.NoError(t, codec.Unmarshal(pub.got[0].msg.Payload, &inner))
 	assert.Equal(t, "big news", inner.Message)
 }
 

@@ -13,7 +13,6 @@ package govee
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -22,10 +21,10 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -191,7 +190,7 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 		log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
 		return gossiprpc.GoveeDevicesReply{Error: "device lookup failed"}
 	}
-	return json.RawMessage(b)
+	return codec.RawMessage(b)
 }
 
 // buildDevicesReply shapes the Govee device list into the wire reply, flagging
@@ -342,7 +341,7 @@ type goveeTarget struct {
 // set posts one Govee capability and verifies both the HTTP status (via core)
 // and the API-level code in the body.
 func (t goveeTarget) set(ctx context.Context, capType, instance string, value any) error {
-	body, err := sonic.Marshal(controlRequest{
+	body, err := codec.Marshal(controlRequest{
 		RequestID: uuid.NewString(),
 		Payload: controlPayload{
 			SKU:        t.sku,

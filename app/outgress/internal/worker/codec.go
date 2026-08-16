@@ -2,12 +2,10 @@ package worker
 
 import (
 	"bytes"
-	"encoding/json"
 	"reflect"
 
 	"ItsBagelBot/internal/domain/outgress"
-
-	"github.com/bytedance/sonic"
+	"ItsBagelBot/pkg/codec"
 )
 
 // wireMessage keeps the nested payload as a zero-copy view into the native bus
@@ -18,7 +16,7 @@ type wireMessage struct {
 	SenderID      string                 `json:"sender_id"`
 	Endpoint      string                 `json:"endpoint"`
 	Method        string                 `json:"method"`
-	Payload       sonic.NoCopyRawMessage `json:"payload"`
+	Payload       codec.NoCopyRawMessage `json:"payload"`
 	As            string                 `json:"as,omitempty"`
 	Color         string                 `json:"color,omitempty"`
 	To            string                 `json:"to,omitempty"`
@@ -28,25 +26,25 @@ type wireMessage struct {
 	Status        string                 `json:"status,omitempty"`
 }
 
-// PrepareJSON compiles Sonic's decoders during startup rather than on the first
+// PrepareJSON compiles the decoders during startup rather than on the first
 // latency-sensitive message.
 func PrepareJSON() error {
-	return sonic.PretouchMany([]reflect.Type{
+	return codec.Pretouch(
 		reflect.TypeOf(wireMessage{}),
 		reflect.TypeOf(outgress.Batch{}),
 		reflect.TypeOf(outgress.EventSubJob{}),
 		reflect.TypeOf(outgress.StreamStatusJob{}),
-	})
+	)
 }
 
 func decodeMessage(data []byte, destination *outgress.Message) error {
 	var wire wireMessage
-	if err := sonic.ConfigFastest.Unmarshal(data, &wire); err != nil {
+	if err := codec.FastUnmarshal(data, &wire); err != nil {
 		return err
 	}
 	*destination = outgress.Message{
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, SenderID: wire.SenderID,
-		Endpoint: wire.Endpoint, Method: wire.Method, Payload: json.RawMessage(wire.Payload),
+		Endpoint: wire.Endpoint, Method: wire.Method, Payload: codec.RawMessage(wire.Payload),
 		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,
 		RewardID: wire.RewardID, RedemptionID: wire.RedemptionID, Status: wire.Status,
 	}
@@ -54,7 +52,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 }
 
 func decodeBatch(data []byte, destination *outgress.Batch) error {
-	return sonic.ConfigFastest.Unmarshal(data, destination)
+	return codec.FastUnmarshal(data, destination)
 }
 
 // withSenderID ensures the chat body carries sender_id without disturbing the

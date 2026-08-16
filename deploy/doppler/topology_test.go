@@ -1,7 +1,7 @@
 package doppler_test
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"os"
 	"sort"
 	"strings"
@@ -42,7 +42,7 @@ func loadTopology(t *testing.T) topology {
 		t.Fatal(err)
 	}
 	var got topology
-	if err := json.Unmarshal(b, &got); err != nil {
+	if err := codec.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
 	return got

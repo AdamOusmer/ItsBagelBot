@@ -1,7 +1,7 @@
 package bus
 
 import (
-	"encoding/json"
+	"ItsBagelBot/pkg/codec"
 	"fmt"
 	"strings"
 
@@ -36,7 +36,7 @@ func SubscribeRPCHealth(nc *nats.Conn, service, queueGroup string) error {
 		return fmt.Errorf("rpc health queue group is required")
 	}
 
-	reply, err := json.Marshal(RPCHealthReply{Service: service, OK: true})
+	reply, err := codec.Marshal(RPCHealthReply{Service: service, OK: true})
 	if err != nil {
 		return fmt.Errorf("marshal rpc health reply: %w", err)
 	}
