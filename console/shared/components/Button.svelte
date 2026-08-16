@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // The canonical button. Raw `.btn` (app.css) still exists for pages that use
   // it directly; this component is the a11y-complete version: native disabled,
   // aria-busy loading with no width shift, and a hard guard against double

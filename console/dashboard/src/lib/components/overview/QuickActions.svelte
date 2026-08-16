@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // The things a streamer actually comes here to do. "New command" is the page's
   // single primary CTA; everything else on the page stays quieter so it never
   // competes. A Settings shortcut appears as a third action ONLY while the bot

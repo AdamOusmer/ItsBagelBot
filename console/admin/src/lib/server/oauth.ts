@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Twitch OAuth via arctic, identity-only. The admin console authenticates an
 // operator's Twitch account to obtain their subject id; authorization is then

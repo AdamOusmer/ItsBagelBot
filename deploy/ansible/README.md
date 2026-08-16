@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
-     Proprietary and unlicensed. See LICENSE.md. -->
+     Proprietary. No license granted. See LICENSE.md. -->
 # Fleet node provisioning (Ansible)
 
 Turns ONE fresh **RHEL-family** box into a hardened, tailnet-only fleet node:

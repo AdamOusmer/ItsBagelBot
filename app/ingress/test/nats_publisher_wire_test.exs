@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.Publisher.WireTest do
   # async: false — a wire context owns a named ETS table, and these cases drive

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Encrypted session cookie codec: AES-256-GCM, layout base64url(nonce[12] ||
 // ct||tag), AAD "session". The crypto is identical across the console apps, but

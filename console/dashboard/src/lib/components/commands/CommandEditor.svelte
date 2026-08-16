@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Inline command editor (create + edit share it). Renders the ?/save form,
   // runs the shared validator client-side before submitting (instant field
   // errors, no round trip on invalid input), and mirrors unsaved drafts to

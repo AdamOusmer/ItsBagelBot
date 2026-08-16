@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Alternate-name (alias) chip input. Commits on Enter/comma/blur, pops the
   // last chip on Backspace in an empty input, de-duplicates case-insensitively
   // against the command's own name and existing chips.

@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # Based on the upstream metrics-server v0.8.1 components manifest. K3s's
 # packaged metrics-server is disabled on the server because it hard-codes

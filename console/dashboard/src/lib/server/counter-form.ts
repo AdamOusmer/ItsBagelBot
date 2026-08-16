@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Form-parsing helpers shared by the /counters page actions. Kept out of the
 // route module so +page.server.ts stays a thin list of actions: each one reads

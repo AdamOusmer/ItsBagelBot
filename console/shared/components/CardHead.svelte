@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
   let { title, action }: { title: string; action?: Snippet } = $props();
 </script>

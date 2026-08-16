@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Paiements, remboursements et rétrofacturations"
 plain: "Tebex traite les achats. Les ventes sont définitives; une rétrofacturation entraîne l’exclusion immédiate."
 ---

@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # modules (Go, root module) - build from the REPO ROOT:
 #   podman build -t itsbagelbot/modules -f app/modules/Containerfile .

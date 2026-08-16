@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // A read-only command row on a module page: the static twin of ReplyRow. It
   // lists a chat command the module unlocks (trigger + summary), with a small
   // "Mods" tag when the command is moderator-only. Unlike ReplyRow it is not a

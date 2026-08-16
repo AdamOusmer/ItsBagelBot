@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the reward deck, on the shared ManagementRow: the
   // clickable primary is a real button and the quick actions (show/hide switch,
   // delete) are SIBLINGS of it, never nested. The line reads its whole state

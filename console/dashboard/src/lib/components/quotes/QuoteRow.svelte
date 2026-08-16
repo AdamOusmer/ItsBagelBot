@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the quotes deck, rendered as a non-interactive <li> with
   // two SEPARATE controls, never nested: a disclosure button (opens the quote in
   // the page inspector) and a delete button. The disclosure's accessible name is

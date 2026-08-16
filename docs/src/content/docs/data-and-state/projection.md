@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: Settings projection
 description: "The Valkey read model: hash layout, the live event flow,
 and the reproject handshake that rebuilds it from scratch."

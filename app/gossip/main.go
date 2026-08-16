@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // gossip is the fleet's external-API gateway: sesame (and any future caller)
 // requests third-party data over NATS RPC and gossip fetches, normalizes

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // The master-detail inspector shell. On wide screens it is an in-flow docked
   // panel next to the list; on narrow screens it becomes a modal bottom sheet
   // that portals to <body>, traps focus, makes the page inert, and dismisses on

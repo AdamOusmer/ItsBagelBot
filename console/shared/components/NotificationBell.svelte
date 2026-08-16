@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Topbar notification bell: unread badge + an anchored dropdown of recent
   // items (not a centered modal — notifications are a glance, not a task).
   // Presentational only — the host page owns fetching/caching the list and

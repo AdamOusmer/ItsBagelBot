@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 
 # Tailscale operator proxy fleet. Apply AFTER the operator helm install
 # (the CRDs ship with the chart).

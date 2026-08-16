@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Your Rights (GDPR, PIPEDA, Law 25, CCPA)"
 plain: "Ask for your data, portability, or its deletion any time. California residents get CCPA rights too. You can also complain to a privacy regulator."
 ---

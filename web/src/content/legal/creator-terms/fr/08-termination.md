@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 heading: "Résiliation"
 plain: "Chacun peut mettre fin à la participation en tout temps. La fraude entraîne la perte des gains."
 ---

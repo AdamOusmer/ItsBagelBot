@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Twitch OAuth via arctic (the maintained, well-known OAuth2 client used with
 // Lucia). One Twitch client built from env. Helix user fetch lives here too so

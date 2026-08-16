@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: Hardware & cluster
 description: ARM nodes, K3s orchestration, resource limits, and how the cluster is shaped.
 ---

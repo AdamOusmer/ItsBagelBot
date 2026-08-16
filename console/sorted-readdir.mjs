@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // @ts-nocheck — deliberate monkey-patch of the fs overloads; typing it buys nothing.
 // SvelteKit assigns client node IDs in the order returned by fs.readdirSync

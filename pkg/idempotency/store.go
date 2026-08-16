@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package idempotency is the fleet's consumer-side duplicate guard. A JetStream
 // redelivery (a quorum-loss resend of the same stored message) and a

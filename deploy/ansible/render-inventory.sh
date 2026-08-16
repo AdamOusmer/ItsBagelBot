@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 # Render the real cluster inventory from the committed template, substituting
 # node addresses from the environment (Doppler injects them).
 #

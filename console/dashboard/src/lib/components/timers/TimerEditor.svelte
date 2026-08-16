@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // Timer editor fields (create + edit share it), rendered in the page's docked
   // inspector. Fields only: the page owns the <form> and the sticky EditorFooter
   // so Save/Cancel stay visible below a long form and the save is stale-safe.

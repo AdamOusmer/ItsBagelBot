@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
   import { AppShell, NotificationBell, ToastHost } from '@bagel/shared';
   import type { NavGroupDef, NavLink } from '@bagel/shared';

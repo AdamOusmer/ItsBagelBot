@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // Package engine is sesame's runtime: it takes the immutable module.Module
 // values a Builder produced, indexes them in a Registry, and runs the

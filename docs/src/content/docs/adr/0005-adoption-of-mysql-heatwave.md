@@ -1,6 +1,6 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary and unlicensed. See LICENSE.md.
+# Proprietary. No license granted. See LICENSE.md.
 title: "0005 - Adoption of MySQL HeatWave"
 description: "Architecture decision record: Adoption of MySQL HeatWave as the relational database"
 ---

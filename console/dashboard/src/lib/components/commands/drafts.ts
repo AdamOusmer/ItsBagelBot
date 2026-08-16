@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary and unlicensed. See LICENSE.md.
+// Proprietary. No license granted. See LICENSE.md.
 
 // sessionStorage-backed command drafts: the editor mirrors work-in-progress
 // here so a stray navigation or refresh can't eat it; the list shows an

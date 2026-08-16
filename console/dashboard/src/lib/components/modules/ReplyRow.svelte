@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary and unlicensed. See LICENSE.md.
+	// Proprietary. No license granted. See LICENSE.md.
   // One reply slot in a module's page, on the shared ManagementRow: the clickable
   // primary is a real button and the per-reply on/off switch is its sibling, not
   // nested inside it. The page passes the toggle handler so all optimistic state
