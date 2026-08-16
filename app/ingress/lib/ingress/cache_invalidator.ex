@@ -13,11 +13,11 @@ defmodule Ingress.CacheInvalidator do
   use Gnat.Server
   require Logger
 
-  alias Ingress.BroadcasterCache
+  alias Ingress.{BroadcasterCache, JSON}
 
   @impl true
   def request(%{body: body}) do
-    case Jason.decode(body) do
+    case JSON.decode(body) do
       {:ok, %{"all" => true}} ->
         Logger.info("cache invalidation: flush all")
         BroadcasterCache.invalidate_all()

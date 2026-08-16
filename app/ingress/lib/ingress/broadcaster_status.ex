@@ -19,18 +19,18 @@ defmodule Ingress.BroadcasterStatus do
 
   require Logger
 
-  alias Ingress.Trace
+  alias Ingress.{JSON, Trace}
 
   @connection :gnat
 
   @spec lane_for(String.t()) :: {:ok, :premium | :standard | :drop} | {:error, term()}
   def lane_for(broadcaster_id) do
-    request = Jason.encode!(%{broadcaster_id: broadcaster_id})
+    request = JSON.encode(%{broadcaster_id: broadcaster_id})
 
     Trace.span("broadcaster_status.request", [dependency: "nats"], fn ->
       result =
         with {:ok, %{body: body}} <- request_status(request),
-             {:ok, reply} <- Jason.decode(body) do
+             {:ok, reply} <- JSON.decode(body) do
           case reply do
             %{"banned" => true} -> {:ok, :drop}
             %{"tier" => "premium"} -> {:ok, :premium}
