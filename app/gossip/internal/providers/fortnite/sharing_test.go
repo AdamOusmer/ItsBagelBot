@@ -39,6 +39,37 @@ func TestStatsAndSessionShareOneUpstreamFetch(t *testing.T) {
 		"a warm !fnstats must make the session path cost no upstream call at all")
 }
 
+// The account binding sits IN FRONT of the stats call, not beside it: the
+// /api/v2/stats/{id} URL cannot be built until the resolve has answered, so the
+// two run in series against the same ~700ms upstream. That makes the binding's
+// lifetime the difference between a one-call refill and a two-call one, which is
+// the whole gap between the 871ms and 1.44s !fnstats timings production shows.
+// A stats entry aging out is the routine event — statsTTL is ten minutes — so it
+// must never drag the resolve back onto the critical path with it.
+func TestStatsEntryExpiryDoesNotRedoTheAccountResolve(t *testing.T) {
+	var reqs []*http.Request
+	p, store := newTestProviderWithStore(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"), nil)
+	ctx := context.Background()
+
+	require.Empty(t, asStats(t, handle(t, p, "stats")(ctx, gossiprpc.Request{Account: "Ninja"})).Error)
+	require.Equal(t, []string{
+		"/api/v1/account/displayName/Ninja",
+		"/api/v2/stats/deadbeef",
+	}, requestPaths(reqs), "a cold lookup pays both upstream calls, in series")
+
+	// Age out ONLY the stats entry, the way production does: accountTTL is two
+	// weeks against statsTTL's ten minutes, so the binding outlives roughly two
+	// thousand stats entries.
+	require.NoError(t, store.Del(ctx, lifetimeStatsKey("Ninja")))
+
+	require.Empty(t, asStats(t, handle(t, p, "stats")(ctx, gossiprpc.Request{Account: "Ninja"})).Error)
+	assert.Equal(t, []string{
+		"/api/v1/account/displayName/Ninja",
+		"/api/v2/stats/deadbeef",
+		"/api/v2/stats/deadbeef",
+	}, requestPaths(reqs), "the refill must cost the stats call alone")
+}
+
 // The shared entry holds friendly failures as ordinary replies, so a session
 // read can decode to a reply carrying Error and zero counters. Diffing that
 // against a snapshot would report a clean session for a player the upstream has
