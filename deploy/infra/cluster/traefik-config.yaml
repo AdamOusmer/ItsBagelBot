@@ -29,6 +29,16 @@ spec:
   valuesContent: |-
     deployment:
       kind: DaemonSet
+    # Global HTTP->HTTPS redirect on the web (:8000/80) entrypoint. Single
+    # static-config switch, applies to every host/path with no per-route
+    # opt-out available -- this is the "client -> traefik" half of the "no
+    # exceptions" requirement. The "traefik -> backend" half is NOT covered
+    # by this (no such global switch exists in Traefik 3.6; scheme is set
+    # per-service on each IngressRoute/Ingress -- see the CI check instead).
+    additionalArguments:
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
     providers:
       kubernetesCRD:
         # The unrouted-host fallback (deploy/k8s/web-error-pages.yaml) proxies
