@@ -2,8 +2,6 @@ package core
 
 import (
 	"context"
-	"strconv"
-	"sync"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -23,65 +21,13 @@ import (
 // single background refresh, so the slow upstream (a Govee cloud round trip) is
 // almost never on a caller's critical path — only the very first, cold fetch is.
 //
-// Entry format: {"gw2":<freshUntilUnixMs>,"p":<reply bytes>} — a fixed prefix
-// marker, the fresh-until stamp, then the raw reply. The marker is the format
-// guard: an entry without it (legacy {"gw1":…}, foreign writer, shape drift
-// after a version bump) reads as poison and is refetched, never served as a
-// zero-value reply. Bumping the format is renaming the marker. The whole entry
-// stays valid JSON so operators can read it in valkey-cli.
-var (
-	entryPrefix = []byte(`{"gw2":`)
-	entryMid    = []byte(`,"p":`)
-	entrySuffix = byte('}')
-)
+// The stored record's format, and the reader and writer that agree on it, live
+// in entry.go; this file is the policy that decides when to read, when to serve
+// stale, and who pays for a refill.
 
 // swrRefreshTimeout bounds a background revalidation's own context (the request
 // that triggered it has already been answered from the stale value).
 const swrRefreshTimeout = 15 * time.Second
-
-// entryBufPool recycles the scratch buffers entries are assembled in before
-// the store write copies them onto the wire.
-var entryBufPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, 0, 1024)
-		return &b
-	},
-}
-
-// unwrapEntry extracts (freshUntilUnixMs, payload) from one stored entry, or
-// reports a format mismatch. The returned payload slice aliases b. It scans the
-// fresh-until digits inline — no JSON unmarshal — so the hit path stays
-// allocation-free.
-func unwrapEntry(b []byte) (int64, []byte, bool) {
-	if len(b) < len(entryPrefix)+len(entryMid)+1 || b[len(b)-1] != entrySuffix {
-		return 0, nil, false
-	}
-	for i := range entryPrefix {
-		if b[i] != entryPrefix[i] {
-			return 0, nil, false
-		}
-	}
-	i := len(entryPrefix)
-	start := i
-	var fresh int64
-	for i < len(b) && b[i] >= '0' && b[i] <= '9' {
-		fresh = fresh*10 + int64(b[i]-'0')
-		i++
-	}
-	if i == start || i+len(entryMid) > len(b) {
-		return 0, nil, false
-	}
-	for j := range entryMid {
-		if b[i+j] != entryMid[j] {
-			return 0, nil, false
-		}
-	}
-	payload := b[i+len(entryMid) : len(b)-1]
-	if len(payload) == 0 {
-		return 0, nil, false
-	}
-	return fresh, payload, true
-}
 
 // CachedBytes returns the ready-to-send reply bytes under key, or runs build to
 // produce them. build returns the reply bytes and the fresh-window TTL to store
@@ -169,50 +115,6 @@ func spend(ctx context.Context, admit func(context.Context) error) error {
 }
 
 // storeEntry writes payload with a fresh window of ttl and a physical retention
-// of 2*ttl, so the entry outlives its fresh window into a stale tail where it is
-// served while a background refresh runs. ttl<=0 is not cached (a friendly
-// rate-limit denial must retry on the next request, never pin).
-func storeEntry(ctx context.Context, c *Cache, key string, payload []byte, ttl time.Duration) {
-	if ttl <= 0 {
-		return
-	}
-	freshMs := time.Now().Add(ttl).UnixMilli()
-	bufp := entryBufPool.Get().(*[]byte)
-	buf := (*bufp)[:0]
-	buf = append(buf, entryPrefix...)
-	buf = strconv.AppendInt(buf, freshMs, 10)
-	buf = append(buf, entryMid...)
-	buf = append(buf, payload...)
-	buf = append(buf, entrySuffix)
-	_ = c.store.Set(ctx, key, buf, 2*ttl)
-	*bufp = buf[:0]
-	entryBufPool.Put(bufp)
-}
-
-// refreshBytes revalidates one stale key in the background. Deduplication is
-// fleet-wide: the refresh is gated on a SET NX EX claim in the shared store, so
-// exactly ONE replica refreshes a stale key no matter how a burst spreads
-// across the queue group — without the claim each pod would fire its own
-// refresh and one stale key would cost one upstream call per replica. The
-// pod-local c.refreshing map is only a cheap pre-filter that keeps one pod from
-// stacking goroutines on a hot key; the claim in Valkey is the authority.
-//
-// The claim expires on its own (never deleted early), so refresh attempts for
-// one key are floored to one per swrRefreshTimeout fleet-wide — a deliberate
-// backoff that shields the upstream. A successful refresh rewrites the entry
-// fresh, so nothing re-triggers anyway; a failed refresh is swallowed and the
-// stale entry keeps serving until its physical TTL, so an upstream blip
-// degrades to slightly-old data rather than an error.
-//
-// The refresh spends budget through admit, exactly like a foreground miss, and it
-// does so AFTER winning the claim so only the one replica that will actually call
-// the upstream pays for it. Skipping admission here would let revalidation traffic
-// bypass the buckets entirely: the whole point of moving the budget check out of
-// build and onto the caller (see CachedBytes) is that build no longer carries one,
-// so a refresh that did not admit would be an unmetered upstream call. A denial
-// leaves the stale entry serving, which is the same outcome as any other failed
-// refresh. The lane charged is that of the caller whose stale read triggered this;
-// that caller was served for free from the stale entry, so the one call the refresh
 // makes is fairly billed to it.
 func (c *Cache) refreshBytes(key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) {
 	if _, busy := c.refreshing.LoadOrStore(key, struct{}{}); busy {
