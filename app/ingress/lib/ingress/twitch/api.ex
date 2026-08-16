@@ -15,12 +15,14 @@ defmodule Ingress.Twitch.Api do
   @helix "https://api.twitch.tv/helix"
 
   @doc """
-  Returns `{:ok, conduit_id}` for the conduit this ingress owns, creating it if
-  needed and growing its shard count up to the configured value.
+  Returns `{:ok, conduit_id, shard_count}` for the conduit this ingress owns,
+  growing its shard count up to the configured value.
 
-  If `TWITCH_CONDUIT_ID` is set it is taken as authoritative; otherwise the
-  first existing conduit for this client is reused, and one is created when
-  none exists.
+  `TWITCH_CONDUIT_ID` is authoritative and required: an unset or empty pin is
+  `{:error, :conduit_id_unset}`, and a pin naming a conduit Twitch does not
+  list is `{:error, {:pinned_conduit_missing, id}}`. Neither reuses another
+  conduit nor creates one, because the conduit id is a shared contract with
+  outgress. `create_conduit/1` remains available to provision one deliberately.
   """
   @spec ensure_conduit() :: {:ok, String.t(), pos_integer()} | {:error, term()}
   def ensure_conduit do
@@ -28,9 +30,6 @@ defmodule Ingress.Twitch.Api do
 
     with {:ok, conduits} <- list_conduits() do
       case pick_conduit(conduits) do
-        {:ok, nil} ->
-          with {:ok, id} <- create_conduit(desired), do: {:ok, id, desired}
-
         {:ok, %{"id" => id, "shard_count" => count}} when count < desired ->
           with :ok <- update_conduit(id, desired), do: {:ok, id, desired}
 

@@ -17,8 +17,6 @@ defmodule Ingress.BroadcasterStatus do
   broadcaster resolves to `:drop` so the ingress discards their traffic.
   """
 
-  require Logger
-
   alias Ingress.{JSON, Trace}
 
   @connection :gnat
