@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package config loads the gossip service's runtime settings from the environment.
 //
 // The gossip service is the fleet's one door to external API systems: sesame asks it

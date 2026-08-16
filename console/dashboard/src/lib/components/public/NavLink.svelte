@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The public nav's link, with the marketing site's roll-over motion (ported
   // from web/src/components/layout/NavLink.astro): two stacked glyph rows in a
   // mask — the resting row rolls out as the lit row rolls in, glyph by glyph —

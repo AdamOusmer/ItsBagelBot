@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # The HelmRelease in release.yaml lives in namespace "keda", and
 # kustomize-controller cannot apply an object into a namespace that does not
 # exist — install.createNamespace only covers the RELEASE namespace at

@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Utilisation acceptable"
 plain: "Respectez les autres, les règles de Twitch, pas d'auto-hébergement et respectez le service."
 ---

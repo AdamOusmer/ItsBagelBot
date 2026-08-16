@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Responsive list: a labeled grid of rows on desktop that collapses into
   // stacked cards on mobile (each cell shows its column label inline). Callers
   // provide columns (label + fractional width) and a row snippet per item.

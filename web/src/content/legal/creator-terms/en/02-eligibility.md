@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Eligibility & Applications"
 plain: "You apply, we review. Approval is at our discretion and you must stay in good standing."
 ---

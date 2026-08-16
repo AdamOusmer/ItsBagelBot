@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // New Relic Browser (RUM) injection — DISABLED, shared by both consoles.
 //
 // This used to inject the New Relic Browser agent (a ~69KB inline <script> from

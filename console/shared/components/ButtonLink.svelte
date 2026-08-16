@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // A link that LOOKS like a Button, for navigation. Real <a href> so it gets
   // native link semantics (open in new tab, right-click, screen-reader "link"
   // role) — never a <button> faking navigation. Visual variants mirror Button.

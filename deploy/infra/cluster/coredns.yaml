@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Cluster DNS. Replaces the k3s-packaged coredns addon (skipped via
 # coredns.yaml.skip on the k3s server since the 2026-06-30 DNS-stall fix,
 # when the stock 1-replica Deployment was hand-converted to a DaemonSet).

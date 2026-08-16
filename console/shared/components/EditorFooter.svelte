@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Sticky action footer for an inspector editor. Keeps Save/Cancel and the save
   // status visible below a long scrolling form (the audit flagged actions that
   // sat below the fold). Meant to live as a sibling *after* the scroll area so it

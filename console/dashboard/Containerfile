@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Dashboard SSR — separate deploy from admin. Build with bun, run on distroless
 # Node (adapter-node output). Native per-node build (ARM on node1, Intel on
 # node2); no cross-arch emulation.

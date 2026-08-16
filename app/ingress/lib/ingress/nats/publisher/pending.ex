@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Nats.Publisher.Pending do
   @moduledoc """
   In-flight bookkeeping for one publisher shard: the pending-publish ETS table

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package mail sends the transactional emails owned by the transactions
 // service through Resend. It holds no recipient state: addresses arrive from
 // the users service per send and are never persisted or logged here.

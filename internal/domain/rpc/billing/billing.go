@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package billingrpc defines the private entitlement contract between the
 // transactions service (verified Tebex webhooks) and the users service (tier
 // owner). It is intentionally unavailable to dashboard/admin accounts.

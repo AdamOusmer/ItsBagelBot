@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import type { Snippet } from 'svelte';
   import { pushOverlay, removeOverlay, isTopmost, overlayIndex, portal, trapFocus } from '../lib/overlay-stack';
 

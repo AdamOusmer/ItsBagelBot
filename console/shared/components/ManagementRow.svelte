@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // A selectable list row for the management decks. The row's primary content is
   // a single <button> (announced with aria-expanded / aria-controls); the quick
   // actions (toggle, delete) are SIBLINGS of that button, never nested inside it.

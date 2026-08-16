@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package projection is the worker's read side of the settings projection.
 //
 // The pipeline needs three things about the broadcaster an event belongs to:

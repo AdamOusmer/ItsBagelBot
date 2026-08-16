@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Shared SvelteKit config factory for both consoles. The apps' svelte.config.js
 // files are one-liners over this so adapter/version/CSP policy changes land in
 // exactly one place; per-app divergence is passed in as CSP directive overrides.

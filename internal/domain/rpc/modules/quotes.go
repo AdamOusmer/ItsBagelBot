@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 package modulesrpc
 
 // Quote is one saved channel quote as the quote verbs return it. Number is the

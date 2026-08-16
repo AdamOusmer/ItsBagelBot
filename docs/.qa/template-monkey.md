@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: "NUMBER - Monkey Test: SCOPE"
 description: "Monkey test report: SCOPE, build SHA."
 ---

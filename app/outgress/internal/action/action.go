@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package action is outgress's action authoring surface, mirroring sesame's
 // module builder. Every message type the worker executes is declared as one
 // Action built by a fluent Builder: it names its type, declares the Helix

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Framework-agnostic server-config registry.
 //
 // SvelteKit's `$env/dynamic/private` is only safe to read at request time, never

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package modulesrpc holds the shared wire types for the modules service RPC
 // surface (the dashboard read/write verbs).
 package modulesrpc

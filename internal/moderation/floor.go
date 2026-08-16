@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package moderation holds the content primitives shared by everything that
 // judges or emits user-authored text: the skeleton normalizer (NFKC +
 // confusable fold), the Aho-Corasick matcher, the categorized lexicon artifact,

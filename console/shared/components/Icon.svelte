@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import { icons, type IconName } from '../lib/icons';
   let { name, size = 18, fill = 'none' }: { name: IconName; size?: number; fill?: string } = $props();
 </script>

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # SELinux hardening — matches node1 (enforcing, targeted policy + k3s-selinux).
 # k3s MUST have container-selinux + k3s-selinux before it can run under enforcing.

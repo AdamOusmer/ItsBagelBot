@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Leaf NATS servers, one per schedulable Kubernetes node. The nats-leaf-config configmap is
 # generated from nats-leaf-server.conf + nats-auth.conf by the Flux kustomize
 # configMapGenerator (deploy/k8s/kustomization.yaml); credentials (bcrypt

@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Live chat rehearsal: acts out a response as it will look in Twitch chat —
   // a viewer types the trigger, the bot "types" for a beat, then replies with
   // sample values substituted into the tokens. Re-runs (debounced) as the

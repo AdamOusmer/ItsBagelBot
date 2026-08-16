@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Action bodies for the /counters page's value-writing verbs. Kept out of the
 // route so +page.server.ts stays thin wiring; each returns the audit detail
 // (or null for a validation failure) — the shape mutate() expects, and it

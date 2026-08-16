@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package outgress holds the canonical pub-sub wire types for the outgress lanes.
 // Every producer that enqueues a Twitch Helix call or EventSub job publishes a
 // Message onto the appropriate NATS subject; workers in each lane decode it.

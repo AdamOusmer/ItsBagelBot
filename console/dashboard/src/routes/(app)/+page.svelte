@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { page } from '$app/state';

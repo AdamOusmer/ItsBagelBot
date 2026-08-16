@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Live status feed: a process-wide NATS connection used only for the wildcard
 // subscription that drives the SSE endpoint. Kept separate from the shared
 // request/reply client so a long-lived subscription never interferes with the

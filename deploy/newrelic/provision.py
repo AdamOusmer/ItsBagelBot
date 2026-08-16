@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 """Idempotent New Relic reconciler for the BagelBot observability stack.
 
 Source of truth is deploy/newrelic/definitions/*. Re-running converges the

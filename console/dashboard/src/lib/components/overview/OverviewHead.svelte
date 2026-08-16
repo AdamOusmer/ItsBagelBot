@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Compact page head for Overview. Mirrors the shared PageHead idiom (mono
   // green eyebrow, display title, muted lede) but ships the one <h1> for the
   // route WITH tabindex="-1" so skip-to-content / route changes can move focus

@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Inline quote editor, rendered inside the page inspector. In "add" mode it
   // saves a new quote; in "edit" mode it rewrites an existing quote's body
   // and day in place (the number survives). Each control is wrapped in the

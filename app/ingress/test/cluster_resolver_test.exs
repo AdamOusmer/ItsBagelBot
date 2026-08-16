@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.ClusterResolverTest do
   # async: false — the module keeps its last-known-good set in global
   # persistent_term, so tests must not run concurrently and each clears the slot.

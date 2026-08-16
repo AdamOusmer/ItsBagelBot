@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Squash do
   @moduledoc """
   Coalesces identical non-command chat so the worker keeps the full reputation

@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Acceptable Use"
 plain: "Don't be a jerk, don't break Twitch's rules, don't abuse the service, no self-hosting."
 ---

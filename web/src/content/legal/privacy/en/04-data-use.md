@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "How We Use Your Data & Legal Basis"
 plain: "We use data to provide and secure the service. We never sell or rent it."
 ---

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # cert-manager + trust-manager (deploy/infra/cert-manager/). Separate
 # Kustomization (deploy/flux/clusters/production/cert-manager.yaml), same shape as
 # keda.yaml: targetNamespace stays unset so the HelmRepository (flux-system) and

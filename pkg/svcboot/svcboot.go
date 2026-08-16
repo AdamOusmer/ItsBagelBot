@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package svcboot is the shared boot scaffold for the fleet's Go data services
 // (commands, modules, ...). It owns the plumbing every service repeats before
 // its first line of real wiring: named logger, New Relic app, signal context,

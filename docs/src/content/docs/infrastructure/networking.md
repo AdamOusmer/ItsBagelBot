@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: Networking
 description: Tailscale mesh, Cloudflare Tunnels, and the Zero-Trust posture that ties the cluster together.
 ---

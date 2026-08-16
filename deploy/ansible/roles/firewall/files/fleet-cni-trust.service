@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 [Unit]
 Description=Bind flannel/CNI interfaces to the firewalld trusted zone
 # Needs firewalld running to issue firewall-cmd, and k3s up to have created the

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # trust-manager distributes the public CA (no private key) as a ConfigMap named
 # fleet-ca into the application, Valkey, and New Relic namespaces. Apps read it
 # as NATS_CA_PEM/VALKEY_TLS_CA_PEM, Valkey uses it for server/replication TLS,

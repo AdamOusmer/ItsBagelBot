@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // The one switch. Replaces the copy-pasted `.toggle` button that lived in
   // Toggle, MasterToggle, and ~17 route components, each with its own markup and
   // most with no role/aria-checked and a 38x22 (sub-44px) hit area. This owns the

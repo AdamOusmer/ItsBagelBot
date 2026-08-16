@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import type { RequestHandler } from './$types';
 
 // Liveness/readiness probe target. Plain 200 with no caching and no session or

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package channels keeps the managed per-broadcaster state of the egress
 // path in Valkey: whether a channel receives traffic at all, and whether the
 // bot moderates it (which doubles its Twitch chat allowance). The registry

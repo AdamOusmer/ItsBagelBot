@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.LaneMessage do
   @moduledoc """
   A lane publish whose members are already encoded except for `lane`.

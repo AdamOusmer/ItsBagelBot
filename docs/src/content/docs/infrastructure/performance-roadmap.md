@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: Performance and cleanup roadmap
 description: Evidence-gated latency, NATS R3, Valkey, and 20,000-channel capacity work after the native data-plane migration.
 ---

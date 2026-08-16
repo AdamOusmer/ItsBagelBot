@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Labeled form-field wrapper. The caller passes the actual control (e.g.
   // <input class="search">) as children, so the binding stays in the caller.
   // `tag` is an optional muted suffix like "default: 5".

@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Inspector body: create/edit the one reward bound to a light. Named form
   // inputs post straight to ?/saveReward (the page owns the enhance handler);
   // local state drives the live ChatPreview rehearsal. The page keys this on the

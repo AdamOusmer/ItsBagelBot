@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package hydration owns full settings-cache hydration for the projector.
 // Dashboard reads use EnsureAsync, which fills only missing sections, while a
 // stream-online event uses RefreshAsync to refresh the complete snapshot.

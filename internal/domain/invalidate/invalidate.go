@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Package invalidate provides the canonical pub-sub DTO and publish helper for
 // cache invalidation events. Services publish to a subject of the form
 // prefix+"."+scope (e.g. "bagel.invalidate.status") with a JSON-encoded DTO.

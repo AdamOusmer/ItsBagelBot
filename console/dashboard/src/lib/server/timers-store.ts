@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Timers store: a broadcaster's repeating chat messages, stream-only.
 //
 // Unlike channel points there is no external Twitch entity to CRUD — the

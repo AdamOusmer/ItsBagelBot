@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: "0001 - Rewriting to Microservices"
 description: "Architecture decision record: Rewriting to Microservices"
 ---

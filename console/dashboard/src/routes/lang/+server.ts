@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { redirect } from '@sveltejs/kit';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { setLocale } from '$lib/server/services';

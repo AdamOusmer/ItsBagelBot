@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Reusable styled checkbox matching the dashboard accent. Two-way bound.
   let {
     checked = $bindable(false),

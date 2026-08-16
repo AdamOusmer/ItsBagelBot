@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # KEDA: greenfield install (no prior out-of-band release to migrate, unlike
 # newrelic.yaml). Drives horizontal scaling for outgress and sesame off
 # JetStream consumer lag (see their ScaledObjects in deploy/k8s/outgress.yaml

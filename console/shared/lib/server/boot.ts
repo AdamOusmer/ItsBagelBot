@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // One-time boot sequence shared by both consoles' init hooks: DNS ordering,
 // config sanity, the caching-layer registry and the NATS pre-dial. Each app
 // calls this from its own SvelteKit init() and then layers its app-specific

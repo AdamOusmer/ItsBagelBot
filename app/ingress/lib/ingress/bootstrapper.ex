@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.Bootstrapper do
   @moduledoc """
   Runs on every node and periodically makes sure both cluster-singleton

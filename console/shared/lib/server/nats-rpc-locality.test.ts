@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 import { describe, expect, test } from 'bun:test';
 import { ErrorCode } from 'nats';
 import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';

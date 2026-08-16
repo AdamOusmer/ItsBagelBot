@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Unrouted hostnames at the traefik edge (anything the tunnel wildcard admits
 # that no router claims) proxy straight through to the marketing site, path
 # intact. An unknown path gets web/'s coded 404 page under a genuine 404

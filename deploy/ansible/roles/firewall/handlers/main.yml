@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # Flushed at the end of the play, after k3s_agent has brought flannel up, so the
 # binder trusts cni0/flannel.1 during this run too, not only on the next boot.

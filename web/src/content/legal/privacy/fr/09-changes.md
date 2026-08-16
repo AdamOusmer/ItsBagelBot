@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Modifications"
 plain: "Nous vous aviserons si cette politique change de façon importante."
 ---

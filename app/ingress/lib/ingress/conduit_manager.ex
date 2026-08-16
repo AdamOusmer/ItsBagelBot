@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 defmodule Ingress.ConduitManager do
   @moduledoc """
   Cluster-singleton reconciler for the Conduit.

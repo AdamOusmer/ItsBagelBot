@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { PageHead, PageToolbar, AlertBanner, Skeleton } from '@bagel/shared';

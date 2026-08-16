@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 title: Sesame Module Builder
 description: The fluent authoring API for sesame modules and commands, with every builder method and the gate order the engine applies.
 ---

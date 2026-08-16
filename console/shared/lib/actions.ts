@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Client behaviors shared by both consoles.
 import type { Action } from 'svelte/action';
 

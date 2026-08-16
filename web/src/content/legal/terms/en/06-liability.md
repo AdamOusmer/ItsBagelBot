@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Limitation of Liability"
 plain: "If something breaks, we fix it, but we can't owe you damages."
 ---

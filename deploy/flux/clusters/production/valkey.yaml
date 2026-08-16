@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # Valkey sentinel cluster (valkey namespace). Kept separate from the apps
 # Kustomization because that one pins everything to targetNamespace: production;
 # here targetNamespace is unset so the manifests' own namespace (valkey)

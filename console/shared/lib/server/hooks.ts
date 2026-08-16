@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Request-time hook helpers shared by both consoles' hooks.server.ts.
 //
 // Framework-agnostic seam, mirroring config.ts: structural types instead of

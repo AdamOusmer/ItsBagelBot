@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Aperçu"
 plain: "Ce que nous recueillons, pourquoi nous le faisons et les choix qui vous sont offerts."
 ---

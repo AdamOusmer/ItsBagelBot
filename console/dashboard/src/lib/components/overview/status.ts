@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Shared status vocabulary for the Overview page. The connection state itself is
 // owned by main's honest state machine (`connectionUiState` in @bagel/shared),
 // which resolves every backend permutation to exactly one `ConnKind`. This module

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // Chat-rehearsal core: the dashboard-side mirror of how the bot expands and
 // routes a response template. Every rule here corresponds to one place in the
 // Go engine — keep them in lockstep:

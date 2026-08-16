@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 # GHCR pull-through cache (deploy/infra/registry/). Own Kustomization rather
 # than folding into `cluster`, for two reasons: it pins a ClusterIP that every
 # agent's registries.yaml refers to literally, and nothing else may depend on

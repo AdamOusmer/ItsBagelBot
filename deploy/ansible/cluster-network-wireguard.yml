@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
+
 ---
 # Stage and optionally activate K3s' supported kernel WireGuard Flannel backend.
 # Staging is idempotent and does not restart a node. Activation follows the K3s

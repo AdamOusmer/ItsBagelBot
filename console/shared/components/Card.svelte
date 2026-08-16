@@ -1,4 +1,6 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary and unlicensed. See LICENSE.md.
   // Shared surface card, ported from the marketing site's Card.astro: solid
   // warm ink, tan hairline, 16px radius, and — when `hover` is on — the
   // cursor-tracked tan spotlight with a border brighten + small lift.

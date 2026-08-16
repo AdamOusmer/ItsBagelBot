@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 package automod
 
 // simHash fingerprints a message skeleton as a 64-bit SimHash over its

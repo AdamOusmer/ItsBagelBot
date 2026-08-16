@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
+     Proprietary and unlicensed. See LICENSE.md. -->
 # ItsBagelBot Documentation
 
 This directory contains the documentation for ItsBagelBot, built with [Astro Starlight](https://starlight.astro.build).

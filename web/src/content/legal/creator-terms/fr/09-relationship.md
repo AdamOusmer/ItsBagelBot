@@ -1,4 +1,6 @@
 ---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary and unlicensed. See LICENSE.md.
 heading: "Relation"
 plain: "Vous êtes un créateur indépendant, ni employé, ni mandataire, ni associé."
 ---

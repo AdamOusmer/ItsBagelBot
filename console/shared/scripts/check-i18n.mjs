@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary and unlicensed. See LICENSE.md.
+
 // i18n parity gate, run before each app's `vite build`. fs-only (no app imports)
 // so it works in the Containerfile build stage before Vite has run.
 //
