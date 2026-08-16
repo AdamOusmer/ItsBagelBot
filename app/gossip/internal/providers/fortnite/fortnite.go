@@ -47,9 +47,32 @@ const (
 	// statsTTL matches the other stats providers' staleness budget.
 	statsTTL    = 10 * time.Minute
 	negativeTTL = 5 * time.Minute
-	// accountTTL: an Epic display-name -> account-id binding only changes on a
-	// rename.
-	accountTTL = 24 * time.Hour
+	// accountTTL is how long a display-name -> account-id binding is trusted.
+	// It is the single most expensive TTL in this provider, because the binding
+	// sits in front of the stats call rather than beside it: fetchStats cannot
+	// build the /api/v2/stats/{id} URL until the resolve has answered, so a
+	// cold binding turns one upstream round trip into two SEQUENTIAL ones
+	// against prod.api-fortnite.com — measured at ~700ms a call from this
+	// fleet, the slowest upstream any provider here talks to. That is the whole
+	// distance between the two !fnstats timings production shows: 871ms with
+	// the binding warm, 1.44s with it cold.
+	//
+	// A day was a round number, not a sized one. Size it against what the
+	// binding actually tracks and 24h is far too short: an Epic account id is
+	// immutable, so this mapping can only break on a display-name change, and
+	// Epic rate-limits renames to one every two weeks. Two weeks is therefore
+	// the shortest interval at which a fresh answer can differ from a stale
+	// one, and at 24h the provider was re-resolving an unchanged binding
+	// roughly fourteen times for every time it could possibly have moved,
+	// paying a 700ms serial call for each.
+	//
+	// Serving a stale binding through a rename is also the mild failure, not
+	// the severe one: the id keeps resolving to the same account, so the stats
+	// stay correct and only the canonically-cased Player name in the reply
+	// lags. And it self-heals without waiting out the window — a renamed player
+	// is looked up under the NEW display name, which is a different cache key
+	// and resolves fresh.
+	accountTTL = 14 * 24 * time.Hour
 	// seasonTTL bounds how stale the auto-fetched season start may run; a
 	// season rollover (4x a year) is picked up within the hour.
 	seasonTTL = time.Hour
