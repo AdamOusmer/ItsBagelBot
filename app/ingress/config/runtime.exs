@@ -269,12 +269,22 @@ nats_cacerts =
 # boot-time crash, loud and in one place, not a silent gap that only
 # surfaces once the hub/leaf verify:true lands.
 #
-# KNOWN GAP: nothing here watches these files for renewal. Gnat's :ssl option
-# reads certfile/keyfile from disk once, at connect time; cert-manager
-# rotates nats-bus-client-tls in place before expiry, and a long-lived
-# connection that never reconnects across the rotation window keeps
-# presenting the expired cert — an unexplained connect failure weeks after
-# deploy, not at deploy time. Not solved here.
+# ROTATION: certfile/keyfile below are PATHS, not file content, and that is
+# what makes this rotation-safe already, with no extra code. Erlang/OTP's
+# :ssl reads certfile/keyfile off disk at connection setup for EACH new TLS
+# connection it makes -- it is not a one-time load cached for the life of the
+# BEAM node. Gnat re-establishes a fresh :ssl connection on every reconnect
+# (a dropped TCP link, a hub/leaf roll, ...), so every reconnect after
+# cert-manager rewrites this path (renewal lands at day 75 of the cert's
+# 90-day lifetime) picks up the rotated content automatically. This is the
+# same rotation-safety pkg/bus/connect.go gets from a
+# tls.Config.GetClientCertificate callback and console/shared's nats.ts gets
+# from nats.js's certFile option -- three different mechanisms converging on
+# the same property: read the path fresh per connection, never cache the
+# bytes for the process lifetime. An already-open connection is not
+# re-validated mid-session and keeps working on the old cert until it
+# naturally reconnects; since the old cert stays valid to day 90 and renewal
+# lands at day 75, any reconnect in that 15-day window is enough.
 nats_client_certfile = "/etc/nats/client-certs/tls.crt"
 nats_client_keyfile = "/etc/nats/client-certs/tls.key"
 

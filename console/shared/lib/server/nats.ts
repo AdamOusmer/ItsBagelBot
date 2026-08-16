@@ -5,7 +5,7 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import {
   connect,
   JSONCodec,
@@ -25,29 +25,36 @@ const jc = JSONCodec();
 // Same path pkg/bus/connect.go and app/ingress/config/runtime.exs read by
 // default; see connect.go's header for why a fixed path replaced the
 // original per-service env var design.
+//
+// ROTATION: passed to nats.js as `certFile`/`keyFile` (paths), deliberately
+// NOT read into `cert`/`key` (inline content) by this file. nats.js's Node
+// transport (loadClientCerts in node_transport.js) reads certFile/keyFile
+// fresh off disk on every dial attempt — including nats.js's own internal
+// automatic reconnects (dodialLoop in protocol.js calls transport.connect
+// again on every retry, which re-reads the files each time; verified against
+// the installed nats@2.29.2 package). A one-time read into inline PEM
+// content would defeat that: this module's own options() only gets
+// re-invoked by localLeafReady/get() on a fully cold dial, not on nats.js's
+// internal reconnect loop, which reuses the ConnectionOptions object it was
+// first constructed with — a captured PEM string in that object would never
+// change no matter how many times the connection reconnects. A path string
+// has no such problem: cert-manager rotates nats-bus-client-tls in place (a
+// content change at the SAME path, not a new file), so the next reconnect
+// after rotation picks it up with no extra code, mirroring
+// pkg/bus/connect.go's GetClientCertificate callback and Erlang/OTP's own
+// per-connect certfile read in app/ingress/config/runtime.exs. An
+// already-open connection is not re-validated mid-session and keeps working
+// on the old cert until it naturally reconnects; since cert-manager renews
+// at day 75 of a 90-day cert, any reconnect in that 15-day window is enough.
 const CLIENT_CERT_FILE = '/etc/nats/client-certs/tls.crt';
 const CLIENT_KEY_FILE = '/etc/nats/client-certs/tls.key';
 
-// loadClientCert reads this service's mTLS client certificate from the fixed
-// mount path, or returns undefined when the files are not there yet (not a
-// hard failure — see the NOT YET REQUIRED note on its call site) or fail to
-// read.
-//
-// KNOWN GAP: nothing here watches these files for renewal. cert-manager
-// rotates nats-bus-client-tls in place before expiry; this process only
-// reads the files when a connection actually (re)dials, so a long-running
-// pod that never reconnects across the rotation window keeps presenting the
-// expired cert in memory until its next TLS handshake — an unexplained
-// connect failure weeks after deploy, not a startup-time error. Not solved
-// here.
-function loadClientCert(): { cert: string; key: string } | undefined {
-  if (!existsSync(CLIENT_CERT_FILE) || !existsSync(CLIENT_KEY_FILE)) return undefined;
-  try {
-    return { cert: readFileSync(CLIENT_CERT_FILE, 'utf8'), key: readFileSync(CLIENT_KEY_FILE, 'utf8') };
-  } catch (err) {
-    console.error('nats client cert unreadable', CLIENT_CERT_FILE, err);
-    return undefined;
-  }
+// clientCertMounted reports whether both files exist right now. Checked once
+// per cold dial (see options()'s call site) — cheap existence checks, not a
+// read of the file content, so nats.js's own loadClientCerts still does the
+// actual (rotation-safe) read at connect time.
+function clientCertMounted(): boolean {
+  return existsSync(CLIENT_CERT_FILE) && existsSync(CLIENT_KEY_FILE);
 }
 
 // Collapse numeric/id path tokens so per-subject RPC segments stay low-cardinality
@@ -219,21 +226,22 @@ function options(role: Role): ConnectionOptions {
   // — presenting a client cert to a listener that does not (yet) require one
   // is harmless, and this console lib is the single TS chokepoint both
   // console-dashboard and console-admin import, so one change here covers
-  // both deployments' 'bus' and 'rpc' connections.
+  // both deployments' 'bus' and 'rpc' connections. certFile/keyFile (not
+  // cert/key) is what makes this rotation-safe — see CLIENT_CERT_FILE's
+  // comment above.
   //
-  // NOW REQUIRED whenever TLS itself is on (caPem set): both console
-  // deployments were confirmed presenting a cert under the prior, permissive
-  // commit before this one shipped, so a missing/unreadable cert here is a
-  // thrown error at connect time, loud and in one place, not a silent gap
-  // that only surfaces once the hub/leaf verify:true lands.
+  // REQUIRED whenever TLS itself is on (caPem set): both console deployments
+  // were confirmed presenting a cert before this shipped, so a missing cert
+  // here is a thrown error at connect time, loud and in one place, not a
+  // silent gap that only surfaces once the hub/leaf verify:true lands. An
+  // unreadable-but-present file is nats.js's own error to raise (from
+  // loadClientCerts, at actual dial time) — this function only checks
+  // existence up front.
   if (caPem) {
-    const clientCert = loadClientCert();
-    if (!clientCert) {
-      throw new Error(
-        `nats mTLS client certificate required but unavailable at ${CLIENT_CERT_FILE}`
-      );
+    if (!clientCertMounted()) {
+      throw new Error(`nats mTLS client certificate required but unavailable at ${CLIENT_CERT_FILE}`);
     }
-    opts.tls = { ca: caPem, cert: clientCert.cert, key: clientCert.key };
+    opts.tls = { ca: caPem, certFile: CLIENT_CERT_FILE, keyFile: CLIENT_KEY_FILE };
   }
   return opts;
 }
