@@ -79,10 +79,24 @@ type ReplyFunc func(id, msg string) any
 // reserve they are entitled to.
 type AdmitFunc func(ctx context.Context, req gossiprpc.Request) error
 
+// DeadlineFunc reports the instant a cached answer stops being true, for
+// content whose freshness is set by an external clock rather than by an
+// interval — the Fortnite item shop turning over at 00:00 UTC, not "roughly
+// every fifteen minutes". A flow declares one via CachedUntil instead of a
+// fixed ttl, and the flow sizes each build's window off the time remaining to
+// it (see freshWindow).
+//
+// It is given the moment the reply was produced rather than reading the clock
+// itself, so a test can drive it and so both halves of one build agree on
+// "now".
+type DeadlineFunc func(now time.Time) time.Time
+
 // flowSpec is one declared byte-flow endpoint: the caching windows plus the
-// identity, reply shaping, budget and fetch the FlowBuilder chained.
+// identity, reply shaping, budget and fetch the FlowBuilder chained. Exactly
+// one of ttl and deadline carries the positive window; see freshWindow.
 type flowSpec struct {
 	ttl         time.Duration
+	deadline    DeadlineFunc
 	negativeTTL time.Duration
 	id          IDFunc
 	reply       ReplyFunc
@@ -147,7 +161,7 @@ func (f *flowSpec) validate(d Deps, ref endpointRef) error {
 		return fmt.Errorf("endpoint %q flow has no Reply shaper", ref.endpoint)
 	case f.fetch == nil:
 		return fmt.Errorf("endpoint %q flow has no Fetch (chain .Fetch to finish it)", ref.endpoint)
-	case f.ttl <= 0:
+	case f.ttl <= 0 && f.deadline == nil:
 		return fmt.Errorf("endpoint %q flow has a non-positive TTL", ref.endpoint)
 	case d.Cache == nil:
 		return fmt.Errorf("endpoint %q is cached but Deps.Cache is nil", ref.endpoint)
@@ -173,7 +187,7 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 		b, err := core.CachedBytes(ctx, cache, core.Key(ref.provider, ref.endpoint, id.Key),
 			f.admitter(req),
 			func(ctx context.Context) ([]byte, time.Duration, error) {
-				b, ttl, friendly, err := core.BuildReply(ctx, f.ttl, f.negativeTTL,
+				b, ttl, friendly, err := core.BuildReply(ctx, f.freshWindow(time.Now()), f.negativeTTL,
 					func(ctx context.Context) (any, error) { return f.fetch(ctx, req, id) },
 					func(msg string) any { return f.reply(id.Display, msg) },
 				)
@@ -185,6 +199,36 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 		}
 		return codec.RawMessage(b)
 	}
+}
+
+// freshWindow is the window one build's reply is stored fresh for, measured
+// from the moment it was produced.
+//
+// A fixed-interval flow stores for the ttl it declared. A deadline flow stores
+// for HALF the time remaining to its deadline, and the half is the whole point
+// rather than a hedge: the byte cache retains an entry for TWICE its fresh
+// window (core's storeEntry writes 2*ttl), so halving is exactly what makes the
+// entry's physical life end ON the deadline.
+//
+// Without that, stale-while-revalidate reaches straight past the boundary it
+// was given. An entry stored fresh-until-rotation is still physically present
+// for a full window afterwards, so the first !store after 00:00 UTC would be
+// answered out of it — yesterday's item shop, at the exact moment the shop is
+// worth asking about, and at 8pm Eastern that is the middle of a stream. With
+// the half, the entire stale tail sits on the correct side of the boundary: a
+// read inside it serves content that is still true and re-stores against the
+// same deadline (each refresh halves what remains, so it converges on the
+// deadline and never crosses it), and the first read after the deadline finds
+// nothing at all and fetches the new shop.
+//
+// A deadline already in the past yields a non-positive window, which
+// CachedBytes answers without caching — the correct degradation, since the one
+// thing known about that reply is that it is not fresh.
+func (f *flowSpec) freshWindow(now time.Time) time.Duration {
+	if f.deadline == nil {
+		return f.ttl
+	}
+	return f.deadline(now).Sub(now) / 2
 }
 
 // replier is the per-endpoint context every failure reply needs: the flow that

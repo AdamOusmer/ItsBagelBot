@@ -654,6 +654,36 @@ func TestShopNormalizesAndCaches(t *testing.T) {
 	assert.Equal(t, 1, hits)
 }
 
+// The shop's cache boundary is Epic's own swap, so the deadline must be the
+// next 00:00 UTC read from an absolute instant — never from the pod's local
+// wall clock, and never the current instant itself, which would leave a
+// zero-length window at exactly the moment the new shop lands.
+func TestNextShopRotationIsTheNextMidnightUTC(t *testing.T) {
+	// A fixed zone rather than a tzdata lookup: the container the tests run in
+	// is not guaranteed to carry a zone database.
+	eastern := time.FixedZone("EDT", -4*60*60)
+	tomorrow := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		name string
+		now  time.Time
+		want time.Time
+	}{
+		{"a moment after a rotation", time.Date(2026, 8, 16, 0, 0, 1, 0, time.UTC), tomorrow},
+		{"exactly on a rotation", time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC), tomorrow},
+		{"a second before the next", time.Date(2026, 8, 16, 23, 59, 59, 0, time.UTC), tomorrow},
+		// 19:30 Eastern is 23:30 UTC the same day: prime stream time, half an
+		// hour before the swap. Read in local time this would answer a day late.
+		{"evening west of UTC", time.Date(2026, 8, 16, 19, 30, 0, 0, eastern), tomorrow},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := nextShopRotation(tc.now)
+			assert.True(t, got.Equal(tc.want), "want %s, got %s", tc.want, got)
+			assert.True(t, got.After(tc.now), "the deadline must be in the future")
+		})
+	}
+}
+
 // Keyless (shop-only mode): the stats endpoint is not registered, the shop
 // still answers.
 func TestKeylessServesShopOnly(t *testing.T) {

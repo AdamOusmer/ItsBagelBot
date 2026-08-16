@@ -154,6 +154,23 @@ func (e *EndpointBuilder) Cached(ttl, negativeTTL time.Duration) *FlowBuilder {
 	return &FlowBuilder{f: f}
 }
 
+// CachedUntil is Cached for content that turns over on a clock instead of
+// aging: deadline reports the instant the answer stops being true, and the flow
+// sizes every stored reply against the time remaining to it. Failures still
+// cache for the flat negativeTTL, which is about our upstream and not about the
+// content's own schedule.
+//
+// Reach for it when an interval would be a guess. The Fortnite item shop swaps
+// at 00:00 UTC and is byte-identical the rest of the day, so any interval is
+// simultaneously too short (re-downloading a payload that provably did not
+// change) and too long (serving yesterday's shop after the swap). A deadline is
+// neither.
+func (e *EndpointBuilder) CachedUntil(deadline DeadlineFunc, negativeTTL time.Duration) *FlowBuilder {
+	f := &flowSpec{deadline: deadline, negativeTTL: negativeTTL, id: Account}
+	e.s.flow = f
+	return &FlowBuilder{f: f}
+}
+
 // built is the immutable Provider Build returns.
 type built struct {
 	name      string
