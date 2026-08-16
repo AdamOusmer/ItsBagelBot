@@ -36,9 +36,9 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -567,7 +567,7 @@ func (p *api) cachedLifetimeStats(ctx context.Context, account string, isPremium
 		return gossiprpc.FortniteStatsReply{}, err
 	}
 	var live gossiprpc.FortniteStatsReply
-	if err := sonic.Unmarshal(b, &live); err != nil {
+	if err := codec.Unmarshal(b, &live); err != nil {
 		return gossiprpc.FortniteStatsReply{}, err
 	}
 	return live, nil

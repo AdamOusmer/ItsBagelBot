@@ -2,10 +2,10 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,7 +104,7 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	var viewer7 *data.LoyaltyEarnEntry
 	for _, raw := range earned {
 		var dto data.LoyaltyEarnedDTO
-		require.NoError(t, json.Unmarshal(raw, &dto))
+		require.NoError(t, codec.Unmarshal(raw, &dto))
 		assert.Equal(t, uint64(1), dto.UserID)
 		assert.LessOrEqual(t, len(dto.Entries), loyaltyChunk)
 		total += len(dto.Entries)
@@ -124,7 +124,7 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	bumps := pub.payloads[data.SubjectLoyaltyCounters]
 	require.Len(t, bumps, 1)
 	var dto data.CounterBumpedDTO
-	require.NoError(t, json.Unmarshal(bumps[0], &dto))
+	require.NoError(t, codec.Unmarshal(bumps[0], &dto))
 	require.Len(t, dto.Bumps, 3)
 	byName := map[string]data.CounterBumpEntry{}
 	for _, b := range dto.Bumps {
@@ -142,12 +142,12 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Earn(0, 7, "", "", 10, 0)              // no broadcaster
-	r.Earn(1, 0, "", "", 10, 0)              // no viewer
-	r.Earn(1, 7, "", "", 0, 0)               // nothing earned
-	r.Bump(1, "", "channel", Viewer{}, "", 1)       // no name
-	r.Bump(1, "deaths", "channel", Viewer{}, "", 0) // no delta
-	r.Bump(0, "deaths", "channel", Viewer{}, "", 1) // channel bump without broadcaster
+	r.Earn(0, 7, "", "", 10, 0)                               // no broadcaster
+	r.Earn(1, 0, "", "", 10, 0)                               // no viewer
+	r.Earn(1, 7, "", "", 0, 0)                                // nothing earned
+	r.Bump(1, "", "channel", Viewer{}, "", 1)                 // no name
+	r.Bump(1, "deaths", "channel", Viewer{}, "", 0)           // no delta
+	r.Bump(0, "deaths", "channel", Viewer{}, "", 1)           // channel bump without broadcaster
 	r.Bump(1, "feeds", data.CounterScopeBot, Viewer{}, "", 1) // bot bump outside bot namespace
 	r.Close()
 	assert.Empty(t, pub.payloads)
@@ -162,7 +162,7 @@ func TestLoyaltyReporterBotNamespace(t *testing.T) {
 	bumps := pub.payloads[data.SubjectLoyaltyCounters]
 	require.Len(t, bumps, 1)
 	var dto data.CounterBumpedDTO
-	require.NoError(t, json.Unmarshal(bumps[0], &dto))
+	require.NoError(t, codec.Unmarshal(bumps[0], &dto))
 	assert.Equal(t, uint64(0), dto.UserID)
 	require.Len(t, dto.Bumps, 1)
 	assert.Equal(t, data.CounterScopeBot, dto.Bumps[0].Scope)

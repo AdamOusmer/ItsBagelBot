@@ -2,10 +2,10 @@ package automod
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 
 	"ItsBagelBot/internal/moderation"
+	"ItsBagelBot/pkg/codec"
 )
 
 // Level is a broadcaster's enforcement preset, spanning none -> all. It sets
@@ -151,12 +151,12 @@ type wireConfig struct {
 // ParseConfig decodes a ModuleView.Configs blob. An empty or malformed blob
 // yields nil, which the gate treats as the global default (fail-open to the
 // built-in behavior, never fail-closed to "block everything").
-func ParseConfig(raw json.RawMessage) *Config {
+func ParseConfig(raw codec.RawMessage) *Config {
 	if len(raw) == 0 {
 		return nil
 	}
 	var w wireConfig
-	if err := json.Unmarshal(raw, &w); err != nil {
+	if err := codec.Unmarshal(raw, &w); err != nil {
 		return nil
 	}
 	lvl := w.Level

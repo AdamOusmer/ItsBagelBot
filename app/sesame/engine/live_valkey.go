@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -172,7 +172,7 @@ func (s *ValkeyLiveStore) StartInvalidationListener() {
 	subject := s.cfg.CacheInvalidatePrefix + "." + livekey.InvalidateScope
 	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
 		var dto invalidate.DTO
-		if err := json.Unmarshal(msg.Data, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
 			return
 		}
 		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
@@ -240,7 +240,7 @@ func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 // requestRecheck publishes a stream_status job onto the outgress system lane;
 // outgress resolves Twitch and writes the live key back with a fresh TTL.
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {
-	body, err := json.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
+	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
 		return err
 	}

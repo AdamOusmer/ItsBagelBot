@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -131,7 +131,7 @@ func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log 
 		if v.Name == clipModuleName {
 			var cfg clipConfig
 			if len(v.Configs) > 0 {
-				_ = json.Unmarshal(v.Configs, &cfg)
+				_ = codec.Unmarshal(v.Configs, &cfg)
 			}
 			return v.IsEnabled, strings.TrimSpace(cfg.Reply)
 		}

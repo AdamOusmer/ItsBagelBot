@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -156,7 +156,7 @@ func (f *flowSpec) validate(d Deps, ref endpointRef) error {
 }
 
 // handler assembles the endpoint's HandlerFunc. A hit answers the stored wire
-// bytes untouched (json.RawMessage passes through the engine verbatim); a miss
+// bytes untouched (codec.RawMessage passes through the engine verbatim); a miss
 // runs fetch through core.BuildReply so successes and friendly failures are
 // shaped and marshaled exactly once.
 func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
@@ -183,7 +183,7 @@ func (f *flowSpec) handler(d Deps, ref endpointRef) HandlerFunc {
 		if err != nil {
 			return replier{spec: f, log: log, ref: ref, fallback: fallback}.failure(id, err)
 		}
-		return json.RawMessage(b)
+		return codec.RawMessage(b)
 	}
 }
 

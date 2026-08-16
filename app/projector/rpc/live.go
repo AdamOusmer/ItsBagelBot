@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
@@ -66,7 +66,7 @@ func (l *liveRPC) escalate(ctx context.Context, broadcasterID string) {
 	if l.pub == nil || l.systemSubject == "" {
 		return
 	}
-	body, err := json.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
+	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
 		return
 	}

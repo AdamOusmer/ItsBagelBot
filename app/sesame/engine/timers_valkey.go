@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -344,7 +344,7 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 			return timersConfig{}, false
 		}
 		var cfg timersConfig
-		if err := json.Unmarshal(v.Configs, &cfg); err != nil {
+		if err := codec.Unmarshal(v.Configs, &cfg); err != nil {
 			s.log.Warn("timers: bad config", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 			return timersConfig{}, false
 		}
@@ -372,7 +372,7 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 	}
 	sub, err := s.nc.Subscribe(s.rearmSubject, func(msg *nats.Msg) {
 		var dto invalidate.DTO
-		if err := json.Unmarshal(msg.Data, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
 			return
 		}
 		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)

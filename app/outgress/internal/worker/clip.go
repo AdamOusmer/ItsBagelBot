@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,8 +11,7 @@ import (
 
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
-
-	"github.com/bytedance/sonic"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -60,7 +58,7 @@ type clipCreateReply struct {
 func (w *Worker) processClip(ctx context.Context, payload *outgress.Message) error {
 	var meta clipMeta
 	if len(payload.Payload) > 0 {
-		_ = sonic.Unmarshal(payload.Payload, &meta)
+		_ = codec.Unmarshal(payload.Payload, &meta)
 	}
 
 	payload.As = outgress.AsBroadcaster
@@ -154,7 +152,7 @@ func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta c
 // ("" when the response carries none).
 func clipID(body io.Reader) (string, error) {
 	var reply clipCreateReply
-	if err := json.NewDecoder(io.LimitReader(body, 4096)).Decode(&reply); err != nil {
+	if err := codec.NewDecoder(io.LimitReader(body, 4096)).Decode(&reply); err != nil {
 		return "", err
 	}
 	if len(reply.Data) == 0 {

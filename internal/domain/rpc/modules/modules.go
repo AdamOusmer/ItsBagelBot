@@ -3,9 +3,8 @@
 package modulesrpc
 
 import (
-	"encoding/json"
-
 	"ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/pkg/codec"
 )
 
 // DashboardRequest covers all modules dashboard verbs; unused fields are zero.
@@ -13,10 +12,10 @@ import (
 // it is the subset of keys to merge, and ExpectedRev enforces optimistic
 // concurrency.
 type DashboardRequest struct {
-	UserID    string          `json:"user_id"`
-	Name      string          `json:"name"`
-	IsEnabled bool            `json:"is_enabled"`
-	Configs   json.RawMessage `json:"configs,omitempty"`
+	UserID    string           `json:"user_id"`
+	Name      string           `json:"name"`
+	IsEnabled bool             `json:"is_enabled"`
+	Configs   codec.RawMessage `json:"configs,omitempty"`
 	// ExpectedRev (patch only): the revision the client last read. When non-nil it
 	// must match the stored revision or the write is rejected as a conflict.
 	ExpectedRev *int `json:"expected_rev,omitempty"`

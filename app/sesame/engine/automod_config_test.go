@@ -2,13 +2,13 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +70,7 @@ func TestAutomodModuleAbsentRowActs(t *testing.T) {
 // An enabled automod row with a config blob runs the gate under it.
 func TestAutomodModuleEnabledRowActs(t *testing.T) {
 	reader := fakeReader{modules: []projection.ModuleView{
-		{Name: "automod", IsEnabled: true, Configs: json.RawMessage(`{"profile":"moderate"}`)},
+		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"moderate"}`)},
 	}}
 	pub := &fakePublisher{}
 	p := configPipeline(pub, reader)
@@ -85,7 +85,7 @@ func TestAutomodModuleEnabledRowActs(t *testing.T) {
 // same fetched row.
 func TestAutomodModuleProfileReachesGate(t *testing.T) {
 	reader := fakeReader{modules: []projection.ModuleView{
-		{Name: "automod", IsEnabled: true, Configs: json.RawMessage(`{"profile":"adult"}`)},
+		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"adult"}`)},
 	}}
 
 	// Caps-only shouting: adult profile drops the nag, nothing emitted.

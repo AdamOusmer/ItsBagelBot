@@ -2,7 +2,6 @@ package repository_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/commands/ent"
@@ -10,6 +9,7 @@ import (
 	"ItsBagelBot/app/commands/repository"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
@@ -104,7 +104,7 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	require.NotEmpty(t, events)
 
 	var dto data.CommandChangedDTO
-	require.NoError(t, json.Unmarshal(events[len(events)-1].Payload, &dto))
+	require.NoError(t, codec.Unmarshal(events[len(events)-1].Payload, &dto))
 	assert.True(t, dto.Deleted)
 }
 
@@ -137,8 +137,8 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	renameEvents := events[baseline:]
 
 	var del, changed data.CommandChangedDTO
-	require.NoError(t, json.Unmarshal(renameEvents[0].Payload, &del))
-	require.NoError(t, json.Unmarshal(renameEvents[1].Payload, &changed))
+	require.NoError(t, codec.Unmarshal(renameEvents[0].Payload, &del))
+	require.NoError(t, codec.Unmarshal(renameEvents[1].Payload, &changed))
 	assert.True(t, del.Deleted)
 	assert.Equal(t, "old", del.Name)
 	assert.False(t, changed.Deleted)

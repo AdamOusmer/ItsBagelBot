@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -10,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,10 +72,10 @@ func decode(t *testing.T, res any) testReply {
 	if v, ok := res.(testReply); ok {
 		return v
 	}
-	raw, ok := res.(json.RawMessage)
+	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
 	var v testReply
-	require.NoError(t, json.Unmarshal(raw, &v))
+	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
 
@@ -167,7 +167,7 @@ func TestFlowServesAndCaches(t *testing.T) {
 
 	// Case-insensitive hit: served from the cache as raw wire bytes.
 	res := h(context.Background(), gossiprpc.Request{Account: "techno"})
-	_, isRaw := res.(json.RawMessage)
+	_, isRaw := res.(codec.RawMessage)
 	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
 	assert.Equal(t, 1, fetches)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -58,7 +58,7 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.LoyaltyEarnedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad earned payload", zap.Error(err))
 			return nil
 		}
@@ -72,7 +72,7 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CounterBumpedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad counter payload", zap.Error(err))
 			return nil
 		}
@@ -87,7 +87,7 @@ func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Messa
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.UserDeletedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			log.Warn("loyalty: bad user_deleted payload", zap.Error(err))
 			return nil
 		}

@@ -24,8 +24,8 @@
 package i18n
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"embed"
-	"encoding/json"
 	"sort"
 	"strings"
 )
@@ -75,7 +75,7 @@ var supported = mustLoadManifest()
 // T) and {name}-style placeholders the caller substitutes.
 var catalog = mustLoadCatalogs()
 
-// mustLoadManifest reads and sorts locales.json. It panics on a read or parse
+// mustLoadManifest reads and sorts locales.codec. It panics on a read or parse
 // failure so a malformed manifest crashes the process at init rather than
 // silently narrowing the supported set.
 func mustLoadManifest() []string {
@@ -85,7 +85,7 @@ func mustLoadManifest() []string {
 		panic("i18n: cannot read " + name + ": " + err.Error())
 	}
 	var codes []string
-	if err := json.Unmarshal(b, &codes); err != nil {
+	if err := codec.Unmarshal(b, &codes); err != nil {
 		panic("i18n: malformed " + name + ": " + err.Error())
 	}
 	sort.Strings(codes)
@@ -124,7 +124,7 @@ func mustLoadCatalog(locale string) map[string]string {
 		panic("i18n: cannot read " + name + ": " + err.Error())
 	}
 	var table map[string]string
-	if err := json.Unmarshal(b, &table); err != nil {
+	if err := codec.Unmarshal(b, &table); err != nil {
 		panic("i18n: malformed " + name + ": " + err.Error())
 	}
 	for key, tmpl := range table {

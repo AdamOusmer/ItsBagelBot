@@ -2,7 +2,6 @@ package hypixel
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,10 +86,10 @@ func asReply(t *testing.T, res any) gossiprpc.HypixelStatsReply {
 	if v, ok := res.(gossiprpc.HypixelStatsReply); ok {
 		return v
 	}
-	raw, ok := res.(json.RawMessage)
+	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
 	var v gossiprpc.HypixelStatsReply
-	require.NoError(t, json.Unmarshal(raw, &v))
+	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
 

@@ -2,7 +2,6 @@ package projection
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 	contract "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -282,7 +282,7 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []val
 		return cmds
 	}
 	var prev CommandView
-	if json.Unmarshal([]byte(old), &prev) != nil || len(prev.Aliases) == 0 {
+	if codec.Unmarshal([]byte(old), &prev) != nil || len(prev.Aliases) == 0 {
 		return cmds
 	}
 	stale := make([]string, 0, len(prev.Aliases))
@@ -298,7 +298,7 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []val
 // only SetCommands / SetCommandsWithTTL (full-list writes) set the marker.
 func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChangedDTO) (valkey.Completed, error) {
 	view := commandViewFromEvent(dto)
-	body, err := json.Marshal(view)
+	body, err := codec.Marshal(view)
 	if err != nil {
 		return valkey.Completed{}, err
 	}
@@ -369,7 +369,7 @@ func decodeCommandField(res valkey.ValkeyResult) (CommandView, bool, error) {
 		return CommandView{}, false, err
 	}
 	var view CommandView
-	if json.Unmarshal([]byte(body), &view) != nil {
+	if codec.Unmarshal([]byte(body), &view) != nil {
 		return CommandView{}, false, nil
 	}
 	return view, true, nil
@@ -419,7 +419,7 @@ func (v *Store) SetCommandsWithTTL(ctx context.Context, userID uint64, commands 
 		FieldValue("commands:projected", "1")
 
 	for _, cmd := range commands {
-		body, err := json.Marshal(cmd)
+		body, err := codec.Marshal(cmd)
 		if err != nil {
 			return err
 		}
@@ -496,7 +496,7 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 		case "enabled":
 			mod.IsEnabled = value == "1"
 		case "config":
-			mod.Configs = json.RawMessage(value)
+			mod.Configs = codec.RawMessage(value)
 		}
 		byName[name] = mod
 	}
@@ -527,7 +527,7 @@ func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, 
 			continue
 		}
 		var cmd CommandView
-		if err := json.Unmarshal([]byte(value), &cmd); err != nil {
+		if err := codec.Unmarshal([]byte(value), &cmd); err != nil {
 			continue
 		}
 		out = append(out, cmd)

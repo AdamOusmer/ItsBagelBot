@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -187,7 +187,7 @@ func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {
 	}
 	sub, err := s.nc.Subscribe(s.rearmSubject, func(msg *nats.Msg) {
 		var dto invalidate.DTO
-		if err := json.Unmarshal(msg.Data, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Data, &dto); err != nil {
 			return
 		}
 		id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
@@ -357,7 +357,7 @@ func (s *ValkeyLoyaltyClock) fetchChatters(ctx context.Context, broadcasterID ui
 	ctx, cancel := context.WithTimeout(ctx, chattersRPCTimeout)
 	defer cancel()
 
-	body, err := json.Marshal(manage.ChattersRequest{BroadcasterID: strconv.FormatUint(broadcasterID, 10)})
+	body, err := codec.Marshal(manage.ChattersRequest{BroadcasterID: strconv.FormatUint(broadcasterID, 10)})
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func (s *ValkeyLoyaltyClock) fetchChatters(ctx context.Context, broadcasterID ui
 		return nil, err
 	}
 	var reply manage.ChattersReply
-	if err := json.Unmarshal(msg.Data, &reply); err != nil {
+	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
 		return nil, err
 	}
 	if reply.Error != "" {

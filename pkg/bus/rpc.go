@@ -1,11 +1,12 @@
 package bus
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/nats-io/nats.go"
@@ -39,7 +40,7 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.request.encode", operation: "request", destination: subject,
 	})
-	body, err := json.Marshal(request)
+	body, err := codec.Marshal(request)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s marshal request: %w", subject, err)
@@ -66,7 +67,7 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 		name: "rpc.response.decode", operation: "request", destination: subject,
 	})
 	var reply T
-	if err := json.Unmarshal(msg.Data, &reply); err != nil {
+	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
 		endMessagingSegment(decodeSegment, err)
 		return zero, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
@@ -120,7 +121,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		// required fields on the zero-value request.
 		if len(msg.Data) > 0 {
 			decodeSegment := txn.StartSegment("rpc.decode")
-			if err := json.Unmarshal(msg.Data, &req); err != nil {
+			if err := codec.Unmarshal(msg.Data, &req); err != nil {
 				decodeSegment.AddAttribute(resultAttribute, "invalid")
 				decodeSegment.End()
 				txn.NoticeError(err)
@@ -181,11 +182,29 @@ func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logg
 	}
 }
 
+// errorFieldProbe is the shortest byte sequence any {"error": "..."} reply must
+// contain. A reply without it cannot be an error envelope, whatever its shape.
+var errorFieldProbe = []byte(`"error"`)
+
+// ReplyErrorMessage reports the message carried by the fleet's conventional
+// {"error": "..."} reply envelope, or "" when the reply is an ordinary payload.
+// Callers that own their own request/reply loop use it instead of decoding an
+// error envelope themselves.
+func ReplyErrorMessage(data []byte) string { return rpcErrorMessage(data) }
+
+// rpcErrorMessage answers the same question without parsing the common case.
+// Replies are overwhelmingly successes, and a success carries no "error" key at
+// all, so a byte scan rejects it outright. Only a reply that could hold the key
+// pays a decode. Without the scan every reply in the fleet was parsed twice:
+// once into this envelope and once into the caller's own type.
 func rpcErrorMessage(data []byte) string {
+	if !bytes.Contains(data, errorFieldProbe) {
+		return ""
+	}
 	var envelope struct {
 		Error string `json:"error"`
 	}
-	if err := json.Unmarshal(data, &envelope); err != nil {
+	if err := codec.Unmarshal(data, &envelope); err != nil {
 		return ""
 	}
 	return envelope.Error

@@ -11,8 +11,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
-
-	"github.com/bytedance/sonic"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -80,7 +79,7 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 	}
 
 	var job outgress.EventSubJob
-	if err := sonic.Unmarshal(payload.Payload, &job); err != nil {
+	if err := codec.Unmarshal(payload.Payload, &job); err != nil {
 		w.log.Error("dropping malformed eventsub job", zap.Error(err))
 		noticeError(ctx, err)
 		return nil

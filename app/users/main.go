@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"os/signal"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"ItsBagelBot/app/users/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
@@ -145,7 +145,7 @@ func startConsumers(ctx context.Context, natsURL string, repo *repository.Users,
 func invalidateOnUserChange(repo *repository.Users) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		var dto data.UserChangedDTO
-		if err := json.Unmarshal(msg.Payload, &dto); err != nil {
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
 		}
 		repo.Invalidate(dto.UserID)

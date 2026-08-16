@@ -1,6 +1,7 @@
 package core
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"bytes"
 	"context"
 	"fmt"
@@ -8,8 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/bytedance/sonic"
 )
 
 // maxBody bounds an upstream response read. The largest legitimate payload the
@@ -239,7 +238,7 @@ func decodeJSON(resp *http.Response, out any) error {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return &UpstreamError{Status: resp.StatusCode, Message: upstreamMessage(body)}
 	}
-	return sonic.Unmarshal(body, out)
+	return codec.Unmarshal(body, out)
 }
 
 // upstreamMessage pulls the upstream's own error text from a JSON error body,
@@ -249,7 +248,7 @@ func upstreamMessage(body []byte) string {
 		Error   string `json:"error"`
 		Message string `json:"message"`
 	}
-	_ = sonic.Unmarshal(body, &envelope)
+	_ = codec.Unmarshal(body, &envelope)
 	if envelope.Error != "" {
 		return envelope.Error
 	}

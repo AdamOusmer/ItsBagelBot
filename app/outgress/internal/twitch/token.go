@@ -1,8 +1,8 @@
 package twitch
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -241,7 +241,7 @@ func postToken(ctx context.Context, form url.Values) (oauthResponse, error) {
 	}
 
 	var parsed oauthResponse
-	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
+	if err := codec.NewDecoder(res.Body).Decode(&parsed); err != nil {
 		return oauthResponse{}, err
 	}
 

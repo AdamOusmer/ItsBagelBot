@@ -6,14 +6,13 @@ import (
 
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/pkg/bus"
-
-	"github.com/bytedance/sonic"
+	"ItsBagelBot/pkg/codec"
 )
 
 // benchChatBody builds a representative channel.chat.message envelope once, so the
 // benchmarks measure Process, not message construction.
 func benchChatBody() []byte {
-	body, err := sonic.Marshal(map[string]any{
+	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",

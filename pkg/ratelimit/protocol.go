@@ -1,10 +1,10 @@
 package ratelimit
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"sort"
 )
@@ -45,7 +45,7 @@ func canonicalPlan(p Plan) Plan {
 }
 
 func digestPlan(p Plan) ([sha256.Size]byte, error) {
-	data, err := json.Marshal(canonicalPlan(p))
+	data, err := codec.Marshal(canonicalPlan(p))
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}

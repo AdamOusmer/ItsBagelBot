@@ -2,13 +2,13 @@ package web
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
 	"time"
 
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
+	"ItsBagelBot/pkg/codec"
 )
 
 // This file is the Tebex-event domain: the wire shapes, the classification of an
@@ -17,16 +17,16 @@ import (
 // concern.
 
 type tebexEvent struct {
-	ID      string          `json:"id"`
-	Type    string          `json:"type"`
-	Date    string          `json:"date"`
-	Subject json.RawMessage `json:"subject"`
+	ID      string           `json:"id"`
+	Type    string           `json:"type"`
+	Date    string           `json:"date"`
+	Subject codec.RawMessage `json:"subject"`
 }
 
 type paymentSubject struct {
-	TransactionID             string                     `json:"transaction_id"`
-	RecurringPaymentReference string                     `json:"recurring_payment_reference"`
-	Custom                    map[string]json.RawMessage `json:"custom"`
+	TransactionID             string                      `json:"transaction_id"`
+	RecurringPaymentReference string                      `json:"recurring_payment_reference"`
+	Custom                    map[string]codec.RawMessage `json:"custom"`
 	Customer                  struct {
 		Username usernameRef `json:"username"`
 	} `json:"customer"`
@@ -35,9 +35,9 @@ type paymentSubject struct {
 
 // productLine is one item in a Tebex payment subject.
 type productLine struct {
-	Custom    map[string]json.RawMessage `json:"custom"`
-	Username  usernameRef                `json:"username"`
-	ExpiresAt string                     `json:"expires_at"`
+	Custom    map[string]codec.RawMessage `json:"custom"`
+	Username  usernameRef                 `json:"username"`
+	ExpiresAt string                      `json:"expires_at"`
 }
 
 type recurringSubject struct {
@@ -48,7 +48,7 @@ type recurringSubject struct {
 }
 
 type usernameRef struct {
-	ID json.RawMessage `json:"id"`
+	ID codec.RawMessage `json:"id"`
 }
 
 type recordablePayment struct {
@@ -118,7 +118,7 @@ func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 	switch {
 	case strings.HasPrefix(event.Type, "payment."):
 		var payment paymentSubject
-		if err := json.Unmarshal(event.Subject, &payment); err != nil {
+		if err := codec.Unmarshal(event.Subject, &payment); err != nil {
 			return recordablePayment{}, err
 		}
 		return recordableFromPayment(payment)
@@ -133,9 +133,9 @@ func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 
 // recordableFromRecurring parses a recurring-payment event: pick the payment to
 // attribute, then overlay the subscription reference and next-payment expiry.
-func recordableFromRecurring(eventType string, subject json.RawMessage) (recordablePayment, error) {
+func recordableFromRecurring(eventType string, subject codec.RawMessage) (recordablePayment, error) {
 	var recurring recurringSubject
-	if err := json.Unmarshal(subject, &recurring); err != nil {
+	if err := codec.Unmarshal(subject, &recurring); err != nil {
 		return recordablePayment{}, err
 	}
 	source, ok := pickRecurringPayment(recurring, eventType)
@@ -253,9 +253,9 @@ func giftMessageFromPayment(payment paymentSubject) string {
 	return ""
 }
 
-func rawString(raw json.RawMessage) string {
+func rawString(raw codec.RawMessage) string {
 	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
+	if err := codec.Unmarshal(raw, &value); err != nil {
 		return ""
 	}
 	return value
@@ -282,7 +282,7 @@ func userIDFromPayment(payment paymentSubject) (uint64, bool) {
 	return 0, false
 }
 
-func userIDFromCustom(custom map[string]json.RawMessage) (uint64, bool) {
+func userIDFromCustom(custom map[string]codec.RawMessage) (uint64, bool) {
 
 	for _, key := range []string{"user_id", "twitch_user_id", "broadcaster_user_id"} {
 		if userID, ok := rawUint(custom[key]); ok {
@@ -294,10 +294,10 @@ func userIDFromCustom(custom map[string]json.RawMessage) (uint64, bool) {
 
 // rawUint reads a uint64 id from a raw JSON value that may be a number (123) or
 // a string ("123") — ids ride the custom payload as strings. It parses with
-// strconv directly on the trimmed bytes, avoiding the per-call json.Decoder and
+// strconv directly on the trimmed bytes, avoiding the per-call codec.Decoder and
 // bytes.Reader the naive path allocated; the surrounding quotes of a JSON string
 // id (never escaped for digits) are stripped in place.
-func rawUint(raw json.RawMessage) (uint64, bool) {
+func rawUint(raw codec.RawMessage) (uint64, bool) {
 	raw = unquoteJSON(bytes.TrimSpace(raw))
 	if len(raw) == 0 {
 		return 0, false

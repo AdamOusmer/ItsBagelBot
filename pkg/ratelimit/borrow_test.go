@@ -1,12 +1,12 @@
 package ratelimit
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
 )
 
@@ -54,7 +54,7 @@ func TestPermitService(t *testing.T) {
 	// stable request ID to verify lender-side deduplication.
 	_ = manager.GrantPermit(time.Now(), request)
 	time.Sleep(100 * time.Millisecond)
-	data, err := sonic.Marshal(&request)
+	data, err := codec.Marshal(&request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestPermitService(t *testing.T) {
 		t.Fatal(err)
 	}
 	var first BorrowReply
-	if err := sonic.Unmarshal(message.Data, &first); err != nil {
+	if err := codec.Unmarshal(message.Data, &first); err != nil {
 		t.Fatal(err)
 	}
 	if first.Status != "granted" || first.Paid != NeedShared || first.GrantID == "" {
@@ -75,7 +75,7 @@ func TestPermitService(t *testing.T) {
 		t.Fatal(err)
 	}
 	var duplicate BorrowReply
-	if err := sonic.Unmarshal(message.Data, &duplicate); err != nil {
+	if err := codec.Unmarshal(message.Data, &duplicate); err != nil {
 		t.Fatal(err)
 	}
 	if duplicate.GrantID != first.GrantID {
