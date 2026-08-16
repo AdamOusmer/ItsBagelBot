@@ -76,9 +76,11 @@ const (
 	// seasonTTL bounds how stale the auto-fetched season start may run; a
 	// season rollover (4x a year) is picked up within the hour.
 	seasonTTL = time.Hour
-	// shopTTL: the shop rotates once a day (00:00 UTC), so a 15-minute lag on
-	// rotation day is invisible against a 24h cycle.
-	shopTTL = 15 * time.Minute
+	// shopRotationHour is the hour, in UTC, at which Epic swaps the item shop.
+	// The shop does not age — it is byte-identical from one swap to the next —
+	// so it is cached against this boundary rather than on an interval (see
+	// nextShopRotation).
+	shopRotationHour = 0
 	// sessionSnapshotTTL outlives any plausible single stream; Twitch caps
 	// broadcasts at 48h.
 	sessionSnapshotTTL = 49 * time.Hour
@@ -176,7 +178,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 func (p *api) build() provider.Provider {
 	b := provider.NewProvider(providerName, p.deps)
 	b.Endpoint("shop").Timeout(handlerTimeout).
-		Cached(shopTTL, negativeTTL).
+		CachedUntil(nextShopRotation, negativeTTL).
 		ID(provider.StaticID("current")).
 		Reply(shopErrReply).
 		Budget(p.shopBudget).
@@ -752,6 +754,34 @@ type shopResponse struct {
 		Date    string      `json:"date"`
 		Entries []shopEntry `json:"entries"`
 	} `json:"data"`
+}
+
+// nextShopRotation reports the next instant the item shop turns over, which is
+// the only instant a cached shop reply can stop being true. Epic swaps the shop
+// daily at 00:00 UTC and the payload is byte-identical in between, so this — not
+// an interval — is what the shop endpoint caches against.
+//
+// The interval it replaces was fifteen minutes, which was wrong in both
+// directions at once. Too long, because a swap could sit unnoticed for a
+// quarter of an hour; and far too short, because the byte cache retains an entry
+// for twice its fresh window, so the shop was gone from the cache thirty minutes
+// after the last !store. For a command asked a handful of times a day that meant
+// essentially every call was a full cold download — 584ms in production, 422ms
+// of it upstream and 247ms of that payload transfer — to re-fetch bytes that
+// provably had not changed since the last one.
+//
+// It is written out rather than expressed as a Truncate: time.Time.Truncate
+// rounds against the zero time, which lands on midnight UTC only by coincidence
+// of the calendar's origin, and the shop's boundary is too load-bearing to rest
+// on that. Called exactly at a rotation it returns the FOLLOWING one, so the
+// window is a full day rather than zero.
+func nextShopRotation(now time.Time) time.Time {
+	y, m, d := now.UTC().Date()
+	rotation := time.Date(y, m, d, shopRotationHour, 0, 0, 0, time.UTC)
+	if !rotation.After(now) {
+		rotation = rotation.AddDate(0, 0, 1)
+	}
+	return rotation
 }
 
 // shopFetch answers fortnite.shop (sesame's !store) with the current

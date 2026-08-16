@@ -19,9 +19,21 @@ import (
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
+	// ttls records the retention each key was written with. Nothing here
+	// expires on its own, so a test that cares about the lifetime of an entry
+	// has to read the number the writer asked for.
+	ttls map[string]time.Duration
 }
 
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
+func newMemStore() *memStore {
+	return &memStore{m: map[string][]byte{}, ttls: map[string]time.Duration{}}
+}
+
+func (s *memStore) retention(key string) time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ttls[key]
+}
 
 func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 	s.mu.Lock()
@@ -29,12 +41,13 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 	b, ok := s.m[key]
 	return b, ok, nil
 }
-func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
+func (s *memStore) Set(_ context.Context, key string, val []byte, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Copy: the Store contract says val may come from a pooled buffer the
 	// caller recycles as soon as Set returns.
 	s.m[key] = append([]byte(nil), val...)
+	s.ttls[key] = ttl
 	return nil
 }
 func (s *memStore) Del(_ context.Context, key string) error {
@@ -170,6 +183,56 @@ func TestFlowServesAndCaches(t *testing.T) {
 	_, isRaw := res.(codec.RawMessage)
 	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
 	assert.Equal(t, 1, fetches)
+}
+
+// A CachedUntil flow must not retain an entry past the deadline it was given.
+// The byte cache keeps an entry for twice its fresh window, so the only way the
+// stale-while-revalidate tail stays on the correct side of a hard content
+// boundary is for the fresh window to be half the time remaining to it. Without
+// that, an entry stored fresh-until-rotation lives a whole further window past
+// the rotation, and the first !store after the swap is answered with yesterday's
+// item shop.
+func TestCachedUntilRetainsOnlyUntilTheDeadline(t *testing.T) {
+	store := newMemStore()
+	deadline := time.Now().Add(6 * time.Hour)
+
+	b := NewProvider("demo", Deps{Cache: core.NewCache(store)})
+	b.Endpoint("shop").
+		CachedUntil(func(time.Time) time.Time { return deadline }, time.Minute).
+		ID(StaticID("current")).
+		Reply(testErrReply).
+		Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
+			return testReply{Value: 7}, nil
+		})
+	h := b.Build().Endpoints()[0].Handle
+
+	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
+
+	retention := store.retention(core.Key("demo", "shop", "current"))
+	assert.WithinDuration(t, deadline, time.Now().Add(retention), time.Second,
+		"the entry must fall out of the store as the deadline passes, not after it")
+}
+
+// A deadline that has already gone by describes a reply nothing is known to be
+// true about, so it must not be stored at all.
+func TestCachedUntilPastDeadlineDoesNotCache(t *testing.T) {
+	store := newMemStore()
+	fetches := 0
+
+	b := NewProvider("demo", Deps{Cache: core.NewCache(store)})
+	b.Endpoint("shop").
+		CachedUntil(func(now time.Time) time.Time { return now.Add(-time.Hour) }, time.Minute).
+		ID(StaticID("current")).
+		Reply(testErrReply).
+		Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
+			fetches++
+			return testReply{Value: 7}, nil
+		})
+	h := b.Build().Endpoints()[0].Handle
+
+	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
+	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
+	assert.Equal(t, 2, fetches, "a stale-on-arrival reply must be refetched, never served from the store")
 }
 
 func TestFlowRejectsMissingIdentity(t *testing.T) {
