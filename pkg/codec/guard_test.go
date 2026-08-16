@@ -34,75 +34,98 @@ var skipDirs = map[string]bool{
 	"web": true, "console": true, "docs": true, "vendor": true, "mail": true,
 }
 
+// codecDir is the one package allowed to name an implementation.
+var codecDir = filepath.Join("pkg", "codec")
+
 // TestOnlyThisPackageImportsAJSONImplementation is the standing guard behind the
 // migration that put every service on pkg/codec. The value of a single codec is
 // that swapping it, or changing its escaping and key-order rules, is one edit;
 // a stray encoding/json import in one service silently takes that back and
 // nothing else in the build would complain.
-//
-// Generated models are exempt: the next `go generate` reverts any hand edit
-// there, so the import is not something a reviewer can act on.
 func TestOnlyThisPackageImportsAJSONImplementation(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatalf("locate module root: %v", err)
 	}
 
-	var offenders []string
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if skipDirs[d.Name()] {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		// This package is the one place allowed to name an implementation.
-		if filepath.Dir(rel) == filepath.Join("pkg", "codec") {
-			return nil
-		}
-
-		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly|parser.ParseComments)
-		if parseErr != nil {
-			// A file this test cannot parse is not this test's problem; the
-			// build reports it with a far better message.
-			return nil
-		}
-		if isGenerated(file.Comments) {
-			return nil
-		}
-
-		for _, imported := range file.Imports {
-			importPath, unquoteErr := strconv.Unquote(imported.Path.Value)
-			if unquoteErr != nil {
-				continue
-			}
-			for _, banned := range jsonImplementations {
-				if importPath == banned || strings.HasPrefix(importPath, banned+"/") {
-					offenders = append(offenders, rel+" imports "+importPath)
-				}
-			}
-		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk %s: %v", root, walkErr)
+	offenders, err := findJSONImports(root)
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
 	}
-
 	if len(offenders) > 0 {
 		t.Fatalf("only pkg/codec may import a JSON implementation; use the codec API instead:\n\t%s",
 			strings.Join(offenders, "\n\t"))
 	}
+}
+
+// findJSONImports reports every "<file> imports <path>" pair that breaks the
+// rule, over the whole module.
+func findJSONImports(root string) ([]string, error) {
+	var offenders []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case d.IsDir() && skipDirs[d.Name()]:
+			return filepath.SkipDir
+		case d.IsDir(), !policed(root, path):
+			return nil
+		}
+		for _, imported := range bannedImportsOf(path) {
+			rel, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				return relErr
+			}
+			offenders = append(offenders, rel+" imports "+imported)
+		}
+		return nil
+	})
+	return offenders, err
+}
+
+// policed reports whether a path is a Go file this rule applies to. pkg/codec
+// itself is exempt: it is where the implementation is supposed to be named.
+func policed(root, path string) bool {
+	if !strings.HasSuffix(path, ".go") {
+		return false
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return filepath.Dir(rel) != codecDir
+}
+
+// bannedImportsOf returns the JSON implementations a file imports. A file that
+// cannot be parsed yields nothing: the build reports that with a far better
+// message than this test would. Generated models yield nothing either, since
+// the next `go generate` reverts any hand edit there, leaving a reviewer
+// nothing to act on.
+func bannedImportsOf(path string) []string {
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly|parser.ParseComments)
+	if err != nil || isGenerated(file.Comments) {
+		return nil
+	}
+
+	var found []string
+	for _, imported := range file.Imports {
+		importPath, unquoteErr := strconv.Unquote(imported.Path.Value)
+		if unquoteErr == nil && isJSONImplementation(importPath) {
+			found = append(found, importPath)
+		}
+	}
+	return found
+}
+
+// isJSONImplementation reports whether an import path is one of the listed
+// implementations, or a subpackage of one.
+func isJSONImplementation(importPath string) bool {
+	for _, banned := range jsonImplementations {
+		if importPath == banned || strings.HasPrefix(importPath, banned+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // isGenerated reports whether a file carries the conventional generated-code
