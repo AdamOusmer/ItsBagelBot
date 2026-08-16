@@ -87,9 +87,7 @@ defmodule Ingress.NatsFailback do
             :exit, _ -> "(unavailable)"
           end
 
-        Logger.info(
-          "NatsFailback: recycling #{candidate} from #{server} back to node-local leaf"
-        )
+        Logger.info("NatsFailback: recycling #{candidate} from #{server} back to node-local leaf")
 
         stop_connection(candidate)
         Map.put(successes, candidate, 0)

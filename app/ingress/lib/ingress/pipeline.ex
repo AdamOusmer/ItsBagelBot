@@ -42,7 +42,7 @@ defmodule Ingress.Pipeline do
 
   require Logger
 
-  alias Ingress.{BroadcasterCache, Config, Metrics, Nats, Squash, Trace}
+  alias Ingress.{BroadcasterCache, Config, JSON, LaneMessage, Metrics, Nats, Squash, Trace}
 
   @type decision :: :special | :command | :chat
 
@@ -117,14 +117,25 @@ defmodule Ingress.Pipeline do
         id -> BroadcasterCache.lane(id)
       end
 
+    # Both copies of a live event are the same document but for `lane`, so the
+    # shared members are encoded once here and each copy prefixes its own lane.
+    body =
+      JSON.members(%{
+        type: type,
+        event: event,
+        shard_id: meta.shard_id,
+        msg_id: meta.msg_id,
+        received_at: meta.ts
+      })
+
     # The stream lane is unconditional. The broadcaster's own event lane is
     # added only when they are not dropped (banned): a banned broadcaster's
     # live event still rides the stream lane but never their event lane.
     publishes =
-      [{hot.lane_subjects.stream, stream_message(:stream, type, event, meta)}] ++
+      [{hot.lane_subjects.stream, %LaneMessage{lane: :stream, body: body}}] ++
         case event_lane do
           :drop -> []
-          lane -> [{Map.fetch!(hot.lane_subjects, lane), stream_message(lane, type, event, meta)}]
+          lane -> [{Map.fetch!(hot.lane_subjects, lane), %LaneMessage{lane: lane, body: body}}]
         end
 
     {:publish_many, publishes}
@@ -202,17 +213,6 @@ defmodule Ingress.Pipeline do
   @spec broadcaster_id(map()) :: String.t() | nil
   def broadcaster_id(event) do
     event["broadcaster_user_id"] || event["to_broadcaster_user_id"]
-  end
-
-  defp stream_message(lane, type, event, meta) do
-    %{
-      type: type,
-      lane: lane,
-      event: event,
-      shard_id: meta.shard_id,
-      msg_id: meta.msg_id,
-      received_at: meta.ts
-    }
   end
 
   # Commands (and their like): publish to the broadcaster's own lane, unless the

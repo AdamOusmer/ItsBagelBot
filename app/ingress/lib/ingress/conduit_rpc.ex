@@ -24,6 +24,8 @@ defmodule Ingress.ConduitRpc do
   use Gnat.Server
   require Logger
 
+  alias Ingress.JSON
+
   @call_timeout_ms 5_000
 
   @impl true
@@ -50,7 +52,7 @@ defmodule Ingress.ConduitRpc do
           %{error: "conduit manager down"}
       end
 
-    {:reply, Jason.encode!(reply)}
+    {:reply, JSON.encode(reply)}
   end
 
   @impl true

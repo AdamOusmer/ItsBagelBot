@@ -1,9 +1,11 @@
 defmodule Ingress.PipelineTest do
   use ExUnit.Case, async: true
 
-  alias Ingress.Pipeline
+  alias Ingress.{JSON, LaneMessage, Pipeline}
 
   @special MapSet.new(["1001", "1002"])
+
+  defp wire(message), do: message |> JSON.encode() |> IO.iodata_to_binary() |> JSON.decode()
 
   describe "decide/3" do
     test "special user goes premium even when the message is not a command" do
@@ -56,9 +58,18 @@ defmodule Ingress.PipelineTest do
 
       assert {:publish_many,
               [
-                {"twitch.ingress.event.stream", %{lane: :stream, type: "stream.online"}},
-                {"twitch.ingress.event.premium", %{lane: :premium, type: "stream.online"}}
+                {"twitch.ingress.event.stream", %LaneMessage{lane: :stream} = live},
+                {"twitch.ingress.event.premium", %LaneMessage{lane: :premium} = own}
               ]} = Pipeline.route(notification("stream.online", event), @meta)
+
+      assert {:ok, %{"lane" => "stream", "type" => "stream.online", "event" => ^event}} =
+               wire(live)
+
+      assert {:ok, %{"lane" => "premium", "type" => "stream.online", "event" => ^event}} =
+               wire(own)
+
+      # Both copies of a live event share one encode of the non-lane members.
+      assert live.body === own.body
     end
 
     test "stream.offline rides both the live lane and the broadcaster's event lane" do
@@ -66,9 +77,13 @@ defmodule Ingress.PipelineTest do
 
       assert {:publish_many,
               [
-                {"twitch.ingress.event.stream", %{lane: :stream, type: "stream.offline"}},
-                {"twitch.ingress.event.premium", %{lane: :premium, type: "stream.offline"}}
+                {"twitch.ingress.event.stream", %LaneMessage{lane: :stream} = live},
+                {"twitch.ingress.event.premium", %LaneMessage{lane: :premium} = own}
               ]} = Pipeline.route(notification("stream.offline", event), @meta)
+
+      assert {:ok, %{"lane" => "stream", "type" => "stream.offline"}} = wire(live)
+      assert {:ok, %{"lane" => "premium", "type" => "stream.offline"}} = wire(own)
+      assert live.body === own.body
     end
 
     test "a live event without a broadcaster still hits the live lane on the standard event lane" do
@@ -132,6 +147,15 @@ defmodule Ingress.PipelineTest do
       assert {:publish, "twitch.ingress.event.premium",
               %{type: "channel.chat.message", lane: :premium, text: "just chatting"}} =
                Pipeline.route(notification("channel.chat.message", event), @meta)
+    end
+
+    test "a non-chat event encodes the decoded event map onto the lane" do
+      event = %{"broadcaster_user_id" => "77", "user_name" => "someone"}
+
+      assert {:publish, "twitch.ingress.event.premium", message} =
+               Pipeline.route(notification("channel.follow", event), @meta)
+
+      assert {:ok, %{"event" => ^event}} = wire(message)
     end
   end
 
