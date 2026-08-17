@@ -1,0 +1,161 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: loyalty-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: loyalty-doppler-token
+  managedSecret:
+    name: loyalty-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loyalty
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  # Keep one local loyalty RPC responder beside Sesame on every hot-path node.
+  # Event folds remain queue-grouped across the three replicas.
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: loyalty
+  template:
+    metadata:
+      labels:
+        app: loyalty
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: loyalty
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: loyalty
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: loyalty
+          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1786934707-b71a0f43997c@sha256:c25aafc2a32a124e20729a4099f8d1afc3b44c8c8e7007a134cfe13ea5f35d6a # {"$imagepolicy": "flux-system:loyalty"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
+            - name: NATS_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_MAX_OPEN_CONNS
+              value: "4"
+            - name: DB_QUERY_CONCURRENCY
+              value: "4"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+          envFrom:
+            - secretRef:
+                name: loyalty-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: loyalty
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: loyalty

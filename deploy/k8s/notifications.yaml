@@ -1,0 +1,219 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: notifications-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: notifications-doppler-token
+  managedSecret:
+    name: notifications-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per application node
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications
+  template:
+    metadata:
+      labels:
+        app: notifications
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: notifications
+      # Three replicas and three eligible domains keep one notifications pod
+      # per hot-path node after every ReplicaSet rollout.
+      # Resolve external hosts without the cluster search-domain fan-out
+      # (ndots:1) and serialize A/AAAA to dodge the conntrack race; cap any
+      # DNS stall well under a few seconds.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "2"}
+          - {name: attempts, value: "2"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: notifications
+          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1786934707-b71a0f43997c@sha256:6fa6c0eb0481e7247d19b6ca1eaf5456cd491c41aae6a9ce7b5a0cbb39affc34 # {"$imagepolicy": "flux-system:notifications"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # notifications is RPC-only: it never touches JetStream, so it
+            # dials the leaf exclusively (no NATS_HUB_URL) and carries no BUS
+            # credential.
+            - name: NATS_URL
+              value: nats://nats-leaf-local:4222
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf-local:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_MAX_OPEN_CONNS
+              value: "4"
+            - name: DB_QUERY_CONCURRENCY
+              value: "4"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+          envFrom:
+            - secretRef:
+                name: notifications-env
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 15m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notifications
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications
+---
+# Janitor: fires the internal cleanup verb once per day so exactly one service
+# replica (queue group) hard-deletes globally-expired notifications; their
+# per-user read receipts cascade. Reuses the service image with the `cleanup`
+# arg and the service's own NATS creds (notifications-env), so no extra image or
+# NATS account is needed — the cleanup subject is internal to the
+# NOTIFICATIONS_RPC account and unreachable from anywhere else.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notifications-cleanup
+  namespace: production
+spec:
+  schedule: "17 3 * * *" # daily, off the top of the hour
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: notifications-cleanup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cleanup
+              image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1786934707-b71a0f43997c@sha256:6fa6c0eb0481e7247d19b6ca1eaf5456cd491c41aae6a9ce7b5a0cbb39affc34 # {"$imagepolicy": "flux-system:notifications"}
+              imagePullPolicy: IfNotPresent
+              args: ["cleanup"]
+              env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                # RPC-only, same as the main container: leaf exclusively, no
+                # NATS_HUB_URL, no BUS credential.
+                - name: NATS_URL
+                  value: nats://nats-leaf-local:4222
+                - name: NATS_RPC_URL
+                  value: nats://nats-leaf-local:4222
+                # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
+                - name: NATS_CA_PEM
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-ca
+                      key: ca.pem
+              envFrom:
+                - secretRef:
+                    name: notifications-env
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}
