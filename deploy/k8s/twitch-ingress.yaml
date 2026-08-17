@@ -8,14 +8,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: twitch-ingress-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: twitch-ingress-doppler-token
   managedSecret:
     name: twitch-ingress-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -26,7 +26,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: twitch-ingress-headless
-  namespace: production
+  namespace: app
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -42,7 +42,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: twitch-ingress
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -87,7 +87,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
       topologySpreadConstraints:
@@ -126,8 +126,22 @@ spec:
             - secretRef:
                 name: twitch-ingress-env
           env:
+            # Serve HTTPS on 8080 with the cert-manager twitch-ingress-tls cert
+            # so the traefik hop to /status is TLS end-to-end (Ingress.StatusPlug
+            # reads the pair; both or neither, a half-set pair fails the boot).
+            - name: TLS_CERT_FILE
+              value: /etc/twitch-ingress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/twitch-ingress/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
             - name: NATS_HOST
-              value: nats
+              value: nats.messaging
             # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
             # plane (:gnat_bus) uses the `nats` Service, whose PreferSameNode
             # routing lands each ingress publisher on the hub member beside it.
@@ -137,9 +151,9 @@ spec:
             # hop to the RAFT leader. The leaf remains RPC-only and never carries
             # JetStream traffic.
             - name: NATS_LEAF_HOST
-              value: nats-leaf
+              value: nats-leaf.messaging
             - name: NATS_HUB_HOST
-              value: nats
+              value: nats.messaging
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; decoded to ssl_opts cacerts in
             # config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub) verify
@@ -244,6 +258,12 @@ spec:
             limits:
               cpu: "2"
               memory: 512Mi
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/twitch-ingress/tls, readOnly: true}
+          ports:
+            - name: status
+              containerPort: 8080
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
@@ -268,15 +288,36 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: twitch-ingress-tls
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: twitch-ingress
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
     matchLabels:
       app: twitch-ingress
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: twitch-ingress-status
+  namespace: app
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: twitch-ingress
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

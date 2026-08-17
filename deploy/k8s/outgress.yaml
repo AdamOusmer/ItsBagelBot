@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: outgress-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: outgress-doppler-token
   managedSecret:
     name: outgress-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,14 +20,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: outgress
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # replicas intentionally omitted: the outgress ScaledObject below owns this
-  # field via its generated HPA (floor 3, matching the old static count).
-  # kustomize-controller stops setting it, so SSA hands ownership to the HPA
-  # instead of fighting it every reconcile.
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -59,7 +56,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
       topologySpreadConstraints:
@@ -112,9 +109,9 @@ spec:
             # through a non-leader member on other nodes. The per-pod headless
             # name is a hub cert SAN and follows the pod across nodes.
             - name: NATS_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -129,7 +126,9 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
-              value: valkey.valkey.svc.cluster.local
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
             # both-or-neither. Land this (a no-op while tls-auth-clients is
             # still "no") on every consumer BEFORE flipping the statefulset,
@@ -139,9 +138,9 @@ spec:
             - name: VALKEY_TLS_CLIENT_KEY_FILE
               value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -151,7 +150,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
-              value: valkey-local.valkey.svc.cluster.local:6380
+              value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
             # Receipt-level consumption is deliberately absent here, not merely
@@ -208,10 +207,26 @@ spec:
             # valid plan during a maxUnavailable:1 rollout, when only 2 pods are up.
             - name: OUTGRESS_LEASE_MIN_MEMBERS
               value: "2"
+            # Serve HTTPS on 8080 with the cert-manager outgress-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/outgress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/outgress/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             - secretRef:
                 name: outgress-env
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/outgress/tls, readOnly: true}
             - name: valkey-client-tls
               mountPath: /etc/valkey/client-tls
               readOnly: true
@@ -232,17 +247,24 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18
             periodSeconds: 5
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: outgress-tls
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
@@ -252,7 +274,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: outgress
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
@@ -273,7 +295,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: outgress
-  namespace: production
+  namespace: app
 spec:
   scaleTargetRef:
     name: outgress
@@ -308,7 +330,7 @@ spec:
         # KEDA's clustered scaler follows the cluster to the leader's advertised
         # POD IP, so a single tailnet Service does not remove the pod-network
         # dependency.
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-premium_twitch_outgress_premium
@@ -316,7 +338,7 @@ spec:
         activationLagThreshold: "5"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS
         consumer: outgress-standard_twitch_outgress_standard
@@ -324,7 +346,7 @@ spec:
         activationLagThreshold: "20"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS_SYSTEM
         consumer: outgress-system_twitch_outgress_system

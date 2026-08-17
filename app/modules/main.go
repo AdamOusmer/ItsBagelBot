@@ -59,7 +59,7 @@ func main() {
 	projectionSubject := subscribeRPCs(rpcWiring{
 		nc: n.RPC, client: client, repo: repo, quotes: quotes, app: core.NR, log: log,
 	})
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), n.RPC.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", n.RPC.IsConnected))
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
 

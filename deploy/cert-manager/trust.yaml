@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# trust-manager distributes the public CA (no private key) as a ConfigMap named
+# fleet-ca into the workload namespaces. Apps read it as NATS_CA_PEM /
+# VALKEY_TLS_CA_PEM (configMapKeyRef fleet-ca/ca.pem) and Traefik reads it as a
+# ServersTransport rootCAs, so every client can verify the NATS, Valkey and
+# console server certs without shipping a private key around. Distribution is
+# what makes CA renewal hands-off: cert-manager renews the CA in its secret and
+# trust-manager rewrites this ConfigMap everywhere, no manual rotation.
+#
+# The source is the CA cert inside the fleet-ca-key-pair secret, which lives in
+# cert-manager (trust-manager's configured trust namespace).
+---
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: fleet-ca
+spec:
+  sources:
+    - secret:
+        name: fleet-ca-key-pair
+        key: tls.crt
+  target:
+    configMap:
+      key: ca.pem
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [app, cache, db, messaging, networking, observability, operators]
+---
+# The verify:true anchor for mTLS listeners: the INTERMEDIATE CA alone (not the
+# root), distributed as fleet-intermediate-ca/ca.pem. NATS and Valkey verify
+# client certs against this, so only certs issued by the fleet intermediate
+# pass — the root stays a signing-only anchor and never validates leaves
+# directly. Renewal is hands-off: the intermediate renews on the same key, and
+# trust-manager rewrites this ConfigMap when the secret changes.
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: fleet-intermediate-ca
+spec:
+  sources:
+    - secret:
+        name: fleet-intermediate-key-pair
+        key: tls.crt
+  target:
+    configMap:
+      key: ca.pem
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [cache, messaging]

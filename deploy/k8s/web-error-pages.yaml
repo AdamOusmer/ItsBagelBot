@@ -20,7 +20,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: web-origin
-  namespace: production
+  namespace: app
 spec:
   type: ExternalName
   externalName: itsbagelbot.com
@@ -32,7 +32,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: web-origin-transport
-  namespace: production
+  namespace: app
 spec:
   # Public Cloudflare certificate, verified against the system trust pool (no
   # rootCAsSecrets). SNI pinned to the site: the ExternalName dial would
@@ -43,7 +43,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: unrouted-host-fallback
-  namespace: production
+  namespace: app
 spec:
   entryPoints: [websecure]
   routes:

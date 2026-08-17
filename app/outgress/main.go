@@ -177,7 +177,7 @@ func main() {
 	}
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
 
 	d.logReady(tw)
 

@@ -6,6 +6,7 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"regexp"
 	"time"
 
@@ -31,9 +32,9 @@ import (
 // console/shared/lib/server/nats.ts.
 //
 // COUPLED TO the broker configs — this file is the client half of the topology
-// declared by deploy/k8s/nats-leaf-server.conf (leaf tier: plane split, TLS
+// declared by deploy/messaging/nats-leaf-server.conf (leaf tier: plane split, TLS
 // posture, keepalives, server_name prefix; see the header there for the full
-// list) and deploy/k8s/nats-server.conf (hub). Change either side with the
+// list) and deploy/messaging/nats-server.conf (hub). Change either side with the
 // other open.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
@@ -161,8 +162,16 @@ func logAsyncError(_ *nats.Conn, sub *nats.Subscription, err error) {
 // tlsSecureOption returns a nats.Secure option that verifies the broker's server
 // cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
 // fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
-// plaintext server stays plaintext. Server-auth only: the client still
-// authenticates with its bcrypt user/password, not a client cert.
+// plaintext server stays plaintext.
+//
+// When the NATS_CLIENT_CERT_FILE/NATS_CLIENT_KEY_FILE pair is set the client
+// also presents that certificate (mTLS): the cert-manager-issued fleet client
+// cert, re-read from disk on every handshake so a renewal is picked up with no
+// restart (same pattern as pkg/health). Both or neither — a half-set pair is a
+// misconfiguration and fails the connect rather than silently downgrading to
+// server-auth only. Presenting a cert against a verify:false listener is
+// harmless, which is what makes the staged verify flip possible (#578's revert:
+// the flip landed before any client could present one).
 func tlsSecureOption() nats.Option {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
@@ -172,7 +181,19 @@ func tlsSecureOption() nats.Option {
 	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
 		return nil
 	}
-	return nats.Secure(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
+
+	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	certFile, keyFile := env.Get("NATS_CLIENT_CERT_FILE", ""), env.Get("NATS_CLIENT_KEY_FILE", "")
+	if certFile != "" || keyFile != "" {
+		cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil, fmt.Errorf("bus: load nats client key pair: %w", err)
+			}
+			return &cert, nil
+		}
+	}
+	return nats.Secure(cfg)
 }
 
 // rpcOptions authenticate the per-service account on the RPC plane. The creds

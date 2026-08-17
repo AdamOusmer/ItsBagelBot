@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# NATS hub + leaf + auth + certs, split out of deploy/k8s into its own
+# namespace-named directory (matching deploy/networking, deploy/observability,
+# deploy/operators). Apply before deploy/k8s: services there dial nats.messaging /
+# nats-leaf.messaging and the app-tier Deployments' TLS trust depends on
+# certificates.yaml's Certificates being Ready first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Every resource file below already sets its own metadata.namespace: messaging,
+# but configMapGenerator output has no per-entry namespace field to set — it
+# only picks one up from this top-level namespace transformer. Without it,
+# nats-config/nats-leaf-config land in `default` while every pod that mounts
+# them runs in `messaging`, and kubectl apply reports them "created"/"unchanged"
+# with no error since `default` is a perfectly valid namespace to create a
+# ConfigMap in — the mismatch only surfaces later as FailedMount. Caught by
+# actually deploying to the live cluster, not by inspection.
+namespace: messaging
+resources:
+  - certificates.yaml
+  - nats.yaml
+  - nats-leaf.yaml
+  - nats-auth-dopplersecret.yaml
+# NATS broker config, formerly created by apply-nats.sh. The configmaps hold
+# only the server conf + the auth conf ($ENV placeholders expanded at runtime
+# from the nats-auth-env secret). disableNameSuffixHash keeps the names stable
+# (nats-config / nats-leaf-config) so the volume mounts resolve and the
+# config-reloader sidecar hot-reloads on content change instead of forcing a
+# pod roll on every edit.
+configMapGenerator:
+  - name: nats-config
+    files:
+      - nats.conf=nats-server.conf
+      - auth.conf=nats-auth.conf
+  - name: nats-leaf-config
+    files:
+      - nats.conf=nats-leaf-server.conf
+      - auth.conf=nats-auth.conf
+generatorOptions:
+  disableNameSuffixHash: true

@@ -61,7 +61,7 @@ const readLimiter = new ValkeyRateLimiter({ name: 'read', capacity: 60, refillPe
 // Kubelet probes are frequent, unauthenticated and share the node IP; limiting
 // them would let the limiter fail readiness. Static /_app assets never reach
 // this handle (served by sirv in serve-node.js).
-const RATE_EXEMPT = new Set(['/healthz', '/readyz']);
+const RATE_EXEMPT = new Set(['/healthz', '/readyz', '/status']);
 
 function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   if (pathname.startsWith('/auth/') || pathname.startsWith('/delegate/')) return authLimiter;

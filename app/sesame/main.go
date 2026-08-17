@@ -129,7 +129,10 @@ func main() {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
 
-	health.Serve(cfg.ListenAddr, func() bool { return nc.IsConnected() && bus.SubscriberHealthy(sub) })
+	health.Serve(cfg.ListenAddr, serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("bus_subscriber", func() bool { return bus.SubscriberHealthy(sub) }),
+	)
 	logReady(cfg, deps.Special.Len(), log)
 
 	<-ctx.Done()

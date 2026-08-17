@@ -261,15 +261,31 @@ nats_server = fn host, user, pass ->
   base =
     if nats_cacerts do
       # SNI must match a cert SAN — the Service name (nats / nats-leaf).
-      Map.merge(base, %{
-        tls: true,
-        ssl_opts: [
-          verify: :verify_peer,
-          cacerts: nats_cacerts,
-          server_name_indication: String.to_charlist(host),
-          depth: 3
-        ]
-      })
+      ssl_opts = [
+        verify: :verify_peer,
+        cacerts: nats_cacerts,
+        server_name_indication: String.to_charlist(host),
+        depth: 3
+      ]
+
+      # mTLS: present the fleet client cert when the pair is set. Both or
+      # neither — a half-set pair fails the boot rather than silently
+      # downgrading to server-auth only. File paths (not inlined PEM) so the
+      # BEAM ssl pem cache re-reads a cert-manager renewal without a restart.
+      ssl_opts =
+        case {System.get_env("NATS_CLIENT_CERT_FILE", ""),
+              System.get_env("NATS_CLIENT_KEY_FILE", "")} do
+          {"", ""} ->
+            ssl_opts
+
+          {cert, key} when cert != "" and key != "" ->
+            ssl_opts ++ [certfile: cert, keyfile: key]
+
+          _ ->
+            raise "NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"
+        end
+
+      Map.merge(base, %{tls: true, ssl_opts: ssl_opts})
     else
       base
     end
