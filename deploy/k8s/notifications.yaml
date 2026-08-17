@@ -80,14 +80,13 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # JetStream goes straight to the HA hub. RPC prefers the strict
-            # same-node leaf and falls back directly to the hub.
+            # notifications is RPC-only: it never touches JetStream, so it
+            # dials the leaf exclusively (no NATS_HUB_URL) and carries no BUS
+            # credential.
             - name: NATS_URL
-              value: nats://nats:4222
+              value: nats://nats-leaf-local:4222
             - name: NATS_RPC_URL
               value: nats://nats-leaf-local:4222
-            - name: NATS_HUB_URL
-              value: nats://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -193,12 +192,12 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: spec.nodeName
+                # RPC-only, same as the main container: leaf exclusively, no
+                # NATS_HUB_URL, no BUS credential.
                 - name: NATS_URL
-                  value: nats://nats:4222
+                  value: nats://nats-leaf-local:4222
                 - name: NATS_RPC_URL
                   value: nats://nats-leaf-local:4222
-                - name: NATS_HUB_URL
-                  value: nats://nats:4222
                 # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
                 - name: NATS_CA_PEM
                   valueFrom:

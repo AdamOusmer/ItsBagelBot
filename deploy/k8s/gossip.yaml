@@ -98,14 +98,11 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Split planes: the BUS / JetStream connection dials the hub directly
-            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
-            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
-            # node-local leaf. NATS_URL is the local-dev fallback only.
+            # gossip is RPC-only: it answers sesame's requests over
+            # bagel.rpc.gossip.> and never touches JetStream, so it dials the
+            # leaf exclusively (no NATS_HUB_URL) and carries no BUS credential.
             - name: NATS_URL
               value: nats://nats-leaf:4222
-            - name: NATS_HUB_URL
-              value: nats://nats:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
