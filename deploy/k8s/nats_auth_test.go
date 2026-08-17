@@ -234,6 +234,12 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
 	}
+	if len(grants.keyValueOwned) > 0 {
+		// nats.go's CreateKeyValue probes the account with $JS.API.INFO before
+		// it touches the bucket stream, so owning any KV bucket implies the
+		// account-info read. It is read-only and account-scoped.
+		set[jetStreamAPI+"INFO"] = struct{}{}
+	}
 	for _, bucket := range grants.keyValueOwned {
 		kvStream := "KV_" + bucket
 		for _, subject := range []string{
