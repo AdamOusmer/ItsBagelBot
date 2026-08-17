@@ -5,6 +5,8 @@ package bus
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,4 +139,166 @@ func subscriberWithRebind(replacement jsapi.Consumer, failure error) (*pullSubsc
 		return replacement, nil
 	}
 	return s, &attempts
+}
+
+// The tests above drive noteFetchError and consumerGone directly, which proves
+// the decision logic in isolation but not that the pump goroutine itself keeps
+// running and keeps delivering. The two below drive the real pump()/
+// pumpIterator() loop end to end — the only way to catch a regression where the
+// loop's control flow, not just its helpers, stops making progress.
+
+// TestPumpSurvivesATransientFetchErrorAndResumesFetching is 2026-08-16's first
+// link, proven through the actual goroutine: a fetch failure that is not a
+// missing durable must not end the pump, and the very next attempt must
+// deliver.
+func TestPumpSurvivesATransientFetchErrorAndResumesFetching(t *testing.T) {
+	resumed := newPumpMessagesContext(pumpResult{msg: fakePullDelivery(1)})
+	consumer := &pumpConsumer{opens: []pumpOpen{
+		{err: errors.New("nats: no responders")}, // election in progress, retryable
+		{iter: resumed},                          // the very next attempt succeeds
+	}}
+
+	sub := testPullSubscriber()
+	sub.consumer = consumer
+	sub.maxWait = time.Millisecond
+	var rebinds int32
+	sub.rebind = func() (jsapi.Consumer, error) {
+		atomic.AddInt32(&rebinds, 1)
+		return nil, errors.New("must not be called")
+	}
+
+	sub.workers.Add(1)
+	go sub.pump()
+	defer func() {
+		close(sub.closeCh)
+		sub.workers.Wait()
+	}()
+
+	select {
+	case msg := <-sub.output:
+		if msg == nil {
+			t.Fatal("pump delivered a nil message")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("pump never resumed fetching after the transient error: it exited or wedged")
+	}
+	if atomic.LoadInt32(&rebinds) != 0 {
+		t.Fatal("a transient fetch error must not provision a replacement durable")
+	}
+}
+
+// TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes is the exact
+// 2026-08-16 failure, driven through the real loop instead of asserted against
+// noteFetchError's return value: the durable is gone, the pump must rebind to a
+// replacement on its own, and the very next fetch must deliver through it —
+// proving the recovery a manual kubectl rollout restart used to be the only way
+// to get.
+func TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes(t *testing.T) {
+	replacementIter := newPumpMessagesContext(pumpResult{msg: fakePullDelivery(7)})
+	replacement := &pumpConsumer{opens: []pumpOpen{{iter: replacementIter}}}
+
+	reaped := &pumpConsumer{opens: []pumpOpen{
+		{err: jsapi.ErrConsumerNotFound}, // NATS reaped it under InactiveThreshold
+	}}
+
+	sub := testPullSubscriber()
+	sub.consumer = reaped
+	sub.maxWait = time.Millisecond
+	var rebinds int32
+	sub.rebind = func() (jsapi.Consumer, error) {
+		atomic.AddInt32(&rebinds, 1)
+		return replacement, nil
+	}
+
+	sub.workers.Add(1)
+	go sub.pump()
+	defer func() {
+		close(sub.closeCh)
+		sub.workers.Wait()
+	}()
+
+	select {
+	case msg := <-sub.output:
+		if msg == nil {
+			t.Fatal("pump delivered a nil message")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("delivery never resumed after the durable was rebuilt")
+	}
+	if got := atomic.LoadInt32(&rebinds); got != 1 {
+		t.Fatalf("rebind attempts = %d, want exactly 1", got)
+	}
+	// Safe to read without synchronization beyond the channel receive above: the
+	// swap and the delivery it unblocked both happen on the pump goroutine before
+	// the send, so the receive already establishes the happens-before edge.
+	if sub.consumer != jsapi.Consumer(replacement) {
+		t.Fatal("the pump loop is still bound to the consumer the server deleted")
+	}
+}
+
+// pumpResult is one scripted outcome of a MessagesContext.Next call.
+type pumpResult struct {
+	msg jsapi.Msg
+	err error
+}
+
+// pumpMessagesContext is a scripted jetstream.MessagesContext. Each entry is
+// handed to exactly one Next call, in order; once drained, Next blocks until
+// Stop, matching the real iterator's contract while a pull is outstanding and
+// letting stopIteratorOnClose unpark it the same way it would in production.
+type pumpMessagesContext struct {
+	results chan pumpResult
+	stopped chan struct{}
+	once    sync.Once
+}
+
+func newPumpMessagesContext(results ...pumpResult) *pumpMessagesContext {
+	ch := make(chan pumpResult, len(results))
+	for _, r := range results {
+		ch <- r
+	}
+	return &pumpMessagesContext{results: ch, stopped: make(chan struct{})}
+}
+
+func (m *pumpMessagesContext) Next(...jsapi.NextOpt) (jsapi.Msg, error) {
+	select {
+	case r := <-m.results:
+		return r.msg, r.err
+	case <-m.stopped:
+		return nil, jsapi.ErrMsgIteratorClosed
+	}
+}
+
+func (m *pumpMessagesContext) Stop()  { m.once.Do(func() { close(m.stopped) }) }
+func (m *pumpMessagesContext) Drain() { m.Stop() }
+
+// pumpOpen is one scripted outcome of a Consumer.Messages call: either an
+// iterator to drain or the error opening one returns in isolation (the shape a
+// missing durable actually fails in — Messages itself refuses before any
+// iterator exists).
+type pumpOpen struct {
+	iter jsapi.MessagesContext
+	err  error
+}
+
+// pumpConsumer hands back the next scripted open in order, repeating the last
+// one once the script runs out. Embedding jsapi.Consumer(nil) means any method
+// besides Messages panics if the pump loop ever starts calling it, the same
+// contract pullConsumerHandle uses above.
+type pumpConsumer struct {
+	jsapi.Consumer
+	mu    sync.Mutex
+	opens []pumpOpen
+	calls int
+}
+
+func (c *pumpConsumer) Messages(...jsapi.PullMessagesOpt) (jsapi.MessagesContext, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	i := c.calls
+	if i >= len(c.opens) {
+		i = len(c.opens) - 1
+	}
+	c.calls++
+	return c.opens[i].iter, c.opens[i].err
 }
