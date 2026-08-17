@@ -2,14 +2,14 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 # External status surface for the Better Stack status page: one hostname,
-# one path per service — https://status.itsbagelbot.com/<service> rewrites to
+# one path per service — https://health.itsbagelbot.com/<service> rewrites to
 # that service's /status endpoint (pkg/health) and nothing else. The exact-path
 # match plus the replacePath middleware means only /status is ever reachable
 # from outside; /healthz, /readyz and /drain stay cluster-internal (a public
 # /drain would let anyone hold handler goroutines for 10s a request).
 #
 # DNS needs no record work: the cloudflared tunnel wildcard admits any
-# *.itsbagelbot.com hostname, and this router claiming Host(status...) is what
+# *.itsbagelbot.com hostname, and this router claiming Host(health...) is what
 # lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).
 #
 # Every service except transactions exposes port 8080 without a Service object
@@ -164,7 +164,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`status.itsbagelbot.com`) && Path(`/commands`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/commands`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -172,7 +172,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: commands-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/gossip`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/gossip`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -180,7 +180,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: gossip-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/loyalty`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/loyalty`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -188,7 +188,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: loyalty-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/modules`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/modules`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -196,7 +196,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: modules-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/notifications`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/notifications`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -204,7 +204,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: notifications-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/outgress`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -212,7 +212,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: outgress-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/projector`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/projector`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -220,7 +220,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: projector-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/sesame`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -228,7 +228,7 @@ spec:
           port: 80
           scheme: https
           serversTransport: sesame-status-transport
-    - match: Host(`status.itsbagelbot.com`) && Path(`/transactions`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
@@ -237,7 +237,7 @@ spec:
           scheme: https
           serversTransport: transactions-transport
           nativeLB: true
-    - match: Host(`status.itsbagelbot.com`) && Path(`/users`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/users`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
