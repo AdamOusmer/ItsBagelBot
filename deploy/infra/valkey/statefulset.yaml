@@ -74,8 +74,19 @@ spec:
           # writable primary. A host allowlist was never a staleness guarantee
           # either, since any allowlisted host could hold stale data.
           POD_FQDN="${POD_NAME}.valkey-headless.valkey.svc.cluster.local"
+          # This is the only valkey-cli call that leaves the pod: it reaches the
+          # Sentinel Service, so it lands on whichever member answers, which
+          # during a rollout is a member still running the PREVIOUS revision.
+          # The client certificate is therefore mandatory here even though the
+          # config this revision ships sets tls-auth-clients no. A member on a
+          # revision with tls-auth-clients yes rejects a bare handshake, the
+          # lookup returns empty, and the cold-start wait below never exits:
+          # the StatefulSet rolls highest ordinal first, so that member blocks
+          # the very rollout that would relax the setting on its peers.
+          # Presenting the certificate is accepted under either value, which
+          # keeps the lookup correct in both roll directions.
           lookup_master() {
-            { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } \
+            { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.valkey.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --cert /etc/valkey/tls/tls.crt --key /etc/valkey/tls/tls.key --sni valkey.valkey.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } \
               | head -n 1 | tr -d '"'
           }
           LIVE_MASTER=$(lookup_master)
