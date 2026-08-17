@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
+	"time"
 )
 
 const (
@@ -58,12 +60,95 @@ func clientTLSConfig() (*tls.Config, error) {
 	if certFile == "" || keyFile == "" {
 		return nil, fmt.Errorf("valkey: VALKEY_TLS_CLIENT_CERT_FILE and VALKEY_TLS_CLIENT_KEY_FILE must both be set or both be empty")
 	}
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	// GetClientCertificate, not Certificates: the latter is read once when
+	// this *tls.Config is built and then frozen, so a process that lives
+	// past cert-manager's day-75 rotation keeps presenting the cert issued
+	// at boot until it expires at day 90 and every handshake starts failing.
+	// GetClientCertificate is invoked by crypto/tls on every handshake,
+	// which gives the reloader below a chance to notice the rotated file.
+	reloader, err := newClientCertReloader(certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("valkey: loading client cert/key: %w", err)
 	}
-	config.Certificates = []tls.Certificate{cert}
+	config.GetClientCertificate = reloader.getClientCertificate
 	return config, nil
+}
+
+// clientCertReloader caches the parsed client certificate and re-reads it
+// from disk only when the cert file's mtime or size has moved since the last
+// read. A stat is orders of magnitude cheaper than LoadX509KeyPair (which
+// re-parses PEM and re-derives the key), and mtime+size is enough to detect
+// cert-manager's renewal: the kubelet's Secret volume rotates in the new
+// cert via an atomic symlink swap, which always changes both. Byte-for-byte
+// content hashing would catch a same-second same-size edit that this misses,
+// but that isn't a shape cert-manager rotation produces, so it isn't worth
+// reading the file on every handshake to guard against it.
+type clientCertReloader struct {
+	certFile string
+	keyFile  string
+
+	mu      sync.RWMutex
+	cert    *tls.Certificate
+	modTime time.Time
+	size    int64
+}
+
+func newClientCertReloader(certFile, keyFile string) (*clientCertReloader, error) {
+	reloader := &clientCertReloader{certFile: certFile, keyFile: keyFile}
+	if err := reloader.reload(); err != nil {
+		return nil, err
+	}
+	return reloader, nil
+}
+
+// getClientCertificate implements tls.Config.GetClientCertificate.
+func (r *clientCertReloader) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	if r.changed() {
+		// Best effort: if the file is mid-write (the symlink swap isn't
+		// atomic against a concurrent stat+read on every filesystem) or the
+		// rotated pair is briefly invalid, keep serving the cached cert
+		// instead of failing a live handshake over it. The next handshake
+		// tries again.
+		_ = r.reload()
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.cert == nil {
+		return nil, fmt.Errorf("valkey: no client certificate loaded")
+	}
+	return r.cert, nil
+}
+
+func (r *clientCertReloader) changed() bool {
+	info, err := os.Stat(r.certFile)
+	if err != nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return !info.ModTime().Equal(r.modTime) || info.Size() != r.size
+}
+
+func (r *clientCertReloader) reload() error {
+	info, err := os.Stat(r.certFile)
+	if err != nil {
+		return err
+	}
+	cert, err := tls.LoadX509KeyPair(r.certFile, r.keyFile)
+	if err != nil {
+		return err
+	}
+	// LoadX509KeyPair leaves Leaf nil (parsed lazily per handshake by
+	// default); parse it once here so it's cached alongside everything else.
+	if leaf, err := x509.ParseCertificate(cert.Certificate[0]); err == nil {
+		cert.Leaf = leaf
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cert = &cert
+	r.modTime = info.ModTime()
+	r.size = info.Size()
+	return nil
 }
 
 func cloneTLSConfig(config *tls.Config) *tls.Config {

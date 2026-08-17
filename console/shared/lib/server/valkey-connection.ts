@@ -16,14 +16,30 @@ export function valkeyTLSOptions(cfg: ValkeyConfig): ConnectionOptions | undefin
     servername: cfg.tlsServerName || DEFAULT_SERVER_NAME,
     minVersion: 'TLSv1.2'
   };
-  // mTLS: read from the mounted Secret volume at connection-build time (this
-  // function runs from initConsoleRuntime's boot step, never at module eval,
-  // so it is not subject to the $env/dynamic/private top-level-await
-  // deadlock this file's callers already avoid). Both-or-neither, matching
-  // the shared Go client's VALKEY_TLS_CLIENT_CERT_FILE/KEY_FILE contract.
+  // mTLS, reloaded per reconnect rather than read once: iovalkey's connectors
+  // (StandaloneConnector and SentinelConnector) hold onto this exact `tls`
+  // object for the client's whole lifetime and Object.assign it into the
+  // socket options fresh on every connect() call -- i.e. on every reconnect,
+  // which is this long-lived client's equivalent of "the next handshake."
+  // Object.assign invokes property getters at copy time, so defining cert/key
+  // as getters (not static Buffers captured once here) means the mounted
+  // Secret volume is re-read at that moment. A cert-manager rotation at day
+  // 75 reaches the client on its next reconnect with no process restart --
+  // the same fix as the Go client's GetClientCertificate, expressed through
+  // this library's own re-copy mechanism since Node's tls module has no
+  // per-handshake callback for client certs (only servers get SNICallback).
+  // No mtime cache here unlike the Go side: reconnects are rare (network
+  // blips, breaker resets), not a per-request hot path, so re-reading two
+  // small files each time costs nothing worth guarding against.
+  // Both-or-neither, matching the shared Go client's
+  // VALKEY_TLS_CLIENT_CERT_FILE/KEY_FILE contract.
   if (cfg.tlsClientCertFile && cfg.tlsClientKeyFile) {
-    options.cert = readFileSync(cfg.tlsClientCertFile);
-    options.key = readFileSync(cfg.tlsClientKeyFile);
+    const certFile = cfg.tlsClientCertFile;
+    const keyFile = cfg.tlsClientKeyFile;
+    Object.defineProperties(options, {
+      cert: { enumerable: true, get: () => readFileSync(certFile) },
+      key: { enumerable: true, get: () => readFileSync(keyFile) }
+    });
   }
   return options;
 }
