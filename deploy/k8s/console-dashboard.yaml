@@ -255,10 +255,10 @@ spec:
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
-              exec:
-                # Give kube-proxy / traefik time to drain this endpoint
-                # before SIGTERM fires. Prevents connection-refused 500s during rolls.
-                command: ["/bin/sh", "-c", "sleep 10"]
+              # Give kube-proxy / traefik time to drain this endpoint
+              # before SIGTERM fires. Prevents connection-refused 500s during rolls.
+              sleep:
+                seconds: 10
           # scheme HTTPS: the server now terminates TLS on 3000 (see serve-node.js).
           livenessProbe:
             httpGet: {path: /healthz, port: 3000, scheme: HTTPS}
