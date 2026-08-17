@@ -174,8 +174,10 @@ func serialOf(t *testing.T, cfg *tls.Config) int64 {
 func TestTLSConfigReloadsRotatedCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeKeyPair(t, dir, 1)
+	t.Setenv("TLS_CERT_FILE", certFile)
+	t.Setenv("TLS_KEY_FILE", keyFile)
 
-	cfg, err := tlsConfig(certFile, keyFile)
+	cfg, err := tlsEnvConfig()
 	if err != nil {
 		t.Fatal(err)
 	}

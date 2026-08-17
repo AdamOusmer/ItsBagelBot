@@ -221,13 +221,25 @@ func (s *Set) Handler() http.Handler {
 	return mux
 }
 
-// tlsConfig builds a config that re-reads the key pair from disk on every
-// handshake. The files are a cert-manager-managed Secret mount: kubelet swaps
-// them in place on renewal, so loading per handshake is what makes rotation
-// need no restarts and no manual step. Handshake volume here is probes plus a
-// reused traefik connection — pennies. The pair is also loaded once up front
-// so an unreadable cert fails the boot loudly instead of on the first probe.
-func tlsConfig(certFile, keyFile string) (*tls.Config, error) {
+// tlsEnvConfig reads the TLS_CERT_FILE/TLS_KEY_FILE pair and builds a config
+// that re-reads it from disk on every handshake. The files are a
+// cert-manager-managed Secret mount: kubelet swaps them in place on renewal,
+// so loading per handshake is what makes rotation need no restarts and no
+// manual step. Handshake volume here is probes plus a reused traefik
+// connection — pennies. The pair is also loaded once up front so an unreadable
+// cert fails the boot loudly instead of on the first probe.
+//
+// Both unset returns a nil config (plaintext listener); a half-set pair is an
+// error, never a plaintext fallback.
+func tlsEnvConfig() (*tls.Config, error) {
+	certFile, keyFile := env.Get("TLS_CERT_FILE", ""), env.Get("TLS_KEY_FILE", "")
+	if (certFile == "") != (keyFile == "") {
+		return nil, errors.New("health: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
+	}
+	if certFile == "" {
+		return nil, nil
+	}
+
 	load := func() (*tls.Certificate, error) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -260,19 +272,12 @@ func Serve(addr, service string, checks ...Check) <-chan error {
 	}
 
 	errs := make(chan error, 1)
-	certFile, keyFile := env.Get("TLS_CERT_FILE", ""), env.Get("TLS_KEY_FILE", "")
-	if (certFile == "") != (keyFile == "") {
-		errs <- errors.New("health: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
+	cfg, err := tlsEnvConfig()
+	if err != nil {
+		errs <- err
 		return errs
 	}
-	if certFile != "" {
-		cfg, err := tlsConfig(certFile, keyFile)
-		if err != nil {
-			errs <- err
-			return errs
-		}
-		srv.TLSConfig = cfg
-	}
+	srv.TLSConfig = cfg
 
 	go func() {
 		if srv.TLSConfig != nil {
