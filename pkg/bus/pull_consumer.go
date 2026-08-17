@@ -73,6 +73,17 @@ const (
 	// set — which every other pod is drawing from — shrinks by that much.
 	defaultPullAckEvery = 250 * time.Millisecond
 
+	// defaultPullReplicas matches the lane streams' own replica count. The durable
+	// has to survive exactly what the stream survives, and a consumer cannot ask
+	// for more replicas than the stream it reads has.
+	defaultPullReplicas = 3
+
+	// laneUnhealthyAfter is how long the fetch loop may stay in its error path
+	// before the lane reports itself unready. It has to clear an ordinary consumer
+	// leader election and a client reconnect — both error for a few seconds — and
+	// stay far under the time anyone would take to notice the silence by hand.
+	laneUnhealthyAfter = 30 * time.Second
+
 	pullProvisionTimeout = 5 * time.Second
 )
 
@@ -105,13 +116,21 @@ func pullConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 		// fleet has stopped fetching from it. It is the same window the flow lane
 		// gives a pod to reconnect inside without losing its position.
 		InactiveThreshold: flowInactiveThreshold,
-		// R1 consumer state on an R3 stream, per NATS maintainer guidance for
-		// high-rate consumers: replicating per-consumer ack state is leader RAFT
-		// work on the hot path, and this design does not need it. Losing the state
-		// means the fleet re-provisions and resumes from the last replicated floor;
-		// the idempotency guard absorbs the redelivered window and the stream's own
-		// durability is untouched.
-		Replicas:      1,
+		// Consumer state is replicated with the stream it reads.
+		//
+		// This was R1, on the reasoning that per-consumer ack state is leader RAFT
+		// work on the hot path and that the fleet would simply re-provision after
+		// losing it. The second half was never true: nothing rebuilt a lane durable,
+		// so a single peer owned the whole fleet's ability to consume. On 2026-08-16
+		// one member lost peer routing for 23 minutes, the meta layer moved these
+		// durables eleven times while it churned and then lost them, and every pod
+		// spun on a name that no longer resolved for the next seven hours.
+		// Quorum-replicated state survives one member, which is the failure that
+		// actually happens; rebuildConsumer covers losing all of them at once.
+		//
+		// Memory storage stays. The lane streams are memory-backed themselves, so
+		// persisting ack state to disk cannot outlive the messages it describes.
+		Replicas:      pullReplicas(),
 		MemoryStorage: true,
 		Metadata:      map[string]string{managedConsumerMetadata: "true"},
 	}
@@ -144,6 +163,14 @@ func pullMaxAckPending() int {
 
 func pullFetchBatch() int {
 	return positiveInt(env.GetInt("NATS_PULL_FETCH_BATCH", defaultPullFetchBatch), defaultPullFetchBatch)
+}
+
+// pullReplicas exists as a knob only so a single-node broker (local runs, the
+// acceptance rigs) can bind the lane at all: asking three replicas of a
+// one-member cluster is a creation the server refuses, and the lane binding is
+// a boot-fatal step. Production never sets it.
+func pullReplicas() int {
+	return positiveInt(env.GetInt("NATS_PULL_REPLICAS", defaultPullReplicas), defaultPullReplicas)
 }
 
 // positiveDuration and positiveInt refuse a zero or negative override. Every
@@ -343,12 +370,21 @@ type pullDelivery struct {
 // one out, so a slow handler pool is backpressure onto the server's pending set
 // rather than a queue this process has to size against a flow-control window.
 type pullSubscriber struct {
-	nc       *nats.Conn
+	nc *nats.Conn
+	// consumer is read and replaced only by the pump goroutine, which is why
+	// rebuildConsumer needs no lock to swap it.
 	consumer jsapi.Consumer
-	stream   string
-	subject  string
-	name     string
-	log      *zap.Logger
+	// desired is the shape rebuildConsumer re-provisions, kept so a rebuild can
+	// never drift from the binding this loop was started with.
+	desired jsapi.ConsumerConfig
+	// rebind provisions a replacement durable. It is a field rather than a direct
+	// call so the rebuild decision is testable without a broker; the constructor
+	// always fills it with the real API path.
+	rebind  func() (jsapi.Consumer, error)
+	stream  string
+	subject string
+	name    string
+	log     *zap.Logger
 
 	batch    int
 	maxWait  time.Duration
@@ -358,7 +394,13 @@ type pullSubscriber struct {
 	dropped   atomic.Int64
 	fetchErrs atomic.Int64
 	ackErrs   atomic.Int64
+	rebuilt   atomic.Int64
 	closed    atomic.Bool
+
+	// errSince is the unix-nano instant the fetch loop entered its error path, or
+	// zero while it is healthy. An idle lane never sets it — Next simply blocks —
+	// so silence and sickness stay distinguishable to Healthy.
+	errSince atomic.Int64
 
 	// ackMu guards the newest delivery the floor has not yet covered. Both the
 	// fetch loop and the ack timer publish the floor, and two acks racing would
@@ -410,8 +452,9 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		log = zap.NewNop()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &pullSubscriber{
-		nc: nc, consumer: consumer, stream: cfg.stream, subject: cfg.subject,
+	s := &pullSubscriber{
+		nc: nc, consumer: consumer, desired: pullConsumerConfig(cfg.subject, name),
+		stream: cfg.stream, subject: cfg.subject,
 		name: name, log: log,
 		batch: pullFetchBatch(), maxWait: pullFetchMaxWait(), ackEvery: pullAckEvery(),
 		output:  make(chan *Message),
@@ -419,6 +462,8 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		ctx:     ctx,
 		cancel:  cancel,
 	}
+	s.rebind = func() (jsapi.Consumer, error) { return ensurePullConsumer(s.nc, s.stream, s.desired) }
+	return s
 }
 
 func (s *pullSubscriber) start() {
@@ -473,6 +518,7 @@ func (s *pullSubscriber) pumpIterator() bool {
 			}
 			return s.noteFetchError(err)
 		}
+		s.noteFetchProgress()
 		if !s.deliver(wire) {
 			return false
 		}
@@ -669,6 +715,7 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 	if s.closed.Load() {
 		return false
 	}
+	s.errSince.CompareAndSwap(0, time.Now().UnixNano())
 	if count := s.fetchErrs.Add(1); count == 1 || count%1_000 == 0 {
 		s.log.Warn("lane fetch failed",
 			zap.String("stream", s.stream),
@@ -677,7 +724,71 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 			zap.Int64("fetch_errors", count),
 			zap.Error(err))
 	}
+	if consumerGone(err) {
+		s.rebuildConsumer()
+	}
 	return s.pause(s.maxWait)
+}
+
+// noteFetchProgress clears the error clock the moment the loop reads a message
+// again. It is a relaxed load per delivery on the hot path and a store only on
+// the edge, so a healthy lane pays a comparison and nothing else.
+func (s *pullSubscriber) noteFetchProgress() {
+	if s.errSince.Load() != 0 {
+		s.errSince.Store(0)
+	}
+}
+
+// consumerGone separates "the durable this binding names no longer exists" from
+// every other fetch failure. A leadership change, a timeout or a dropped
+// connection is the lane working through something and the next fetch may well
+// succeed; these two mean the name resolves to nothing and every later fetch
+// fails identically until something recreates it.
+func consumerGone(err error) bool {
+	return errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrConsumerDeleted)
+}
+
+// rebuildConsumer re-provisions the shared durable after the server has lost it.
+//
+// The lane durable is fleet-wide and genuinely deletable: InactiveThreshold
+// expires it once the whole fleet stops fetching, and losing every replica of
+// its state takes it with them. The original design accepted that and assumed
+// "the fleet re-provisions" — but no code did, so a deleted durable meant every
+// pod asking a name that no longer resolved, five times a second, until someone
+// restarted the deployment by hand. This is that missing half.
+//
+// It runs on the pump goroutine, the only reader of s.consumer, so the swap
+// needs no lock. A failed rebuild is simply left to the next fetch error: the
+// pump loop already is the retry.
+func (s *pullSubscriber) rebuildConsumer() {
+	// The old consumer's receipt can never be acked against a new one, and
+	// holding it would spend the next floor ack on a guaranteed failure.
+	s.takePending()
+
+	consumer, err := s.rebind()
+	if err != nil {
+		s.log.Warn("lane consumer rebuild failed",
+			zap.String("stream", s.stream),
+			zap.String("subject", s.subject),
+			zap.String("consumer", s.name),
+			zap.Error(err))
+		return
+	}
+	s.consumer = consumer
+	s.log.Warn("lane consumer was missing and has been rebuilt",
+		zap.String("stream", s.stream),
+		zap.String("subject", s.subject),
+		zap.String("consumer", s.name),
+		zap.Int64("rebuilds", s.rebuilt.Add(1)))
+}
+
+// Healthy reports whether this lane's fetch loop is making progress, which is
+// the readiness signal a NATS connection check cannot give: a lane whose durable
+// has been deleted keeps a perfectly healthy connection while consuming nothing.
+// An idle lane is healthy — only sustained failure is not.
+func (s *pullSubscriber) Healthy() bool {
+	since := s.errSince.Load()
+	return since == 0 || time.Since(time.Unix(0, since)) < laneUnhealthyAfter
 }
 
 func (s *pullSubscriber) pause(wait time.Duration) bool {
