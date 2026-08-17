@@ -1,0 +1,222 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: projector-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: projector-doppler-token
+  managedSecret:
+    name: projector-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projector
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per hot-path node: node4, node5, node6
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: projector
+  template:
+    metadata:
+      labels:
+        app: projector
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: projector
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: projector
+      # Required pod anti-affinity prevents old and new ReplicaSets from ever
+      # stacking two projector pods on one hot-path node.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: projector
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1786934707-b71a0f43997c@sha256:a8d4d3d4caf5add19d8c973a9d66e899a6f77d7cf2b263345e51a77de82ff230 # {"$imagepolicy": "flux-system:projector"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
+            # BAGEL_DATA folds remain pinned to nats-1. The independent publisher
+            # pool uses the PreferSameNode hub Service so its TLS/socket/batch
+            # work is distributed across the three brokers before NATS routes
+            # each commit to the stream leader.
+            - name: NATS_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_HUB_URL
+              value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
+            - name: NATS_HUB_PUBLISH_URL
+              value: nats://nats:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.valkey.svc.cluster.local
+            # mTLS: pkg/valkey's clientTLSConfig() treats these two as
+            # both-or-neither. Land this (a no-op while tls-auth-clients is
+            # still "no") on every consumer BEFORE flipping the statefulset,
+            # not after.
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NATS_RPC_URL
+              value: nats://nats-leaf:4222
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.valkey.svc.cluster.local:6380
+            # Receipt-level consumption is deliberately absent here, not merely
+            # unset. The projector's bindings are the BAGEL_DATA folds and
+            # twitch.ingress.event.stream, and pkg/bus admits the pull and flow
+            # shapes on the hot ingress lanes alone (isHotIngressLane), so these
+            # two would be accepted, declined per subject, and logged as
+            # "receipt-level consumption declined outside the hot ingress
+            # lanes". Setting them would read as a canary that soaks and prove
+            # nothing about the shape sesame actually runs.
+            #
+            #   - name: NATS_CONSUME_FLOW
+            #     value: "on"
+            #   - name: NATS_CONSUME_MODE
+            #     value: pull
+            #
+            # They become meaningful only if the scope guard widens to a subject
+            # this service reads, and that change owes projector_bus a
+            # $JS.API.CONSUMER.MSG.NEXT grant in nats-auth.conf in the same
+            # commit: a denied fetch is a silent zero-delivery lane, not an
+            # error.
+            - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
+              value: bagel.rpc.projector.dashboard
+            - name: PROJECTOR_WRITE_CONCURRENCY
+              value: "8"
+            # Stream-online refreshes keep a full settings snapshot warm for a
+            # day. Dashboard command/module reads hydrate missing sections in
+            # the background with a shorter two-hour retention window.
+            - name: PROJECTOR_LIVE_HYDRATION_TTL
+              value: 24h
+            - name: PROJECTOR_QUERY_HYDRATION_TTL
+              value: 2h
+            - name: PROJECTOR_HYDRATION_CONCURRENCY
+              value: "8"
+            - name: GOMEMLIMIT
+              value: 256MiB
+          envFrom:
+            - secretRef:
+                name: projector-env
+          volumeMounts:
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 750m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: projector
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: projector

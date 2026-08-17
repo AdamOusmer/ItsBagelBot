@@ -1,0 +1,218 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: transactions-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: transactions-doppler-token
+  managedSecret:
+    name: transactions-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transactions
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per hot-path node: node4, node5, node6
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: transactions
+  template:
+    metadata:
+      labels:
+        app: transactions
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: transactions
+      # Three replicas and three eligible domains keep one transactions pod
+      # per hot-path node after every ReplicaSet rollout.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: transactions
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1786934707-b71a0f43997c@sha256:a9ee4742296f794188b7f1424d66514ef8b0b666edb13e201f01ff9f87c6ed05 # {"$imagepolicy": "flux-system:transactions"}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # transactions is RPC-only: the checkout/billing/gift-notify verbs
+            # all ride the TRANSACTIONS_RPC responder on the node-local leaf; it
+            # never touches JetStream, so no NATS_HUB_URL and no BUS credential.
+            # RPC creds (NATS_RPC_USER/PASSWORD) and the Tebex Headless secrets
+            # (TEBEX_WEBSTORE_TOKEN, TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
+            - name: NATS_URL
+              value: nats://nats-leaf:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_LEAF_URL
+              value: nats://nats-leaf:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_MAX_OPEN_CONNS
+              value: "4"
+            - name: DB_QUERY_CONCURRENCY
+              value: "4"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            # Tebex Developers > Webhooks > Endpoints secret. The Fiber webhook
+            # handler refuses requests until this is configured.
+            - name: TEBEX_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: transactions-env
+                  key: TEBEX_WEBHOOK_SECRET
+                  optional: true
+            - name: GOMEMLIMIT
+              value: 160MiB
+            # Serve HTTPS on 8080 using the cert-manager transactions-tls cert,
+            # so the traefik->transactions hop is TLS. Traefik re-encrypts via
+            # the transactions-transport ServersTransport. Both env vars are
+            # required together (main.go fails fast on a mismatched pair);
+            # unset keeps the listener plaintext.
+            - name: TLS_CERT_FILE
+              value: /etc/transactions/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/transactions/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: transactions-env
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - {name: tls, mountPath: /etc/transactions/tls, readOnly: true}
+          resources:
+            requests:
+              cpu: 15m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          # scheme HTTPS: the server now terminates TLS on 8080.
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: tls
+          secret:
+            secretName: transactions-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transactions
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: transactions
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: transactions-webhooks
+  namespace: production
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
+      kind: Rule
+      services:
+        - name: transactions
+          port: 80
+          # HTTPS to the backend: main.go now terminates TLS when
+          # TLS_CERT_FILE/TLS_KEY_FILE are set, so traefik re-encrypts via the
+          # ServersTransport below (rootCAs = the cert's own fleet-CA ca.crt).
+          # This makes the traefik->transactions hop TLS end-to-end.
+          scheme: https
+          serversTransport: transactions-transport
+          nativeLB: true
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: transactions-transport
+  namespace: production
+spec:
+  # Verify the transactions pod's TLS cert against the fleet CA. serverName
+  # matches the cert SAN (the Service name). rootCAsSecrets reads the CA from
+  # the cert-manager secret's ca.crt key (Traefik v3). No InsecureSkipVerify.
+  serverName: transactions
+  rootCAsSecrets:
+    - transactions-tls
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: transactions
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: transactions
