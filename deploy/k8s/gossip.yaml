@@ -143,10 +143,18 @@ spec:
               value: valkey-local.valkey.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 96MiB
+            # Serve HTTPS on 8080 with the cert-manager gossip-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/gossip/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/gossip/tls/tls.key
           envFrom:
             - secretRef:
                 name: gossip-env
           volumeMounts:
+            - {name: health-tls, mountPath: /etc/gossip/tls, readOnly: true}
             - name: valkey-client-tls
               mountPath: /etc/valkey/client-tls
               readOnly: true
@@ -167,17 +175,21 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       volumes:
+        - name: health-tls
+          secret:
+            secretName: gossip-tls
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/env"
 )
 
 // checkTimeout bounds one endpoint invocation end to end. Probes and uptime
@@ -221,6 +222,13 @@ func (s *Set) Handler() http.Handler {
 
 // Serve starts the health endpoints on addr in a background goroutine. The
 // returned error channel yields at most one listener error.
+//
+// When the TLS_CERT_FILE/TLS_KEY_FILE pair is set (the cert-manager fleet-CA
+// cert, mirroring the transactions listener) it serves HTTPS: the fleet's
+// traefik->backend hops are TLS with no exceptions, and /status is routed
+// through traefik. A half-set pair is an error, never a plaintext fallback;
+// the dead listener then fails the pod's probes, which is what makes the
+// misconfiguration visible.
 func Serve(addr, service string, checks ...Check) <-chan error {
 	srv := &http.Server{
 		Addr:              addr,
@@ -229,7 +237,17 @@ func Serve(addr, service string, checks ...Check) <-chan error {
 	}
 
 	errs := make(chan error, 1)
+	certFile, keyFile := env.Get("TLS_CERT_FILE", ""), env.Get("TLS_KEY_FILE", "")
+	if (certFile == "") != (keyFile == "") {
+		errs <- errors.New("health: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
+		return errs
+	}
+
 	go func() {
+		if certFile != "" {
+			errs <- srv.ListenAndServeTLS(certFile, keyFile)
+			return
+		}
 		errs <- srv.ListenAndServe()
 	}()
 

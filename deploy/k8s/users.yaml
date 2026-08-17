@@ -131,10 +131,18 @@ spec:
               value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
+            # Serve HTTPS on 8080 with the cert-manager users-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/users/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/users/tls/tls.key
           envFrom:
             - secretRef:
                 name: users-env
           volumeMounts:
+            - {name: health-tls, mountPath: /etc/users/tls, readOnly: true}
             # Tink keyset for at-rest token encryption, synced from Doppler
             # (TINK_KEYSET key of users-env) and consumed as a file via
             # TINK_KEYSET_PATH=/etc/tink/keyset.json.
@@ -158,18 +166,22 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       terminationGracePeriodSeconds: 45
       volumes:
+        - name: health-tls
+          secret:
+            secretName: users-tls
         - name: tink-keyset
           secret:
             secretName: users-env
