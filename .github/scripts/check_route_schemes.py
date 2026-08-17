@@ -49,89 +49,159 @@ TRAEFIK_API = "traefik.io/v1alpha1"
 SERVERS_SCHEME_ANNOTATION = "traefik.ingress.kubernetes.io/service.serversscheme"
 
 
-def iter_manifests():
+def iter_manifest_paths():
+    """Every YAML file under the scanned directories, in stable order."""
     for scan_dir in SCAN_DIRS:
         base = ROOT / scan_dir
         if not base.is_dir():
             continue
-        for path in sorted(base.rglob("*.yml")) + sorted(base.rglob("*.yaml")):
-            try:
-                docs = list(yaml.safe_load_all(path.read_text()))
-            except yaml.YAMLError as exc:
-                yield path, None, f"YAML parse error: {exc}"
-                continue
-            for doc in docs:
-                if isinstance(doc, dict) and doc.get("kind"):
-                    yield path, doc, None
+        yield from sorted(base.rglob("*.yml"))
+        yield from sorted(base.rglob("*.yaml"))
 
 
-def check_ingressroute_services(path, name, namespace, services, failures):
+def iter_docs_in(path):
+    """Yield (doc, error) for one file. A parse failure yields a single error."""
+    try:
+        docs = list(yaml.safe_load_all(path.read_text()))
+    except yaml.YAMLError as exc:
+        yield None, f"YAML parse error: {exc}"
+        return
+    for doc in docs:
+        if isinstance(doc, dict) and doc.get("kind"):
+            yield doc, None
+
+
+def iter_manifests():
+    for path in iter_manifest_paths():
+        for doc, error in iter_docs_in(path):
+            yield path, doc, error
+
+
+# Routes whose backend genuinely cannot serve TLS, keyed by
+# (namespace, IngressRoute name, backend service name).
+#
+# This is not a place to silence inconvenient findings. An entry belongs here
+# only when the backend is a third-party binary with no TLS support at all, so
+# no amount of configuration on our side can satisfy the check. Every entry
+# carries its justification and is printed on each run, so it stays visible
+# rather than quietly accumulating. Anything not listed here still fails.
+UPSTREAM_TLS_INCAPABLE = {
+    ("flux-system", "webhook-receiver", "webhook-receiver"): (
+        "notification-controller (flux v2.8.8 / controller v1.8.4) exposes no "
+        "TLS flags on --receiverAddr or anywhere else, so the receiver cannot "
+        "serve HTTPS. Closing this needs a TLS-terminating sidecar patched into "
+        "a Flux bootstrap-managed Deployment. Remove this entry the moment "
+        "upstream gains TLS support or that sidecar lands."
+    ),
+}
+
+
+class Report:
+    """Collects what the walk found, so handlers take one object, not two lists."""
+
+    def __init__(self):
+        self.failures = []
+        self.exempted = []
+
+
+class Doc:
+    """A manifest document plus where it came from."""
+
+    def __init__(self, path, doc):
+        self.path = path
+        self.doc = doc
+        self.meta = doc.get("metadata", {}) or {}
+        self.spec = doc.get("spec", {}) or {}
+        self.kind = doc.get("kind", "")
+        self.name = self.meta.get("name", "<unnamed>")
+        self.namespace = self.meta.get("namespace", "<no-namespace>")
+
+
+def check_service(ctx, svc, report):
+    if not isinstance(svc, dict) or svc.get("kind") == "TraefikService":
+        # A TraefikService reference is resolved when that object is walked
+        # itself -- nothing to check on the reference.
+        return
+    if svc.get("scheme", "http") == "https":
+        return
+    reason = UPSTREAM_TLS_INCAPABLE.get((ctx.namespace, ctx.name, svc.get("name")))
+    if reason is not None:
+        report.exempted.append(
+            f"{ctx.namespace}/{ctx.name} -> {svc.get('name')!r}: {reason}"
+        )
+        return
+    report.failures.append(
+        f"{ctx.path}: {ctx.kind} {ctx.namespace}/{ctx.name} -> service "
+        f"{svc.get('name')!r} port {svc.get('port')!r} "
+        f"scheme={svc.get('scheme', 'http')!r} (must be scheme: https)"
+    )
+
+
+def check_services(ctx, services, report):
     for svc in services or []:
-        if not isinstance(svc, dict):
-            continue
-        if svc.get("kind") == "TraefikService":
-            # Resolved separately when the TraefikService object itself is
-            # walked below -- nothing to check on the reference.
-            continue
-        scheme = svc.get("scheme", "http")
-        if scheme != "https":
-            failures.append(
-                f"{path}: IngressRoute {namespace}/{name} -> service "
-                f"{svc.get('name')!r} port {svc.get('port')!r} scheme={scheme!r} "
-                f"(must be scheme: https)"
-            )
+        check_service(ctx, svc, report)
 
 
-def check_doc(path, doc, failures):
-    api_version = doc.get("apiVersion", "")
-    kind = doc.get("kind", "")
-    meta = doc.get("metadata", {}) or {}
-    name = meta.get("name", "<unnamed>")
-    namespace = meta.get("namespace", "<no-namespace>")
-
-    if api_version == TRAEFIK_API and kind == "IngressRoute":
-        spec = doc.get("spec", {}) or {}
-        for route in spec.get("routes", []) or []:
-            check_ingressroute_services(
-                path, name, namespace, route.get("services"), failures
-            )
-
-    elif api_version == TRAEFIK_API and kind == "TraefikService":
-        spec = doc.get("spec", {}) or {}
-        weighted = spec.get("weighted") or {}
-        check_ingressroute_services(
-            path, name, namespace, weighted.get("services"), failures
-        )
-        mirroring = spec.get("mirroring")
-        if mirroring:
-            check_ingressroute_services(path, name, namespace, [mirroring], failures)
-            check_ingressroute_services(
-                path, name, namespace, mirroring.get("mirrors"), failures
-            )
-
-    elif api_version == TRAEFIK_API and kind in ("IngressRouteTCP", "IngressRouteUDP"):
-        failures.append(
-            f"{path}: {kind} {namespace}/{name} is not modeled by this checker "
-            f"(no http-style backend scheme for TCP/UDP). Extend "
-            f"check_route_schemes.py with an explicit rule for it before this "
-            f"can merge -- failing closed instead of silently skipping it."
-        )
-
-    elif api_version == "networking.k8s.io/v1" and kind == "Ingress":
-        spec = doc.get("spec", {}) or {}
-        ingress_class = spec.get("ingressClassName") or ""
-        if ingress_class not in ("", "traefik"):
-            return  # different controller (e.g. tailscale); out of scope
-        annotations = meta.get("annotations", {}) or {}
-        if annotations.get(SERVERS_SCHEME_ANNOTATION) != "https":
-            failures.append(
-                f"{path}: Ingress {namespace}/{name} (class={ingress_class or 'traefik(default)'}) "
-                f"missing '{SERVERS_SCHEME_ANNOTATION}: https' annotation"
-            )
+def check_ingressroute(ctx, report):
+    for route in ctx.spec.get("routes") or []:
+        check_services(ctx, route.get("services"), report)
 
 
-def main():
-    failures = []
+def check_traefikservice(ctx, report):
+    check_services(ctx, (ctx.spec.get("weighted") or {}).get("services"), report)
+    mirroring = ctx.spec.get("mirroring")
+    if not mirroring:
+        return
+    check_services(ctx, [mirroring], report)
+    check_services(ctx, mirroring.get("mirrors"), report)
+
+
+def check_stream_route(ctx, report):
+    # TCP/UDP routes have no http-style backend scheme, so this checker cannot
+    # judge them. Fail closed rather than skip: a new one must be modelled
+    # deliberately before it can merge.
+    report.failures.append(
+        f"{ctx.path}: {ctx.kind} {ctx.namespace}/{ctx.name} is not modeled by "
+        f"this checker (no http-style backend scheme for TCP/UDP). Extend "
+        f"check_route_schemes.py with an explicit rule for it before this "
+        f"can merge -- failing closed instead of silently skipping it."
+    )
+
+
+def check_ingress(ctx, report):
+    ingress_class = ctx.spec.get("ingressClassName") or ""
+    if ingress_class not in ("", "traefik"):
+        return  # different controller (e.g. tailscale); out of scope
+    annotations = ctx.meta.get("annotations", {}) or {}
+    if annotations.get(SERVERS_SCHEME_ANNOTATION) == "https":
+        return
+    report.failures.append(
+        f"{ctx.path}: Ingress {ctx.namespace}/{ctx.name} "
+        f"(class={ingress_class or 'traefik(default)'}) "
+        f"missing '{SERVERS_SCHEME_ANNOTATION}: https' annotation"
+    )
+
+
+# Dispatch on (apiVersion, kind). Adding a route type means adding a handler
+# here, not extending a conditional chain.
+HANDLERS = {
+    (TRAEFIK_API, "IngressRoute"): check_ingressroute,
+    (TRAEFIK_API, "TraefikService"): check_traefikservice,
+    (TRAEFIK_API, "IngressRouteTCP"): check_stream_route,
+    (TRAEFIK_API, "IngressRouteUDP"): check_stream_route,
+    ("networking.k8s.io/v1", "Ingress"): check_ingress,
+}
+
+
+def check_doc(path, doc, report):
+    handler = HANDLERS.get((doc.get("apiVersion", ""), doc.get("kind", "")))
+    if handler is None:
+        return
+    handler(Doc(path, doc), report)
+
+
+def walk(report):
+    """Walk every manifest, returning parse errors and whether anything was seen."""
     parse_errors = []
     seen_any = False
     for path, doc, error in iter_manifests():
@@ -139,23 +209,37 @@ def main():
         if error:
             parse_errors.append(f"{path}: {error}")
             continue
-        check_doc(path, doc, failures)
+        check_doc(path, doc, report)
+    return parse_errors, seen_any
+
+
+def print_block(heading, lines):
+    if not lines:
+        return
+    print(heading.format(n=len(lines)))
+    for line in lines:
+        print(f"  {line}")
+
+
+def main():
+    report = Report()
+    parse_errors, seen_any = walk(report)
 
     if not seen_any:
         print("::error::no manifests found under deploy/ -- check is not running")
         return 1
 
-    if parse_errors:
-        print("YAML parse errors (failing closed):")
-        for e in parse_errors:
-            print(f"  {e}")
+    print_block("YAML parse errors (failing closed):", parse_errors)
+    print_block(
+        "{n} route(s) exempted -- backend cannot serve TLS upstream:",
+        report.exempted,
+    )
+    print_block(
+        "{n} route object(s) with a non-https backend scheme:",
+        report.failures,
+    )
 
-    if failures:
-        print(f"{len(failures)} route object(s) with a non-https backend scheme:")
-        for f in failures:
-            print(f"  {f}")
-
-    if failures or parse_errors:
+    if report.failures or parse_errors:
         return 1
 
     print("all route objects under deploy/ use an https backend scheme.")
