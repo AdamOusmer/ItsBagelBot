@@ -44,6 +44,15 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
+    # Node VLAN addresses. hostNetwork NATS members advertise their node IP
+    # (10.10.0.x) in gossip and connect_urls, so route, leafnode, and client
+    # dials arrive addressed by IP and verify against an IP SAN, not a DNS
+    # name. Without these, every IP-dialed TLS handshake fails with
+    # "bad certificate" the moment a member restarts onto a fresh socket
+    # (observed 2026-08-17: JetStream meta lost quorum after a hub roll).
+    - 10.10.0.4
+    - 10.10.0.5
+    - 10.10.0.6
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -71,6 +80,15 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
+    # Node VLAN addresses. hostNetwork NATS members advertise their node IP
+    # (10.10.0.x) in gossip and connect_urls, so route, leafnode, and client
+    # dials arrive addressed by IP and verify against an IP SAN, not a DNS
+    # name. Without these, every IP-dialed TLS handshake fails with
+    # "bad certificate" the moment a member restarts onto a fresh socket
+    # (observed 2026-08-17: JetStream meta lost quorum after a hub roll).
+    - 10.10.0.4
+    - 10.10.0.5
+    - 10.10.0.6
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
