@@ -11,7 +11,7 @@ metadata:
   labels:
     app: nats
   name: nats
-  namespace: production
+  namespace: messaging
 spec:
   serviceName: nats-headless
   replicas: 3
@@ -308,7 +308,7 @@ metadata:
   labels:
     app: nats
   name: nats
-  namespace: production
+  namespace: messaging
 spec:
   maxUnavailable: 1
   selector:
@@ -321,7 +321,7 @@ metadata:
   labels:
     app: nats
   name: nats
-  namespace: production
+  namespace: messaging
 spec:
   # JetStream clients dial this Service directly. Prefer the hub on the same
   # node so app-tier clients avoid an unnecessary cross-node hop.
@@ -338,7 +338,7 @@ metadata:
   labels:
     app: nats
   name: nats-headless
-  namespace: production
+  namespace: messaging
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -372,7 +372,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: nats-monitoring
-  namespace: production
+  namespace: messaging
   annotations:
     tailscale.com/proxy-group: ts-ingress
 spec:

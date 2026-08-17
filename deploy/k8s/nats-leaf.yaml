@@ -11,7 +11,7 @@ metadata:
   labels:
     app: nats-leaf
   name: nats-leaf
-  namespace: production
+  namespace: messaging
 spec:
   revisionHistoryLimit: 5
   updateStrategy:
@@ -56,7 +56,7 @@ spec:
       # This used to be a bare `tolerations:` null key left behind when the
       # worker-pool and nats-ingress entries were dropped. Null parses fine and
       # reads as "no tolerations", so it was not a bug on its own, but it hid
-      # one: node1 was tainted itsbagelbot.dev/role=cp:NoSchedule AFTER a leaf
+      # one: node1 was tainted role=cp:NoSchedule AFTER a leaf
       # had already been scheduled there, and NoSchedule does not evict, so the
       # stale pod survived every reconcile. Deleting it is enough; with no
       # matching toleration the DaemonSet cannot place it again.
@@ -212,7 +212,7 @@ metadata:
   labels:
     app: nats-leaf
   name: nats-leaf
-  namespace: production
+  namespace: messaging
 spec:
   # Same-node first, then same-zone, then cluster-wide. Unlike Local this keeps
   # applications available while their node's leaf is down; unlike PreferClose
@@ -236,7 +236,7 @@ metadata:
   labels:
     app: nats-leaf
   name: nats-leaf-local
-  namespace: production
+  namespace: messaging
 spec:
   # Health/failback probe only. With no local endpoint this Service is
   # unreachable, so clients never mistake a remote leaf for the recovered
@@ -256,7 +256,7 @@ metadata:
   labels:
     app: nats-leaf
   name: nats-leaf-peers
-  namespace: production
+  namespace: messaging
 spec:
   # Headless route-discovery for the leaf cluster: the route URL resolves to every
   # leaf's node address, so each node dials every peer and forms a clean full mesh

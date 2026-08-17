@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: notifications-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: notifications-doppler-token
   managedSecret:
     name: notifications-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notifications
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -157,7 +157,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: notifications
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
@@ -174,7 +174,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: notifications-cleanup
-  namespace: production
+  namespace: app
 spec:
   schedule: "17 3 * * *" # daily, off the top of the hour
   concurrencyPolicy: Forbid

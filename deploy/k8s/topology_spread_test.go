@@ -157,13 +157,13 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 // match expression that keeps the workload off worker-role nodes.
 //
 // The key moved from itsbagelbot.dev/pool=worker-pool to
-// itsbagelbot.dev/role=worker when node roles were unified onto one key
+// role=worker when node roles were unified onto one key
 // (cp / node / worker). No worker-role node exists yet, so this guard is
 // currently inert — it is kept expressed on the live key so that it starts
 // holding the moment one is added, rather than silently pointing at a retired
 // label that nothing would ever match.
 func excludesWorkerPool(key, operator string, values []string) bool {
-	return key == "itsbagelbot.dev/role" &&
+	return key == "role" &&
 		operator == "NotIn" &&
 		slices.Contains(values, "worker")
 }
@@ -173,7 +173,7 @@ func excludesWorkerPool(key, operator string, values []string) bool {
 // moment the fleet changes shape, and a stale term is silently inert rather than
 // loud. Retiring a node left rules reading "NotIn [worker1]" and "NotIn [node1]"
 // long after both hosts were gone, each carrying a comment admitting it was
-// already inert. Selecting on itsbagelbot.dev/role instead keeps the intent
+// already inert. Selecting on role instead keeps the intent
 // ("not the control plane", "not a burst worker") true across fleet changes.
 //
 // Only nodeAffinity is in scope. topologySpreadConstraints and podAntiAffinity
@@ -182,7 +182,7 @@ func excludesWorkerPool(key, operator string, values []string) bool {
 func TestNoWorkloadSelectsNodesByHostname(t *testing.T) {
 	for _, located := range loadDirectoryManifests(t) {
 		for _, selector := range hostnameNodeSelectors(located.workloadManifest) {
-			t.Errorf("%s/%s selects nodes by hostname (%s); select on itsbagelbot.dev/role instead",
+			t.Errorf("%s/%s selects nodes by hostname (%s); select on role instead",
 				located.filename, located.Metadata.Name, selector)
 		}
 	}

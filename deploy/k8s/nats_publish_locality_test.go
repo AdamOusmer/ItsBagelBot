@@ -14,12 +14,12 @@ func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 		variable string
 		value    string
 	}{
-		{"twitch-ingress.yaml", "NATS_HUB_HOST", "nats"},
-		{"commands.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats:4222"},
-		{"modules.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats:4222"},
-		{"projector.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats:4222"},
-		{"sesame.yaml", "NATS_HUB_PUBLISH_URL", "tls://nats:4222"},
-		{"users.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats:4222"},
+		{"twitch-ingress.yaml", "NATS_HUB_HOST", "nats.messaging"},
+		{"commands.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats.messaging:4222"},
+		{"modules.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats.messaging:4222"},
+		{"projector.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats.messaging:4222"},
+		{"sesame.yaml", "NATS_HUB_PUBLISH_URL", "tls://nats.messaging:4222"},
+		{"users.yaml", "NATS_HUB_PUBLISH_URL", "nats://nats.messaging:4222"},
 	}
 
 	for _, publisher := range publishers {

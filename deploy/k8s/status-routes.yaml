@@ -22,7 +22,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: commands-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -36,7 +36,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gossip-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -50,7 +50,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: loyalty-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -64,7 +64,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: modules-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -78,7 +78,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: notifications-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -92,7 +92,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: outgress-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -106,7 +106,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: projector-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -120,7 +120,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sesame-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -134,7 +134,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: users-status
-  namespace: production
+  namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
@@ -151,7 +151,7 @@ apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: status-path
-  namespace: production
+  namespace: app
 spec:
   replacePath:
     path: /status
@@ -160,7 +160,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: service-status
-  namespace: production
+  namespace: app
 spec:
   entryPoints: [websecure]
   routes:
@@ -172,6 +172,15 @@ spec:
           port: 80
           scheme: https
           serversTransport: commands-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/dashboard`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: console-dashboard
+          port: 80
+          scheme: https
+          serversTransport: console-dashboard-transport
+          nativeLB: true
     - match: Host(`health.itsbagelbot.com`) && Path(`/gossip`)
       kind: Rule
       middlewares: [{name: status-path}]
@@ -180,6 +189,14 @@ spec:
           port: 80
           scheme: https
           serversTransport: gossip-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/ingress`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: twitch-ingress-status
+          port: 80
+          scheme: https
+          serversTransport: twitch-ingress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/loyalty`)
       kind: Rule
       middlewares: [{name: status-path}]
@@ -251,7 +268,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: commands-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -264,7 +281,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: gossip-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -277,7 +294,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: loyalty-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -290,7 +307,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: modules-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -303,7 +320,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: notifications-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -316,7 +333,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: outgress-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -329,7 +346,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: projector-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -342,7 +359,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: sesame-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -355,7 +372,7 @@ apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
   name: users-status-transport
-  namespace: production
+  namespace: app
 spec:
   # Verify the pod's TLS cert against the fleet CA, same shape as
   # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
@@ -363,3 +380,16 @@ spec:
   serverName: users-status
   rootCAsSecrets:
     - users-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: twitch-ingress-status-transport
+  namespace: app
+spec:
+  # Verify the pod's TLS cert against the fleet CA, same shape as
+  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
+  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
+  serverName: twitch-ingress-status
+  rootCAsSecrets:
+    - twitch-ingress-tls

@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: commands-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: commands-doppler-token
   managedSecret:
     name: commands-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: commands
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -54,7 +54,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
         podAntiAffinity:
@@ -90,11 +90,11 @@ spec:
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats:4222
+              value: nats://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: nats://nats:4222
+              value: nats://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -104,9 +104,9 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -169,7 +169,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: commands
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:

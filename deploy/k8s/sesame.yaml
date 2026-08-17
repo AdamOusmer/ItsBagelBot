@@ -8,14 +8,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: sesame-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: sesame-doppler-token
   managedSecret:
     name: sesame-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -23,7 +23,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -67,7 +67,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
       topologySpreadConstraints:
@@ -111,11 +111,11 @@ spec:
             # The stream leader still performs the RAFT commit, while client TLS,
             # socket and batch work is spread over all three hub members.
             - name: NATS_URL
-              value: tls://nats:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_URL
-              value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
+              value: tls://nats-0.nats-headless.messaging.svc.cluster.local:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: tls://nats:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -130,7 +130,7 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
-              value: valkey.valkey.svc.cluster.local
+              value: valkey.cache.svc.cluster.local
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
             # both-or-neither. Land this (a no-op while tls-auth-clients is
             # still "no") on every consumer BEFORE flipping the statefulset,
@@ -154,7 +154,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
-              value: valkey-local.valkey.svc.cluster.local:6380
+              value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
             # CANARY FLAG FOR THE PULL ROLLOUT. Flipping NATS_CONSUME_FLOW to
@@ -299,7 +299,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
@@ -320,7 +320,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
 spec:
   scaleTargetRef:
     name: sesame
@@ -372,7 +372,7 @@ spec:
         # KEDA does not fail loudly, it suppresses the error and serves the
         # static `fallback` replicas below, so autoscaling stops while the HPA
         # still reads healthy.
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
@@ -382,7 +382,7 @@ spec:
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         # The standard durable lives on the partitioned stream. Naming the old
         # stream here after the partition would read a consumer that no longer

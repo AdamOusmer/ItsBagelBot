@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: projector-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: projector-doppler-token
   managedSecret:
     name: projector-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: projector
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -54,7 +54,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
         podAntiAffinity:
@@ -94,11 +94,11 @@ spec:
             # work is distributed across the three brokers before NATS routes
             # each commit to the stream leader.
             - name: NATS_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats-1.nats-headless.production.svc.cluster.local:4222
+              value: nats://nats-1.nats-headless.messaging.svc.cluster.local:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: nats://nats:4222
+              value: nats://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -113,7 +113,7 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
-              value: valkey.valkey.svc.cluster.local
+              value: valkey.cache.svc.cluster.local
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
             # both-or-neither. Land this (a no-op while tls-auth-clients is
             # still "no") on every consumer BEFORE flipping the statefulset,
@@ -123,9 +123,9 @@ spec:
             - name: VALKEY_TLS_CLIENT_KEY_FILE
               value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: nats://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -135,7 +135,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
-              value: valkey-local.valkey.svc.cluster.local:6380
+              value: valkey-local.cache.svc.cluster.local:6380
             # Receipt-level consumption is deliberately absent here, not merely
             # unset. The projector's bindings are the BAGEL_DATA folds and
             # twitch.ingress.event.stream, and pkg/bus admits the pull and flow
@@ -226,7 +226,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: projector
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
