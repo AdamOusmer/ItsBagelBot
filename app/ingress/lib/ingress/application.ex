@@ -154,8 +154,33 @@ defmodule Ingress.Application do
       rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
       ),
-      Ingress.Bootstrapper
+      Ingress.Bootstrapper,
+      # HTTP health surface (/healthz, /readyz, /status) for Kubernetes probes
+      # and the Better Stack status page, TLS-terminated with the cert-manager
+      # cert when the TLS_CERT_FILE/TLS_KEY_FILE pair is set. Last on purpose:
+      # it must not answer before the planes it reports on have started.
+      status_listener()
     ]
+  end
+
+  # Same contract as the Go services' pkg/health.Serve: both env vars set
+  # serves HTTPS, both empty serves plaintext (local/dev), and a half-set pair
+  # is a boot failure rather than a silent plaintext fallback. Rotation needs
+  # no restart: Erlang's ssl pem cache re-reads the certfile when it changes.
+  defp status_listener do
+    port = String.to_integer(System.get_env("STATUS_PORT", "8080"))
+    base = [plug: Ingress.StatusPlug, port: port]
+
+    case {System.get_env("TLS_CERT_FILE", ""), System.get_env("TLS_KEY_FILE", "")} do
+      {"", ""} ->
+        {Bandit, [{:scheme, :http} | base]}
+
+      {cert, key} when cert != "" and key != "" ->
+        {Bandit, [{:scheme, :https}, {:certfile, cert}, {:keyfile, key} | base]}
+
+      _half_set ->
+        raise "TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty"
+    end
   end
 
   # connection_child builds a Gnat.ConnectionSupervisor child spec for one NATS
