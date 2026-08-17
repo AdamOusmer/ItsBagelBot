@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Disables Cilium's BPF masquerade on cp1 ONLY, falling back to iptables
+# masquerade for pod egress on that one node. Everywhere else keeps BPF
+# masquerade as the Helm release's default; this CiliumNodeConfig overrides
+# nothing outside its nodeSelector.
+#
+# WHY, because it is not obvious from the diff:
+#
+# cp1's egress NIC carries two IPv4 addresses: the private address the cloud
+# provider's VNIC actually issued and holds the default route (so it is also
+# the route's preferred source), and the node's public address, attached as a
+# secondary /32. Cilium's BPF masquerade path SNATs pod egress to whatever
+# address Cilium considers the node's InternalIP -- the public secondary --
+# regardless of what the kernel's own route selection would pick for that
+# destination. The cloud provider's VNIC enforces a source/destination check
+# and drops any packet whose source address the VNIC was not issued, so every
+# BPF-masqueraded packet leaving cp1 was silently dropped one hop upstream of
+# the host: deploys, cert issuance, and KEDA metrics scraping all lost pod
+# egress on cp1, while the host itself (which owns the private address) sat
+# perfectly healthy the entire time.
+#
+# iptables masquerade does not have this failure mode: MASQUERADE targets the
+# outgoing route's preferred source rather than a fixed node-IP config value.
+# For the on-link default route that resolves to the private address the VNIC
+# actually owns, so the provider's check passes.
+#
+# cp1 is the only node where the Cilium node IP differs from the address its
+# egress interface was actually issued, which is why this override is scoped
+# to cp1 alone and must not be widened: every other node's node IP already IS
+# its interface's preferred source, so BPF masquerade is correct there and
+# stays enabled by the Helm values. cp1 is also a 2-core control plane that
+# schedules no application pods, so trading away eBPF-accelerated masquerade
+# here for correctness has no throughput cost worth measuring.
+#
+# Diagnosed 2026-08-17. The decisive test: ping the on-link default gateway
+# from inside a pod network namespace on cp1. It failed while the identical
+# ping from the host succeeded, and a tcpdump on the gateway-facing interface
+# showed the pod's echo request leaving with the node's PUBLIC address as
+# source against the gateway (a same-subnet-only address) as destination --
+# an off-subnet source on a destination that only exists on the local
+# segment, which is exactly what the provider's source/destination check
+# exists to drop.
+#
+# Cilium here is a manual Helm release, not Flux-managed (deploy/cilium/README.md),
+# so nothing reconciles or reverts this resource, but nothing recreates it
+# either. Re-apply it after any full Cilium reinstall or upgrade that touches
+# cp1, and check for it first if pod egress on cp1 ever goes fully dark again:
+#
+#   kubectl get ciliumnodeconfig -n kube-system cp1-legacy-masquerade
+#   kubectl apply -f deploy/cilium/cp1-legacy-masquerade-nodeconfig.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNodeConfig
+metadata:
+  namespace: kube-system
+  name: cp1-legacy-masquerade
+spec:
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/hostname: cp1
+  defaults:
+    enable-bpf-masquerade: "false"

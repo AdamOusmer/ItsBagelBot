@@ -26,9 +26,13 @@ deploy/
 │               valkey / tailscale), and image-automation policies. Bootstrap
 │               sync path is deploy/flux/clusters/production. See flux/README.md.
 │
-└── ansible/    One-time bare-metal node provisioning (base tuning, firewall,
-                k3s agent, SELinux, SSH removal, tailscale). Not Flux-managed;
-                run via ansible/provision.sh. See ansible/README.md.
+├── ansible/    One-time bare-metal node provisioning (base tuning, firewall,
+│               k3s agent, SELinux, SSH removal, tailscale). Not Flux-managed;
+│               run via ansible/provision.sh. See ansible/README.md.
+│
+└── cilium/     CNI resources for the manual `helm upgrade --install` Cilium
+                release. Not Flux-managed -- Cilium is what Flux's cluster
+                runs on top of, so it cannot reconcile it. See cilium/README.md.
 ```
 
 ## Container build files
