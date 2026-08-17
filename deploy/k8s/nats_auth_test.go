@@ -58,6 +58,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				ownedStreams:    owners[user],
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
+				keyValueOwned:   keyValueOwnedBuckets[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -163,11 +164,22 @@ var pullFetchStreams = map[string][]string{
 	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 }
 
+// keyValueOwnedBuckets names, per user, the KV buckets that user provisions
+// (create-if-absent) and reads/writes directly, as opposed to the wildcard
+// $JS.API.STREAM.* an admin-tool account might hold. worker_bus (sesame) is
+// lane_coord's only owner: it is the only identity that ever binds a pull
+// consumer (pullFetchStreams above), and lane_coord exists only to
+// coordinate that consumer's rebuild (pkg/bus/lane_coord.go).
+var keyValueOwnedBuckets = map[string][]string{
+	"worker_bus": {"lane_coord"},
+}
+
 type streamGrants struct {
 	consumerStreams []string
 	ownedStreams    []string
 	flowControl     []string
 	pullFetch       []string
+	keyValueOwned   []string
 }
 
 type authConfig struct {
@@ -221,6 +233,19 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 		set[jetStreamAPI+"STREAM.INFO."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
+	}
+	for _, bucket := range grants.keyValueOwned {
+		kvStream := "KV_" + bucket
+		for _, subject := range []string{
+			jetStreamAPI + "STREAM.CREATE." + kvStream,
+			jetStreamAPI + "STREAM.UPDATE." + kvStream,
+			jetStreamAPI + "STREAM.INFO." + kvStream,
+			jetStreamAPI + "STREAM.MSG.GET." + kvStream,
+			jetStreamAPI + "DIRECT.GET." + kvStream,
+			jetStreamAPI + "DIRECT.GET." + kvStream + ".>",
+		} {
+			set[subject] = struct{}{}
+		}
 	}
 	return sortedKeys(set)
 }

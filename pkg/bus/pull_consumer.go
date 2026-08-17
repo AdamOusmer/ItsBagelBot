@@ -73,10 +73,16 @@ const (
 	// set — which every other pod is drawing from — shrinks by that much.
 	defaultPullAckEvery = 250 * time.Millisecond
 
-	// defaultPullReplicas matches the lane streams' own replica count. The durable
-	// has to survive exactly what the stream survives, and a consumer cannot ask
-	// for more replicas than the stream it reads has.
-	defaultPullReplicas = 3
+	// defaultPullReplicas is R1, not the stream's own replica count. Quorum
+	// consensus on the consumer's ack state is a raft proposal PER DELIVERED
+	// MESSAGE, on the hot path, which collapses drain throughput at lane rate
+	// — the exact cost this shape exists to avoid; see the 2026-08-16 note on
+	// pullConsumerConfig for why R1 alone is not enough. Availability now
+	// comes from lane_coord.go instead of replicated state: a probe-triggered
+	// rebuild notices a peer-down consumer that never reports gone, and every
+	// pod resumes it from a shared floor checkpoint rather than the fresh
+	// DeliverNew a lock-free rebuild would otherwise fall back to.
+	defaultPullReplicas = 1
 
 	// laneUnhealthyAfter is how long the fetch loop may stay in its error path
 	// before the lane reports itself unready. It has to clear an ordinary consumer
@@ -116,17 +122,32 @@ func pullConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 		// fleet has stopped fetching from it. It is the same window the flow lane
 		// gives a pod to reconnect inside without losing its position.
 		InactiveThreshold: flowInactiveThreshold,
-		// Consumer state is replicated with the stream it reads.
+		// Consumer state is R1, deliberately not matched to the stream's own
+		// replica count.
 		//
-		// This was R1, on the reasoning that per-consumer ack state is leader RAFT
-		// work on the hot path and that the fleet would simply re-provision after
-		// losing it. The second half was never true: nothing rebuilt a lane durable,
-		// so a single peer owned the whole fleet's ability to consume. On 2026-08-16
-		// one member lost peer routing for 23 minutes, the meta layer moved these
-		// durables eleven times while it churned and then lost them, and every pod
-		// spun on a name that no longer resolved for the next seven hours.
-		// Quorum-replicated state survives one member, which is the failure that
-		// actually happens; rebuildConsumer covers losing all of them at once.
+		// This was R1 originally, on the reasoning that per-consumer ack state is
+		// leader RAFT work on the hot path and that the fleet would simply
+		// re-provision after losing it. The second half was never true: nothing
+		// rebuilt a lane durable, so a single peer owned the whole fleet's ability
+		// to consume. On 2026-08-16 one member lost peer routing for 23 minutes,
+		// the meta layer moved these durables eleven times while it churned and
+		// then lost them, and every pod spun on a name that no longer resolved for
+		// the next seven hours. The fix at the time was R3: quorum-replicated
+		// state survives losing one member outright.
+		//
+		// R3 traded that outage for a slower one: a replicated consumer proposes
+		// its ack state to the whole raft group on every delivered batch, on the
+		// hot path, and that per-batch quorum round trip is what actually caps
+		// this lane's drain rate under load. Back to R1, but this time paired with
+		// the other half 2026-08-16 was missing: rebuildConsumer already covers
+		// losing every replica of the consumer's state at once (the durable
+		// reports ConsumerNotFound/Deleted), and lane_coord.go now covers the
+		// failure R1 alone reopens — a single peer going down still leaves the
+		// durable resolving in meta, so an ordinary fetch just times out forever
+		// instead of erroring in a way rebuildConsumer would catch. The probe in
+		// noteFetchError is what tells that apart from an election, and the floor
+		// checkpoint in lane_coord.go is what lets the rebuilt durable resume
+		// instead of replaying or skipping the window.
 		//
 		// Memory storage stays. The lane streams are memory-backed themselves, so
 		// persisting ack state to disk cannot outlive the messages it describes.
@@ -380,22 +401,46 @@ type pullSubscriber struct {
 	// rebind provisions a replacement durable. It is a field rather than a direct
 	// call so the rebuild decision is testable without a broker; the constructor
 	// always fills it with the real API path.
-	rebind  func() (jsapi.Consumer, error)
-	stream  string
-	subject string
-	name    string
-	log     *zap.Logger
+	rebind func() (jsapi.Consumer, error)
+	// floorRebind is coordinatedRebuild's winner-path provisioner (lane_coord.go):
+	// a direct delete+recreate at the fleet's floor checkpoint rather than
+	// rebind's lock-free DeliverNew. A field for the same reason rebind is.
+	floorRebind func() (jsapi.Consumer, error)
+	stream      string
+	subject     string
+	name        string
+	log         *zap.Logger
+
+	// coord is the lane_coord.go KV handle. Nil is a first-class state, not an
+	// error: it means the bucket never provisioned (or a later op failed), and
+	// every call site that reads it treats nil as "run lock-free," which is
+	// this whole mechanism's fallback.
+	coord laneCoordinator
+	// connected reports whether the client can currently reach the broker at
+	// all. A field rather than a direct s.nc.Status() call so the probe-timeout
+	// path is testable without a live connection; the constructor always fills
+	// it with the real check.
+	connected func() bool
 
 	batch    int
 	maxWait  time.Duration
 	ackEvery time.Duration
 
-	retried   atomic.Int64
-	dropped   atomic.Int64
-	fetchErrs atomic.Int64
-	ackErrs   atomic.Int64
-	rebuilt   atomic.Int64
-	closed    atomic.Bool
+	retried        atomic.Int64
+	dropped        atomic.Int64
+	fetchErrs      atomic.Int64
+	ackErrs        atomic.Int64
+	rebuilt        atomic.Int64
+	checkpointErrs atomic.Int64
+	closed         atomic.Bool
+
+	// ackedStreamSeq is the stream sequence of the newest delivery advanceFloor
+	// has acked, and checkpointedSeq is the value last written to the floor
+	// key. Both are read and written across the pump and ticker goroutines
+	// (whichever last calls advanceFloor vs. the ticker's own checkpointFloor),
+	// so both are atomics rather than fields ackMu also guards.
+	ackedStreamSeq  atomic.Uint64
+	checkpointedSeq atomic.Uint64
 
 	// errSince is the unix-nano instant the fetch loop entered its error path, or
 	// zero while it is healthy. An idle lane never sets it — Next simply blocks —
@@ -442,6 +487,10 @@ func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
 		return nil, err
 	}
 	s := newPullSubscriber(cfg, nc, consumer, name)
+	// Lazy, not package-init: a broker that is not reachable yet at import time
+	// must not fail a process that has not even dialled it, and this bucket is
+	// coordination, never a boot dependency (see lane_coord.go).
+	s.coord = ensureLaneCoord(nc, s.log)
 	s.start()
 	return s, nil
 }
@@ -463,6 +512,8 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		cancel:  cancel,
 	}
 	s.rebind = func() (jsapi.Consumer, error) { return ensurePullConsumer(s.nc, s.stream, s.desired) }
+	s.floorRebind = s.floorAwareRebind
+	s.connected = func() bool { return s.nc != nil && s.nc.Status() == nats.CONNECTED }
 	return s
 }
 
@@ -655,13 +706,23 @@ func (s *pullSubscriber) advanceFloor() {
 	if err := wire.Ack(); err != nil {
 		// The floor is cumulative, so the next ack re-covers whatever this one
 		// missed; a lost ack costs redelivery latency rather than the binding.
+		//
+		// Recording the sequence is skipped on this path on purpose: Ack is
+		// fire-and-forget over the wire, so a failure here (a dropped
+		// connection — exactly the peer-down scenario lane_coord.go exists
+		// for) means the broker never saw this ack. Checkpointing it anyway
+		// would let a later rebuild resume past a message the fleet never
+		// actually acknowledged — a skip, not a redelivery, and skipping is
+		// the one outcome this mechanism may never trade availability for.
 		if count := s.ackErrs.Add(1); count == 1 || count%1_000 == 0 {
 			s.log.Warn("lane floor ack failed",
 				zap.String("subject", s.subject),
 				zap.Int64("ack_errors", count),
 				zap.Error(err))
 		}
+		return
 	}
+	s.recordAckedSequence(wire)
 }
 
 func (s *pullSubscriber) takePending() jsapi.Msg {
@@ -677,6 +738,12 @@ func (s *pullSubscriber) takePending() jsapi.Msg {
 // would otherwise hold every message it has already delivered unacked for as
 // long as the pool is busy — and on a shared durable that pending set is the one
 // every other pod is drawing from.
+//
+// It is also the only goroutine allowed to write the floor checkpoint (see
+// lane_coord.go): the checkpoint has to sit behind the same ack this loop
+// already publishes, and putting it on this cadence rather than the pump's
+// hot path is what keeps a KV Put off the per-message cost this file's parent
+// change exists to remove.
 func (s *pullSubscriber) advanceFloorPeriodically() {
 	defer s.workers.Done()
 	ticker := time.NewTicker(s.ackEvery)
@@ -687,6 +754,7 @@ func (s *pullSubscriber) advanceFloorPeriodically() {
 			return
 		case <-ticker.C:
 			s.advanceFloor()
+			s.checkpointFloor()
 		}
 	}
 }
@@ -710,7 +778,8 @@ func (s *pullSubscriber) scheduleRetry(delivery pullDelivery) {
 // fetch returns immediately, so a leader election or a denied MSG.NEXT
 // permission would otherwise burn a core re-requesting thousands of times a
 // second. The pause is the fetch's own wait, which is the cadence the loop
-// already runs at.
+// already runs at, and is also what naturally bounds consumerUnavailable's
+// probe to at most once per error: this method runs once per pause cycle.
 func (s *pullSubscriber) noteFetchError(err error) bool {
 	if s.closed.Load() {
 		return false
@@ -724,8 +793,8 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 			zap.Int64("fetch_errors", count),
 			zap.Error(err))
 	}
-	if consumerGone(err) {
-		s.rebuildConsumer()
+	if s.consumerUnavailable(err) {
+		s.coordinatedRebuild()
 	}
 	return s.pause(s.maxWait)
 }
@@ -748,7 +817,10 @@ func consumerGone(err error) bool {
 	return errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrConsumerDeleted)
 }
 
-// rebuildConsumer re-provisions the shared durable after the server has lost it.
+// rebuildConsumer re-provisions the shared durable lock-free: no coordination
+// bucket, no floor, always DeliverNew. It is coordinatedRebuild's fallback
+// (lane_coord.go) whenever the bucket cannot be trusted, and — via s.rebind —
+// the exact path this lane always ran before the bucket existed at all.
 //
 // The lane durable is fleet-wide and genuinely deletable: InactiveThreshold
 // expires it once the whole fleet stops fetching, and losing every replica of
@@ -764,8 +836,15 @@ func (s *pullSubscriber) rebuildConsumer() {
 	// The old consumer's receipt can never be acked against a new one, and
 	// holding it would spend the next floor ack on a guaranteed failure.
 	s.takePending()
-
 	consumer, err := s.rebind()
+	s.completeRebuild(consumer, err)
+}
+
+// completeRebuild is the swap-or-log tail both rebuild paths share: the
+// lock-free one above and lane_coord.go's floor-aware winner path. Splitting
+// it out is what lets the winner path resume at a checkpoint instead of
+// DeliverNew without duplicating the counter and log lines here.
+func (s *pullSubscriber) completeRebuild(consumer jsapi.Consumer, err error) {
 	if err != nil {
 		s.log.Warn("lane consumer rebuild failed",
 			zap.String("stream", s.stream),

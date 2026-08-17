@@ -670,6 +670,10 @@ type fakePullMsg struct {
 	sequence uint64
 	header   nats.Header
 	payload  []byte
+	// ackErr, when set, makes Ack fail the way a dropped connection would: the
+	// call returns without the broker ever having seen it. Nil by default, so
+	// every existing caller gets the old always-succeeds behavior.
+	ackErr error
 
 	mu     sync.Mutex
 	acked  int
@@ -716,6 +720,9 @@ func (m *fakePullMsg) TermWithReason(string) error      { return nil }
 func (m *fakePullMsg) Ack() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.ackErr != nil {
+		return m.ackErr
+	}
 	m.acked++
 	return nil
 }
