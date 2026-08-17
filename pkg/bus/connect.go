@@ -6,11 +6,7 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
-	"fmt"
-	"os"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -39,30 +35,6 @@ import (
 // posture, keepalives, server_name prefix; see the header there for the full
 // list) and deploy/k8s/nats-server.conf (hub). Change either side with the
 // other open.
-//
-// mTLS: both the hub's client listener (4222, nats-server.conf) and the
-// leaf's client listener (4223, nats-leaf-server.conf) require a client
-// certificate once their tls.verify:true lands. clientCertFile/clientKeyFile
-// below is the ONE fixed mount path every service gets, fleet-wide, from the
-// kustomize patch in deploy/k8s/kustomization.yaml (the shared
-// nats-bus-client-tls Secret, issued in deploy/infra/pki/certificates.yaml)
-// — not a per-service env var. tlsSecureOption is shared by rpcOptions and
-// busOptions (in fact by every nats.Connect call site in this package:
-// bus.go, batch_publisher.go, flow_delivery.go, provision.go,
-// pull_consumer.go all fall through busOptions/rpcOptions), so this one
-// function is the entire Go-side chokepoint — pkg/svcboot's MustNATS has no
-// TLS logic of its own, it composes bus.Connect/NewPublisher/NewSubscriber
-// like every other caller. Account isolation (bcrypt user/password ->
-// account, auth.conf) is unchanged: this is chain-of-trust verify:true, not
-// verify_and_map, so it layers under the existing auth rather than replacing
-// any part of it.
-//
-// ROTATION: the client cert is loaded via a tls.Config.GetClientCertificate
-// callback (globalClientCert/clientCertCache below), not a one-time static
-// tls.Config.Certificates value, specifically so a cert-manager rotation
-// gets picked up on the next handshake instead of failing at expiry with no
-// warning in between. See clientCertCache's doc comment for the mechanism
-// and clientCertFile/clientKeyFile's for why it is a fixed path.
 
 // JSDomain is the JetStream domain the fleet's streams live in. Clients dial the
 // leaf (whose own JetStream domain is "leaf"), so every JetStream context must be
@@ -186,120 +158,11 @@ func logAsyncError(_ *nats.Conn, sub *nats.Subscription, err error) {
 		zap.Error(err))
 }
 
-// clientCertFile / clientKeyFile are the fixed mount path every service's
-// manifest gets via the fleet-wide kustomize patch in
-// deploy/k8s/kustomization.yaml (the nats-bus-client-tls Secret, issued in
-// deploy/infra/pki/certificates.yaml). Fixed and non-configurable per
-// service on purpose: a per-service env var meant every manifest had to
-// remember to set it, and a forgotten one connected with no client cert and
-// only failed once the server's verify:true landed — silent until then. One
-// baked-in path means the only way to not present a cert is to not mount
-// the Secret, which the fleet-wide patch does unconditionally for every
-// Deployment/CronJob that dials NATS.
-const (
-	clientCertFile = "/etc/nats/client-certs/tls.crt"
-	clientKeyFile  = "/etc/nats/client-certs/tls.key"
-)
-
-// errNoClientCert marks "no cert at the mount path" as distinct from "a cert
-// is there but broken." clientCertCache.get and tlsSecureOption treat the two
-// differently: absent means the fleet-wide mount has not landed on this pod
-// (or has been removed under it), broken means a real misconfiguration.
-var errNoClientCert = errors.New("no client certificate at mount path")
-
-// clientCertCache holds this process's parsed mTLS client certificate plus
-// the mtimes it was parsed from, so repeated handshakes do not each pay a
-// disk read + X509 parse — only a changed mtime does.
-//
-// This exists instead of a one-time load into tls.Config.Certificates
-// because a static value is captured once, at connection-option
-// construction, and never revisited: cert-manager renews nats-bus-client-tls
-// at day 75 of its 90-day lifetime, and a process that loaded the cert once
-// at startup would keep presenting the DAY-0 cert until day 90, then fail —
-// with nothing failing in between to warn anyone. That is a dated,
-// fleet-wide outage on a predictable schedule. tls.Config.GetClientCertificate
-// is invoked on every handshake (including nats.go's own automatic
-// reconnects), so wiring the cache's get method in as that callback (see
-// tlsSecureOption) makes every reconnect after day 75 pick up the rotated
-// file automatically — no watcher, no sidecar, no restart, no forced
-// reconnection logic. An already-open connection is not re-validated
-// mid-session, so it keeps working on the old cert until it naturally drops
-// (a hub/leaf roll, a network blip); since the old cert stays valid through
-// day 90 and renewal lands at day 75, any reconnect in that 15-day window is
-// enough.
-type clientCertCache struct {
-	mu     sync.Mutex
-	cert   *tls.Certificate
-	certAt time.Time
-	keyAt  time.Time
-}
-
-// get returns the parsed client certificate for certFile/keyFile, reusing
-// the cached parse when neither file's mtime has moved since the last call.
-// Returns errNoClientCert when the files are not there. A reload that fails
-// while a previous cert is already cached logs the failure and keeps serving
-// that previous cert — a transient or partial write to the mounted Secret
-// should not take an otherwise-healthy process's next handshake down.
-func (c *clientCertCache) get(certFile, keyFile string) (*tls.Certificate, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	certInfo, err := os.Stat(certFile)
-	if err != nil {
-		if c.cert != nil {
-			return c.cert, nil
-		}
-		return nil, errNoClientCert
-	}
-	keyInfo, err := os.Stat(keyFile)
-	if err != nil {
-		if c.cert != nil {
-			return c.cert, nil
-		}
-		return nil, errNoClientCert
-	}
-
-	if c.cert != nil && certInfo.ModTime().Equal(c.certAt) && keyInfo.ModTime().Equal(c.keyAt) {
-		return c.cert, nil
-	}
-
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		if c.cert != nil {
-			zap.L().Error("nats client cert reload failed, keeping previous cert",
-				zap.String("cert_file", certFile), zap.Error(err))
-			return c.cert, nil
-		}
-		return nil, fmt.Errorf("load client cert %s: %w", certFile, err)
-	}
-
-	c.cert = &cert
-	c.certAt = certInfo.ModTime()
-	c.keyAt = keyInfo.ModTime()
-	return c.cert, nil
-}
-
-// globalClientCert is the one cache every connection in the process shares —
-// they all present the same fleet-wide cert at the same fixed path, so there
-// is nothing to gain from a cache per connection.
-var globalClientCert clientCertCache
-
 // tlsSecureOption returns a nats.Secure option that verifies the broker's server
 // cert against the fleet CA (NATS_CA_PEM, distributed by trust-manager as the
 // fleet-ca ConfigMap), or nil when no CA is configured — local dev against a
-// plaintext server stays plaintext. Also presents this service's own client
-// certificate via GetClientCertificate (globalClientCert, rotation-safe —
-// see its doc comment), which is REQUIRED whenever TLS itself is on: the
-// hub's 4222 and leaf's 4223 listeners set verify:true, so a connection with
-// no client cert fails the TLS handshake before auth.conf's bcrypt
-// user/password check ever runs.
-//
-// The eager get() call below (once per option-construction call, i.e. once
-// per process start and once per nats.go reconnect-loop entry) is what makes
-// a missing/unreadable cert a boot-time crash in one place rather than a
-// connect loop that just quietly never presents one — GetClientCertificate
-// alone would only surface the failure inside a handshake, indistinguishable
-// from any other connect failure in the logs.
+// plaintext server stays plaintext. Server-auth only: the client still
+// authenticates with its bcrypt user/password, not a client cert.
 func tlsSecureOption() nats.Option {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
@@ -309,19 +172,7 @@ func tlsSecureOption() nats.Option {
 	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
 		return nil
 	}
-
-	if _, err := globalClientCert.get(clientCertFile, clientKeyFile); err != nil {
-		zap.L().Fatal("nats mTLS client certificate required but unavailable",
-			zap.String("cert_file", clientCertFile), zap.Error(err))
-	}
-
-	return nats.Secure(&tls.Config{
-		RootCAs:    pool,
-		MinVersion: tls.VersionTLS12,
-		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return globalClientCert.get(clientCertFile, clientKeyFile)
-		},
-	})
+	return nats.Secure(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})
 }
 
 // rpcOptions authenticate the per-service account on the RPC plane. The creds
