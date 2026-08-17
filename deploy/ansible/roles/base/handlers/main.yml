@@ -1,7 +1,0 @@
-# Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary. No license granted. See LICENSE.md.
-
----
-- name: reload sysctl
-  ansible.builtin.command: sysctl --system
-  changed_when: true
