@@ -80,7 +80,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: loyalty
-          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1786927207-8eb8de5c8f46@sha256:89e78c5352b6eef3141742b43f7dd7deb97fdd9f307e6253df539e95889ee2e2 # {"$imagepolicy": "flux-system:loyalty"}
+          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1786931309-39c307c0507b@sha256:9e1a7119a69caaac2215306a7f3f27cca306f1decd8e77e64aa004eb21e7ad37 # {"$imagepolicy": "flux-system:loyalty"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
