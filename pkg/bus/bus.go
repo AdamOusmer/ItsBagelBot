@@ -490,6 +490,43 @@ func (s *fleetSubscriber) logger() *zap.Logger {
 	return s.log
 }
 
+// LaneHealth is implemented by a lane binding that can say whether its own fetch
+// loop is making progress.
+type LaneHealth interface{ Healthy() bool }
+
+// SubscriberHealthy reports whether every lane binding sub owns is making
+// progress, for a service's readiness probe.
+//
+// It exists because a NATS connection check is not a consumption check. The
+// lane durables are fleet-wide and deletable, and a pod that has lost its
+// durable holds an entirely healthy connection while consuming nothing — which
+// is exactly how sesame stayed green through seven hours of silence on
+// 2026-08-16. A subscriber with nothing to report is healthy: this must never
+// make a service that does not consume lanes look sick.
+func SubscriberHealthy(sub Subscriber) bool {
+	reporter, ok := sub.(LaneHealth)
+	return !ok || reporter.Healthy()
+}
+
+// Healthy reports whether every lane this subscriber has bound is making
+// progress. Bindings that cannot report — the push and broadcast paths — are
+// not counted: they have no fetch loop to wedge.
+func (s *fleetSubscriber) Healthy() bool {
+	s.mu.Lock()
+	lanes := make([]Subscriber, 0, len(s.flowLanes))
+	for _, lane := range s.flowLanes {
+		lanes = append(lanes, lane.sub)
+	}
+	s.mu.Unlock()
+
+	for _, lane := range lanes {
+		if reporter, ok := lane.(LaneHealth); ok && !reporter.Healthy() {
+			return false
+		}
+	}
+	return true
+}
+
 // broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
 // replay storms: every instance gets every message (cache invalidation). The
 // explicit stream binding avoids an account-wide stream-name lookup.
