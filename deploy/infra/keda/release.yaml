@@ -99,7 +99,7 @@ spec:
     # Verify a change landed; do not trust that the key was read:
     #   kubectl -n keda get deploy keda-operator -o jsonpath='{.spec.template.spec.affinity}'
     #
-    # ALL THREE COMPONENTS -> CONTROL PLANE (on cp), required.
+    # metricsServer and webhooks -> CONTROL PLANE. operator -> APP TIER.
     #
     # metricsServer and webhooks are called SYNCHRONOUSLY BY THE APISERVER:
     # metricsServer backs the v1beta1.external.metrics.k8s.io aggregated
@@ -108,25 +108,66 @@ spec:
     # unreachable aggregated APIService is worse than an unreachable backend: it
     # stalls API discovery cluster-wide, not just KEDA.
     #
-    # The operator follows them so the metricsServer -> operator gRPC hop (:9666)
-    # is node-local too. The operator's own NATS polling goes over the pod mesh
-    # to the app tier, and that works from node1 WITHOUT any tailscale subnet
-    # route: node1 keeps a public flannel endpoint, the app nodes keepalive to it
-    # every 25s, and kernel WireGuard roaming teaches node1 their public
-    # endpoints (verified 2026-07-28: wg show on node1 lists only public IPs).
-    # Worst case after a node1 flannel restart is ~25s of unreachable app-tier
-    # pods until the first keepalive roams the endpoints back, during which KEDA
-    # serves each ScaledObject's fallback replicas.
+    # The operator used to follow them onto the control plane so the
+    # metricsServer -> operator gRPC hop (:9666) stayed node-local. The
+    # configured endpoint is fine from there — measured 2026-08-17 from a pod on
+    # the control plane, nats.production.svc.cluster.local:8222/jsz returns 72455
+    # bytes in 8ms, TCP 10/10 to the ClusterIP and 5/5 to each member. The
+    # configured endpoint is not the hop that fails.
+    #
+    # The SECOND hop is. In clustered mode the scaler reads /jsz, finds the
+    # stream's leader, then dials that member directly for /varz, choosing from
+    # the addresses NATS gossips in connect_urls. A hostNetwork member listening
+    # on 0.0.0.0 gossips EVERY local interface, so the set is:
+    #
+    #   38.49.213.227   public
+    #   10.10.0.4       provider VLAN
+    #   100.72.196.29   tailnet (plus its IPv6)
+    #   10.44.2.100     cilium host address
+    #
+    # Only the fleet can route all four. From the control plane the VLAN is not
+    # routed at all and never will be — advertising 10.10.0.0/24 off the fleet is
+    # a standing no — so whenever the scaler picks it the fetch dies:
+    #
+    #   Get "http://10.10.0.4:8222/varz": context deadline exceeded
+    #
+    # It is intermittent because the choice is, which is why both ScaledObjects
+    # flap between real metrics and Fallback=True on static replicas rather than
+    # failing outright. During the 2026-08-16 lane outage they were pinned in
+    # fallback, so nothing scaled up, and a fresh pod is what would have
+    # re-provisioned the deleted lane durables: the deletion that killed the
+    # lanes also blinded the autoscaler that would have healed them.
+    #
+    # On the app tier every gossiped address is on-link or local, so the
+    # leader-follow always resolves whichever one it picks. The cost is that the
+    # metricsServer -> operator gRPC hop becomes cross-node: one pod-mesh round
+    # trip per HPA metric fetch, roughly every 15s per ScaledObject. That is a
+    # rounding error against a scaler that cannot read its own broker's leader.
+    #
+    # The other way to fix this is client_advertise on the NATS side, so members
+    # stop gossiping VLAN, tailnet and pod addresses to everyone. That is a
+    # fleet-wide change to how every client discovers the cluster; this one moves
+    # a single deployment. Do the narrow one first.
     #
     # Do NOT point the nats-jetstream triggers at the nats-monitoring Tailscale
-    # Service instead. It was tried: the scaler fetches /jsz fine, but in
-    # clustered mode it then follows the stream to the consumer leader and dials
-    # that member at the address NATS advertises, which is a POD IP, so a single
-    # fronting Service cannot satisfy it. The tailnet Service is kept for humans.
+    # Service instead. Same second hop, same outcome: the scaler fetches /jsz
+    # fine and then dials the leader at a gossiped address the tailnet Service
+    # cannot front. The tailnet Service is kept for humans.
     #
-    # Required, not preferred: a preference lets the scheduler rebalance a
-    # component onto the app tier and silently reintroduce the cross-node hop.
+    # Required, not preferred, on both tiers: a preference lets the scheduler
+    # rebalance a component across the boundary and silently restore the failure.
     operator:
+      # No control-plane toleration: the app nodes carry no taint, and leaving it
+      # here would let the scheduler put the operator back where it cannot scrape.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: In
+                    values: [node]
+    metricsServer:
       tolerations: &cpToleration
         - key: itsbagelbot.dev/role
           operator: Equal
@@ -140,9 +181,6 @@ spec:
                   - key: itsbagelbot.dev/role
                     operator: In
                     values: [cp]
-    metricsServer:
-      tolerations: *cpToleration
-      affinity: *cpAffinity
     webhooks:
       tolerations: *cpToleration
       affinity: *cpAffinity
