@@ -49,10 +49,11 @@ func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
 			fmt.Sprintf("pull consumer was given push delivery: %#v", cfg)},
 		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
 			fmt.Sprintf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)},
-		// R1 memory consumer state on an R3 stream: replicating per-consumer ack
-		// state is leader RAFT work on the hot path this design does not need.
-		contractClause{cfg.Replicas == 1 && cfg.MemoryStorage,
-			fmt.Sprintf("consumer state must be R1 in memory: %#v", cfg)},
+		// Quorum-replicated consumer state, in memory. R1 put the whole fleet's
+		// ability to consume on one peer: on 2026-08-16 that peer churned, the
+		// durable was lost, and every pod spun on a name that no longer resolved.
+		contractClause{cfg.Replicas == defaultPullReplicas && cfg.MemoryStorage,
+			fmt.Sprintf("consumer state must be replicated in memory: %#v", cfg)},
 		contractClause{cfg.InactiveThreshold == flowInactiveThreshold,
 			fmt.Sprintf("inactive threshold = %v, want %v", cfg.InactiveThreshold, flowInactiveThreshold)},
 		contractClause{cfg.AckWait == defaultPullAckWait && cfg.MaxAckPending == defaultPullMaxAckPending,

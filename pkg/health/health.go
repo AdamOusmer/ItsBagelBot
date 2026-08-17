@@ -16,8 +16,12 @@ import (
 // alive and should not be restarted just because a dependency is reconnecting.
 //
 // /readyz is traffic readiness. ready reports whether the service can do work
-// right now (typically the NATS connection status); /readyz returns 503 until
-// it does. A nil ready always reports ok.
+// right now; /readyz returns 503 until it does. A nil ready always reports ok.
+//
+// For a service that consumes, "can do work" has to mean more than a live NATS
+// connection. A pod whose lane durable has been deleted stays connected and
+// consumes nothing, so a connection-only check reports green through a total
+// outage — see bus.SubscriberHealthy.
 //
 // The returned error channel yields at most one listener error.
 func Serve(addr string, ready func() bool) <-chan error {
