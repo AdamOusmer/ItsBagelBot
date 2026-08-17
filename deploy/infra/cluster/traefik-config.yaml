@@ -29,6 +29,16 @@ spec:
   valuesContent: |-
     deployment:
       kind: DaemonSet
+    # Global HTTP->HTTPS redirect on the web (:8000/80) entrypoint. Single
+    # static-config switch, applies to every host/path with no per-route
+    # opt-out available -- this is the "client -> traefik" half of the "no
+    # exceptions" requirement. The "traefik -> backend" half is NOT covered
+    # by this (no such global switch exists in Traefik 3.6; scheme is set
+    # per-service on each IngressRoute/Ingress -- see the CI check instead).
+    additionalArguments:
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
     providers:
       kubernetesCRD:
         # The unrouted-host fallback (deploy/k8s/web-error-pages.yaml) proxies
@@ -39,6 +49,17 @@ spec:
       type: ClusterIP
       spec:
         trafficDistribution: PreferClose
+        # cloudflared (kube-system-adjacent, cloudflared ns) lands on exactly
+        # the same 3 worker nodes as this traefik DaemonSet (both gated by
+        # itsbagelbot.dev/role != cp). PreferClose is a best-effort zone hint
+        # and can still spill a request to a traefik pod on another node;
+        # internalTrafficPolicy: Local makes the node-local hop a hard
+        # requirement instead, closing the cross-node hairpin. Safe here
+        # specifically because cloudflared's node set is a subset of
+        # traefik's -- Local never leaves a node with zero endpoints.
+        # If cloudflared's placement rules ever diverge from traefik's,
+        # this must be revisited before it silently fails closed.
+        internalTrafficPolicy: Local
     resources:
       requests:
         cpu: 100m
