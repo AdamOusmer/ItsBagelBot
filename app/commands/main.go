@@ -137,7 +137,7 @@ func main() {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), n.RPC.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", n.RPC.IsConnected))
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),

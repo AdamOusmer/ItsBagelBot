@@ -29,7 +29,7 @@ import { RpcError } from '@bagel/shared/server/nats';
 // the public global-statistics page (it shows nobody's account state, so a
 // banned or ghost session has no more reason to be bounced off it than an
 // anonymous visitor does).
-const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/lang', '/delegate/accept', '/stats'];
+const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz', '/status', '/lang', '/delegate/accept', '/stats'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));

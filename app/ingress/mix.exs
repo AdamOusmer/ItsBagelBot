@@ -42,6 +42,9 @@ defmodule Ingress.MixProject do
       # Twitch Helix HTTP API
       {:req, "~> 0.7"},
       {:jason, "~> 1.4"},
+      # HTTP health surface (Ingress.StatusPlug): k8s probes + the Better Stack
+      # status page, TLS-terminated in-process like the Go services.
+      {:bandit, "~> 1.8"},
       # New Relic monitoring (disabled automatically when no license key)
       {:new_relic_agent, "~> 1.30"}
     ]

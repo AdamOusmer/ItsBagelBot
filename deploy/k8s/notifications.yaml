@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: notifications-env
-  namespace: production
+  namespace: db
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: notifications-doppler-token
   managedSecret:
     name: notifications-env
-    namespace: production
+    namespace: db
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notifications
-  namespace: production
+  namespace: db
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -49,6 +49,20 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: notifications
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -84,9 +98,11 @@ spec:
             # dials the leaf exclusively (no NATS_HUB_URL) and carries no BUS
             # credential.
             - name: NATS_URL
-              value: nats://nats-leaf-local:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_RPC_URL
-              value: nats://nats-leaf-local:4222
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -107,9 +123,26 @@ spec:
               value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
+            # Serve HTTPS on 8080 with the cert-manager notifications-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/notifications/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/notifications/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             - secretRef:
                 name: notifications-env
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/notifications/tls, readOnly: true}
           ports:
             - containerPort: 8080
           resources:
@@ -127,40 +160,42 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: notifications-tls
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: notifications
-  namespace: production
+  namespace: db
 spec:
   maxUnavailable: 1
   selector:
     matchLabels:
       app: notifications
 ---
-# Janitor: fires the internal cleanup verb once per day so exactly one service
-# replica (queue group) hard-deletes globally-expired notifications; their
-# per-user read receipts cascade. Reuses the service image with the `cleanup`
-# arg and the service's own NATS creds (notifications-env), so no extra image or
-# NATS account is needed — the cleanup subject is internal to the
-# NOTIFICATIONS_RPC account and unreachable from anywhere else.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: notifications-cleanup
-  namespace: production
+  namespace: db
 spec:
   schedule: "17 3 * * *" # daily, off the top of the hour
   concurrencyPolicy: Forbid
@@ -195,9 +230,11 @@ spec:
                 # RPC-only, same as the main container: leaf exclusively, no
                 # NATS_HUB_URL, no BUS credential.
                 - name: NATS_URL
-                  value: nats://nats-leaf-local:4222
+                  value: tls://nats-leaf.messaging:4222
                 - name: NATS_RPC_URL
-                  value: nats://nats-leaf-local:4222
+                  value: tls://nats-leaf.messaging:4222
+                - name: NATS_LEAF_URL
+                  value: tls://nats-leaf.messaging:4222
                 # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
                 - name: NATS_CA_PEM
                   valueFrom:

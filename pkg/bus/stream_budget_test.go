@@ -22,7 +22,7 @@ func TestMemoryStreamsFitTheHubMemoryBudget(t *testing.T) {
 	// is registered with account storage, so max_mem cannot back-pressure it —
 	// only the pod's memory limit can, by OOM-killing the member.
 	//
-	// Keep these three constants in step with deploy/k8s/nats-server.conf and the
+	// Keep these three constants in step with deploy/messaging/nats-server.conf and the
 	// nats StatefulSet's limits.
 	//
 	// Note the per-STREAM term: partitioning a lane onto a second stream is not

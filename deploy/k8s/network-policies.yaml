@@ -5,7 +5,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-apps
-  namespace: production
+  namespace: app
 spec:
   # Apply only to our specific apps to avoid breaking NATS or other infrastructure in the namespace
   podSelector:
@@ -17,16 +17,17 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow all pods in bagelbot namespace to reach each other for now.
+    # Allow all app pods to reach each other for now.
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: production
-    # Allow Traefik ingress controller to reach dashboard
+              kubernetes.io/metadata.name: app
+    # Allow the traefik DaemonSet (networking namespace) to reach the routed
+    # backends: consoles, webhooks, and the per-service /status listeners.
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kube-system
+              kubernetes.io/metadata.name: networking
     # Allow Tailscale ingress controller to reach admin
     - from:
         - namespaceSelector:
@@ -44,16 +45,21 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Allow communication to any pod in bagelbot (e.g. NATS)
+    # Peer app services (RPC fan-out between pods in this namespace)
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: production
-    # Allow communication to Valkey namespace
+              kubernetes.io/metadata.name: app
+    # NATS hub + leaf live in messaging
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: valkey
+              kubernetes.io/metadata.name: messaging
+    # Valkey lives in cache
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cache
 ---
 # Every long-running application currently exports APM directly to New Relic
 # over HTTPS. Product integrations also use HTTPS from gossip, ingress,
@@ -63,7 +69,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-public-https
-  namespace: production
+  namespace: app
 spec:
   podSelector:
     matchExpressions:
@@ -85,7 +91,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-heatwave
-  namespace: production
+  namespace: app
 spec:
   podSelector:
     matchExpressions:

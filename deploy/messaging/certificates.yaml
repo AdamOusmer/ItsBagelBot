@@ -1,0 +1,110 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Server certs for the NATS hub and leaf, issued from the fleet intermediate CA
+# (fleet-selfsigned -> fleet-ca-issuer -> fleet-intermediate-issuer). Each writes
+# a tls.crt/tls.key/ca.crt Secret in `messaging`; nats.yaml/nats-leaf.yaml mount
+# it as both the server cert AND, since hostNetwork keeps every peer on the same
+# cert, the client cert their own `cluster { tls { verify: true } }` block
+# presents to other hub/leaf peers — see nats-server.conf and
+# nats-leaf-server.conf for that reuse. cert-manager's CA issuer walks the
+# signing secret's own ca.crt when building the output bundle, so ca.crt here
+# still ends up as the ROOT certificate (not the intermediate) and tls.crt ends
+# up as leaf+intermediate. Clients verify the server against the CA
+# (distributed as the fleet-ca ConfigMap by trust-manager, once that Bundle is
+# recreated on this cluster — see the mTLS matrix note in nats-server.conf) —
+# no per-client certs on the CLIENT listeners yet; see that same note for why.
+#
+# SANs must cover every name a peer dials: the Service name, its FQDN, the
+# per-pod/per-node headless names the cluster routes use, and localhost (the
+# reloader sidecar and the prometheus exporter both dial 127.0.0.1).
+#
+# hostNetwork is retained from the original production design (nats.yaml,
+# nats-leaf.yaml): this cluster's app tier (node1/node2/node3, untainted, cp1
+# excluded by its control-plane taint) already has three schedulable nodes at
+# the same VLAN addresses production used, so the anti-affinity + per-node
+# listener design carries over unchanged rather than needing to be
+# reconstructed later. Verified against `kubectl get nodes -o wide` before
+# writing this file, not assumed. If the fleet is ever genuinely down to one
+# node, drop the ipAddresses below to that one node's address and nats.yaml's
+# replicas/anti-affinity to match — do not carry stale IP SANs for nodes that
+# no longer exist, the old fleet hit exactly that failure mode (see nats.yaml's
+# git history, commit a8b810e5) after node4 rotated out.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-hub-tls
+  namespace: messaging
+spec:
+  secretName: nats-hub-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - nats
+    - nats.messaging
+    - nats.messaging.svc
+    - nats.messaging.svc.cluster.local
+    - nats-headless
+    - nats-headless.messaging.svc.cluster.local
+    - nats-0.nats-headless.messaging.svc.cluster.local
+    - nats-1.nats-headless.messaging.svc.cluster.local
+    - nats-2.nats-headless.messaging.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+    # Node VLAN addresses (node1/node2/node3 — cp1 excluded, see nats.yaml's
+    # affinity comment). hostNetwork NATS members advertise their node IP in
+    # cluster routes and connect_urls, so route and client dials that arrive
+    # addressed by IP verify against an IP SAN, not a DNS name. Without these,
+    # every IP-dialed TLS handshake fails with "bad certificate" the moment a
+    # member restarts onto a fresh socket — this bit the old fleet on
+    # 2026-08-17 (see commit a8b810e5) and the fix carries forward unchanged.
+    - 10.10.0.4
+    - 10.10.0.5
+    - 10.10.0.6
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-leaf-tls
+  namespace: messaging
+spec:
+  secretName: nats-leaf-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - nats-leaf
+    - nats-leaf.messaging
+    - nats-leaf.messaging.svc
+    - nats-leaf.messaging.svc.cluster.local
+    - nats-leaf-local
+    - nats-leaf-local.messaging
+    - nats-leaf-local.messaging.svc
+    - nats-leaf-local.messaging.svc.cluster.local
+    - nats-leaf-peers
+    - nats-leaf-peers.messaging
+    - nats-leaf-peers.messaging.svc
+    - nats-leaf-peers.messaging.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+    # Same node VLAN addresses as nats-hub-tls, same reason: the leaf shares
+    # the node's netns and advertises the node IP in its own cluster routes.
+    - 10.10.0.4
+    - 10.10.0.5
+    - 10.10.0.6

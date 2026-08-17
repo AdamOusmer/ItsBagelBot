@@ -1,0 +1,617 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: cache
+spec:
+  ports:
+  - name: tls-redis
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  - name: tls-sentinel
+    port: 26380
+    protocol: TCP
+    targetPort: sentinel-tls
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey-local
+  namespace: cache
+spec:
+  # kube-proxy selects only the endpoint on the caller's node. This keeps
+  # node-local reads on that node's own listener, with no cross-node hop.
+  # TODAY with replicas: 1 the "local" endpoint only exists on the one node
+  # the pod lands on; every other node's pods have no local endpoint and
+  # pkg/valkey degrades to Sentinel-only reads (see NewClient's log line),
+  # which is correct, not a bug, until replicas scale to 3.
+  internalTrafficPolicy: Local
+  ports:
+  - name: tls-redis
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey-headless
+  namespace: cache
+spec:
+  ports:
+  - name: redis-tls
+    port: 6380
+    protocol: TCP
+    targetPort: redis-tls
+  - name: sentinel-tls
+    port: 26380
+    protocol: TCP
+    targetPort: sentinel-tls
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: valkey
+  namespace: cache
+spec:
+  # TODAY there is one member, so this budget cannot protect quorum -- it only
+  # keeps a crash-looping pod evictable during a drain. Re-derive this from
+  # Sentinel quorum arithmetic (2-of-3 needs maxUnavailable: 1) when replicas
+  # scales to 3 below.
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/name: valkey
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    itsbagelbot.dev/valkey-partitioning: disabled
+    itsbagelbot.dev/valkey-topology: sentinel-single-primary
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/name: valkey
+  name: valkey-node
+  namespace: cache
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: Parallel
+  # ONE member today: this is a fresh single-node-capable cluster and pkg/valkey
+  # (buildOption in pkg/valkey/client.go) hardcodes the Sentinel master-set name
+  # "myprimary" and only takes the Sentinel path when the configured address is
+  # a Sentinel port, so a real (if 1-node) Sentinel deployment is what every
+  # consumer's VALKEY_ADDR already expects, not a bare standalone connection.
+  #
+  # Scale to 3 when more nodes are dedicated to this tier: bump replicas to 3,
+  # sentinel monitor quorum in valkey.yaml's config-init from 1 back to 2, and
+  # min-replicas-to-write in config/tuning.conf from 0 back to 1. Nothing else
+  # in this file is ordinal- or count-specific.
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: valkey
+      app.kubernetes.io/name: valkey
+  serviceName: valkey-headless
+  template:
+    metadata:
+      annotations:
+        # TLS is native (Valkey's own tls-port), not the CNI's WireGuard
+        # tunnel: the pods run hostNetwork (see below), so the tunnel is not
+        # in the path and does not re-encrypt this traffic. Matches nats-leaf
+        # (deploy/messaging/nats-leaf.yaml) -- both are the exceptions carved out of
+        # the WireGuard pod plane for this reason.
+        secrets.doppler.com/reload: 'true'
+      labels:
+        app.kubernetes.io/component: node
+        app.kubernetes.io/instance: valkey
+        app.kubernetes.io/name: valkey
+    spec:
+      # Seed the writable /data copies of valkey.conf and sentinel.conf ONCE.
+      # After first boot valkey and sentinel own these files: valkey rewrites
+      # replicaof on every Sentinel-driven failover and sentinel persists its
+      # known peers/epoch, so a restarted pod reads its real current role from
+      # /data instead of re-deriving it. Every member announces its stable
+      # StatefulSet DNS identity, independent of the node it is scheduled on.
+      initContainers:
+      - name: config-init
+        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          # Every member is equally eligible for promotion and Sentinel's own
+          # election decides. Nothing here depends on which node a member
+          # lands on.
+          POD_FQDN="${POD_NAME}.valkey-headless.cache.svc.cluster.local"
+          # This is the only valkey-cli call that leaves the pod: it reaches
+          # the Sentinel Service, so during a rollout it can land on a member
+          # still running the previous revision. The client certificate is
+          # always presented (fix(valkey): keep client cert on Sentinel
+          # lookup, commit 8566a40e) because tls-auth-clients yes rejects a
+          # bare handshake outright; presenting it is accepted whether the
+          # peer requires it or not.
+          lookup_master() {
+            { REDISCLI_AUTH="${CORE}" valkey-cli -h valkey.cache.svc.cluster.local -p 26380 --tls --cacert /etc/valkey/tls/ca.crt --cert /etc/valkey/tls/tls.crt --key /etc/valkey/tls/tls.key --sni valkey.cache.svc.cluster.local --no-auth-warning sentinel get-master-addr-by-name myprimary 2>/dev/null || true; } \
+              | head -n 1 | tr -d '"'
+          }
+          LIVE_MASTER=$(lookup_master)
+
+          # A FRESH member with no Sentinel quorum to ask is the only case
+          # that needs a deterministic choice. Ordinal 0 seeds and any later
+          # ordinal waits for its view, so two simultaneously-fresh members
+          # never both declare themselves primary. The seed is the ORDINAL,
+          # never a hostname or node. A member with a retained config already
+          # has a role and does not wait.
+          if [ ! -f /data/valkey.conf ] && [ -z "${LIVE_MASTER}" ] && [ "${POD_NAME}" != "valkey-node-0" ]; then
+            echo "Cold start with no Sentinel primary; waiting for valkey-node-0 to seed before starting ${POD_FQDN}"
+            while [ -z "${LIVE_MASTER}" ]; do
+              sleep 2
+              LIVE_MASTER=$(lookup_master)
+            done
+          fi
+
+          MASTER_ENDPOINT="${POD_FQDN}"
+          if [ -n "${LIVE_MASTER}" ]; then
+            MASTER_ENDPOINT="${LIVE_MASTER}"
+          fi
+          if [ ! -f /data/valkey.conf ]; then
+            cp /config/valkey.conf /data/valkey.conf
+            {
+              echo "masterauth ${CORE}"
+              echo "replica-announce-ip ${POD_FQDN}"
+              echo "replica-announce-port 6380"
+            } >> /data/valkey.conf
+            # The seeding member reaches here with MASTER_ENDPOINT equal to
+            # its own FQDN and writes no replicaof line, which is what makes
+            # it primary.
+            if [ -n "${LIVE_MASTER}" ] && [ "${POD_FQDN}" != "${MASTER_ENDPOINT}" ]; then
+              echo "replicaof ${MASTER_ENDPOINT} 6380" >> /data/valkey.conf
+            fi
+            chmod 600 /data/valkey.conf
+          fi
+          sed -i '/^replica-priority /d' /data/valkey.conf
+          # Keep ConfigMap-backed runtime policy authoritative over retained
+          # CONFIG REWRITE output.
+          sed -i '\|^include /config/tuning.conf$|d' /data/valkey.conf
+          echo "include /config/tuning.conf" >> /data/valkey.conf
+          sed -i '/^io-threads /d' /data/valkey.conf
+          echo "io-threads 2" >> /data/valkey.conf
+          # Reconcile this member's stable DNS identity before Valkey starts.
+          sed -i '/^replica-announce-ip /d' /data/valkey.conf
+          echo "replica-announce-ip ${POD_FQDN}" >> /data/valkey.conf
+          # A planned failover may have changed the live primary after
+          # Valkey's last CONFIG REWRITE. When Sentinel answered above, its
+          # current view is authoritative.
+          if [ -n "${LIVE_MASTER}" ]; then
+            sed -i '/^replicaof /d' /data/valkey.conf
+            if [ "${POD_FQDN}" != "${MASTER_ENDPOINT}" ]; then
+              echo "replicaof ${MASTER_ENDPOINT} 6380" >> /data/valkey.conf
+            fi
+          fi
+          if [ ! -f /data/sentinel.conf ]; then
+            cp /config/sentinel.conf /data/sentinel.conf
+            {
+              echo "requirepass ${CORE}"
+              echo "sentinel auth-pass myprimary ${CORE}"
+              echo "sentinel announce-ip ${POD_FQDN}"
+              echo "sentinel announce-port 26380"
+              # Quorum 2: 2-of-3 for a 3 replica cluster.
+              echo "sentinel monitor myprimary ${MASTER_ENDPOINT} 6380 2"
+            } >> /data/sentinel.conf
+            chmod 600 /data/sentinel.conf
+          fi
+          sed -i '/^sentinel announce-ip /d' /data/sentinel.conf
+          echo "sentinel announce-ip ${POD_FQDN}" >> /data/sentinel.conf
+          sed -i '/^sentinel resolve-hostnames /d; /^sentinel announce-hostnames /d' /data/sentinel.conf
+          {
+            echo "sentinel resolve-hostnames yes"
+            echo "sentinel announce-hostnames yes"
+          } >> /data/sentinel.conf
+          awk '
+            $1 == "sentinel" && ($2 == "known-replica" || $2 == "known-sentinel") && $3 == "myprimary" {
+              endpoint = $2 FS $4 FS $5
+              if (seen[endpoint]++) next
+            }
+            { print }
+          ' /data/sentinel.conf > /data/sentinel.conf.dedup
+          mv /data/sentinel.conf.dedup /data/sentinel.conf
+          chmod 600 /data/sentinel.conf
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CORE
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /config
+          name: valkey-config
+          readOnly: true
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
+      containers:
+      - command:
+        - valkey-server
+        - /data/valkey.conf
+        - --replica-announce-ip
+        - $(POD_NAME).valkey-headless.cache.svc.cluster.local
+        - --replica-announce-port
+        - "6380"
+        - --masterauth
+        - $(CORE)
+        - --cluster-enabled
+        - "no"
+        - --replica-read-only
+        - "yes"
+        - --maxmemory
+        - 512mb
+        - --maxmemory-policy
+        - volatile-lru
+        - --port
+        - "0"
+        - --tls-port
+        - "6380"
+        - --tls-cert-file
+        - /etc/valkey/tls/tls.crt
+        - --tls-key-file
+        - /etc/valkey/tls/tls.key
+        - --tls-ca-cert-file
+        - /etc/valkey/tls/ca.crt
+        # Full mTLS: command-line policy is authoritative even over a retained
+        # /data/valkey.conf, same as every other flag repeated here.
+        - --tls-auth-clients
+        - "yes"
+        - --tls-replication
+        - "yes"
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CORE
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "6380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: valkey
+        ports:
+        - containerPort: 6380
+          name: redis-tls
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "6380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        startupProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "6380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 30
+          periodSeconds: 2
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: '2'
+            # 512 MiB maxmemory + 128 MiB replication backlog still need room
+            # for allocator overhead, TLS buffers, AOF fork/COW and full sync.
+            # A 2 GiB ceiling leaves a defensible worst-case fork/COW margin.
+            memory: 2Gi
+          requests:
+            cpu: 250m
+            memory: 384Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /secrets/users
+          name: users-secret
+          readOnly: true
+        - mountPath: /config
+          name: valkey-config
+          readOnly: true
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
+      - command:
+        - valkey-server
+        - /data/sentinel.conf
+        - --sentinel
+        - --port
+        - "0"
+        - --tls-port
+        - "26380"
+        - --tls-cert-file
+        - /etc/valkey/tls/tls.crt
+        - --tls-key-file
+        - /etc/valkey/tls/tls.key
+        - --tls-ca-cert-file
+        - /etc/valkey/tls/ca.crt
+        - --tls-auth-clients
+        - "yes"
+        - --tls-replication
+        - "yes"
+        env:
+        - name: REDISCLI_AUTH
+          valueFrom:
+            secretKeyRef:
+              key: valkey-password
+              name: valkey-core-secret
+        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "26380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: sentinel
+        ports:
+        - containerPort: 26380
+          name: sentinel-tls
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "26380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        startupProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -p
+            - "26380"
+            - --tls
+            - --cacert
+            - /etc/valkey/tls/ca.crt
+            - --cert
+            - /etc/valkey/tls/tls.crt
+            - --key
+            - /etc/valkey/tls/tls.key
+            - --sni
+            - valkey.cache.svc.cluster.local
+            - ping
+          failureThreshold: 30
+          periodSeconds: 2
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 250m
+            memory: 64Mi
+          requests:
+            # TLS health checks use 25-40m steadily.
+            cpu: 50m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: valkey-data
+        - mountPath: /etc/valkey/tls
+          name: valkey-tls
+          readOnly: true
+      # Valkey and Sentinel listen on the node's own addresses (6380/26380).
+      # config-init resolves the Sentinel Service and every member announces a
+      # cluster DNS name, so the pods still need cluster DNS.
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      restartPolicy: Always
+      # No role tolerations: Valkey belongs on the untainted application tier
+      # (cp1 carries no taint on this cluster either, so it is schedulable
+      # too, but anti-affinity below still keeps at most one member per node).
+      schedulerName: default-scheduler
+      nodeSelector:
+        role: node
+      # Inert with replicas: 1 (nothing to conflict with), kept so scaling to
+      # 3 spreads members one-per-node without an extra edit.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: node
+                app.kubernetes.io/instance: valkey
+                app.kubernetes.io/name: valkey
+            topologyKey: kubernetes.io/hostname
+      securityContext:
+        fsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+            app.kubernetes.io/instance: valkey
+            app.kubernetes.io/name: valkey
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - name: users-secret
+        secret:
+          defaultMode: 256
+          secretName: valkey-users-secret
+      - configMap:
+          defaultMode: 420
+          name: valkey-config
+        name: valkey-config
+      - name: valkey-tls
+        secret:
+          defaultMode: 288
+          secretName: valkey-server-tls
+      # Valkey storage is EPHEMERAL, deliberately. No volumeClaimTemplates.
+      # A local-path PVC binds its PV to the node that provisioned it, so a
+      # member whose node dies cannot be rescheduled. Losing a member's volume
+      # is cheap here: replication rebuilds a replica from the primary, and
+      # the whole dataset is derived state (projections, timers) that other
+      # services rebuild on their own. The init script already regenerates
+      # valkey.conf and sentinel.conf on every boot from Sentinel discovery
+      # rather than reading them back off disk, so an empty /data is the path
+      # it is written for.
+      - name: valkey-data
+        emptyDir:
+          sizeLimit: 8Gi
+  updateStrategy:
+    type: RollingUpdate

@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: users-env
-  namespace: production
+  namespace: db
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: users-doppler-token
   managedSecret:
     name: users-env
-    namespace: production
+    namespace: db
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: users
-  namespace: production
+  namespace: db
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -57,7 +57,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
         podAntiAffinity:
@@ -102,11 +102,11 @@ spec:
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: nats://nats:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -116,9 +116,9 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: NATS_RPC_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -131,10 +131,26 @@ spec:
               value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
+            # Serve HTTPS on 8080 with the cert-manager users-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/users/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/users/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             - secretRef:
                 name: users-env
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/users/tls, readOnly: true}
             # Tink keyset for at-rest token encryption, synced from Doppler
             # (TINK_KEYSET key of users-env) and consumed as a file via
             # TINK_KEYSET_PATH=/etc/tink/keyset.json.
@@ -158,18 +174,25 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       terminationGracePeriodSeconds: 45
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: users-tls
         - name: tink-keyset
           secret:
             secretName: users-env
@@ -181,7 +204,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: users
-  namespace: production
+  namespace: db
 spec:
   maxUnavailable: 1
   selector:

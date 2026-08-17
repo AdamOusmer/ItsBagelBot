@@ -171,7 +171,7 @@ func main() {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),

@@ -8,14 +8,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: sesame-env
-  namespace: production
+  namespace: app
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: sesame-doppler-token
   managedSecret:
     name: sesame-env
-    namespace: production
+    namespace: app
     type: Opaque
   resyncSeconds: 60
 ---
@@ -23,14 +23,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # replicas intentionally omitted: the sesame ScaledObject below owns this
-  # field via its generated HPA (floor 4, matching the old static count).
-  # kustomize-controller stops setting it, so SSA hands ownership to the HPA
-  # instead of fighting it every reconcile.
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -67,7 +64,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: itsbagelbot.dev/role
+                  - key: role
                     operator: NotIn
                     values: [cp, worker]
       topologySpreadConstraints:
@@ -111,11 +108,11 @@ spec:
             # The stream leader still performs the RAFT commit, while client TLS,
             # socket and batch work is spread over all three hub members.
             - name: NATS_URL
-              value: tls://nats:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_URL
-              value: tls://nats-0.nats-headless.production.svc.cluster.local:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: tls://nats:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -130,7 +127,9 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
-              value: valkey.valkey.svc.cluster.local
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
             # both-or-neither. Land this (a no-op while tls-auth-clients is
             # still "no") on every consumer BEFORE flipping the statefulset,
@@ -140,9 +139,9 @@ spec:
             - name: VALKEY_TLS_CLIENT_KEY_FILE
               value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
-              value: tls://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: tls://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: SSL_CERT_FILE
               value: /etc/nats-ca/ca.pem
             - name: NODE_NAME
@@ -154,7 +153,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
-              value: valkey-local.valkey.svc.cluster.local:6380
+              value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
             # CANARY FLAG FOR THE PULL ROLLOUT. Flipping NATS_CONSUME_FLOW to
@@ -230,12 +229,28 @@ spec:
               value: twitch.outgress.system
             - name: NATS_BROADCASTER_LIVE_SUBJECT
               value: bagel.rpc.broadcaster.live.get
+            # Serve HTTPS on 8080 with the cert-manager sesame-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/sesame/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/sesame/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             # sesame-env (Doppler) carries VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
             # and TWITCH_SPECIAL_USER_IDS — the same values the worker read.
             - secretRef:
                 name: sesame-env
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/sesame/tls, readOnly: true}
             - name: fleet-ca
               mountPath: /etc/nats-ca
               readOnly: true
@@ -264,17 +279,24 @@ spec:
               httpGet:
                 path: /drain
                 port: 8080
+                scheme: HTTPS
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 8080}
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
             periodSeconds: 10
           startupProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
             failureThreshold: 18
             periodSeconds: 5
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: sesame-tls
         - name: fleet-ca
           configMap:
             name: fleet-ca
@@ -287,7 +309,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
 spec:
   maxUnavailable: 1
   selector:
@@ -308,7 +330,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: sesame
-  namespace: production
+  namespace: app
 spec:
   scaleTargetRef:
     name: sesame
@@ -360,7 +382,7 @@ spec:
         # KEDA does not fail loudly, it suppresses the error and serves the
         # static `fallback` replicas below, so autoscaling stops while the HPA
         # still reads healthy.
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
@@ -370,7 +392,7 @@ spec:
         activationLagThreshold: "500"
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: nats.production.svc.cluster.local:8222
+        natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         # The standard durable lives on the partitioned stream. Naming the old
         # stream here after the partition would read a consumer that no longer

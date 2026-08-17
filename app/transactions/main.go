@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
@@ -91,6 +92,7 @@ func main() {
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
 	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
+		Health:        health.NewSet(serviceName, health.Bool("nats", nc.IsConnected)),
 		NotifyGift:    notifier.Notify,
 		ApplyBilling:  billing.Apply,
 		App:           nrApp,
