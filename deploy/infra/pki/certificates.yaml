@@ -14,20 +14,6 @@
 #
 # SANs must cover every name a peer dials: the Service name, its FQDN, and (for
 # the hub) the per-pod headless names used by the cluster routes.
-#
-# nats-bus-client-tls below is the one exception: a CLIENT cert, not a server
-# cert. The hub's 4222 listener and the leaf's 4223 listener both set
-# verify:true (nats-server.conf, nats-leaf-server.conf), so every service
-# connection to either must present a cert chaining to this same CA or the
-# TLS handshake is refused before auth.conf's bcrypt user/password check ever
-# runs. One shared cert for every connecting service is intentional, echoing
-# valkey-server-tls above: verify:true here is chain-of-trust only (NOT
-# verify_and_map), so it does not need a distinct identity per client — every
-# holder is equally trusted to attempt the existing per-account bcrypt auth,
-# exactly as before. commonName is a label, not a security boundary;
-# dnsNames/ipAddresses are irrelevant since nats-server's verify:true does not
-# hostname-check the CLIENT cert (only the reverse, server->client, direction
-# is SAN-sensitive, and that is nats-hub-tls/nats-leaf-tls above).
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -58,32 +44,6 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: nats-bus-client-tls
-  namespace: production
-spec:
-  secretName: nats-bus-client-tls
-  duration: 2160h # 90d
-  renewBefore: 360h # 15d
-  privateKey:
-    algorithm: ECDSA
-    size: 256
-  issuerRef:
-    name: fleet-intermediate-issuer
-    kind: ClusterIssuer
-    group: cert-manager.io
-  # cert-manager requires at least one of commonName/dnsNames/uris/ipAddresses;
-  # this is a client cert with no hostname meaning, so commonName is a plain
-  # label. usages defaults to ["digital signature", "key encipherment"] only —
-  # add "client auth" explicitly so the CA-issued cert states what it is for.
-  commonName: "nats-bus-client"
-  usages:
-    - digital signature
-    - key encipherment
-    - client auth
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
