@@ -15,8 +15,8 @@ Endpoints (NATS_URL/RPC_URL/LEAF_URL/HUB_URL, ingress *_HOST) live in the k8s
 manifests, not here — this only touches credentials.
 
 Usage:
-    python3 deploy/k8s/nats-secrets.py --dry-run   # show what would change
-    python3 deploy/k8s/nats-secrets.py             # generate + write to Doppler
+    python3 deploy/messaging/nats-secrets.py --dry-run   # show what would change
+    python3 deploy/messaging/nats-secrets.py             # generate + write to Doppler
 
 After a real run the broker hashes change, so the nats + nats-leaf pods must be
 restarted to re-read nats-auth-env (env-injected; the conf file hot-reloads but

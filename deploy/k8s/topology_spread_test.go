@@ -234,20 +234,21 @@ func manifestFilenames(t *testing.T) []string {
 // affinity" until someone deletes the claim. On 2026-07-27 that stranded nats-1
 // on a dead node5, took JetStream below quorum, and crashlooped every service
 // that opens a consumer at startup. Pinning is therefore opt-in and has to earn
-// its place, which only nats does:
+// its place.
 //
-//   - nats: a cold start re-establishes every stream AND all 24+ consumer RAFT
-//     groups from its peers. Measured that day, a restarted member sat "not
-//     current" on 10-27 groups for minutes, surfacing as chat replies that were
-//     slow or dropped past MaxDeliver. The cost scales with GROUP COUNT, not
-//     data: the streams held under a thousand messages.
+// Empty today: nats was the one StatefulSet that earned it (a cold start
+// re-establishes every stream AND all 24+ consumer RAFT groups from its
+// peers — a restarted member sat "not current" on 10-27 groups for minutes on
+// 2026-07-27, surfacing as chat replies that were slow or dropped past
+// MaxDeliver), but nats.yaml moved to deploy/messaging and this glob only
+// covers deploy/k8s, so its exception no longer needs listing here. See
+// deploy/messaging's own volumeClaimTemplates comment in nats.yaml for that
+// StatefulSet's reasoning.
 //
 // Valkey is deliberately absent. Its master/replica topology rebuilds a member
 // with one full resync of a small derived dataset, so an empty volume costs a
 // few seconds rather than minutes of degraded consumer state.
-var pinningIsWorthIt = map[string]string{
-	"nats": "cold start rebuilds 24+ consumer RAFT groups; see the volumeClaimTemplates comment in nats.yaml",
-}
+var pinningIsWorthIt = map[string]string{}
 
 // TestOnlyDocumentedStatefulSetsPinAVolume keeps the exception list honest.
 //

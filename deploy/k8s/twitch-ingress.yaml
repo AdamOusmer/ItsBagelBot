@@ -133,6 +133,13 @@ spec:
               value: /etc/twitch-ingress/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/twitch-ingress/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
             - name: NATS_HOST
               value: nats.messaging
             # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
@@ -252,6 +259,7 @@ spec:
               cpu: "2"
               memory: 512Mi
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/twitch-ingress/tls, readOnly: true}
           ports:
             - name: status
@@ -281,6 +289,9 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 5
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
         - name: health-tls
           secret:
             secretName: twitch-ingress-tls

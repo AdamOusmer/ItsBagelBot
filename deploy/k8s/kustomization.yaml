@@ -33,23 +33,6 @@ resources:
   # Edge error pages: unrouted hosts + dead-backend 5xx get web/'s coded
   # 404/500 instead of traefik's plain-text defaults.
   - web-error-pages.yaml
-  - nats.yaml
-  - nats-leaf.yaml
-  - nats-auth-dopplersecret.yaml
-# NATS broker config, formerly created by apply-nats.sh. The configmaps hold
-# only the server conf + the auth conf ($ENV placeholders expanded at runtime
-# from the nats-auth-env secret). disableNameSuffixHash keeps the names stable
-# (nats-config / nats-leaf-config) so the volume mounts resolve and the
-# config-reloader sidecar hot-reloads on content change instead of forcing a
-# pod roll on every edit.
-configMapGenerator:
-  - name: nats-config
-    files:
-      - nats.conf=nats-server.conf
-      - auth.conf=nats-auth.conf
-  - name: nats-leaf-config
-    files:
-      - nats.conf=nats-leaf-server.conf
-      - auth.conf=nats-auth.conf
-generatorOptions:
-  disableNameSuffixHash: true
+# NATS (hub + leaf + auth + certs) moved to deploy/messaging, its own
+# kustomization with the nats-config/nats-leaf-config configMapGenerator.
+# `kubectl apply -k deploy/messaging` before this one.

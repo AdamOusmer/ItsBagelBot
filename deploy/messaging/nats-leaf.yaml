@@ -115,6 +115,7 @@ spec:
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
             - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
+            - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
           resources:
             # Leaves are encrypted local relays, not durable stores; keep burst
@@ -176,6 +177,7 @@ spec:
           volumeMounts:
             - {name: config, mountPath: /etc/nats, readOnly: true}
             - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
+            - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
           resources:
             requests: {cpu: 5m, memory: 16Mi}
@@ -197,6 +199,11 @@ spec:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
       volumes:
+        # verify:true anchor: the intermediate CA alone, distributed by the
+        # fleet-intermediate-ca trust-manager Bundle.
+        - name: intermediate-ca
+          configMap:
+            name: fleet-intermediate-ca
         - name: config
           configMap:
             name: nats-leaf-config

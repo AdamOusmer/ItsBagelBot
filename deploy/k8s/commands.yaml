@@ -5,14 +5,14 @@ apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
   name: commands-env
-  namespace: app
+  namespace: db
 spec:
   host: https://api.doppler.com
   tokenSecret:
     name: commands-doppler-token
   managedSecret:
     name: commands-env
-    namespace: app
+    namespace: db
     type: Opaque
   resyncSeconds: 60
 ---
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: commands
-  namespace: app
+  namespace: db
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
@@ -90,11 +90,11 @@ spec:
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats.messaging:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
-              value: nats://nats.messaging:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -104,9 +104,9 @@ spec:
                   name: fleet-ca
                   key: ca.pem
             - name: NATS_RPC_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -126,10 +126,18 @@ spec:
               value: /etc/commands/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/commands/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             - secretRef:
                 name: commands-env
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/commands/tls, readOnly: true}
           ports:
             - containerPort: 8080
@@ -160,6 +168,9 @@ spec:
             failureThreshold: 18 # 18 × 5s = 90s max startup window
             periodSeconds: 5
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
         - name: health-tls
           secret:
             secretName: commands-tls
@@ -169,7 +180,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: commands
-  namespace: app
+  namespace: db
 spec:
   maxUnavailable: 1
   selector:

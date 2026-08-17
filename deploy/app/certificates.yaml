@@ -1,0 +1,329 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Server certs for the app namespace, issued from the fleet intermediate CA
+# (fleet-selfsigned -> fleet-ca-issuer -> fleet-intermediate-issuer). Recovered
+# from the purged deploy/infra/pki repo (git show a8b810e5:deploy/infra/pki/
+# certificates.yaml) and re-pointed at this cluster's `app` namespace — the old
+# cluster ran every service under `production`. console-admin-tls did not make
+# the move: console-admin now terminates over the tailscale ingress class,
+# which provisions and rotates its own cert, so there is no traefik-facing
+# secret left for cert-manager to own.
+#
+# The ten <svc>-tls certs below back the per-service /status health listeners
+# added in PR #591. Same shape: tls.crt/tls.key/ca.crt in an app-namespace
+# Secret, reloaded by each service (Go handshake hook or the BEAM ssl pem
+# cache) without a pod restart. SANs cover the four forms a ClusterIP Service
+# name resolves to, since traefik's ServersTransport per service pins
+# serverName to the short form (deploy/k8s/status-routes.yaml).
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: console-dashboard-tls
+  namespace: app
+spec:
+  secretName: console-dashboard-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - console-dashboard
+    - console-dashboard.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: transactions-tls
+  namespace: app
+spec:
+  secretName: transactions-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - transactions
+    - transactions.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: commands-tls
+  namespace: app
+spec:
+  secretName: commands-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - commands-status
+    - commands-status.app
+    - commands-status.app.svc
+    - commands-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gossip-tls
+  namespace: app
+spec:
+  secretName: gossip-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - gossip-status
+    - gossip-status.app
+    - gossip-status.app.svc
+    - gossip-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: loyalty-tls
+  namespace: app
+spec:
+  secretName: loyalty-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - loyalty-status
+    - loyalty-status.app
+    - loyalty-status.app.svc
+    - loyalty-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: modules-tls
+  namespace: app
+spec:
+  secretName: modules-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - modules-status
+    - modules-status.app
+    - modules-status.app.svc
+    - modules-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: notifications-tls
+  namespace: app
+spec:
+  secretName: notifications-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - notifications-status
+    - notifications-status.app
+    - notifications-status.app.svc
+    - notifications-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: outgress-tls
+  namespace: app
+spec:
+  secretName: outgress-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - outgress-status
+    - outgress-status.app
+    - outgress-status.app.svc
+    - outgress-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: projector-tls
+  namespace: app
+spec:
+  secretName: projector-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - projector-status
+    - projector-status.app
+    - projector-status.app.svc
+    - projector-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sesame-tls
+  namespace: app
+spec:
+  secretName: sesame-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - sesame-status
+    - sesame-status.app
+    - sesame-status.app.svc
+    - sesame-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: users-tls
+  namespace: app
+spec:
+  secretName: users-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - users-status
+    - users-status.app
+    - users-status.app.svc
+    - users-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: twitch-ingress-tls
+  namespace: app
+spec:
+  secretName: twitch-ingress-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - twitch-ingress-status
+    - twitch-ingress-status.app
+    - twitch-ingress-status.app.svc
+    - twitch-ingress-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-client-tls
+  namespace: app
+spec:
+  secretName: valkey-client-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: valkey-client.app.svc.cluster.local
+  dnsNames:
+    - valkey-client.app.svc.cluster.local
+
+---
+# Fleet NATS client identity (mTLS). Every app-tier NATS client (Go services,
+# consoles, twitch-ingress) mounts this and presents it via
+# NATS_CLIENT_CERT_FILE/NATS_CLIENT_KEY_FILE; the hub and leaf client
+# listeners verify it against the fleet intermediate CA once verify:true
+# lands there. usages pins it to client auth so it can never double as a
+# server cert.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-tls
+  namespace: app
+spec:
+  secretName: nats-client-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  commonName: nats-client.app.svc.cluster.local
+  dnsNames:
+    - nats-client.app.svc.cluster.local

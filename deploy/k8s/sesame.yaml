@@ -27,10 +27,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # replicas intentionally omitted: the sesame ScaledObject below owns this
-  # field via its generated HPA (floor 4, matching the old static count).
-  # kustomize-controller stops setting it, so SSA hands ownership to the HPA
-  # instead of fighting it every reconcile.
+  replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -113,7 +110,7 @@ spec:
             - name: NATS_URL
               value: tls://nats.messaging:4222
             - name: NATS_HUB_URL
-              value: tls://nats-0.nats-headless.messaging.svc.cluster.local:4222
+              value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
               value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
@@ -131,6 +128,8 @@ spec:
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
               value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
             # both-or-neither. Land this (a no-op while tls-auth-clients is
             # still "no") on every consumer BEFORE flipping the statefulset,
@@ -140,9 +139,9 @@ spec:
             - name: VALKEY_TLS_CLIENT_KEY_FILE
               value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
-              value: tls://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: tls://nats-leaf:4222
+              value: tls://nats-leaf.messaging:4222
             - name: SSL_CERT_FILE
               value: /etc/nats-ca/ca.pem
             - name: NODE_NAME
@@ -237,12 +236,20 @@ spec:
               value: /etc/sesame/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/sesame/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
           envFrom:
             # sesame-env (Doppler) carries VALKEY_*, NATS_CACHE_INVALIDATION_PREFIX,
             # and TWITCH_SPECIAL_USER_IDS — the same values the worker read.
             - secretRef:
                 name: sesame-env
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/sesame/tls, readOnly: true}
             - name: fleet-ca
               mountPath: /etc/nats-ca
@@ -284,6 +291,9 @@ spec:
             failureThreshold: 18
             periodSeconds: 5
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
         - name: health-tls
           secret:
             secretName: sesame-tls

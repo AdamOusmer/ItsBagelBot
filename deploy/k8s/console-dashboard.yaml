@@ -120,6 +120,13 @@ spec:
               value: /etc/console/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/console/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
             - name: NODE_ENV
               value: production
             # adapter-node sits behind cloudflared+traefik. The app answers
@@ -142,9 +149,9 @@ spec:
             # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
             # node-local leaf. NATS_URL is the local-dev fallback only.
             - name: NATS_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
-              value: nats://nats.messaging:4222
+              value: tls://nats.messaging:4222
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -165,9 +172,9 @@ spec:
             - name: VALKEY_TLS_CLIENT_KEY_FILE
               value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
-              value: nats://nats-leaf.messaging:4222
+              value: tls://nats-leaf.messaging:4222
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -240,6 +247,7 @@ spec:
           ports:
             - containerPort: 3000
           volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: tls, mountPath: /etc/console/tls, readOnly: true}
             - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
           resources:
@@ -277,6 +285,9 @@ spec:
           effect: NoExecute
           tolerationSeconds: 60
       volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
         - name: tls
           secret:
             secretName: console-dashboard-tls

@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Valkey has no tls-client-cert-file directive: without one it presents
+# tls-cert-file/tls-key-file on every leg it dials out too (replica ->
+# master replication, and the config-init Sentinel lookup in valkey.yaml),
+# not only on inbound connections. One Certificate therefore covers both the
+# server identity AND the implicit client identity for the sentinel-to-valkey
+# and replica-to-master hops -- a second, distinct client Certificate would
+# only matter if a separate tls-client-cert-file were introduced, which the
+# old deployment never did and this one does not either.
+#
+# SANs cover every name a peer can use to reach a member: the three cache-ns
+# Services, and the per-pod headless identities Sentinel announces
+# (sentinel announce-hostnames yes / resolve-hostnames yes in
+# config/sentinel.conf). valkey-node-1/2 are provisioned ahead of need so
+# scaling replicas: 1 -> 3 (see valkey.yaml) needs no cert reissue.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-server-tls
+  namespace: cache
+spec:
+  secretName: valkey-server-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - valkey
+    - valkey.cache
+    - valkey.cache.svc
+    - valkey.cache.svc.cluster.local
+    - valkey-local
+    - valkey-local.cache
+    - valkey-local.cache.svc
+    - valkey-local.cache.svc.cluster.local
+    - valkey-headless
+    - valkey-headless.cache
+    - valkey-headless.cache.svc
+    - valkey-headless.cache.svc.cluster.local
+    - valkey-node-0.valkey-headless.cache.svc.cluster.local
+    - valkey-node-1.valkey-headless.cache.svc.cluster.local
+    - valkey-node-2.valkey-headless.cache.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
