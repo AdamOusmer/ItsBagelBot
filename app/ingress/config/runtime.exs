@@ -253,6 +253,48 @@ nats_cacerts =
       nil
   end
 
+# mTLS: fixed mount path this Deployment gets via the fleet-wide kustomize
+# patch in deploy/k8s/kustomization.yaml (the nats-bus-client-tls Secret,
+# issued in deploy/infra/pki/certificates.yaml) — not a per-service env var.
+# Same path pkg/bus/connect.go and console/shared/lib/server/nats.ts read by
+# default; see connect.go's header for why a fixed path replaced the original
+# per-service env var design. Applied to both nats_server call sites below
+# (RPC to the leaf and BUS to the hub) via the one function both share, so
+# this is the single Elixir chokepoint: presenting a client cert to a
+# listener that does not (yet) require one is harmless.
+#
+# NOW REQUIRED whenever TLS itself is on (nats_cacerts set): this Deployment
+# was confirmed presenting a cert under the prior, permissive commit before
+# this one shipped, so the raise below turns a missing/unreadable cert into a
+# boot-time crash, loud and in one place, not a silent gap that only
+# surfaces once the hub/leaf verify:true lands.
+#
+# ROTATION: certfile/keyfile below are PATHS, not file content, and that is
+# what makes this rotation-safe already, with no extra code. Erlang/OTP's
+# :ssl reads certfile/keyfile off disk at connection setup for EACH new TLS
+# connection it makes -- it is not a one-time load cached for the life of the
+# BEAM node. Gnat re-establishes a fresh :ssl connection on every reconnect
+# (a dropped TCP link, a hub/leaf roll, ...), so every reconnect after
+# cert-manager rewrites this path (renewal lands at day 75 of the cert's
+# 90-day lifetime) picks up the rotated content automatically. This is the
+# same rotation-safety pkg/bus/connect.go gets from a
+# tls.Config.GetClientCertificate callback and console/shared's nats.ts gets
+# from nats.js's certFile option -- three different mechanisms converging on
+# the same property: read the path fresh per connection, never cache the
+# bytes for the process lifetime. An already-open connection is not
+# re-validated mid-session and keeps working on the old cert until it
+# naturally reconnects; since the old cert stays valid to day 90 and renewal
+# lands at day 75, any reconnect in that 15-day window is enough.
+nats_client_certfile = "/etc/nats/client-certs/tls.crt"
+nats_client_keyfile = "/etc/nats/client-certs/tls.key"
+
+nats_client_cert_present =
+  File.exists?(nats_client_certfile) and File.exists?(nats_client_keyfile)
+
+if nats_cacerts && !nats_client_cert_present do
+  raise "nats mTLS client certificate required but not found at #{nats_client_certfile}"
+end
+
 nats_server = fn host, user, pass ->
   # Required for local-first HA: a missing node-qualified responder must return
   # immediately so Ingress.Rpc can safely fall back to the generic queue.
@@ -267,7 +309,9 @@ nats_server = fn host, user, pass ->
           verify: :verify_peer,
           cacerts: nats_cacerts,
           server_name_indication: String.to_charlist(host),
-          depth: 3
+          depth: 3,
+          certfile: nats_client_certfile,
+          keyfile: nats_client_keyfile
         ]
       })
     else
