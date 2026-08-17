@@ -28,6 +28,7 @@ resources:
   # the "worker" lane consumer group (SESAME_CONSUMER_NAME=worker), so it inherited
   # the same JetStream consumer across the cutover with no replay or gap.
   - sesame.yaml
+  - status-routes.yaml
   - twitch-ingress.yaml
   - network-policies.yaml
   # Edge error pages: unrouted hosts + dead-backend 5xx get web/'s coded

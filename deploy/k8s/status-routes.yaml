@@ -1,0 +1,228 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# External status surface for the Better Stack status page: one hostname,
+# one path per service — https://status.itsbagelbot.com/<service> rewrites to
+# that service's /status endpoint (pkg/health) and nothing else. The exact-path
+# match plus the replacePath middleware means only /status is ever reachable
+# from outside; /healthz, /readyz and /drain stay cluster-internal (a public
+# /drain would let anyone hold handler goroutines for 10s a request).
+#
+# DNS needs no record work: the cloudflared tunnel wildcard admits any
+# *.itsbagelbot.com hostname, and this router claiming Host(status...) is what
+# lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).
+#
+# Every service except transactions exposes port 8080 without a Service object
+# (their health was probe-only until now), so each gets a minimal ClusterIP
+# here. transactions reuses its existing Service and TLS ServersTransport from
+# transactions.yaml — its pod terminates TLS, so that hop stays end-to-end.
+apiVersion: v1
+kind: Service
+metadata:
+  name: commands-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: commands
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gossip-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: gossip
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loyalty-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: loyalty
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: modules-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: modules
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notifications-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: notifications
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: outgress-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: outgress
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projector-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: projector
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sesame-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: sesame
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-status
+  namespace: production
+spec:
+  trafficDistribution: PreferClose
+  selector:
+    app: users
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+# Rewrites every routed path to the one endpoint the backends actually serve.
+# Shared by all routes below: the per-service path only exists to pick the
+# backend, never to reach a different endpoint.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-path
+  namespace: production
+spec:
+  replacePath:
+    path: /status
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: service-status
+  namespace: production
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`status.itsbagelbot.com`) && Path(`/commands`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: commands-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/gossip`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: gossip-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/loyalty`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: loyalty-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/modules`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: modules-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/notifications`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: notifications-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/outgress`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: outgress-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/projector`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: projector-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/sesame`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: sesame-status
+          port: 80
+    - match: Host(`status.itsbagelbot.com`) && Path(`/transactions`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: transactions
+          port: 80
+          scheme: https
+          serversTransport: transactions-transport
+          nativeLB: true
+    - match: Host(`status.itsbagelbot.com`) && Path(`/users`)
+      kind: Rule
+      middlewares: [{name: status-path}]
+      services:
+        - name: users-status
+          port: 80
+  tls: {}
