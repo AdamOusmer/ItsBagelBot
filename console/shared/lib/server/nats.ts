@@ -180,7 +180,21 @@ function options(role: Role): ConnectionOptions {
   // tls upgrades the connection; server-auth only, auth stays user/password. No CA
   // (local dev against a plaintext server) keeps the connection plaintext.
   const caPem = process.env.NATS_CA_PEM;
-  if (caPem) opts.tls = { ca: caPem };
+  if (caPem) {
+    opts.tls = { ca: caPem };
+    // mTLS: present the fleet client cert when the pair is set (cert-manager
+    // secret mount; paths so renewals are re-read on reconnect). Both or
+    // neither — a half-set pair must fail loudly, not downgrade silently.
+    const certFile = process.env.NATS_CLIENT_CERT_FILE;
+    const keyFile = process.env.NATS_CLIENT_KEY_FILE;
+    if (!!certFile !== !!keyFile) {
+      throw new Error('NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty');
+    }
+    if (certFile && keyFile) {
+      opts.tls.certFile = certFile;
+      opts.tls.keyFile = keyFile;
+    }
+  }
   return opts;
 }
 
