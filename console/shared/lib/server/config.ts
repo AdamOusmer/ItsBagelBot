@@ -36,6 +36,14 @@ export interface ValkeyConfig {
   tlsCa?: string;
   /** Expected server identity; defaults to the stable in-cluster Service DNS. */
   tlsServerName?: string;
+  /**
+   * mTLS: paths to the mounted valkey-client-tls Secret (tls.crt/tls.key), not
+   * PEM content. Required once the server enforces tls-auth-clients yes; both
+   * must be set together or both left unset (unset = pre-flip / not yet
+   * rolled out on this Deployment).
+   */
+  tlsClientCertFile?: string;
+  tlsClientKeyFile?: string;
 }
 
 export interface ServerConfig {

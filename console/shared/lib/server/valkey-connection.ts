@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { readFileSync } from 'node:fs';
 import type { ConnectionOptions } from 'node:tls';
 import type { ValkeyConfig } from './config';
 
@@ -10,11 +11,21 @@ const DEFAULT_SERVER_NAME = 'valkey.valkey.svc.cluster.local';
 
 export function valkeyTLSOptions(cfg: ValkeyConfig): ConnectionOptions | undefined {
   if (!cfg.tlsCa) return undefined;
-  return {
+  const options: ConnectionOptions = {
     ca: cfg.tlsCa,
     servername: cfg.tlsServerName || DEFAULT_SERVER_NAME,
     minVersion: 'TLSv1.2'
   };
+  // mTLS: read from the mounted Secret volume at connection-build time (this
+  // function runs from initConsoleRuntime's boot step, never at module eval,
+  // so it is not subject to the $env/dynamic/private top-level-await
+  // deadlock this file's callers already avoid). Both-or-neither, matching
+  // the shared Go client's VALKEY_TLS_CLIENT_CERT_FILE/KEY_FILE contract.
+  if (cfg.tlsClientCertFile && cfg.tlsClientKeyFile) {
+    options.cert = readFileSync(cfg.tlsClientCertFile);
+    options.key = readFileSync(cfg.tlsClientKeyFile);
+  }
+  return options;
 }
 
 export function valkeyEndpoint(

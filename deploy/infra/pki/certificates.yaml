@@ -205,3 +205,41 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-client-tls
+  namespace: production
+spec:
+  secretName: valkey-client-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  # One shared client cert for every consumer (sesame, outgress, gossip,
+  # projector, console-dashboard, console-admin), deliberately mirroring the
+  # "one shared server cert" decision above: tls-auth-clients yes only checks
+  # chain-to-CA (tls-auth-clients-user is off), it does not map cert CN/identity
+  # to ACL users. Per-service certs would buy per-service revocation and
+  # nothing else today, at the cost of 6x the Certificate/Secret/rotation
+  # surface. Revisit if tls-auth-clients-user mapping is ever adopted.
+  #
+  # config-init and all six health probes do NOT use this cert: they already
+  # mount valkey-server-tls and reuse tls.crt/tls.key directly as their
+  # outbound client identity (see statefulset.yaml). This Certificate is only
+  # for the app-tier clients outside the valkey namespace.
+  #
+  # No SANs required for function -- Valkey's TLS layer does not check client
+  # cert SAN/EKU (valkey-server-tls above carries no Extended Key Usage
+  # extension either, which is why it already doubles as both a server cert
+  # and, for the valkey pods' own outbound links, a client cert). dnsNames
+  # below are for openssl/debugging readability only.
+  commonName: valkey-client.production.svc.cluster.local
+  dnsNames:
+    - valkey-client.production.svc.cluster.local
