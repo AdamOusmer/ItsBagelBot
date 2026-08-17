@@ -1,4 +1,0 @@
-*.retry
-group_vars/all/vault.yml
-*.local.yml
-.vault-pass

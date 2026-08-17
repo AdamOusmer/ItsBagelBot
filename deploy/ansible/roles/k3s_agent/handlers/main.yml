@@ -1,8 +1,0 @@
-# Copyright (c) 2026 Adam Ousmer. All rights reserved.
-# Proprietary. No license granted. See LICENSE.md.
-
----
-- name: restart k3s-agent
-  ansible.builtin.service:
-    name: k3s-agent
-    state: restarted
