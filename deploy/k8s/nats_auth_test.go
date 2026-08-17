@@ -224,13 +224,31 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 
 func expectedJetStreamSubjects(grants streamGrants) []string {
 	set := make(map[string]struct{})
-	for _, stream := range grants.flowControl {
+	addFlowControlSubjects(set, grants.flowControl)
+	addPullFetchSubjects(set, grants.pullFetch)
+	addConsumerStreamSubjects(set, grants.consumerStreams)
+	addOwnedStreamSubjects(set, grants.ownedStreams)
+	addKeyValueSubjects(set, grants.keyValueOwned)
+	if grants.hubDomainTwins {
+		addHubDomainTwins(set)
+	}
+	return sortedKeys(set)
+}
+
+func addFlowControlSubjects(set map[string]struct{}, streams []string) {
+	for _, stream := range streams {
 		set["$JS.FC."+stream+".>"] = struct{}{}
 	}
-	for _, stream := range grants.pullFetch {
+}
+
+func addPullFetchSubjects(set map[string]struct{}, streams []string) {
+	for _, stream := range streams {
 		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
 	}
-	for _, stream := range grants.consumerStreams {
+}
+
+func addConsumerStreamSubjects(set map[string]struct{}, streams []string) {
+	for _, stream := range streams {
 		for _, subject := range []string{
 			jetStreamAPI + "STREAM.INFO." + stream,
 			jetStreamAPI + "CONSUMER.INFO." + stream + ".>",
@@ -243,18 +261,24 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 			set[subject] = struct{}{}
 		}
 	}
-	for _, stream := range grants.ownedStreams {
+}
+
+func addOwnedStreamSubjects(set map[string]struct{}, streams []string) {
+	for _, stream := range streams {
 		set[jetStreamAPI+"STREAM.INFO."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
 		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
 	}
-	if len(grants.keyValueOwned) > 0 {
+}
+
+func addKeyValueSubjects(set map[string]struct{}, buckets []string) {
+	if len(buckets) > 0 {
 		// nats.go's CreateKeyValue probes the account with $JS.API.INFO before
 		// it touches the bucket stream, so owning any KV bucket implies the
 		// account-info read. It is read-only and account-scoped.
 		set[jetStreamAPI+"INFO"] = struct{}{}
 	}
-	for _, bucket := range grants.keyValueOwned {
+	for _, bucket := range buckets {
 		kvStream := "KV_" + bucket
 		for _, subject := range []string{
 			jetStreamAPI + "STREAM.CREATE." + kvStream,
@@ -267,14 +291,14 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 			set[subject] = struct{}{}
 		}
 	}
-	if grants.hubDomainTwins {
-		for subject := range set {
-			if rest, ok := strings.CutPrefix(subject, jetStreamAPI); ok {
-				set["$JS.hub.API."+rest] = struct{}{}
-			}
+}
+
+func addHubDomainTwins(set map[string]struct{}) {
+	for subject := range set {
+		if rest, ok := strings.CutPrefix(subject, jetStreamAPI); ok {
+			set["$JS.hub.API."+rest] = struct{}{}
 		}
 	}
-	return sortedKeys(set)
 }
 
 func (b busUserBlock) jetStreamSubjects() []string {
