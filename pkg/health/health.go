@@ -16,6 +16,7 @@ package health
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -220,6 +221,28 @@ func (s *Set) Handler() http.Handler {
 	return mux
 }
 
+// tlsConfig builds a config that re-reads the key pair from disk on every
+// handshake. The files are a cert-manager-managed Secret mount: kubelet swaps
+// them in place on renewal, so loading per handshake is what makes rotation
+// need no restarts and no manual step. Handshake volume here is probes plus a
+// reused traefik connection — pennies. The pair is also loaded once up front
+// so an unreadable cert fails the boot loudly instead of on the first probe.
+func tlsConfig(certFile, keyFile string) (*tls.Config, error) {
+	load := func() (*tls.Certificate, error) {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("health: load tls key pair: %w", err)
+		}
+		return &cert, nil
+	}
+	if _, err := load(); err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return load() },
+	}, nil
+}
+
 // Serve starts the health endpoints on addr in a background goroutine. The
 // returned error channel yields at most one listener error.
 //
@@ -242,10 +265,18 @@ func Serve(addr, service string, checks ...Check) <-chan error {
 		errs <- errors.New("health: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
 		return errs
 	}
+	if certFile != "" {
+		cfg, err := tlsConfig(certFile, keyFile)
+		if err != nil {
+			errs <- err
+			return errs
+		}
+		srv.TLSConfig = cfg
+	}
 
 	go func() {
-		if certFile != "" {
-			errs <- srv.ListenAndServeTLS(certFile, keyFile)
+		if srv.TLSConfig != nil {
+			errs <- srv.ListenAndServeTLS("", "")
 			return
 		}
 		errs <- srv.ListenAndServe()

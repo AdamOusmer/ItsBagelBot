@@ -5,11 +5,21 @@ package health
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"ItsBagelBot/pkg/codec"
 )
@@ -106,5 +116,89 @@ func TestProbeSeesDeadline(t *testing.T) {
 	}})
 	if rec := get(t, s, "/readyz"); rec.Code != http.StatusOK {
 		t.Fatalf("readyz = %d, want 200 (probe must see a deadline)", rec.Code)
+	}
+}
+
+// writeKeyPair writes a fresh self-signed cert+key to dir and returns the
+// paths plus the cert's serial, so rotation is observable.
+func writeKeyPair(t *testing.T, dir string, serial int64) (certFile, keyFile string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(serial),
+		NotAfter:     time.Now().Add(time.Hour),
+		DNSNames:     []string{"svc-status"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	certFile = filepath.Join(dir, "tls.crt")
+	keyFile = filepath.Join(dir, "tls.key")
+	writePEM(t, certFile, "CERTIFICATE", der)
+	writePEM(t, keyFile, "EC PRIVATE KEY", keyDER)
+	return certFile, keyFile
+}
+
+func writePEM(t *testing.T, path, blockType string, der []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func serialOf(t *testing.T, cfg *tls.Config) int64 {
+	t.Helper()
+	cert, err := cfg.GetCertificate(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leaf.SerialNumber.Int64()
+}
+
+// A cert-manager renewal swaps the mounted files in place; the listener must
+// serve the new cert on the next handshake with no restart.
+func TestTLSConfigReloadsRotatedCert(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := writeKeyPair(t, dir, 1)
+
+	cfg, err := tlsConfig(certFile, keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := serialOf(t, cfg); got != 1 {
+		t.Fatalf("serial = %d, want 1", got)
+	}
+
+	writeKeyPair(t, dir, 2)
+	if got := serialOf(t, cfg); got != 2 {
+		t.Fatalf("serial after rotation = %d, want 2 (must re-read from disk)", got)
+	}
+}
+
+func TestServeRejectsHalfSetTLSPair(t *testing.T) {
+	t.Setenv("TLS_CERT_FILE", "/etc/svc/tls/tls.crt")
+	t.Setenv("TLS_KEY_FILE", "")
+
+	select {
+	case err := <-Serve("127.0.0.1:0", "svc"):
+		if err == nil {
+			t.Fatal("want error for half-set pair")
+		}
+	default:
+		t.Fatal("want immediate error for half-set pair")
 	}
 }
