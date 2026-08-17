@@ -249,13 +249,13 @@ spec:
             capabilities: {drop: ["ALL"]}
           lifecycle:
             preStop:
-              exec:
-                # Delay SIGTERM so cluster membership settles before the BEAM
-                # starts its shard drain (Ingress.Drain runs in prep_stop on
-                # SIGTERM: successor binds on a peer, then the local socket
-                # closes). Drain (~12s worst case) + this sleep must stay
-                # inside terminationGracePeriodSeconds.
-                command: ["/bin/sh", "-c", "sleep 10"]
+              # Delay SIGTERM so cluster membership settles before the BEAM
+              # starts its shard drain (Ingress.Drain runs in prep_stop on
+              # SIGTERM: successor binds on a peer, then the local socket
+              # closes). Drain (~12s worst case) + this sleep must stay
+              # inside terminationGracePeriodSeconds.
+              sleep:
+                seconds: 10
           livenessProbe:
             exec:
               command: ["/app/bin/ingress", "pid"]
