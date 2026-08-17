@@ -59,6 +59,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
 				keyValueOwned:   keyValueOwnedBuckets[user],
+				hubDomainTwins:  hubDomainTwinUsers[user],
 			})
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
@@ -180,6 +181,19 @@ type streamGrants struct {
 	flowControl     []string
 	pullFetch       []string
 	keyValueOwned   []string
+	hubDomainTwins  bool
+}
+
+// hubDomainTwinUsers names the users whose $JS.API grants are mirrored under
+// the hub JetStream domain prefix ($JS.hub.API). The modern jetstream context
+// (jsapi.NewWithDomain, used by the pull lane and lane_coord) addresses every
+// API call through the domain prefix, and the hub checks the published subject
+// BEFORE its domain mapping rewrites it — measured live 2026-08-17, when a
+// config reload started denying $JS.hub.API.CONSUMER.MSG.NEXT and silently
+// stopped both pull lanes. Legacy-context users (push consumers, RPC) never
+// send the prefixed form and must not carry the wider grant.
+var hubDomainTwinUsers = map[string]bool{
+	"worker_bus": true,
 }
 
 type authConfig struct {
@@ -251,6 +265,13 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 			jetStreamAPI + "DIRECT.GET." + kvStream + ".>",
 		} {
 			set[subject] = struct{}{}
+		}
+	}
+	if grants.hubDomainTwins {
+		for subject := range set {
+			if rest, ok := strings.CutPrefix(subject, jetStreamAPI); ok {
+				set["$JS.hub.API."+rest] = struct{}{}
+			}
 		}
 	}
 	return sortedKeys(set)
