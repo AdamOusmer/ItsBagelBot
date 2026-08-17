@@ -160,6 +160,10 @@ spec:
                   key: ca.pem
             - name: VALKEY_TLS_SERVER_NAME
               value: valkey.valkey.svc.cluster.local
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
             - name: NATS_RPC_URL
               value: nats://nats-leaf:4222
             - name: NATS_LEAF_URL
@@ -237,6 +241,7 @@ spec:
             - containerPort: 3000
           volumeMounts:
             - {name: tls, mountPath: /etc/console/tls, readOnly: true}
+            - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
           resources:
             requests:
               cpu: 25m
@@ -275,6 +280,9 @@ spec:
         - name: tls
           secret:
             secretName: console-dashboard-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
 ---
 apiVersion: v1
 kind: Service

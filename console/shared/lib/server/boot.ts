@@ -36,7 +36,9 @@ export function initConsoleRuntime(env: Env, assertConfigSane: (env: Env) => voi
           sentinelAddr: env.VALKEY_SENTINEL_ADDR,
           sentinelMaster: env.VALKEY_MASTER_SET,
           tlsCa: env.VALKEY_TLS_CA_PEM,
-          tlsServerName: env.VALKEY_TLS_SERVER_NAME
+          tlsServerName: env.VALKEY_TLS_SERVER_NAME,
+          tlsClientCertFile: env.VALKEY_TLS_CLIENT_CERT_FILE,
+          tlsClientKeyFile: env.VALKEY_TLS_CLIENT_KEY_FILE
         }
       : undefined,
     cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
