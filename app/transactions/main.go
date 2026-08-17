@@ -105,15 +105,27 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 	}
 
+	// TLS is opt-in via the cert-manager-issued fleet CA cert (see
+	// deploy/infra/pki/certificates.yaml, transactions-tls), mirroring
+	// console-dashboard. Both or neither: unset stays plaintext exactly as
+	// before, so this can land before the cert and the traefik ServersTransport
+	// exist. A mismatched pair is a config error, not a runtime fallback.
+	tlsCertFile := env.Get("TLS_CERT_FILE", "")
+	tlsKeyFile := env.Get("TLS_KEY_FILE", "")
+	if (tlsCertFile == "") != (tlsKeyFile == "") {
+		log.Fatal("transactions tls misconfigured: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
+	}
+
 	log.Info("transactions service ready",
 		zap.String("listen_addr", listenAddr),
+		zap.Bool("tls_enabled", tlsCertFile != ""),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
 		zap.Bool("tebex_checkout_auth_configured", checkoutAuth),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
 
-	serveHTTP(ctx, httpServer, log)
+	serveHTTP(ctx, listener{srv: httpServer, certFile: tlsCertFile, keyFile: tlsKeyFile}, log)
 }
 
 // setupCheckout registers the dashboard basket_create RPC. Optional: without
@@ -186,12 +198,30 @@ func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,
-// then drains in-flight requests before returning.
-func serveHTTP(ctx context.Context, srv *http.Server, log *zap.Logger) {
+// then drains in-flight requests before returning. certFile/keyFile serve TLS
+// when both are set; empty (the default) keeps plaintext HTTP.
+// listener carries the server together with the cert and key it should present.
+// They are decided together and never travel apart, so they are passed together.
+type listener struct {
+	srv      *http.Server
+	certFile string
+	keyFile  string
+}
+
+// serve blocks on the underlying server, choosing TLS when a pair was configured.
+func (l listener) serve() error {
+	if l.certFile != "" && l.keyFile != "" {
+		return l.srv.ListenAndServeTLS(l.certFile, l.keyFile)
+	}
+	return l.srv.ListenAndServe()
+}
+
+func serveHTTP(ctx context.Context, l listener, log *zap.Logger) {
+	srv := l.srv
 
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- srv.ListenAndServe()
+		serverErr <- l.serve()
 	}()
 
 	select {
