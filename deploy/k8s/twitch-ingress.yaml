@@ -1,0 +1,282 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Twitch Ingress (Elixir/BEAM). Secrets sync from Doppler project
+# `twitch-ingress` (config prd) via the operator; the token secret
+# `twitch-ingress-doppler-token` is created out-of-band, never committed.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: twitch-ingress-env
+  namespace: production
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: twitch-ingress-doppler-token
+  managedSecret:
+    name: twitch-ingress-env
+    namespace: production
+    type: Opaque
+  resyncSeconds: 60
+---
+# Headless service: libcluster (Kubernetes.DNS strategy) resolves it to pod
+# IPs to form the BEAM cluster. publishNotReadyAddresses lets nodes find each
+# other before readiness, which is required for initial cluster formation.
+apiVersion: v1
+kind: Service
+metadata:
+  name: twitch-ingress-headless
+  namespace: production
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: twitch-ingress
+  ports:
+    - name: epmd
+      port: 4369
+    - name: erlang-dist
+      port: 9100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-ingress
+  namespace: production
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per eligible hot-path node: node4, node5, node6
+  revisionHistoryLimit: 3
+  # On SIGTERM each pod hands its conduit shards off make-before-break
+  # (Ingress.Drain): the successor binds on a peer before the local socket
+  # closes, so a rollout drops no events. Still hold each replacement pod
+  # Ready for a full minute before killing the next old pod: the Horde
+  # registry converges between swaps, keeping one drain in flight at a time
+  # — the 2026-07-10 mid-stream incident was pods cycling within a minute of
+  # each other, stacking registry races ("registry pick unreachable") into a
+  # ~5 min chat outage.
+  minReadySeconds: 60
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: twitch-ingress
+  template:
+    metadata:
+      labels:
+        app: twitch-ingress
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      # Eligible nodes are the application tier, selected by role rather than
+      # by hostname so the rule cannot go stale when the fleet changes shape.
+      # The three replicas spread one per eligible node in steady state.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: itsbagelbot.dev/role
+                    operator: NotIn
+                    values: [cp, worker]
+      topologySpreadConstraints:
+        # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
+        # maxSurge=0 roll the outgoing pods no longer count, so every rollout
+        # re-spreads one-per-node instead of piling onto whichever node freed
+        # capacity first (bit the ingress on 2026-07-10: 3/0/1). With three
+        # replicas and three eligible nodes, maxSkew=1 plus DoNotSchedule makes
+        # the steady-state placement exactly 1/1/1.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: twitch-ingress
+      # Resolve external hosts (Twitch EventSub/Helix) without the cluster
+      # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
+      # conntrack race; cap any DNS stall well under a few seconds.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "2"}
+          - {name: attempts, value: "2"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
+        runAsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ingress
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1786934707-b71a0f43997c@sha256:7a51353fce6f98ed9883f0a307bb76c372a7b73ae546c2edb68b0937ce20b936 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: twitch-ingress-env
+          env:
+            - name: NATS_HOST
+              value: nats
+            # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
+            # plane (:gnat_bus) uses the `nats` Service, whose PreferSameNode
+            # routing lands each ingress publisher on the hub member beside it.
+            # Production R3 qualification measured ~75k/s through this route vs
+            # ~60.6k/s when every publisher dialed the stream leader directly:
+            # distributing client TLS/socket/batch work outweighs the NATS route
+            # hop to the RAFT leader. The leaf remains RPC-only and never carries
+            # JetStream traffic.
+            - name: NATS_LEAF_HOST
+              value: nats-leaf
+            - name: NATS_HUB_HOST
+              value: nats
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; decoded to ssl_opts cacerts in
+            # config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub) verify
+            # against it.
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            # Worker node (machine) the pod is scheduled on, surfaced to the
+            # admin console so shard cards show the host name, not the pod IP.
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: RELEASE_DISTRIBUTION
+              value: name
+            - name: RELEASE_NODE
+              value: ingress@$(POD_IP)
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: twitch-ingress-env
+                  key: BAGELBOT_ERLANG_COOKIE
+            - name: NEW_RELIC_APP_NAME
+              value: "ItsBagelBot-Ingress"
+            - name: NEW_RELIC_LOGS_IN_CONTEXT
+              value: "forwarder"
+            - name: INGRESS_DISPATCHER_MAX_RUNNING
+              value: "512"
+            - name: INGRESS_DISPATCHER_MAX_QUEUE
+              value: "20000"
+            # Shipped inert (above max_running+max_queue's realistic reach) for
+            # burn-in; tighten to "2048" once the new broadcaster_cap drop
+            # metric shows real per-broadcaster admission patterns in prod.
+            - name: INGRESS_DISPATCHER_MAX_PER_BROADCASTER
+              value: "16000"
+            # Scheduler-local JetStream cohorts collect for at most 1ms. The
+            # publisher is structurally dedup-free, so no environment toggle
+            # can accidentally restore the broker's Nats-Msg-Id index tax.
+            - name: INGRESS_PUBLISH_BATCH_SIZE
+              value: "128"
+            - name: INGRESS_PUBLISH_BATCH_WAIT_MS
+              value: "1"
+            # Cohort wire, set explicitly even though it matches the shipped
+            # default, because that is what makes the rollback a value edit here
+            # rather than a rebuild. "atomic" writes the cohort as one ADR-050
+            # batch and resolves it with a single commit PubAck, so the R3 lane
+            # stream pays RAFT quorum latency once per cohort instead of once per
+            # event; "single" is the per-event PubAck compatibility path.
+            #
+            # Blast radius, which is what an operator flips this for: on
+            # "atomic" an ambiguous outcome (ack timeout, malformed reply, a send
+            # error mid-batch) drops the WHOLE cohort — up to
+            # INGRESS_PUBLISH_BATCH_SIZE=128 events — where the same outcome on
+            # "single" costs exactly 1. Nothing is lost silently: every drop
+            # lands in Nats/PublishFailed. The signal is that counter's SHAPE —
+            # cohort-sized steps rather than one event at a time. Step-shaped
+            # growth means set this to "single" and take the per-event quorum
+            # cost back. Anything other than these two values warns on stderr
+            # and stays "atomic".
+            - name: INGRESS_PUBLISH_WIRE
+              value: "atomic"
+            # Unresolved atomic batches per shard, sized so the FLEET stays under
+            # the broker's stock cap of 50 open atomic batches per stream — every
+            # shard opens against the same TWITCH_INGRESS. 3 replicas x 2
+            # schedulers (+S 2:2) = 6 shards, so 8 each = 48.
+            #
+            # This arithmetic is load-bearing. Raise `replicas` above, change the
+            # +S flag in ERL_FLAGS, or raise this number, and the fleet crosses
+            # the cap: every open past it comes back 10210/429 and re-drives per
+            # message, which silently removes the batching the wire above exists
+            # for, and does so exactly when the fleet is busiest.
+            # app/ingress/test/nats_publisher_wire_test.exs asserts the product,
+            # so changing one of the three without the others fails a test.
+            #
+            # Nats/PublishBatchFallback rising with 429s means the fleet is over
+            # the cap; Nats/PublishBatchBypassed means this local window filled,
+            # which is a commit-latency alarm rather than a budget one.
+            - name: INGRESS_PUBLISH_BATCH_INFLIGHT
+              value: "8"
+            # Match normal and dirty schedulers to the two-CPU cgroup below.
+            # `short` normal-scheduler busy-wait was modestly faster than
+            # `none` across repeated direct-dispatch runs, while dirty
+            # schedulers stay at `none` because ingress does no sustained dirty
+            # NIF work. More than two schedulers only creates cgroup contention
+            # on this three-replica deployment.
+            - name: ERL_FLAGS
+              # Range, not a single port: probe/remote-shell hidden nodes
+              # need their own listen port besides the main VM's.
+              value: >-
+                +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
+          resources:
+            requests:
+              # Live steady state is 195-240m across all three node-local pods.
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              # Delay SIGTERM so cluster membership settles before the BEAM
+              # starts its shard drain (Ingress.Drain runs in prep_stop on
+              # SIGTERM: successor binds on a peer, then the local socket
+              # closes). Drain (~12s worst case) + this sleep must stay
+              # inside terminationGracePeriodSeconds.
+              sleep:
+                seconds: 10
+          livenessProbe:
+            exec:
+              command: ["/app/bin/ingress", "pid"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["/app/bin/ingress", "pid"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: twitch-ingress
+  namespace: production
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: twitch-ingress
