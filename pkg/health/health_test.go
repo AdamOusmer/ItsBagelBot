@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"ItsBagelBot/pkg/codec"
@@ -21,10 +22,10 @@ func passing(name string) Check {
 	return Bool(name, func() bool { return true })
 }
 
-func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+func get(t *testing.T, s *Set, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	return rec
 }
 
@@ -37,94 +38,56 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) Report {
 	return report
 }
 
-func TestLivenessAlwaysOK(t *testing.T) {
-	s := NewSet("svc", failing("nats"))
-	if rec := get(t, s.Handler(), "/healthz"); rec.Code != http.StatusOK {
-		t.Fatalf("healthz = %d, want 200", rec.Code)
+// One table drives every endpoint-verdict combination: which checks fail and
+// whether they are optional decides the HTTP code per endpoint and the
+// aggregate the /status body reports.
+func TestEndpointVerdicts(t *testing.T) {
+	cases := []struct {
+		name       string
+		set        *Set
+		path       string
+		wantCode   int
+		wantStatus string // /status only; empty skips the body assertion
+	}{
+		{"liveness ignores failing checks", NewSet("svc", failing("nats")), "/healthz", http.StatusOK, ""},
+		{"ready with no checks", NewSet("svc"), "/readyz", http.StatusOK, ""},
+		{"ready when all pass", NewSet("svc", passing("nats")), "/readyz", http.StatusOK, ""},
+		{"critical failure is not ready", NewSet("svc", failing("nats")), "/readyz", http.StatusServiceUnavailable, ""},
+		{"optional failure stays ready", NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/readyz", http.StatusOK, ""},
+		{"status ok", NewSet("svc", passing("nats")), "/status", http.StatusOK, StatusOK},
+		{"status degraded is still up", NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/status", http.StatusOK, StatusDegraded},
+		{"status down", NewSet("svc", failing("nats"), Degrades(failing("valkey"))), "/status", http.StatusServiceUnavailable, StatusDown},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := get(t, tc.set, tc.path)
+			if rec.Code != tc.wantCode {
+				t.Fatalf("%s = %d, want %d", tc.path, rec.Code, tc.wantCode)
+			}
+			if tc.wantStatus != "" && decode(t, rec).Status != tc.wantStatus {
+				t.Fatalf("status = %q, want %q", decode(t, rec).Status, tc.wantStatus)
+			}
+		})
 	}
 }
 
-func TestReadinessGatesOnCriticalChecks(t *testing.T) {
-	up := true
-	s := NewSet("svc", Bool("nats", func() bool { return up }))
-
-	if rec := get(t, s.Handler(), "/readyz"); rec.Code != http.StatusOK {
-		t.Fatalf("readyz up = %d, want 200", rec.Code)
-	}
-	up = false
-	if rec := get(t, s.Handler(), "/readyz"); rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("readyz down = %d, want 503", rec.Code)
-	}
-}
-
-func TestReadinessNoChecksOK(t *testing.T) {
-	if rec := get(t, NewSet("svc").Handler(), "/readyz"); rec.Code != http.StatusOK {
-		t.Fatalf("readyz = %d, want 200", rec.Code)
-	}
-}
-
-func TestOptionalFailureDegradesButStaysReady(t *testing.T) {
-	s := NewSet("svc", passing("nats"), Degrades(failing("valkey")))
-
-	if rec := get(t, s.Handler(), "/readyz"); rec.Code != http.StatusOK {
-		t.Fatalf("readyz = %d, want 200 (optional failure must not evict the pod)", rec.Code)
-	}
-
-	rec := get(t, s.Handler(), "/status")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (degraded is still up)", rec.Code)
-	}
-	report := decode(t, rec)
-	if report.Status != StatusDegraded {
-		t.Fatalf("status = %q, want %q", report.Status, StatusDegraded)
-	}
-}
-
-func TestCriticalFailureIsDown(t *testing.T) {
-	s := NewSet("svc", failing("nats"), Degrades(failing("valkey")), passing("mysql"))
-
-	rec := get(t, s.Handler(), "/status")
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", rec.Code)
-	}
-	if report := decode(t, rec); report.Status != StatusDown {
-		t.Fatalf("status = %q, want %q", report.Status, StatusDown)
-	}
-}
-
-func TestStatusReportsPerCheck(t *testing.T) {
-	s := NewSet("svc", passing("nats"), failing("mysql"))
-
-	rec := get(t, s.Handler(), "/status")
+func TestStatusReportShape(t *testing.T) {
+	rec := get(t, NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/status")
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("content-type = %q", ct)
 	}
+
 	report := decode(t, rec)
-	if report.Service != "svc" || len(report.Checks) != 2 {
-		t.Fatalf("report = %+v", report)
+	for i := range report.Checks {
+		report.Checks[i].LatencyMS = 0 // wall-clock, not asserted
 	}
-
-	byName := map[string]CheckResult{}
-	for _, c := range report.Checks {
-		byName[c.Name] = c
-	}
-	if !byName["nats"].OK || byName["nats"].Error != "" {
-		t.Fatalf("nats = %+v", byName["nats"])
-	}
-	if byName["mysql"].OK || byName["mysql"].Error != "dial timeout" {
-		t.Fatalf("mysql = %+v", byName["mysql"])
-	}
-}
-
-func TestStatusAllHealthy(t *testing.T) {
-	s := NewSet("svc", passing("nats"))
-
-	rec := get(t, s.Handler(), "/status")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	if report := decode(t, rec); report.Status != StatusOK {
-		t.Fatalf("status = %q, want %q", report.Status, StatusOK)
+	want := Report{Service: "svc", Status: StatusDegraded, Checks: []CheckResult{
+		{Name: "nats", OK: true},
+		{Name: "valkey", Optional: true, Error: "dial timeout"},
+	}}
+	if !reflect.DeepEqual(report, want) {
+		t.Fatalf("report = %+v, want %+v", report, want)
 	}
 }
 
@@ -141,7 +104,7 @@ func TestProbeSeesDeadline(t *testing.T) {
 		}
 		return nil
 	}})
-	if rec := get(t, s.Handler(), "/readyz"); rec.Code != http.StatusOK {
+	if rec := get(t, s, "/readyz"); rec.Code != http.StatusOK {
 		t.Fatalf("readyz = %d, want 200 (probe must see a deadline)", rec.Code)
 	}
 }
