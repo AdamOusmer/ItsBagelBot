@@ -1,0 +1,16 @@
+bandwidthManager:
+  enabled: true
+  bbr: true
+
+bpf:
+  hostRouting: true
+  masquerade: true
+
+enableIPv4BIGTCP: true
+
+pmtuDiscovery:
+  enabled: true
+
+routingMode: native
+
+autoDirectNodeRoutes: true
