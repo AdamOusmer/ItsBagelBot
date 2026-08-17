@@ -126,7 +126,7 @@ func main() {
 	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), nc.IsConnected)
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),

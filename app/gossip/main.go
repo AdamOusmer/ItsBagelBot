@@ -96,7 +96,7 @@ func main() {
 	}
 	subscribeRPCHealth(nc, queueGroup, log)
 
-	health.Serve(cfg.ListenAddr, nc.IsConnected)
+	health.Serve(cfg.ListenAddr, serviceName, health.Bool("nats", nc.IsConnected))
 
 	names := make([]string, 0, len(active))
 	for _, p := range active {

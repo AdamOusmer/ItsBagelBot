@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/transactions/repository"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 
 	"github.com/go-chi/chi/v5"
@@ -44,7 +45,10 @@ type GiftNotice struct {
 
 type Config struct {
 	WebhookSecret string
-	Ready         func() bool
+	// Health owns /healthz, /readyz, /status and /drain. Nil falls back to a
+	// check-less set that always reports ready, which is what the webhook-only
+	// tests want.
+	Health *health.Set
 	// NotifyGift is called after a gifted payment is recorded (initial payment
 	// only, not renewals). Best-effort: failures are logged, never surfaced to
 	// Tebex — the entitlement is already durable at that point.
@@ -78,9 +82,14 @@ func New(store Store, cfg Config, log *zap.Logger) http.Handler {
 
 	r := chi.NewRouter()
 
-	r.Get("/healthz", s.health)
-	r.Get("/readyz", s.ready)
-	r.Get("/drain", s.drain)
+	hs := cfg.Health
+	if hs == nil {
+		hs = health.NewSet("transactions")
+	}
+	r.Get("/healthz", hs.Liveness())
+	r.Get("/readyz", hs.Readiness())
+	r.Get("/status", hs.Status())
+	r.Get("/drain", health.Drain())
 
 	r.Group(func(r chi.Router) {
 		r.Use(transactionMiddleware(cfg.App))
@@ -111,24 +120,6 @@ func transactionMiddleware(app *newrelic.Application) func(http.Handler) http.Ha
 			next.ServeHTTP(w, r.WithContext(newrelic.NewContext(r.Context(), txn)))
 		})
 	}
-}
-
-func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	sendOK(w)
-}
-
-func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
-	if s.cfg.Ready != nil && !s.cfg.Ready() {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = io.WriteString(w, "not ready\n")
-		return
-	}
-	sendOK(w)
-}
-
-func (s *Server) drain(w http.ResponseWriter, _ *http.Request) {
-	time.Sleep(10 * time.Second)
-	sendOK(w)
 }
 
 func (s *Server) tebexReachable(w http.ResponseWriter, _ *http.Request) {
