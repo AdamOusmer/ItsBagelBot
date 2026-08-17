@@ -147,6 +147,26 @@ function busServerList(override: string | undefined): string[] {
   return [process.env.NATS_HUB_URL ?? fallbackServer(override)];
 }
 
+// Verify the NATS server's TLS cert against the fleet CA (NATS_CA_PEM, the
+// trust-manager fleet-ca ConfigMap); no CA (local dev against a plaintext
+// server) keeps the connection plaintext. mTLS: also present the fleet client
+// cert when the NATS_CLIENT_CERT_FILE/NATS_CLIENT_KEY_FILE pair is set
+// (cert-manager secret mount; file paths so renewals are re-read on
+// reconnect). Both or neither — a half-set pair fails loudly rather than
+// silently downgrading to server-auth only.
+function tlsOptions(): ConnectionOptions['tls'] | undefined {
+  const caPem = process.env.NATS_CA_PEM;
+  if (!caPem) return undefined;
+
+  const certFile = process.env.NATS_CLIENT_CERT_FILE;
+  const keyFile = process.env.NATS_CLIENT_KEY_FILE;
+  if (!!certFile !== !!keyFile) {
+    throw new Error('NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty');
+  }
+  if (certFile && keyFile) return { ca: caPem, certFile, keyFile };
+  return { ca: caPem };
+}
+
 function options(role: Role): ConnectionOptions {
   const isRpc = role === 'rpc';
   const opts: ConnectionOptions = {
@@ -175,26 +195,8 @@ function options(role: Role): ConnectionOptions {
   if (user) opts.user = user;
   if (pass) opts.pass = pass;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
-  // Verify the NATS server's TLS cert against the fleet CA now that NATS is out of
-  // the Linkerd mesh (NATS_CA_PEM = the trust-manager fleet-ca ConfigMap). Setting
-  // tls upgrades the connection; server-auth only, auth stays user/password. No CA
-  // (local dev against a plaintext server) keeps the connection plaintext.
-  const caPem = process.env.NATS_CA_PEM;
-  if (caPem) {
-    opts.tls = { ca: caPem };
-    // mTLS: present the fleet client cert when the pair is set (cert-manager
-    // secret mount; paths so renewals are re-read on reconnect). Both or
-    // neither — a half-set pair must fail loudly, not downgrade silently.
-    const certFile = process.env.NATS_CLIENT_CERT_FILE;
-    const keyFile = process.env.NATS_CLIENT_KEY_FILE;
-    if (!!certFile !== !!keyFile) {
-      throw new Error('NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty');
-    }
-    if (certFile && keyFile) {
-      opts.tls.certFile = certFile;
-      opts.tls.keyFile = keyFile;
-    }
-  }
+  const tls = tlsOptions();
+  if (tls) opts.tls = tls;
   return opts;
 }
 

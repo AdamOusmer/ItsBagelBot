@@ -273,10 +273,16 @@ nats_server = fn host, user, pass ->
       # downgrading to server-auth only. File paths (not inlined PEM) so the
       # BEAM ssl pem cache re-reads a cert-manager renewal without a restart.
       ssl_opts =
-        case {System.get_env("NATS_CLIENT_CERT_FILE", ""), System.get_env("NATS_CLIENT_KEY_FILE", "")} do
-          {"", ""} -> ssl_opts
-          {cert, key} when cert != "" and key != "" -> ssl_opts ++ [certfile: cert, keyfile: key]
-          _ -> raise "NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"
+        case {System.get_env("NATS_CLIENT_CERT_FILE", ""),
+              System.get_env("NATS_CLIENT_KEY_FILE", "")} do
+          {"", ""} ->
+            ssl_opts
+
+          {cert, key} when cert != "" and key != "" ->
+            ssl_opts ++ [certfile: cert, keyfile: key]
+
+          _ ->
+            raise "NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"
         end
 
       Map.merge(base, %{tls: true, ssl_opts: ssl_opts})
