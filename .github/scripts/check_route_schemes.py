@@ -65,7 +65,26 @@ def iter_manifests():
                     yield path, doc, None
 
 
-def check_ingressroute_services(path, name, namespace, services, failures):
+# Routes whose backend genuinely cannot serve TLS, keyed by
+# (namespace, IngressRoute name, backend service name).
+#
+# This is not a place to silence inconvenient findings. An entry belongs here
+# only when the backend is a third-party binary with no TLS support at all, so
+# no amount of configuration on our side can satisfy the check. Every entry
+# carries its justification and is printed on each run, so it stays visible
+# rather than quietly accumulating. Anything not listed here still fails.
+UPSTREAM_TLS_INCAPABLE = {
+    ("flux-system", "webhook-receiver", "webhook-receiver"): (
+        "notification-controller (flux v2.8.8 / controller v1.8.4) exposes no "
+        "TLS flags on --receiverAddr or anywhere else, so the receiver cannot "
+        "serve HTTPS. Closing this needs a TLS-terminating sidecar patched into "
+        "a Flux bootstrap-managed Deployment. Remove this entry the moment "
+        "upstream gains TLS support or that sidecar lands."
+    ),
+}
+
+
+def check_ingressroute_services(path, name, namespace, services, failures, exempted):
     for svc in services or []:
         if not isinstance(svc, dict):
             continue
@@ -74,6 +93,12 @@ def check_ingressroute_services(path, name, namespace, services, failures):
             # walked below -- nothing to check on the reference.
             continue
         scheme = svc.get("scheme", "http")
+        reason = UPSTREAM_TLS_INCAPABLE.get((namespace, name, svc.get("name")))
+        if scheme != "https" and reason is not None:
+            exempted.append(
+                f"{namespace}/{name} -> {svc.get('name')!r}: {reason}"
+            )
+            continue
         if scheme != "https":
             failures.append(
                 f"{path}: IngressRoute {namespace}/{name} -> service "
@@ -82,7 +107,7 @@ def check_ingressroute_services(path, name, namespace, services, failures):
             )
 
 
-def check_doc(path, doc, failures):
+def check_doc(path, doc, failures, exempted):
     api_version = doc.get("apiVersion", "")
     kind = doc.get("kind", "")
     meta = doc.get("metadata", {}) or {}
@@ -93,20 +118,22 @@ def check_doc(path, doc, failures):
         spec = doc.get("spec", {}) or {}
         for route in spec.get("routes", []) or []:
             check_ingressroute_services(
-                path, name, namespace, route.get("services"), failures
+                path, name, namespace, route.get("services"), failures, exempted
             )
 
     elif api_version == TRAEFIK_API and kind == "TraefikService":
         spec = doc.get("spec", {}) or {}
         weighted = spec.get("weighted") or {}
         check_ingressroute_services(
-            path, name, namespace, weighted.get("services"), failures
+            path, name, namespace, weighted.get("services"), failures, exempted
         )
         mirroring = spec.get("mirroring")
         if mirroring:
-            check_ingressroute_services(path, name, namespace, [mirroring], failures)
             check_ingressroute_services(
-                path, name, namespace, mirroring.get("mirrors"), failures
+                path, name, namespace, [mirroring], failures, exempted
+            )
+            check_ingressroute_services(
+                path, name, namespace, mirroring.get("mirrors"), failures, exempted
             )
 
     elif api_version == TRAEFIK_API and kind in ("IngressRouteTCP", "IngressRouteUDP"):
@@ -132,6 +159,7 @@ def check_doc(path, doc, failures):
 
 def main():
     failures = []
+    exempted = []
     parse_errors = []
     seen_any = False
     for path, doc, error in iter_manifests():
@@ -139,7 +167,7 @@ def main():
         if error:
             parse_errors.append(f"{path}: {error}")
             continue
-        check_doc(path, doc, failures)
+        check_doc(path, doc, failures, exempted)
 
     if not seen_any:
         print("::error::no manifests found under deploy/ -- check is not running")
@@ -148,6 +176,13 @@ def main():
     if parse_errors:
         print("YAML parse errors (failing closed):")
         for e in parse_errors:
+            print(f"  {e}")
+
+    if exempted:
+        print(
+            f"{len(exempted)} route(s) exempted -- backend cannot serve TLS upstream:"
+        )
+        for e in exempted:
             print(f"  {e}")
 
     if failures:
