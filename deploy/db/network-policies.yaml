@@ -1,0 +1,135 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Namespace policy for the data-owning services (the db tier of the
+# app/db/messaging/cache split). Mirrors deploy/k8s/network-policies.yaml's
+# model: default-deny scoped to our own pods, explicit egress grants per
+# dependency, and the probe-port workaround for cilium/cilium#43012.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-db
+  namespace: db
+spec:
+  # Scoped to our apps so operators or debug pods in the namespace are not
+  # silently firewalled.
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, notifications, notifications-cleanup]
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Peers in this namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
+    # The app tier (consoles and workers talk to these services only over NATS
+    # RPC, but keep the grant symmetric with the old shared-namespace model so
+    # any direct HTTP hop that exists today keeps working).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app
+    # traefik (networking namespace): the transactions webhook route and the
+    # per-service /status routes terminate on these pods.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: networking
+  egress:
+    # Cluster DNS only; an open port 53 is a tunnelling escape hatch.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Peers in this namespace.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
+    # NATS hub + leaf.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+    # Valkey.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cache
+---
+# WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
+# from cilium_host misclassified as "world" instead of "host", so default-deny
+# eats every httpGet probe. Same shape and same REVERT-when-fixed note as the
+# app namespace's copy; 8080 covers every service here (TLS health listeners).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-probe-ports
+  namespace: db
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, notifications, notifications-cleanup]
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+---
+# APM exports to New Relic, Resend mail (notifications, transactions gift
+# email) and Tebex (transactions) all ride HTTPS. Explicit so a workload
+# cannot inherit public egress merely by joining default-deny-db.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-public-https
+  namespace: db
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, notifications]
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 443
+          protocol: TCP
+---
+# Data owners reach the managed HeatWave endpoint over the routed OCI private
+# subnet. projector is deliberately absent: it reads projections over NATS RPC
+# and owns no schema (data-and-state rules).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-heatwave
+  namespace: db
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, notifications]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16
+      ports:
+        - port: 3306
+          protocol: TCP

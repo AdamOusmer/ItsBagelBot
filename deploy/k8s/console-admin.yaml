@@ -107,7 +107,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1786934707-b71a0f43997c@sha256:2ac92be183b1a3cea6ed1ee81f706317ad43dd92b752db397b85b0184ab4f81d # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787011027-4cfd46290494@sha256:ae9db3ba9f132a45e9dee486cd1f9ce804efd9c41943beb7604e260807aae341 # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
@@ -337,8 +337,6 @@ kind: Ingress
 metadata:
   name: console-admin
   namespace: app
-  annotations:
-    tailscale.com/proxy-group: ts-ingress
 spec:
   ingressClassName: tailscale
   defaultBackend:

@@ -80,9 +80,15 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1786934707-b71a0f43997c@sha256:a8d4d3d4caf5add19d8c973a9d66e899a6f77d7cf2b263345e51a77de82ff230 # {"$imagepolicy": "flux-system:projector"}
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1787014270-b7f46561a5a3@sha256:4bcffd39cf31101d27f2c10d55b7ec7e2a0c5fae9ab40c2c1397e9d2bdbf3cec # {"$imagepolicy": "flux-system:projector"}
           imagePullPolicy: IfNotPresent
           env:
+            # The lane catalog is partition-gated; the projector reconciles the
+            # ingress lane pair through IngressLaneSpecs and must see the same
+            # flag sesame does, or it reconciles the legacy wide stream and the
+            # update is refused for subject overlap.
+            - name: NATS_INGRESS_PARTITION
+              value: "on"
             - name: NATS_HOST
               value: nats
             # Split planes: the BUS / JetStream connection dials the hub directly

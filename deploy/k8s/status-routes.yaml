@@ -21,68 +21,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: commands-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: commands
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
   name: gossip-status
   namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
     app: gossip
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: loyalty-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: loyalty
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: modules-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: modules
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: notifications-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: notifications
   ports:
     - name: http
       port: 443
@@ -105,40 +49,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: projector-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: projector
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
   name: sesame-status
   namespace: app
 spec:
   trafficDistribution: PreferClose
   selector:
     app: sesame
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: users-status
-  namespace: app
-spec:
-  trafficDistribution: PreferClose
-  selector:
-    app: users
   ports:
     - name: http
       port: 443
@@ -164,20 +80,12 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`health.itsbagelbot.com`) && Path(`/commands`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: commands-status
-          port: 443
-          scheme: https
-          serversTransport: commands-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/dashboard`)
       kind: Rule
       middlewares: [{name: status-path}]
       services:
         - name: console-dashboard
-          port: 443
+          port: 80
           scheme: https
           serversTransport: console-dashboard-transport
           nativeLB: true
@@ -194,33 +102,9 @@ spec:
       middlewares: [{name: status-path}]
       services:
         - name: twitch-ingress-status
-          port: 443
+          port: 80
           scheme: https
           serversTransport: twitch-ingress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/loyalty`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: loyalty-status
-          port: 443
-          scheme: https
-          serversTransport: loyalty-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/modules`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: modules-status
-          port: 443
-          scheme: https
-          serversTransport: modules-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/notifications`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: notifications-status
-          port: 443
-          scheme: https
-          serversTransport: notifications-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
       kind: Rule
       middlewares: [{name: status-path}]
@@ -229,14 +113,6 @@ spec:
           port: 443
           scheme: https
           serversTransport: outgress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/projector`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: projector-status
-          port: 443
-          scheme: https
-          serversTransport: projector-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
       middlewares: [{name: status-path}]
@@ -245,37 +121,7 @@ spec:
           port: 443
           scheme: https
           serversTransport: sesame-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: transactions
-          port: 443
-          scheme: https
-          serversTransport: transactions-transport
-          nativeLB: true
-    - match: Host(`health.itsbagelbot.com`) && Path(`/users`)
-      kind: Rule
-      middlewares: [{name: status-path}]
-      services:
-        - name: users-status
-          port: 443
-          scheme: https
-          serversTransport: users-status-transport
   tls: {}
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: commands-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: commands-status
-  rootCAsSecrets:
-    - commands-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
@@ -293,45 +139,6 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
-  name: loyalty-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: loyalty-status
-  rootCAsSecrets:
-    - loyalty-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: modules-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: modules-status
-  rootCAsSecrets:
-    - modules-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: notifications-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: notifications-status
-  rootCAsSecrets:
-    - notifications-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
   name: outgress-status-transport
   namespace: app
 spec:
@@ -345,19 +152,6 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
-  name: projector-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: projector-status
-  rootCAsSecrets:
-    - projector-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
   name: sesame-status-transport
   namespace: app
 spec:
@@ -367,19 +161,6 @@ spec:
   serverName: sesame-status
   rootCAsSecrets:
     - sesame-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: users-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: users-status
-  rootCAsSecrets:
-    - users-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport

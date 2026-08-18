@@ -120,7 +120,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1786934707-b71a0f43997c@sha256:7a51353fce6f98ed9883f0a307bb76c372a7b73ae546c2edb68b0937ce20b936 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1787011027-4cfd46290494@sha256:8bdb473fbb3ec8fb919c7a7f7b6727b391ddb9fc2c188dea619164b3a7b15f30 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -141,7 +141,7 @@ spec:
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
             - name: NATS_HOST
-              value: nats.messaging
+              value: nats.messaging.svc.cluster.local
             # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
             # plane (:gnat_bus) uses the `nats` Service, whose PreferSameNode
             # routing lands each ingress publisher on the hub member beside it.
@@ -151,9 +151,9 @@ spec:
             # hop to the RAFT leader. The leaf remains RPC-only and never carries
             # JetStream traffic.
             - name: NATS_LEAF_HOST
-              value: nats-leaf.messaging
+              value: nats-leaf.messaging.svc.cluster.local
             - name: NATS_HUB_HOST
-              value: nats.messaging
+              value: nats.messaging.svc.cluster.local
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; decoded to ssl_opts cacerts in
             # config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub) verify
