@@ -86,6 +86,28 @@ spec:
       shareProcessNamespace: true
       # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
       securityContext:
+        # Keep the congestion window across an idle gap.
+        #
+        # net.ipv4.tcp_slow_start_after_idle is per-netns. The nodes have run 0
+        # since the 2026-07 network tune, but that does NOT reach pods: a fresh
+        # pod netns gets the kernel default 1, and under Cilium WireGuard the
+        # pod TCP flow is encapsulated as UDP, so the host stack's setting never
+        # applies to it. Both ends of every app-to-NATS connection therefore sat
+        # at 1, reset cwnd to initcwnd (10 MSS) after one idle RTO, and made the
+        # first burst after a quiet lane crawl back through slow start. The 20s
+        # client PingInterval keeps the socket alive but does not keep the
+        # window open.
+        #
+        # PREREQUISITE: allowed-unsafe-sysctls=net.ipv4.tcp_slow_start_after_idle
+        # must already be live on EVERY kubelet (k3s config.yaml, needs a k3s
+        # restart). "Unsafe" here means "not on kubelet's short hardcoded safe
+        # list", not dangerous. A pod that requests an unsafe sysctl a node does
+        # not allow is rejected with SysctlForbidden rather than started
+        # untuned, so this block must land after the flag, never before it, and
+        # any node added later needs the flag before it can take these pods.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
@@ -383,8 +405,6 @@ kind: Ingress
 metadata:
   name: nats-monitoring
   namespace: messaging
-  annotations:
-    tailscale.com/proxy-group: ts-ingress
 spec:
   ingressClassName: tailscale
   defaultBackend:

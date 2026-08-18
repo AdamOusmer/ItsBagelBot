@@ -75,6 +75,15 @@ spec:
       # nats runs as uid/gid 1000; fsGroup makes the leaf-local JetStream
       # emptyDir writable. Durable streams live on the hub, not these leaves.
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
