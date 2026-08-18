@@ -136,12 +136,22 @@ func main() {
 	log.Info("projector shutting down")
 }
 
-// connectBus opens the fleet's durable group subscriber, the RPC connection,
-// and the JetStream publisher (the publisher escalates a cold live query onto
-// the outgress system lane). Stream reconciliation belongs to users
-// (BAGEL_DATA), sesame (TWITCH_INGRESS), and outgress (its work queues), so a
-// projector credential cannot mutate any stream it reads.
+// connectBus reconciles the streams the projector reads, then opens the
+// fleet's durable group subscriber, the RPC connection, and the JetStream
+// publisher (the publisher escalates a cold live query onto the outgress
+// system lane).
+//
+// The projector provisions its own inputs rather than depending on the users
+// or sesame pods having booted first: every owner reconciles the same catalog
+// spec, so whoever arrives first creates and everyone else converges on an
+// identical no-op update. The ingress lanes go through IngressLaneSpecs so
+// the partition flag ordering (narrow before create) is preserved here exactly
+// as it is in sesame. The trade is deliberate: the projector credential can
+// now mutate streams it reads, bounded by per-stream ACL grants.
 func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
+	specs := append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)
+	fatalIf(log, bus.EnsureStreams(ctx, natsURL, specs, log), "failed to provision projector streams")
+
 	// One durable group for the whole projector fleet: each event is folded
 	// into Valkey exactly once, and the durable consumer keeps its position
 	// across restarts.
