@@ -7,8 +7,14 @@
 // warmups (lane-store HA, Valkey pools, rate limiters) on top.
 
 import dns from 'node:dns';
+import { ZGMXO } from '@adamousmer/recipes';
 import { registerServerConfig } from './config';
 import { warm } from './nats';
+
+// ZGMXO is the wildcard cache-invalidation broadcast subject; strip the glob
+// suffix for the bare prefix startInvalidationBus/broadcastInvalidate compose
+// their own scope-suffixed subjects from.
+const CACHE_INVALIDATION_PREFIX = ZGMXO.slice(0, -2);
 
 type Env = Record<string, string | undefined>;
 
@@ -41,7 +47,7 @@ export function initConsoleRuntime(env: Env, assertConfigSane: (env: Env) => voi
           tlsClientKeyFile: env.VALKEY_TLS_CLIENT_KEY_FILE
         }
       : undefined,
-    cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? 'bagel.cache.invalidate'
+    cacheInvalidationPrefix: env.NATS_CACHE_INVALIDATION_PREFIX ?? CACHE_INVALIDATION_PREFIX
   });
 
   // Pre-dial NATS so the first request hits a warm connection instead of

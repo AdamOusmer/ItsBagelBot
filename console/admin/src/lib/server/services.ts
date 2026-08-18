@@ -11,6 +11,20 @@ import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
 import { getServerConfig } from '@bagel/shared/server/config';
 import type { ScopeMap } from '@bagel/shared/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/shared';
+import {
+  ZB6NA,
+  ZPDRN,
+  Z4OBN,
+  Z6P3F,
+  ZGU3T,
+  ZNI7E,
+  Z6JIB,
+  ZD773,
+  ZCDX3,
+  ZSY4M,
+  ZW3AW,
+  ZDY5E
+} from '@adamousmer/recipes';
 import { adminL1CacheCapacity } from './config-sanity';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
@@ -19,18 +33,21 @@ import { adminL1CacheCapacity } from './config-sanity';
 // deadlocks the handler import (unsettled top-level await -> exit 13). In
 // adapter-node process.env carries the same values.
 const SUB = {
-  shards: process.env.NATS_ADMIN_SUBJECT ?? 'twitch.ingress.admin.shards.get',
-  scale: process.env.NATS_SHARD_SCALE_SUBJECT ?? 'twitch.ingress.admin.shards.scale',
-  autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
-  status: process.env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
-  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
-  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
-  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
-  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications',
-  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
-  health: process.env.NATS_RPC_HEALTH_PREFIX ?? 'bagel.rpc.health'
+  shards: process.env.NATS_ADMIN_SUBJECT ?? ZB6NA,
+  scale: process.env.NATS_SHARD_SCALE_SUBJECT ?? ZPDRN,
+  autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT ?? Z4OBN,
+  // Z6P3F is the wildcard broadcast subject this prefix feeds (see feed.ts /
+  // events/stream): strip the glob suffix to recover the bare prefix STATUS_PREFIX
+  // needs for its own suffix-composed subjects.
+  status: process.env.NATS_STATUS_SUBJECT_PREFIX ?? Z6P3F.slice(0, -2),
+  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? ZGU3T,
+  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? ZNI7E,
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? Z6JIB,
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? ZD773,
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? ZCDX3,
+  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? ZSY4M,
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? ZW3AW,
+  health: process.env.NATS_RPC_HEALTH_PREFIX ?? ZDY5E
 };
 
 export const STATUS_PREFIX = SUB.status;

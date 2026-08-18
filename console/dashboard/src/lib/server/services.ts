@@ -11,6 +11,22 @@ import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/shared/server/s
 import type { ScopeMap } from '@bagel/shared/server/invalidation';
 import * as valkey from '@bagel/shared/server/valkey-store';
 import type { Tier } from '@bagel/shared';
+import {
+  ZIA4I,
+  ZOFTH,
+  Z3LT4,
+  ZWWFX,
+  ZQFOP,
+  ZWP7T,
+  ZSXYE,
+  ZG3JN,
+  ZD7SI,
+  ZUM6Y,
+  ZLLTQ,
+  ZNFHI,
+  ZCKP2,
+  ZSEUW
+} from '@adamousmer/recipes';
 import type { Session } from './session';
 import * as liveHub from './live-hub';
 import { dashboardL1CacheCapacity } from './config-sanity';
@@ -21,23 +37,23 @@ import { dashboardL1CacheCapacity } from './config-sanity';
 // deadlocks the handler import (unsettled top-level await -> exit 13). In
 // adapter-node process.env carries the same values.
 export const SUB = {
-  broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
-  dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
-  commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
-  modules: process.env.NATS_MODULES_SUBJECT_PREFIX ?? 'bagel.rpc.modules',
-  projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
-  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
+  broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT ?? ZIA4I,
+  dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX ?? ZOFTH,
+  commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? Z3LT4,
+  modules: process.env.NATS_MODULES_SUBJECT_PREFIX ?? ZWWFX,
+  projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? ZQFOP,
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? ZWP7T,
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? ZSXYE,
   // Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX fallback
   // (the old account/user no longer exist). `||` so a blank Doppler value falls
   // through to the default instead of resolving to an empty subject prefix.
-  gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'bagel.rpc.gossip',
-  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
-  goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX ?? 'bagel.rpc.modules.govee',
-  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
-  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications',
-  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX ?? 'bagel.rpc.transactions'
+  gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || ZG3JN,
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? ZD7SI,
+  goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX ?? ZUM6Y,
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? ZLLTQ,
+  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? ZNFHI,
+  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? ZCKP2,
+  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX ?? ZSEUW
 };
 
 function userPrefixes(id: string): string[] {
