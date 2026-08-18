@@ -7,6 +7,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -26,6 +28,8 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zzobg"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -67,6 +71,7 @@ type deps struct {
 	log    *zap.Logger
 	nrApp  *newrelic.Application
 	nc     *nats.Conn
+	k      *zzobg.K
 	valkey valkey_go.Client
 	host   string
 }
@@ -87,13 +92,41 @@ func main() {
 	warnStartupFallbacks(cfg, log)
 	warnLocaleGaps(log)
 
+	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
+	fatalIf(log, err, "failed to connect to nats")
+	defer nc.Close()
+
+	// busConn satisfies the recipes binding's Up(U): U.Bus (see svc/zzobg) —
+	// the shared BUS/JetStream account, dialed separately from nc (the RPC
+	// account above).
+	busConn, err := bus.ConnectBus(cfg.NATSURL, serviceName)
+	fatalIf(log, err, "failed to connect bus-plane nats")
+	defer busConn.Close()
+
+	k, err := zzobg.Up(zzobg.U{Bus: busConn, Rpc: nc})
+	fatalIf(log, err, "failed to bind outgress's recipes binding")
+
+	// grantsDenied flips true the first time the NATS server reports outgress's
+	// BUS account denied a permission its manifest declares; nats_grants below
+	// reports it unhealthy from that point on instead of staying silently
+	// degraded (see runtime.Watchdog).
+	var grantsDenied atomic.Bool
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	fatalIf(log, runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0),
+		"recipes preflight failed: missing jetstream grant(s)")
+
 	// Reconcile both outgress streams here (not only from producer services) so
 	// their retention and lifetimes are guaranteed before any lane consumer
-	// attaches. Order matters: the chat stream is narrowed off the system subject
-	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
-	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
-	// EventSub enroll survives a rollout gap instead of being purged.
-	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
+	// attaches. recipes' manifest (see recipes/MAP.md "outgress manage") is the
+	// source of truth for the shape; ZWMQF's order still narrows the chat
+	// stream off the system subject FIRST, so adding the system stream cannot
+	// overlap it.
+	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, k.ZWMQF(), log),
 		"failed to provision outgress streams")
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
@@ -102,9 +135,6 @@ func main() {
 
 	registry := channels.New(valkeyClient)
 
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	fatalIf(log, err, "failed to connect to nats")
-	defer nc.Close()
 	fatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
 		"failed to subscribe channel cache invalidation")
 	defer registry.Close()
@@ -116,7 +146,7 @@ func main() {
 	// hostname (the pod) is the dev fallback.
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	d := &deps{cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
+	d := &deps{cfg: cfg, log: log, nrApp: nrApp, nc: nc, k: k, valkey: valkeyClient, host: host}
 
 	tw := d.newTwitchClient()
 	defer tw.CloseIdleConnections()
@@ -138,8 +168,8 @@ func main() {
 	// dashboard bell immediately rather than waiting for the next go-live.
 	// The notifier holds no per-lane state, so one instance serves all three.
 	reauth := worker.NewReauthNotifier(nc, worker.ReauthConfig{
-		SendSubject:  cfg.NotifySendSubject,
-		StateSubject: cfg.UsersStateSubject,
+		SendSubject:  k.ZZ6TB(),
+		StateSubject: k.ZQCJJ(),
 		BotID:        cfg.TwitchBotUserID,
 	}, log.Named("reauth"))
 	premium.SetReauthNotifier(reauth)
@@ -147,8 +177,8 @@ func main() {
 	system.SetReauthNotifier(reauth)
 
 	d.startChatLanes(ctx, []bus.WeightedLane{
-		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
-		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
+		{Sub: premiumSub, Subject: k.ZLJJ3().Subject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
+		{Sub: standardSub, Subject: k.ZSWLY().Subject, Handle: standard.Process},
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
@@ -161,23 +191,31 @@ func main() {
 	defer closeAuthzLane()
 	go system.EnsureClientEventSubs(ctx)
 
-	fatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+	// rpcPrefix is outgress's whole RPC surface (ZIJKH's grant) minus its
+	// trailing wildcard: SubscribeManage/ChannelPoints/Chatters each append
+	// their own verb suffix onto it.
+	rpcPrefix := strings.TrimSuffix(k.ZIJKH(), ".>")
+
+	fatalIf(log, rpc.SubscribeManage(nc, registry, tw, rpcPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
 		"failed to subscribe management rpc")
 
 	// Channel-points reward management (create/edit/delete custom rewards under
 	// each broadcaster's own token), driven synchronously by the dashboard tab.
-	if err := rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
+	if err := rpc.SubscribeChannelPoints(nc, tw, rpcPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
 		log.Fatal("failed to subscribe channel-points rpc", zap.Error(err))
 	}
 
 	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
 	// sesame's loyalty watch tick: one call per live channel per tick.
-	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
+	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, rpcPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
 		log.Fatal("failed to subscribe chatters rpc", zap.Error(err))
 	}
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	d.logReady(tw)
 
@@ -279,7 +317,7 @@ func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 // storedTokenSource builds a user token source backed by the users-service
 // token store for one account, seeded with an optional env refresh token.
 func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
-	store := tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
+	store := tokenstore.New(d.nc, strings.TrimSuffix(d.k.ZBCZW(), ".>"), accountID)
 	log := d.log
 	return twitch.NewStoredUserTokenSource(d.creds(), seedRefresh, twitch.StoredTokenIO{
 		Load: func(ctx context.Context) string {
@@ -360,7 +398,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Twitch:   tw,
 		BotID:    d.cfg.TwitchBotUserID,
 		Owner:    d.host,
-		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
+		Conduit:  conduit.New(d.nc, d.k.ZEOUH(), d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
 		Batch:    batch,
 		UserIDs:  worker.NewUserIDCache(),
 	}
@@ -386,22 +424,24 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 // laneSubscribers connects the three lane subscribers; paced redelivery keeps
 // rate-limit nacks from spinning.
 func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscriber, closeAll func()) {
+	premium, standard, system := d.k.ZLJJ3(), d.k.ZSWLY(), d.k.ZC6T4()
+
 	var err error
 	premiumSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.PremiumSubject,
-		Group: "outgress-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+		URL: d.cfg.NATSURL, Stream: premium.Stream, Subject: premium.Subject,
+		Group: premium.DeliverGroup, NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
 	}, d.log)
 	fatalIf(d.log, err, "failed to connect premium subscriber")
 
 	standardSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.StandardSubject,
-		Group: "outgress-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+		URL: d.cfg.NATSURL, Stream: standard.Stream, Subject: standard.Subject,
+		Group: standard.DeliverGroup, NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
 	}, d.log)
 	fatalIf(d.log, err, "failed to connect standard subscriber")
 
 	systemSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.OutgressSystemStream.Name, Subject: d.cfg.SystemSubject,
-		Group: "outgress-system", NakDelay: systemNakDelay, MaxRedeliveries: systemMaxRedeliveries,
+		URL: d.cfg.NATSURL, Stream: system.Stream, Subject: system.Subject,
+		Group: system.DeliverGroup, NakDelay: systemNakDelay, MaxRedeliveries: systemMaxRedeliveries,
 	}, d.log)
 	fatalIf(d.log, err, "failed to connect system subscriber")
 
@@ -431,7 +471,7 @@ func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
 // routines. It runs a fixed pool (min == max, single consumer), no autoscaling.
 func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *worker.Worker) {
 	_, err := bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
-		{Sub: sub, Subject: d.cfg.SystemSubject, Handle: system.Process},
+		{Sub: sub, Subject: d.k.ZC6T4().Subject, Handle: system.Process},
 	}, bus.ScalePolicy{
 		MinRoutines:  d.cfg.SystemWorkers,
 		MaxRoutines:  d.cfg.SystemWorkers,
@@ -454,7 +494,7 @@ func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func(
 	streamSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
 	fatalIf(d.log, err, "failed to connect stream-lane subscriber")
 
-	fatalIf(d.log, bus.Consume(ctx, d.nrApp, streamSub, d.cfg.StreamLaneSubject, system.HandleStreamEvent, d.log),
+	fatalIf(d.log, bus.Consume(ctx, d.nrApp, streamSub, d.k.Z2ROS().Subject, system.HandleStreamEvent, d.log),
 		"failed to consume stream lane")
 
 	return func() { _ = streamSub.Close() }
@@ -472,9 +512,9 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 	fatalIf(d.log, err, "failed to connect authz subscriber")
 
 	lanes := map[string]func(*bus.Message) error{
-		d.cfg.AuthzGrantedSubject:    system.HandleAuthzGranted,
-		d.cfg.AuthzRevokedSubject:    system.HandleAuthzRevoked,
-		d.cfg.AuthzSubRevokedSubject: system.HandleAuthzSubRevoked,
+		d.k.ZVS75().Subject: system.HandleAuthzGranted,
+		d.k.Z25YM().Subject: system.HandleAuthzRevoked,
+		d.k.ZNYSL().Subject: system.HandleAuthzSubRevoked,
 	}
 	for subject, handle := range lanes {
 		fatalIf(d.log, bus.Consume(ctx, d.nrApp, authzSub, subject, handle, d.log),
@@ -486,10 +526,10 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 
 func (d *deps) logReady(tw *twitch.Client) {
 	d.log.Info("outgress ready",
-		zap.String("premium_subject", d.cfg.PremiumSubject),
-		zap.String("standard_subject", d.cfg.StandardSubject),
-		zap.String("rpc_prefix", d.cfg.RPCPrefix),
-		zap.String("stream_lane_subject", d.cfg.StreamLaneSubject),
+		zap.String("premium_subject", d.k.ZLJJ3().Subject),
+		zap.String("standard_subject", d.k.ZSWLY().Subject),
+		zap.String("rpc_prefix", strings.TrimSuffix(d.k.ZIJKH(), ".>")),
+		zap.String("stream_lane_subject", d.k.Z2ROS().Subject),
 		zap.Bool("mod_verification", tw.HasUserToken()),
 		zap.Int("min_routines", d.cfg.MinRoutines),
 		zap.Int("max_routines", d.cfg.MaxRoutines),
