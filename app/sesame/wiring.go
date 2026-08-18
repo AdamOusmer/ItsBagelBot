@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/automod"
@@ -21,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
 
+	"github.com/AdamOusmer/recipes/svc/zrfpr"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/valkey-io/valkey-go"
@@ -43,7 +45,34 @@ type wireCtx struct {
 	ctx context.Context
 	in  infra
 	cfg *config.Config
+	k   *zrfpr.K
 	log *zap.Logger
+}
+
+// modulesRPCPrefix recovers the shared "bagel.rpc.modules" root both the
+// quotes and personality RPC clients build their own subject under: sesame's
+// binding grants them as two separate leaf subjects (ZLRLO's quote.>
+// wildcard and ZXDII's exact personality.feed) rather than a shared parent
+// wildcard, so the common prefix is trimmed off the wildcard one.
+func modulesRPCPrefix(k *zrfpr.K) string {
+	return strings.TrimSuffix(k.ZLRLO(), ".quote.>")
+}
+
+// outgressRPCPrefix recovers the shared "bagel.rpc.outgress" root the
+// followage/accountage/chatters RPC clients build their own subject under:
+// sesame's binding grants each as its own exact leaf subject rather than a
+// shared parent wildcard, so the common prefix is trimmed off one of them.
+func outgressRPCPrefix(k *zrfpr.K) string {
+	return strings.TrimSuffix(k.ZNE6T(), ".chatters.get")
+}
+
+// cacheInvalidatePrefix recovers the shared "bagel.cache.invalidate" root the
+// projection and live cache-invalidation listeners subscribe under: sesame's
+// binding grants each concrete cache-invalidate subject separately rather
+// than a shared parent wildcard, so the common prefix is trimmed off one of
+// them.
+func cacheInvalidatePrefix(k *zrfpr.K) string {
+	return strings.TrimSuffix(k.Z4QFZ(), ".commands")
 }
 
 // dialNATS opens the core RPC connection (projector fallback) and the JetStream
@@ -85,7 +114,7 @@ type engineRuntime struct {
 // plus one line in all.go, no wiring here. The Valkey/RPC-backed stores are built
 // from the process's shared clients (in) and the config.
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
-	in, cfg, log := w.in, w.cfg, w.log
+	in, cfg, k, log := w.in, w.cfg, w.k, w.log
 	return engine.Deps{
 		Proj:       rt.proj,
 		Live:       rt.live,
@@ -93,11 +122,11 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Cooldown:   engine.NewValkeyCooldown(in.vc),
 		Special:    engine.NewSpecialSet(cfg.SpecialUserIDs),
 		Pub:        in.pub,
-		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
-		Quotes:     engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
-		Gossip:    engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix),
-		Followage:  engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
-		AccountAge: engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
+		Commands:   engine.NewCommandsRPC(in.nc, strings.TrimSuffix(k.ZW43X(), ".>")),
+		Quotes:     engine.NewQuotesRPC(in.nc, modulesRPCPrefix(k)),
+		Gossip:     engine.NewGossipRPC(in.nc, strings.TrimSuffix(k.ZOM5E(), ".>")),
+		Followage:  engine.NewFollowageRPC(in.nc, outgressRPCPrefix(k)),
+		AccountAge: engine.NewAccountAgeRPC(in.nc, outgressRPCPrefix(k)),
 		Log:        log,
 		Automod:    rt.guard,
 		Reputation: engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
@@ -109,7 +138,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		LoyaltyTick: rt.tick,
 		Stats:       rt.stats,
 
-		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
+		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, modulesRPCPrefix(k)), log),
 
 		Dedup: newDedup(w),
 
@@ -146,14 +175,14 @@ func newProjection(w wireCtx) *projection.Client {
 		Store: projection.NewStore(w.in.vc),
 		NC:    w.in.nc,
 		Subjects: projection.Subjects{
-			Users:    w.cfg.ProjectionUsersSubject,
-			Modules:  w.cfg.ProjectionModulesSubject,
-			Commands: w.cfg.ProjectionCommandsSubject,
+			Users:    w.k.Z4LQB(),
+			Modules:  w.k.Z6EP3(),
+			Commands: w.k.Z5R3V(),
 		},
 		TTL: projectionCacheTTL,
 		Log: w.log,
 	})
-	proj.StartInvalidationListener(w.cfg.CacheInvalidationPrefix)
+	proj.StartInvalidationListener(cacheInvalidatePrefix(w.k))
 	proj.StartOccupancyLogger(w.ctx, cacheOccupancyInterval)
 	return proj
 }
@@ -166,9 +195,9 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 	live := engine.NewValkeyLiveStore(w.in.vc, w.in.nc, w.in.pub, engine.LiveConfig{
 		TTL:                   w.cfg.LiveTTL,
 		CacheTTL:              projectionCacheTTL,
-		ProjectorLiveSubject:  w.cfg.ProjectionLiveSubject,
-		OutgressSystemSubject: w.cfg.OutgressSystemSubject,
-		CacheInvalidatePrefix: w.cfg.CacheInvalidationPrefix,
+		ProjectorLiveSubject:  w.k.ZXOW7(),
+		OutgressSystemSubject: w.k.ZJ5G5(),
+		CacheInvalidatePrefix: cacheInvalidatePrefix(w.k),
 		KeyspaceDB:            0,
 		Log:                   w.log,
 	})
@@ -186,11 +215,11 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 // starts this session, not next stream).
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
 	timers := engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
-		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
-		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
+		OutgressPremiumSubject:   w.k.Z5Z2K(),
+		OutgressStandardSubject:  w.k.ZABVE(),
 		KeyspaceDB:               0,
 		NC:                       w.in.nc,
-		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
+		ModulesInvalidateSubject: w.k.Z3DGE(),
 		Log:                      w.log,
 	})
 	go timers.StartExpiryWatcher(w.ctx)
@@ -203,7 +232,7 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 // service) and its watch clock, both fed by the shared reporter that batches
 // accruals/bumps onto data.loyalty.*.
 func newLoyalty(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
-	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), reporter, w.log)
+	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, strings.TrimSuffix(w.k.ZNA6G(), ".>")), reporter, w.log)
 	tick := newLoyaltyClock(w, proj, live, reporter)
 	return store, tick
 }
@@ -214,8 +243,8 @@ func newLoyalty(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore
 // and starts its expiry, rearm and reconciler watchers.
 func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter) *engine.ValkeyLoyaltyClock {
 	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, proj, live, reporter, engine.LoyaltyClockConfig{
-		OutgressRPCPrefix:        w.cfg.OutgressRPCPrefix,
-		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
+		OutgressRPCPrefix:        outgressRPCPrefix(w.k),
+		ModulesInvalidateSubject: w.k.Z3DGE(),
 		BotUserID:                w.cfg.BotUserID,
 		KeyspaceDB:               0,
 		Log:                      w.log,
@@ -226,11 +255,11 @@ func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLive
 	return clock
 }
 
-func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config) *engine.Pipeline {
+func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config, k *zrfpr.K) *engine.Pipeline {
 	return engine.NewPipeline(deps, registry, engine.Config{
 		BotID:            cfg.BotUserID,
-		OutgressPremium:  cfg.OutgressPremiumSubject,
-		OutgressStandard: cfg.OutgressStandardSubject,
+		OutgressPremium:  k.Z5Z2K(),
+		OutgressStandard: k.ZABVE(),
 		CountUses:        true,
 		AutomodEnforce:   cfg.AutomodEnforce,
 		ShieldEnabled:    cfg.ShieldEnabled,
@@ -241,9 +270,9 @@ func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config
 // standard lanes into a shared pool, with premium reserving a slice so it is
 // never starved. Live events ride these same lanes, so there is no separate
 // stream consumer.
-func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Config, log *zap.Logger) *consumer.Consumer {
+func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Config, k *zrfpr.K, log *zap.Logger) *consumer.Consumer {
 	return consumer.New(sub, nrApp, consumer.Config{
-		Lanes: consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},
+		Lanes: consumer.Lanes{PremiumSubject: k.ZRD7T().Subject, StandardSubject: k.ZIOPQ().Subject},
 		Policy: bus.ScalePolicy{
 			MinRoutines:    cfg.MinRoutines,
 			MaxRoutines:    cfg.MaxRoutines,

@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zrfpr"
 	"go.uber.org/zap"
 )
 
@@ -54,39 +57,49 @@ func main() {
 
 	cfg := config.Load()
 
-	// Sesame owns both ingress lane streams' reconciliation. Other ingress
-	// consumers receive consumer-only ACLs and twitch-ingress itself is
-	// publish-only.
-	//
-	// The lane shape comes from IngressLaneSpecs: one wildcard stream until the
-	// partition flip, the narrowed pair after it (NATS_INGRESS_PARTITION). The
-	// slice order inside the partitioned shape is load-bearing — TWITCH_INGRESS
-	// must be narrowed before TWITCH_INGRESS_STANDARD claims the standard
-	// subject; EnsureStreams reconciles in order and the reverse is refused for
-	// subject overlap, which a fatal initial provision would turn into a
-	// crashloop that never performs the narrowing. See the migration note on
-	// bus.TwitchIngressStandardStream.
-	//
-	// TWITCH_INGRESS_RETRY is provisioned only when the lanes actually bind
-	// receipt-level consumers, because only those schedule onto it: a flow
-	// consumer has no per-message pending state to NAK, so a handler failure is
-	// handed back to the broker as a scheduled message instead. Creating it
-	// unconditionally would hold 32 MiB of memory-backed stream on every hub
-	// member for a lane nothing writes to. The same flag decides whether the
-	// consumer subscribes it (see internal/consumer), so the stream and its
-	// reader appear and disappear together and enabling flow stays one env flip.
-	owned := bus.IngressLaneSpecs()
-	if bus.FlowConsumeEnabled() {
-		owned = append(owned, bus.TwitchIngressRetryStream)
-	}
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, owned, log); err != nil {
-		log.Fatal("failed to provision the TWITCH_INGRESS streams", zap.Error(err))
-	}
-
 	nc, pub, sub := dialNATS(cfg, log)
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 	defer func() { _ = sub.Close() }()
+
+	// busConn satisfies the recipes binding's Up(U): U.Bus (see svc/zrfpr) —
+	// the shared BUS/JetStream account, dialed separately from nc (the RPC
+	// account dialNATS already opened).
+	busConn, err := bus.ConnectBus(cfg.NATSURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect bus-plane nats", zap.Error(err))
+	}
+	defer busConn.Close()
+
+	k, err := zrfpr.Up(zrfpr.U{Bus: busConn, Rpc: nc})
+	if err != nil {
+		log.Fatal("failed to bind sesame's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports sesame's
+	// BUS account denied a permission its manifest declares; nats_grants below
+	// reports it unhealthy from that point on instead of staying silently
+	// degraded (see runtime.Watchdog).
+	var grantsDenied atomic.Bool
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
+	// Sesame owns the ingress lane streams' reconciliation; k.ZFLOB()
+	// (recipes' manifest, see recipes/MAP.md "sesame manage") is now the
+	// source of truth for the shape and replaces the old
+	// IngressLaneSpecs/FlowConsumeEnabled-gated construction. Other ingress
+	// consumers receive consumer-only ACLs and twitch-ingress itself is
+	// publish-only.
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, k.ZFLOB(), log); err != nil {
+		log.Fatal("failed to provision the TWITCH_INGRESS streams", zap.Error(err))
+	}
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	if err != nil {
@@ -94,7 +107,7 @@ func main() {
 	}
 	defer valkeyClient.Close()
 
-	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log}
+	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, k: k, log: log}
 
 	proj := newProjection(w)
 	defer proj.Close()
@@ -118,10 +131,10 @@ func main() {
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)
 
-	pipe := newPipeline(deps, registry, cfg)
+	pipe := newPipeline(deps, registry, cfg, k)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
-	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
+	weighted, err := newConsumer(sub, nrApp, cfg, k, log).Start(ctx, pipe.Process)
 	if err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
@@ -132,8 +145,9 @@ func main() {
 	health.Serve(cfg.ListenAddr, serviceName,
 		health.Bool("nats", nc.IsConnected),
 		health.Bool("bus_subscriber", func() bool { return bus.SubscriberHealthy(sub) }),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
 	)
-	logReady(cfg, deps.Special.Len(), log)
+	logReady(cfg, k, deps.Special.Len(), log)
 
 	<-ctx.Done()
 	drainInflight(weighted, cfg.DrainTimeout, log)
@@ -152,11 +166,11 @@ func startRefreshers(ctx context.Context, guard *automod.Gate, cfg *config.Confi
 }
 
 // logReady emits the one-line startup banner with the effective consumer tuning.
-func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
+func logReady(cfg *config.Config, k *zrfpr.K, specialUsers int, log *zap.Logger) {
 	log.Info("sesame ready",
 		zap.String("consumer_name", cfg.ConsumerName),
-		zap.String("premium_subject", cfg.PremiumSubject),
-		zap.String("standard_subject", cfg.StandardSubject),
+		zap.String("premium_subject", k.ZRD7T().Subject),
+		zap.String("standard_subject", k.ZIOPQ().Subject),
 		// Which acknowledgement contract the lanes actually bound: receipt-level
 		// flow control, or the explicit-ACK default. This is the one place an
 		// operator can read it back, since the flag is unset in every manifest.
