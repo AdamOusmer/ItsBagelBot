@@ -186,7 +186,7 @@ spec:
             # The broker ACL is a hard prerequisite and lands first: a pull
             # consumer fetches on $JS.API.CONSUMER.MSG.NEXT, and without that
             # grant the lane goes to zero events per second with no client-side
-            # error at all (see nats-auth.conf, worker_bus).
+            # error at all (see nats-auth.conf in the recipes repo, worker_bus).
             - name: NATS_CONSUME_FLOW
               value: "on"
             - name: NATS_CONSUME_MODE
