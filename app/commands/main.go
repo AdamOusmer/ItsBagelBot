@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync/atomic"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -26,6 +28,8 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zibg2"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +38,7 @@ const serviceName = "commands"
 // registerConsumers wires the event subscriptions onto repo: cache
 // invalidation fans out to every instance (broadcast), while use-counter and
 // account-deletion events are handled once per event (grouped).
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped bus.Subscriber, k *zibg2.K, log *zap.Logger) error {
 	// Use-counter events from the worker: exactly one instance sums each event
 	// (queue group), the repo batches them and flushes uses = uses + n.
 	subs := []struct {
@@ -43,9 +47,9 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"command changes", broadcast, data.SubjectCommandChanged, invalidateOnChange(repo)},
-		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
-		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, log)},
+		{"command changes", broadcast, k.ZHWZ6().Subject, invalidateOnChange(repo)},
+		{"command used events", grouped, k.Z2XMO().Subject, recordUse(repo, log)},
+		{"user deleted events", grouped, k.Z6TYE().Subject, deleteAllForUser(repo, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, s.sub, s.subject, s.handle, log); err != nil {
@@ -119,25 +123,48 @@ func main() {
 	n, closeIntake := svcboot.MustNATS(core, serviceName, "commands-rpc")
 	defer func() { _ = n.Pub.Close() }()
 
+	k, err := zibg2.Up(zibg2.U{Bus: n.Bus, Rpc: n.RPC})
+	if err != nil {
+		log.Fatal("failed to bind commands's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports commands's
+	// BUS account denied a permission its manifest declares; nats_grants below
+	// reports it unhealthy from that point on instead of staying silently
+	// degraded (see runtime.Watchdog).
+	var grantsDenied atomic.Bool
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(n.Bus, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(core.Ctx, n.Bus, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
 	repo := repository.NewCommands(client, n.Pub, core.NR, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 	defer closeIntake()                    // stops intake before the repo flush above
 
-	if err := registerConsumers(core.Ctx, core.NR, repo, n.Broadcast, n.Grouped, log); err != nil {
+	if err := registerConsumers(core.Ctx, core.NR, repo, n.Broadcast, n.Grouped, k, log); err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
 
-	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
+	projectionSubject := k.ZSAGE()
 	if err := rpc.SubscribeProjection(n.RPC, repo, projectionSubject, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
-	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
+	commandsPrefix := strings.TrimSuffix(k.ZKOQO(), ".>")
 	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", n.RPC.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", n.RPC.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),
