@@ -328,6 +328,12 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      # github.com/AdamOusmer/recipes is private; the Go build inside the
+      # Containerfile's go mod download must skip the public proxy/sumdb for
+      # it and resolve it over SSH instead (see the ssh-agent and git config
+      # steps below).
+      GOPRIVATE: github.com/AdamOusmer/recipes
     strategy:
       fail-fast: false
       matrix:
@@ -338,6 +344,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The runner needs a key with read access to recipes loaded before the
+      # Go build resolves it (go mod download inside the Containerfile hits
+      # SSH, never the public proxy/sumdb, for a GOPRIVATE module).
+      - name: Load recipes deploy key
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.RECIPES_DEPLOY_KEY }}
+
+      - name: Use SSH for private module fetches
+        run: git config --global url."git@github.com:".insteadOf "https://github.com/"
 
       - name: Prepare image metadata
         id: meta
