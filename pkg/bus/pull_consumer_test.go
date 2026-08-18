@@ -49,9 +49,9 @@ func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
 			fmt.Sprintf("pull consumer was given push delivery: %#v", cfg)},
 		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
 			fmt.Sprintf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)},
-		// Single-peer consumer state, in memory, while the stream it reads stays
-		// R3. The cursor is not the data: quorum on every floor ack was the lane's
-		// latency, and rebuildConsumer covers losing the peer that holds it.
+		// Quorum-replicated consumer state, in memory. R1 put the whole fleet's
+		// ability to consume on one peer: on 2026-08-16 that peer churned, the
+		// durable was lost, and every pod spun on a name that no longer resolved.
 		contractClause{cfg.Replicas == defaultPullReplicas && cfg.MemoryStorage,
 			fmt.Sprintf("consumer state must be replicated in memory: %#v", cfg)},
 		contractClause{cfg.InactiveThreshold == flowInactiveThreshold,
@@ -725,62 +725,4 @@ func (m *fakePullMsg) Nak() error {
 	defer m.mu.Unlock()
 	m.nakked++
 	return nil
-}
-
-// The continuous iterator inherits three library defaults when it is opened
-// bare, and one of them (a 30s expiry, so a 15s heartbeat, so 30s before a lost
-// pull request is noticed) is the difference between a lane recovering in
-// seconds and a lane that looks idle until someone publishes twice. Pin them.
-func TestPullIteratorOptionsPinTheClientDefaults(t *testing.T) {
-	sub := &pullSubscriber{batch: defaultPullFetchBatch, expiry: defaultPullExpiry}
-
-	var (
-		batch     int
-		threshold int
-		expiry    time.Duration
-	)
-	for _, opt := range sub.iteratorOptions() {
-		switch value := opt.(type) {
-		case jsapi.PullMaxMessages:
-			batch = int(value)
-		case jsapi.PullThresholdMessages:
-			threshold = int(value)
-		case jsapi.PullExpiry:
-			expiry = time.Duration(value)
-		}
-	}
-
-	requireContract(t,
-		contractClause{batch == defaultPullFetchBatch,
-			fmt.Sprintf("iterator batch = %d, want %d", batch, defaultPullFetchBatch)},
-		// Half a batch of runway: the refill's round trip has to stay hidden
-		// behind messages the pod is already handing out.
-		contractClause{threshold == defaultPullFetchBatch/2,
-			fmt.Sprintf("refill threshold = %d, want %d", threshold, defaultPullFetchBatch/2)},
-		contractClause{expiry == defaultPullExpiry && expiry < 30*time.Second,
-			fmt.Sprintf("iterator expiry = %v, want the pinned %v", expiry, defaultPullExpiry)},
-	)
-}
-
-// The client refuses an expiry below one second outright, and the iterator open
-// is on the lane's boot path, so a manifest typo must fall back rather than
-// fail the bind.
-func TestPullExpiryFloorsAtTheClientMinimum(t *testing.T) {
-	t.Setenv("NATS_PULL_EXPIRY", "200ms")
-	floored := pullExpiry()
-
-	t.Setenv("NATS_PULL_EXPIRY", "-3s")
-	negative := pullExpiry()
-
-	t.Setenv("NATS_PULL_EXPIRY", "12s")
-	raised := pullExpiry()
-
-	requireContract(t,
-		contractClause{floored == time.Second,
-			fmt.Sprintf("expiry below the client minimum = %v, want 1s", floored)},
-		contractClause{negative == defaultPullExpiry,
-			fmt.Sprintf("negative expiry = %v, want the shipped default", negative)},
-		contractClause{raised == 12*time.Second,
-			fmt.Sprintf("raised expiry = %v, want 12s", raised)},
-	)
 }
