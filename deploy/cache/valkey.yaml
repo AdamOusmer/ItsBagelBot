@@ -134,11 +134,9 @@ spec:
   template:
     metadata:
       annotations:
-        # TLS is native (Valkey's own tls-port), not the CNI's WireGuard
-        # tunnel: the pods run hostNetwork (see below), so the tunnel is not
-        # in the path and does not re-encrypt this traffic. Matches nats-leaf
-        # (deploy/messaging/nats-leaf.yaml) -- both are the exceptions carved out of
-        # the WireGuard pod plane for this reason.
+        # TLS is native (Valkey's own tls-port) end to end; the pods run on
+        # the Cilium pod network (hostNetwork removed 2026-08-18) like every
+        # other workload, matching nats (deploy/messaging/).
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
@@ -554,8 +552,6 @@ spec:
       # Valkey and Sentinel listen on the node's own addresses (6380/26380).
       # config-init resolves the Sentinel Service and every member announces a
       # cluster DNS name, so the pods still need cluster DNS.
-      dnsPolicy: ClusterFirstWithHostNet
-      hostNetwork: true
       restartPolicy: Always
       # No role tolerations: Valkey belongs on the untainted application tier
       # (cp1 carries no taint on this cluster either, so it is schedulable

@@ -65,8 +65,6 @@ spec:
       # the hub member on that node, so every listener sits one above the hub's:
       # client 4223, cluster 6223, monitor 8223, exporter 7778. The Services
       # below still publish 4222/8222, so no client URL changes.
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
       # Shared PID namespace lets the config-reloader sidecar SIGHUP the
       # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true

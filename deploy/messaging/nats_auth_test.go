@@ -36,9 +36,13 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
-		"users_bus":    {"BAGEL_DATA"},
-		"worker_bus":   {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus": {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
+		"users_bus":  {"BAGEL_DATA"},
+		"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		// The projector self-provisions its inputs rather than depending on
+		// users/sesame boot order; identical catalog specs make the concurrent
+		// reconciles converge.
+		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
@@ -104,7 +108,7 @@ func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 }
 
 // TestRuntimeStreamOwnershipMatchesACL keeps startup reconciliation aligned
-// with the three identities that receive STREAM.CREATE/UPDATE above.
+// with the identities that receive STREAM.CREATE/UPDATE above.
 func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	mainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "main.go"))
 	if err != nil {
@@ -117,10 +121,13 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 			// the slice in order and the partition's narrowing update must run
 			// before the new stream claims the subject, so the order is part of
 			// the assertion, not incidental formatting.
-			"sesame":   "bus.IngressLaneSpecs()",
-			"outgress": "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
+			"sesame": "bus.IngressLaneSpecs()",
+			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
+			// the partition ordering holds here exactly as it does in sesame.
+			"projector": "append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)",
+			"outgress":  "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
-		seen: make(map[string]bool, 3),
+		seen: make(map[string]bool, 4),
 	}
 
 	for _, name := range mainFiles {
