@@ -223,6 +223,13 @@ spec:
             # ordered while unrelated channels can overlap confirmation cohorts.
             - name: NATS_PUBLISH_CONNECTIONS
               value: "4"
+            # Zero drains the publish queue without arming the collection
+            # timer: a lone output on a quiet lane ships immediately instead of
+            # waiting the 1ms default. Cohorts still form under load because the
+            # drain takes everything already queued. On the 0.4ms fabric that
+            # timer was the largest single latency item in the pipeline.
+            - name: NATS_PUBLISH_BATCH_WAIT
+              value: "0"
             - name: SESAME_SCALE_UP_AFTER
               value: 2s
             - name: SESAME_SCALE_DOWN_AFTER
