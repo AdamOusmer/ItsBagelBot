@@ -114,18 +114,16 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Each owner's managed-stream shape now comes from its recipes binding's
+	// Manages()-style method (see recipes/MAP.md's "manage" rows) instead of a
+	// literal []bus.StreamSpec — the binding is generated from the fleet
+	// manifest, so it is the single source of truth for who owns what.
 	check := streamOwnershipCheck{
 		want: map[string]string{
-			"users": "[]bus.StreamSpec{bus.BagelDataStream}",
-			// Both ingress lane streams, in this order. EnsureStreams reconciles
-			// the slice in order and the partition's narrowing update must run
-			// before the new stream claims the subject, so the order is part of
-			// the assertion, not incidental formatting.
-			"sesame": "bus.IngressLaneSpecs()",
-			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
-			// the partition ordering holds here exactly as it does in sesame.
-			"projector": "append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)",
-			"outgress":  "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
+			"users":     "k.Z5G2Z()",
+			"sesame":    "k.ZFLOB()",
+			"projector": "k.ZNT6V()",
+			"outgress":  "k.ZWMQF()",
 		},
 		seen: make(map[string]bool, 4),
 	}

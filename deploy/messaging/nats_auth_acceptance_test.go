@@ -100,7 +100,7 @@ func (h *acceptanceHarness) reconcileOwnedStreams(t *testing.T, ctx context.Cont
 	}
 	for _, owner := range owners {
 		h.activate(t, owner.identity)
-		if err := bus.EnsureStreams(ctx, h.url, owner.specs, h.log); err != nil {
+		if err := bus.EnsureStreams(ctx, h.url, bus.StreamConfigs(owner.specs), h.log); err != nil {
 			t.Fatalf("%s could not reconcile its owned stream(s): %v", owner.identity.user, err)
 		}
 	}
