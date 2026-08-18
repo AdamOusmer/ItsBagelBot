@@ -49,9 +49,14 @@ const (
 	// dispatched, and MaxAckPending must stay comfortably above twice this.
 	defaultPullFetchBatch = 1000
 
-	// defaultPullFetchMaxWait bounds an unfilled batch. It is the lane's idle
-	// latency floor and the loop's own spin rate, so it is short enough that a
-	// trickling lane is not held for a fill that is not coming.
+	// defaultPullFetchMaxWait is the fetch loop's ERROR backoff, and nothing
+	// else. It was a Fetch batch bound when the loop fetched batch by batch;
+	// the continuous iterator keeps its own refill in flight, so an idle lane
+	// now costs one RTT and has no client-side floor to lower. What is left is
+	// noteFetchError's pause: the gap between a failed iterator open and the
+	// next attempt. Shortening it does not make a healthy lane faster, it only
+	// multiplies the request rate a denied MSG.NEXT or a missing durable puts
+	// on the broker while it is already unhappy.
 	defaultPullFetchMaxWait = 200 * time.Millisecond
 
 	// defaultPullAckWait is generous on purpose. It is the server's redelivery
@@ -73,10 +78,42 @@ const (
 	// set — which every other pod is drawing from — shrinks by that much.
 	defaultPullAckEvery = 250 * time.Millisecond
 
-	// defaultPullReplicas matches the lane streams' own replica count. The durable
-	// has to survive exactly what the stream survives, and a consumer cannot ask
-	// for more replicas than the stream it reads has.
-	defaultPullReplicas = 3
+	// defaultPullReplicas is 1 while the lane STREAMS stay at 3. The two are
+	// deliberately decoupled: the stream is the data and has to survive a
+	// member, the durable is a cursor and does not.
+	//
+	// R3 on the durable is what the lane's latency actually was. Consumer state
+	// is RAFT-replicated per update, so every floor ack — the cadence this whole
+	// lane shape exists to make cheap — paid a quorum round trip before the next
+	// batch could be handed out, and the pull lane's own economy paid for it
+	// twice: once for the ack, once for the delivery bookkeeping behind it.
+	//
+	// The 2026-08-16 argument for R3 was not that quorum was cheap, it was that
+	// losing the durable stranded the fleet forever because nothing rebuilt it.
+	// rebuildConsumer is that missing half and it now exists, so the failure R3
+	// was bought to prevent is handled by re-provisioning in seconds instead of
+	// by paying a quorum RTT on every ack for the lifetime of the lane. Losing
+	// the peer holding an R1 durable costs a rebuild and a redelivery window
+	// bounded by AckWait, against handlers that are already idempotent.
+	defaultPullReplicas = 1
+
+	// defaultPullExpiry bounds ONE pull request, and with it how long a lane can
+	// be silently dead. nats.go derives the idle heartbeat from this (50%) and
+	// Next only reports ErrNoHeartbeat after two missed beats, so the client
+	// half of "my request is gone" is 2x the heartbeat, not the expiry itself.
+	//
+	// The library default is 30s, which buys a 30-second hole: a request lost to
+	// a consumer leader move or a re-routed link leaves the pump parked in Next
+	// with nothing outstanding on the server, and the first message after the
+	// lane goes quiet again waits out that whole window before anything
+	// re-requests. 5s makes the same detection cost 5s. What it costs is one
+	// extra pull request per lane per pod every 5s instead of every 30s, which
+	// on an idle lane is 0.2 req/s and on a busy one is noise against the batch
+	// refills already in flight.
+	//
+	// A healthy idle lane never waits for this: the server's 408 on expiry is
+	// consumed inside nats.go, which re-requests immediately.
+	defaultPullExpiry = 5 * time.Second
 
 	// laneUnhealthyAfter is how long the fetch loop may stay in its error path
 	// before the lane reports itself unready. It has to clear an ordinary consumer
@@ -116,17 +153,9 @@ func pullConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 		// fleet has stopped fetching from it. It is the same window the flow lane
 		// gives a pod to reconnect inside without losing its position.
 		InactiveThreshold: flowInactiveThreshold,
-		// Consumer state is replicated with the stream it reads.
-		//
-		// This was R1, on the reasoning that per-consumer ack state is leader RAFT
-		// work on the hot path and that the fleet would simply re-provision after
-		// losing it. The second half was never true: nothing rebuilt a lane durable,
-		// so a single peer owned the whole fleet's ability to consume. On 2026-08-16
-		// one member lost peer routing for 23 minutes, the meta layer moved these
-		// durables eleven times while it churned and then lost them, and every pod
-		// spun on a name that no longer resolved for the next seven hours.
-		// Quorum-replicated state survives one member, which is the failure that
-		// actually happens; rebuildConsumer covers losing all of them at once.
+		// Consumer state is NOT replicated with the stream it reads — see
+		// defaultPullReplicas for why the cursor and the data are decoupled, and
+		// why rebuildConsumer is what makes that safe.
 		//
 		// Memory storage stays. The lane streams are memory-backed themselves, so
 		// persisting ack state to disk cannot outlive the messages it describes.
@@ -165,10 +194,16 @@ func pullFetchBatch() int {
 	return positiveInt(env.GetInt("NATS_PULL_FETCH_BATCH", defaultPullFetchBatch), defaultPullFetchBatch)
 }
 
-// pullReplicas exists as a knob only so a single-node broker (local runs, the
-// acceptance rigs) can bind the lane at all: asking three replicas of a
-// one-member cluster is a creation the server refuses, and the lane binding is
-// a boot-fatal step. Production never sets it.
+// pullExpiry floors at the 1s the client refuses to go below, so a manifest typo
+// cannot turn the iterator open into a boot-fatal ErrInvalidOption.
+func pullExpiry() time.Duration {
+	return max(positiveDuration(env.GetDuration("NATS_PULL_EXPIRY", defaultPullExpiry), defaultPullExpiry), time.Second)
+}
+
+// pullReplicas is the knob for raising the durable back above one — a lane whose
+// handlers are genuinely not replay-safe, or an operator riding out a flapping
+// member. It cannot exceed the stream's own replica count; the server refuses a
+// consumer asking for more peers than the stream it reads has.
 func pullReplicas() int {
 	return positiveInt(env.GetInt("NATS_PULL_REPLICAS", defaultPullReplicas), defaultPullReplicas)
 }
@@ -389,6 +424,7 @@ type pullSubscriber struct {
 	batch    int
 	maxWait  time.Duration
 	ackEvery time.Duration
+	expiry   time.Duration
 
 	retried   atomic.Int64
 	dropped   atomic.Int64
@@ -457,6 +493,7 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		stream: cfg.stream, subject: cfg.subject,
 		name: name, log: log,
 		batch: pullFetchBatch(), maxWait: pullFetchMaxWait(), ackEvery: pullAckEvery(),
+		expiry:  pullExpiry(),
 		output:  make(chan *Message),
 		closeCh: make(chan struct{}),
 		ctx:     ctx,
@@ -500,7 +537,7 @@ func (s *pullSubscriber) pump() {
 // timer in advanceFloorPeriodically for a buffer that is only partially handed
 // out.
 func (s *pullSubscriber) pumpIterator() bool {
-	iter, err := s.consumer.Messages(jsapi.PullMaxMessages(s.batch))
+	iter, err := s.consumer.Messages(s.iteratorOptions()...)
 	if err != nil {
 		return s.noteFetchError(err)
 	}
@@ -510,6 +547,13 @@ func (s *pullSubscriber) pumpIterator() bool {
 	for {
 		wire, err := iter.Next()
 		if err != nil {
+			// Every error here is real. An idle lane does NOT surface one: the
+			// 408 that ends an unfilled pull request is a status message
+			// nats.go consumes itself (jetstream/pull.go handleStatusMsg), so
+			// Next simply blocks until the next message or a genuine failure.
+			// There is no idle case to special-case, and treating one as
+			// benign skips both the backoff and the health clock below.
+			//
 			// Cover everything already handed out before deciding whether the
 			// error is shutdown or a transport failure worth backing off on.
 			s.advanceFloor()
@@ -526,6 +570,24 @@ func (s *pullSubscriber) pumpIterator() bool {
 			s.advanceFloor()
 			sinceFloor = 0
 		}
+	}
+}
+
+// iteratorOptions pins every knob the continuous iterator has instead of
+// inheriting the library's defaults. Two of the three defaults are wrong for a
+// shared lane durable and the third is only right by accident, so none of them
+// should move silently under a client upgrade.
+//
+// PullThresholdMessages is the refill trigger: the client asks for the next
+// batch once the buffer it has left falls below this, so it is the only thing
+// standing between a draining buffer and a handler pool with nothing to hand
+// out. Half a batch of runway is what keeps the refill's round trip hidden
+// behind messages already in hand.
+func (s *pullSubscriber) iteratorOptions() []jsapi.PullMessagesOpt {
+	return []jsapi.PullMessagesOpt{
+		jsapi.PullMaxMessages(s.batch),
+		jsapi.PullExpiry(s.expiry),
+		jsapi.PullThresholdMessages(max(s.batch/2, 1)),
 	}
 }
 

@@ -501,6 +501,17 @@ func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishReques
 	// the length set here.
 	batch := make([]publishRequest, 1, w.batchSize)
 	batch[0] = first
+	if w.batchWait <= 0 {
+		for len(batch) < w.batchSize {
+			select {
+			case request := <-w.requests:
+				batch = append(batch, request)
+			default:
+				return batch, true
+			}
+		}
+		return batch, true
+	}
 	timer := time.NewTimer(w.batchWait)
 	defer stopAndDrainTimer(timer)
 	for len(batch) < w.batchSize {

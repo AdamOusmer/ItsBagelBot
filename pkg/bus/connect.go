@@ -6,6 +6,7 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -172,6 +173,12 @@ func logAsyncError(_ *nats.Conn, sub *nats.Subscription, err error) {
 // server-auth only. Presenting a cert against a verify:false listener is
 // harmless, which is what makes the staged verify flip possible (#578's revert:
 // the flip landed before any client could present one).
+// failedTLSOption turns a configuration verdict into a connect error. A
+// nats.Option is the only channel tlsSecureOption has back to the caller.
+func failedTLSOption(err error) nats.Option {
+	return func(*nats.Options) error { return err }
+}
+
 func tlsSecureOption() nats.Option {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
@@ -184,14 +191,26 @@ func tlsSecureOption() nats.Option {
 
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	certFile, keyFile := env.Get("NATS_CLIENT_CERT_FILE", ""), env.Get("NATS_CLIENT_KEY_FILE", "")
-	if certFile != "" || keyFile != "" {
-		cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-			if err != nil {
-				return nil, fmt.Errorf("bus: load nats client key pair: %w", err)
-			}
-			return &cert, nil
+	switch {
+	case certFile == "" && keyFile == "":
+		return nats.Secure(cfg)
+	case certFile == "" || keyFile == "":
+		// Fail here, not inside the handshake. GetClientCertificate only runs
+		// when the server ASKS for a cert, so a half-set pair against a
+		// verify:false listener would connect happily and then fail the moment
+		// that listener flipped — the one moment nobody is looking. The TS and
+		// Elixir clients raise at boot on the same condition; this is the Go
+		// half of that contract, and nats.Secure has no error return, so the
+		// option carries the failure to the dial.
+		return failedTLSOption(errors.New(
+			"bus: NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"))
+	}
+	cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("bus: load nats client key pair: %w", err)
 		}
+		return &cert, nil
 	}
 	return nats.Secure(cfg)
 }
