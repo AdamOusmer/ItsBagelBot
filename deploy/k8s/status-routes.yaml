@@ -60,6 +60,28 @@ spec:
       port: 443
       targetPort: 8080
 ---
+# Caps Better Stack's probe fleet, the only intended client, well below any
+# real load. sourceCriterion reads CF-Connecting-IP, not the source IP,
+# because every public request enters through cloudflared and traefik's
+# entryPoints have no forwardedHeaders.trustedIPs set: an ipStrategy over
+# X-Forwarded-For would never see the real client, and every request would
+# collapse into the cloudflared pod's single bucket. The header is only
+# spoofable by a caller that reaches traefik without transiting the tunnel,
+# which the firewall posture already rules out. The limiter is in-memory
+# per traefik instance (one per node), so the effective fleet-wide cap is
+# nodes x (average/burst), still far above Better Stack's ~30s poll cadence.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 1
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
 # Rewrites every routed path to the one endpoint the backends actually serve.
 # Shared by all routes below: the per-service path only exists to pick the
 # backend, never to reach a different endpoint.
@@ -82,16 +104,16 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/dashboard`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
       services:
         - name: console-dashboard
-          port: 80
+          port: 443
           scheme: https
           serversTransport: console-dashboard-transport
           nativeLB: true
     - match: Host(`health.itsbagelbot.com`) && Path(`/gossip`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
       services:
         - name: gossip-status
           port: 443
@@ -99,15 +121,15 @@ spec:
           serversTransport: gossip-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/ingress`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
       services:
         - name: twitch-ingress-status
-          port: 80
+          port: 443
           scheme: https
           serversTransport: twitch-ingress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
       services:
         - name: outgress-status
           port: 443
@@ -115,7 +137,7 @@ spec:
           serversTransport: outgress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
       services:
         - name: sesame-status
           port: 443
