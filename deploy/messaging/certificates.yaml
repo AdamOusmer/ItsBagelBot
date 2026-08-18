@@ -4,7 +4,7 @@
 # Server certs for the NATS hub and leaf, issued from the fleet intermediate CA
 # (fleet-selfsigned -> fleet-ca-issuer -> fleet-intermediate-issuer). Each writes
 # a tls.crt/tls.key/ca.crt Secret in `messaging`; nats.yaml/nats-leaf.yaml mount
-# it as both the server cert AND, since hostNetwork keeps every peer on the same
+# it as both the server cert AND, with every peer on the pod network, the same
 # cert, the client cert their own `cluster { tls { verify: true } }` block
 # presents to other hub/leaf peers — see nats-server.conf and
 # nats-leaf-server.conf for that reuse. cert-manager's CA issuer walks the
@@ -19,11 +19,10 @@
 # per-pod/per-node headless names the cluster routes use, and localhost (the
 # reloader sidecar and the prometheus exporter both dial 127.0.0.1).
 #
-# hostNetwork is retained from the original production design (nats.yaml,
-# nats-leaf.yaml): this cluster's app tier (node1/node2/node3, untainted, cp1
-# excluded by its control-plane taint) already has three schedulable nodes at
-# the same VLAN addresses production used, so the anti-affinity + per-node
-# listener design carries over unchanged rather than needing to be
+# NATS runs on the Cilium pod network (hostNetwork removed 2026-08-18): peers
+# advertise and dial the headless FQDNs below, so no node IP SANs are needed
+# and the anti-affinity + per-node listener design carries over unchanged
+# rather than needing to be
 # reconstructed later. Verified against `kubectl get nodes -o wide` before
 # writing this file, not assumed. If the fleet is ever genuinely down to one
 # node, drop the ipAddresses below to that one node's address and nats.yaml's
@@ -60,16 +59,6 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
-    # Node VLAN addresses (node1/node2/node3 — cp1 excluded, see nats.yaml's
-    # affinity comment). hostNetwork NATS members advertise their node IP in
-    # cluster routes and connect_urls, so route and client dials that arrive
-    # addressed by IP verify against an IP SAN, not a DNS name. Without these,
-    # every IP-dialed TLS handshake fails with "bad certificate" the moment a
-    # member restarts onto a fresh socket — this bit the old fleet on
-    # 2026-08-17 (see commit a8b810e5) and the fix carries forward unchanged.
-    - 10.10.0.4
-    - 10.10.0.5
-    - 10.10.0.6
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -103,8 +92,3 @@ spec:
     - localhost
   ipAddresses:
     - 127.0.0.1
-    # Same node VLAN addresses as nats-hub-tls, same reason: the leaf shares
-    # the node's netns and advertises the node IP in its own cluster routes.
-    - 10.10.0.4
-    - 10.10.0.5
-    - 10.10.0.6

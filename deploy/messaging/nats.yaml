@@ -48,8 +48,6 @@ spec:
       # containerPort to a host port here, so the scheduler already refuses to
       # place two members on one node. Cluster DNS is still required, because
       # the routes below resolve through the headless Service.
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
       tolerations:
         - key: node.kubernetes.io/unreachable
           operator: Exists
@@ -354,27 +352,32 @@ spec:
   ports:
     - {name: cluster, port: 6222, targetPort: cluster}
 ---
-# NATS monitoring (/jsz) published on the tailnet, so KEDA can poll consumer lag
-# from the control plane WITHOUT a pod-network path to the application tier.
+# NATS monitoring (/jsz) published on the tailnet. Kept for humans (and for
+# anything off-cluster that wants consumer lag); KEDA does NOT use it.
 #
 # WHY THIS EXISTS
 # ---------------
-# KEDA's metricsServer backs an aggregated APIService, so it must sit beside the
-# apiserver on node1 (see deploy/infra/keda/release.yaml). It reaches the KEDA
-# operator over gRPC, so the operator has to live on node1 too, and the operator
-# is what polls NATS. That made the operator's poll the last piece of cross-node
-# POD traffic leaving node1, which is precisely what the private-VLAN topology
-# must not require: node1 is at OCI with no path to 10.10.0.0/24, and reaching it
-# through a tailscale SUBNET ROUTE puts every advertiser in the failure path.
+# It was built when KEDA's three components were pinned beside the apiserver on
+# the then-control-plane node1, which made the operator's NATS poll the last
+# piece of cross-node POD traffic leaving that node -- precisely what the
+# private-VLAN topology must not require, since node1 sat at OCI with no path to
+# 10.10.0.0/24 and reaching it through a tailscale SUBNET ROUTE puts every
+# advertiser in the failure path.
 #
-# Routing it through the ts-ingress ProxyGroup instead means node1 dials a stable
-# tailnet name over HOST networking, which is exactly what node1 is allowed to do.
-# The ProxyGroup runs 3 ha-spread replicas, so no single proxy or node carries it,
-# unlike a NodePort pinned to one node's address.
+# Post-rebuild that pin is gone: KEDA runs on the application tier and polls
+# nats.messaging.svc.cluster.local:8222 over the pod mesh (see
+# deploy/operators/keda.yaml). This Ingress is no longer in any scaling path.
 #
-# The ScaledObject triggers in outgress.yaml / sesame.yaml point at this name with
-# useHttps "true"; the cert is a real MagicDNS cert, so no custom CA is involved.
-# Reaching it needs a tag:cp -> tag:k8s grant in the tailnet policy.
+# Routing it through the ts-ingress ProxyGroup means an off-cluster client dials a
+# stable tailnet name over HOST networking. The ProxyGroup runs 3 ha-spread
+# replicas, so no single proxy or node carries it, unlike a NodePort pinned to one
+# node's address. The cert is a real MagicDNS cert, so no custom CA is involved.
+#
+# Do NOT repoint the ScaledObject triggers here. It was tried on 2026-07-27: the
+# /jsz fetch works, but KEDA's clustered-JetStream scaler then follows the stream
+# to the consumer leader and dials that member at the address NATS advertises,
+# which is a POD IP, so a single fronting Service cannot satisfy it. Full write-up
+# in deploy/k8s/sesame.yaml's trigger comment.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
