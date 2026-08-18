@@ -18,10 +18,6 @@ type Config struct {
 	NATSURL    string
 	NATSRPCURL string
 
-	// SubjectPrefix is the NATS prefix every provider endpoint subscribes
-	// under: "<prefix>.<provider>.<endpoint>".
-	SubjectPrefix string
-
 	// Valkey holds the reply cache and the mcsr stream-session snapshots.
 	ValkeyAddr     string
 	ValkeyPassword string
@@ -68,11 +64,14 @@ type Config struct {
 	FortniteSeasonStart    int64
 
 	// Govee smart-light provider. It holds no service key (each broadcaster
-	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
-	// is that internal RPC's subject prefix; empty disables the provider.
-	GoveeBaseURL          string
-	GoveeRateLimit        float64
-	GoveeKeySubjectPrefix string
+	// brings their own, fetched from the modules service over NATS RPC — the
+	// subject is a fixed recipes grant now, not env-configured). GoveeEnabled
+	// is the kill switch (default on); it replaces the old convention of
+	// disabling the provider by blanking its NATS subject prefix, which a
+	// fixed recipes grant can no longer represent.
+	GoveeBaseURL   string
+	GoveeRateLimit float64
+	GoveeEnabled   bool
 
 	ListenAddr string
 }
@@ -82,12 +81,6 @@ func Load() *Config {
 	return &Config{
 		NATSURL:    natsURL,
 		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
-
-		// Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
-		// fallback. The NATS account/user were renamed too, so a stale prefix
-		// would resolve against ACLs the old credential no longer has; delete
-		// any leftover NATS_GATEWAY_SUBJECT_PREFIX from Doppler.
-		SubjectPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
 
 		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
 		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
@@ -130,9 +123,9 @@ func Load() *Config {
 		FortniteStatsRateLimit: env.GetFloat("FORTNITE_STATS_RATE_LIMIT", 9000.0),
 		FortniteSeasonStart:    int64(env.GetInt("FORTNITE_SEASON_START_UNIX", 0)),
 
-		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
-		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
-		GoveeKeySubjectPrefix: env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key"),
+		GoveeBaseURL:   env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
+		GoveeRateLimit: env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
+		GoveeEnabled:   env.GetBool("GOVEE_ENABLED", true),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}
