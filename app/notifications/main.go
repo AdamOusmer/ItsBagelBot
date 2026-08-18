@@ -7,6 +7,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -23,11 +25,22 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/z2wz4"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
 const serviceName = "notifications"
+
+// fatalIf aborts startup on err: notifications cannot run degraded without
+// any of its core dependencies, so a failed step must crash the pod for
+// Kubernetes to restart it.
+func fatalIf(log *zap.Logger, err error, msg string) {
+	if err != nil {
+		log.Fatal(msg, zap.Error(err))
+	}
+}
 
 func main() {
 
@@ -39,16 +52,12 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "cleanup" {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		if err := runCleanup(ctx, log); err != nil {
-			log.Fatal("notification cleanup failed", zap.Error(err))
-		}
+		fatalIf(log, runCleanup(ctx, log), "notification cleanup failed")
 		return
 	}
 
 	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to start new relic")
 	log = monitor.WrapLogger(log, nrApp)
 	defer monitor.Shutdown(nrApp)
 
@@ -61,28 +70,28 @@ func main() {
 		Password: env.MustGet("DB_PASS"),
 		Schema:   env.Get("DB_SCHEMA", "bagel_notifications"),
 	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to open database")
 
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
 	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
+		fatalIf(log, client.Schema.Create(ctx), "failed to run migrations")
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	rpcURL := bus.RPCURL(natsURL)
 
-	nc := connectRPC(rpcURL, log)
+	nc, busConn, k, grantsDenied := connectRPC(ctx, rpcURL, natsURL, log)
 	defer nc.Close()
+	defer busConn.Close()
 
 	repo := repository.New(client)
 	queueGroup := "notifications-rpc"
-	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+	// invalidationPrefix recovers "bagel.cache.invalidate" from notifications's
+	// one cache-invalidate publish grant (ZCF3X, the exact leaf subject rather
+	// than a parent wildcard).
+	invalidationPrefix := strings.TrimSuffix(k.ZCF3X(), ".notifications")
 
 	// TTL tiers (all Go durations). A send with no explicit expiry lives
 	// defaultTTL globally so the cron eventually sweeps it; a full read hides it
@@ -94,9 +103,9 @@ func main() {
 
 	// Cross-service lookup so an admin can target a direct notification by
 	// username, not just numeric id.
-	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
+	userGetSubject := k.ZRTTK()
 
-	adminPrefix := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications")
+	adminPrefix := strings.TrimSuffix(k.ZIWGH(), ".>")
 	adminCfg := rpc.AdminConfig{
 		Prefix:             adminPrefix,
 		InvalidationPrefix: invalidationPrefix,
@@ -104,29 +113,26 @@ func main() {
 		QueueGroup:         queueGroup,
 		DefaultTTL:         defaultTTL,
 	}
-	if err := rpc.SubscribeAdmin(nc, repo, adminCfg, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
-	}
+	fatalIf(log, rpc.SubscribeAdmin(nc, repo, adminCfg, nrApp, log), "failed to subscribe admin rpc")
 
-	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
+	userPrefix := strings.TrimSuffix(k.ZDVSN(), ".>")
 	userCfg := rpc.UserConfig{
 		Prefix:      userPrefix,
 		QueueGroup:  queueGroup,
 		FullReadTTL: fullReadTTL,
 		PeekTTL:     peekTTL,
 	}
-	if err := rpc.SubscribeUser(nc, repo, userCfg, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe user rpc", zap.Error(err))
-	}
+	fatalIf(log, rpc.SubscribeUser(nc, repo, userCfg, nrApp, log), "failed to subscribe user rpc")
 
 	// Internal janitor verb driven by the k3s cron (see deploy/k8s). Not
 	// exported from the NATS account, so only a client with the service's own
 	// credentials can reach it.
 	cleanupSubject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
-	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
-	}
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	fatalIf(log, rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log), "failed to subscribe maintenance rpc")
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),
@@ -138,7 +144,11 @@ func main() {
 	log.Info("notifications service shutting down")
 }
 
-func connectRPC(url string, log *zap.Logger) *nats.Conn {
+// connectRPC dials the RPC connection, binds notifications's recipes binding
+// over it and a separate BUS-plane connection, wires its permission-violation
+// Watchdog, and preflights the (empty — notifications touches no JetStream
+// stream) grant set it declares.
+func connectRPC(ctx context.Context, url, natsURL string, log *zap.Logger) (*nats.Conn, *nats.Conn, *z2wz4.K, *atomic.Bool) {
 	nc, err := bus.Connect(url, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
@@ -146,5 +156,31 @@ func connectRPC(url string, log *zap.Logger) *nats.Conn {
 	if err := bus.SubscribeRPCHealth(nc, serviceName, "notifications-rpc"); err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	return nc
+
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect bus-plane nats", zap.Error(err))
+	}
+
+	k, err := z2wz4.Up(z2wz4.U{Bus: busConn, Rpc: nc})
+	if err != nil {
+		log.Fatal("failed to bind notifications's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports
+	// notifications's BUS account denied a permission its manifest declares
+	// (see runtime.Watchdog); the returned pointer backs the nats_grants
+	// health check.
+	grantsDenied := &atomic.Bool{}
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
+	return nc, busConn, k, grantsDenied
 }
