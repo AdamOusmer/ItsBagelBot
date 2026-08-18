@@ -9,6 +9,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@adamousmer/recipes": "git+ssh://git@github.com/AdamOusmer/recipes.git",
     "@bagel/shared": "workspace:*",
     "arctic": "^3.6.0",
     "motion": "^12.0.0",

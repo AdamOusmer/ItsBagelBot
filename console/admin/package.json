@@ -10,6 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@adamousmer/recipes": "git+ssh://git@github.com/AdamOusmer/recipes.git",
     "@bagel/shared": "workspace:*",
     "nanoid": "^5.1.14",
     "nats": "^2.29.2",

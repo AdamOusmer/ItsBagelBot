@@ -37,6 +37,7 @@
     "./svelte-config": "./svelte-config.js"
   },
   "dependencies": {
+    "@adamousmer/recipes": "git+ssh://git@github.com/AdamOusmer/recipes.git",
     "iovalkey": "^0.4.0",
     "lenis": "^1.3.18",
     "motion": "^12.0.0",
