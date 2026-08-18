@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -29,6 +31,9 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zvngr"
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -37,15 +42,15 @@ const serviceName = "loyalty"
 // registerConsumers wires the event subscriptions onto repo. Everything here
 // is delta folding or cleanup that must happen exactly once per event, so all
 // subjects ride the grouped (queue) subscriber.
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped bus.Subscriber, log *zap.Logger) error {
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped bus.Subscriber, k *zvngr.K, log *zap.Logger) error {
 	subs := []struct {
 		name    string
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
-		{"loyalty counter events", data.SubjectLoyaltyCounters, recordBumps(repo, log)},
-		{"user deleted events", data.SubjectUserDeleted, deleteAllForUser(repo, log)},
+		{"loyalty earned events", k.ZHZPS().Subject, recordEarned(repo, log)},
+		{"loyalty counter events", k.ZEOFI().Subject, recordBumps(repo, log)},
+		{"user deleted events", k.ZBPUZ().Subject, deleteAllForUser(repo, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
@@ -106,14 +111,21 @@ func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Messa
 	}
 }
 
+// fatalIf aborts startup on err: loyalty cannot run degraded without any of
+// its core dependencies, so a failed step must crash the pod for Kubernetes
+// to restart it.
+func fatalIf(log *zap.Logger, err error, msg string) {
+	if err != nil {
+		log.Fatal(msg, zap.Error(err))
+	}
+}
+
 func main() {
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
 
 	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to start new relic")
 	log = monitor.WrapLogger(log, nrApp)
 	defer monitor.Shutdown(nrApp)
 
@@ -126,17 +138,13 @@ func main() {
 		Password: env.MustGet("DB_PASS"),
 		Schema:   env.Get("DB_SCHEMA", "bagel_loyalty"),
 	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to open database")
 
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
 	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
+		fatalIf(log, client.Schema.Create(ctx), "failed to run migrations")
 	}
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
@@ -146,32 +154,28 @@ func main() {
 	defer repo.Close(context.Background()) // flushes pending deltas on shutdown
 
 	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to connect to nats")
 	defer nc.Close()
+
+	busConn, k, grantsDenied := connectRecipes(ctx, natsURL, nc, log)
+	defer busConn.Close()
 
 	// Durable group subscription: exactly one instance folds each delta event,
 	// and an instance failure is retried on another.
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	if err != nil {
-		log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
+	fatalIf(log, err, "failed to connect group subscriber")
 	defer func() { _ = grouped.Close() }()
 
-	if err := registerConsumers(ctx, nrApp, repo, grouped, log); err != nil {
-		log.Fatal("failed to subscribe to events", zap.Error(err))
-	}
+	fatalIf(log, registerConsumers(ctx, nrApp, repo, grouped, k, log), "failed to subscribe to events")
 
-	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
-	if err := rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log); err != nil {
-		log.Fatal("failed to subscribe loyalty rpc", zap.Error(err))
-	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "loyalty-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
+	loyaltyPrefix := strings.TrimSuffix(k.ZFM5N(), ".>")
+	fatalIf(log, rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log), "failed to subscribe loyalty rpc")
+	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "loyalty-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),
@@ -180,4 +184,36 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("loyalty service shutting down")
+}
+
+// connectRecipes dials the BUS-plane connection, binds loyalty's recipes
+// binding over it and nc, wires its permission-violation Watchdog, and
+// preflights the JetStream grants it declares. The returned pointer backs
+// the nats_grants health check.
+func connectRecipes(ctx context.Context, natsURL string, nc *nats.Conn, log *zap.Logger) (*nats.Conn, *zvngr.K, *atomic.Bool) {
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect bus-plane nats", zap.Error(err))
+	}
+
+	k, err := zvngr.Up(zvngr.U{Bus: busConn, Rpc: nc})
+	if err != nil {
+		log.Fatal("failed to bind loyalty's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports loyalty's
+	// BUS account denied a permission its manifest declares (see
+	// runtime.Watchdog).
+	grantsDenied := &atomic.Bool{}
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
+	return busConn, k, grantsDenied
 }
