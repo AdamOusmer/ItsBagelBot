@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,6 +29,8 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zkek2"
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
@@ -59,23 +62,26 @@ func main() {
 	defer func() { _ = client.Close() }()
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	nc, pub := connectBus(ctx, natsURL, log)
+	nc, k, grantsDenied, pub := connectBus(ctx, natsURL, log)
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 
 	repo := repository.NewUsers(client, packer, pub)
 	defer repo.Close()
 
-	closeConsumers := startConsumers(ctx, natsURL, repo, log)
+	closeConsumers := startConsumers(ctx, natsURL, k, repo, log)
 	defer closeConsumers()
 
 	go expireSubscriptions(ctx, repo, log)
 
 	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
-	subjects := subscribeRPCs(ctx, wiring, client, log)
+	subjects := subscribeRPCs(ctx, wiring, k, client, log)
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "users-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 	subjects.logReady(log)
 
 	<-ctx.Done()
@@ -107,34 +113,56 @@ func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypt
 	return client, packer
 }
 
-// connectBus reconciles the BAGEL_DATA stream owned by users, opens the RPC
-// connection, and builds the bus publisher. TWITCH_INGRESS is owned by sesame;
-// keeping ownership separate is what lets NATS scope stream-management ACLs.
-func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher) {
-	fatalIf(log, bus.EnsureStreams(ctx, natsURL, []bus.StreamSpec{bus.BagelDataStream}, log), "failed to provision BAGEL_DATA stream")
-
+// connectBus dials the RPC and BUS-plane connections, binds users's recipes
+// binding, wires its permission-violation Watchdog, preflights the JetStream
+// grants it declares, then reconciles the BAGEL_DATA stream users owns.
+// TWITCH_INGRESS is owned by sesame; keeping ownership separate is what lets
+// NATS scope stream-management ACLs.
+func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, *zkek2.K, *atomic.Bool, bus.Publisher) {
 	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
 	fatalIf(log, err, "failed to connect to nats")
+
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	fatalIf(log, err, "failed to connect bus-plane nats")
+
+	k, err := zkek2.Up(zkek2.U{Bus: busConn, Rpc: nc})
+	fatalIf(log, err, "failed to bind users's recipes binding")
+
+	// grantsDenied flips true the first time the NATS server reports users's
+	// BUS account denied a permission its manifest declares (see
+	// runtime.Watchdog); the returned pointer backs the nats_grants health
+	// check.
+	grantsDenied := &atomic.Bool{}
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	fatalIf(log, runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0),
+		"recipes preflight failed: missing jetstream grant(s)")
+
+	fatalIf(log, bus.EnsureStreams(ctx, natsURL, k.Z5G2Z(), log), "failed to provision BAGEL_DATA stream")
 
 	pub, err := bus.NewPublisher(natsURL, log)
 	fatalIf(log, err, "failed to connect publisher")
 
-	return nc, pub
+	return nc, k, grantsDenied, pub
 }
 
 // startConsumers wires the two event-plane consumers: a groupless broadcast
 // subscriber that drops each instance's cached view on any user change, and a
 // durable-group subscriber where exactly one instance answers a reproject by
 // replaying the table. The returned cleanup closes both subscribers.
-func startConsumers(ctx context.Context, natsURL string, repo *repository.Users, log *zap.Logger) func() {
+func startConsumers(ctx context.Context, natsURL string, k *zkek2.K, repo *repository.Users, log *zap.Logger) func() {
 	broadcast, err := bus.NewSubscriber(natsURL, "", log)
 	fatalIf(log, err, "failed to connect broadcast subscriber")
-	fatalIf(log, bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, invalidateOnUserChange(repo), log),
+	fatalIf(log, bus.Consume(ctx, nil, broadcast, k.ZUHPS().Subject, invalidateOnUserChange(repo), log),
 		"failed to subscribe to user changes")
 
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
 	fatalIf(log, err, "failed to connect group subscriber")
-	fatalIf(log, bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
+	fatalIf(log, bus.Consume(ctx, nil, grouped, k.Z7NB4().Subject, func(*bus.Message) error {
 		return repo.Reproject(ctx)
 	}, log), "failed to subscribe to reproject requests")
 
@@ -174,34 +202,37 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 
 // subscribeRPCs binds every RPC surface the users service serves and seeds the
 // bootstrap staff, returning the subjects for the ready log.
-func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
-	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, k *zkek2.K, client *ent.Client, log *zap.Logger) rpcSubjects {
+	// invalidationPrefix recovers "bagel.cache.invalidate" from one of users's
+	// four separate cache-invalidate publish grants (delegation/grant/locale/
+	// status): the binding grants each concrete subject rather than a shared
+	// parent wildcard.
+	invalidationPrefix := strings.TrimSuffix(k.ZVBBD(), ".delegation")
 
 	s := rpcSubjects{
-		dashboard:  env.Get("NATS_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.dashboard"),
-		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
-		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
-		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
+		dashboard:  strings.TrimSuffix(k.ZBPQ3(), ".>"),
+		admin:      strings.TrimSuffix(k.ZU2R3(), ".>"),
+		billing:    k.Z7G7M(),
+		projection: k.ZG2UC(),
 	}
 
 	fatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
 	fatalIf(log, rpc.SubscribeAdmin(wiring, s.admin, invalidationPrefix), "failed to subscribe admin rpc")
 	fatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
 
-	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
-	// DB is never locked out, then serve the auth.check / auth.* / audit.*
-	// surface the console uses in place of the old static env allowlist.
+	// Admin authorization + audit ride sub-paths of the same admin.user.>
+	// grant (ZU2R3): auth.check / auth.* / audit.* under it, in place of the
+	// old static env allowlist. Seed the bootstrap owners/admins so a fresh DB
+	// is never locked out.
 	seedBootstrapStaff(ctx, client, log)
-	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
-	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
+	authPrefix := s.admin + ".auth"
+	auditPrefix := s.admin + ".audit"
 	fatalIf(log, rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix), "failed to subscribe admin auth rpc")
 
 	fatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
-	fatalIf(log, rpc.SubscribeEmail(wiring, env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")),
-		"failed to subscribe email rpc")
-	fatalIf(log, rpc.SubscribeTokens(wiring, env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")),
-		"failed to subscribe tokens rpc")
-	fatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
+	fatalIf(log, rpc.SubscribeEmail(wiring, k.Z2R6C()), "failed to subscribe email rpc")
+	fatalIf(log, rpc.SubscribeTokens(wiring, strings.TrimSuffix(k.ZBPE6(), ".>")), "failed to subscribe tokens rpc")
+	fatalIf(log, rpc.SubscribeDelegation(wiring, strings.TrimSuffix(k.ZVBVP(), ".>"), invalidationPrefix),
 		"failed to subscribe delegation rpc")
 
 	return s
