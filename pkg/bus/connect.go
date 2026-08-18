@@ -253,6 +253,31 @@ func Connect(url string, name string) (*nats.Conn, error) {
 	return nats.Connect(serverList(endpoint(url)), rpcOptions(clientName(name))...)
 }
 
+// ConnectBus opens a core NATS connection on the shared BUS account (see
+// busOptions) without a JetStream context — the same plane EnsureStreams and
+// the lane subscribers dial into. It exists so a caller can hold a plain
+// *nats.Conn on this account, e.g. to satisfy a generated recipes binding's
+// Up(U): U.Bus (see svc/<opaque>). Pair it with GuardConnection to also wire
+// the binding's permission-violation Watchdog onto it.
+func ConnectBus(url string, name string) (*nats.Conn, error) {
+	return nats.Connect(busURL(endpoint(url)), busOptions(clientName(name))...)
+}
+
+// GuardConnection composes watchdog onto nc's async error handler, after the
+// connection's own logAsyncError: every async error is still logged exactly
+// as it was before this call, and a permissions violation is ALSO handed to
+// watchdog (typically a recipes/runtime.Watchdog's Handler()), which
+// decorates it against the caller's own reverse map, counts it, and can flip
+// readiness. It replaces whatever handler nc currently has (SetErrorHandler
+// does not chain), so call it once, right after dialing — never on a
+// connection some other code has already attached its own handler to.
+func GuardConnection(nc *nats.Conn, watchdog func(*nats.Conn, *nats.Subscription, error)) {
+	nc.SetErrorHandler(func(c *nats.Conn, sub *nats.Subscription, err error) {
+		logAsyncError(c, sub, err)
+		watchdog(c, sub, err)
+	})
+}
+
 // jsDomainOption is the JetStream connect option that targets the hub domain.
 // Exposed as a slice so callers can splice it into a
 // JetStreamConfig.ConnectOptions / nc.JetStream call.

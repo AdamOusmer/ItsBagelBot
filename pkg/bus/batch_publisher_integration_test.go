@@ -196,7 +196,11 @@ func openIntegrationPublisher(tb testing.TB) (string, Publisher) {
 	tb.Setenv("NATS_LEAF_URL", "")
 	tb.Setenv("NATS_HUB_URL", "")
 	tb.Setenv("NATS_HUB_PUBLISH_URL", "")
-	if err := EnsureStreams(context.Background(), url, DataStreams, zap.NewNop()); err != nil {
+	// EnsureStreams now takes the recipes-binding shape ([]jsapi.StreamConfig);
+	// DataStreams stays the package's own []StreamSpec catalog, so the
+	// integration harness converts through StreamConfigs same as a real
+	// binding's Manages() output would arrive.
+	if err := EnsureStreams(context.Background(), url, StreamConfigs(DataStreams), zap.NewNop()); err != nil {
 		tb.Fatal(err)
 	}
 	pub, err := NewPublisher(url, zap.NewNop())

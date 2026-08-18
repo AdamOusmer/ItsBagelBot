@@ -67,7 +67,18 @@ const (
 // of a stream's declared owner calls this function; reconciliation is
 // idempotent and creation races resolve to success. Non-owners must not call it,
 // because their credentials intentionally have no stream-management rights.
-func EnsureStreams(ctx context.Context, url string, specs []StreamSpec, log *zap.Logger) error {
+//
+// configs is a recipes binding's managed-stream set (svc/<opaque>'s
+// Manages()-style K.<sym>() method, e.g. zrfpr.K.ZFLOB()) rather than this
+// package's own StreamSpec: the binding is the fleet's single source of truth
+// for which streams a service owns, so the caller hands EnsureStreams that
+// shape directly and specFromStreamConfig recovers the internal StreamSpec
+// this function's engine still reconciles against, unchanged.
+func EnsureStreams(ctx context.Context, url string, configs []jsapi.StreamConfig, log *zap.Logger) error {
+	specs := make([]StreamSpec, len(configs))
+	for i, cfg := range configs {
+		specs[i] = specFromStreamConfig(cfg)
+	}
 	guardian := &streamGuardian{specs: specs, log: log}
 
 	nc, err := nats.Connect(busURL(endpoint(url)), busOptions("stream-guardian")...)

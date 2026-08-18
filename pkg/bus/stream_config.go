@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
@@ -68,6 +69,51 @@ func streamConfig(spec StreamSpec) jsapi.StreamConfig {
 		AllowMsgSchedules: spec.MsgSchedules,
 		AllowMsgTTL:       spec.MsgSchedules,
 	})
+}
+
+// StreamConfigs adapts a slice of this package's own StreamSpec catalog
+// entries (see streams.go) into the []jetstream.StreamConfig shape
+// EnsureStreams takes post-migration. It exists for the callers outside this
+// package that still reconcile against the local catalog directly rather
+// than a generated recipes binding's Manages()-style method — today, only
+// the deploy/messaging acceptance harness, which drives pkg/bus the same way
+// a service would without being a binding consumer itself.
+func StreamConfigs(specs []StreamSpec) []jsapi.StreamConfig {
+	configs := make([]jsapi.StreamConfig, len(specs))
+	for i, spec := range specs {
+		configs[i] = streamConfig(spec)
+	}
+	return configs
+}
+
+// specFromStreamConfig recovers a StreamSpec from the server-shaped
+// jsapi.StreamConfig a generated recipes binding hands EnsureStreams (see
+// svc/<opaque>'s Manages()-style K.<sym>() methods, e.g. zrfpr.K.ZFLOB()).
+// It is streamConfig's inverse for every field a binding sets: the paired
+// flags streamConfig fans a single bool out to (AllowAtomicPublish +
+// AllowBatchPublish from BatchPublish; AllowMsgSchedules + AllowMsgTTL from
+// MsgSchedules) are recombined by reading either flag of the pair, since
+// streamConfig always sets both of a pair identically. Every binding's
+// Manages() doc comment asserts its values match this package's stream
+// catalog, so the round trip through EnsureStreams is exact, not lossy.
+func specFromStreamConfig(cfg jsapi.StreamConfig) StreamSpec {
+	storage := nats.FileStorage
+	if cfg.Storage == jsapi.MemoryStorage {
+		storage = nats.MemoryStorage
+	}
+	return StreamSpec{
+		Name:         cfg.Name,
+		Subjects:     cfg.Subjects,
+		Retention:    nats.RetentionPolicy(cfg.Retention),
+		MaxAge:       cfg.MaxAge,
+		MaxBytes:     cfg.MaxBytes,
+		MaxMsgsPer:   cfg.MaxMsgsPerSubject,
+		Duplicates:   cfg.Duplicates,
+		Storage:      storage,
+		BatchPublish: cfg.AllowAtomicPublish,
+		MsgSchedules: cfg.AllowMsgSchedules,
+		Replicas:     cfg.Replicas,
+	}
 }
 
 // serverNormalized mirrors nats-server 2.14.3's checkStreamCfg

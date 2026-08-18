@@ -16,9 +16,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	entsql "entgo.io/ent/dialect/sql"
 
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
@@ -98,6 +98,13 @@ type NATS struct {
 	RPCURL string
 	Pub    bus.Publisher
 	RPC    *nats.Conn
+	// Bus is a raw connection on the shared BUS/JetStream account, dialed
+	// separately from RPC (the per-service account). It exists so a caller can
+	// satisfy a generated recipes binding's Up(U): U.Bus (see svc/<opaque>)
+	// and wire the binding's permission-violation Watchdog onto it with
+	// bus.GuardConnection — svcboot dials it but never constructs a binding
+	// itself, since the binding type is service-specific.
+	Bus *nats.Conn
 	// Broadcast fans every event out to every instance; Grouped delivers each
 	// event to exactly one instance of the service's durable group.
 	Broadcast bus.Subscriber
@@ -126,6 +133,11 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 		core.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
 
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	if err != nil {
+		core.Log.Fatal("failed to connect bus-plane nats", zap.Error(err))
+	}
+
 	broadcast, err := bus.NewSubscriber(natsURL, "", core.Log)
 	if err != nil {
 		core.Log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
@@ -136,10 +148,11 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 		core.Log.Fatal("failed to connect group subscriber", zap.Error(err))
 	}
 
-	n := NATS{URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Broadcast: broadcast, Grouped: grouped}
+	n := NATS{URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Bus: busConn, Broadcast: broadcast, Grouped: grouped}
 	closeIntake := func() {
 		_ = grouped.Close()
 		_ = broadcast.Close()
+		busConn.Close()
 		nc.Close()
 	}
 	return n, closeIntake
