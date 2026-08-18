@@ -510,6 +510,13 @@ func (s *pullSubscriber) pumpIterator() bool {
 	for {
 		wire, err := iter.Next()
 		if err != nil {
+			// Every error here is real. An idle lane does NOT surface one: the
+			// 408 that ends an unfilled pull request is a status message
+			// nats.go consumes itself (jetstream/pull.go handleStatusMsg), so
+			// Next simply blocks until the next message or a genuine failure.
+			// There is no idle case to special-case, and treating one as
+			// benign skips both the backoff and the health clock below.
+			//
 			// Cover everything already handed out before deciding whether the
 			// error is shutdown or a transport failure worth backing off on.
 			s.advanceFloor()

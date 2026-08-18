@@ -74,13 +74,22 @@ spec:
       # Required pod anti-affinity prevents old and new ReplicaSets from ever
       # stacking two commands pods on one hot-path node.
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: commands
-          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1786934707-b71a0f43997c@sha256:dcd4e4b2d2617cb04fdac53c1801ac3caa46f19b9583c486cb9c13e5acd2a723 # {"$imagepolicy": "flux-system:commands"}
+          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1787011027-4cfd46290494@sha256:aad3cfdcaff55cdb608f251d7777a053deed2bf5a9adb4dd7086253750f79617 # {"$imagepolicy": "flux-system:commands"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

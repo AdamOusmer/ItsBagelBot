@@ -87,13 +87,22 @@ spec:
             matchLabels:
               app: gossip
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1786934707-b71a0f43997c@sha256:20b13100b7babad9a99641f9cf609a61bc52ec2819cca07be92b32dc4132ee21 # {"$imagepolicy": "flux-system:gossip"}
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787011027-4cfd46290494@sha256:362b71c855d238923b24eb3ef07ad1e246780467d1ae5560fc386077403273de # {"$imagepolicy": "flux-system:gossip"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

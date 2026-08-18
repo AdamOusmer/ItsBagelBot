@@ -15,7 +15,7 @@ import {
   tagTransaction
 } from '@bagel/shared/server/hooks';
 import { rumTransform } from '@bagel/shared/server/rum';
-import { ValkeyRateLimiter, warmRateLimiter, clientIp } from '@bagel/shared/server/rate-limit';
+import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/shared/server/rate-limit';
 import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
@@ -52,16 +52,14 @@ export const init: ServerInit = async () => {
 //     Clicking around settings is bursty, so allow a real burst but a modest
 //     sustained rate (the Go batchers coalesce anyway).
 //   * read   — everything else: page loads, __data.json, SSE connects.
-// Keyed by session user id when logged in (stable across CGNAT/mobile IP
-// churn), else by client IP.
+// Keyed by session user id only: client IPs are never written to Valkey
+// (hard policy). Anonymous traffic skips these buckets entirely and is
+// limited per IP by traefik's in-memory rateLimit middlewares on the public
+// hostnames (console-dashboard.yaml), which also cover the unauthenticated
+// brute-force surface on /auth/*.
 const authLimiter = new ValkeyRateLimiter({ name: 'auth', capacity: 10, refillPerSec: 10 / 60 });
 const writeLimiter = new ValkeyRateLimiter({ name: 'write', capacity: 30, refillPerSec: 0.5 });
 const readLimiter = new ValkeyRateLimiter({ name: 'read', capacity: 60, refillPerSec: 2 });
-
-// Kubelet probes are frequent, unauthenticated and share the node IP; limiting
-// them would let the limiter fail readiness. Static /_app assets never reach
-// this handle (served by sirv in serve-node.js).
-const RATE_EXEMPT = new Set(['/healthz', '/readyz', '/status']);
 
 function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   if (pathname.startsWith('/auth/') || pathname.startsWith('/delegate/')) return authLimiter;
@@ -70,17 +68,16 @@ function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
 }
 
 // enforceRateLimit checks the request against its tier's fleet-wide bucket,
-// keyed by session user id (stable across CGNAT/mobile IP churn) or client IP.
+// keyed by session user id (stable across CGNAT/mobile IP churn). Anonymous
+// requests pass straight through: kubelet probes and the status page must
+// never be limited, and everything else unauthenticated is traefik's job.
 // It returns a 429 Response when the budget is spent, else null to proceed.
-// Exempt paths (kubelet probes) skip the check entirely.
 async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<Response | null> {
-  if (RATE_EXEMPT.has(event.url.pathname)) {
+  const userId = event.locals.session?.user_id;
+  if (!userId) {
     return null;
   }
-  const key = event.locals.session?.user_id
-    ? `u:${event.locals.session.user_id}`
-    : `ip:${clientIp(event.request.headers, event.getClientAddress)}`;
-  const decision = await pickLimiter(event.url.pathname, event.request.method).check(key);
+  const decision = await pickLimiter(event.url.pathname, event.request.method).check(`u:${userId}`);
   if (decision.allowed) {
     return null;
   }

@@ -107,3 +107,31 @@ spec:
       ports:
         - port: 3306
           protocol: TCP
+---
+# WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
+# from cilium_host misclassified as the "world" identity instead of "host", so
+# default-deny eats every httpGet probe and pods die at the startup window with
+# perfectly healthy listeners. Until the upstream fix lands, the health ports
+# (8080 Go services + twitch-ingress, 3000 consoles) accept ingress from any
+# identity. Bounded exposure: pod IPs are unreachable from outside the pod
+# network, so "any identity" is cluster-internal in practice; the probe ports
+# serve health JSON and nothing else. REVERT when the Cilium bug is fixed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-probe-ports
+  namespace: app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 3000
+          protocol: TCP

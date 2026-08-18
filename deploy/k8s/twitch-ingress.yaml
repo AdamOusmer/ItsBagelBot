@@ -114,13 +114,22 @@ spec:
           - {name: timeout, value: "2"}
           - {name: attempts, value: "2"}
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
         runAsGroup: 999
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1786934707-b71a0f43997c@sha256:7a51353fce6f98ed9883f0a307bb76c372a7b73ae546c2edb68b0937ce20b936 # {"$imagepolicy": "flux-system:twitch-ingress"}
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1787011027-4cfd46290494@sha256:8bdb473fbb3ec8fb919c7a7f7b6727b391ddb9fc2c188dea619164b3a7b15f30 # {"$imagepolicy": "flux-system:twitch-ingress"}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -141,7 +150,7 @@ spec:
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
             - name: NATS_HOST
-              value: nats.messaging
+              value: nats.messaging.svc.cluster.local
             # The RPC plane (:gnat) stays on the node-local leaf. The BUS firehose
             # plane (:gnat_bus) uses the `nats` Service, whose PreferSameNode
             # routing lands each ingress publisher on the hub member beside it.
@@ -151,9 +160,9 @@ spec:
             # hop to the RAFT leader. The leaf remains RPC-only and never carries
             # JetStream traffic.
             - name: NATS_LEAF_HOST
-              value: nats-leaf.messaging
+              value: nats-leaf.messaging.svc.cluster.local
             - name: NATS_HUB_HOST
-              value: nats.messaging
+              value: nats.messaging.svc.cluster.local
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; decoded to ssl_opts cacerts in
             # config/runtime.exs. Both :gnat (leaf) and :gnat_bus (hub) verify
@@ -318,6 +327,6 @@ spec:
   selector:
     app: twitch-ingress
   ports:
-    - name: http
-      port: 80
+    - name: https
+      port: 443
       targetPort: 8080

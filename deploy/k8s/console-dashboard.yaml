@@ -101,13 +101,22 @@ spec:
           - {name: timeout, value: "2"}
           - {name: attempts, value: "2"}
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1786934707-b71a0f43997c@sha256:b554f2c6bdfa8fdf7e38a33628f46a9d8527a1740ac09ff68fb7bd9d114c06d2 # {"$imagepolicy": "flux-system:console-dashboard"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787011027-4cfd46290494@sha256:334ddaad453678761405da4dcbf4bb821a5fd7bb1557d091237c59eba1f33d7c # {"$imagepolicy": "flux-system:console-dashboard"}
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -307,8 +316,8 @@ spec:
   selector:
     app: console-dashboard
   ports:
-    - name: http
-      port: 80
+    - name: https
+      port: 443
       targetPort: 3000
 ---
 apiVersion: traefik.io/v1alpha1
@@ -319,11 +328,46 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
+    # The app serves /status, /healthz, /readyz on any hostname, and its rate
+    # limiter exempts exactly those paths (kubelet probes). On the public app
+    # hostnames they must not answer: rewrite them to a path no route claims,
+    # so the app renders its own 404 page under a genuine 404 status — and the
+    # rewritten path falls out of the RATE_EXEMPT set, so the read-tier limiter
+    # applies again. The longer rule out-prioritizes the catch-all below
+    # (traefik auto-priority is rule length). The status page's real route,
+    # health.itsbagelbot.com/dashboard (status-routes.yaml), matches neither.
+    - match: >-
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)) &&
+        (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
+      middlewares: [{name: dashboard-ratelimit}, {name: health-mask}]
       services:
         - name: console-dashboard
-          port: 80
+          port: 443
+          scheme: https
+          serversTransport: console-dashboard-transport
+          nativeLB: true
+    # Unauthenticated brute-force surface: OAuth redirects/callbacks and
+    # session escalation. Humans hit these a handful of times, so the auth
+    # tier is far tighter than the general one. Longer rule out-prioritizes
+    # the host-only catch-all below.
+    - match: >-
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)) &&
+        (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`))
+      kind: Rule
+      middlewares: [{name: dashboard-auth-ratelimit}]
+      services:
+        - name: console-dashboard
+          port: 443
+          scheme: https
+          serversTransport: console-dashboard-transport
+          nativeLB: true
+    - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
+      kind: Rule
+      middlewares: [{name: dashboard-ratelimit}]
+      services:
+        - name: console-dashboard
+          port: 443
           # HTTPS to the backend: serve-node.js now terminates TLS, so traefik
           # re-encrypts via the ServersTransport below (rootCAs = the cert's own
           # fleet-CA ca.crt). This makes the traefik->console hop TLS end-to-end.
@@ -334,6 +378,56 @@ spec:
           # sessions are stateless, so any in-region pod is interchangeable.
           nativeLB: true
   tls: {}
+---
+# Rewrites the masked health paths to one the SvelteKit router has no route
+# for; the app answers with its branded 404 page. The path is namespaced so a
+# future real route can never collide with it by accident.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: health-mask
+  namespace: app
+spec:
+  replacePath:
+    path: /__health-masked
+---
+# Per-IP limits for anonymous traffic on the public console hostnames. The
+# app's Valkey limiter keys on session user id only (client IPs are never
+# written to Valkey, hard policy), so unauthenticated requests are bounded
+# here instead. Keyed on CF-Connecting-IP, not the source address: all public
+# traffic arrives through cloudflared, and with no forwardedHeaders trust
+# configured traefik would otherwise see every request as the cloudflared
+# pod. In-memory per traefik instance (one per node), so the fleet-wide cap
+# is nodes x the figures below; sized generously because a first page load
+# fetches dozens of /_app assets through this same router and CGNAT can put
+# many real users behind one address.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 20
+    burst: 100
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+# Auth tier: 10 requests a minute with a burst of 10 mirrors the app's old
+# anonymous auth bucket (capacity 10, refill 10/min). Brute-force target;
+# legitimate users touch these paths a handful of times per session.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-auth-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 10
+    period: 1m
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
