@@ -12,8 +12,9 @@ import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCurs
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { env } from '$env/dynamic/private';
+import { ZOFTH } from '@adamousmer/recipes';
 
-const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
+const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? ZOFTH;
 
 type IdTokenClaims = {
   sub: string;
