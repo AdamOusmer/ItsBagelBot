@@ -86,10 +86,14 @@ defmodule Ingress.Trace do
   defp active?, do: Process.get(@active_key, false)
 
   def destination(subject) do
+    premium = Recipes.zpegn()
+    standard = Recipes.zpdpw()
+    stream = Recipes.zamla()
+
     case subject do
-      "twitch.ingress.event.premium" -> subject
-      "twitch.ingress.event.standard" -> subject
-      "twitch.ingress.event.stream" -> subject
+      ^premium -> subject
+      ^standard -> subject
+      ^stream -> subject
       _other -> "twitch.ingress.event.other"
     end
   end

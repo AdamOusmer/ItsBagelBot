@@ -100,29 +100,25 @@ config :ingress,
   # broadcaster's status. Provided by the secret store as a comma-separated
   # list of Twitch user IDs.
   special_user_ids: MapSet.new(split_csv.(System.get_env("TWITCH_SPECIAL_USER_IDS"))),
-  lane_subject_premium:
-    System.get_env("NATS_SUBJECT_LANE_PREMIUM", "twitch.ingress.event.premium"),
-  lane_subject_standard:
-    System.get_env("NATS_SUBJECT_LANE_STANDARD", "twitch.ingress.event.standard"),
+  lane_subject_premium: System.get_env("NATS_SUBJECT_LANE_PREMIUM", Recipes.zpegn()),
+  lane_subject_standard: System.get_env("NATS_SUBJECT_LANE_STANDARD", Recipes.zpdpw()),
   # Dedicated lane carrying only stream.online / stream.offline events.
-  lane_subject_stream: System.get_env("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+  lane_subject_stream: System.get_env("NATS_SUBJECT_LANE_STREAM", Recipes.zamla()),
   # Lane routing is a function of broadcaster status, so the ingress lane cache
   # only needs the "status" section of the scope-per-subject invalidation bus
   # (bagel.cache.invalidate.<scope>). Payload shape is unchanged ({broadcaster_id}).
-  invalidation_subject:
-    System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", "bagel.cache.invalidate.status"),
+  invalidation_subject: System.get_env("NATS_CACHE_INVALIDATION_SUBJECT", Recipes.zci2n()),
   # Request-reply subject answered by Ingress.AdminRpc with a cluster-wide
   # shard state snapshot. Consumed by the admin tool, never by user traffic.
-  admin_subject: System.get_env("NATS_ADMIN_SUBJECT", "twitch.ingress.admin.shards.get"),
+  admin_subject: System.get_env("NATS_ADMIN_SUBJECT", Recipes.zk5vo()),
   # Manual shard-count control: body {"count": N}, replies with full snapshot.
-  scale_subject: System.get_env("NATS_SCALE_SUBJECT", "twitch.ingress.admin.shards.scale"),
+  scale_subject: System.get_env("NATS_SCALE_SUBJECT", Recipes.zwiv6()),
   # Autoscaler toggle: body {"enabled": true|false}, replies with full snapshot.
-  autoscale_subject:
-    System.get_env("NATS_AUTOSCALE_SUBJECT", "twitch.ingress.admin.shards.autoscale"),
+  autoscale_subject: System.get_env("NATS_AUTOSCALE_SUBJECT", Recipes.zarya()),
   # Live conduit id query: body {}, replies {"conduit_id": "<uuid>"} or {"error": "..."}.
-  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", "bagel.rpc.ingress.conduit.get"),
+  conduit_subject: System.get_env("NATS_CONDUIT_SUBJECT", Recipes.zlftv()),
   # Side-effect-free admin latency probe shared by every RPC-serving service.
-  rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", "bagel.rpc.health.ingress"),
+  rpc_health_subject: System.get_env("NATS_RPC_HEALTH_SUBJECT", Recipes.zpum7()),
   # Hard ceiling applied to both manual targets and the autoscaler estimate.
   # 123k NATS ceiling / 12k per-shard operating target = 11 useful shards.
   max_shards: String.to_integer(System.get_env("TWITCH_CONDUIT_MAX_SHARDS", "11")),
@@ -146,8 +142,7 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_CAPACITY_TARGET_UTILIZATION_PCT", "75")),
   # NATS RPC endpoint exposed by the Go service that owns broadcaster data.
   # The ingress never queries the database directly (data-and-state rules).
-  broadcaster_status_subject:
-    System.get_env("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
+  broadcaster_status_subject: System.get_env("NATS_BROADCASTER_STATUS_SUBJECT", Recipes.zvxde()),
   broadcaster_status_timeout_ms:
     String.to_integer(System.get_env("BROADCASTER_STATUS_TIMEOUT_MS", "2000")),
   broadcaster_cache_ttl_ms:

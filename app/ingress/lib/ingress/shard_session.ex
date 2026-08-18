@@ -474,7 +474,7 @@ defmodule Ingress.ShardSession do
         Logger.info("shard bound, session #{session_id}")
         Metrics.event("ShardUp", %{shard_id: state.shard_id, session_id: session_id})
 
-        Nats.publish("twitch.ingress.status.shard.up", %{
+        Nats.publish(Recipes.ztzye(), %{
           shard_id: state.shard_id,
           node: node(),
           session_id: session_id,
@@ -565,7 +565,7 @@ defmodule Ingress.ShardSession do
     Logger.warning("subscription revoked: #{inspect(sub)}")
     Metrics.count("Shard/Revocations")
 
-    Nats.publish("twitch.ingress.status.authz.subrevoked", %{
+    Nats.publish(Recipes.zini2(), %{
       broadcaster_id: revoked_broadcaster(sub),
       type: sub["type"],
       status: sub["status"],
@@ -600,9 +600,9 @@ defmodule Ingress.ShardSession do
   # enrollment revoked, grant re-enrolls the missing subscriptions.
   defp publish_authz(action, event) when action in ["grant", "revoke"] do
     Metrics.count("Shard/Authz/#{action}")
-    outcome = if action == "grant", do: "granted", else: "revoked"
+    subject = if action == "grant", do: Recipes.zhesw(), else: Recipes.zayey()
 
-    Nats.publish("twitch.ingress.status.authz.#{outcome}", %{
+    Nats.publish(subject, %{
       user_id: event["user_id"],
       user_login: event["user_login"],
       at: DateTime.utc_now()
@@ -627,7 +627,7 @@ defmodule Ingress.ShardSession do
   # full connect + Helix bind, "moved" after a session_reconnect handshake
   # carried the session to a new socket. The admin live feed shows these.
   defp publish_bound(state, kind) do
-    Nats.publish("twitch.ingress.status.shard.bound", %{
+    Nats.publish(Recipes.zo4d4(), %{
       shard_id: state.shard_id,
       node: node(),
       session_id: state.session_id,
@@ -683,7 +683,7 @@ defmodule Ingress.ShardSession do
     if state.bound? do
       Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "reconnecting"})
 
-      Nats.publish("twitch.ingress.status.shard.down", %{
+      Nats.publish(Recipes.zrccs(), %{
         shard_id: state.shard_id,
         node: node(),
         reason: "reconnecting"
@@ -755,7 +755,7 @@ defmodule Ingress.ShardSession do
     if state.bound? do
       Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "duplicate_resolved"})
 
-      Nats.publish("twitch.ingress.status.shard.down", %{
+      Nats.publish(Recipes.zrccs(), %{
         shard_id: state.shard_id,
         node: node(),
         reason: "duplicate_resolved"
@@ -833,7 +833,7 @@ defmodule Ingress.ShardSession do
     if state.bound? do
       Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "terminating"})
 
-      Nats.publish("twitch.ingress.status.shard.down", %{
+      Nats.publish(Recipes.zrccs(), %{
         shard_id: state.shard_id,
         node: node(),
         reason: "terminating"

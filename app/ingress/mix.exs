@@ -24,6 +24,9 @@ defmodule Ingress.MixProject do
 
   defp deps do
     [
+      # Opaque NATS subject accessors (recipegen-generated); private repo, ex/
+      # sparse checkout only.
+      {:recipes, git: "git@github.com:AdamOusmer/recipes.git", sparse: "ex"},
       # BEAM node auto-discovery
       {:libcluster, "~> 3.5"},
       # Cluster-wide registry + dynamic supervisor (shard ownership)
