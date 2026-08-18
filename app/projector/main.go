@@ -7,12 +7,13 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/app/projector/rpc"
-	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
@@ -23,6 +24,8 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/z2ezc"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -57,18 +60,26 @@ type projectorTopics struct {
 	liveHydrationTTL  time.Duration
 }
 
-func loadTopics() projectorTopics {
+// loadTopics resolves the projection RPC / hydration subjects from k, the
+// recipes binding, except invalidate: NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT
+// has no grant in recipes' manifest yet, so it stays env-sourced.
+func loadTopics(k *z2ezc.K) projectorTopics {
 	return projectorTopics{
-		stream:            env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
-		users:             env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		modules:           env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		commands:          env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
-		invalidate:        env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
-		cacheInvalidate:   env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
-		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
-		dashboard:         env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard"),
-		live:              env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
-		outgressSystem:    env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
+		stream:     k.ZUPT4().Subject,
+		users:      k.ZRML7(),
+		modules:    k.ZIE27(),
+		commands:   k.ZGRZH(),
+		invalidate: env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
+		// cacheInvalidate recovers "bagel.cache.invalidate" from one of
+		// projector's three separate cache-invalidate publish grants
+		// (commands/live/modules): the binding grants each concrete subject
+		// rather than a shared parent wildcard.
+		cacheInvalidate: strings.TrimSuffix(k.ZGOU3(), ".commands"),
+		status:          k.ZIFLM(),
+		dashboard:       strings.TrimSuffix(k.ZZ2MX(), ".>"),
+		live:            k.ZP3WY(),
+		outgressSystem:  k.ZTSKM(),
+
 		hydrationConcurr:  env.GetInt("PROJECTOR_HYDRATION_CONCURRENCY", 8),
 		queryHydrationTTL: env.GetDuration("PROJECTOR_QUERY_HYDRATION_TTL", 2*time.Hour),
 		liveHydrationTTL:  env.GetDuration("PROJECTOR_LIVE_HYDRATION_TTL", projection.DefaultTTL),
@@ -98,12 +109,12 @@ func main() {
 	valkeyStore := projection.NewStore(valkeyClient)
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	nc, pub, sub := connectBus(ctx, natsURL, log)
+	nc, k, grantsDenied, pub, sub := connectBus(ctx, natsURL, log)
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 	defer func() { _ = sub.Close() }()
 
-	topics := loadTopics()
+	topics := loadTopics(k)
 	hydrator := hydration.New(valkeyStore, nc, projection.Subjects{
 		Users:    topics.users,
 		Modules:  topics.modules,
@@ -118,13 +129,16 @@ func main() {
 		Log:                   log,
 	})
 
-	registerConsumers(ctx, consumerRuntime{nrApp: nrApp, sub: sub, log: log}, projector, topics.stream)
+	registerConsumers(ctx, consumerRuntime{nrApp: nrApp, sub: sub, log: log}, projector, k, topics.stream)
 	subscribeRPCs(rpcRuntime{
 		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "projector-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	log.Info("projector ready",
 		zap.String("status_subject", topics.status),
@@ -136,21 +150,45 @@ func main() {
 	log.Info("projector shutting down")
 }
 
-// connectBus reconciles the streams the projector reads, then opens the
-// fleet's durable group subscriber, the RPC connection, and the JetStream
-// publisher (the publisher escalates a cold live query onto the outgress
-// system lane).
+// connectBus dials the RPC and BUS-plane connections, binds projector's
+// recipes binding, wires its permission-violation Watchdog, preflights the
+// JetStream grants it declares, then reconciles the streams the projector
+// reads: k.ZNT6V() (recipes' manifest, see recipes/MAP.md "projector
+// manage") is now the source of truth for that shape, replacing the old
+// BagelDataStream+IngressLaneSpecs construction. It then opens the fleet's
+// durable group subscriber and the JetStream publisher (which escalates a
+// cold live query onto the outgress system lane).
 //
 // The projector provisions its own inputs rather than depending on the users
 // or sesame pods having booted first: every owner reconciles the same catalog
 // spec, so whoever arrives first creates and everyone else converges on an
-// identical no-op update. The ingress lanes go through IngressLaneSpecs so
-// the partition flag ordering (narrow before create) is preserved here exactly
-// as it is in sesame. The trade is deliberate: the projector credential can
-// now mutate streams it reads, bounded by per-stream ACL grants.
-func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
-	specs := append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)
-	fatalIf(log, bus.EnsureStreams(ctx, natsURL, specs, log), "failed to provision projector streams")
+// identical no-op update. The trade is deliberate: the projector credential
+// can now mutate streams it reads, bounded by per-stream ACL grants.
+func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, *z2ezc.K, *atomic.Bool, bus.Publisher, bus.Subscriber) {
+	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
+	fatalIf(log, err, "failed to connect nats")
+
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	fatalIf(log, err, "failed to connect bus-plane nats")
+
+	k, err := z2ezc.Up(z2ezc.U{Bus: busConn, Rpc: nc})
+	fatalIf(log, err, "failed to bind projector's recipes binding")
+
+	// grantsDenied flips true the first time the NATS server reports
+	// projector's BUS account denied a permission its manifest declares (see
+	// runtime.Watchdog); the returned pointer backs the nats_grants health
+	// check.
+	grantsDenied := &atomic.Bool{}
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	fatalIf(log, runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0),
+		"recipes preflight failed: missing jetstream grant(s)")
+
+	fatalIf(log, bus.EnsureStreams(ctx, natsURL, k.ZNT6V(), log), "failed to provision projector streams")
 
 	// One durable group for the whole projector fleet: each event is folded
 	// into Valkey exactly once, and the durable consumer keeps its position
@@ -158,13 +196,10 @@ func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Con
 	sub, err := bus.NewSubscriber(natsURL, serviceName, log)
 	fatalIf(log, err, "failed to connect subscriber")
 
-	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
-	fatalIf(log, err, "failed to connect nats")
-
 	pub, err := bus.NewPublisher(natsURL, log)
 	fatalIf(log, err, "failed to connect publisher")
 
-	return nc, pub, sub
+	return nc, k, grantsDenied, pub, sub
 }
 
 // registerConsumers binds the projector's fold handlers on the shared durable
@@ -181,15 +216,15 @@ type consumerRuntime struct {
 	log   *zap.Logger
 }
 
-func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Projector, streamTopic string) {
+func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Projector, k *z2ezc.K, streamTopic string) {
 	bindings := []struct {
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{data.SubjectUserChanged, projector.HandleUserChanged},
-		{data.SubjectUserDeleted, projector.HandleUserDeleted},
-		{data.SubjectModuleChanged, projector.HandleModuleChanged},
-		{data.SubjectCommandChanged, projector.HandleCommandChanged},
+		{k.ZSD7J().Subject, projector.HandleUserChanged},
+		{k.ZN747().Subject, projector.HandleUserDeleted},
+		{k.ZBKXM().Subject, projector.HandleModuleChanged},
+		{k.ZRKWQ().Subject, projector.HandleCommandChanged},
 		{streamTopic, projector.HandleStreamEvent},
 	}
 	for _, b := range bindings {
