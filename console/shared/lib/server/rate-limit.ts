@@ -218,6 +218,12 @@ function getWriteClient(): RateLimitClient | null {
       // (rate-limit AND single-use claimOnce) would silently time out.
       name: cfg.sentinelMaster || 'myprimary',
       password: cfg.password || undefined,
+      // The sentinels carry the same requirepass as the data nodes (ACL
+      // default user with a password hash), and ioredis authenticates the
+      // sentinel hop separately from the master connection. Without this the
+      // sentinel answers NOAUTH, the client never resolves a master, and
+      // every write silently degrades to the per-pod fallback.
+      sentinelPassword: cfg.password || undefined,
       tls,
       sentinelTLS: tls,
       enableTLSForSentinelMode: Boolean(tls),
