@@ -13,8 +13,17 @@ WORKDIR /src
 
 RUN mix local.hex --force && mix local.rebar --force
 
+# mix.exs depends on git@github.com:AdamOusmer/recipes.git (private, sparse
+# "ex" checkout). --mount=type=ssh forwards the runner's ssh-agent socket
+# (buildah bud --ssh) into just this RUN; ssh-keyscan pins github.com's host
+# key so the fetch doesn't block on interactive host verification. The base
+# image installs git without recommends, so openssh-client isn't guaranteed.
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client git \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /etc/ssh && ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
+
 COPY mix.exs mix.lock* ./
-RUN mix deps.get --only prod
+RUN --mount=type=ssh mix deps.get --only prod
 
 COPY config config
 RUN mix deps.compile

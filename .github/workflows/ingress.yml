@@ -52,6 +52,16 @@ jobs:
           key: ingress-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/ingress/mix.lock') }}
           restore-keys: ingress-${{ runner.os }}-otp28-elixir1.20-
 
+      # mix.exs now depends on git@github.com:AdamOusmer/recipes.git (private,
+      # sparse "ex" checkout); the runner needs a key with read access loaded
+      # before `mix deps.get` touches it. github.com's host key is already
+      # trusted on GitHub-hosted runners, so no known_hosts step is needed
+      # here (unlike inside the Containerfile's isolated build stage).
+      - name: Load recipes deploy key
+        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.RECIPES_DEPLOY_KEY }}
+
       - name: Fetch dependencies
         run: mix deps.get
 

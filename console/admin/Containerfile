@@ -9,6 +9,14 @@ WORKDIR /src
 # makes route-node assignment deterministic across the native ARM/Intel builds.
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=$BUILD_VERSION
+# @adamousmer/recipes is a private git+ssh dependency (shared/admin/dashboard
+# package.json). --mount=type=ssh forwards the runner's ssh-agent socket
+# (buildah bud --ssh) into just the install step; ssh-keyscan pins
+# github.com's host key so bun's git fetch doesn't block on interactive host
+# verification.
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client git \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /etc/ssh && ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
 # bunfig.toml MUST be present so the hoisted linker applies (flat node_modules).
 COPY package.json bun.lock bunfig.toml ./
 COPY tsconfig.base.json tsconfig.base.json
@@ -16,7 +24,7 @@ COPY sorted-readdir.mjs sorted-readdir.mjs
 COPY shared/package.json shared/package.json
 COPY dashboard/package.json dashboard/package.json
 COPY admin/package.json admin/package.json
-RUN bun install --frozen-lockfile
+RUN --mount=type=ssh bun install --frozen-lockfile
 COPY shared shared
 COPY admin admin
 # `bun run build` also scans the final adapter-node output and fails if any

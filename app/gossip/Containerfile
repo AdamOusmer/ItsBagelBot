@@ -6,8 +6,16 @@
 FROM docker.io/library/golang:1.26.5-bookworm@sha256:6c5605ab3a9a9fb3c4eafe5b3d63cdbf3881caf113262b67862547b54a9db599 AS build
 
 WORKDIR /src
+# github.com/AdamOusmer/recipes is private: skip the public proxy/sumdb for it
+# and resolve over SSH instead. --mount=type=ssh forwards the runner's
+# ssh-agent socket (buildah bud --ssh) into just this RUN; ssh-keyscan pins
+# github.com's host key so the fetch doesn't block on interactive host
+# verification.
+ENV GOPRIVATE=github.com/AdamOusmer/recipes
+RUN mkdir -p /etc/ssh && ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts \
+ && git config --global url."git@github.com:".insteadOf "https://github.com/"
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=ssh go mod download
 
 COPY internal/domain internal/domain
 COPY internal/utils internal/utils

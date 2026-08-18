@@ -346,13 +346,20 @@ jobs:
           persist-credentials: false
 
       # The runner needs a key with read access to recipes loaded before the
-      # Go build resolves it (go mod download inside the Containerfile hits
-      # SSH, never the public proxy/sumdb, for a GOPRIVATE module).
+      # image build resolves it. Every Containerfile's dependency-fetch RUN
+      # (go mod download / mix deps.get / bun install) now takes
+      # --mount=type=ssh, and the "Build native image" step below forwards
+      # this agent's socket in with buildah bud --ssh, so this single key
+      # covers the Go, ingress (mix) and console (bun) images alike.
       - name: Load recipes deploy key
         uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.RECIPES_DEPLOY_KEY }}
 
+      # Go-specific: rewrites GOPRIVATE module fetches from https to ssh. Only
+      # affects `go` on the runner itself; each Containerfile sets this same
+      # rewrite again inside its own build stage since buildah bud's isolated
+      # build does not inherit the runner's global gitconfig.
       - name: Use SSH for private module fetches
         run: git config --global url."git@github.com:".insteadOf "https://github.com/"
 
@@ -421,6 +428,7 @@ jobs:
           done
 
           buildah bud \
+            --ssh default="${SSH_AUTH_SOCK}" \
             --platform "$PLATFORM" \
             --format oci \
             --build-arg "BUILD_VERSION=${GITHUB_SHA::12}" \
