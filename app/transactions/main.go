@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,6 +30,8 @@ import (
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zzf5x"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -75,27 +79,31 @@ func main() {
 
 	// RPC-plane connection (TRANSACTIONS_RPC account): answers the checkout
 	// basket verb and issues the recipient-lookup / gift-notification requests.
-	nc := connectRPC(natsURL, log)
+	nc, busConn, k, grantsDenied := connectRPC(ctx, natsURL, log)
 	defer nc.Close()
+	defer busConn.Close()
 
 	dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
-	checkoutConfigured, checkoutAuth := setupCheckout(nc, nrApp, dashboardOrigin, log)
+	checkoutConfigured, checkoutAuth := setupCheckout(nc, k, nrApp, dashboardOrigin, log)
 
-	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
+	sendSubject := k.ZZY7T()
 	mailer := newMailer(dashboardOrigin, log)
 
-	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
+	emailSubject := k.Z7QKE()
 	notifier := rpc.NewGiftNotifier(nc, sendSubject, emailSubject, mailer, log.Named("gift"))
-	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
+	billingSubject := k.ZVWBE()
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
 	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
-		Health:        health.NewSet(serviceName, health.Bool("nats", nc.IsConnected)),
-		NotifyGift:    notifier.Notify,
-		ApplyBilling:  billing.Apply,
-		App:           nrApp,
+		Health: health.NewSet(serviceName,
+			health.Bool("nats", nc.IsConnected),
+			health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+		),
+		NotifyGift:   notifier.Notify,
+		ApplyBilling: billing.Apply,
+		App:          nrApp,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{
@@ -134,7 +142,7 @@ func main() {
 // the Tebex Headless credentials the service stays webhook-only, exactly as
 // before. Returns whether checkout is live and whether an API private key is
 // configured, both reported in the ready log line.
-func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin string, log *zap.Logger) (configured, auth bool) {
+func setupCheckout(nc *nats.Conn, k *zzf5x.K, nrApp *newrelic.Application, dashboardOrigin string, log *zap.Logger) (configured, auth bool) {
 
 	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
 	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
@@ -158,8 +166,8 @@ func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin s
 		log.Fatal("failed to build tebex client", zap.Error(err))
 	}
 
-	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
-	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
+	userGetSubject := k.ZQEJR()
+	prefix := strings.TrimSuffix(k.ZAGQY(), ".>")
 	if err := rpc.SubscribeCheckout(
 		rpc.CheckoutRuntime{NC: nc, App: nrApp, Log: log},
 		tebexClient,
@@ -188,7 +196,11 @@ func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 		dashboardOrigin)
 }
 
-func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
+// connectRPC dials the RPC connection, binds transactions's recipes binding
+// over it and a separate BUS-plane connection, wires its permission-violation
+// Watchdog, and preflights the (empty — transactions touches no JetStream
+// stream) grant set it declares.
+func connectRPC(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, *nats.Conn, *zzf5x.K, *atomic.Bool) {
 	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
 	if err != nil {
 		log.Fatal("failed to connect rpc nats", zap.Error(err))
@@ -196,7 +208,33 @@ func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
 	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	return nc
+
+	busConn, err := bus.ConnectBus(natsURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect bus-plane nats", zap.Error(err))
+	}
+
+	k, err := zzf5x.Up(zzf5x.U{Bus: busConn, Rpc: nc})
+	if err != nil {
+		log.Fatal("failed to bind transactions's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports
+	// transactions's BUS account denied a permission its manifest declares
+	// (see runtime.Watchdog); the returned pointer backs the nats_grants
+	// health check.
+	grantsDenied := &atomic.Bool{}
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(busConn, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(ctx, busConn, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
+	return nc, busConn, k, grantsDenied
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,
