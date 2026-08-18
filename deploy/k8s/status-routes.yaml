@@ -145,6 +145,52 @@ spec:
           serversTransport: sesame-status-transport
   tls: {}
 ---
+# transactions lives in the db namespace, and traefik does not allow
+# cross-namespace service or middleware references by default, so its slice
+# of the status surface is a sibling IngressRoute there with db-namespace
+# copies of the two middlewares. Same contract as the routes above:
+# /transactions rewrites to /status against the existing transactions
+# Service and ServersTransport (transactions.yaml).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-ratelimit
+  namespace: db
+spec:
+  rateLimit:
+    average: 1
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-path
+  namespace: db
+spec:
+  replacePath:
+    path: /status
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: transactions-status
+  namespace: db
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      services:
+        - name: transactions
+          port: 443
+          scheme: https
+          serversTransport: transactions-transport
+          nativeLB: true
+  tls: {}
+---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
