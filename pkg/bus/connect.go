@@ -191,10 +191,7 @@ func tlsSecureOption() nats.Option {
 
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	certFile, keyFile := env.Get("NATS_CLIENT_CERT_FILE", ""), env.Get("NATS_CLIENT_KEY_FILE", "")
-	switch {
-	case certFile == "" && keyFile == "":
-		return nats.Secure(cfg)
-	case certFile == "" || keyFile == "":
+	if (certFile == "") != (keyFile == "") {
 		// Fail here, not inside the handshake. GetClientCertificate only runs
 		// when the server ASKS for a cert, so a half-set pair against a
 		// verify:false listener would connect happily and then fail the moment
@@ -204,6 +201,9 @@ func tlsSecureOption() nats.Option {
 		// option carries the failure to the dial.
 		return failedTLSOption(errors.New(
 			"bus: NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"))
+	}
+	if certFile == "" {
+		return nats.Secure(cfg)
 	}
 	cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
