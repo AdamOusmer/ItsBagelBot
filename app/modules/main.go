@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"strings"
+	"sync/atomic"
 
 	"ItsBagelBot/app/modules/ent"
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
@@ -22,6 +24,8 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
+	"github.com/AdamOusmer/recipes/runtime"
+	"github.com/AdamOusmer/recipes/svc/zzmla"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -45,6 +49,26 @@ func main() {
 	n, closeIntake := svcboot.MustNATS(core, serviceName, "modules-rpc")
 	defer func() { _ = n.Pub.Close() }()
 
+	k, err := zzmla.Up(zzmla.U{Bus: n.Bus, Rpc: n.RPC})
+	if err != nil {
+		log.Fatal("failed to bind modules's recipes binding", zap.Error(err))
+	}
+
+	// grantsDenied flips true the first time the NATS server reports modules's
+	// BUS account denied a permission its manifest declares; nats_grants below
+	// reports it unhealthy from that point on instead of staying silently
+	// degraded (see runtime.Watchdog).
+	var grantsDenied atomic.Bool
+	watchdog := runtime.NewWatchdog(k.M(), func(subject, canonical string, err error) {
+		log.Error("nats permission violation",
+			zap.String("subject", subject), zap.String("canonical", canonical), zap.Error(err))
+	}, func() { grantsDenied.Store(true) })
+	bus.GuardConnection(n.Bus, watchdog.Handler())
+
+	if err := runtime.PreflightStreams(core.Ctx, n.Bus, k.Expectations(), 0); err != nil {
+		log.Fatal("recipes preflight failed: missing jetstream grant(s)", zap.Error(err))
+	}
+
 	repo := repository.NewModules(client, n.Pub, core.NR, log)
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 	defer closeIntake()                    // stops intake before the repo flush above
@@ -53,13 +77,16 @@ func main() {
 
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,
-		repo: repo, quotes: quotes, log: log,
+		repo: repo, quotes: quotes, k: k, log: log,
 	})
 
 	projectionSubject := subscribeRPCs(rpcWiring{
-		nc: n.RPC, client: client, repo: repo, quotes: quotes, app: core.NR, log: log,
+		nc: n.RPC, client: client, repo: repo, quotes: quotes, k: k, app: core.NR, log: log,
 	})
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", n.RPC.IsConnected))
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", n.RPC.IsConnected),
+		health.Bool("nats_grants", func() bool { return !grantsDenied.Load() }),
+	)
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
 
@@ -76,6 +103,7 @@ type eventsWiring struct {
 	grouped   bus.Subscriber
 	repo      *repository.Modules
 	quotes    *repository.Quotes
+	k         *zzmla.K
 	log       *zap.Logger
 }
 
@@ -83,7 +111,7 @@ type eventsWiring struct {
 // on the broadcast subscriber, reprojection and account deletion on the
 // durable group. Fatal on any subscribe failure, matching main's boot style.
 func consumeEvents(ctx context.Context, w eventsWiring) {
-	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *bus.Message) error {
+	if err := bus.Consume(ctx, w.app, w.broadcast, w.k.ZYPLB().Subject, func(msg *bus.Message) error {
 
 		var dto data.ModuleChangedDTO
 		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
@@ -96,13 +124,13 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
+	if err := bus.Consume(ctx, w.app, w.grouped, w.k.ZVEBF().Subject, func(*bus.Message) error {
 		return w.repo.Reproject(ctx)
 	}, w.log); err != nil {
 		w.log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, func(msg *bus.Message) error {
+	if err := bus.Consume(ctx, w.app, w.grouped, w.k.ZZJLG().Subject, func(msg *bus.Message) error {
 		return deleteUser(msg, w)
 	}, w.log); err != nil {
 		w.log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
@@ -143,6 +171,7 @@ type rpcWiring struct {
 	client *ent.Client
 	repo   *repository.Modules
 	quotes *repository.Quotes
+	k      *zzmla.K
 	app    *newrelic.Application
 	log    *zap.Logger
 }
@@ -152,14 +181,14 @@ type rpcWiring struct {
 // personality verbs. Returns the projection subject for the ready banner.
 // Fatal on any subscribe failure, matching main's boot style.
 func subscribeRPCs(w rpcWiring) string {
-	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
+	projectionSubject := w.k.ZBOWV()
 	if err := rpc.SubscribeProjection(w.nc, w.repo, projectionSubject, "modules-rpc", w.app, w.log); err != nil {
 		w.log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	// Dashboard verbs (list, upsert): the console toggles/configures modules the
 	// same way it manages commands.
-	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
+	dashboardSubject := strings.TrimSuffix(w.k.ZTMYF(), ".>")
 	if err := rpc.SubscribeDashboard(w.nc, w.repo, dashboardSubject, "modules-rpc", w.app, w.log); err != nil {
 		w.log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
