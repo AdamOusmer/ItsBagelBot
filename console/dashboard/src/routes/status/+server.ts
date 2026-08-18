@@ -8,10 +8,12 @@ import { rateLimiterReady } from '@bagel/shared/server/rate-limit';
 
 // External status endpoint for the Better Stack status page, same contract as
 // the Go services' pkg/health /status: a named check per dependency, aggregate
-// "ok" | "degraded" | "down", HTTP 503 only when down. NATS is the hard
-// dependency (SSR cannot serve without RPC); Valkey and the rate limiter are
-// the optional tiers the read path degrades past, exactly as /readyz treats
-// them — so a Valkey outage reports degraded here while pods stay in rotation.
+// "ok" | "degraded" | "down", HTTP 503 only when down. Every check is hard:
+// NATS because SSR cannot serve without RPC, and Valkey plus the rate limiter
+// because the status page must show downtime when the cache tier is gone
+// (the availability monitor only reacts to non-2xx). Pods still stay in
+// rotation through an outage: /readyz is a separate static 200 and never
+// reads these checks.
 
 interface CheckResult {
   name: string;
@@ -40,8 +42,8 @@ async function runCheck(
 export const GET: RequestHandler = async () => {
   const checks = await Promise.all([
     runCheck('nats', () => natsReady()),
-    runCheck('valkey', () => valkeyReady(), true),
-    runCheck('rate_limiter', () => rateLimiterReady(), true),
+    runCheck('valkey', () => valkeyReady()),
+    runCheck('rate_limiter', () => rateLimiterReady()),
   ]);
 
   const down = checks.some((c) => !c.ok && !c.optional);
