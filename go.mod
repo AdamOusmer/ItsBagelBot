@@ -1,9 +1,10 @@
 module ItsBagelBot
 
-go 1.26.5
+go 1.26.6
 
 require (
 	entgo.io/ent v0.14.6
+	github.com/AdamOusmer/recipes v0.0.0-20260818182330-d5c7dea0e8bd
 	github.com/Yiling-J/theine-go v0.6.2
 	github.com/abadojack/whatlanggo v1.0.1
 	github.com/buger/jsonparser v1.6.1
@@ -13,7 +14,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.49
-	github.com/nats-io/nats.go v1.52.0
+	github.com/nats-io/nats.go v1.53.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/newrelic/go-agent/v3 v3.44.1
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
@@ -25,7 +26,7 @@ require (
 	github.com/valkey-io/valkey-go v1.0.76
 	go.uber.org/zap v1.28.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -43,7 +44,7 @@ require (
 	github.com/go-openapi/inflect v0.21.5 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
@@ -55,11 +56,11 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.4.0 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/tools v0.47.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
