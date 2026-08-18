@@ -6,6 +6,7 @@ package k8s
 import (
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -44,8 +45,16 @@ func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 	for _, publisher := range publishers {
 		t.Run(publisher.manifest, func(t *testing.T) {
 			manifest := sourceFile{name: publisher.manifest}.read(t)
+			// Either spelling of the hub Service satisfies the contract: the
+			// point is that the publisher dials the hub Service rather than a
+			// leaf or a pod, and `nats.messaging` and its
+			// `.svc.cluster.local` FQDN are the same Service. Pinning only the
+			// short form failed the manifests that (correctly) spell it out to
+			// skip the search-domain walk.
+			value := strings.Replace(regexp.QuoteMeta(publisher.value),
+				`nats\.messaging`, `nats\.messaging(?:\.svc\.cluster\.local)?`, 1)
 			pattern := regexp.MustCompile(`(?m)^\s*- name: ` + regexp.QuoteMeta(publisher.variable) +
-				`\n\s+value: ` + regexp.QuoteMeta(publisher.value) + `$`)
+				`\n\s+value: ` + value + `$`)
 			if !pattern.MatchString(manifest) {
 				t.Fatalf("%s must set %s=%s", publisher.manifest, publisher.variable, publisher.value)
 			}

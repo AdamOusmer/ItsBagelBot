@@ -88,13 +88,22 @@ spec:
           - {name: timeout, value: "2"}
           - {name: attempts, value: "2"}
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1786934707-b71a0f43997c@sha256:97a8eac46332a17e8a556770802da42de30ed1a5faa3fce13cd47bc384f8a201 # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1787011027-4cfd46290494@sha256:e9e7a68bcbe91c59322c975de5561486bbe335d0ccec5f075a52b0894eefab9c # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

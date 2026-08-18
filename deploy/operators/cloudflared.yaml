@@ -1,0 +1,243 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Cloudflare Tunnel connectors. Public ingress enters here: Cloudflare's edge
+# dials these outbound connectors, which forward to the node-local traefik over
+# HTTPS.
+#
+# kind DaemonSet, not Deployment: "one connector per node" is a property of the
+# node set, not a replica count. A Deployment had to hard-code replicas: 3 plus
+# one-per-node anti-affinity, which meant every node add/remove was a manual
+# edit and a surge pod could never schedule. A DaemonSet resizes itself as the
+# fleet changes. A single tunnel ID backs many connectors: that is Cloudflare's
+# native HA model, and the edge load-balances across whichever connectors are
+# registered.
+#
+# The hop to traefik is TLS against the Cloudflare Origin CA cert (held in
+# Doppler, synced by the operator; see deploy/networking/traefik.yaml),
+# verified against the public Cloudflare Origin RSA root pinned below
+# (noTLSVerify stays false). Both outbound paths are encrypted: 443 to
+# traefik, 7844 to Cloudflare. Nothing here holds a private key: the only
+# secret this workload mounts is the tunnel credential.
+---
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: cloudflared-tunnel
+  namespace: operators
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: cloudflared-doppler-token
+  managedSecret:
+    name: cloudflared-tunnel
+    namespace: operators
+    type: Opaque
+  secrets:
+    - TUNNEL_CREDENTIALS_JSON
+  resyncSeconds: 60
+---
+# CloudFlare Origin SSL Certificate Authority (RSA) — the root that signed
+# the CLOUDFLARE_ORIGIN_CERT held in Doppler (openssl-verified against it).
+# NOT the ECC root: the two roots sign different Origin certs, and pinning
+# the wrong one fails the handshake (openssl verify -CAfile to check).
+# Source: https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
+# Expires 2029-08-15; replace from the same URL when Cloudflare rotates it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-origin-ca
+  namespace: operators
+data:
+  ca.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIEADCCAuigAwIBAgIID+rOSdTGfGcwDQYJKoZIhvcNAQELBQAwgYsxCzAJBgNV
+    BAYTAlVTMRkwFwYDVQQKExBDbG91ZEZsYXJlLCBJbmMuMTQwMgYDVQQLEytDbG91
+    ZEZsYXJlIE9yaWdpbiBTU0wgQ2VydGlmaWNhdGUgQXV0aG9yaXR5MRYwFAYDVQQH
+    Ew1TYW4gRnJhbmNpc2NvMRMwEQYDVQQIEwpDYWxpZm9ybmlhMB4XDTE5MDgyMzIx
+    MDgwMFoXDTI5MDgxNTE3MDAwMFowgYsxCzAJBgNVBAYTAlVTMRkwFwYDVQQKExBD
+    bG91ZEZsYXJlLCBJbmMuMTQwMgYDVQQLEytDbG91ZEZsYXJlIE9yaWdpbiBTU0wg
+    Q2VydGlmaWNhdGUgQXV0aG9yaXR5MRYwFAYDVQQHEw1TYW4gRnJhbmNpc2NvMRMw
+    EQYDVQQIEwpDYWxpZm9ybmlhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+    AQEAwEiVZ/UoQpHmFsHvk5isBxRehukP8DG9JhFev3WZtG76WoTthvLJFRKFCHXm
+    V6Z5/66Z4S09mgsUuFwvJzMnE6Ej6yIsYNCb9r9QORa8BdhrkNn6kdTly3mdnykb
+    OomnwbUfLlExVgNdlP0XoRoeMwbQ4598foiHblO2B/LKuNfJzAMfS7oZe34b+vLB
+    yrP/1bgCSLdc1AxQc1AC0EsQQhgcyTJNgnG4va1c7ogPlwKyhbDyZ4e59N5lbYPJ
+    SmXI/cAe3jXj1FBLJZkwnoDKe0v13xeF+nF32smSH0qB7aJX2tBMW4TWtFPmzs5I
+    lwrFSySWAdwYdgxw180yKU0dvwIDAQABo2YwZDAOBgNVHQ8BAf8EBAMCAQYwEgYD
+    VR0TAQH/BAgwBgEB/wIBAjAdBgNVHQ4EFgQUJOhTV118NECHqeuU27rhFnj8KaQw
+    HwYDVR0jBBgwFoAUJOhTV118NECHqeuU27rhFnj8KaQwDQYJKoZIhvcNAQELBQAD
+    ggEBAHwOf9Ur1l0Ar5vFE6PNrZWrDfQIMyEfdgSKofCdTckbqXNTiXdgbHs+TWoQ
+    wAB0pfJDAHJDXOTCWRyTeXOseeOi5Btj5CnEuw3P0oXqdqevM1/+uWp0CM35zgZ8
+    VD4aITxity0djzE6Qnx3Syzz+ZkoBgTnNum7d9A66/V636x4vTeqbZFBr9erJzgz
+    hhurjcoacvRNhnjtDRM0dPeiCJ50CP3wEYuvUzDHUaowOsnLCjQIkWbR7Ni6KEIk
+    MOz2U0OBSif3FTkhCgZWQKOOLo1P42jHC3ssUZAtVNXrCk3fw9/E15k8NPkBazZ6
+    0iykLhH1trywrKRMVw67F44IE8Y=
+    -----END CERTIFICATE-----
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: operators
+data:
+  config.yaml: |
+    tunnel: 9c03c6e3-8a04-4f6c-bd48-7403a80da483
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    metrics: 0.0.0.0:2000
+    no-autoupdate: true
+
+    # Applies to every ingress rule below. caPool pins the Cloudflare Origin
+    # RSA root, so the connector only talks to an origin holding a Cloudflare
+    # Origin CA cert. originServerName forces SNI to the zone apex instead of
+    # the request hostname: the apex is always in the cert's SANs, so routing
+    # never depends on which public hostnames exist.
+    originRequest:
+      caPool: /etc/cloudflared/trust/ca.pem
+      originServerName: itsbagelbot.com
+      noTLSVerify: false
+      http2Origin: true
+      connectTimeout: 10s
+      tlsTimeout: 10s
+      keepAliveConnections: 32
+      keepAliveTimeout: 90s
+
+    ingress:
+      # Console (SvelteKit SSR). The app's /status, /healthz, /readyz are
+      # masked at the traefik layer (console-dashboard.yaml routes them to
+      # the app's own 404 page), not here: a tunnel-level http_status:404
+      # would answer with a bare edge error instead of the branded page.
+      - hostname: dashboard.itsbagelbot.com
+      - hostname: dashboard.itsbagelbot.com
+        service: https://traefik.networking.svc.cluster.local:443
+
+      # Public stats page (SSE odometer).
+      - hostname: stats.itsbagelbot.com
+        service: https://traefik.networking.svc.cluster.local:443
+
+      # Per-service /status endpoints for the Better Stack status page live
+      # here (deploy/k8s/status-routes.yaml). status.itsbagelbot.com itself
+      # is the Better Stack-hosted status page: its DNS is a CNAME to Better
+      # Stack, so the tunnel must not claim the hostname, and it is
+      # deliberately absent from this list. It must also not fall into the
+      # wildcard below: the CNAME at Cloudflare DNS takes precedence over
+      # the wildcard record.
+      - hostname: health.itsbagelbot.com
+        service: https://traefik.networking.svc.cluster.local:443
+
+      # Tebex webhooks -> transactions.
+      - hostname: webhooks.itsbagelbot.com
+        service: https://traefik.networking.svc.cluster.local:443
+
+      # Apex + everything else on the zone. Traefik owns the routing decision;
+      # its unrouted-host fallback proxies stray hostnames to the marketing
+      # site, so unknown names never 404 at the connector.
+      - hostname: itsbagelbot.com
+        service: https://traefik.networking.svc.cluster.local:443
+      - hostname: "*.itsbagelbot.com"
+        service: https://traefik.networking.svc.cluster.local:443
+
+      # Required terminal rule.
+      - service: http_status:404
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared
+  namespace: operators
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudflared
+  namespace: operators
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  revisionHistoryLimit: 3
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+      annotations:
+        secrets.doppler.com/reload: "true"
+    spec:
+      # Public ingress belongs to the app tier, and this node set must stay a
+      # subset of traefik's: traefik's Service runs internalTrafficPolicy Local,
+      # so a cloudflared on a node with no traefik would fail closed.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp]
+      # No tolerations. The control plane is a dedicated k3s server; its taint
+      # plus the affinity above keep connectors off it.
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
+          imagePullPolicy: IfNotPresent
+          args: ["tunnel", "--config", "/etc/cloudflared/config/config.yaml", "run"]
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+          livenessProbe:
+            httpGet: {path: /ready, port: 2000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /ready, port: 2000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: config, mountPath: /etc/cloudflared/config, readOnly: true}
+            - {name: creds, mountPath: /etc/cloudflared/creds, readOnly: true}
+            - {name: trust, mountPath: /etc/cloudflared/trust, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: creds
+          secret:
+            secretName: cloudflared-tunnel
+            items:
+              - {key: TUNNEL_CREDENTIALS_JSON, path: credentials.json}
+        # Public Cloudflare Origin ECC root, no private key. Checked in below
+        # rather than trust-manager-distributed: it is Cloudflare's anchor,
+        # not the fleet's, and it only changes when Cloudflare rotates it
+        # (current root expires 2029-08-15).
+        - name: trust
+          configMap:
+            name: cloudflare-origin-ca
+            items:
+              - {key: ca.pem, path: ca.pem}

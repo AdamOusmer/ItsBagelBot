@@ -74,13 +74,22 @@ spec:
             matchLabels:
               app: loyalty
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: loyalty
-          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1786934707-b71a0f43997c@sha256:c25aafc2a32a124e20729a4099f8d1afc3b44c8c8e7007a134cfe13ea5f35d6a # {"$imagepolicy": "flux-system:loyalty"}
+          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1787011027-4cfd46290494@sha256:518ed856cdf83b07eb18195e0efab86746ba500db87ed97cc2c8d0b1da470aef # {"$imagepolicy": "flux-system:loyalty"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

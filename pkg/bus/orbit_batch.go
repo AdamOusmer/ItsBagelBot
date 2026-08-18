@@ -152,8 +152,18 @@ func publishBatchWait(wire wireMode) time.Duration {
 	case wireFast:
 		return fastPublishBatchWait()
 	default:
-		return defaultPublishBatchWait
+		return defaultBatchWait()
 	}
+}
+
+// defaultBatchWait is the only publish knob that accepts zero, and it means
+// something: zero drains whatever is already queued and ships immediately, so a
+// lane that has been quiet does not pay a timer before its first message moves.
+// The fast and atomic wires clamp to a floor instead, because there the cohort
+// IS the economy. Negative is treated as zero rather than rejected for the same
+// reason a floor would defeat the point.
+func defaultBatchWait() time.Duration {
+	return max(env.GetDuration("NATS_PUBLISH_BATCH_WAIT", defaultPublishBatchWait), 0)
 }
 
 // atomicPublishBatchSize is the only client-side lever on the server's

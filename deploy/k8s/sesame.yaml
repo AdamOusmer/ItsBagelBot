@@ -86,13 +86,22 @@ spec:
             matchLabels:
               app: sesame
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1786934707-b71a0f43997c@sha256:61a63712be28992c5974e8baa91fc44b7db610b197262432df7638abf306757a # {"$imagepolicy": "flux-system:sesame"}
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:main-1787011027-4cfd46290494@sha256:6420a804a7a1c7a132bddaee59d85eebf328675ea721101d8eaf38b92b24f1b8 # {"$imagepolicy": "flux-system:sesame"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -364,9 +373,10 @@ spec:
     - type: nats-jetstream
       metadata:
         # In-cluster ClusterIP, on purpose, and it needs NO tailscale subnet
-        # route even though the operator runs on the control plane: node1's
-        # flannel reaches the app tier over kernel WireGuard's roamed PUBLIC
-        # endpoints (see deploy/infra/keda/release.yaml and the inventory notes).
+        # route: the KEDA operator is scheduled onto the application tier
+        # (role=node), so this poll is a native Cilium pod-mesh hop within the
+        # cluster. See deploy/operators/keda.yaml for why that placement is the
+        # inverse of the pre-rebuild control-plane pin.
         #
         # Do not move this to the nats-monitoring tailnet Service. It was tried
         # on 2026-07-27: the /jsz fetch works, but KEDA's clustered-JetStream

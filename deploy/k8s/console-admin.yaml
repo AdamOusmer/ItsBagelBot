@@ -101,13 +101,22 @@ spec:
           - {name: timeout, value: "2"}
           - {name: attempts, value: "2"}
       securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1786934707-b71a0f43997c@sha256:2ac92be183b1a3cea6ed1ee81f706317ad43dd92b752db397b85b0184ab4f81d # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787011027-4cfd46290494@sha256:ae9db3ba9f132a45e9dee486cd1f9ce804efd9c41943beb7604e260807aae341 # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
@@ -337,8 +346,6 @@ kind: Ingress
 metadata:
   name: console-admin
   namespace: app
-  annotations:
-    tailscale.com/proxy-group: ts-ingress
 spec:
   ingressClassName: tailscale
   defaultBackend:
