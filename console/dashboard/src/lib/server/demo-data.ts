@@ -120,6 +120,16 @@ export function demoQuotes(): QuoteView[] {
   ];
 }
 
+// Whole-payload helpers: the route's demo branch returns one of these, so the
+// branch is a single line and the fixture shape lives beside the fixture.
+export function demoQuotesView() {
+  return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, quotes: demoQuotes() };
+}
+
+export function demoTimersView() {
+  return { enabled: true, timers: demoTimers() };
+}
+
 // Demo timers so the tab renders without a live backend.
 export function demoTimers(): TimerDef[] {
   return [

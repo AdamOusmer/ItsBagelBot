@@ -79,23 +79,30 @@ function resolveToggle(name: string, session: Session | null | undefined): Toggl
   return { uid: effectiveId(session) };
 }
 
+// The prologue the tile toggle shares with every other module write: section
+// gate, auth check, form parse. DEMO runs without a session (the action
+// short-circuits before the store call).
+async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
+  gateModules(locals.session);
+  if (!DEMO && !locals.session) return null;
+  return { session: locals.session, form: await request.formData() };
+}
+
 export const actions: Actions = {
   // Quick tile on/off: flips enabled while preserving the stored config.
-  toggle: async ({ request, locals }) => {
-    gateModules(locals.session);
-    if (!DEMO && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  toggle: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
 
-    const f = await request.formData();
+    const f = ctx.form;
     const name = String(f.get('name') ?? '');
-    const target = resolveToggle(name, locals.session);
+    const target = resolveToggle(name, ctx.session);
     if ('denied' in target) return target.denied;
     const enabled = f.get('is_enabled') === 'on';
 
     if (DEMO) return { ok: true, name, enabled };
 
-    return flipModule({ name, uid: target.uid, enabled }, locals.session);
+    return flipModule({ name, uid: target.uid, enabled }, ctx.session);
   }
 };
 

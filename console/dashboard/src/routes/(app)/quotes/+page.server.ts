@@ -67,10 +67,7 @@ function actingLogin(session: Session | null | undefined): string {
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (DEMO) {
-    const { demoQuotes } = await import('$lib/server/demo-data');
-    return { enabled: true, addPerm: 'mod', editPerm: 'mod', quotes: demoQuotes() };
-  }
+  if (DEMO) return (await import('$lib/server/demo-data')).demoQuotesView();
   try {
     const view = await readQuotes(uid);
     return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };

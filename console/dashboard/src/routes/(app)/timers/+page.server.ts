@@ -32,10 +32,7 @@ function gate(session: Session | null | undefined): void {
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (DEMO) {
-    const { demoTimers } = await import('$lib/server/demo-data');
-    return { enabled: true, timers: demoTimers() };
-  }
+  if (DEMO) return (await import('$lib/server/demo-data')).demoTimersView();
   try {
     const view = await readTimers(uid);
     return { enabled: view.enabled, timers: view.timers };
@@ -72,13 +69,22 @@ function parseTimer(raw: string): TimerDef | null {
   };
 }
 
-export const actions: Actions = {
-  create: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
+// actionContext runs the shared prologue every timers action repeats: scope
+// gate, auth check, effective board id, and form parse. DEMO runs without a
+// session (each action short-circuits before the store call).
+async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
+  gate(locals.session);
+  if (!DEMO && !locals.session) return null;
+  return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
+}
 
-    const f = await request.formData();
+const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+
+export const actions: Actions = {
+  create: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
     const draft = parseTimer(String(f.get('timer') ?? ''));
     if (!draft) return fail(400, { ok: false, error: 'Invalid timer.' });
     if (DEMO) return { ok: true };
@@ -91,16 +97,14 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: 'create failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(locals.session, 'timers:create', draft.message);
+    auditDashboardImpersonation(ctx.session, 'timers:create', draft.message);
     return { ok: true };
   },
 
-  update: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  update: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
     const draft = parseTimer(String(f.get('timer') ?? ''));
     if (!draft || !draft.id) return fail(400, { ok: false, error: 'Invalid timer.' });
     if (DEMO) return { ok: true };
@@ -113,16 +117,14 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: 'update failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(locals.session, 'timers:update', draft.message);
+    auditDashboardImpersonation(ctx.session, 'timers:update', draft.message);
     return { ok: true };
   },
 
-  delete: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  delete: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
     const id = String(f.get('id') ?? '');
     if (!id) return fail(400, { ok: false, error: 'Missing timer id.' });
     if (DEMO) return { ok: true };
@@ -135,17 +137,15 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: 'delete failed' });
     }
     if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(locals.session, 'timers:delete', id);
+    auditDashboardImpersonation(ctx.session, 'timers:delete', id);
     return { ok: true };
   },
 
   // Master on/off for whether sesame arms any timer at all.
-  toggle: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  toggle: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const { uid, form: f } = ctx;
     const enabled = f.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled };
 
@@ -155,7 +155,7 @@ export const actions: Actions = {
       logger.error({ err: e }, '[timers] toggle failed');
       return fail(400, { ok: false });
     }
-    auditDashboardImpersonation(locals.session, 'timers:toggle', String(enabled));
+    auditDashboardImpersonation(ctx.session, 'timers:toggle', String(enabled));
     return { ok: true, enabled };
   }
 };
