@@ -88,35 +88,25 @@ function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean 
   return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
 
-// guardSession validates an already-opened session against authoritative
-// account state. Returns the session to keep in locals, or throws a redirect
-// (wiping the cookie when the session itself is dead). Anonymous requests
-// never reach this — the (app) layout owns the login redirect for pages and
-// endpoints already 401 on a missing session.
-export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
-  if (DEMO || isPublic(event.url.pathname)) return s;
-
-  // Platform ban — own account. Same outage posture as before: isBanned serves
-  // last-known state through a users-service outage and fails open only with
-  // no cached state at all.
+// assertAccountUsable runs the three gates that judge the session itself,
+// each with the same outage posture: fail open on a transport blip, wipe the
+// cookie only on an authoritative answer.
+//   * ban — isBanned serves last-known state through a users-service outage.
+//   * revocation — logout kills this sid; "sign out everywhere" kills every
+//     session issued before that moment. isSessionRevoked never throws.
+//   * ghost session — only an RpcError ("no such user") wipes; anything else
+//     keeps the session and lets pages degrade.
+async function assertAccountUsable(event: RequestEvent, s: Session): Promise<void> {
   if (await isBanned(s.user_id)) {
     wipe(event);
     throw redirect(303, '/login?e=banned');
   }
 
-  // Server-side revocation: logout kills just this sid, "sign out
-  // everywhere" (settings) kills every sid issued before that moment. Same
-  // fail-open posture as the ban check above — isSessionRevoked never throws.
-  // Sessions minted before this feature shipped carry no sid and are treated
-  // as not revocable (see session-revocation.ts), so this never mass-signs-out
-  // everyone already logged in on deploy.
   if (await isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat })) {
     wipe(event);
     throw redirect(303, '/login?e=signedout');
   }
 
-  // Ghost-session gate: only an authoritative "no such user" (RpcError) wipes
-  // the cookie; a transport blip keeps the session and pages degrade instead.
   try {
     await accountState(s.user_id);
   } catch (err) {
@@ -125,6 +115,17 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
       throw redirect(303, '/login?e=signedout');
     }
   }
+}
+
+// guardSession validates an already-opened session against authoritative
+// account state. Returns the session to keep in locals, or throws a redirect
+// (wiping the cookie when the session itself is dead). Anonymous requests
+// never reach this — the (app) layout owns the login redirect for pages and
+// endpoints already 401 on a missing session.
+export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
+  if (DEMO || isPublic(event.url.pathname)) return s;
+
+  await assertAccountUsable(event, s);
 
   if (s.delegate_of && event.url.pathname !== '/delegate/exit') {
     // A delegate board dies out from under the session when the owner is

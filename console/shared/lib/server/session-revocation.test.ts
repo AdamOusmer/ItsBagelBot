@@ -33,7 +33,7 @@ describe('isSessionRevoked', () => {
   // read must be asked for the user's epoch only, never a sid key.
   test('a missing sid still consults the user epoch, with no sid key', async () => {
     let askedFor: string | undefined = 'unset';
-    setRevocationReadForTests(async (sid) => {
+    setRevocationReadForTests(async ({ sid }) => {
       askedFor = sid;
       return [null, null];
     });
@@ -71,7 +71,7 @@ describe('revokeSession / revokeAllForUser', () => {
   // since those are the oldest cookies in the wild. Keying the epoch check on
   // the sid would have skipped exactly the sessions the control is for.
   test('a sid-less legacy session is still revoked by the user epoch', async () => {
-    setRevocationReadForTests(async (sid, _userId) => {
+    setRevocationReadForTests(async ({ sid }) => {
       expect(sid).toBeUndefined();
       return [null, String(2_000)];
     });

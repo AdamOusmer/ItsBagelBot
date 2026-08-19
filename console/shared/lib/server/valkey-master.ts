@@ -27,6 +27,47 @@ import { getServerConfig, hasServerConfig } from './config';
 let client: Redis | null = null;
 let disabled = false;
 
+type ValkeyConfig = NonNullable<ReturnType<typeof getServerConfig>['valkey']>;
+type TLSOptions = ReturnType<typeof valkeyTLSOptions>;
+
+// Shared by both connection shapes: fail fast, never queue. An unreachable
+// master must degrade immediately (the caller's breaker takes over), not grow
+// an unbounded command queue.
+const FAIL_FAST = {
+  enableOfflineQueue: false,
+  maxRetriesPerRequest: 1,
+  connectTimeout: 1000,
+  retryStrategy: (times: number) => Math.min(times * 200, 2000)
+} as const;
+
+function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
+  return {
+    sentinels: [valkeyEndpoint(cfg.sentinelAddr as string, Boolean(tls), VALKEY_TLS_SENTINEL_PORT)],
+    // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
+    // through as "") must fall back to the sentinel's monitored name, not be
+    // used verbatim — a blank master name never resolves, so every revocation
+    // write would silently time out.
+    name: cfg.sentinelMaster || 'myprimary',
+    password: cfg.password || undefined,
+    // The sentinels carry the same requirepass as the data nodes, and ioredis
+    // authenticates the sentinel hop separately from the master connection.
+    // Without this the sentinel answers NOAUTH, the client never resolves a
+    // master, and every write silently degrades to fail-open.
+    sentinelPassword: cfg.password || undefined,
+    tls,
+    sentinelTLS: tls,
+    enableTLSForSentinelMode: Boolean(tls),
+    natMap: tls ? valkeySentinelNAT : undefined,
+    sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000),
+    ...FAIL_FAST
+  };
+}
+
+function directOptions(cfg: ValkeyConfig, tls: TLSOptions) {
+  const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
+  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...FAIL_FAST };
+}
+
 /**
  * Lazily build (or return the cached) Sentinel-pinned master client. Null
  * when Valkey is unconfigured (dev, unit tests, misordered boot) — callers
@@ -46,49 +87,7 @@ export function masterClient(): Redis | null {
   }
 
   const tls = valkeyTLSOptions(cfg);
-  let c: Redis;
-  if (cfg.sentinelAddr) {
-    const endpoint = valkeyEndpoint(cfg.sentinelAddr, Boolean(tls), VALKEY_TLS_SENTINEL_PORT);
-    c = new Redis({
-      sentinels: [endpoint],
-      // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
-      // through as "") must fall back to the sentinel's monitored name, not
-      // be used verbatim — a blank master name never resolves, so every
-      // revocation write would silently time out.
-      name: cfg.sentinelMaster || 'myprimary',
-      password: cfg.password || undefined,
-      // The sentinels carry the same requirepass as the data nodes (ACL
-      // default user with a password hash), and ioredis authenticates the
-      // sentinel hop separately from the master connection. Without this the
-      // sentinel answers NOAUTH, the client never resolves a master, and
-      // every write silently degrades to fail-open.
-      sentinelPassword: cfg.password || undefined,
-      tls,
-      sentinelTLS: tls,
-      enableTLSForSentinelMode: Boolean(tls),
-      natMap: tls ? valkeySentinelNAT : undefined,
-      // Fail fast, never queue: an unreachable master must degrade
-      // immediately, not grow an unbounded command queue.
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      connectTimeout: 1000,
-      retryStrategy: (times) => Math.min(times * 200, 2000),
-      sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000)
-    });
-  } else {
-    const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-    c = new Redis({
-      host: endpoint.host,
-      port: endpoint.port,
-      password: cfg.password || undefined,
-      tls,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      connectTimeout: 1000,
-      retryStrategy: (times) => Math.min(times * 200, 2000)
-    });
-  }
-
+  const c = new Redis(cfg.sentinelAddr ? sentinelOptions(cfg, tls) : directOptions(cfg, tls));
   // Swallow connection errors; ops fail fast under the caller's own breaker +
   // timeout and this client reconnects in the background.
   c.on('error', () => {});

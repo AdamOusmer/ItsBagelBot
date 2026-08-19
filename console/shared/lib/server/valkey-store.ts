@@ -146,10 +146,13 @@ export async function ready(): Promise<boolean> {
  * must never block the request. Returns [null, null] on a cold/absent key
  * OR on any failure — the caller cannot and must not tell those apart.
  */
-export async function getRevocation(
-  sid: string | undefined,
-  userId: string
-): Promise<[string | null, string | null]> {
+export interface RevocationKeys {
+  /** Absent for a session sealed before sids existed. */
+  sid?: string;
+  userId: string;
+}
+
+export async function getRevocation({ sid, userId }: RevocationKeys): Promise<[string | null, string | null]> {
   const c = get();
   if (!c) return [null, null];
   try {

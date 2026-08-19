@@ -117,7 +117,7 @@ export function setRevocationReadForTests(fn: ReadFn | undefined): void {
 export async function isSessionRevoked(input: RevocationCheck): Promise<boolean> {
   try {
     const read = readOverride ?? getRevocation;
-    const [sidHit, allAt] = await read(input.sid, input.userId);
+    const [sidHit, allAt] = await read({ sid: input.sid, userId: input.userId });
     if (sidHit !== null) return true;
     if (allAt !== null) {
       const epoch = Number(allAt);
