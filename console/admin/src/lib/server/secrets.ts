@@ -315,12 +315,17 @@ function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef, autoMigrate: boolean)
 }
 
 // assertManageable rejects credentials this console must never touch: the
-// privileged admin user itself, and (for revokes) users outside the service's
-// namespace.
-function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc?: ServiceDef): void {
+// privileged admin user itself, and users outside the service's own namespace.
+//
+// The namespace check matters on the write paths, not just revokes: every
+// caller hands the resulting user to provisionDbUser, which GRANTs it on that
+// service's schema. Without it, naming another service's user here would widen
+// that user's access to this schema too — the one thing the per-service
+// schema+user split exists to prevent.
+function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc: ServiceDef): void {
   assertFormat(cred.dbUser, FORMATS.dbUser);
   if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
-  if (svc && !cred.dbUser.startsWith(svc.expectedUserPrefix)) {
+  if (!cred.dbUser.startsWith(svc.expectedUserPrefix)) {
     throw new Error(`user must start with ${svc.expectedUserPrefix}`);
   }
 }
@@ -346,7 +351,7 @@ export async function setCredential(
   cred: DbCredentialInput
 ): Promise<{ dbUser: string }> {
   const svc = services[id];
-  assertManageable(cred);
+  assertManageable(cred, svc);
   assertFormat(cred.dbPass, FORMATS.dbPassword);
   await provisionDbUser(cred, svc);
   await updateDoppler(svc, dbEnvOf(cred, svc, true));
