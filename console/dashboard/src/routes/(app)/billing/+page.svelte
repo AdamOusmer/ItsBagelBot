@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Icon, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -131,6 +131,46 @@
     setTimeout(() => (confetti = []), 1900);
   }
 
+  // Celebration choreography, in order: the blob swirls in, bursts, the burst
+  // throws the confetti, and the face settles on love and holds it. The badge
+  // used to be a static heart icon; the blob now plays that beat itself.
+  const SWIRL_MS = 1150;
+  const BURST_MS = 780;
+  let celebrateSeq = $state<'entrance' | 'burst' | null>(null);
+  let celebrateSeqKey = $state(0);
+  let celebrateExpr = $state<string | null>(null);
+  let choreo: ReturnType<typeof setTimeout>[] = [];
+
+  function clearChoreo() {
+    choreo.forEach(clearTimeout);
+    choreo = [];
+  }
+
+  function playCelebration() {
+    clearChoreo();
+    // Reduced motion gets the end state with none of the travel: love, held.
+    if (prefersReducedMotion()) {
+      celebrateSeq = null;
+      celebrateExpr = 'love';
+      return;
+    }
+    celebrateExpr = null;
+    celebrateSeq = 'entrance';
+    celebrateSeqKey += 1;
+    choreo.push(
+      setTimeout(() => {
+        celebrateSeq = 'burst';
+        celebrateSeqKey += 1;
+      }, SWIRL_MS)
+    );
+    choreo.push(
+      setTimeout(() => {
+        burst();
+        celebrateExpr = 'love';
+      }, SWIRL_MS + BURST_MS)
+    );
+  }
+
   function openGift() {
     giftModalOpen = true;
   }
@@ -153,6 +193,9 @@
   }
   function closeCelebrate() {
     celebrateOpen = false;
+    clearChoreo();
+    celebrateSeq = null;
+    celebrateExpr = null;
     confetti = [];
   }
 
@@ -194,7 +237,7 @@
     celebrateKind = intent?.kind ?? 'premium';
     celebrateRecipient = intent?.recipient ?? '';
     celebrateOpen = true;
-    burst();
+    playCelebration();
     stripCheckoutParam();
 
     // A gift never changes the buyer's own plan, so there is nothing to wait for.
@@ -526,7 +569,15 @@
 <Modal open={celebrateOpen} closeModal={closeCelebrate}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
-      <Icon name="heart" size={30} />
+      <Bolota
+        name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
+        size={58}
+        active={celebrateOpen}
+        cycle={false}
+        sequence={celebrateSeq}
+        sequenceKey={celebrateSeqKey}
+        expression={celebrateExpr}
+      />
     </div>
 
     {#if celebrateKind === 'gift'}
