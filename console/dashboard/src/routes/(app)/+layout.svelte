@@ -130,6 +130,7 @@
     ...(!isDelegate
       ? [{ href: '/settings', icon: 'settings', label: t('nav.settings'), active: section === 'settings' }]
       : [])
+    ,{ href: 'https://stats.itsbagelbot.com', icon: 'bar-chart', label: t('nav.stats'), active: false }
   ] as NavLink[]);
 
   const groups = $derived([{ label: t('nav.manage'), items }] as NavGroupDef[]);
@@ -171,6 +172,7 @@
     {/if}
   {/snippet}
   {#snippet topActions()}
+    <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">{t('nav.status')}</a>
     {#if !isDelegate}
       <NotificationBell
         notifications={(data.bellNotifications ?? [])}
@@ -187,6 +189,20 @@
   {/snippet}
   {@render children()}
 </AppShell>
+
+<style>
+  .status-link {
+    font-family: var(--bb-font-body, inherit);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--bb-muted, #a39b8b);
+    text-decoration: none;
+    transition: color 180ms ease;
+  }
+  .status-link:hover {
+    color: var(--bb-tan-pale, #eceae1);
+  }
+</style>
 
 <!-- Hidden mark-read form the bell submits into; ?/markRead lives on the
      /settings route but SvelteKit actions can target any page. -->
