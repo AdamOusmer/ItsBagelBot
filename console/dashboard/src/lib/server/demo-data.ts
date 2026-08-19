@@ -49,6 +49,10 @@ export function demoSession(): Session {
     login: 'itsmavey',
     display_name: 'Mavey',
     role: 'streamer',
+    // Inert placeholder: DEMO sessions never touch guard.ts's revocation
+    // check (the DEMO branch returns before it runs), so this never needs to
+    // be a real per-mint id.
+    sid: 'demo-session',
     iat: now,
     expires_at: now + 3600
   };

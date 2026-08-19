@@ -4,6 +4,7 @@
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
+import { randomBytes } from 'node:crypto';
 import { decodeIdToken, OAuth2RequestError } from 'arctic';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
@@ -94,6 +95,10 @@ function streamerSession(id: Identity) {
     login: id.login,
     display_name: id.displayName,
     role: 'streamer' as const,
+    // Fresh sid per mint (this is a real login, not a re-seal): 16 random
+    // bytes is the revocation handle's whole identity, so it must not be
+    // guessable or reused.
+    sid: randomBytes(16).toString('base64url'),
     iat: now,
     expires_at: now + SESSION_TTL_SECONDS
   };

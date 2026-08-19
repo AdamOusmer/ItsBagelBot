@@ -25,6 +25,7 @@ import { MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
 import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
+import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -87,24 +88,25 @@ function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean 
   return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
 
-// guardSession validates an already-opened session against authoritative
-// account state. Returns the session to keep in locals, or throws a redirect
-// (wiping the cookie when the session itself is dead). Anonymous requests
-// never reach this — the (app) layout owns the login redirect for pages and
-// endpoints already 401 on a missing session.
-export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
-  if (DEMO || isPublic(event.url.pathname)) return s;
-
-  // Platform ban — own account. Same outage posture as before: isBanned serves
-  // last-known state through a users-service outage and fails open only with
-  // no cached state at all.
+// assertAccountUsable runs the three gates that judge the session itself,
+// each with the same outage posture: fail open on a transport blip, wipe the
+// cookie only on an authoritative answer.
+//   * ban — isBanned serves last-known state through a users-service outage.
+//   * revocation — logout kills this sid; "sign out everywhere" kills every
+//     session issued before that moment. isSessionRevoked never throws.
+//   * ghost session — only an RpcError ("no such user") wipes; anything else
+//     keeps the session and lets pages degrade.
+async function assertAccountUsable(event: RequestEvent, s: Session): Promise<void> {
   if (await isBanned(s.user_id)) {
     wipe(event);
     throw redirect(303, '/login?e=banned');
   }
 
-  // Ghost-session gate: only an authoritative "no such user" (RpcError) wipes
-  // the cookie; a transport blip keeps the session and pages degrade instead.
+  if (await isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat })) {
+    wipe(event);
+    throw redirect(303, '/login?e=signedout');
+  }
+
   try {
     await accountState(s.user_id);
   } catch (err) {
@@ -113,6 +115,17 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
       throw redirect(303, '/login?e=signedout');
     }
   }
+}
+
+// guardSession validates an already-opened session against authoritative
+// account state. Returns the session to keep in locals, or throws a redirect
+// (wiping the cookie when the session itself is dead). Anonymous requests
+// never reach this — the (app) layout owns the login redirect for pages and
+// endpoints already 401 on a missing session.
+export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
+  if (DEMO || isPublic(event.url.pathname)) return s;
+
+  await assertAccountUsable(event, s);
 
   if (s.delegate_of && event.url.pathname !== '/delegate/exit') {
     // A delegate board dies out from under the session when the owner is

@@ -8,6 +8,7 @@
 // actions audit back to the admin while these fields are present.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
+import { randomBytes } from 'node:crypto';
 import newrelic from 'newrelic';
 import { verifyViewAs } from '@bagel/shared/server/impersonation';
 import { claimOnce } from '@bagel/shared/server/rate-limit';
@@ -46,6 +47,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     login: p.login,
     display_name: p.display_name,
     role: 'streamer',
+    // Fresh sid: an admin "view as" is its own mint, not a re-seal of
+    // anything the admin already holds.
+    sid: randomBytes(16).toString('base64url'),
     iat: now,
     expires_at: now + IMPERSONATION_TTL_SECONDS,
     impersonator_id: p.by_id,
