@@ -67,6 +67,7 @@
     "featEncrypted": "Chiffrement de bout en bout",
     "featEdge": "Rapide partout",
     "noticeSignedout": "Vous avez été déconnecté. Ce compte n'existe plus sur ItsBagelBot.",
+    "noticeRevoked": "Vous avez été déconnecté sur tous vos appareils. Reconnectez-vous pour continuer.",
     "noticeBanned": "Ce compte ne peut plus utiliser la console.",
     "noticeLink": "Ce lien de partage n'est plus valide. Demandez un nouveau lien au diffuseur.",
     "noticeRetry": "La connexion n'a pas abouti. Rien n'a été sauvegardé. Veuillez réessayer.",

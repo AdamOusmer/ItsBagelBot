@@ -41,6 +41,18 @@ const OP_TIMEOUT_MS = 200;
 // every page render.
 const breaker = new CircuitBreaker({ name: 'valkey', failureThreshold: 3, resetMs: 5_000 });
 
+// Revocation reads get their OWN breaker, deliberately not the shared read-tier
+// one above. A cached read tripping that breaker is harmless — the caller falls
+// through to RPC — but it must never take the session-revocation check down with
+// it: a security control silently disabled by an unrelated component's failure
+// is exactly how a revoked session stays alive. Same failure-open posture, just
+// not the same fate.
+const revocationBreaker = new CircuitBreaker({
+  name: 'valkey-session-revocation-read',
+  failureThreshold: 3,
+  resetMs: 5_000
+});
+
 /**
  * Run a Valkey op under the breaker + a per-op timeout. Returns `fallback` (the
  * caller's miss sentinel) on a disabled store, an open circuit, a timeout, or
@@ -161,7 +173,7 @@ export async function getRevocation({ sid, userId }: RevocationKeys): Promise<[s
     // rather than skipping the check, or "sign out everywhere" would miss
     // exactly the long-lived cookies it exists to kill.
     const keys = sid ? [sessionRevokedKey(sid), sessionRevokedAllKey(userId)] : [sessionRevokedAllKey(userId)];
-    const values = await breaker.run(() =>
+    const values = await revocationBreaker.run(() =>
       withTimeout(c.mget(...keys), OP_TIMEOUT_MS, 'valkey session-revocation read')
     );
     const [sidHit, allAt] = sid ? values : [null, values[0]];

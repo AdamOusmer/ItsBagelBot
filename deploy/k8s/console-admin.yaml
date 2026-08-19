@@ -156,6 +156,17 @@ spec:
                 configMapKeyRef:
                   name: fleet-ca
                   key: ca.pem
+            - name: VALKEY_ADDR
+              # Authoritative here, not in Doppler: dashboard-env/console-admin-env
+              # still carry valkey.valkey.svc.cluster.local from before the cache
+              # moved to its own namespace, and that name is NXDOMAIN — every
+              # node-local read failed, the read breaker sat open, and the session
+              # revocation check failed open on every request. The sentinel address
+              # was already right, which is why writes landed and only reads broke.
+              # An explicit env entry wins over envFrom, so the stale copy is inert.
+              # The port is cosmetic: valkeyEndpoint rewrites it to the TLS port
+              # whenever a CA is present, which it is (VALKEY_TLS_CA_PEM below).
+              value: valkey-local.cache.svc.cluster.local:6380
             - name: VALKEY_TLS_SERVER_NAME
               value: valkey.cache.svc.cluster.local
             # mTLS: pkg/valkey's clientTLSConfig() treats these two as
