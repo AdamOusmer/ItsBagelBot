@@ -37,6 +37,8 @@
     "channelpoints": "Channel Points",
     "timers": "Timers",
     "billing": "Billing",
+    "stats": "Stats",
+    "status": "Status",
     "settings": "Settings"
   },
   "topbar": {
@@ -91,6 +93,7 @@
       "guides": "Guides",
       "contact": "Contact",
       "stats": "Stats",
+      "status": "Status",
       "cta": "Add to Twitch"
     },
     "footer": {
@@ -267,6 +270,8 @@
     "commands": "Commands",
     "modules": "Modules",
     "billing": "Billing",
+    "stats": "Stats",
+    "status": "Status",
     "editAccess": "Edit access",
     "notifications": "Notifications",
     "notificationsEmpty": "Nothing yet. Messages from the ItsBagelBot team will show up here.",
