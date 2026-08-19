@@ -12,6 +12,7 @@
   // Why the visitor bounced back here, when the app sent them with a reason.
   const NOTICES: Record<string, string> = {
     signedout: t('login.noticeSignedout'),
+    revoked: t('login.noticeRevoked'),
     banned: t('login.noticeBanned'),
     link: t('login.noticeLink'),
     retry: t('login.noticeRetry'),

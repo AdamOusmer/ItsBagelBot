@@ -236,6 +236,6 @@ export const actions: Actions = {
     if (s.sid) await revokeSession(s.sid, s.expires_at - now);
 
     cookies.delete(COOKIE, { path: '/', secure: url.protocol === 'https:' });
-    throw redirect(303, '/login?e=signedout');
+    throw redirect(303, '/login?e=revoked');
   }
 };

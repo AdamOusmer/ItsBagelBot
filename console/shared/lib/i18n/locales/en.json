@@ -67,6 +67,7 @@
     "featEncrypted": "End-to-end encrypted",
     "featEdge": "Fast from anywhere",
     "noticeSignedout": "You were signed out. That account no longer exists on ItsBagelBot.",
+    "noticeRevoked": "You were signed out on every device. Sign in again to continue.",
     "noticeBanned": "This account can no longer use the console.",
     "noticeLink": "That share link is no longer valid. Ask the broadcaster for a new one.",
     "noticeRetry": "Sign-in did not finish on our side. Nothing was saved. Please try again.",
