@@ -105,8 +105,6 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787011027-4cfd46290494@sha256:362b71c855d238923b24eb3ef07ad1e246780467d1ae5560fc386077403273de # {"$imagepolicy": "flux-system:gossip"}
           imagePullPolicy: IfNotPresent
           env:
-            - name: NATS_HOST
-              value: nats
             # gossip is RPC-only: it answers sesame's requests over
             # bagel.rpc.gossip.> and never touches JetStream, so it dials the
             # leaf exclusively (no NATS_HUB_URL) and carries no BUS credential.
