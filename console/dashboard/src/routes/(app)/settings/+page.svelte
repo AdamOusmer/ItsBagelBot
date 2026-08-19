@@ -127,6 +127,13 @@
   let deleteOpen = $state(false);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
+
+  // Sign out everywhere: same destructive-confirm shape as delete. The action
+  // revokes every session server-side, this one included, so it ends on the
+  // login page rather than back here.
+  let signOutOpen = $state(false);
+  let signingOut = $state(false);
+  let signOutForm = $state<HTMLFormElement | null>(null);
 </script>
 
 <section class="screen active">
@@ -335,6 +342,13 @@
     <p class="hint">{t('settings.dangerZoneHint')}</p>
     <div class="row">
       <div>
+        <b>{t('settings.signOutEverywhere')}</b>
+        <p class="hint">{t('settings.signOutEverywhereHint')}</p>
+      </div>
+      <Button variant="destructive" onclick={() => (signOutOpen = true)}>{t('settings.signOutEverywhere')}</Button>
+    </div>
+    <div class="row">
+      <div>
         <b>{t('settings.deleteAccount')}</b>
         <p class="hint">{t('settings.deleteAccountHint')}</p>
       </div>
@@ -383,6 +397,25 @@
   <form method="POST" action="?/optOut" use:enhance bind:this={leaveForm} hidden>
     <input type="hidden" name="owner_user_id" value={leaveTarget.owner_user_id} />
   </form>
+{/if}
+
+<!-- Sign out everywhere: destructive, names the consequence, Cancel focused. -->
+<ConfirmDialog
+  open={signOutOpen}
+  title={t('settings.signOutEverywhereTitle')}
+  body={t('settings.signOutEverywhereBody')}
+  confirmLabel={t('settings.signOutEverywhere')}
+  cancelLabel={t('common.cancel')}
+  danger
+  busy={signingOut}
+  onCancel={() => (signOutOpen = false)}
+  onConfirm={() => {
+    signingOut = true;
+    signOutForm?.requestSubmit();
+  }}
+/>
+{#if signOutOpen}
+  <form method="POST" action="?/signOutEverywhere" use:enhance bind:this={signOutForm} hidden></form>
 {/if}
 
 <!-- Delete confirm: destructive, names the consequence, Cancel focused. -->
