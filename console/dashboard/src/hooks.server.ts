@@ -16,6 +16,7 @@ import {
 } from '@bagel/shared/server/hooks';
 import { rumTransform } from '@bagel/shared/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/shared/server/rate-limit';
+import { warmSessionRevocation } from '@bagel/shared/server/session-revocation';
 import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
@@ -36,6 +37,7 @@ export const init: ServerInit = async () => {
   // hot path.
   warmValkey();
   warmRateLimiter();
+  warmSessionRevocation();
 
   // Subscribe to the cache-invalidation bus so writes in Go services push-drop
   // the right keys without waiting on TTL expiry.

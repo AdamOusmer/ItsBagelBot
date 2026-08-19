@@ -19,7 +19,8 @@ import {
   userLocale,
   type NotificationWire
 } from '$lib/server/services';
-import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
+import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
+import { revokeAllForUser, revokeSession } from '@bagel/shared/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
@@ -214,5 +215,27 @@ export const actions: Actions = {
     await delegationOptOut(s.user_id, ownerId);
     auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
     return { ok: true, action: 'opted_out' };
-  })
+  }),
+
+  // Kills every session the owner holds (this browser included) rather than
+  // just this one cookie. Owner-only, same guard as the rest of this file's
+  // actions — a delegate has no session of their own to sweep and must not
+  // be able to sign the owner out from someone else's board. Not wrapped in
+  // ownerAction: this action ends in a redirect + cookie wipe, not a form
+  // result, so it needs cookies/url that helper doesn't hand back.
+  signOutEverywhere: async ({ locals, cookies, url }) => {
+    const s = locals.session;
+    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+
+    const now = Math.floor(Date.now() / 1000);
+    // Both calls are best-effort and never throw (fail-open, see
+    // session-revocation.ts): a Valkey blip must not trap the owner in a
+    // session they just asked to leave, even if the OTHER devices don't get
+    // the memo until Valkey recovers.
+    await revokeAllForUser(s.user_id, now, SESSION_TTL_SECONDS);
+    if (s.sid) await revokeSession(s.sid, s.expires_at - now);
+
+    cookies.delete(COOKIE, { path: '/', secure: url.protocol === 'https:' });
+    throw redirect(303, '/login?e=signedout');
+  }
 };

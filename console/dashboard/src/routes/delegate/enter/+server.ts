@@ -37,6 +37,9 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
     login: s.login,
     display_name: s.display_name,
     role: 'streamer',
+    // Re-seal, not a mint: keep the original sid so a revocation targeting
+    // this browser's session still finds it after switching boards.
+    sid: s.sid,
     iat: s.iat,
     expires_at: s.expires_at,
     delegate_of: owner,
