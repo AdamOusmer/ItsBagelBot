@@ -13,6 +13,7 @@
       "default": "./lib/index.ts"
     },
     "./server/config-sanity": "./lib/server/config-sanity.ts",
+    "./server/demo-guard": "./lib/server/demo-guard.ts",
     "./server/config": "./lib/server/config.ts",
     "./server/logger": "./lib/server/logger.ts",
     "./server/session": "./lib/server/session.ts",

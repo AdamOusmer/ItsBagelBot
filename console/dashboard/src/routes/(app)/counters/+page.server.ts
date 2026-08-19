@@ -11,41 +11,19 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Counters are a catalog-defined Modules tool, so the page and every action
 // derive delegate access from the same definition as its tile and route guard.
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'counters');
-}
-
-function demoCounters(): CounterDef[] {
-  return [
-    { name: 'deaths', scope: 'channel', value: 137 },
-    { name: 'hugs', scope: 'viewer', value: 0 },
-    { name: 'raids', scope: 'command', value: 0 },
-    { name: 'redeems', scope: 'viewer_command', value: 0 }
-  ];
-}
-
-// demoEntries mirrors what counter.entries returns for each demo counter, so
-// the inspector drill-down works offline too.
-function demoEntries(name: string): CounterEntryView[] {
-  if (name === 'raids') {
-    return [
-      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'raid', value: 41 },
-      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'so', value: 12 }
-    ];
-  }
-  return [
-    { viewerId: '101', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
-    { viewerId: '102', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
-  ];
 }
 
 // The optional ?c=<name> selects one entry-scoped counter whose stored values
@@ -54,7 +32,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const selected = normalizeName(url.searchParams.get('c'));
-  if (env.DEMO === '1') {
+  if (DEMO) {
+    const { demoCounters, demoEntries } = await import('$lib/server/demo-data');
     const demo = demoCounters();
     const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
     return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
@@ -84,11 +63,11 @@ type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 function mutate(op: string, run: Mutation) {
   return async ({ request, locals }: Parameters<NonNullable<Actions[string]>>[0]) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
-    if (env.DEMO === '1') return { ok: true };
+    if (DEMO) return { ok: true };
     let detail: string | null;
     try {
       detail = await run(uid, f);

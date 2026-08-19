@@ -18,34 +18,20 @@ import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, 
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 
-// The dashboard a write targets: for a delegate it is the owner's board, for a
-// normal login it is the user's own. A delegate must also hold the 'commands'
-// section, else they have no business here.
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 function gateCommands(session: Session | null | undefined): void {
   if (session?.delegate_of && !(session.sections ?? []).includes('commands')) {
     throw redirect(302, '/');
   }
 }
-
-// Sample rows use the STORED key format (no leading "!" — chat adds it), same
-// as what the projector serves; the UI renders the "!" itself.
-const sample: CommandView[] = [
-  { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
-  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
-  { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
-  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
-  { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
-  { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: '177', is_active: true }
-];
 
 // configString reads one string field out of a module's opaque config blob,
 // tolerating any non-object/absent shape. Used to pull a built-in's saved reply
@@ -95,7 +81,10 @@ function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandVie
 export const load: PageServerLoad = async ({ locals }) => {
   gateCommands(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { commands: mergeCommands(sample, []) };
+  if (DEMO) {
+    const { demoCommandRows } = await import('$lib/server/demo-data');
+    return { commands: mergeCommands(demoCommandRows, []) };
+  }
   try {
     const [custom, modules] = await Promise.all([listCommands(uid), listModules(uid).catch(() => [])]);
     return { commands: mergeCommands(custom, modules) };
@@ -165,7 +154,7 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
 // production requests need the auth gate — null means "respond 401".
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gateCommands(locals.session);
-  if (env.DEMO !== '1' && !locals.session) return null;
+  if (!DEMO && !locals.session) return null;
   return {
     uid: effectiveId(locals.session),
     session: locals.session,
@@ -253,7 +242,7 @@ export const actions: Actions = {
 
     // DEMO: echo the row back as a success so the demo console exercises the
     // full optimistic flow without NATS.
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return saveResult(s, [demoView(s.cmd, s.isActive)]);
     }
 
@@ -275,7 +264,7 @@ export const actions: Actions = {
     const cmd = parseCommand(f);
     const isActive = f.get('is_active') === 'on';
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'updated', name: cmd.name, commands: [demoView(cmd, isActive)], silent: true };
     }
 
@@ -294,7 +283,7 @@ export const actions: Actions = {
 
     const name = String(f.get('name') ?? '');
 
-    if (env.DEMO === '1') return { ok: true, action: 'deleted', name };
+    if (DEMO) return { ok: true, action: 'deleted', name };
 
     const res = await tryRpc('delete', () => deleteCommand(uid, name));
     if (!res.ok) return fail(400, { ok: false });
@@ -318,7 +307,7 @@ export const actions: Actions = {
     const isActive = f.get('is_active') === 'on';
     const view = builtinRow(def, def.summary, isActive);
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
@@ -352,7 +341,7 @@ export const actions: Actions = {
     const isActive = f.get('is_active') === 'on';
     const view = builtinRow(def, reply || def.preview, isActive);
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 

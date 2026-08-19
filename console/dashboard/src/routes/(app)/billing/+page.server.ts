@@ -8,7 +8,12 @@ import type { Session } from '$lib/server/session';
 import { RpcError } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
 import { containsLink } from '@bagel/shared/validation';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Who a billing action operates on: the owner's account. Runnable by the owner,
 // or by a delegate explicitly granted the billing section (Tebex handles the
@@ -49,22 +54,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // the login flow); the page auto-opens checkout when the plan allows it.
   const autostart = url.searchParams.get('subscribe') === '1';
 
-  if (env.DEMO === '1') {
-    return {
-      account: {
-        active: true,
-        status: 'paid',
-        expiresAt: new Date(Date.now() + 15 * 864e5).toISOString(),
-        source: 'tebex',
-        subscriptionRef: 'tbx-r-demo',
-        cancelPending: false
-      } as BillingState,
-      links: {
-        cancelUrl: 'https://example.tebex.io/account'
-      } satisfies BillingLinks,
-      degraded: false,
-      autostart
-    };
+  if (DEMO) {
+    const { demoBilling } = await import('$lib/server/demo-data');
+    const { account, links } = demoBilling();
+    return { account, links: links satisfies BillingLinks, degraded: false, autostart };
   }
 
   const s = locals.session;

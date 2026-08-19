@@ -26,8 +26,15 @@
 // admin lane sampler). Sampling is per-pod and per-process, which is fine — the
 // counters are fleet-global, so any pod's delta measures the same fleet.
 import { rpc } from '@bagel/shared/server/nats';
+import { dev } from '$app/environment';
 import { POLICY } from '@bagel/shared/server/cache-keys';
 import { fabric, SUB } from './services';
+
+// Gated on the build-time `dev` constant first, so Rollup erases the demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+// process.env, not $env/dynamic/private: this module is reachable from the
+// boot import graph, where the dynamic-env proxy deadlocks server.init.
+const DEMO = dev && process.env.DEMO === '1';
 
 const CACHE_KEY = 'public-stats:global';
 
@@ -130,23 +137,6 @@ function degradedStats(): PublicStats {
   return { messages_total: 0, events_total: 0, msg_rate: null, event_rate: null, degraded: true };
 }
 
-// DEMO=1 serves a synthetic, steadily-growing snapshot so the page can be
-// previewed without a fleet behind it (same convention as demo-notifications).
-const DEMO_EPOCH = Date.parse('2026-01-01T00:00:00Z');
-
-function demoStats(now: number): PublicStats {
-  const secs = (now - DEMO_EPOCH) / 1000;
-  const msgRate = 84 + 12 * Math.sin(now / 45_000);
-  const eventRate = 137 + 18 * Math.sin(now / 60_000 + 1.7);
-  return {
-    messages_total: Math.floor(1_508_000_000 + secs * 84),
-    events_total: Math.floor(2_430_000_000 + secs * 137),
-    msg_rate: msgRate,
-    event_rate: eventRate,
-    degraded: false
-  };
-}
-
 async function loadStats(): Promise<PublicStats> {
   const [messages, events] = await Promise.all([counterValue(COUNTER_MESSAGES), counterValue(COUNTER_EVENTS)]);
   if (messages === null || events === null) return degradedStats();
@@ -167,7 +157,7 @@ async function loadStats(): Promise<PublicStats> {
  * `degraded: true`.
  */
 export async function publicStats(): Promise<PublicStats> {
-  if (process.env.DEMO === '1') return demoStats(Date.now());
+  if (DEMO) return (await import('./demo-data')).demoStats(Date.now());
   try {
     return await fabric.readKey(CACHE_KEY, POLICY.live, loadStats);
   } catch {

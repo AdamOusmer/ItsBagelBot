@@ -9,12 +9,14 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // A delegate needs the 'modules' section to be here; a normal login always may.
 function gateModules(session: Session | null | undefined): void {
@@ -55,7 +57,7 @@ function merge(rows: ModuleView[], session: Session | null | undefined): ModuleS
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { modules: merge([], locals.session) };
+  if (DEMO) return { modules: merge([], locals.session) };
   try {
     return { modules: merge(await listModules(uid), locals.session) };
   } catch {
@@ -77,23 +79,30 @@ function resolveToggle(name: string, session: Session | null | undefined): Toggl
   return { uid: effectiveId(session) };
 }
 
+// The prologue the tile toggle shares with every other module write: section
+// gate, auth check, form parse. DEMO runs without a session (the action
+// short-circuits before the store call).
+async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
+  gateModules(locals.session);
+  if (!DEMO && !locals.session) return null;
+  return { session: locals.session, form: await request.formData() };
+}
+
 export const actions: Actions = {
   // Quick tile on/off: flips enabled while preserving the stored config.
-  toggle: async ({ request, locals }) => {
-    gateModules(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
-      return fail(401, { ok: false, error: 'Not signed in.' });
-    }
+  toggle: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
 
-    const f = await request.formData();
+    const f = ctx.form;
     const name = String(f.get('name') ?? '');
-    const target = resolveToggle(name, locals.session);
+    const target = resolveToggle(name, ctx.session);
     if ('denied' in target) return target.denied;
     const enabled = f.get('is_enabled') === 'on';
 
-    if (env.DEMO === '1') return { ok: true, name, enabled };
+    if (DEMO) return { ok: true, name, enabled };
 
-    return flipModule({ name, uid: target.uid, enabled }, locals.session);
+    return flipModule({ name, uid: target.uid, enabled }, ctx.session);
   }
 };
 

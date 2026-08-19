@@ -16,8 +16,14 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // The longest quote the modules service will store (repository.QuoteTextMaxLen).
 const QUOTE_MAX = 450;
@@ -47,10 +53,6 @@ function quoteDate(value: FormDataEntryValue | null): Date | null {
   return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw ? null : parsed;
 }
 
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
-
 // Delegate scope comes from the quotes catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'quotes');
@@ -62,19 +64,10 @@ function actingLogin(session: Session | null | undefined): string {
   return session?.delegate_login ?? session?.login ?? 'dashboard';
 }
 
-// Demo book so the tab renders without a live backend.
-function demoQuotes(): QuoteView[] {
-  return [
-    { number: 1, text: 'I meant to do that.', added_by: 'mod_amy', created_at: '2026-06-02T20:14:00Z' },
-    { number: 3, text: 'The bagels are sentient and I welcome them.', added_by: 'mod_amy', created_at: '2026-06-19T02:41:00Z' },
-    { number: 4, text: 'Never trust a ferret with a keyboard.', added_by: 'streamer', created_at: '2026-07-01T18:03:00Z' }
-  ];
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { enabled: true, addPerm: 'mod', editPerm: 'mod', quotes: demoQuotes() };
+  if (DEMO) return (await import('$lib/server/demo-data')).demoQuotesView();
   try {
     const view = await readQuotes(uid);
     return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
@@ -87,11 +80,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 // and form parse. DEMO runs without a session (branches short-circuit before RPC).
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gate(locals.session);
-  if (env.DEMO !== '1' && !locals.session) return null;
+  if (!DEMO && !locals.session) return null;
   return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
 }
 
 const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+
+type QuoteCtx = NonNullable<Awaited<ReturnType<typeof actionContext>>>;
+
+// runQuote wraps the write half all five actions share: the store call, the
+// audit line naming the acting login, and one failure mapping. Validation and
+// the success payload stay with the caller, since those are what differ.
+async function runQuote<T extends object>(
+  ctx: QuoteCtx,
+  op: { verb: string; error?: string; run: () => Promise<{ audit: string; payload: T }> }
+) {
+  try {
+    const { audit, payload } = await op.run();
+    auditDashboardImpersonation(ctx.session, `quotes:${op.verb}`, audit);
+    return { ok: true, ...payload };
+  } catch (e) {
+    logger.error({ err: e }, `[quotes] ${op.verb} failed`);
+    return fail(400, op.error ? { ok: false, error: op.error } : { ok: false });
+  }
+}
 
 export const actions: Actions = {
   add: async (event) => {
@@ -104,22 +116,22 @@ export const actions: Actions = {
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'added', quote: { number: 0, text, created_at: createdAt.toISOString() } };
     }
 
-    try {
-      const quote = await addQuote(ctx.uid, {
-        text,
-        addedBy: actingLogin(ctx.session),
-        createdAt: createdAt.toISOString()
-      });
-      auditDashboardImpersonation(ctx.session, 'quotes:add', String(quote.number));
-      return { ok: true, action: 'added', quote };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] add failed');
-      return fail(400, { ok: false, error: 'Could not save the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'add',
+      error: 'Could not save the quote.',
+      run: async () => {
+        const quote = await addQuote(ctx.uid, {
+          text,
+          addedBy: actingLogin(ctx.session),
+          createdAt: createdAt.toISOString()
+        });
+        return { audit: String(quote.number), payload: { action: 'added', quote } };
+      }
+    });
   },
 
   // Rewrite one quote's text and day in place; the number survives.
@@ -136,18 +148,18 @@ export const actions: Actions = {
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
     }
 
-    try {
-      const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
-      auditDashboardImpersonation(ctx.session, 'quotes:edit', String(num));
-      return { ok: true, action: 'edited', quote };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] edit failed');
-      return fail(400, { ok: false, error: 'Could not update the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'edit',
+      error: 'Could not update the quote.',
+      run: async () => {
+        const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
+        return { audit: String(num), payload: { action: 'edited', quote } };
+      }
+    });
   },
 
   delete: async (event) => {
@@ -157,16 +169,16 @@ export const actions: Actions = {
     const num = Math.trunc(Number(ctx.form.get('number')));
     if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: 'Invalid quote number.' });
 
-    if (env.DEMO === '1') return { ok: true, action: 'deleted', number: num };
+    if (DEMO) return { ok: true, action: 'deleted', number: num };
 
-    try {
-      await removeQuote(ctx.uid, num);
-      auditDashboardImpersonation(ctx.session, 'quotes:delete', String(num));
-      return { ok: true, action: 'deleted', number: num };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] delete failed');
-      return fail(400, { ok: false, error: 'Could not delete the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'delete',
+      error: 'Could not delete the quote.',
+      run: async () => {
+        await removeQuote(ctx.uid, num);
+        return { audit: String(num), payload: { action: 'deleted', number: num } };
+      }
+    });
   },
 
   // Master on/off for the whole module (whether !quote does anything in chat).
@@ -175,16 +187,15 @@ export const actions: Actions = {
     if (!ctx) return notSignedIn();
 
     const enabled = ctx.form.get('is_enabled') === 'on';
-    if (env.DEMO === '1') return { ok: true, enabled };
+    if (DEMO) return { ok: true, enabled };
 
-    try {
-      await setEnabled(ctx.uid, enabled);
-      auditDashboardImpersonation(ctx.session, 'quotes:toggle', String(enabled));
-      return { ok: true, enabled };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] toggle failed');
-      return fail(400, { ok: false });
-    }
+    return runQuote(ctx, {
+      verb: 'toggle',
+      run: async () => {
+        await setEnabled(ctx.uid, enabled);
+        return { audit: String(enabled), payload: { enabled } };
+      }
+    });
   },
 
   // Change who may save or edit a quote from chat (moderator by default).
@@ -198,15 +209,14 @@ export const actions: Actions = {
 
     const raw = String(ctx.form.get('perm') ?? '');
     const perm = (PERMS as readonly string[]).includes(raw) ? raw : 'mod';
-    if (env.DEMO === '1') return { ok: true, kind, perm };
+    if (DEMO) return { ok: true, kind, perm };
 
-    try {
-      await setPerm(ctx.uid, kind, perm);
-      auditDashboardImpersonation(ctx.session, `quotes:perm:${kind}`, perm);
-      return { ok: true, kind, perm };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] perm failed');
-      return fail(400, { ok: false });
-    }
+    return runQuote(ctx, {
+      verb: `perm:${kind}`,
+      run: async () => {
+        await setPerm(ctx.uid, kind, perm);
+        return { audit: perm, payload: { kind, perm } };
+      }
+    });
   }
 };

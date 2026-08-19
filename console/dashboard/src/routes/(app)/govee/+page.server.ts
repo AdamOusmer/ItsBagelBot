@@ -16,45 +16,18 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Delegate scope comes from the govee catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'govee');
-}
-
-function demoView(): GoveeView {
-  return {
-    enabled: true,
-    keyPresent: true,
-    // One light configured, one left open, so the deck shows both states.
-    bindings: [
-      {
-        device: 'AB:CD:EF:12:34:56',
-        sku: 'H6159',
-        deviceName: 'Desk strip',
-        onRedeem: 'fulfill',
-        rewardId: 'demo-reward',
-        reward: { rewardId: 'demo-reward', title: 'Colour the desk strip', cost: 500, color: '#9147ff', cooldown: 0 },
-        allowOffline: false,
-        allowOff: true,
-        replyMessage: '@{user} set the lights to {color}!'
-      }
-    ]
-  };
-}
-
-function demoDevices(): GoveeDevice[] {
-  return [
-    { device: 'AB:CD:EF:12:34:56', sku: 'H6159', name: 'Desk strip', color: true },
-    { device: '11:22:33:44:55:66', sku: 'H6072', name: 'Floor lamp', color: true },
-    { device: '99:88:77:66:55:44', sku: 'H5081', name: 'Smart plug', color: false }
-  ];
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -62,8 +35,9 @@ export const load: PageServerLoad = async ({ locals }) => {
   const uid = effectiveId(locals.session);
   const colors = [...GOVEE_COLOR_NAMES];
 
-  if (env.DEMO === '1') {
-    return { ...demoView(), devices: { devices: demoDevices(), error: undefined }, colors };
+  if (DEMO) {
+    const { demoGoveeView, demoGoveeDevices } = await import('$lib/server/demo-data');
+    return { ...demoGoveeView(), devices: { devices: demoGoveeDevices(), error: undefined }, colors };
   }
 
   try {
@@ -91,7 +65,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 function requireSession(locals: App.Locals): string | null {
-  if (env.DEMO !== '1' && !locals.session) return null;
+  if (!DEMO && !locals.session) return null;
   return effectiveId(locals.session);
 }
 
@@ -165,7 +139,7 @@ async function run(
   gate(locals.session);
   const uid = requireSession(locals);
   if (uid === null) return fail(401, { ok: false, error: 'Not signed in.' });
-  if (env.DEMO === '1') return { ok: true };
+  if (DEMO) return { ok: true };
 
   let res: GoveeResult;
   try {

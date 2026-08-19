@@ -8,17 +8,17 @@ import { fileURLToPath } from 'node:url';
 const buildRoot = fileURLToPath(new URL('../build/', import.meta.url));
 const textExtensions = new Set(['.css', '.html', '.js', '.json', '.map']);
 
-// Every seeded fixture lives behind the guarded demo-data module. Detect the
-// module itself instead of maintaining an inevitably incomplete list of its
-// current values: an emitted chunk, source-map reference, import edge, or the
-// module's side-effect sentinel is enough to fail the production build.
+// Every seeded fixture lives behind the guarded demo-data module, and every
+// demo branch is gated on the build-time `dev` constant. Detect the module and
+// the env read instead of maintaining an inevitably incomplete list of fixture
+// values: an emitted chunk, source-map reference, import edge, the module's
+// side-effect sentinel, or a surviving DEMO env read is enough to fail the
+// production build. A surviving `env.DEMO` also means a branch escaped Rollup's
+// dead-code elimination, which is exactly the condition that would let a
+// runtime env var re-enable demo mode on a shipped image.
 const forbiddenModuleTokens = [
-  'ADMIN_DEV_FIXTURE_INCLUDED_IN_PRODUCTION',
+  'DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION',
   'demo-data',
-  // A surviving env read means a demo branch escaped dead-code elimination,
-  // which is the precondition for a runtime env var re-enabling demo mode on a
-  // shipped image. The deliberate boot-time refusal reads the key through
-  // shared/server/demo-guard, which never spells this out.
   'env.DEMO'
 ] as const;
 
@@ -38,7 +38,7 @@ const files = await filesUnder(buildRoot);
 
 for (const file of files) {
   const name = relative(buildRoot, file);
-  if (/(^|[/\\])(demo-data|demo-access|sample)([.-]|[/\\])/.test(name)) {
+  if (/(^|[/\\])(demo-data|demo-notifications|sample)([.-]|[/\\])/.test(name)) {
     failures.push(`${name}: development fixture chunk was emitted`);
   }
   if (!textExtensions.has(extname(file))) continue;
@@ -50,9 +50,9 @@ for (const file of files) {
 }
 
 if (failures.length > 0) {
-  console.error('Production admin build contains development-only demo artifacts:');
+  console.error('Production dashboard build contains development-only demo artifacts:');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
-console.log(`Verified ${files.length} production build files: no admin demo fixtures emitted.`);
+console.log(`Verified ${files.length} production build files: no dashboard demo fixtures emitted.`);
