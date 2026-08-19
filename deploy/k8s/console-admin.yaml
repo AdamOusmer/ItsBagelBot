@@ -116,7 +116,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787011027-4cfd46290494@sha256:ae9db3ba9f132a45e9dee486cd1f9ce804efd9c41943beb7604e260807aae341 # {"$imagepolicy": "flux-system:console-admin"}
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787105223-984f2e360732@sha256:7feac71cfe8e39e8627dcc67a8d077575407398c608424dc1802ad814474a0d7 # {"$imagepolicy": "flux-system:console-admin"}
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
