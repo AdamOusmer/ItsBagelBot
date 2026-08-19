@@ -86,6 +86,25 @@ async function actionContext({ request, locals }: { request: Request; locals: Ap
 
 const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
 
+type QuoteCtx = NonNullable<Awaited<ReturnType<typeof actionContext>>>;
+
+// runQuote wraps the write half all five actions share: the store call, the
+// audit line naming the acting login, and one failure mapping. Validation and
+// the success payload stay with the caller, since those are what differ.
+async function runQuote<T extends object>(
+  ctx: QuoteCtx,
+  op: { verb: string; error?: string; run: () => Promise<{ audit: string; payload: T }> }
+) {
+  try {
+    const { audit, payload } = await op.run();
+    auditDashboardImpersonation(ctx.session, `quotes:${op.verb}`, audit);
+    return { ok: true, ...payload };
+  } catch (e) {
+    logger.error({ err: e }, `[quotes] ${op.verb} failed`);
+    return fail(400, op.error ? { ok: false, error: op.error } : { ok: false });
+  }
+}
+
 export const actions: Actions = {
   add: async (event) => {
     const ctx = await actionContext(event);
@@ -101,18 +120,18 @@ export const actions: Actions = {
       return { ok: true, action: 'added', quote: { number: 0, text, created_at: createdAt.toISOString() } };
     }
 
-    try {
-      const quote = await addQuote(ctx.uid, {
-        text,
-        addedBy: actingLogin(ctx.session),
-        createdAt: createdAt.toISOString()
-      });
-      auditDashboardImpersonation(ctx.session, 'quotes:add', String(quote.number));
-      return { ok: true, action: 'added', quote };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] add failed');
-      return fail(400, { ok: false, error: 'Could not save the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'add',
+      error: 'Could not save the quote.',
+      run: async () => {
+        const quote = await addQuote(ctx.uid, {
+          text,
+          addedBy: actingLogin(ctx.session),
+          createdAt: createdAt.toISOString()
+        });
+        return { audit: String(quote.number), payload: { action: 'added', quote } };
+      }
+    });
   },
 
   // Rewrite one quote's text and day in place; the number survives.
@@ -133,14 +152,14 @@ export const actions: Actions = {
       return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
     }
 
-    try {
-      const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
-      auditDashboardImpersonation(ctx.session, 'quotes:edit', String(num));
-      return { ok: true, action: 'edited', quote };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] edit failed');
-      return fail(400, { ok: false, error: 'Could not update the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'edit',
+      error: 'Could not update the quote.',
+      run: async () => {
+        const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
+        return { audit: String(num), payload: { action: 'edited', quote } };
+      }
+    });
   },
 
   delete: async (event) => {
@@ -152,14 +171,14 @@ export const actions: Actions = {
 
     if (DEMO) return { ok: true, action: 'deleted', number: num };
 
-    try {
-      await removeQuote(ctx.uid, num);
-      auditDashboardImpersonation(ctx.session, 'quotes:delete', String(num));
-      return { ok: true, action: 'deleted', number: num };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] delete failed');
-      return fail(400, { ok: false, error: 'Could not delete the quote.' });
-    }
+    return runQuote(ctx, {
+      verb: 'delete',
+      error: 'Could not delete the quote.',
+      run: async () => {
+        await removeQuote(ctx.uid, num);
+        return { audit: String(num), payload: { action: 'deleted', number: num } };
+      }
+    });
   },
 
   // Master on/off for the whole module (whether !quote does anything in chat).
@@ -170,14 +189,13 @@ export const actions: Actions = {
     const enabled = ctx.form.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled };
 
-    try {
-      await setEnabled(ctx.uid, enabled);
-      auditDashboardImpersonation(ctx.session, 'quotes:toggle', String(enabled));
-      return { ok: true, enabled };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] toggle failed');
-      return fail(400, { ok: false });
-    }
+    return runQuote(ctx, {
+      verb: 'toggle',
+      run: async () => {
+        await setEnabled(ctx.uid, enabled);
+        return { audit: String(enabled), payload: { enabled } };
+      }
+    });
   },
 
   // Change who may save or edit a quote from chat (moderator by default).
@@ -193,13 +211,12 @@ export const actions: Actions = {
     const perm = (PERMS as readonly string[]).includes(raw) ? raw : 'mod';
     if (DEMO) return { ok: true, kind, perm };
 
-    try {
-      await setPerm(ctx.uid, kind, perm);
-      auditDashboardImpersonation(ctx.session, `quotes:perm:${kind}`, perm);
-      return { ok: true, kind, perm };
-    } catch (e) {
-      logger.error({ err: e }, '[quotes] perm failed');
-      return fail(400, { ok: false });
-    }
+    return runQuote(ctx, {
+      verb: `perm:${kind}`,
+      run: async () => {
+        await setPerm(ctx.uid, kind, perm);
+        return { audit: perm, payload: { kind, perm } };
+      }
+    });
   }
 };
