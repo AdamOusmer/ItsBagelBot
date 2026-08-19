@@ -16,13 +16,16 @@ const DEMO = dev && env.DEMO === '1';
 // grant / …) the same bus that evicts the server cache pushes the scope here and
 // the client re-fetches. No polling.
 //
-// Owner or delegate: we stream the effective board id (delegate_of ?? user_id),
-// matching the id the reads are keyed on.
+// Owners only. A delegate's pages already SSR fresh on every navigation (the
+// client never opens this stream for them), and the board they operate is not
+// theirs: streaming it would hand them a change signal for families their
+// grant does not cover — `ban:<owner>`, `billing-state:<owner>` — which is
+// exactly the inference the section scoping exists to prevent.
 export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
   // DEMO has no real session; stream a demo board so the plumbing is exercisable
   // locally (no NATS events arrive, but the connection + keepalive do).
-  const boardId = s ? (s.delegate_of ?? s.user_id) : DEMO ? 'demo' : null;
+  const boardId = s && !s.delegate_of ? s.user_id : DEMO ? 'demo' : null;
   if (!boardId) return new Response('unauthorized', { status: 401 });
 
   let cleanup = () => {};
@@ -46,8 +49,12 @@ export const GET: RequestHandler = ({ locals, request }) => {
       send(': connected\n\n');
       send('event: ready\ndata: 1\n\n');
 
-      const unsubscribe = subscribe(boardId, (scope) => {
-        send(`event: invalidate\ndata: ${scope}\n\n`);
+      // The payload is a constant, not the scope name: the client refetches
+      // everything on any invalidate (see (app)/+layout.svelte), so the scope
+      // is dead data on the wire — and dead data that names which family of
+      // the owner's state changed.
+      const unsubscribe = subscribe(boardId, () => {
+        send('event: invalidate\ndata: 1\n\n');
       });
 
       // Keepalive comment so idle proxies (the Cloudflare tunnel) don't reap the
