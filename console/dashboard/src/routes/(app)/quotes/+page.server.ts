@@ -16,9 +16,10 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -50,16 +51,6 @@ function quoteDate(value: FormDataEntryValue | null): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
   const parsed = new Date(`${raw}T12:00:00Z`);
   return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw ? null : parsed;
-}
-
-// The board a read/write targets. With no session there is no board: in a
-// production build that is a dead end (the layout's login redirect is the only
-// legitimate outcome), and only a dev demo build falls back to the fixture id.
-function effectiveId(session: Session | null | undefined): string {
-  const id = session?.delegate_of ?? session?.user_id;
-  if (id) return id;
-  if (DEMO) return 'demo';
-  throw redirect(302, '/login');
 }
 
 // Delegate scope comes from the quotes catalog def (see module-gate.ts).

@@ -224,7 +224,15 @@ export const load: PageServerLoad = ({ locals }) => {
 // delegate browsing the owner's board cannot flip the connection), then the
 // RPC sequence, then the audit trail; any failure maps to a 502 the client
 // toasts. onboarded skips the audit (it is not an impersonatable act).
-function ownerAction(name: string, audit: boolean, run: (uid: string) => Promise<unknown>) {
+type OwnerAction = {
+  /** Action name: the audit verb, the success payload, and the failure text. */
+  name: string;
+  /** Whether the act is impersonatable and so belongs in the audit trail. */
+  audit: boolean;
+  run: (uid: string) => Promise<unknown>;
+};
+
+function ownerAction({ name, audit, run }: OwnerAction) {
   return async ({ locals }: { locals: App.Locals }) => {
     if (locals.session?.delegate_of) return fail(403);
     const uid = locals.session?.user_id;
@@ -246,21 +254,29 @@ export const actions: Actions = {
   // would only add a needless delete pass and reset Twitch's conduit routing
   // propagation for the fresh channel.chat.message sub. Use restart (below) for
   // an intentional drop+recreate of an already-connected channel.
-  enable: ownerAction('enable', true, async (uid) => {
-    await setActive(uid, true);
-    await publishEventSub(uid, true);
-    // The loads/polls that follow this action still read 'unenrolled' until
-    // the worker picks the job up; stamp the publish so the self-heal doesn't
-    // immediately fire a duplicate enroll.
-    recentEnables.set(uid, Date.now());
+  enable: ownerAction({
+    name: 'enable',
+    audit: true,
+    run: async (uid) => {
+      await setActive(uid, true);
+      await publishEventSub(uid, true);
+      // The loads/polls that follow this action still read 'unenrolled' until
+      // the worker picks the job up; stamp the publish so the self-heal doesn't
+      // immediately fire a duplicate enroll.
+      recentEnables.set(uid, Date.now());
+    }
   }),
   // Restart: atomic drop + recreate of EventSub subscriptions (stays active).
-  restart: ownerAction('restart', true, (uid) => publishEventSubReconnect(uid)),
+  restart: ownerAction({ name: 'restart', audit: true, run: (uid) => publishEventSubReconnect(uid) }),
   // Disconnect: delete the subscriptions and mark inactive (grant kept).
-  disconnect: ownerAction('disconnect', true, async (uid) => {
-    await publishEventSub(uid, false);
-    await setActive(uid, false);
+  disconnect: ownerAction({
+    name: 'disconnect',
+    audit: true,
+    run: async (uid) => {
+      await publishEventSub(uid, false);
+      await setActive(uid, false);
+    }
   }),
   // Onboarded: mark the user as having completed the onboarding flow.
-  onboarded: ownerAction('onboarded', false, (uid) => setOnboarded(uid, true))
+  onboarded: ownerAction({ name: 'onboarded', audit: false, run: (uid) => setOnboarded(uid, true) })
 };
