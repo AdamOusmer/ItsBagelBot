@@ -22,6 +22,16 @@ export interface Session {
   login: string;
   display_name: string;
   role: 'streamer' | 'mod';
+  // Random per-session id (16 bytes, base64url), minted once at login/"view
+  // as" and carried unchanged through every re-seal (delegate enter/exit).
+  // It is the handle server-side revocation targets: logout and "sign out
+  // everywhere" (session-revocation.ts) mark it dead in Valkey so a copy of
+  // the cookie taken off a shared machine stops working immediately instead
+  // of riding out the full 7-day TTL. Sessions sealed before this field
+  // existed decode with sid undefined despite the type saying `string` —
+  // every revocation-check callsite treats a missing sid as "not revocable"
+  // (see isSessionRevoked), never as automatically revoked.
+  sid: string;
   iat: number;
   expires_at: number;
   // Set only when an admin is viewing this dashboard "as" the user. Carries the

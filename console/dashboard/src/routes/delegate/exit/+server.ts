@@ -19,6 +19,9 @@ export const GET: RequestHandler = ({ url, locals, cookies }) => {
       login: s.login,
       display_name: s.display_name,
       role: 'streamer',
+      // Re-seal, not a mint: keep the original sid so a revocation targeting
+      // this browser's session still finds it after leaving the board.
+      sid: s.sid,
       iat: s.iat,
       expires_at: s.expires_at
     });

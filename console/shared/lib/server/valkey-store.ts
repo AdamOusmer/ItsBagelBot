@@ -25,10 +25,13 @@
 import Redis from 'iovalkey';
 import type { CommandView } from '../types';
 import { getServerConfig } from './config';
+import { logger } from './logger';
 import { CircuitBreaker, withTimeout } from './resilience';
 import { VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
 
 const SETTINGS_PREFIX = 'settings:';
+const SESSION_REVOKED_PREFIX = 'session-revoked:';
+const SESSION_REVOKED_ALL_PREFIX = 'session-revoked-all:';
 const OP_TIMEOUT_MS = 200;
 
 // One breaker for the whole Valkey read tier. Once it trips (Valkey down/slow),
@@ -55,6 +58,16 @@ async function op<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
 
 function settingsKey(userId: string): string {
   return SETTINGS_PREFIX + userId;
+}
+
+/** Key holding one revoked session's sid. Written by session-revocation.ts. */
+export function sessionRevokedKey(sid: string): string {
+  return SESSION_REVOKED_PREFIX + sid;
+}
+
+/** Key holding a user's "sign out everywhere" epoch. Written by session-revocation.ts. */
+export function sessionRevokedAllKey(userId: string): string {
+  return SESSION_REVOKED_ALL_PREFIX + userId;
 }
 
 let client: Redis | null = null;
@@ -116,6 +129,44 @@ export async function ready(): Promise<boolean> {
     await c.ping();
     return true;
   }, true);
+}
+
+/**
+ * Read-only revocation check for session-revocation.ts: both keys in one
+ * MGET so a single op() budget covers the whole check. This is a NODE-LOCAL
+ * (replica) read, same as every other lookup in this file — a session
+ * revoked on the master can still pass here for the replication window
+ * (typically milliseconds). That is the accepted tradeoff for keeping
+ * revocation checks on the hot request-guard path cheap; it is not
+ * compensated for with retries or a master read here.
+ *
+ * Unlike this file's other reads (which degrade silently — a cache miss is
+ * routine), a failure here is logged: revocation is a security control, and
+ * a Valkey blip that always fails open is worth surfacing even though it
+ * must never block the request. Returns [null, null] on a cold/absent key
+ * OR on any failure — the caller cannot and must not tell those apart.
+ */
+export async function getRevocation(
+  sid: string | undefined,
+  userId: string
+): Promise<[string | null, string | null]> {
+  const c = get();
+  if (!c) return [null, null];
+  try {
+    // A session sealed before sids existed has no per-session key to look up,
+    // but the user's revoke-all epoch still applies to it — read that alone
+    // rather than skipping the check, or "sign out everywhere" would miss
+    // exactly the long-lived cookies it exists to kill.
+    const keys = sid ? [sessionRevokedKey(sid), sessionRevokedAllKey(userId)] : [sessionRevokedAllKey(userId)];
+    const values = await breaker.run(() =>
+      withTimeout(c.mget(...keys), OP_TIMEOUT_MS, 'valkey session-revocation read')
+    );
+    const [sidHit, allAt] = sid ? values : [null, values[0]];
+    return [sidHit ?? null, allAt ?? null];
+  } catch (err) {
+    logger.warn({ err }, '[valkey-store] session-revocation read failed, failing open');
+    return [null, null];
+  }
 }
 
 export interface ValkeyUser {

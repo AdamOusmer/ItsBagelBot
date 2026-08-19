@@ -25,6 +25,7 @@ import { MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
 import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
+import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -101,6 +102,17 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
   if (await isBanned(s.user_id)) {
     wipe(event);
     throw redirect(303, '/login?e=banned');
+  }
+
+  // Server-side revocation: logout kills just this sid, "sign out
+  // everywhere" (settings) kills every sid issued before that moment. Same
+  // fail-open posture as the ban check above — isSessionRevoked never throws.
+  // Sessions minted before this feature shipped carry no sid and are treated
+  // as not revocable (see session-revocation.ts), so this never mass-signs-out
+  // everyone already logged in on deploy.
+  if (await isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat })) {
+    wipe(event);
+    throw redirect(303, '/login?e=signedout');
   }
 
   // Ghost-session gate: only an authoritative "no such user" (RpcError) wipes
