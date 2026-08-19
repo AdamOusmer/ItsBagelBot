@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "bun ../shared/scripts/check-i18n.mjs && vite build",
+    "build": "bun run verify:demo-gated && bun ../shared/scripts/check-i18n.mjs && vite build && bun run verify:production-clean",
+    "verify:demo-gated": "bun ../shared/scripts/assert-demo-gated.mjs dashboard",
+    "verify:production-clean": "bun scripts/assert-production-clean.ts",
     "preview": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },

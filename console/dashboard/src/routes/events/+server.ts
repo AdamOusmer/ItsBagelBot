@@ -3,7 +3,12 @@
 
 import type { RequestHandler } from './$types';
 import { subscribe } from '$lib/server/live-hub';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Server-sent events stream of cache-invalidation scopes for the signed-in
 // user's board. The browser opens one EventSource (see (app)/+layout.svelte);
@@ -17,7 +22,7 @@ export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
   // DEMO has no real session; stream a demo board so the plumbing is exercisable
   // locally (no NATS events arrive, but the connection + keepalive do).
-  const boardId = s ? (s.delegate_of ?? s.user_id) : env.DEMO === '1' ? 'demo' : null;
+  const boardId = s ? (s.delegate_of ?? s.user_id) : DEMO ? 'demo' : null;
   if (!boardId) return new Response('unauthorized', { status: 401 });
 
   let cleanup = () => {};

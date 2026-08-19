@@ -13,15 +13,20 @@
 // All checks ride the same cache fabric the layout used (push-invalidated on
 // the NATS bus), so per-request cost stays ~0 and an admin ban / delegation
 // revoke propagates to every replica within one request.
-// DEMO is read from process.env, NOT $env/dynamic/private: this module is in
-// the boot import graph (hooks.server.ts -> guard), and even importing the
-// dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
-// the same runtime value.
+// The demo bypass below is gated on SvelteKit's build-time `dev` constant
+// FIRST, so Rollup erases the whole branch from a production build: the
+// runtime DEMO env var cannot re-open these gates on a shipped image, only in
+// `vite dev`. The env half is read from process.env, NOT $env/dynamic/private:
+// this module is in the boot import graph (hooks.server.ts -> guard), and even
+// importing the dynamic-env proxy there deadlocks server.init (exit 13).
+import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
 import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
+
+const DEMO = dev && process.env.DEMO === '1';
 
 // Paths that must stay reachable with a denied session: the login + OAuth flow
 // (a banned user must still be able to reach the callback's own gate), logout,
@@ -88,7 +93,7 @@ function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean 
 // never reach this — the (app) layout owns the login redirect for pages and
 // endpoints already 401 on a missing session.
 export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
-  if (process.env.DEMO === '1' || isPublic(event.url.pathname)) return s;
+  if (DEMO || isPublic(event.url.pathname)) return s;
 
   // Platform ban — own account. Same outage posture as before: isBanned serves
   // last-known state through a users-service outage and fails open only with

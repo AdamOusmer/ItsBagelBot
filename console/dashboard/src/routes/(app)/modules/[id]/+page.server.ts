@@ -8,11 +8,22 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
 
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
+
+// The board a read/write targets. With no session there is no board: in a
+// production build that is a dead end (the layout's login redirect is the only
+// legitimate outcome), and only a dev demo build falls back to the fixture id.
 function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
+  const id = session?.delegate_of ?? session?.user_id;
+  if (id) return id;
+  if (DEMO) return 'demo';
+  throw redirect(302, '/login');
 }
 
 function gateModules(session: Session | null | undefined): void {
@@ -48,7 +59,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   if (def.href) throw redirect(302, def.href);
 
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { def, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 };
+  if (DEMO) return { def, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 };
 
   try {
     const rows = await listModules(uid);
@@ -123,7 +134,7 @@ function resolveWrite(id: string, session: Session | null | undefined): WriteTar
   // gateModules above only proves the 'modules' section; a module with its
   // own delegation grant (channel points) needs its own scope checked too.
   if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
-  if (env.DEMO !== '1' && !session) return { denied: fail(401, { ok: false, error: 'Not signed in.' }) };
+  if (!DEMO && !session) return { denied: fail(401, { ok: false, error: 'Not signed in.' }) };
   return { def, uid: effectiveId(session) };
 }
 
@@ -140,7 +151,7 @@ export const actions: Actions = {
     const enabled = f.get('is_enabled') === 'on';
     const config = buildConfig(def, f);
 
-    if (env.DEMO === '1') return { ok: true, enabled };
+    if (DEMO) return { ok: true, enabled };
 
     try {
       await upsertModule(uid, def.id, enabled, config);
@@ -169,7 +180,7 @@ export const actions: Actions = {
     const enabled = f.get('is_enabled') === 'on';
     const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
 
-    if (env.DEMO === '1') return { ok: true, rev: expectedRev + 1, conflict: false };
+    if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
 
     return applyPatch(def, uid, { enabled, expectedRev, partial }, locals.session);
   }

@@ -17,9 +17,14 @@ import {
   type ChannelSubState
 } from '$lib/server/services';
 import { listCommands, listModules } from '$lib/server/commands-store';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // The home page consumes honest per-read signals plus the derived UI state.
 // connState keeps each read's failure visible (as 'unknown') rather than folding
@@ -61,7 +66,7 @@ function healSubState(conn: {
   state: ChannelSubState['state'];
 }): ChannelSubState['state'] {
   const { uid, active, state } = conn;
-  if (state !== 'unenrolled' || uid === 'demo') return state;
+  if (state !== 'unenrolled') return state;
   if (!active) return state;
 
   // One publish per window (see recentEnables above): right after a connect
@@ -150,14 +155,6 @@ function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   };
 }
 
-const demoDigest: CommandDigest = { ...digest([
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1.2k' },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
-  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: '412' },
-  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
-  { name: 'debug', response: 'node={node}', is_active: false, uses: '14' }
-]), ok: true };
-
 // Modules at a glance: enabled count over the user-facing catalog.
 export type ModuleDigest = { on: number; total: number; ok: boolean };
 
@@ -167,9 +164,10 @@ export type ShareDigest = { people: number; pending: number; ok: boolean };
 // demoOr streams either the demo fixture or the real RPC as an unawaited
 // promise so SvelteKit streams it: the page shell flushes immediately and each
 // section hydrates when its round trip lands, instead of blocking SSR (and the
-// post-login redirect) on NATS.
-function demoOr<T>(demo: T, real: () => Promise<T>): Promise<T> {
-  return env.DEMO === '1' ? Promise.resolve(demo) : real();
+// post-login redirect) on NATS. The fixture side is a dynamic import so the
+// whole demo-data module drops out of a production build with the branch.
+function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
+  return DEMO ? import('$lib/server/demo-data').then(pick) : real();
 }
 
 // commandDigest feeds the stat cards + top strip. Cache-backed (same fabric
@@ -208,18 +206,17 @@ function shareDigest(uid: string): Promise<ShareDigest> {
     .catch(() => ({ people: 0, pending: 0, ok: false }));
 }
 
-const demoConn: ConnData = (() => {
-  const signals: ConnSignals = { grant: true, active: true, status: 'vip', sub: 'ok' };
-  return { signals, ui: connectionUiState(signals) };
-})();
-
 export const load: PageServerLoad = ({ locals }) => {
-  const uid = locals.session?.user_id ?? 'demo';
+  // No session and no demo build means no board to read: the layout's login
+  // redirect is the only correct outcome, so never fall back to a placeholder
+  // id that a real account could one day occupy.
+  const uid = locals.session?.user_id ?? (DEMO ? 'demo' : null);
+  if (!uid) throw redirect(302, '/login');
   return {
-    conn: demoOr<ConnData>(demoConn, () => connState(uid)),
-    commands: demoOr(demoDigest, () => commandDigest(uid)),
-    modules: demoOr<ModuleDigest>({ on: 1, total: MODULE_CATALOG.filter((m) => !m.hidden).length, ok: true }, () => moduleDigest(uid)),
-    shares: demoOr<ShareDigest>({ people: 1, pending: 1, ok: true }, () => shareDigest(uid))
+    conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
+    commands: demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid)),
+    modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => moduleDigest(uid)),
+    shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid))
   };
 };
 

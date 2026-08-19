@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
-import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM, blankReward } from '@bagel/shared';
+import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
 import {
   readRewards,
   createReward,
@@ -16,11 +16,22 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
+
+// The board a read/write targets. With no session there is no board: in a
+// production build that is a dead end (the layout's login redirect is the only
+// legitimate outcome), and only a dev demo build falls back to the fixture id.
 function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
+  const id = session?.delegate_of ?? session?.user_id;
+  if (id) return id;
+  if (DEMO) return 'demo';
+  throw redirect(302, '/login');
 }
 
 // Delegate scope comes from the channelpoints catalog def (its own grant, not
@@ -29,30 +40,13 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'channelpoints');
 }
 
-// Demo rewards so the tab renders without a live backend.
-function demoRewards(): ChannelPointReward[] {
-  return [
-    { ...blankReward(), id: 'demo-1', title: 'Say hi', cost: 100, action: 'chat', message: '{user} says hi! 👋', onRedeem: 'fulfill' },
-    {
-      ...blankReward(),
-      id: 'demo-2',
-      title: 'Pick the next map',
-      cost: 2500,
-      isUserInputRequired: true,
-      backgroundColor: '#1f69ff',
-      action: 'chat',
-      message: '{user} picked the next map: {input}',
-      onRedeem: 'fulfill',
-      maxPerStreamEnabled: true,
-      maxPerStream: 1
-    }
-  ];
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { enabled: true, rewards: demoRewards() };
+  if (DEMO) {
+    const { demoRewards } = await import('$lib/server/demo-data');
+    return { enabled: true, rewards: demoRewards() };
+  }
   try {
     const view = await readRewards(uid);
     return { enabled: view.enabled, rewards: view.rewards };
@@ -127,13 +121,13 @@ function resultFail(r: Extract<RewardResult, { ok: false }>) {
 export const actions: Actions = {
   create: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const draft = parseReward(String(f.get('reward') ?? ''));
     if (!draft) return fail(400, { ok: false, error: 'Invalid reward.' });
-    if (env.DEMO === '1') return { ok: true };
+    if (DEMO) return { ok: true };
 
     let res: RewardResult;
     try {
@@ -149,13 +143,13 @@ export const actions: Actions = {
 
   update: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const draft = parseReward(String(f.get('reward') ?? ''));
     if (!draft || !draft.id) return fail(400, { ok: false, error: 'Invalid reward.' });
-    if (env.DEMO === '1') return { ok: true };
+    if (DEMO) return { ok: true };
 
     let res: RewardResult;
     try {
@@ -171,13 +165,13 @@ export const actions: Actions = {
 
   delete: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const id = String(f.get('id') ?? '');
     if (!id) return fail(400, { ok: false, error: 'Missing reward id.' });
-    if (env.DEMO === '1') return { ok: true };
+    if (DEMO) return { ok: true };
 
     let res: RewardResult;
     try {
@@ -194,12 +188,12 @@ export const actions: Actions = {
   // Master on/off for whether the bot acts on redemptions at all.
   toggle: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const enabled = f.get('is_enabled') === 'on';
-    if (env.DEMO === '1') return { ok: true, enabled };
+    if (DEMO) return { ok: true, enabled };
 
     try {
       await setChannelPointsEnabled(uid, enabled);

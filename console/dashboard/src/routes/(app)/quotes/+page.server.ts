@@ -16,8 +16,13 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // The longest quote the modules service will store (repository.QuoteTextMaxLen).
 const QUOTE_MAX = 450;
@@ -47,8 +52,14 @@ function quoteDate(value: FormDataEntryValue | null): Date | null {
   return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw ? null : parsed;
 }
 
+// The board a read/write targets. With no session there is no board: in a
+// production build that is a dead end (the layout's login redirect is the only
+// legitimate outcome), and only a dev demo build falls back to the fixture id.
 function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
+  const id = session?.delegate_of ?? session?.user_id;
+  if (id) return id;
+  if (DEMO) return 'demo';
+  throw redirect(302, '/login');
 }
 
 // Delegate scope comes from the quotes catalog def (see module-gate.ts).
@@ -62,19 +73,13 @@ function actingLogin(session: Session | null | undefined): string {
   return session?.delegate_login ?? session?.login ?? 'dashboard';
 }
 
-// Demo book so the tab renders without a live backend.
-function demoQuotes(): QuoteView[] {
-  return [
-    { number: 1, text: 'I meant to do that.', added_by: 'mod_amy', created_at: '2026-06-02T20:14:00Z' },
-    { number: 3, text: 'The bagels are sentient and I welcome them.', added_by: 'mod_amy', created_at: '2026-06-19T02:41:00Z' },
-    { number: 4, text: 'Never trust a ferret with a keyboard.', added_by: 'streamer', created_at: '2026-07-01T18:03:00Z' }
-  ];
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { enabled: true, addPerm: 'mod', editPerm: 'mod', quotes: demoQuotes() };
+  if (DEMO) {
+    const { demoQuotes } = await import('$lib/server/demo-data');
+    return { enabled: true, addPerm: 'mod', editPerm: 'mod', quotes: demoQuotes() };
+  }
   try {
     const view = await readQuotes(uid);
     return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
@@ -87,7 +92,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 // and form parse. DEMO runs without a session (branches short-circuit before RPC).
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gate(locals.session);
-  if (env.DEMO !== '1' && !locals.session) return null;
+  if (!DEMO && !locals.session) return null;
   return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
 }
 
@@ -104,7 +109,7 @@ export const actions: Actions = {
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'added', quote: { number: 0, text, created_at: createdAt.toISOString() } };
     }
 
@@ -136,7 +141,7 @@ export const actions: Actions = {
     const createdAt = quoteDate(ctx.form.get('quote_date'));
     if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
 
-    if (env.DEMO === '1') {
+    if (DEMO) {
       return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
     }
 
@@ -157,7 +162,7 @@ export const actions: Actions = {
     const num = Math.trunc(Number(ctx.form.get('number')));
     if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: 'Invalid quote number.' });
 
-    if (env.DEMO === '1') return { ok: true, action: 'deleted', number: num };
+    if (DEMO) return { ok: true, action: 'deleted', number: num };
 
     try {
       await removeQuote(ctx.uid, num);
@@ -175,7 +180,7 @@ export const actions: Actions = {
     if (!ctx) return notSignedIn();
 
     const enabled = ctx.form.get('is_enabled') === 'on';
-    if (env.DEMO === '1') return { ok: true, enabled };
+    if (DEMO) return { ok: true, enabled };
 
     try {
       await setEnabled(ctx.uid, enabled);
@@ -198,7 +203,7 @@ export const actions: Actions = {
 
     const raw = String(ctx.form.get('perm') ?? '');
     const perm = (PERMS as readonly string[]).includes(raw) ? raw : 'mod';
-    if (env.DEMO === '1') return { ok: true, kind, perm };
+    if (DEMO) return { ok: true, kind, perm };
 
     try {
       await setPerm(ctx.uid, kind, perm);

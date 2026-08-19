@@ -6,6 +6,7 @@ import {
   assertOrigin,
   positiveIntegerSetting
 } from '@bagel/shared/server/config-sanity';
+import { demoConfigured } from '@bagel/shared/server/demo-guard';
 
 type Env = Record<string, string | undefined>;
 
@@ -18,7 +19,7 @@ export const DEFAULT_ADMIN_L1_CACHE_CAPACITY = 250;
 // to enable it even though the production build also compiles the privileged
 // demo identity path out entirely.
 export function assertDemoConfigSafe(env: Env): void {
-  if (env.DEMO === '1' && env.NODE_ENV === 'production') {
+  if (demoConfigured(env) && env.NODE_ENV === 'production') {
     throw new Error('DEMO must not be enabled in production');
   }
 }

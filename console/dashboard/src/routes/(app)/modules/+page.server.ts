@@ -9,11 +9,22 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
+
+// The board a read/write targets. With no session there is no board: in a
+// production build that is a dead end (the layout's login redirect is the only
+// legitimate outcome), and only a dev demo build falls back to the fixture id.
 function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
+  const id = session?.delegate_of ?? session?.user_id;
+  if (id) return id;
+  if (DEMO) return 'demo';
+  throw redirect(302, '/login');
 }
 
 // A delegate needs the 'modules' section to be here; a normal login always may.
@@ -55,7 +66,7 @@ function merge(rows: ModuleView[], session: Session | null | undefined): ModuleS
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { modules: merge([], locals.session) };
+  if (DEMO) return { modules: merge([], locals.session) };
   try {
     return { modules: merge(await listModules(uid), locals.session) };
   } catch {
@@ -81,7 +92,7 @@ export const actions: Actions = {
   // Quick tile on/off: flips enabled while preserving the stored config.
   toggle: async ({ request, locals }) => {
     gateModules(locals.session);
-    if (env.DEMO !== '1' && !locals.session) {
+    if (!DEMO && !locals.session) {
       return fail(401, { ok: false, error: 'Not signed in.' });
     }
 
@@ -91,7 +102,7 @@ export const actions: Actions = {
     if ('denied' in target) return target.denied;
     const enabled = f.get('is_enabled') === 'on';
 
-    if (env.DEMO === '1') return { ok: true, name, enabled };
+    if (DEMO) return { ok: true, name, enabled };
 
     return flipModule({ name, uid: target.uid, enabled }, locals.session);
   }

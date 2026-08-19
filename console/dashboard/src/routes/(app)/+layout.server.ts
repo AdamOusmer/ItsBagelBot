@@ -2,30 +2,24 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { redirect } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
 import type { Session } from '$lib/server/session';
 import { accountState, notificationsForUser, delegationAccess, type NotificationWire } from '$lib/server/services';
-import { demoNotifications } from '$lib/server/demo-notifications';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 const BELL_PEEK = 5;
-
-// Demo session lets the app render without the Twitch OAuth flow wired up yet.
-// Off unless DEMO=1; production paths require a real encrypted session.
-const demo: Session = {
-  user_id: 'demo',
-  login: 'itsmavey',
-  display_name: 'Mavey',
-  role: 'streamer',
-  iat: Math.floor(Date.now() / 1000),
-  expires_at: Math.floor(Date.now() / 1000) + 3600
-};
 
 // loadBellPeek fetches the owner's notification bell, best-effort: an RPC blip
 // must never block the shell, so a failed fetch just shows an empty peek.
 // Delegates have no bell.
 async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifications: NotificationWire[] }> {
-  if (env.DEMO === '1') {
+  if (DEMO) {
+    const { demoNotifications } = await import('$lib/server/demo-data');
     return {
       notifications: demoNotifications,
       unreadCount: demoNotifications.filter((n) => !n.read).length
@@ -49,12 +43,7 @@ async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifica
 // delegate session, so a delegate must exit before switching boards.
 // Best-effort: an RPC blip just hides the list.
 async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; name: string }[]> {
-  if (env.DEMO === '1') {
-    return [
-      { href: '/delegate/enter?owner=42', name: 'ferret_king' },
-      { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
-    ];
-  }
+  if (DEMO) return (await import('$lib/server/demo-data')).demoAuthorizedDashboards;
   if (s.delegate_of) return [];
   try {
     const grants = await delegationAccess(s.user_id);
@@ -70,7 +59,7 @@ async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; nam
 // login-redirect UX and the shell data.
 export const load: LayoutServerLoad = async ({ locals, url }) => {
   let s = locals.session;
-  if (!s && env.DEMO === '1') s = demo;
+  if (!s && DEMO) s = (await import('$lib/server/demo-data')).demoSession();
   // Keep the requested path through the login flow (e.g. the pricing page
   // deep-links /billing?subscribe=1), so sign-in lands back where the visitor
   // was headed instead of on the home screen.
@@ -82,8 +71,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
     loadBellPeek(s),
     loadAuthorizedDashboards(s),
-    env.DEMO === '1'
-      ? Promise.resolve({ active: true, status: 'vip', onboarded: true, creatorCode: null })
+    DEMO
+      ? import('$lib/server/demo-data').then((m) => m.demoAccountState)
       : accountState(s.user_id).catch(() => null)
   ]);
 

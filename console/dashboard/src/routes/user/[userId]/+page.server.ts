@@ -12,7 +12,12 @@ import {
 } from '@bagel/shared';
 import { listCommands, listModules, type ModuleView } from '$lib/server/commands-store';
 import { accountState } from '$lib/server/services';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // SSR renders the full page for SEO/no-JS; hydration is left on so the hero's
 // warm light-field ("star" motes) and decode-on-view title can animate. Both
@@ -41,38 +46,6 @@ type PublicModule = {
   commands: ModuleDetail[];
   events: ModuleDetail[];
 };
-
-const demoCommands: PublicCommand[] = [
-  {
-    trigger: '!bagel',
-    aliases: ['!snack'],
-    response: '{user} tosses a warm bagel to {target}. Toasty.',
-    perm: PERM_LABELS.everyone,
-    cooldown: 10,
-    liveOnly: false,
-    uses: '1.2k'
-  },
-  {
-    trigger: '!socials',
-    aliases: ['!links'],
-    response: 'Follow along on Twitch and everywhere else.',
-    perm: PERM_LABELS.everyone,
-    cooldown: 30,
-    liveOnly: false,
-    uses: '288'
-  }
-];
-
-const demoModules: PublicModule[] = [
-  {
-    id: 'clip',
-    label: 'Clip',
-    category: 'Built-in',
-    tagline: 'Let viewers capture and share a recent stream moment.',
-    commands: [{ label: '!clip', meta: 'clip the last moment' }],
-    events: []
-  }
-];
 
 function cleanChannel(raw: string | null): string {
   // The bot passes the broadcaster's Twitch display name here, which may carry
@@ -183,13 +156,14 @@ export const load: PageServerLoad = async ({ params, url }) => {
   const channel = cleanChannel(url.searchParams.get('channel'));
   const channelName = channel || `channel ${userId}`;
 
-  if (env.DEMO === '1') {
+  if (DEMO) {
+    const d = await import('$lib/server/demo-data');
     return {
       userId,
       channelName,
-      creatorCode: 'MAVEY10',
-      commands: demoCommands,
-      modules: demoModules,
+      creatorCode: d.demoCreatorCode,
+      commands: d.demoPublicCommands satisfies PublicCommand[],
+      modules: d.demoPublicModules satisfies PublicModule[],
       degraded: false
     };
   }

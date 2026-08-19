@@ -20,9 +20,13 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, type Session } from '$lib/server/session';
-import { demoNotifications } from '$lib/server/demo-notifications';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Dashboard sections an owner can delegate. Billing is view-only for a delegate
 // (the money actions stay owner-only — see billing/+page.server.ts). Counters
@@ -56,16 +60,14 @@ function ownerAction<R>(
 export const load: PageServerLoad = async ({ locals }) => {
   // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
   // page renders and is exercisable without OAuth + NATS.
-  if (env.DEMO === '1') {
+  if (DEMO) {
+    const d = await import('$lib/server/demo-data');
     return {
-      given: [
-        { token: 'demo-pending-token-1234', sections: ['commands', 'modules'], delegate_login: '', consumed: false },
-        { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
-      ],
-      received: [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }],
+      given: d.demoDelegationGiven,
+      received: d.demoDelegationReceived,
       grantableSections: [...SECTIONS],
-      notifications: demoNotifications,
-      savedLocale: DEFAULT_LOCALE,
+      notifications: d.demoNotifications,
+      savedLocale: d.demoSavedLocale,
       degraded: false
     };
   }
@@ -108,7 +110,7 @@ export const actions: Actions = {
   // bell dropdown and the Settings section are the only notification surfaces.
   markRead: async ({ request, locals }) => {
     const s = locals.session;
-    if (env.DEMO === '1') return { ok: true, action: 'read' };
+    if (DEMO) return { ok: true, action: 'read' };
     if (!s) return fail(401, { error: 'Not signed in.' });
     if (s.delegate_of) return fail(403, { error: 'Only the account owner can do that.' });
 
@@ -128,7 +130,7 @@ export const actions: Actions = {
   // so it never surfaces an error to the glance-only bell.
   markPeeked: async ({ locals }) => {
     const s = locals.session;
-    if (env.DEMO === '1') return { ok: true, action: 'peeked' };
+    if (DEMO) return { ok: true, action: 'peeked' };
     if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
 
     try {
