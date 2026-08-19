@@ -22,6 +22,7 @@ export { default as Brand } from '../components/Brand.svelte';
 export { default as NavGroup } from '../components/NavGroup.svelte';
 export { default as AccountFoot } from '../components/AccountFoot.svelte';
 export { default as Topbar } from '../components/Topbar.svelte';
+export { default as Bolota } from '../components/Bolota.svelte';
 export { default as MobileNav } from '../components/MobileNav.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
 export { default as PageHead } from '../components/PageHead.svelte';

@@ -49,6 +49,38 @@ function links(): BillingLinks {
   };
 }
 
+// 'monthly' or anything else (the "buy one month" button posts 'once'),
+// pulled out so the subscribe action's own DEMO branch stays a single line.
+function demoSubscribePlan(form: FormData): 'monthly' | 'single' {
+  return form.get('plan') === 'monthly' ? 'monthly' : 'single';
+}
+
+// Same recipient rules as the live gift path, kept in one place so both the
+// demo branch and the description above stay honest about "same rules". This
+// returns plain data rather than calling fail() itself: SvelteKit infers each
+// action's ActionData from fail() calls written directly inside that action,
+// so fail() is still called at the gift action's own call site below.
+type GiftFormError = { gift: true; error: string; recipient: string; message: string };
+
+function demoGiftValidate(form: FormData): { ok: true; recipient: string } | { ok: false; status: number; data: GiftFormError } {
+  const recipient = String(form.get('recipient') ?? '').trim();
+  const message = String(form.get('message') ?? '').trim().slice(0, 280);
+  if (!recipient) {
+    return { ok: false, status: 400, data: { gift: true, error: 'Enter the Twitch username to gift to.', recipient, message } };
+  }
+  if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
+    return { ok: false, status: 400, data: { gift: true, error: 'That does not look like a Twitch username.', recipient, message } };
+  }
+  if (message && containsLink(message)) {
+    return {
+      ok: false,
+      status: 400,
+      data: { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message }
+    };
+  }
+  return { ok: true, recipient };
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   // ?subscribe=1 comes from the marketing site's pricing page (rides through
   // the login flow); the page auto-opens checkout when the plan allows it.
@@ -98,6 +130,14 @@ export const actions: Actions = {
   // not fall back to a static package URL that could charge without attributing
   // the resulting entitlement.
   subscribe: async ({ locals, request, getClientAddress }) => {
+    // Demo stands in for Tebex-hosted checkout with our own fake checkout page,
+    // so the whole purchase journey is clickable without a session or an RPC.
+    // Guarded on the module-level DEMO const (dev + env.DEMO), same as the load.
+    if (DEMO) {
+      const plan = demoSubscribePlan(await request.formData());
+      throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
+    }
+
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     const actor = billingActor(s);
@@ -144,6 +184,15 @@ export const actions: Actions = {
   // already premium); its error strings are user-facing, so surface them
   // verbatim on the gift form. The buyer's own plan does not gate gifting.
   gift: async ({ locals, request, getClientAddress }) => {
+    // Same validation as the live path (so the gift modal's errors behave
+    // identically in demo), then hand off to our own fake checkout instead of
+    // minting a Tebex basket.
+    if (DEMO) {
+      const validated = demoGiftValidate(await request.formData());
+      if (!validated.ok) return fail(validated.status, validated.data);
+      throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
+    }
+
     const s = locals.session;
     if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
     // A gift is the buyer's own purchase (they pay, the recipient gets premium),
@@ -195,6 +244,15 @@ export const actions: Actions = {
   // Cancellation/account management lives on Tebex. We still gate the button
   // behind an owner session so delegated or view-as sessions cannot act on it.
   cancel: async ({ locals }) => {
+    // A real cancellation just redirects out to Tebex-hosted management; the
+    // demo has nowhere to redirect to, so it flips cancelPending itself and
+    // sends the browser straight back.
+    if (DEMO) {
+      const { demoCancelPending } = await import('$lib/server/demo-data');
+      demoCancelPending();
+      throw redirect(303, '/billing');
+    }
+
     const s = locals.session;
     if (!s) return fail(401, { error: 'Not signed in.' });
     const actor = billingActor(s);

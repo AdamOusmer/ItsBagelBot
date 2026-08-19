@@ -39,6 +39,7 @@
     "./svelte-config": "./svelte-config.js"
   },
   "dependencies": {
+    "@luzir/bolota": "^0.1.0",
     "iovalkey": "^0.4.0",
     "lenis": "^1.3.18",
     "motion": "^12.0.0",

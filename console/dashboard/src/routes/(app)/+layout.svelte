@@ -130,7 +130,6 @@
     ...(!isDelegate
       ? [{ href: '/settings', icon: 'settings', label: t('nav.settings'), active: section === 'settings' }]
       : [])
-    ,{ href: 'https://stats.itsbagelbot.com', icon: 'bar-chart', label: t('nav.stats'), active: false }
   ] as NavLink[]);
 
   const groups = $derived([{ label: t('nav.manage'), items }] as NavGroupDef[]);
