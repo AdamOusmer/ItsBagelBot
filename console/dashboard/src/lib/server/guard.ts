@@ -104,7 +104,10 @@ async function assertAccountUsable(event: RequestEvent, s: Session): Promise<voi
 
   if (await isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat })) {
     wipe(event);
-    throw redirect(303, '/login?e=signedout');
+    // Not ?e=signedout: that notice tells the visitor their account no longer
+    // exists, which is the ghost-session case below. A revoked session is a
+    // live account the user deliberately signed out.
+    throw redirect(303, '/login?e=revoked');
   }
 
   try {
