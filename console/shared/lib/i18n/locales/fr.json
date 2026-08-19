@@ -37,6 +37,8 @@
     "channelpoints": "Points de chaîne",
     "timers": "Minuteries",
     "billing": "Facturation",
+    "stats": "Stats",
+    "status": "Statut",
     "settings": "Paramètres"
   },
   "topbar": {
@@ -267,6 +269,8 @@
     "commands": "Commandes",
     "modules": "Modules",
     "billing": "Facturation",
+    "stats": "Stats",
+    "status": "Statut",
     "editAccess": "Modifier l'accès",
     "notifications": "Notifications",
     "notificationsEmpty": "Rien pour le moment. Les messages de l'équipe ItsBagelBot apparaîtront ici.",
