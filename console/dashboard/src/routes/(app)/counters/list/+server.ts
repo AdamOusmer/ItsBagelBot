@@ -2,9 +2,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { listCounters } from '$lib/server/loyalty-store';
 import type { RequestHandler } from './$types';
+
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Feeds the editors' counter picker (commands / channel points) without
 // threading the counter list through every page load. Session-gated, and
@@ -13,7 +18,7 @@ import type { RequestHandler } from './$types';
 // and stay on the modules-gated /counters page.
 export const GET: RequestHandler = async ({ locals }) => {
   const uid = locals.session?.delegate_of ?? locals.session?.user_id;
-  if (env.DEMO === '1') return json({ counters: [] });
+  if (DEMO) return json({ counters: [] });
   if (!uid) return json({ counters: [] }, { status: 401 });
   try {
     const counters = (await listCounters(uid)).map(({ name, scope }) => ({ name, scope }));

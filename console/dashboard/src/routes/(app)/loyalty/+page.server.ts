@@ -9,29 +9,27 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
+import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-function effectiveId(session: Session | null | undefined): string {
-  return session?.delegate_of ?? session?.user_id ?? 'demo';
-}
+// Gated on the build-time `dev` constant first, so Rollup erases every demo
+// branch (and the dynamic demo-data import inside it) from production builds.
+const DEMO = dev && env.DEMO === '1';
 
 // Delegate scope comes from the loyalty catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'loyalty');
 }
 
-function demoStandings(): LoyaltyStanding[] {
-  return [
-    { viewerId: '1', viewerLogin: 'sesame_sam', viewerName: 'sesame_sam', points: 12400, watchSeconds: 90_000 },
-    { viewerId: '2', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', points: 8300, watchSeconds: 64_800 }
-  ];
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  if (env.DEMO === '1') return { enabled: true, config: blankLoyaltyConfig(), top: demoStandings() };
+  if (DEMO) {
+    const { demoStandings } = await import('$lib/server/demo-data');
+    return { enabled: true, config: blankLoyaltyConfig(), top: demoStandings() };
+  }
 
   try {
     const view = await readLoyalty(uid);
@@ -83,12 +81,12 @@ export const actions: Actions = {
   // Master on/off for whether anyone earns points at all.
   toggle: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const enabled = f.get('is_enabled') === 'on';
-    if (env.DEMO === '1') return { ok: true, enabled };
+    if (DEMO) return { ok: true, enabled };
 
     try {
       const cur = await readLoyalty(uid);
@@ -103,13 +101,13 @@ export const actions: Actions = {
 
   save: async ({ request, locals }) => {
     gate(locals.session);
+    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
     const uid = effectiveId(locals.session);
-    if (env.DEMO !== '1' && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
 
     const f = await request.formData();
     const config = parseConfig(String(f.get('config') ?? ''));
     if (!config) return fail(400, { ok: false, error: 'Invalid settings.' });
-    if (env.DEMO === '1') return { ok: true };
+    if (DEMO) return { ok: true };
 
     try {
       const cur = await readLoyalty(uid);
