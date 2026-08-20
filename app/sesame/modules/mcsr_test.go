@@ -256,3 +256,298 @@ func TestMcsrPaceAcceptsArgument(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "SomeoneElse", col.emit))
 	assert.Equal(t, "SomeoneElse", gw.lastCall(t).req.Account)
 }
+
+func TestMcsrLastMatchDefaultTemplate(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{
+			Player: "Feinberg", Opponent: "lowk3y_", Result: "win", Time: "11:03.135",
+			Seed: "Desert Temple", Structure: "Treasure", EloChange: 21, AgoSeconds: 125,
+		},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg vs lowk3y_: won · 11:03.135 · Desert Temple Treasure · +21 elo · 2m ago", col.out[0].Text)
+}
+
+// A forfeit must read as a forfeit, not a clean win: the module appends the
+// translated "(forfeit)" suffix and the missing time renders as a dash
+// instead of an empty gap in the template.
+func TestMcsrLastMatchForfeit(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{
+			Player: "Feinberg", Opponent: "lowk3y_", Result: "loss", Forfeited: true,
+		},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "lost (forfeit)")
+	assert.Contains(t, col.out[0].Text, "—", "no completion time renders as a dash")
+}
+
+func TestMcsrLastMatchDecayed(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{Player: "Feinberg", Opponent: "lowk3y_", Result: "win", Decayed: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "won (decay)")
+}
+
+func TestMcsrLastMatchEmpty(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{Player: "Newbie", Empty: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "no matches found yet")
+}
+
+func TestMcsrLastMatchToggleOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.last_match": gossiprpc.McsrLastMatchReply{}}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"lastMatchEnabled":"off"}`), "", col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, gw.calls)
+}
+
+func TestMcsrLastMatchSeasonToken(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{Player: "Feinberg", Empty: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lastmatch")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "Feinberg season:11", col.emit))
+	call := gw.lastCall(t)
+	assert.Equal(t, "Feinberg", call.req.Account, "the season token must not leak into the player name")
+	assert.Equal(t, 11, call.req.Season)
+}
+
+func TestMcsrRecordDefaultTemplate(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_", WinsA: 20, WinsB: 14, Played: 34},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "record")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "Feinberg lowk3y_", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg 20 - 14 lowk3y_ · 34 played", col.out[0].Text)
+	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
+	assert.Equal(t, "lowk3y_", gw.lastCall(t).req.AccountB)
+}
+
+// Only one typed username compares it against the module's linked account.
+func TestMcsrRecordSingleArgUsesLinkedAccount(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_"},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "record")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "lowk3y_", col.emit))
+	call := gw.lastCall(t)
+	assert.Equal(t, "Feinberg", call.req.Account)
+	assert.Equal(t, "lowk3y_", call.req.AccountB)
+}
+
+func TestMcsrRecordNoArgsShowsUsage(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.versus": gossiprpc.McsrRecordReply{}}}
+	cmd := findCmd(t, mcsrModule(gw), "record")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "Usage")
+	assert.Empty(t, gw.calls, "no upstream call without at least one typed player")
+}
+
+func TestMcsrRecordToggleOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.versus": gossiprpc.McsrRecordReply{}}}
+	cmd := findCmd(t, mcsrModule(gw), "record")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"recordEnabled":"off"}`), "a b", col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, gw.calls)
+}
+
+func TestMcsrLbDefaultTemplateElo(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.leaderboard": gossiprpc.McsrLeaderboardReply{Board: "elo", Entries: []gossiprpc.McsrLeaderboardEntry{
+			{Rank: 1, Name: "A", Value: "2400"},
+			{Rank: 2, Name: "B", Value: "2380"},
+		}},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Elo: #1 A 2400 · #2 B 2380", col.out[0].Text)
+	assert.Equal(t, "", gw.lastCall(t).req.Board)
+}
+
+func TestMcsrLbPhasePredictedAndCountry(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.leaderboard": gossiprpc.McsrLeaderboardReply{Board: "phase", Entries: []gossiprpc.McsrLeaderboardEntry{{Rank: 1, Name: "A", Value: "80"}}},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "phase predicted country:us", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Phase: #1 A 80", col.out[0].Text)
+	call := gw.lastCall(t)
+	assert.Equal(t, "phase", call.req.Board)
+	assert.True(t, call.req.Predicted)
+	assert.Equal(t, "us", call.req.Country)
+}
+
+func TestMcsrLbEmpty(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.leaderboard": gossiprpc.McsrLeaderboardReply{Board: "record", Empty: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "record", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "nobody on this leaderboard yet")
+}
+
+func TestMcsrLbToggleOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.leaderboard": gossiprpc.McsrLeaderboardReply{}}}
+	cmd := findCmd(t, mcsrModule(gw), "lb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"lbEnabled":"off"}`), "", col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, gw.calls)
+}
+
+func TestMcsrLbSeasonToken(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.leaderboard": gossiprpc.McsrLeaderboardReply{Board: "elo", Empty: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "lb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "season:11", col.emit))
+	assert.Equal(t, 11, gw.lastCall(t).req.Season)
+}
+
+func TestMcsrRaceDefaultTemplate(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.weekly_race": gossiprpc.McsrWeeklyRaceReply{
+			LeaderName: "gharfyy", LeaderTime: "2:27.374",
+			Player: "Feinberg", PlayerTime: "2:40.000", PlayerRank: 2, HasPlayer: true,
+		},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "race")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "#1 gharfyy (2:27.374) · Feinberg: 2:40.000 (#2)", col.out[0].Text)
+}
+
+func TestMcsrRaceNoPlayerTime(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.weekly_race": gossiprpc.McsrWeeklyRaceReply{LeaderName: "gharfyy", LeaderTime: "2:27.374", Player: "Newbie", HasPlayer: false},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "race")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "#1 gharfyy (2:27.374)")
+	assert.Contains(t, col.out[0].Text, "no time in this week's race yet")
+}
+
+func TestMcsrRaceEmpty(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.weekly_race": gossiprpc.McsrWeeklyRaceReply{Empty: true}}}
+	cmd := findCmd(t, mcsrModule(gw), "race")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "no times submitted for this week's race yet")
+}
+
+func TestMcsrRaceToggleOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.weekly_race": gossiprpc.McsrWeeklyRaceReply{}}}
+	cmd := findCmd(t, mcsrModule(gw), "race")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"raceEnabled":"off"}`), "", col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, gw.calls)
+}
+
+// --- parseMcsrSeason ---------------------------------------------------------------
+
+func TestParseMcsrSeason(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       string
+		wantRest   string
+		wantSeason int
+	}{
+		{"no token", "Feinberg", "Feinberg", 0},
+		{"trailing token", "Feinberg season:11", "Feinberg", 11},
+		{"leading token", "season:11 Feinberg", "Feinberg", 11},
+		{"token only", "season:11", "", 11},
+		{"invalid number ignored", "Feinberg season:abc", "Feinberg season:abc", 0},
+		{"zero ignored", "Feinberg season:0", "Feinberg season:0", 0},
+		{"empty", "", "", 0},
+		{"case insensitive prefix", "Feinberg SEASON:9", "Feinberg", 9},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rest, season := parseMcsrSeason(tc.args)
+			assert.Equal(t, tc.wantRest, rest)
+			assert.Equal(t, tc.wantSeason, season)
+		})
+	}
+}
+
+// !elo must keep behaving exactly as before this feature: no season token
+// means no Season on the wire, same request shape as today.
+func TestMcsrEloNoSeasonTokenUnchanged(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "elo")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
+	assert.Zero(t, gw.lastCall(t).req.Season)
+}
+
+func TestMcsrEloSeasonToken(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "elo")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "Feinberg season:5", col.emit))
+	call := gw.lastCall(t)
+	assert.Equal(t, "Feinberg", call.req.Account)
+	assert.Equal(t, 5, call.req.Season)
+}

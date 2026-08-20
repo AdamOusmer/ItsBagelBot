@@ -66,6 +66,31 @@ type Request struct {
 	// new run before PaceMan calls the session over. Zero (the common case) lets
 	// the provider apply its own default rather than every caller repeating it.
 	HoursBetween int `json:"hours_between,omitempty"`
+
+	// --- mcsr (MCSR Ranked: match history, versus, leaderboards, weekly race) ---
+
+	// Season scopes a lookup to one MCSR Ranked season instead of the current
+	// one. Shared by !elo, !lastmatch, !record and !lb (mcsr.user,
+	// mcsr.last_match, mcsr.versus, mcsr.leaderboard) since the upstream
+	// accepts the same season param on all of them; zero means "current
+	// season", the upstream's own default, so an unset Season never needs a
+	// provider-side lookup of what "current" means.
+	Season int `json:"season,omitempty"`
+	// AccountB is the second player for mcsr.versus (!record): Account is the
+	// first. Zero on every other request.
+	AccountB string `json:"account_b,omitempty"`
+	// Board selects which of mcsr.leaderboard's three upstream endpoints
+	// answers !lb: "" (default) is the elo leaderboard, "phase" is the
+	// phase-point leaderboard, "record" is the season-best-time leaderboard.
+	Board string `json:"board,omitempty"`
+	// Predicted asks mcsr.leaderboard's phase board for predicted phase
+	// points instead of locked-in ones (upstream only honors this for the
+	// current season). Ignored on every other board.
+	Predicted bool `json:"predicted,omitempty"`
+	// Country filters mcsr.leaderboard to one lowercase ISO-3166-1 alpha-2
+	// code. The upstream record-leaderboard has no such filter, so the
+	// provider drops it silently on that board rather than erroring.
+	Country string `json:"country,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.
@@ -363,4 +388,103 @@ type PacemanLastFortReply struct {
 	AgoSeconds  int64  `json:"ago_seconds"`
 	Empty       bool   `json:"empty"`
 	Error       string `json:"error,omitempty"`
+}
+
+// --- mcsr: match history, versus, leaderboards, weekly race -----------------
+//
+// These four extend the mcsr provider beyond !elo/!session. Every upstream
+// call they back is a single request (no paging loop, no client-side
+// aggregation over match history): mcsr.last_match asks for one match,
+// mcsr.versus reads the upstream's own precomputed head-to-head totals,
+// mcsr.leaderboard takes whatever one board's full array the upstream
+// returns and keeps the top few, and mcsr.weekly_race scans the one
+// leaderboard slice the upstream already returns for the queried player
+// instead of asking the upstream to filter it.
+
+// McsrLastMatchReply is the answer to mcsr.last_match (sesame's !lastmatch):
+// the player's most recent match. Time is the match's completion time
+// ("m:ss.mmm"), which belongs to whoever's Result the match reports —
+// it is the run's ending time, not "your" time specifically; empty when
+// the match has no completion (a draw, or a forfeit called before either
+// side finished). Forfeited/Decayed are surfaced separately from Result so a
+// forfeit or a decay-protection match never gets rendered as an ordinary
+// race — see the module's mcsrMatchResultText. EloChange is 0 for a player
+// who was unrated going into the match, same nullable-in-upstream case as
+// McsrUserReply. Empty is true when the player has no matches at all yet,
+// a normal answer, not an error.
+type McsrLastMatchReply struct {
+	Player     string `json:"player"`
+	Opponent   string `json:"opponent"`
+	Result     string `json:"result"` // "win" | "loss" | "draw"
+	Time       string `json:"time"`
+	Seed       string `json:"seed"`
+	Structure  string `json:"structure"`
+	EloChange  int    `json:"elo_change"`
+	AgoSeconds int64  `json:"ago_seconds"`
+	Forfeited  bool   `json:"forfeited"`
+	Decayed    bool   `json:"decayed"`
+	Empty      bool   `json:"empty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// McsrRecordReply is the answer to mcsr.versus (sesame's !record): the
+// head-to-head totals between two players, ranked and casual matches
+// combined (the upstream reports each queue's total separately; "played"
+// here is their sum, since the command promises one grand total). WinsA and
+// WinsB are keyed to PlayerA/PlayerB by the provider (the upstream's own
+// players[] array is not guaranteed to list them in request order).
+type McsrRecordReply struct {
+	PlayerA string `json:"player_a"`
+	PlayerB string `json:"player_b"`
+	WinsA   int    `json:"wins_a"`
+	WinsB   int    `json:"wins_b"`
+	Played  int    `json:"played"`
+	Error   string `json:"error,omitempty"`
+}
+
+// McsrLeaderboardEntry is one ranked row on any of !lb's three boards: a
+// display name plus whichever single number that board ranks on (elo, phase
+// points, or a season-best time as "m:ss.mmm"), pre-formatted by the
+// provider so the module never needs to know which board produced it.
+type McsrLeaderboardEntry struct {
+	Rank  int    `json:"rank"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// McsrLeaderboardReply is the answer to mcsr.leaderboard (sesame's !lb): the
+// top of whichever board Board selected. This is the gossip surface's first
+// list-shaped reply — every other reply here is flat scalar fields because
+// each one describes a single player or a single match. A leaderboard is
+// structurally different: chat wants a handful of ranked (name, value) pairs
+// together, not five independently-named fields (Name1..Name5/Value1..Value5)
+// that would have to grow every time "top 5" changed to "top 10" and would
+// not let the module tell "no 5th place exists" from "5th place is blank".
+// A slice carries its own length, so Entries shorter than 5 (a thin
+// leaderboard, a narrow country filter) is exactly its own answer; Empty
+// covers the zero-length case explicitly since "nobody on this board yet" is
+// a normal reply, not an error.
+type McsrLeaderboardReply struct {
+	Board   string                 `json:"board"`
+	Entries []McsrLeaderboardEntry `json:"entries"`
+	Empty   bool                   `json:"empty"`
+	Error   string                 `json:"error,omitempty"`
+}
+
+// McsrWeeklyRaceReply is the answer to mcsr.weekly_race (sesame's !race):
+// the current weekly-race seed's #1 holder, plus the queried player's own
+// time and rank when they appear on the same leaderboard slice the upstream
+// already returned (the API has no per-player filter for this endpoint, so
+// the provider scans the one response instead of calling again). HasPlayer
+// false is a normal answer (they have not submitted a time this week yet),
+// same as Empty being true for nobody having submitted one at all.
+type McsrWeeklyRaceReply struct {
+	LeaderName string `json:"leader_name"`
+	LeaderTime string `json:"leader_time"`
+	Player     string `json:"player"`
+	PlayerTime string `json:"player_time"`
+	PlayerRank int    `json:"player_rank"`
+	HasPlayer  bool   `json:"has_player"`
+	Empty      bool   `json:"empty"`
+	Error      string `json:"error,omitempty"`
 }
