@@ -105,7 +105,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787011027-4cfd46290494@sha256:362b71c855d238923b24eb3ef07ad1e246780467d1ae5560fc386077403273de # {"$imagepolicy": "flux-system:gossip"}
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787194469-cb0d16209c6d@sha256:aa3094009ee618ca3bdb9bedd1136f6710f68cb9a901050361eaff6785bf6d38
           imagePullPolicy: IfNotPresent
           env:
             # gossip is RPC-only: it answers sesame's requests over
