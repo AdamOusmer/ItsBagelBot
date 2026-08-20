@@ -28,13 +28,6 @@ type PersonalityWiring struct {
 	Log        *zap.Logger
 }
 
-// feedBoardSeedLimit caps the leaderboard sesame is handed to seed its live
-// view. The bot runs in the low hundreds of channels, so this ships the whole
-// board today; the cap only exists so a reply can never grow unbounded as the
-// channel count does. Channels beyond it are missing from sesame's ranks until
-// they feed the bagel themselves, which is the same place their row came from.
-const feedBoardSeedLimit = 1000
-
 // SubscribePersonality answers the personality verbs under w.Prefix: feed,
 // which records one feeding on the fleet-wide counter and the feeding
 // channel's row, and feed.board, the read-only leaderboard. They ride the
@@ -56,16 +49,7 @@ func subscribeFeedBump(w PersonalityWiring) error {
 		if err != nil {
 			return modulesrpc.FeedBumpReply{Error: err.Error()}
 		}
-		reply := modulesrpc.FeedBumpReply{Total: totals.Total, Channel: totals.Channel, Rank: totals.Rank}
-		if !req.WithBoard {
-			return reply
-		}
-		board, err := w.Repo.FeedBoard(ctx, feedBoardSeedLimit)
-		if err != nil {
-			return modulesrpc.FeedBumpReply{Error: err.Error()}
-		}
-		reply.Board = toBoardEntries(board)
-		return reply
+		return modulesrpc.FeedBumpReply{Total: totals.Total, Channel: totals.Channel, Rank: totals.Rank}
 	}
 	subject := w.Prefix + ".feed"
 	return bus.QueueSubscribeJSON[modulesrpc.FeedBumpRequest, modulesrpc.FeedBumpReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, handler)
@@ -88,7 +72,7 @@ func subscribeFeedBoard(w PersonalityWiring) error {
 // readFeedBoard collects the three reads a leaderboard answer needs, keeping
 // the error handling out of the subscribe handler.
 func readFeedBoard(ctx context.Context, repo *repository.Personality, req modulesrpc.FeedBoardRequest) (modulesrpc.FeedBoardReply, error) {
-	board, err := repo.FeedBoard(ctx, req.Limit)
+	board, err := readBoardEntries(ctx, repo, req.Limit)
 	if err != nil {
 		return modulesrpc.FeedBoardReply{}, err
 	}
@@ -96,7 +80,7 @@ func readFeedBoard(ctx context.Context, repo *repository.Personality, req module
 	if err != nil {
 		return modulesrpc.FeedBoardReply{}, err
 	}
-	reply := modulesrpc.FeedBoardReply{Entries: toBoardEntries(board), Ranked: ranked}
+	reply := modulesrpc.FeedBoardReply{Entries: board, Ranked: ranked}
 	if req.BroadcasterID == 0 {
 		return reply, nil
 	}
@@ -106,6 +90,19 @@ func readFeedBoard(ctx context.Context, repo *repository.Personality, req module
 	}
 	reply.Channel, reply.Rank = count, rank
 	return reply, nil
+}
+
+// readBoardEntries skips the board query entirely for a negative limit: the
+// standing-only command has no use for the podium.
+func readBoardEntries(ctx context.Context, repo *repository.Personality, limit int) ([]modulesrpc.FeedBoardEntry, error) {
+	if limit < 0 {
+		return nil, nil
+	}
+	rows, err := repo.FeedBoard(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	return toBoardEntries(rows), nil
 }
 
 func toBoardEntries(rows []repository.FeedBoardRow) []modulesrpc.FeedBoardEntry {
