@@ -10,6 +10,7 @@
   // pose is what the server sends and what first paint shows. The live engine
   // is a browser-only upgrade, dynamically imported so it never enters the SSR
   // graph and never ships to a client that will not animate.
+  import { onDestroy } from 'svelte';
   import { parts } from '@luzir/bolota';
   import type { EngineHandle } from '@luzir/bolota/engine';
 
@@ -23,6 +24,8 @@
     expression = null,
     sequence = null,
     sequenceKey = 0,
+    sequenceHold = 0,
+    sequenceFor = 0,
     gate = false,
     title = '',
     class: klass = ''
@@ -51,6 +54,14 @@
     // Any value that changes when the sequence should replay. Passing the same
     // name twice is otherwise a no-op, so this is what re-arms it.
     sequenceKey?: unknown;
+    // Extra milliseconds to dwell on the sequence's finished pose before the
+    // blob settles back into `motionState`. The state's own duration already
+    // runs in full; this is the beat on top of it.
+    sequenceHold?: number;
+    // Milliseconds the sequence should cover. The state repeats until the
+    // window is filled, and a window shorter than the state still plays it
+    // through once, so this is a floor and never a truncation.
+    sequenceFor?: number;
     // Hold the engine back until the avatar is actually on screen. For long
     // lists only: a moving or transformed host can read as off-screen at the
     // moment it is observed, which would strand the engine unmounted.
@@ -103,6 +114,8 @@
   // Reactive mirror of "an engine is mounted", so the expression effect below
   // can wake up without the mount effect depending on its own write.
   let ready = $state(false);
+  // Whether the engine is currently animating, as opposed to merely mounted.
+  let running = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let step = 0;
   let visible = $state(true);
@@ -113,11 +126,6 @@
   const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
   let sequencePromise: Promise<typeof import('@luzir/bolota/sequences')> | null = null;
   const loadSequences = () => (sequencePromise ??= import('@luzir/bolota/sequences'));
-  // The library does not publish a sequence's duration, so the return to the
-  // resting loop is timed rather than awaited. Long enough to read as one
-  // continuous move, short enough that the blob never strands mid-flourish.
-  const SEQUENCE_MS = 1200;
-  let settle: ReturnType<typeof setTimeout> | null = null;
 
   const reducedMotion = () =>
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -128,7 +136,10 @@
   }
 
   function startCycle() {
-    if (timer || !cycle || !handle) return;
+    // `running` matters as much as `handle` does now that a paused avatar
+    // keeps its engine: `setExpression` restarts the render loop, so a cycle
+    // left ticking would quietly wake something that was meant to be frozen.
+    if (timer || !cycle || !handle || !running) return;
     tickExpression();
     timer = setInterval(tickExpression, CYCLE_MS);
   }
@@ -138,30 +149,62 @@
     timer = null;
   }
 
+  // Claimed synchronously, before the await: the guard below is not enough on
+  // its own, since a second effect run would slip past it while the first is
+  // still fetching the chunk and mount a second engine into the same <svg>.
+  let mounting = false;
+
+  // Mounted ONCE and kept. `active` decides whether it moves, never whether it
+  // exists: tearing the engine down and rebuilding it on every hover restarted
+  // its clock at zero with no pose to blend out of, so each toggle was a cut
+  // rather than a morph. That is what read as "the morphing is not smooth" —
+  // the morphs were fine, they just never got to run.
   async function startEngine() {
-    if (handle || !el || reducedMotion()) return;
+    if (handle || mounting || !el || reducedMotion()) return;
+    mounting = true;
     const { mountEngine } = await loadEngine();
-    // `active` can have flipped back off while the chunk was in flight.
-    if (!el || handle) return;
+    if (!el || handle) {
+      mounting = false;
+      return;
+    }
     const h = mountEngine(el, name, { size, background: false });
     h.loop(motionState);
     if (follow) h.follow('window');
     step = 0;
     handle = h;
+    mounting = false;
+    running = true;
     ready = true;
   }
 
-  function stopEngine() {
+  // Freeze, do not destroy. `stop()` parks the engine on its current frame and
+  // drops its rAF loop, so an inactive avatar costs nothing while staying
+  // exactly where it was, and waking it up is a morph from that frame.
+  function pauseEngine() {
     stopCycle();
-    if (settle) clearTimeout(settle);
-    settle = null;
+    running = false;
+    handle?.stop();
+  }
+
+  function resumeEngine() {
+    running = true;
+    if (!handle) {
+      startEngine();
+      return;
+    }
+    handle.play(motionState, { loop: true });
+    if (cycle) startCycle();
+  }
+
+  // The real teardown: leaving the viewport, or the component going away.
+  function destroyEngine() {
+    stopCycle();
+    mounting = false;
+    running = false;
     ready = false;
     if (!handle) return;
     handle.destroy();
     handle = null;
-    // destroy() leaves whatever the engine last drew; put the seeded static
-    // pose back so the avatar lands on exactly its first-paint face.
-    if (el) el.innerHTML = pose.inner;
   }
 
   // Off-screen avatars never mount an engine: the budget is roughly 20 at
@@ -176,19 +219,38 @@
     };
   });
 
+  // Two separate concerns, deliberately not one effect: whether the avatar is
+  // ON SCREEN decides whether an engine exists (the budget is roughly 20 at
+  // 60fps), and whether it is ACTIVE decides whether that engine is running.
   $effect(() => {
-    if (active && visible) startEngine();
-    else stopEngine();
-    return stopEngine;
+    if (!visible) destroyEngine();
+    else if (active) resumeEngine();
+    else pauseEngine();
+    // No cleanup here on purpose. An effect's cleanup runs before EVERY
+    // re-run, not just on teardown, so returning `destroyEngine` from this one
+    // destroyed the engine on every hover and rebuilt it a frame later, which
+    // is the same cut this rewrite exists to remove. Teardown belongs to
+    // onDestroy, which only fires once.
   });
 
+  onDestroy(destroyEngine);
+
   // One-shot transition, replayed whenever the caller changes `sequenceKey`.
+  // The engine owns the whole shape of it: it covers `sequenceFor` the way the
+  // state itself declares (a periodic state keeps running, most stretch their
+  // own timeline so decor enters and leaves once, burst holds its settled
+  // pose), dwells for `sequenceHold`, then cross-fades back into
+  // `motionState`. Nothing is scheduled or restored here, which is what this
+  // function used to need a timer for.
   async function runTransition(nameOfSequence: 'entrance' | 'burst' | 'orbit' | 'comet') {
     const { runSequence } = await loadSequences();
     if (!handle) return;
-    runSequence(handle, nameOfSequence);
-    if (settle) clearTimeout(settle);
-    settle = setTimeout(() => handle?.loop(motionState), SEQUENCE_MS);
+    runSequence(handle, nameOfSequence, {
+      // A window shorter than the state is a floor, never a truncation.
+      for: sequenceFor / 1000,
+      hold: sequenceHold / 1000,
+      rest: motionState
+    });
   }
 
   $effect(() => {
@@ -200,7 +262,7 @@
   // A held expression (hover reactions, for one) outranks the rotation: pause
   // the timer while it is set so the two never fight over the same face.
   $effect(() => {
-    if (!ready || !handle) return;
+    if (!ready || !handle || !running) return;
     if (expression) {
       stopCycle();
       handle.setExpression(expression);
@@ -227,7 +289,12 @@
   role="img"
   aria-label={label}
 >
-  {@html pose.inner}
+  <!-- The engine appends its own group and never clears this one, so the
+       seeded static pose stays put and is simply hidden once the engine is
+       drawing. Swapping it in and out through innerHTML, which is what this
+       used to do, meant re-parsing markup on every hover and showed as a
+       flash between the two renderers. -->
+  <g style:display={ready ? 'none' : null}>{@html pose.inner}</g>
 </svg>
 
 <style>
