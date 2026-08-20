@@ -316,40 +316,94 @@ func (p *api) writeSnapshot(ctx context.Context, channelID, account string, user
 // session answers the delta since the channel's stream-start snapshot. Without
 // a usable snapshot (none stored, or it tracks a different account) it takes
 // one now and reports HasSnapshot=false so the caller can say "tracking from
-// now".
+// now". Split into sessionUser/sessionSnapshot/startSession/sessionDelta below
+// (each a self-contained step: fetch, read, take-fresh, build) rather than one
+// function carrying every branch — the "Bumpy Road" shape CodeScene flags when
+// several independent conditionals sit at the same nesting level.
+// sessionRequest bundles !session's per-call values threaded through
+// sessionUser/sessionSnapshot/startSession: the txn-scoped logger, channel
+// and account. Passing one value keeps each step's own signature short
+// instead of growing by one parameter every time the flow needs another.
+type sessionRequest struct {
+	log       *zap.Logger
+	channelID string
+	account   string
+	isPremium bool
+}
+
 func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
-	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gossiprpc.McsrSessionReply{Error: "missing account or channel"}
 	}
+	sreq := sessionRequest{
+		log:       monitor.TxnLogger(ctx, p.log),
+		channelID: req.ChannelID,
+		account:   account,
+		isPremium: req.IsPremium,
+	}
 
-	user, err := p.cachedUser(ctx, account, req.IsPremium)
+	user, errReply, ok := p.sessionUser(ctx, sreq)
+	if !ok {
+		return errReply
+	}
+
+	snap, hasSnapshot := p.sessionSnapshot(ctx, sreq)
+	if !hasSnapshot {
+		return p.startSession(ctx, sreq, user)
+	}
+	return sessionDelta(user, snap)
+}
+
+// sessionUser fetches !session's account standing, turning an upstream
+// failure into the reply's Error field (ok=false) instead of propagating it —
+// the same "always answer something" contract every endpoint in this file
+// follows.
+func (p *api) sessionUser(ctx context.Context, req sessionRequest) (user gossiprpc.McsrUserReply, errReply gossiprpc.McsrSessionReply, ok bool) {
+	user, err := p.cachedUser(ctx, req.account, req.isPremium)
 	if err != nil {
 		if msg := friendlyError(err); msg != "" {
-			return gossiprpc.McsrSessionReply{Nickname: account, Error: msg}
+			return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.account, Error: msg}, false
 		}
-		log.Warn("mcsr session fetch failed", zap.String("account", account), zap.Error(err))
-		return gossiprpc.McsrSessionReply{Nickname: account, Error: "stats lookup failed"}
+		req.log.Warn("mcsr session fetch failed", zap.String("account", req.account), zap.Error(err))
+		return gossiprpc.McsrUserReply{}, gossiprpc.McsrSessionReply{Nickname: req.account, Error: "stats lookup failed"}, false
 	}
+	return user, gossiprpc.McsrSessionReply{}, true
+}
 
-	var snap snapshot
-	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.ChannelID), &snap)
+// sessionSnapshot reads the channel's stream-start snapshot. hasSnapshot is
+// false both when none is stored and when it tracks a different account (a
+// linked-account change mid-stream starts a fresh baseline instead of
+// diffing against someone else's numbers).
+func (p *api) sessionSnapshot(ctx context.Context, req sessionRequest) (snap snapshot, hasSnapshot bool) {
+	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.channelID), &snap)
 	if err != nil {
-		log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.ChannelID), zap.Error(err))
+		req.log.Warn("mcsr snapshot read failed", zap.String("channel_id", req.channelID), zap.Error(err))
 	}
-	if !ok || snap.Account != strings.ToLower(account) {
-		if werr := p.writeSnapshot(ctx, req.ChannelID, account, user); werr != nil {
-			log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.ChannelID), zap.Error(werr))
-		}
-		return gossiprpc.McsrSessionReply{
-			Nickname:    user.Nickname,
-			Elo:         user.Elo,
-			HasSnapshot: false,
-			SinceUnix:   time.Now().Unix(),
-		}
+	if !ok || snap.Account != strings.ToLower(req.account) {
+		return snapshot{}, false
 	}
+	return snap, true
+}
 
+// startSession takes a fresh stream-start snapshot and answers
+// HasSnapshot=false so the caller can say "tracking from now" instead of a
+// fake zero delta.
+func (p *api) startSession(ctx context.Context, req sessionRequest, user gossiprpc.McsrUserReply) gossiprpc.McsrSessionReply {
+	if err := p.writeSnapshot(ctx, req.channelID, req.account, user); err != nil {
+		req.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.channelID), zap.Error(err))
+	}
+	return gossiprpc.McsrSessionReply{
+		Nickname:    user.Nickname,
+		Elo:         user.Elo,
+		HasSnapshot: false,
+		SinceUnix:   time.Now().Unix(),
+	}
+}
+
+// sessionDelta builds the !session reply from the account's current standing
+// and the channel's stream-start snapshot.
+func sessionDelta(user gossiprpc.McsrUserReply, snap snapshot) gossiprpc.McsrSessionReply {
 	reply := gossiprpc.McsrSessionReply{
 		Nickname:    user.Nickname,
 		Elo:         user.Elo,
@@ -586,24 +640,33 @@ func (p *api) cachedLastMatch(ctx context.Context, account string, season int, i
 	})
 }
 
-func (p *api) fetchVersus(ctx context.Context, a, b string, season int) (versusResponse, error) {
+// versusQuery bundles !record's two accounts and season so fetchVersus and
+// cachedVersus take one named value instead of three loose parameters
+// alongside ctx (and isPremium, for the cached variant).
+type versusQuery struct {
+	A      string
+	B      string
+	Season int
+}
+
+func (p *api) fetchVersus(ctx context.Context, q versusQuery) (versusResponse, error) {
 	var resp versusResponse
-	var q url.Values
-	if season > 0 {
-		q = url.Values{"season": {strconv.Itoa(season)}}
+	var vals url.Values
+	if q.Season > 0 {
+		vals = url.Values{"season": {strconv.Itoa(q.Season)}}
 	}
-	path := "/users/" + strings.TrimSpace(a) + "/versus/" + strings.TrimSpace(b)
-	if err := p.http.GetJSON(ctx, path, q, &resp); err != nil {
+	path := "/users/" + strings.TrimSpace(q.A) + "/versus/" + strings.TrimSpace(q.B)
+	if err := p.http.GetJSON(ctx, path, vals, &resp); err != nil {
 		return versusResponse{}, err
 	}
 	return resp, nil
 }
 
-func (p *api) cachedVersus(ctx context.Context, a, b string, season int, isPremium bool) (versusResponse, error) {
-	id := mcsrCacheID(a, season) + "|" + strings.ToLower(strings.TrimSpace(b))
+func (p *api) cachedVersus(ctx context.Context, q versusQuery, isPremium bool) (versusResponse, error) {
+	id := mcsrCacheID(q.A, q.Season) + "|" + strings.ToLower(strings.TrimSpace(q.B))
 	key := core.Key(providerName, "versus", id)
 	return core.Cached(ctx, p.cache, key, recordTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (versusResponse, error) {
-		return p.fetchVersus(ctx, a, b, season)
+		return p.fetchVersus(ctx, q)
 	})
 }
 
@@ -628,13 +691,23 @@ func (p *api) fetchEloLeaderboard(ctx context.Context, season int, country strin
 	return resp.Data.Users, nil
 }
 
-func (p *api) fetchPhaseLeaderboard(ctx context.Context, season int, country string, predicted bool) ([]lbUser, error) {
+// lbQuery bundles a leaderboard lookup's season/country/predicted filters so
+// cachedPhaseLeaderboard and fetchPhaseLeaderboard take one named value
+// instead of three loose parameters alongside ctx (and isPremium, for the
+// cached variant).
+type lbQuery struct {
+	Season    int
+	Country   string
+	Predicted bool
+}
+
+func (p *api) fetchPhaseLeaderboard(ctx context.Context, q lbQuery) ([]lbUser, error) {
 	var resp usersLeaderboardResponse
-	q := leaderboardQuery(season, country)
-	if predicted {
-		q.Set("predicted", "true")
+	vals := leaderboardQuery(q.Season, q.Country)
+	if q.Predicted {
+		vals.Set("predicted", "true")
 	}
-	if err := p.http.GetJSON(ctx, "/phase-leaderboard", q, &resp); err != nil {
+	if err := p.http.GetJSON(ctx, "/phase-leaderboard", vals, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Data.Users, nil
@@ -669,10 +742,10 @@ func (p *api) cachedEloLeaderboard(ctx context.Context, season int, country stri
 	})
 }
 
-func (p *api) cachedPhaseLeaderboard(ctx context.Context, season int, country string, predicted, isPremium bool) ([]lbUser, error) {
-	key := core.Key(providerName, "leaderboard-phase", leaderboardCacheID(season, country, predicted))
+func (p *api) cachedPhaseLeaderboard(ctx context.Context, q lbQuery, isPremium bool) ([]lbUser, error) {
+	key := core.Key(providerName, "leaderboard-phase", leaderboardCacheID(q.Season, q.Country, q.Predicted))
 	return core.Cached(ctx, p.cache, key, leaderboardTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) ([]lbUser, error) {
-		return p.fetchPhaseLeaderboard(ctx, season, country, predicted)
+		return p.fetchPhaseLeaderboard(ctx, q)
 	})
 }
 
@@ -760,7 +833,7 @@ func (p *api) versus(ctx context.Context, req gossiprpc.Request) any {
 	if a == "" || b == "" {
 		return gossiprpc.McsrRecordReply{Error: "missing account"}
 	}
-	resp, err := p.cachedVersus(ctx, a, b, req.Season, req.IsPremium)
+	resp, err := p.cachedVersus(ctx, versusQuery{A: a, B: b, Season: req.Season}, req.IsPremium)
 	if err != nil {
 		msg := friendlyError(err)
 		if msg == "" {
@@ -832,7 +905,7 @@ func (p *api) eloLeaderboardReply(ctx context.Context, log *zap.Logger, req goss
 }
 
 func (p *api) phaseLeaderboardReply(ctx context.Context, log *zap.Logger, req gossiprpc.Request) any {
-	users, err := p.cachedPhaseLeaderboard(ctx, req.Season, req.Country, req.Predicted, req.IsPremium)
+	users, err := p.cachedPhaseLeaderboard(ctx, lbQuery{Season: req.Season, Country: req.Country, Predicted: req.Predicted}, req.IsPremium)
 	if err != nil {
 		return leaderboardErrorReply(log, "phase", err)
 	}

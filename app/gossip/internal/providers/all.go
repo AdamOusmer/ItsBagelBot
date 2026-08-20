@@ -39,63 +39,72 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	return out
 }
 
-func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	if cfg.UrchinAPIKey == "" {
-		log.Warn("urchin provider disabled: URCHIN_API_KEY not set")
+// appendIf is the shape every appendX helper below shares: gate on a
+// condition, log why and leave out unchanged when it skips, otherwise build
+// the provider and append it. Factoring this once means adding a provider
+// with the same "one credential/flag gates it" shape is writing a gate
+// condition, a skip reason and a constructor closure — not a fifth copy of
+// this whole sequence (the duplication CodeScene flagged once appendPaceman
+// made the third near-identical copy).
+func appendIf(out []provider.Provider, log *zap.Logger, skip bool, skipReason string, build func() provider.Provider) []provider.Provider {
+	if skip {
+		log.Warn(skipReason)
 		return out
 	}
-	return append(out, urchin.New(urchin.Config{
-		BaseURL:   cfg.UrchinBaseURL,
-		APIKey:    cfg.UrchinAPIKey,
-		RateLimit: cfg.UrchinRateLimit,
-	}, d))
+	return append(out, build())
+}
+
+func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return appendIf(out, log, cfg.UrchinAPIKey == "", "urchin provider disabled: URCHIN_API_KEY not set", func() provider.Provider {
+		return urchin.New(urchin.Config{
+			BaseURL:   cfg.UrchinBaseURL,
+			APIKey:    cfg.UrchinAPIKey,
+			RateLimit: cfg.UrchinRateLimit,
+		}, d)
+	})
 }
 
 func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	if cfg.HypixelAPIKey == "" {
-		log.Warn("hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)")
-		return out
-	}
-	return append(out, hypixel.New(hypixel.Config{
-		BaseURL:         cfg.HypixelBaseURL,
-		MojangBaseURL:   cfg.MojangBaseURL,
-		APIKey:          cfg.HypixelAPIKey,
-		RateLimit:       cfg.HypixelRateLimit,
-		MojangRateLimit: cfg.MojangRateLimit,
-	}, d))
+	return appendIf(out, log, cfg.HypixelAPIKey == "", "hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)", func() provider.Provider {
+		return hypixel.New(hypixel.Config{
+			BaseURL:         cfg.HypixelBaseURL,
+			MojangBaseURL:   cfg.MojangBaseURL,
+			APIKey:          cfg.HypixelAPIKey,
+			RateLimit:       cfg.HypixelRateLimit,
+			MojangRateLimit: cfg.MojangRateLimit,
+		}, d)
+	})
 }
 
 func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	if !cfg.McsrEnabled {
-		log.Warn("mcsr provider disabled: MCSR_ENABLED=false")
-		return out
-	}
-	return append(out, mcsr.New(mcsr.Config{
-		BaseURL:   cfg.McsrBaseURL,
-		APIKey:    cfg.McsrAPIKey,
-		RateLimit: cfg.McsrRateLimit,
-	}, d))
+	return appendIf(out, log, !cfg.McsrEnabled, "mcsr provider disabled: MCSR_ENABLED=false", func() provider.Provider {
+		return mcsr.New(mcsr.Config{
+			BaseURL:   cfg.McsrBaseURL,
+			APIKey:    cfg.McsrAPIKey,
+			RateLimit: cfg.McsrRateLimit,
+		}, d)
+	})
+}
+
+// appendPaceman adds the paceman provider. Its public API needs no key, so
+// unlike appendUrchin/appendHypixel there is no credential to gate on — the
+// only switch is the operator-controlled PacemanEnabled kill switch.
+func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return appendIf(out, log, !cfg.PacemanEnabled, "paceman provider disabled: PACEMAN_ENABLED=false", func() provider.Provider {
+		return paceman.New(paceman.Config{
+			BaseURL:     cfg.PacemanBaseURL,
+			UserBaseURL: cfg.PacemanUserBaseURL,
+			RateLimit:   cfg.PacemanRateLimit,
+		}, d)
+	})
 }
 
 // appendFortnite adds the fortnite provider behind the FORTNITE_ENABLED flag
 // (dark until tested). The api-fortnite.com key gates only the stats
 // endpoint: the shop upstream (fortnite-api.com) is public, so a keyless
-// provider still answers !store and merely skips !fnstats (shop-only mode).
-// appendPaceman adds the paceman provider. Its public API needs no key, so
-// unlike appendUrchin/appendHypixel there is no credential to gate on — the
-// only switch is the operator-controlled PacemanEnabled kill switch.
-func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	if !cfg.PacemanEnabled {
-		log.Warn("paceman provider disabled: PACEMAN_ENABLED=false")
-		return out
-	}
-	return append(out, paceman.New(paceman.Config{
-		BaseURL:     cfg.PacemanBaseURL,
-		UserBaseURL: cfg.PacemanUserBaseURL,
-		RateLimit:   cfg.PacemanRateLimit,
-	}, d))
-}
-
+// provider still answers !store and merely skips !fnstats (shop-only mode) —
+// a soft warning alongside construction, not a skip, so it does not fit
+// appendIf's single hard gate.
 func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	if !cfg.FortniteEnabled {
 		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")
@@ -119,12 +128,10 @@ func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps
 // them; without it (the modules internal key RPC unwired) there is nothing to
 // authenticate with, so it is skipped like any credential-less provider.
 func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	if d.GoveeKeys == nil {
-		log.Warn("govee provider disabled: no key resolver (modules govee RPC unwired)")
-		return out
-	}
-	return append(out, govee.New(govee.Config{
-		BaseURL:   cfg.GoveeBaseURL,
-		RateLimit: cfg.GoveeRateLimit,
-	}, d))
+	return appendIf(out, log, d.GoveeKeys == nil, "govee provider disabled: no key resolver (modules govee RPC unwired)", func() provider.Provider {
+		return govee.New(govee.Config{
+			BaseURL:   cfg.GoveeBaseURL,
+			RateLimit: cfg.GoveeRateLimit,
+		}, d)
+	})
 }
