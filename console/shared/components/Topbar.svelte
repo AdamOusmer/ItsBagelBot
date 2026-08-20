@@ -8,6 +8,7 @@
   import { afterNavigate } from '$app/navigation';
   import Icon from './Icon.svelte';
   import Scroller from './Scroller.svelte';
+  import Bolota from './Bolota.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
 
@@ -47,12 +48,13 @@
     delegateExitLabel?: string;
   } = $props();
 
-  const initial = $derived((accountName || '?').charAt(0).toUpperCase());
-  const dashInitial = (name: string) => (name || '?').charAt(0).toUpperCase();
-
-  // Account menu: the avatar chip opens a small dropdown holding Log out —
+  // Account menu: the avatar chip opens a small dropdown holding Log out,
   // sign-out lives here (not in the dock) so navigation stays uncrowded.
   let menuOpen = $state(false);
+
+  // Drives the account chip's Bolota: waking it up on hover, independent of
+  // whether the menu is open.
+  let hovered = $state(false);
 
   // The Topbar lives in the persistent layout, so a shared-dashboard link in
   // the menu navigates without unmounting it, leaving the menu open. Close it
@@ -101,8 +103,10 @@
         aria-expanded={menuOpen}
         aria-haspopup="menu"
         onclick={() => (menuOpen = !menuOpen)}
+        onpointerenter={() => (hovered = true)}
+        onpointerleave={() => (hovered = false)}
       >
-        <span class="avatar">{initial}</span>
+        <span class="avatar"><Bolota name={accountName} size={30} active={hovered || menuOpen} /></span>
         <span class="op-id">
           <b>{accountName}</b>
           <i>{accountRole}</i>
@@ -119,6 +123,9 @@
         ></div>
         <div class="op-menu" role="menu">
           <div class="op-menu-head">
+            <span class="op-menu-avatar">
+              <Bolota name={accountName} size={72} active={menuOpen} />
+            </span>
             <b>{accountName}</b>
             <i>{accountRole}</i>
           </div>
@@ -132,7 +139,7 @@
                 <div class="op-dash-list">
                   {#each dashboards as d (d.href)}
                     <a class="op-dash" href={d.href} role="menuitem">
-                      <span class="dash-avatar">{dashInitial(d.name)}</span>
+                      <span class="dash-avatar"><Bolota name={d.name} size={26} active={menuOpen} gate /></span>
                       <span class="dash-name">{d.name}</span>
                     </a>
                   {/each}
@@ -217,7 +224,6 @@
     width: 30px; height: 30px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--bb-font-display); font-weight: 800; font-size: 12px; color: #0a0a0a;
   }
   .op-id { display: none; flex-direction: column; line-height: 1; text-align: left; }
   .op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -229,7 +235,7 @@
     top: calc(100% + 10px);
     right: 0;
     z-index: 90;
-    min-width: 190px;
+    min-width: 260px;
     padding: 8px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
@@ -242,8 +248,19 @@
     from { opacity: 0; transform: translateY(-6px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
-  .op-menu-head { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 10px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px; }
-  .op-menu-head b { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
+  /* Centrepiece of the menu: a big Bolota on its own plate, name and role
+     stacked below it, everything centred. */
+  .op-menu-head {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 10px 16px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px;
+    text-align: center;
+  }
+  .op-menu-avatar {
+    width: 84px; height: 84px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
+    display: flex; align-items: center; justify-content: center;
+  }
+  .op-menu-head b { font-family: var(--bb-font-body); font-weight: 600; font-size: 14px; color: var(--bb-white); }
   .op-menu-head i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; color: var(--bb-tan); }
 
   .op-menu-section {
@@ -262,12 +279,11 @@
     transition: background var(--bb-dur-fast, 180ms) ease;
   }
   .op-dash:hover { background: rgba(201, 168, 124, 0.1); }
-  /* Same gradient + first-letter mark as the account badge, scaled down. */
+  /* Same gradient plate as the account badge, scaled down. */
   .dash-avatar {
     width: 26px; height: 26px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--bb-font-display); font-weight: 800; font-size: 11px; color: #0a0a0a;
   }
   .dash-name {
     font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);

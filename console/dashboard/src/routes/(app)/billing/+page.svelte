@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Icon, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -76,8 +76,21 @@
   let activationSlow = $state(false);
   let celebratedActivation = $state(false);
   let confetti = $state<
-    { tx: number; ty: number; rot: number; delay: number; dur: number; color: string; w: number; h: number }[]
+    {
+      tx: number;
+      peak: number;
+      fall: number;
+      rot: number;
+      delay: number;
+      dur: number;
+      color: string;
+      w: number;
+      h: number;
+    }[]
   >([]);
+  // Where the explosion starts: the blob's own centre, in viewport coordinates,
+  // read at the moment it goes off.
+  let confettiOrigin = $state({ x: 0, y: 0 });
 
   const INTENT_KEY = 'bagel_checkout_intent';
 
@@ -117,18 +130,110 @@
 
   function burst() {
     if (prefersReducedMotion()) return;
-    confetti = Array.from({ length: 44 }, () => ({
-      tx: Math.round((Math.random() - 0.5) * 620),
-      ty: Math.round(140 + Math.random() * 460),
-      rot: Math.round((Math.random() - 0.5) * 720),
-      delay: Math.round(Math.random() * 140),
-      dur: Math.round(900 + Math.random() * 700),
-      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      w: 6 + Math.round(Math.random() * 6),
-      h: 3 + Math.round(Math.random() * 4)
-    }));
-    // Clear after the longest piece finishes so re-opens start clean.
-    setTimeout(() => (confetti = []), 1900);
+    // The confetti leaves the blob, so the origin is the badge's own centre.
+    const badge = document.querySelector('.celebrate-badge')?.getBoundingClientRect();
+    confettiOrigin = {
+      x: badge ? badge.left + badge.width / 2 : window.innerWidth / 2,
+      y: badge ? badge.top + badge.height / 2 : window.innerHeight / 2
+    };
+    // Thrown, not sprayed: every piece is launched into the upper half
+    // (-170deg to -10deg, screen coordinates, so up and out to either side),
+    // rises to a peak, then falls past the bottom of the window. A single
+    // outward translate, which is what this used to be, reads as an explosion
+    // of debris; an arc reads as confetti.
+    const rise = window.innerHeight * 0.28;
+    const toFloor = window.innerHeight - confettiOrigin.y;
+    confetti = Array.from({ length: 90 }, () => {
+      const angle = (-170 + Math.random() * 160) * (Math.PI / 180);
+      const power = 0.55 + Math.random() * 0.75;
+      return {
+        // Sideways travel over the whole flight.
+        tx: Math.round(Math.cos(angle) * window.innerWidth * 0.42 * power),
+        // How far above the launch point the piece gets before gravity wins.
+        peak: Math.round(Math.abs(Math.sin(angle)) * rise * power),
+        // And how far below it ends up: past the bottom edge, so nothing
+        // visibly stops mid-air.
+        fall: Math.round(toFloor + 120 + Math.random() * 200),
+        rot: Math.round((Math.random() - 0.5) * 720),
+        delay: Math.round(Math.random() * 320),
+        // Slower, and spread wider apart, so the fall reads as weight rather
+        // than as everything being flung at once.
+        dur: Math.round(2600 + Math.random() * 1600),
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        w: 6 + Math.round(Math.random() * 6),
+        h: 3 + Math.round(Math.random() * 4)
+      };
+    });
+    // Cleared once the slowest piece (delay + duration) is done, so a re-open
+    // starts from nothing.
+    setTimeout(() => (confetti = []), 4600);
+  }
+
+  // Celebration choreography, in order: the blob swirls in, bursts, the burst
+  // throws the confetti, and the face settles on love and holds it. The badge
+  // used to be a static heart icon; the blob now plays that beat itself.
+  // Windows handed to the library, not durations mirrored from it: the engine
+  // covers each one the way that state declares (the swirl stretches its own
+  // timeline so the rings enter and leave once, the burst plays at its own
+  // speed and holds afterwards) and blends back into the resting face on its
+  // own. A window shorter than the state is a floor, never a truncation.
+  const SWIRL_MS = 1500;
+  // The burst's own choreography is done at 2.2s (body collapsed by 0.2s,
+  // particles peaking to 0.4s, regrown from 1.6s and settled by 2.2s); the
+  // state runs to 2.6s, and that tail is dead time. The window ends just past
+  // the regrow so the hand-back starts when the gesture actually finishes.
+  const BURST_MS = 2400;
+  // Where the paper leaves: the regrow's last frame, so the pieces are already
+  // in the air as the engine blends the burst back into the resting face.
+  const BURST_SETTLED_MS = 2200;
+
+  // True from the moment the choreography schedules its launch until that
+  // launch happens. The activation burst below must not pre-empt it:
+  // `optimisticPaid` flips in the same tick the celebration starts, so "the
+  // plan went live" fired its own confetti at t=0, before the swirl had begun.
+  let confettiPending = $state(false);
+  let celebrateSeq = $state<'entrance' | 'burst' | null>(null);
+  let celebrateSeqKey = $state(0);
+  let celebrateExpr = $state<string | null>(null);
+  let choreo: ReturnType<typeof setTimeout>[] = [];
+
+  function clearChoreo() {
+    choreo.forEach(clearTimeout);
+    choreo = [];
+    confettiPending = false;
+  }
+
+  function playCelebration() {
+    clearChoreo();
+    // Reduced motion gets the end state with none of the travel: love, held.
+    if (prefersReducedMotion()) {
+      celebrateSeq = null;
+      celebrateExpr = 'love';
+      // No travel means no confetti either, so nothing is owed a launch and
+      // the activation burst below stays free to fire on its own terms.
+      confettiPending = false;
+      return;
+    }
+    // Love is held for the whole celebration: an expression stacks on top of the
+    // state, so it survives both sequences instead of arriving after them.
+    celebrateExpr = 'love';
+    celebrateSeq = 'entrance';
+    celebrateSeqKey += 1;
+    choreo.push(
+      setTimeout(() => {
+        celebrateSeq = 'burst';
+        celebrateSeqKey += 1;
+      }, SWIRL_MS)
+    );
+    // Confetti launches as the burst finishes regrowing, just before the
+    // engine hands back and the face blends to love.
+    confettiPending = true;
+    choreo.push(
+      setTimeout(() => {
+        confettiPending = false;
+        burst();
+      }, SWIRL_MS + BURST_SETTLED_MS)
+    );
   }
 
   function openGift() {
@@ -153,6 +258,9 @@
   }
   function closeCelebrate() {
     celebrateOpen = false;
+    clearChoreo();
+    celebrateSeq = null;
+    celebrateExpr = null;
     confetti = [];
   }
 
@@ -194,7 +302,7 @@
     celebrateKind = intent?.kind ?? 'premium';
     celebrateRecipient = intent?.recipient ?? '';
     celebrateOpen = true;
-    burst();
+    playCelebration();
     stripCheckoutParam();
 
     // A gift never changes the buyer's own plan, so there is nothing to wait for.
@@ -208,10 +316,19 @@
     optimisticPaid = true;
   });
 
-  // When a self-purchase finally flips to paid while the modal is open, fire a
-  // second confetti burst to mark the activation.
+  // When a self-purchase flips to paid while the modal is open, mark the
+  // activation with confetti — unless the choreography is about to throw it
+  // anyway. `optimisticPaid` is set in the same tick as `playCelebration`, so
+  // without that guard this always won the race and the celebration opened
+  // with its own finale.
   $effect(() => {
-    if (celebrateOpen && celebrateKind === 'premium' && isPaid && !celebratedActivation) {
+    if (
+      celebrateOpen &&
+      celebrateKind === 'premium' &&
+      isPaid &&
+      !celebratedActivation &&
+      !confettiPending
+    ) {
       celebratedActivation = true;
       burst();
     }
@@ -526,7 +643,16 @@
 <Modal open={celebrateOpen} closeModal={closeCelebrate}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
-      <Icon name="heart" size={30} />
+      <Bolota
+        name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
+        size={58}
+        active={celebrateOpen}
+        cycle={false}
+        sequence={celebrateSeq}
+        sequenceKey={celebrateSeqKey}
+        sequenceFor={celebrateSeq === 'entrance' ? SWIRL_MS : BURST_MS}
+        expression={celebrateExpr}
+      />
     </div>
 
     {#if celebrateKind === 'gift'}
@@ -565,11 +691,19 @@
 </Modal>
 
 {#if confetti.length}
-  <div class="confetti-layer" aria-hidden="true">
+  <!-- Portalled to the body for the same reason the modal is: .app is a
+       stacking context (position: relative, z-index: 1), so a layer left inside
+       it can never paint above a modal that portals out of it. -->
+  <div
+    class="confetti-layer"
+    aria-hidden="true"
+    style="--ox:{confettiOrigin.x}px; --oy:{confettiOrigin.y}px;"
+    use:portal
+  >
     {#each confetti as p}
       <span
         class="confetti-piece"
-        style="--tx:{p.tx}px; --ty:{p.ty}px; --rot:{p.rot}deg; --delay:{p.delay}ms; --dur:{p.dur}ms; background:{p.color}; width:{p.w}px; height:{p.h}px;"
+        style="--tx:{p.tx}px; --peak:{p.peak}px; --fall:{p.fall}px; --rot:{p.rot}deg; --delay:{p.delay}ms; --dur:{p.dur}ms; background:{p.color}; width:{p.w}px; height:{p.h}px;"
       ></span>
     {/each}
   </div>
@@ -1124,25 +1258,48 @@
   .confetti-layer {
     position: fixed;
     inset: 0;
-    z-index: 260;
+    /* Above the celebration modal, which portals to the body and stacks from
+       200 upward. The confetti falls in front of it, not behind. */
+    z-index: 400;
     pointer-events: none;
     overflow: hidden;
   }
   .confetti-piece {
     position: absolute;
-    top: 42%;
-    left: 50%;
+    top: var(--oy, 50%);
+    left: var(--ox, 50%);
     border-radius: 8px;
     opacity: 0;
-    animation: confetti var(--dur, 1200ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) var(--delay, 0ms) forwards;
+    /* `linear` on the animation itself: the arc's two halves need OPPOSITE
+       curves (decelerating on the way up, accelerating on the way down), and
+       one timing function across the whole thing cannot do that. Each keyframe
+       carries its own instead. */
+    animation: confetti var(--dur, 3000ms) linear var(--delay, 0ms) forwards;
   }
   @keyframes confetti {
     0% {
-      transform: translate(-50%, -50%) rotate(0deg) scale(1);
+      transform: translate(-50%, -50%) rotate(0deg) scale(0.6);
+      opacity: 0;
+      /* Thrown: fast off the mark, slowing as it climbs. */
+      animation-timing-function: cubic-bezier(0.12, 0.7, 0.35, 1);
+    }
+    6% {
+      opacity: 1;
+    }
+    42% {
+      /* Apex: most of the sideways travel is still to come, so the piece
+         drifts on rather than stopping dead over its launch point. */
+      transform: translate(calc(-50% + var(--tx) * 0.42), calc(-50% - var(--peak)))
+        rotate(calc(var(--rot) * 0.45)) scale(1);
+      /* Gravity: slow at the top, quickening all the way down. */
+      animation-timing-function: cubic-bezier(0.45, 0, 0.75, 0.55);
+    }
+    88% {
       opacity: 1;
     }
     100% {
-      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) rotate(var(--rot)) scale(0.9);
+      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--fall))) rotate(var(--rot))
+        scale(1);
       opacity: 0;
     }
   }
