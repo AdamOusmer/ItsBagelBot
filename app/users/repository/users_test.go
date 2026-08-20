@@ -494,3 +494,62 @@ func TestConsumeStillBindsDistinctBoards(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, access, 2, "different owners are separate grants, not a reclaim")
 }
+
+// --- login -> id resolve (public command page) ---
+
+func TestIDByUsernameResolves(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 4001, "streamer", "streamer@test.com"))
+
+	id, err := repo.IDByUsername(ctx, "streamer")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4001), id)
+}
+
+// The URL segment is whatever a viewer typed or a client lowercased, so the
+// lookup normalizes before it queries.
+func TestIDByUsernameNormalizesInput(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 4002, "streamer", "streamer2@test.com"))
+
+	id, err := repo.IDByUsername(ctx, "  STREAMER ")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4002), id)
+}
+
+func TestIDByUsernameUnknownAndInvalid(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	_, err := repo.IDByUsername(ctx, "nobody")
+	assert.Error(t, err, "an unresolvable login must not fall back to some other channel")
+
+	_, err = repo.IDByUsername(ctx, "not a login!")
+	assert.Error(t, err)
+
+	_, err = repo.IDByUsername(ctx, "")
+	assert.Error(t, err)
+}
+
+// A Twitch rename frees the old login for someone else, so two rows can carry
+// the same username until the renamed user next signs in. The freshest row is
+// the one Twitch agrees with.
+func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 4003, "shared", "stale@test.com"))
+	require.NoError(t, repo.Register(ctx, 4004, "shared", "fresh@test.com"))
+
+	now := time.Now()
+	require.NoError(t, client.User.UpdateOneID(4003).SetUpdatedAt(now.Add(-48*time.Hour)).Exec(ctx))
+	require.NoError(t, client.User.UpdateOneID(4004).SetUpdatedAt(now).Exec(ctx))
+
+	id, err := repo.IDByUsername(ctx, "shared")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4004), id)
+}

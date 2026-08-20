@@ -129,9 +129,12 @@ type Config struct {
 	// write the channel quote book.
 	ModulesRPCPrefix string
 
-	// PublicBaseURL is the origin of the public console pages. The !cmd module
-	// builds the channel command-page link from it as "<base>/user/<broadcaster
-	// id>". Stored without a trailing slash.
+	// PublicBaseURL is the origin the !cmd module builds a channel's public
+	// command-page link from, as "<base>/user/<login>". Stored without a
+	// trailing slash. Defaults to the short commands. host, which is the same
+	// console app under a third hostname (deploy/k8s/console-dashboard.yaml)
+	// -- the link is read aloud and typed by viewers, so it gets the shortest
+	// name that reaches the page.
 	PublicBaseURL string
 
 	// GossipRPCPrefix is the NATS subject prefix the gossip service (external
@@ -205,7 +208,7 @@ func Load() *Config {
 
 		ModulesRPCPrefix: env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules"),
 
-		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://dashboard.itsbagelbot.com"), "/"),
+		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://commands.itsbagelbot.com"), "/"),
 
 		// Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
 		// fallback. The NATS account/user were renamed too, so a stale prefix

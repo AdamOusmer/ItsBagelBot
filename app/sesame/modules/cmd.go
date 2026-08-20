@@ -6,12 +6,11 @@ package modules
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -21,11 +20,12 @@ import (
 //
 //   - A public link. Anyone can run !cmd / !cmds / !command / !commands (with no
 //     subcommand) to get the channel's public command page.
+//
 //   - Moderator management. Mods add, edit and delete custom commands from chat:
 //
-//	!cmd add <name> <response>
-//	!cmd edit <name> <response>
-//	!cmd remove <name>
+//     !cmd add <name> <response>
+//     !cmd edit <name> <response>
+//     !cmd remove <name>
 //
 // The command itself is open to everyone (so the link works for viewers); the
 // mutating subcommands are gated on RoleModerator inside the handler. Mutations
@@ -140,19 +140,26 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 
 // cmdLink emits the channel's public command-page link. Any viewer can trigger
 // it, so it is the everyone-facing half of the module. The URL is
-// "<base>/user/<broadcaster id>?channel=<display name>"; the path is keyed by the
-// immutable broadcaster id, and the channel query is a display hint (the current
-// display name) the page falls back to a numeric label without.
+// "<base>/user/<login>": the login is what a viewer reads in a shared link, and
+// the page resolves it to the broadcaster id server-side before rendering
+// anything.
+//
+// The link used to be "<base>/user/<id>?channel=<display name>", where the page
+// took its channel label straight from that query string. Anyone could edit the
+// query and hand out a link that showed one channel's commands under another
+// streamer's name, so the name is no longer carried in the URL at all. The id
+// stays the fallback path for links already shared in that older form.
 func cmdLink(c *module.Context, d engine.Deps, emit module.Emit) {
 	base := d.PublicBaseURL
 	if base == "" {
-		base = "https://dashboard.itsbagelbot.com"
+		base = "https://commands.itsbagelbot.com"
 	}
 	channel := c.Env.BroadcasterName()
-	link := fmt.Sprintf("%s/user/%s", strings.TrimRight(base, "/"), c.Env.BroadcasterUserID)
-	if channel != "" {
-		link += "?channel=" + url.QueryEscape(channel)
+	slug := strings.ToLower(c.Env.BroadcasterUserLogin)
+	if slug == "" {
+		slug = c.Env.BroadcasterUserID
 	}
+	link := fmt.Sprintf("%s/user/%s", strings.TrimRight(base, "/"), slug)
 	text := strings.NewReplacer(
 		"{user}", c.Env.ChatterName(),
 		"{channel}", channel,

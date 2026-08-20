@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The marketing site's nav (web/src/components/layout/Nav.astro), as it was
-  // first converted for routes/user/[userId]: logo, centred link row, CTA — all
+  // first converted for routes/user/[channel]: logo, centred link row, CTA — all
   // routed at the live site. Extracted here so every public page wears the same
   // bar. Link labels and targets come from the i18n catalog + links.ts, so a
   // French visitor gets French labels and /fr/ targets.

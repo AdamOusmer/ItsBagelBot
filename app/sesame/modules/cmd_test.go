@@ -243,15 +243,15 @@ func TestCmdNoSubcommand(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd"), "", col.emit))
 
 	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/100")
-	assert.Contains(t, col.out[0].Text, "channel=streamer")
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
 	assert.Empty(t, cmds.upsertCalls)
 }
 
-// The ?channel= label is the broadcaster's Twitch display name when the event
-// carries one, so a renamed channel shows its current cased/localized name and
-// not the lowercase login. The path stays keyed by the immutable id.
-func TestCmdLinkUsesDisplayName(t *testing.T) {
+// The URL carries the login only. The display name is chat-facing copy, never
+// part of the link: the page used to read its channel label out of a ?channel=
+// query, which let anyone edit a shared link and show one channel's commands
+// under another streamer's name.
+func TestCmdLinkCarriesLoginNotDisplayName(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
 	m := Cmd(cmdDeps(proj, cmds))
@@ -264,8 +264,29 @@ func TestCmdLinkUsesDisplayName(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
 
 	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
+	// The display name still appears in the chat copy ("StreamerName's
+	// commands"); what must not carry it is the URL.
+	assert.NotContains(t, col.out[0].Text, "/user/StreamerName")
+	assert.NotContains(t, col.out[0].Text, "channel=")
+}
+
+// An event with no login (non-chat sources can omit it) falls back to the
+// broadcaster id, which the page still resolves.
+func TestCmdLinkFallsBackToIDWithoutLogin(t *testing.T) {
+	cmds := &fakeCommandManager{}
+	proj := &fakeProj{commands: map[string]projection.Command{}}
+	m := Cmd(cmdDeps(proj, cmds))
+	cmd := findCmd(t, m, "cmd")
+
+	c := cmdCtx("alice", "!cmd")
+	c.Env.BroadcasterUserLogin = ""
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
+
+	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "/user/100")
-	assert.Contains(t, col.out[0].Text, "channel=StreamerName")
 }
 
 // An unknown subcommand also falls through to the public link.
@@ -279,7 +300,7 @@ func TestCmdInvalidSubcommand(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd foobar"), "foobar", col.emit))
 
 	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
 
 // --- public link + permission gate ---
@@ -303,8 +324,7 @@ func TestCmdLinkForViewer(t *testing.T) {
 
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "@vic")
-	assert.Contains(t, col.out[0].Text, "/user/100")
-	assert.Contains(t, col.out[0].Text, "channel=streamer")
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
 	assert.Empty(t, cmds.upsertCalls)
 }
 
@@ -321,24 +341,36 @@ func TestCmdManageDeniedForViewer(t *testing.T) {
 
 	assert.Empty(t, cmds.upsertCalls, "viewer must not manage commands")
 	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/100")
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
 
-// A configured PublicBaseURL is used verbatim, minus any trailing slash.
-func TestCmdLinkUsesConfiguredBase(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	d := cmdDeps(proj, cmds)
-	d.PublicBaseURL = "https://staging.example.com/"
-	m := Cmd(d)
-	cmd := findCmd(t, m, "cmd")
+// The link's origin: a configured PublicBaseURL verbatim minus any trailing
+// slash, and otherwise the short commands host the deploy routes to the same
+// console app -- not the dashboard host the link used to name.
+func TestCmdLinkBase(t *testing.T) {
+	cases := []struct {
+		name string
+		base string
+		want string
+	}{
+		{"configured base", "https://staging.example.com/", "https://staging.example.com/user/streamer"},
+		{"unset base", "", "https://commands.itsbagelbot.com/user/streamer"},
+	}
 
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!command"), "", col.emit))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := cmdDeps(&fakeProj{commands: map[string]projection.Command{}}, &fakeCommandManager{})
+			d.PublicBaseURL = tc.base
+			cmd := findCmd(t, Cmd(d), "cmd")
 
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "https://staging.example.com/user/100")
-	assert.NotContains(t, col.out[0].Text, "example.com//user")
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!command"), "", col.emit))
+
+			require.Len(t, col.out, 1)
+			assert.Contains(t, col.out[0].Text, tc.want)
+			assert.NotContains(t, col.out[0].Text, "example.com//user")
+		})
+	}
 }
 
 func TestCmdAddRPCError(t *testing.T) {
@@ -371,9 +403,9 @@ func TestCmdStripsExclamationFromName(t *testing.T) {
 
 func TestSplitFirst(t *testing.T) {
 	tests := []struct {
-		input        string
-		wantFirst    string
-		wantRest     string
+		input     string
+		wantFirst string
+		wantRest  string
 	}{
 		{"add hello world", "add", "hello world"},
 		{"remove test", "remove", "test"},
