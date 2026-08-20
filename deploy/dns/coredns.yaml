@@ -1,0 +1,205 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Cluster DNS. This is a TAKEOVER of the k3s packaged coredns addon, not an
+# addition next to it. k3s ships coredns as a Deployment; this fleet runs it as
+# a DaemonSet so every node has a local resolver and pods never cross a node
+# boundary (or the tailnet) for DNS. The takeover is anchored by
+#   /var/lib/rancher/k3s/server/manifests/coredns.yaml.skip
+# on the server node (cp1), which stops k3s applying its own copy. Without that
+# file k3s reinstates the Deployment and reverts the Corefile. The ConfigMap
+# still carries stale objectset.rio.cattle.io annotations from the last apply
+# before the skip; they are inert.
+#
+# Until 2026-08-20 this DaemonSet existed ONLY as live cluster state with no
+# manifest anywhere, so a cp1 rebuild would have silently restored the k3s
+# Deployment. That is why it is checked in here.
+#
+# The Corefile lives beside this file rather than in the ConfigMap below,
+# deliberately. The coredns ConfigMap has a second key, NodeHosts, that a k3s
+# node controller rewrites as nodes join and leave -- and that controller is
+# NOT covered by the addon skip. `kubectl apply` replaces a ConfigMap's whole
+# data map, so applying the ConfigMap from git would delete NodeHosts and break
+# node-name resolution until k3s rewrote it. Push Corefile changes with a merge
+# patch, which leaves other keys alone:
+#
+#   kubectl -n kube-system patch cm coredns --type=merge \
+#     -p "$(python3 -c 'import json;print(json.dumps({"data":{"Corefile":open("deploy/dns/Corefile").read()}}))')"
+#
+# The `reload` plugin picks it up within ~30s and REFUSES an invalid Corefile,
+# so a syntax error leaves running pods on the last good config. A pod that
+# restarts while the config is bad will crash-loop, so verify after patching.
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: '{"apiVersion":"apps/v1","kind":"DaemonSet","metadata":{"annotations":{},"labels":{"k8s-app":"kube-dns","kubernetes.io/name":"CoreDNS"},"name":"coredns","namespace":"kube-system"},"spec":{"selector":{"matchLabels":{"k8s-app":"kube-dns"}},"template":{"metadata":{"labels":{"k8s-app":"kube-dns"}},"spec":{"containers":[{"args":["-conf","/etc/coredns/Corefile"],"image":"rancher/mirrored-coredns-coredns:1.14.6","imagePullPolicy":"IfNotPresent","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/health","port":8080,"scheme":"HTTP"},"initialDelaySeconds":10,"periodSeconds":10,"timeoutSeconds":2},"name":"coredns","ports":[{"containerPort":53,"name":"dns","protocol":"UDP"},{"containerPort":53,"name":"dns-tcp","protocol":"TCP"},{"containerPort":9153,"name":"metrics","protocol":"TCP"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/ready","port":8181,"scheme":"HTTP"},"periodSeconds":2,"timeoutSeconds":1},"resources":{"limits":{"memory":"170Mi"},"requests":{"cpu":"100m","memory":"70Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["all"]},"readOnlyRootFilesystem":true},"volumeMounts":[{"mountPath":"/etc/coredns","name":"config-volume","readOnly":true},{"mountPath":"/etc/coredns/custom","name":"custom-config-volume","readOnly":true}]}],"dnsPolicy":"Default","nodeSelector":{"kubernetes.io/os":"linux"},"priorityClassName":"system-cluster-critical","serviceAccountName":"coredns","tolerations":[{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoSchedule","key":"node-role.kubernetes.io/control-plane","operator":"Exists"}],"volumes":[{"configMap":{"items":[{"key":"Corefile","path":"Corefile"},{"key":"NodeHosts","path":"NodeHosts"}],"name":"coredns"},"name":"config-volume"},{"configMap":{"name":"coredns-custom","optional":true},"name":"custom-config-volume"}]}},"updateStrategy":{"rollingUpdate":{"maxUnavailable":1},"type":"RollingUpdate"}}}
+
+      '
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/name: CoreDNS
+  name: coredns
+  namespace: kube-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-dns
+    spec:
+      containers:
+      - args:
+        - -conf
+        - /etc/coredns/Corefile
+        image: rancher/mirrored-coredns-coredns@sha256:900f9c109f7a33545d3c811516e8376df9019147b750f5ce3e254468769176ea
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: coredns
+        ports:
+        - containerPort: 53
+          name: dns
+          protocol: UDP
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 9153
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /ready
+            port: 8181
+            scheme: HTTP
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 170Mi
+          requests:
+            cpu: 100m
+            memory: 70Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/coredns
+          name: config-volume
+          readOnly: true
+        - mountPath: /etc/coredns/custom
+          name: custom-config-volume
+          readOnly: true
+      dnsPolicy: Default
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: coredns
+      serviceAccountName: coredns
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - effect: NoSchedule
+        key: role
+        operator: Equal
+        value: cp
+      volumes:
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: Corefile
+            path: Corefile
+          - key: NodeHosts
+            path: NodeHosts
+          name: coredns
+        name: config-volume
+      - configMap:
+          defaultMode: 420
+          name: coredns-custom
+          optional: true
+        name: custom-config-volume
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+
+# kube-dns Service. trafficDistribution PreferSameNode keeps each pod on its
+# own node's resolver while still falling back to a peer if the local pod is
+# unready -- unlike internalTrafficPolicy: Local, which has no fallback.
+# Set 2026-08-20 after cross-node DNS to the cp1 resolver, reached over
+# tailscale0, was traced to intermittent Cilium "FIB lookup failed" drops:
+# one lost UDP packet cost a 5s resolver timeout, which stalled Valkey
+# Sentinel past its 2s tilt threshold ~10x/hour on node3.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    objectset.rio.cattle.io/id: ''
+    objectset.rio.cattle.io/owner-gvk: k3s.cattle.io/v1, Kind=Addon
+    objectset.rio.cattle.io/owner-name: coredns
+    objectset.rio.cattle.io/owner-namespace: kube-system
+    prometheus.io/port: '9153'
+    prometheus.io/scrape: 'true'
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: CoreDNS
+    objectset.rio.cattle.io/hash: bce283298811743a0386ab510f2f67ef74240c57
+  name: kube-dns
+  namespace: kube-system
+spec:
+  clusterIP: 10.43.0.10
+  clusterIPs:
+  - 10.43.0.10
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: dns
+    port: 53
+    protocol: UDP
+    targetPort: 53
+  - name: dns-tcp
+    port: 53
+    protocol: TCP
+    targetPort: 53
+  - name: metrics
+    port: 9153
+    protocol: TCP
+    targetPort: 9153
+  selector:
+    k8s-app: kube-dns
+  sessionAffinity: None
+  trafficDistribution: PreferSameNode
+  type: ClusterIP

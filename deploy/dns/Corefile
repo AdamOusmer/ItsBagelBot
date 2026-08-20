@@ -1,0 +1,28 @@
+.:53 {
+    errors
+    health {
+      lameduck 5s
+    }
+    ready
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+      pods insecure
+      ttl 30
+      fallthrough in-addr.arpa ip6.arpa
+    }
+    hosts /etc/coredns/NodeHosts {
+      ttl 60
+      reload 15s
+      fallthrough
+    }
+    prometheus :9153
+    cache 60 {
+      prefetch 10 60s 10%
+      serve_stale 3600s immediate
+    }
+    loop
+    reload
+    loadbalance
+    import /etc/coredns/custom/*.override
+    forward . 1.1.1.1 9.9.9.9 8.8.8.8
+}
+import /etc/coredns/custom/*.server

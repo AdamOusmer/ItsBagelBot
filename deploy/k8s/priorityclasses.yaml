@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Scheduling priority for first-party workloads.
+#
+# Until this existed every pod this fleet runs sat at priority 0 — the same
+# rank as New Relic's agents, Falco, cert-manager and cloudflared. Under node
+# pressure the kubelet's eviction ranking and the scheduler's preemption logic
+# had no way to tell "the thing that answers Twitch chat" from "the thing that
+# ships metrics about it", and a burst of telemetry could win a scheduling race
+# against the data plane.
+#
+# Values are chosen to sit ABOVE every unclassed third-party workload (0) and
+# BELOW the two built-in system classes, which must keep outranking everything:
+#   system-node-critical     2000001000   (cilium, kube-proxy)
+#   system-cluster-critical  2000000000   (coredns)
+# Losing CNI or DNS takes the whole node down, so first-party services must
+# never preempt them. There is deliberately no globalDefault: a pod with no
+# class stays at 0, which is the correct rank for third-party tooling.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: bagel-data-plane
+value: 900000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Valkey and NATS. Every other first-party service holds connections to these
+  and fails closed without them, so they outrank the services that depend on
+  them: evicting a NATS hub member to make room for a service that needs NATS
+  is a net loss. NATS hub members are Burstable by design (requests below
+  limits, see the resources block in nats.yaml), which places them inside the
+  memory-pressure eviction ranking; this class is what keeps them at the back
+  of that queue.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: bagel-service
+value: 800000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  First-party runtime services — twitch-ingress, sesame, outgress, projector,
+  gossip and the db-backed RPC services. These carry live user traffic. They
+  rank below the data plane they depend on and above all observability and
+  operator tooling.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: bagel-edge
+value: 700000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Operator-facing consoles. Real first-party workloads, so they outrank
+  third-party tooling, but a console being briefly unschedulable costs an
+  operator a page refresh while the same eviction on a runtime service drops
+  live chat traffic. Lowest of the three deliberately.

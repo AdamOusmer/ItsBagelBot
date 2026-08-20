@@ -113,6 +113,35 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-data-plane
       containers:
         - name: nats
           image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
@@ -170,23 +199,49 @@ spec:
             # Burstable rather than Guaranteed. The upstream NATS chart
             # recommends requests == limits so the member is eligible for the
             # kubelet's static CPU policy — but this fleet runs
-            # cpuManagerPolicy: none, so that eligibility buys nothing today and
-            # reserving 5 cores per node bought nothing either. Measured steady
-            # state is ~1.3 cores on the leader, so a request of 2 covers it with
-            # ~50% headroom while the limit still lets a catch-up burst take all
-            # five. That returns 3 cores and 1Gi per app node to the scheduler on
-            # a 12-core, ~11 GiB tier.
+            # cpuManagerPolicy: none, so that eligibility buys nothing.
             #
-            # The cost, stated so it is not rediscovered: memory usage above the
-            # request puts this pod into the kubelet's memory-pressure eviction
-            # ranking, which at requests == limits it sat outside entirely. The
-            # modelled per-member worst case is ~4.2 GiB (see the max_mem block
-            # in nats-server.conf), so 4Gi sits just under it — steady state is
-            # far below, but a member catching up a full memory-backed catalog
-            # is not. If a hub member is ever evicted under node pressure, raise
-            # this to 4500Mi before looking anywhere else. If cpuManagerPolicy
-            # ever becomes static, revisit the CPU request too.
-            requests: {cpu: "2", memory: 4Gi}
+            # Sized 2026-08-20 against what the stream catalog can actually
+            # reach, not against max_mem. Four streams are storage=memory and
+            # every one is R3, so each member holds all of them:
+            #   TWITCH_INGRESS_STANDARD  640Mi
+            #   TWITCH_INGRESS           384Mi
+            #   TWITCH_OUTGRESS          256Mi
+            #   TWITCH_INGRESS_RETRY      32Mi
+            #                          ------
+            #   reachable total         1312Mi
+            # Measured resident at 64 connections is 138Mi, so 2Gi covers the
+            # full catalog plus ~700Mi for dedup indexes, connections and the
+            # Go runtime. The older ~4.2 GiB worst case was derived from
+            # max_mem 4096Mi, which is 3x more than this catalog can consume —
+            # the request should track the catalog, not a config ceiling the
+            # streams cannot reach. max_mem and the 5Gi limit both stay put,
+            # so the pathological case is still absorbed; only the reservation
+            # moved.
+            #
+            # What makes this safe now and did not before: this pod carries
+            # priorityClassName bagel-data-plane (900000). The kubelet's
+            # memory-pressure eviction ranking sorts by whether usage exceeds
+            # the request and THEN by pod priority, so among pods over their
+            # request a hub member is evicted after every third-party workload
+            # on the node (all of which sit at priority 0). The protection that
+            # used to come from an oversized request now comes from the class,
+            # which is what a priority class is for.
+            #
+            # CPU 2 -> 1000m: a CPU request is a contention-time floor and
+            # never throttles, measured steady state is ~1.3 cores on the
+            # leader at load, and the 5-core limit still lets a catch-up burst
+            # take every core. Nodes sit at 28% of 12 cores committed.
+            #
+            # Together this returns 1 core and 2Gi per app node, which is
+            # deliberate headroom for the incoming BEAM service — BEAM sizes
+            # its scheduler pool off the cgroup and wants real room to land on
+            # (twitch-ingress, the BEAM service already here, requests 500m).
+            # If a hub member is ever evicted under node pressure, raise the
+            # memory request toward 2500Mi and re-check this arithmetic before
+            # looking anywhere else. If cpuManagerPolicy ever becomes static,
+            # revisit the CPU request too.
+            requests: {cpu: "1000m", memory: 2Gi}
             limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
