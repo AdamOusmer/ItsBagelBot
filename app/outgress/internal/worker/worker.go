@@ -107,6 +107,13 @@ type Worker struct {
 	// scheduleClipVerify). A full channel skips the check instead of queueing:
 	// the clip and its reply are unaffected, only the failure notice is lost.
 	clipVerify chan struct{}
+	// tokenWarm bounds the in-flight background broadcaster-token pre-warms
+	// (see scheduleTokenWarm/SubscribeTokenWarm in tokenwarm.go). A full
+	// channel skips the warm instead of queueing: the cache stays cold and the
+	// next real "as":"broadcaster" send pays the lazy cold mint, exactly the
+	// pre-fix status quo, so dropping under saturation costs nothing but the
+	// optimization.
+	tokenWarm chan struct{}
 }
 
 // Config wires one lane worker's collaborators.
@@ -152,6 +159,7 @@ func New(cfg Config) *Worker {
 		batch:      cfg.Batch,
 		userIDs:    userIDs,
 		clipVerify: make(chan struct{}, clipVerifySlots),
+		tokenWarm:  make(chan struct{}, tokenWarmSlots),
 	}
 	// Handlers capture w by method value, so late-attached collaborators
 	// (SetModVerifier, SetReauthNotifier, SetLiveWriter) are still seen.

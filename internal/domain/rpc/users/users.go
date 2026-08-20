@@ -289,15 +289,36 @@ type OptOutDelegationRequest struct {
 }
 
 // TokensRequest is the payload for the tokens get/save verbs.
+//
+// AccessTokenExpiresAt travels alongside AccessToken on "save" so the store
+// can serve the access token back on a later "get" instead of every reader
+// re-minting one from RefreshToken (see TokensReply.AccessTokenExpiresAt for
+// why that matters). Nil means "caller doesn't know the expiry" -- the admin
+// tokenSet and dashboard grant_save paths still save without it, and that is
+// unchanged behaviour, not a regression.
 type TokensRequest struct {
-	UserID       string `json:"user_id"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	UserID               string     `json:"user_id"`
+	AccessToken          string     `json:"access_token"`
+	RefreshToken         string     `json:"refresh_token"`
+	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
 }
 
 // TokensReply is the reply shape for tokens get/save verbs.
+//
+// AccessTokenExpiresAt is the stored access token's absolute UTC expiry, so a
+// "get" caller can decide whether AccessToken is still usable without ever
+// touching id.twitch.tv. A nil value means "unknown expiry" (either the row
+// predates this field, or was written by a caller that didn't supply one) and
+// MUST be treated as "not usable" by callers deciding whether to adopt the
+// token -- never as "never expires". A reply from a users service build that
+// predates this field simply omits both new-ish fields, which is exactly the
+// "unknown expiry" case and therefore requires no version check on the
+// caller's side: see twitch.NewStoredUserTokenSource in
+// app/outgress/internal/twitch/token.go, which falls back to minting from
+// RefreshToken whenever AccessTokenExpiresAt is nil or too close to now.
 type TokensReply struct {
-	AccessToken  string `json:"access_token,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	Error        string `json:"error,omitempty"`
+	AccessToken          string     `json:"access_token,omitempty"`
+	RefreshToken         string     `json:"refresh_token,omitempty"`
+	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
+	Error                string     `json:"error,omitempty"`
 }

@@ -52,14 +52,15 @@ func (t *tokensRPC) handleGet(ctx context.Context, req usersrpc.TokensRequest) u
 		return usersrpc.TokensReply{Error: err.Error()}
 	}
 
-	access, refresh, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	access, refresh, expiresAt, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
 		return usersrpc.TokensReply{Error: err.Error()}
 	}
 
 	return usersrpc.TokensReply{
-		AccessToken:  string(access),
-		RefreshToken: string(refresh),
+		AccessToken:          string(access),
+		RefreshToken:         string(refresh),
+		AccessTokenExpiresAt: expiresAt,
 	}
 }
 
@@ -71,7 +72,7 @@ func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest) 
 	}
 
 	if err := t.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
-		[]byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
+		[]byte(req.AccessToken), []byte(req.RefreshToken), req.AccessTokenExpiresAt); err != nil {
 		log.Error("tokens save", zap.Error(err))
 		return usersrpc.TokensReply{Error: err.Error()}
 	}

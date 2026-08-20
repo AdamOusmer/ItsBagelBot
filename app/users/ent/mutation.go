@@ -2453,19 +2453,20 @@ func (m *DelegationMutation) ResetEdge(name string) error {
 // TokensMutation represents an operation that mutates the Tokens nodes in the graph.
 type TokensMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	_type         *tokens.Type
-	token         *[]byte
-	refresh_token *[]byte
-	platform      *tokens.Platform
-	clearedFields map[string]struct{}
-	user          *uint64
-	cleareduser   bool
-	done          bool
-	oldValue      func(context.Context) (*Tokens, error)
-	predicates    []predicate.Tokens
+	op                      Op
+	typ                     string
+	id                      *int
+	_type                   *tokens.Type
+	token                   *[]byte
+	refresh_token           *[]byte
+	platform                *tokens.Platform
+	access_token_expires_at *time.Time
+	clearedFields           map[string]struct{}
+	user                    *uint64
+	cleareduser             bool
+	done                    bool
+	oldValue                func(context.Context) (*Tokens, error)
+	predicates              []predicate.Tokens
 }
 
 var _ ent.Mutation = (*TokensMutation)(nil)
@@ -2723,6 +2724,55 @@ func (m *TokensMutation) ResetPlatform() {
 	m.platform = nil
 }
 
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (m *TokensMutation) SetAccessTokenExpiresAt(t time.Time) {
+	m.access_token_expires_at = &t
+}
+
+// AccessTokenExpiresAt returns the value of the "access_token_expires_at" field in the mutation.
+func (m *TokensMutation) AccessTokenExpiresAt() (r time.Time, exists bool) {
+	v := m.access_token_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccessTokenExpiresAt returns the old "access_token_expires_at" field's value of the Tokens entity.
+// If the Tokens object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TokensMutation) OldAccessTokenExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccessTokenExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccessTokenExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccessTokenExpiresAt: %w", err)
+	}
+	return oldValue.AccessTokenExpiresAt, nil
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (m *TokensMutation) ClearAccessTokenExpiresAt() {
+	m.access_token_expires_at = nil
+	m.clearedFields[tokens.FieldAccessTokenExpiresAt] = struct{}{}
+}
+
+// AccessTokenExpiresAtCleared returns if the "access_token_expires_at" field was cleared in this mutation.
+func (m *TokensMutation) AccessTokenExpiresAtCleared() bool {
+	_, ok := m.clearedFields[tokens.FieldAccessTokenExpiresAt]
+	return ok
+}
+
+// ResetAccessTokenExpiresAt resets all changes to the "access_token_expires_at" field.
+func (m *TokensMutation) ResetAccessTokenExpiresAt() {
+	m.access_token_expires_at = nil
+	delete(m.clearedFields, tokens.FieldAccessTokenExpiresAt)
+}
+
 // SetUserID sets the "user" edge to the User entity by id.
 func (m *TokensMutation) SetUserID(id uint64) {
 	m.user = &id
@@ -2796,7 +2846,7 @@ func (m *TokensMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TokensMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m._type != nil {
 		fields = append(fields, tokens.FieldType)
 	}
@@ -2808,6 +2858,9 @@ func (m *TokensMutation) Fields() []string {
 	}
 	if m.platform != nil {
 		fields = append(fields, tokens.FieldPlatform)
+	}
+	if m.access_token_expires_at != nil {
+		fields = append(fields, tokens.FieldAccessTokenExpiresAt)
 	}
 	return fields
 }
@@ -2825,6 +2878,8 @@ func (m *TokensMutation) Field(name string) (ent.Value, bool) {
 		return m.RefreshToken()
 	case tokens.FieldPlatform:
 		return m.Platform()
+	case tokens.FieldAccessTokenExpiresAt:
+		return m.AccessTokenExpiresAt()
 	}
 	return nil, false
 }
@@ -2842,6 +2897,8 @@ func (m *TokensMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldRefreshToken(ctx)
 	case tokens.FieldPlatform:
 		return m.OldPlatform(ctx)
+	case tokens.FieldAccessTokenExpiresAt:
+		return m.OldAccessTokenExpiresAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown Tokens field %s", name)
 }
@@ -2879,6 +2936,13 @@ func (m *TokensMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPlatform(v)
 		return nil
+	case tokens.FieldAccessTokenExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccessTokenExpiresAt(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Tokens field %s", name)
 }
@@ -2912,6 +2976,9 @@ func (m *TokensMutation) ClearedFields() []string {
 	if m.FieldCleared(tokens.FieldRefreshToken) {
 		fields = append(fields, tokens.FieldRefreshToken)
 	}
+	if m.FieldCleared(tokens.FieldAccessTokenExpiresAt) {
+		fields = append(fields, tokens.FieldAccessTokenExpiresAt)
+	}
 	return fields
 }
 
@@ -2928,6 +2995,9 @@ func (m *TokensMutation) ClearField(name string) error {
 	switch name {
 	case tokens.FieldRefreshToken:
 		m.ClearRefreshToken()
+		return nil
+	case tokens.FieldAccessTokenExpiresAt:
+		m.ClearAccessTokenExpiresAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Tokens nullable field %s", name)
@@ -2948,6 +3018,9 @@ func (m *TokensMutation) ResetField(name string) error {
 		return nil
 	case tokens.FieldPlatform:
 		m.ResetPlatform()
+		return nil
+	case tokens.FieldAccessTokenExpiresAt:
+		m.ResetAccessTokenExpiresAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Tokens field %s", name)

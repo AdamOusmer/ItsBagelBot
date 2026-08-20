@@ -21,7 +21,43 @@ import (
 	"go.uber.org/zap"
 )
 
-const operationTimeout = 5 * time.Second
+// operationTimeout bounds one full hydration run (fetch + retries + store
+// writes for every section). It used to be 5s, sized only for a single
+// 1500ms RPC per section. Retrying now needs more: worst case a section
+// times out on every attempt, costing
+// hydrationRetryAttempts*1500ms + (hydrationRetryAttempts-1)*hydrationRetryBackoff
+// = 3*1500ms + 2*150ms = 4800ms. Sections run concurrently, so 4800ms is the
+// wall-clock ceiling across all three, not a sum across them. What is left
+// (~3.2s) covers the store writes that follow each section's own fetch and
+// scheduling jitter under load. 8s was chosen as a round number clear of that
+// 4800ms floor; it is still a small, bounded price next to the failure mode
+// it replaces, a cold section serving MySQL reads to a broadcaster's first
+// live viewers (~3.6ms per row with a warm DB pool, ~25ms with a cold one)
+// until a dashboard read or the TTL repairs it.
+const operationTimeout = 8 * time.Second
+
+// hydrationRetryAttempts is the total number of tries per section (1 initial
+// + 2 retries). RefreshAsync is fire-and-forget with no caller to retry it,
+// so a transient NATS blip at go-live previously left that section cold
+// until a dashboard read (EnsureAsync) or the TTL lapsed - exactly when the
+// broadcaster's first viewers arrive and every miss falls through to MySQL.
+// 3 (one attempt plus two retries) is a judgement call, not a measured
+// optimum: no soak test of the RPC path has been run. The reasoning is that a
+// single retry only survives one dropped message, while go-live blips arrive
+// in bursts of redelivery; beyond 3 the remaining failure modes look like
+// outages rather than blips, and each extra attempt eats operationTimeout for
+// a case retrying cannot fix. Revisit with real numbers if go-live hydration
+// failures ever show up in the logs.
+const hydrationRetryAttempts = 3
+
+// hydrationRetryBackoff is the pause between retry attempts. 150ms is enough
+// for a momentary NATS/RPC hiccup to clear without meaningfully shrinking the
+// operationTimeout budget above (2 gaps * 150ms = 300ms of the 4800ms worst
+// case). Exponential backoff was considered and rejected: at 3 attempts it
+// buys negligible extra tolerance over a fixed gap while making the worst
+// case harder to reason about, and go-live self-heal cares about bounded,
+// predictable wall clock more than about spacing out load on a healthy bus.
+const hydrationRetryBackoff = 150 * time.Millisecond
 
 type store interface {
 	GetHydrationState(context.Context, uint64) (projection.HydrationState, error)
@@ -207,85 +243,141 @@ func (h *Hydrator) acquireUser(userID uint64) func() {
 	}
 }
 
+// fill dispatches the three sections concurrently, one goroutine each, and
+// waits for all of them. Each section owns its own fetch-retry-then-write
+// sequence (see fillUser/fillModules/fillCommands below) instead of the
+// fetch-everything-then-write-everything shape this used to have, so a
+// section that needs retries never delays writing the sections that already
+// succeeded, and a section satisfied from j.seed or already complete in
+// state never enters a goroutine at all.
 func (h *Hydrator) fill(ctx context.Context, j job, state projection.HydrationState) {
-	var (
-		userReply     rpcprojection.UserReply
-		modulesReply  rpcprojection.ModulesReply
-		commandsReply rpcprojection.CommandsReply
-		userErr       error
-		modulesErr    error
-		commandsErr   error
-		wg            sync.WaitGroup
-	)
-
-	if !state.User {
+	var wg sync.WaitGroup
+	dispatch := func(done bool, section func(context.Context, job)) {
+		if done {
+			return
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			userReply, userErr = h.fetch.user(ctx, j.userID)
-			if userErr == nil && userReply.Error != "" {
-				userErr = errors.New(userReply.Error)
-			}
+			section(ctx, j)
 		}()
 	}
 
-	if !state.Modules {
-		if j.seed.ModulesKnown {
-			modulesReply.Modules = j.seed.Modules
-		} else {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				modulesReply, modulesErr = h.fetch.modules(ctx, j.userID)
-				if modulesErr == nil && modulesReply.Error != "" {
-					modulesErr = errors.New(modulesReply.Error)
-				}
-			}()
-		}
-	}
-
-	if !state.Commands {
-		if j.seed.CommandsKnown {
-			commandsReply.Commands = j.seed.Commands
-		} else {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				commandsReply, commandsErr = h.fetch.commands(ctx, j.userID)
-				if commandsErr == nil && commandsReply.Error != "" {
-					commandsErr = errors.New(commandsReply.Error)
-				}
-			}()
-		}
-	}
-
+	dispatch(state.User, h.fillUser)
+	dispatch(state.Modules, h.fillModules)
+	dispatch(state.Commands, h.fillCommands)
 	wg.Wait()
+}
 
-	if !state.User {
-		if userErr != nil {
-			h.logFailure("users", j.userID, userErr)
-		} else if err := h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
-			Status:   userReply.Status,
-			IsActive: userReply.IsActive,
-			Banned:   userReply.Banned,
-			Locale:   userReply.Locale,
-		}, j.ttl); err != nil {
-			h.logFailure("users write", j.userID, err)
+func (h *Hydrator) fillUser(ctx context.Context, j job) {
+	reply, err := fetchWithRetry(ctx, h.log, "users", j.userID, func(ctx context.Context) (rpcprojection.UserReply, error) {
+		reply, err := h.fetch.user(ctx, j.userID)
+		if err == nil && reply.Error != "" {
+			err = errors.New(reply.Error)
 		}
+		return reply, err
+	})
+	if err != nil {
+		h.logFailure("users", j.userID, err)
+		return
 	}
-	if !state.Modules {
-		if modulesErr != nil {
-			h.logFailure("modules", j.userID, modulesErr)
-		} else if err := h.store.SetModulesWithTTL(ctx, j.userID, modulesReply.Modules, j.ttl); err != nil {
+	if err := h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
+		Status:   reply.Status,
+		IsActive: reply.IsActive,
+		Banned:   reply.Banned,
+		Locale:   reply.Locale,
+	}, j.ttl); err != nil {
+		// Store write failures are not retried here: they are a different
+		// failure mode (Valkey, not the go-live NATS/RPC blip this retry
+		// exists for) and the section already holds a freshly fetched
+		// reply that a later EnsureAsync/RefreshAsync run can re-fetch and
+		// write cleanly, so a second write attempt would not add much.
+		h.logFailure("users write", j.userID, err)
+	}
+}
+
+func (h *Hydrator) fillModules(ctx context.Context, j job) {
+	if j.seed.ModulesKnown {
+		if err := h.store.SetModulesWithTTL(ctx, j.userID, j.seed.Modules, j.ttl); err != nil {
 			h.logFailure("modules write", j.userID, err)
 		}
+		return
 	}
-	if !state.Commands {
-		if commandsErr != nil {
-			h.logFailure("commands", j.userID, commandsErr)
-		} else if err := h.store.SetCommandsWithTTL(ctx, j.userID, commandsReply.Commands, j.ttl); err != nil {
+	reply, err := fetchWithRetry(ctx, h.log, "modules", j.userID, func(ctx context.Context) (rpcprojection.ModulesReply, error) {
+		reply, err := h.fetch.modules(ctx, j.userID)
+		if err == nil && reply.Error != "" {
+			err = errors.New(reply.Error)
+		}
+		return reply, err
+	})
+	if err != nil {
+		h.logFailure("modules", j.userID, err)
+		return
+	}
+	if err := h.store.SetModulesWithTTL(ctx, j.userID, reply.Modules, j.ttl); err != nil {
+		h.logFailure("modules write", j.userID, err)
+	}
+}
+
+func (h *Hydrator) fillCommands(ctx context.Context, j job) {
+	if j.seed.CommandsKnown {
+		if err := h.store.SetCommandsWithTTL(ctx, j.userID, j.seed.Commands, j.ttl); err != nil {
 			h.logFailure("commands write", j.userID, err)
 		}
+		return
+	}
+	reply, err := fetchWithRetry(ctx, h.log, "commands", j.userID, func(ctx context.Context) (rpcprojection.CommandsReply, error) {
+		reply, err := h.fetch.commands(ctx, j.userID)
+		if err == nil && reply.Error != "" {
+			err = errors.New(reply.Error)
+		}
+		return reply, err
+	})
+	if err != nil {
+		h.logFailure("commands", j.userID, err)
+		return
+	}
+	if err := h.store.SetCommandsWithTTL(ctx, j.userID, reply.Commands, j.ttl); err != nil {
+		h.logFailure("commands write", j.userID, err)
+	}
+}
+
+// fetchWithRetry runs fetch up to hydrationRetryAttempts times, pausing
+// hydrationRetryBackoff between tries, and returns the last result once it
+// succeeds or the attempts are exhausted. It is a free function rather than
+// a Hydrator method because Go does not allow a method to carry its own type
+// parameter, and each section's reply type differs (UserReply, ModulesReply,
+// CommandsReply). The wait between attempts happens here, inside the
+// goroutine fill() already spawned per section - never synchronously in an
+// RPC handler - matching the package invariant that waiting on the gate or
+// on retries only ever happens in background goroutines.
+func fetchWithRetry[T any](ctx context.Context, log *zap.Logger, section string, userID uint64, fetch func(context.Context) (T, error)) (T, error) {
+	var reply T
+	var err error
+	for attempt := 1; attempt <= hydrationRetryAttempts; attempt++ {
+		reply, err = fetch(ctx)
+		if err == nil {
+			return reply, nil
+		}
+		if attempt == hydrationRetryAttempts {
+			break
+		}
+		log.Debug("hydration: section retrying", zap.String("section", section), zap.Uint64("user_id", userID), zap.Int("attempt", attempt), zap.Error(err))
+		if waitErr := sleepOrCancel(ctx, hydrationRetryBackoff); waitErr != nil {
+			return reply, err
+		}
+	}
+	return reply, err
+}
+
+// sleepOrCancel waits for d, or returns early if ctx is done first, so a
+// retry backoff never overruns operationTimeout.
+func sleepOrCancel(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/users/ent/user"
 	"fmt"
 	"strings"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -25,6 +26,8 @@ type Tokens struct {
 	RefreshToken []byte `json:"-"`
 	// Platform holds the value of the "platform" field.
 	Platform tokens.Platform `json:"platform,omitempty"`
+	// AccessTokenExpiresAt holds the value of the "access_token_expires_at" field.
+	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TokensQuery when eager-loading is set.
 	Edges        TokensEdges `json:"edges"`
@@ -63,6 +66,8 @@ func (*Tokens) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case tokens.FieldType, tokens.FieldPlatform:
 			values[i] = new(sql.NullString)
+		case tokens.FieldAccessTokenExpiresAt:
+			values[i] = new(sql.NullTime)
 		case tokens.ForeignKeys[0]: // user_tokens
 			values[i] = new(sql.NullInt64)
 		default:
@@ -109,6 +114,13 @@ func (_m *Tokens) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field platform", values[i])
 			} else if value.Valid {
 				_m.Platform = tokens.Platform(value.String)
+			}
+		case tokens.FieldAccessTokenExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field access_token_expires_at", values[i])
+			} else if value.Valid {
+				_m.AccessTokenExpiresAt = new(time.Time)
+				*_m.AccessTokenExpiresAt = value.Time
 			}
 		case tokens.ForeignKeys[0]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -167,6 +179,11 @@ func (_m *Tokens) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("platform=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Platform))
+	builder.WriteString(", ")
+	if v := _m.AccessTokenExpiresAt; v != nil {
+		builder.WriteString("access_token_expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

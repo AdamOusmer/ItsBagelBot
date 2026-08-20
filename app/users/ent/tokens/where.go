@@ -4,6 +4,7 @@ package tokens
 
 import (
 	"ItsBagelBot/app/users/ent/predicate"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -62,6 +63,11 @@ func Token(v []byte) predicate.Tokens {
 // RefreshToken applies equality check predicate on the "refresh_token" field. It's identical to RefreshTokenEQ.
 func RefreshToken(v []byte) predicate.Tokens {
 	return predicate.Tokens(sql.FieldEQ(FieldRefreshToken, v))
+}
+
+// AccessTokenExpiresAt applies equality check predicate on the "access_token_expires_at" field. It's identical to AccessTokenExpiresAtEQ.
+func AccessTokenExpiresAt(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldEQ(FieldAccessTokenExpiresAt, v))
 }
 
 // TypeEQ applies the EQ predicate on the "type" field.
@@ -192,6 +198,56 @@ func PlatformIn(vs ...Platform) predicate.Tokens {
 // PlatformNotIn applies the NotIn predicate on the "platform" field.
 func PlatformNotIn(vs ...Platform) predicate.Tokens {
 	return predicate.Tokens(sql.FieldNotIn(FieldPlatform, vs...))
+}
+
+// AccessTokenExpiresAtEQ applies the EQ predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtEQ(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldEQ(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtNEQ applies the NEQ predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtNEQ(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldNEQ(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtIn applies the In predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtIn(vs ...time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldIn(FieldAccessTokenExpiresAt, vs...))
+}
+
+// AccessTokenExpiresAtNotIn applies the NotIn predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtNotIn(vs ...time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldNotIn(FieldAccessTokenExpiresAt, vs...))
+}
+
+// AccessTokenExpiresAtGT applies the GT predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtGT(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldGT(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtGTE applies the GTE predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtGTE(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldGTE(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtLT applies the LT predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtLT(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldLT(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtLTE applies the LTE predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtLTE(v time.Time) predicate.Tokens {
+	return predicate.Tokens(sql.FieldLTE(FieldAccessTokenExpiresAt, v))
+}
+
+// AccessTokenExpiresAtIsNil applies the IsNil predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtIsNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldIsNull(FieldAccessTokenExpiresAt))
+}
+
+// AccessTokenExpiresAtNotNil applies the NotNil predicate on the "access_token_expires_at" field.
+func AccessTokenExpiresAtNotNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldNotNull(FieldAccessTokenExpiresAt))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

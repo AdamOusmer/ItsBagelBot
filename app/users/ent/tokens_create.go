@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -58,6 +59,20 @@ func (_c *TokensCreate) SetPlatform(v tokens.Platform) *TokensCreate {
 func (_c *TokensCreate) SetNillablePlatform(v *tokens.Platform) *TokensCreate {
 	if v != nil {
 		_c.SetPlatform(*v)
+	}
+	return _c
+}
+
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (_c *TokensCreate) SetAccessTokenExpiresAt(v time.Time) *TokensCreate {
+	_c.mutation.SetAccessTokenExpiresAt(v)
+	return _c
+}
+
+// SetNillableAccessTokenExpiresAt sets the "access_token_expires_at" field if the given value is not nil.
+func (_c *TokensCreate) SetNillableAccessTokenExpiresAt(v *time.Time) *TokensCreate {
+	if v != nil {
+		_c.SetAccessTokenExpiresAt(*v)
 	}
 	return _c
 }
@@ -185,6 +200,10 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 		_node.Platform = value
 	}
+	if value, ok := _c.mutation.AccessTokenExpiresAt(); ok {
+		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)
+		_node.AccessTokenExpiresAt = &value
+	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -308,6 +327,24 @@ func (u *TokensUpsert) UpdatePlatform() *TokensUpsert {
 	return u
 }
 
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (u *TokensUpsert) SetAccessTokenExpiresAt(v time.Time) *TokensUpsert {
+	u.Set(tokens.FieldAccessTokenExpiresAt, v)
+	return u
+}
+
+// UpdateAccessTokenExpiresAt sets the "access_token_expires_at" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateAccessTokenExpiresAt() *TokensUpsert {
+	u.SetExcluded(tokens.FieldAccessTokenExpiresAt)
+	return u
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (u *TokensUpsert) ClearAccessTokenExpiresAt() *TokensUpsert {
+	u.SetNull(tokens.FieldAccessTokenExpiresAt)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -408,6 +445,27 @@ func (u *TokensUpsertOne) SetPlatform(v tokens.Platform) *TokensUpsertOne {
 func (u *TokensUpsertOne) UpdatePlatform() *TokensUpsertOne {
 	return u.Update(func(s *TokensUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (u *TokensUpsertOne) SetAccessTokenExpiresAt(v time.Time) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetAccessTokenExpiresAt(v)
+	})
+}
+
+// UpdateAccessTokenExpiresAt sets the "access_token_expires_at" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateAccessTokenExpiresAt() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateAccessTokenExpiresAt()
+	})
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (u *TokensUpsertOne) ClearAccessTokenExpiresAt() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearAccessTokenExpiresAt()
 	})
 }
 
@@ -675,6 +733,27 @@ func (u *TokensUpsertBulk) SetPlatform(v tokens.Platform) *TokensUpsertBulk {
 func (u *TokensUpsertBulk) UpdatePlatform() *TokensUpsertBulk {
 	return u.Update(func(s *TokensUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (u *TokensUpsertBulk) SetAccessTokenExpiresAt(v time.Time) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetAccessTokenExpiresAt(v)
+	})
+}
+
+// UpdateAccessTokenExpiresAt sets the "access_token_expires_at" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateAccessTokenExpiresAt() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateAccessTokenExpiresAt()
+	})
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (u *TokensUpsertBulk) ClearAccessTokenExpiresAt() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearAccessTokenExpiresAt()
 	})
 }
 

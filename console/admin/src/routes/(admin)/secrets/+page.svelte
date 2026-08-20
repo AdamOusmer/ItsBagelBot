@@ -219,7 +219,12 @@
                 {#if svc.canReadDoppler}{svc.dbUser || 'not set'}{:else}unreadable (token?){/if}
               </dd>
             </div>
-            <div><dt>Auto-migrate</dt><dd>{svc.autoMigrate || '—'}</dd></div>
+            <div>
+              <dt>Auto-migrate (Doppler)</dt>
+              <dd title="Doppler's value. deploy/k8s/*.yaml pins DB_AUTO_MIGRATE as a pod env var, which outranks this, so production may differ.">
+                {svc.autoMigrate || '—'}
+              </dd>
+            </div>
           </dl>
 
           <div class="svc-actions">
