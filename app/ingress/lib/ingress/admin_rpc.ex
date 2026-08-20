@@ -13,6 +13,13 @@ defmodule Ingress.AdminRpc do
   Shards that are registered but mid-connect can be slow to answer; they are
   reported as `unresponsive` rather than holding up the reply.
 
+  Shards are enumerated from `Ingress.ShardInventory` (the supervisor's own
+  child list) rather than from the registry alone, and each entry carries
+  `managed`. A registry-only enumeration cannot see a session whose
+  registration a CRDT merge dropped, which is how a shard serving live events
+  came to be reported as an empty slot and a zombie shard above `desired` came
+  to be reported as nothing at all.
+
   The `shard_count` field reflects the effective desired count from
   `Ingress.ShardScaler`, not the static config value. Additional top-level
   fields (`desired_count`, `target`, `min_shards`, `autoscale`) expose the
@@ -25,7 +32,7 @@ defmodule Ingress.AdminRpc do
   use Gnat.Server
   require Logger
 
-  alias Ingress.{Capacity, JSON, ShardScaler}
+  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler}
 
   @call_timeout_ms 2_000
 
@@ -45,30 +52,23 @@ defmodule Ingress.AdminRpc do
     desired = scaler.desired
     nodes = [node() | Node.list()] |> Enum.uniq()
 
-    # Enumerate all currently-registered shards (not just 0..desired-1); during
-    # a shrink a shard may still be stopping, and the snapshot should include it
-    # so the console shows an accurate in-flight view.
-    registered_ids =
-      Horde.Registry.select(Ingress.Registry, [
-        {{{:shard, :"$1"}, :_, :_}, [], [:"$1"]}
-      ])
+    # Three sources, because no single one is complete. The supervisor's child
+    # list is the only view of sessions the registry has lost -- omit it and a
+    # shard serving without a registration is reported as an empty slot while
+    # events flow through it, and one above `desired` is not reported at all.
+    # The registry still contributes ids whose session did not answer its probe
+    # (reported `unresponsive`, not silently dropped), and the desired range
+    # contributes slots that genuinely have nothing running. Enumerating past
+    # `desired` is deliberate: during a shrink a shard may still be stopping.
+    inventory = ShardInventory.by_shard()
+    registered_ids = registered_shard_ids()
 
     all_ids =
-      (registered_ids ++ Enum.to_list(0..(max(desired, 1) - 1)))
+      (Map.keys(inventory) ++ registered_ids ++ Enum.to_list(0..(max(desired, 1) - 1)))
       |> Enum.uniq()
       |> Enum.sort()
 
-    shards =
-      all_ids
-      |> Task.async_stream(&shard_status/1,
-        timeout: @call_timeout_ms + 500,
-        on_timeout: :kill_task
-      )
-      |> Enum.zip(all_ids)
-      |> Enum.map(fn
-        {{:ok, status}, _shard_id} -> status
-        {{:exit, _reason}, shard_id} -> %{shard_id: shard_id, state: "unresponsive"}
-      end)
+    shards = Enum.map(all_ids, &shard_status(&1, inventory, registered_ids))
 
     %{
       generated_at: DateTime.utc_now(),
@@ -90,19 +90,29 @@ defmodule Ingress.AdminRpc do
     }
   end
 
-  defp shard_status(shard_id) do
-    case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
-      [{pid, _}] ->
-        try do
-          Ingress.ShardSession.status(pid, @call_timeout_ms)
-        catch
-          :exit, _ -> %{shard_id: shard_id, state: "unresponsive", node: node(pid)}
-        end
+  defp registered_shard_ids do
+    Horde.Registry.select(Ingress.Registry, [
+      {{{:shard, :"$1"}, :_, :_}, [], [:"$1"]}
+    ])
+  end
 
-      [] ->
-        %{shard_id: shard_id, state: "unregistered"}
+  # A live session answers for its own slot, carrying `managed` so the console
+  # can distinguish a shard the cluster is steering from one merely running.
+  # With no session, the registry decides which of the two silences this is: a
+  # name pointing at a process that would not answer its probe is
+  # `unresponsive`, an empty slot is `unregistered`.
+  defp shard_status(shard_id, inventory, registered_ids) do
+    case Map.fetch(inventory, shard_id) do
+      {:ok, status} -> status
+      :error -> vacant_status(shard_id, shard_id in registered_ids)
     end
   end
+
+  defp vacant_status(shard_id, true),
+    do: %{shard_id: shard_id, state: "unresponsive", managed: true}
+
+  defp vacant_status(shard_id, false),
+    do: %{shard_id: shard_id, state: "unregistered", managed: false}
 
   defp manager_status do
     case Horde.Registry.lookup(Ingress.Registry, :conduit_manager) do

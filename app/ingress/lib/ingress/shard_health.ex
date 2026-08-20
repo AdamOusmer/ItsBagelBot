@@ -90,6 +90,30 @@ defmodule Ingress.ShardHealth do
     Enum.reject(0..(desired - 1), &(&1 in enabled))
   end
 
+  @doc """
+  What to do with a live session that holds no registry entry under its own
+  shard id.
+
+    * `:stop` -- the slot no longer exists (`shard_id` at or above `desired`).
+      Nothing else will ever reap it: `stop_excess_shards/1` discovers shards
+      through the registry, which is exactly the view this session is missing
+      from, so it would otherwise outlive every scale-down holding a socket
+      bound to a conduit slot Twitch no longer has.
+    * `:ignore` -- a rescue session (unnamed by design), a session mid-handoff
+      (name deliberately released to a successor), or a slot still inside the
+      desired range. The in-range case is left to the session's own
+      registration self-check, which repairs the name without dropping a
+      socket Twitch may still be routing to.
+
+  A status from an ingress older than the self-check carries no `name_state`.
+  Such a session can only reach the `:stop` clause with an out-of-range id, and
+  a rescue is only ever spawned for a slot below `desired`, so the missing key
+  cannot cost a rescue its life.
+  """
+  def unmanaged_action(%{name_state: name_state}, _desired) when name_state != :named, do: :ignore
+  def unmanaged_action(%{shard_id: shard_id}, desired) when shard_id >= desired, do: :stop
+  def unmanaged_action(_status, _desired), do: :ignore
+
   defp settled?(%DateTime{} = bound_at, now),
     do: DateTime.diff(now, bound_at, :millisecond) >= @rebind_grace_ms
 

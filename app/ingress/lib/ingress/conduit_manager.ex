@@ -27,6 +27,7 @@ defmodule Ingress.ConduitManager do
   alias Ingress.Metrics
   alias Ingress.ShardDistribution
   alias Ingress.ShardHealth
+  alias Ingress.ShardInventory
   alias Ingress.ShardScaler
   alias Ingress.ShardSession
   alias Ingress.Twitch.Api
@@ -66,7 +67,11 @@ defmodule Ingress.ConduitManager do
        # shard_id => {rescue pid, seen count when the rescue was spawned}
        rescues: %{},
        placement_nodes: [],
-       placement_stable_ticks: 0
+       placement_stable_ticks: 0,
+       # True while another process holds the `:conduit_manager` name and this
+       # one is deliberately doing nothing. Tracked so the standby is logged on
+       # the transition instead of on every tick.
+       standby?: false
      }, {:continue, :reconcile}}
   end
 
@@ -81,7 +86,47 @@ defmodule Ingress.ConduitManager do
   @impl true
   def handle_info(:reconcile, state), do: {:noreply, reconcile(state)}
 
+  # The registry merge that can strip a shard of its name can strip the
+  # singleton of its own, and a manager that keeps reconciling without it is
+  # not harmless: on 2026-08-20 two managers drove the same conduit for twenty
+  # minutes, each issuing its own Helix resize for the same target. A manager
+  # that no longer owns the name stands by rather than exits -- it is
+  # supervised `:permanent`, so stopping it would restart it straight into a
+  # name that is already taken. An empty lookup is registry lag, not a verdict.
   defp reconcile(state) do
+    case singleton_status(state) do
+      {:standby, state} ->
+        Process.send_after(self(), :reconcile, @reconcile_interval_ms)
+        state
+
+      {:active, state} ->
+        converge(state)
+    end
+  end
+
+  defp singleton_status(state) do
+    case Horde.Registry.lookup(Ingress.Registry, :conduit_manager) do
+      [{pid, _}] when pid != self() -> {:standby, enter_standby(state)}
+      _ours_or_lagging -> {:active, leave_standby(state)}
+    end
+  end
+
+  defp enter_standby(%{standby?: true} = state), do: state
+
+  defp enter_standby(state) do
+    Logger.warning("conduit manager no longer holds the singleton name; standing by")
+    Metrics.count("Conduit/ManagerStandby")
+    %{state | standby?: true}
+  end
+
+  defp leave_standby(%{standby?: false} = state), do: state
+
+  defp leave_standby(state) do
+    Logger.info("conduit manager holds the singleton name again; resuming reconcile")
+    %{state | standby?: false}
+  end
+
+  defp converge(state) do
     case ensure_conduit(state) do
       {:ok, conduit_id, applied_shard_count} ->
         state = %{state | conduit_id: conduit_id, applied_shard_count: applied_shard_count}
@@ -186,6 +231,7 @@ defmodule Ingress.ConduitManager do
     applied = maybe_resize_conduit(conduit_id, desired, applied)
 
     stop_excess_shards(desired)
+    sweep_unmanaged_shards(desired)
     start_missing_shards(conduit_id, desired, snapshot)
     applied
   end
@@ -218,21 +264,34 @@ defmodule Ingress.ConduitManager do
       case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
         [{pid, _}] ->
           Logger.info("stopping excess shard #{shard_id} (desired=#{desired})")
-
-          case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
-            :ok ->
-              :ok
-
-            {:error, :not_found} ->
-              stop_orphan_shard(shard_id, pid)
-
-            {:error, reason} ->
-              Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
-          end
+          terminate_shard(shard_id, pid)
 
         [] ->
           :ok
       end
+    end
+  end
+
+  # The registry-driven pass above is blind to a session whose registration a
+  # CRDT merge dropped, and that blindness is not academic: the 5->3 scale-down
+  # on 2026-08-20 reaped shard 3 and walked straight past shard 4, which kept a
+  # bound socket for a slot the conduit no longer had. Sweep the supervisor's
+  # own child list -- the view that survives a merge -- for anything the
+  # registry cannot show. Decisions live in `Ingress.ShardHealth`.
+  defp sweep_unmanaged_shards(desired) do
+    for {pid, status} <- ShardInventory.unmanaged(),
+        ShardHealth.unmanaged_action(status, desired) == :stop do
+      Logger.warning("stopping unmanaged shard #{status.shard_id} (supervised, unregistered)")
+      Metrics.count("Conduit/UnmanagedShardStops")
+      terminate_shard(status.shard_id, pid)
+    end
+  end
+
+  defp terminate_shard(shard_id, pid) do
+    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
+      :ok -> :ok
+      {:error, :not_found} -> stop_orphan_shard(shard_id, pid)
+      {:error, reason} -> Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
     end
   end
 
@@ -557,12 +616,7 @@ defmodule Ingress.ConduitManager do
   end
 
   defp restart_shard({conduit_id, shard_id}, pid) do
-    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
-      :ok -> :ok
-      {:error, :not_found} -> stop_orphan_shard(shard_id, pid)
-      {:error, reason} -> Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
-    end
-
+    terminate_shard(shard_id, pid)
     start_shard(conduit_id, shard_id)
   end
 
