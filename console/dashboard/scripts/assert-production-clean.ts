@@ -19,7 +19,13 @@ const textExtensions = new Set(['.css', '.html', '.js', '.json', '.map']);
 const forbiddenModuleTokens = [
   'DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION',
   'demo-data',
-  'env.DEMO'
+  'env.DEMO',
+  // Copy from the fake checkout page. Its server side 404s outside a demo
+  // build, but the component itself was still compiled and its markup shipped
+  // to browsers, so `vite.config.ts` now replaces the module. These strings
+  // are what proves that stayed true: they can only be here if it did not.
+  'No card is charged',
+  'Demo checkout'
 ] as const;
 
 async function filesUnder(dir: string): Promise<string[]> {
