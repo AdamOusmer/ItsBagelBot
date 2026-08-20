@@ -81,6 +81,49 @@ function giftValidate(form: FormData): { ok: true; recipient: string; message: s
   return { ok: true, recipient, message };
 }
 
+// Never send an already-premium account to Tebex: a staff-granted period, an
+// active Tebex entitlement, or a VIP grant must run out before a new charge is
+// possible. Returns the refusal to surface, or null when the sale may proceed.
+async function premiumAlreadyHeld(
+  ownerId: string
+): Promise<{ status: number; data: { error: string } } | null> {
+  try {
+    const state = await billingState(ownerId);
+    if (state.status === 'free') return null;
+    return {
+      status: 409,
+      data: {
+        error:
+          'This account already has premium. Subscribing again is blocked so nobody is double-charged.'
+      }
+    };
+  } catch {
+    return { status: 502, data: { error: 'Could not verify the current plan. Try again in a moment.' } };
+  }
+}
+
+// Entitlement is attributed to the owner; Tebex collects payment from whoever
+// completes checkout. Null means no usable URL came back, which the caller
+// turns into the one user-facing failure this has.
+async function subscribeCheckout(
+  actor: { id: string; login: string },
+  packageType: 'subscription' | 'single',
+  ipAddress: string
+): Promise<string | null> {
+  try {
+    const basket = await checkoutBasketCreate({
+      userId: actor.id,
+      username: actor.login,
+      ipAddress,
+      packageType
+    });
+    return optionalHttpsURL(basket.checkoutUrl ?? undefined);
+  } catch (err) {
+    logger.error({ err }, '[billing] basket create failed');
+    return null;
+  }
+}
+
 // The basket call and its failure mapping, lifted out of the action. The RPC's
 // own error strings are user-facing (the transactions service vets the
 // recipient: registered, not banned, not already premium), while anything else
@@ -187,35 +230,12 @@ export const actions: Actions = {
     const form = await request.formData();
     const packageType = form.get('plan') === 'monthly' ? 'subscription' : 'single';
 
-    // Never send an already-premium account to Tebex: a staff-granted period,
-    // active Tebex entitlement, or VIP grant must run out before a new charge is
-    // possible. Checked against the owner's account (actor.id).
-    try {
-      const state = await billingState(actor.id);
-      if (state.status !== 'free') {
-        return fail(409, { error: 'This account already has premium. Subscribing again is blocked so nobody is double-charged.' });
-      }
-    } catch {
-      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
-    }
+    const blocked = await premiumAlreadyHeld(actor.id);
+    if (blocked) return fail(blocked.status, blocked.data);
 
-    let checkoutUrl: string | null = null;
-    try {
-      // Entitlement is attributed to the owner (actor.id); Tebex collects payment
-      // from whoever completes checkout.
-      const basket = await checkoutBasketCreate({
-        userId: actor.id,
-        username: actor.login,
-        ipAddress: getClientAddress(),
-        packageType
-      });
-      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    } catch (err) {
-      logger.error({ err }, '[billing] basket create failed');
-    }
-
-    if (!checkoutUrl) return fail(503, { error: 'Subscriptions are not available right now.' });
-    throw redirect(303, checkoutUrl);
+    const url = await subscribeCheckout(actor, packageType, getClientAddress());
+    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
+    throw redirect(303, url);
   },
 
   // Gift premium to another registered user. The transactions service resolves
