@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: modules
-          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1787011027-4cfd46290494@sha256:df3ecc02ab30e61b6c0c384c2af9598cbe03760f2be072b18996200abaeb1352 # {"$imagepolicy": "flux-system:modules"}
+          image: ghcr.io/adamousmer/itsbagelbot/modules:main-1787252044-f4347119cdf9@sha256:dcef08d98f68f01850d2972b06ee05d285ca0e8294017031bd8c6e14c97bec95 # {"$imagepolicy": "flux-system:modules"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

@@ -124,7 +124,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:main-1787011027-4cfd46290494@sha256:e8f7673a83afca5e7a58014daa6ecc03d9dc2ecfd7a988f8a66458a0a0d54d9a # {"$imagepolicy": "flux-system:users"}
+          image: ghcr.io/adamousmer/itsbagelbot/users:main-1787252044-f4347119cdf9@sha256:ea1d739d0381fa1db3a0090c90436884928f8c730db35be5ed90e8597d9d12c0 # {"$imagepolicy": "flux-system:users"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

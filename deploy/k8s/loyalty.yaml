@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: loyalty
-          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1787011027-4cfd46290494@sha256:518ed856cdf83b07eb18195e0efab86746ba500db87ed97cc2c8d0b1da470aef # {"$imagepolicy": "flux-system:loyalty"}
+          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1787252044-f4347119cdf9@sha256:abe845cb08a647585ff3439eb51456b09354be08dea2fadaec6a863def9eec5c # {"$imagepolicy": "flux-system:loyalty"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
