@@ -182,6 +182,17 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 // arrives. Operator grants expire exactly on time; Tebex gets a grace period
 // so a briefly delayed renewal webhook cannot interrupt a paying customer.
 func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGrace time.Duration) (int, error) {
+	// Narrowed to the two columns the loop below actually reads (candidate.ID,
+	// candidate.SubscriptionSource): before this the query hydrated every
+	// column of every matched row, including the Tink-encrypted email_enc blob
+	// and the whole billing block, for rows that (measured live) numbered zero
+	// 100% of the time. .Select is a no-op on correctness here since ent always
+	// re-adds the id column regardless of selection (app/users/ent/user_query.go
+	// sqlAll), and this candidate is never passed anywhere that reads another
+	// field -- only .ID and .SubscriptionSource are touched below. Combined
+	// with the (status, subscription_source, subscription_expires_at) index on
+	// User (see ent/schema/user.go), this select list is fully covered by the
+	// index, so the query never reaches the clustered row at all.
 	expired, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().Where(
 			user.StatusEQ(user.StatusPaid),
@@ -196,7 +207,7 @@ func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGra
 					user.SubscriptionExpiresAtLTE(now.Add(-tebexGrace)),
 				),
 			),
-		).All(ctx)
+		).Select(user.FieldSubscriptionSource).All(ctx)
 	})
 	if err != nil {
 		return 0, err

@@ -112,11 +112,11 @@ func TestEnsureAsyncHydratesMissingSectionsWithQueryTTLAndReusesSeed(t *testing.
 	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 2, zap.NewNop())
 	h.EnsureAsync(42, CommandsSeed(nil))
 
-	got := collectWrites(t, writes, 3)
+	got := writesBySection(t, writes, 3)
 	require.Equal(t, int32(0), commandFetches.Load(), "empty foreground result must still count as a reusable seed")
-	require.Equal(t, write{section: "user", ttl: 2 * time.Hour}, got[0])
-	require.Equal(t, write{section: "modules", ttl: 2 * time.Hour, count: 1}, got[1])
-	require.Equal(t, write{section: "commands", ttl: 2 * time.Hour}, got[2])
+	require.Equal(t, write{section: "user", ttl: 2 * time.Hour}, got["user"])
+	require.Equal(t, write{section: "modules", ttl: 2 * time.Hour, count: 1}, got["modules"])
+	require.Equal(t, write{section: "commands", ttl: 2 * time.Hour}, got["commands"])
 }
 
 func TestEnsureAsyncSkipsFullyHydratedCache(t *testing.T) {
@@ -252,22 +252,73 @@ func TestEnsureAsyncLeavesFailedSectionUnprojectedForRetry(t *testing.T) {
 		writes <- write{section: "commands", ttl: ttl}
 		return nil
 	}
+	var commandFetches atomic.Int32
 	fetch := noOpFetchers()
 	fetch.commands = func(context.Context, uint64) (rpcprojection.CommandsReply, error) {
+		commandFetches.Add(1)
 		return rpcprojection.CommandsReply{}, errors.New("commands unavailable")
 	}
 
 	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
 	h.EnsureAsync(42, Seed{})
 
-	got := collectWrites(t, writes, 2)
-	require.Equal(t, "user", got[0].section)
-	require.Equal(t, "modules", got[1].section)
+	got := writesBySection(t, writes, 2)
+	require.Contains(t, got, "user")
+	require.Contains(t, got, "modules")
 	select {
 	case extra := <-writes:
 		t.Fatalf("failed section was written: %+v", extra)
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 	}
+	require.Equal(t, int32(hydrationRetryAttempts), commandFetches.Load(),
+		"an always-failing section must be retried hydrationRetryAttempts times, no more")
+}
+
+// TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds covers the actual
+// bug fix: a section that fails on its first attempts but recovers within
+// hydrationRetryAttempts must still end up written, instead of sitting cold
+// until a later EnsureAsync or the TTL lapses.
+func TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds(t *testing.T) {
+	writes := make(chan write, 3)
+	store := noOpStore()
+	store.getState = func(context.Context, uint64) (projection.HydrationState, error) {
+		return projection.HydrationState{}, nil
+	}
+	store.setUser = func(_ context.Context, _ uint64, _ projection.UserProjection, ttl time.Duration) error {
+		writes <- write{section: "user", ttl: ttl}
+		return nil
+	}
+	store.setModules = func(_ context.Context, _ uint64, modules []projection.ModuleView, ttl time.Duration) error {
+		writes <- write{section: "modules", ttl: ttl, count: len(modules)}
+		return nil
+	}
+	store.setCommands = func(_ context.Context, _ uint64, commands []projection.CommandView, ttl time.Duration) error {
+		writes <- write{section: "commands", ttl: ttl, count: len(commands)}
+		return nil
+	}
+
+	var moduleFetches atomic.Int32
+	fetch := noOpFetchers()
+	fetch.modules = func(context.Context, uint64) (rpcprojection.ModulesReply, error) {
+		if moduleFetches.Add(1) < int32(hydrationRetryAttempts) {
+			return rpcprojection.ModulesReply{}, errors.New("transient nats blip")
+		}
+		return rpcprojection.ModulesReply{Modules: []projection.ModuleView{{Name: "greet"}}}, nil
+	}
+
+	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
+	h.EnsureAsync(42, Seed{})
+
+	got := collectWrites(t, writes, 3)
+	var modulesWrite write
+	for _, w := range got {
+		if w.section == "modules" {
+			modulesWrite = w
+		}
+	}
+	require.Equal(t, write{section: "modules", ttl: 2 * time.Hour, count: 1}, modulesWrite)
+	require.Equal(t, int32(hydrationRetryAttempts), moduleFetches.Load(),
+		"must succeed on the last allowed attempt, proving retry recovered it rather than a single lucky call")
 }
 
 func noOpStore() *fakeStore {
@@ -309,6 +360,21 @@ func collectWrites(t *testing.T, ch <-chan write, count int) []write {
 		case <-time.After(time.Second):
 			t.Fatalf("timed out after %d/%d writes", len(out), count)
 		}
+	}
+	return out
+}
+
+// writesBySection collects count writes keyed by section. fill() now runs
+// each section in its own goroutine that writes as soon as its own
+// fetch-retry-then-write finishes, so sections no longer complete in a fixed
+// order the way the old fetch-everything-then-write-everything fill() did;
+// tests that only care about per-section content, not arrival order, should
+// use this instead of collectWrites.
+func writesBySection(t *testing.T, ch <-chan write, count int) map[string]write {
+	t.Helper()
+	out := make(map[string]write, count)
+	for _, w := range collectWrites(t, ch, count) {
+		out[w.section] = w
 	}
 	return out
 }

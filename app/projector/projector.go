@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -49,7 +50,8 @@ type Projector struct {
 
 // Deps carries the projector's collaborators. invalidateSubject is the
 // core-NATS tier-cache fan-out subject; cacheInvalidatePrefix is the
-// section-scoped console cache-bus prefix.
+// section-scoped console cache-bus prefix (also used to fan out the go-live
+// token-warm, see warmBroadcasterToken).
 type Deps struct {
 	Store                 *projection.Store
 	NC                    *nats.Conn
@@ -290,6 +292,7 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 
 	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 	p.hydrator.RefreshAsync(st.BroadcasterID)
+	p.warmBroadcasterToken(st.BroadcasterID)
 	return nil
 }
 
@@ -304,5 +307,53 @@ func (p *Projector) broadcastLiveInvalidate(userID uint64) {
 	}
 	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, livekey.InvalidateScope, strconv.FormatUint(userID, 10)); err != nil {
 		p.log.Warn("failed to broadcast live invalidation", zap.Uint64("user_id", userID), zap.Error(err))
+	}
+}
+
+// warmBroadcasterToken fans a best-effort request over the core-NATS
+// (non-queue) invalidate bus for every outgress replica to pre-mint
+// broadcasterID's own Twitch user token into its own in-memory cache, before
+// any real automated traffic (chat greetings, mod actions, ads) targets that
+// channel.
+//
+// Numbers (measured 2026-08-20): id.twitch.tv (the OAuth token endpoint) is
+// 80.5ms TCP RTT from a cluster pod; a cold TLS handshake plus token request
+// costs ~320ms. That gap is almost the entire difference between a channel's
+// first automated chat message (~360-390ms) and every one after
+// (~15-25ms). outgress mints a broadcaster's own user token lazily, on first
+// "as":"broadcaster" use, and each of its 3 replicas keeps an INDEPENDENT
+// in-memory token cache (twitch.BroadcasterTokens), so that cold mint can be
+// paid up to 3 times per broadcaster, and again after every deploy and every
+// LRU eviction. Go-live is the right trigger to pay it ahead of time: it is
+// the earliest reliable signal that automated traffic is about to target this
+// broadcaster, and it fires once per stream, off the hot path of whichever
+// job would otherwise pay the mint first.
+//
+// FAN-OUT, NOT THE OUTGRESS SYSTEM LANE: an earlier version of this fix
+// published a TypeWarmToken job onto the outgress system lane
+// (twitch.outgress.system), which is queue-grouped — all 3 replicas share one
+// durable consumer group ("outgress-system", see
+// app/outgress/main.go's laneSubscribers/startSystemLane) — so exactly one
+// replica dequeued the job and only that replica's cache got warmed; the
+// other two still paid the cold mint on their own first "as":"broadcaster"
+// send. A per-replica in-memory cache needs a per-replica warm, so this
+// publishes on the same core-NATS invalidate bus and pattern
+// broadcastLiveInvalidate uses above (every replica keeps its own
+// subscription, so every replica gets every message), on the dedicated
+// outgress.TokenWarmScope. See the outgress worker's SubscribeTokenWarm for
+// the receiving side and the concurrent-mint discussion.
+//
+// Best effort, same convention as broadcastLiveInvalidate above: SetStreamLive
+// already wrote the durable live state by the time this runs, so a publish
+// failure only costs the pre-fix status quo (a cold mint on first real use).
+// This must never nack HandleStreamEvent's message or touch its synchronous
+// SetStreamLive durability (see the doc comment on HandleStreamEvent).
+func (p *Projector) warmBroadcasterToken(broadcasterID uint64) {
+	if p.nc == nil || p.cacheInvalidatePrefix == "" {
+		return
+	}
+	id := strconv.FormatUint(broadcasterID, 10)
+	if err := invalidate.Publish(p.nc, p.cacheInvalidatePrefix, outgress.TokenWarmScope, id); err != nil {
+		p.log.Warn("failed to publish token-warm fan-out", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }

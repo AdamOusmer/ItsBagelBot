@@ -26,7 +26,13 @@ import (
 //     (channel:edit:commercial) or creates the clip (clips:edit).
 //   - api: generic passthrough; the message must carry its own endpoint.
 //   - eventsub/stream_status/redemption_update: internal jobs whose handlers
-//     own their Twitch calls (typed client methods, no route resolution here).
+//     own their Twitch calls (typed client methods, no route resolution
+//     here).
+//
+// The broadcaster-token pre-warm is NOT here: it rides the core-NATS
+// token-warm fan-out (see tokenwarm.go's SubscribeTokenWarm), not a lane
+// message, because every replica's independent token cache needs its own
+// warm and a lane job only ever reaches one replica.
 func (w *Worker) buildActions() action.Registry {
 	b := action.NewSet()
 	b.Action(outgress.TypeChat).Post("/helix/chat/messages").As(outgress.AsApp).Run(w.processChat)

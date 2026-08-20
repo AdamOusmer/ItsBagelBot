@@ -302,15 +302,34 @@ export interface DbCredentialInput {
 }
 
 // dbEnvOf builds the Doppler payload a service reads its database credential
-// from; autoMigrate differs between rotate (false) and manual set (true).
-function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef, autoMigrate: boolean): Record<string, string> {
+// from. It writes the CREDENTIAL ONLY, deliberately.
+//
+// It used to also write DB_AUTO_MIGRATE (false on rotate, true on manual set),
+// DB_MAX_OPEN_CONNS and DB_QUERY_CONCURRENCY. That was a category error with
+// two real consequences, both observed on 2026-08-20:
+//
+//  1. Rotating a credential silently turned that service's auto-migration off
+//     in Doppler. Four of the six services (users, commands, modules,
+//     transactions) were sitting at DB_AUTO_MIGRATE=false purely because they
+//     had been rotated most recently. Auto-migration is wanted ON; nothing
+//     about rotating a password should change it. Migrations only kept running
+//     because deploy/k8s/*.yaml pins the literal "true" as a pod env var,
+//     which outranks the Doppler-sourced value - so the flag read as off in
+//     this console while being on in production.
+//  2. It reset the pool caps to 4 on every rotation, silently reverting any
+//     tuning an operator had applied. Those two caps stack (SetMaxOpenConns
+//     plus the DB_QUERY_CONCURRENCY gate) and 4 was measured to be the
+//     binding constraint on a MySQL server that was otherwise idle.
+//
+// Runtime tuning belongs to the deployment manifests, which are reviewed and
+// version-controlled. This function must stay limited to the credential.
+// updateDoppler POSTs a partial update, so keys absent here keep whatever
+// value they already have rather than being cleared.
+function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef): Record<string, string> {
   return {
     DB_USER: cred.dbUser,
     DB_PASS: cred.dbPass,
-    DB_SCHEMA: svc.schema,
-    DB_AUTO_MIGRATE: String(autoMigrate),
-    DB_MAX_OPEN_CONNS: '4',
-    DB_QUERY_CONCURRENCY: '4'
+    DB_SCHEMA: svc.schema
   };
 }
 
@@ -338,7 +357,7 @@ export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: s
   };
   await provisionDbUser(cred, svc);
   try {
-    await updateDoppler(svc, dbEnvOf(cred, svc, false));
+    await updateDoppler(svc, dbEnvOf(cred, svc));
   } catch (e) {
     await dropDbUser(cred).catch(() => {});
     throw e;
@@ -354,7 +373,7 @@ export async function setCredential(
   assertManageable(cred, svc);
   assertFormat(cred.dbPass, FORMATS.dbPassword);
   await provisionDbUser(cred, svc);
-  await updateDoppler(svc, dbEnvOf(cred, svc, true));
+  await updateDoppler(svc, dbEnvOf(cred, svc));
   return { dbUser: cred.dbUser };
 }
 

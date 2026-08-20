@@ -67,14 +67,14 @@ func TestTokenRoundTrip(t *testing.T) {
 	plaintext := []byte("oauth-token-super-secret")
 	refresh := []byte("refresh-token-super-secret")
 
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, plaintext, refresh))
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, plaintext, refresh, nil))
 
 	// What landed in the database must be ciphertext, not the token.
 	row := client.Tokens.Query().OnlyX(ctx)
 	assert.NotEqual(t, plaintext, row.Token)
 	assert.NotEqual(t, refresh, row.RefreshToken)
 
-	access, gotRefresh, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	access, gotRefresh, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, access)
 	assert.Equal(t, refresh, gotRefresh)
@@ -86,12 +86,42 @@ func TestTokenUpsertReplacesExisting(t *testing.T) {
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
 
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("old"), nil))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("new"), nil))
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("old"), nil, nil))
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("new"), nil, nil))
 
-	access, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	access, _, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("new"), access)
+}
+
+// TestTokenExpiryPersistsAndClearsOnOverwrite covers the two halves of
+// UpsertToken's accessTokenExpiresAt contract: a caller that supplies an
+// expiry gets it back from Token, and a later write that omits one (the
+// admin/dashboard paths, today) must CLEAR the old value rather than leave
+// it in place -- an update overwriting the row is minting/storing a
+// DIFFERENT access token, so a stale expiry would let a reader (see
+// twitch.NewStoredUserTokenSource) wrongly adopt it as still valid.
+func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+
+	expiresAt := ptrTime(time.Now().Add(4 * time.Hour).Truncate(time.Second))
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("first"), nil, expiresAt))
+
+	_, _, gotExpiry, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	require.NoError(t, err)
+	require.NotNil(t, gotExpiry)
+	assert.True(t, expiresAt.Equal(*gotExpiry))
+
+	// Overwrite with a new access token but no expiry: the old expiry must
+	// not survive, since it described the token that was just replaced.
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("second"), nil, nil))
+
+	_, _, gotExpiry, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	require.NoError(t, err)
+	assert.Nil(t, gotExpiry)
 }
 
 // A ciphertext copied onto another user's row must fail decryption: the
@@ -103,7 +133,7 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, 1, "Alice", "alice@test.com"))
 	require.NoError(t, repo.Register(ctx, 2, "Bob", "bob@test.com"))
 
-	require.NoError(t, repo.UpsertToken(ctx, 1, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("alice-token"), nil))
+	require.NoError(t, repo.UpsertToken(ctx, 1, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("alice-token"), nil, nil))
 
 	stolen := client.Tokens.Query().OnlyX(ctx).Token
 
@@ -114,7 +144,7 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 		SetToken(stolen).
 		ExecX(ctx)
 
-	_, _, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	_, _, _, err := repo.Token(ctx, 2, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	assert.Error(t, err, "a ciphertext moved between users must not decrypt")
 }
 
@@ -383,7 +413,7 @@ func TestDeleteCascadesAndPublishes(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("tok"), nil))
+	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("tok"), nil, nil))
 
 	require.NoError(t, repo.Delete(ctx, 1001))
 

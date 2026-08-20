@@ -118,7 +118,7 @@ func main() {
 
 	d := &deps{cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
 
-	tw := d.newTwitchClient()
+	tw := d.newTwitchClient(ctx)
 	defer tw.CloseIdleConnections()
 	warmupTwitch(ctx, tw, log)
 
@@ -127,6 +127,9 @@ func main() {
 
 	premium, standard, system, closeWorkers := d.newLaneWorkers(tw, limiter, registry)
 	defer closeWorkers()
+
+	closeTokenWarm := d.startTokenWarmListener(system)
+	defer closeTokenWarm()
 
 	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
 	defer closeSubs()
@@ -244,9 +247,29 @@ func (d *deps) creds() twitch.ClientCredentials {
 
 // newTwitchClient assembles the Helix client over the three token sources: the
 // app token, the bot account's user token, and the per-broadcaster grants.
-func (d *deps) newTwitchClient() *twitch.Client {
+//
+// The app and bot sources get a proactive background refresher (ctx is the
+// process's root/service context from signal.NotifyContext in main, so both
+// stop cleanly on shutdown): both are built once here and live for the whole
+// process, so renewing them off the chat send path is pure upside -- see
+// twitch.Source.StartBackgroundRefresh's doc for the ~320ms a lazy renewal
+// would otherwise dump onto whichever chat message happens to observe
+// expiry. Per-broadcaster sources get the equivalent treatment through a
+// single cache-wide sweeper instead of one refresher per Source; see
+// broadcasterTokens and twitch.BroadcasterTokens.StartRefreshSweep for why.
+func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	appTokens := twitch.NewAppTokenSource(d.creds())
-	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, d.botTokenSource(), d.broadcasterTokens())
+	appTokens.StartBackgroundRefresh(ctx)
+
+	bot := d.botTokenSource()
+	if bot != nil {
+		bot.StartBackgroundRefresh(ctx)
+	}
+
+	broadcasterTokens := d.broadcasterTokens()
+	broadcasterTokens.StartRefreshSweep(ctx)
+
+	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
 }
 
 // botTokenSource builds the bot account's user token source. It prefers the
@@ -270,6 +293,25 @@ func (d *deps) botTokenSource() *twitch.Source {
 // dashboard at login) rather than the bot. Each Source loads/persists that
 // channel's refresh token through the same users-service token RPC, keyed by
 // broadcaster id.
+//
+// No per-Source StartBackgroundRefresh here, unlike newTwitchClient's app
+// and bot sources: a goroutine (and ticker) per cached broadcaster would
+// mean up to maxBroadcasterSources = 2048 of them, plus eviction-tied
+// cancellation plumbing to avoid leaking one per evicted Source. Instead,
+// newTwitchClient starts twitch.BroadcasterTokens.StartRefreshSweep on the
+// *twitch.BroadcasterTokens this returns: a single goroutine that walks the
+// cache and renews whatever is due, which gets eviction handling for free
+// (an evicted entry is just absent from the next pass). That sweep is what
+// actually matters for a channel that is live: BroadcasterTokens.Get
+// touches lastUsed on every cache hit, so an actively streaming channel's
+// Source is never idle and never evicted by sourceIdleTTL (1h) -- it lives
+// long enough to reach its own ~4h token expiry while still live, and
+// without the sweep that renewal would land lazily on whatever chat message
+// first observed it. Broadcaster tokens are additionally kept hot by the
+// go-live pre-warm (internal/worker/tokenwarm.go), and any renewal --
+// pre-warm, sweep, or lazy on-send -- is safe to run uncoordinated across
+// replicas because mintOrAdopt (token.go) serializes real mints via the
+// lease built in newMintLease below.
 func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 	return twitch.NewBroadcasterTokens(func(broadcasterID string) *twitch.Source {
 		return d.storedTokenSource(broadcasterID, "")
@@ -278,24 +320,34 @@ func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 
 // storedTokenSource builds a user token source backed by the users-service
 // token store for one account, seeded with an optional env refresh token.
+// Every account gets a mint lease (see newMintLease) regardless of whether
+// its Source ends up with a background refresher: the lease guards the mint
+// itself, which both the bot's background-refresh path and a broadcaster's
+// lazy on-send path can still trigger.
 func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 	store := tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
 	log := d.log
 	return twitch.NewStoredUserTokenSource(d.creds(), seedRefresh, twitch.StoredTokenIO{
-		Load: func(ctx context.Context) string {
-			refresh, err := store.Load(ctx)
+		Load: func(ctx context.Context) twitch.StoredLoad {
+			loaded, err := store.Load(ctx)
 			if err != nil {
 				log.Debug("stored token unavailable", zap.String("account_id", accountID), zap.Error(err))
-				return ""
+				return twitch.StoredLoad{}
 			}
-			return refresh
+			return twitch.StoredLoad{
+				RefreshToken:         loaded.RefreshToken,
+				AccessToken:          loaded.AccessToken,
+				AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
+			}
 		},
-		Persist: func(ctx context.Context, access, refresh string) {
-			if err := store.Save(ctx, access, refresh); err != nil {
+		Persist: func(ctx context.Context, access, refresh string, expiresAt time.Time) error {
+			if err := store.Save(ctx, access, refresh, &expiresAt); err != nil {
 				log.Warn("token persist failed", zap.String("account_id", accountID), zap.Error(err))
+				return err
 			}
+			return nil
 		},
-	})
+	}, d.newMintLease(accountID))
 }
 
 // warmupTwitch pays the cold-start cost (token minting, DNS/TLS and the first
@@ -305,6 +357,13 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 // warning.
 func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 	warmupStarted := time.Now()
+	// tw.Warmup now mints up to two tokens (app, then bot) sequentially.
+	// Measured 2026-08-20, id.twitch.tv cold TLS+request (network path only,
+	// a trivial GET -- NOT a real grant, so Twitch-side grant processing is
+	// not included): p50 310ms, max 430ms. Two of those worst-case is well
+	// under a second even before any unmeasured grant-processing overhead,
+	// so the pre-existing 8s budget stays generous with real margin to
+	// spare even with the second mint added.
 	warmupCtx, warmupCancel := context.WithTimeout(ctx, 8*time.Second)
 	err := tw.Warmup(warmupCtx)
 	warmupCancel()
@@ -438,6 +497,21 @@ func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *
 		MaxConsumers: 1,
 	}, d.log)
 	fatalIf(d.log, err, "failed to consume system lane")
+}
+
+// startTokenWarmListener binds this replica's own core-NATS (non-queue)
+// subscription to the projector's go-live token-warm fan-out (see
+// outgress.TokenWarmScope and system.SubscribeTokenWarm). This is
+// deliberately NOT a lane consumer: every one of the 3 outgress replicas
+// needs its own subscription so every replica's independent
+// twitch.BroadcasterTokens cache gets warmed, which a queue-grouped lane
+// (where only one replica in the group ever dequeues a given message) cannot
+// provide. Bound to the system worker because it already carries the
+// takeSystemHelix budget the warm's Helix call spends from.
+func (d *deps) startTokenWarmListener(system *worker.Worker) func() {
+	sub, err := system.SubscribeTokenWarm(d.nc, d.cfg.CacheInvalidatePrefix)
+	fatalIf(d.log, err, "failed to subscribe token-warm fan-out")
+	return func() { _ = sub.Unsubscribe() }
 }
 
 // startStreamLane binds a durable consumer for the real Twitch stream.online /

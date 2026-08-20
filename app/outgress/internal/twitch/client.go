@@ -73,11 +73,50 @@ func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterToke
 // (the client-scoped user.authorization.* subscriptions).
 func (c *Client) ClientID() string { return c.clientID }
 
-// Warmup mints the app token and establishes a reusable Twitch connection
-// before queue consumers become ready. The read-only request is deliberately
-// tiny; its response is drained so HTTP/1.1 transports can reuse the socket.
+// Warmup mints the app token and, when the bot runs with user credentials,
+// the bot's user token, establishing reusable Twitch connections before queue
+// consumers become ready. Both probes are deliberately tiny reads; their
+// responses are drained so HTTP/1.1 transports can reuse the socket.
+//
+// The bot token warm exists because chat sends routed to IdentityBot
+// (sourceForIdentity) pull from c.user, and nothing else ever touched it:
+// the first as="bot" chat message after every pod start paid a cold mint
+// against id.twitch.tv (measured 80.5ms TCP RTT from a cluster pod, ~320ms
+// for the full cold TLS handshake plus request, versus 11.5ms/kept-warm for
+// api.twitch.tv). That is why first chat sends measured 360-390ms end to end
+// against 15-25ms for every send after: the gap was almost entirely this
+// unwarmed mint.
+//
+// The two mints are reported independently (joined rather than
+// short-circuited) so a dead bot grant's failure text survives next to the
+// app token's instead of one masking the other in warmupTwitch's log line.
 func (c *Client) Warmup(ctx context.Context) error {
-	res, err := c.request(ctx, c.app, getCall("/helix/streams?first=1"))
+	appErr := c.warmupSource(ctx, c.app, "/helix/streams?first=1")
+	if appErr != nil {
+		appErr = fmt.Errorf("app token warmup: %w", appErr)
+	}
+	return errors.Join(appErr, c.warmupBotToken(ctx))
+}
+
+// warmupBotToken mints the bot's user token (c.user). c.user is nil when the
+// bot runs without user credentials (see botTokenSource in main.go); that is
+// a legitimate configuration, not a warmup failure. GET /helix/users with no
+// id/login query returns the token's own account, so this needs no bot user
+// id up front and works regardless of whether TWITCH_BOT_USER_ID is set.
+func (c *Client) warmupBotToken(ctx context.Context) error {
+	if c.user == nil {
+		return nil
+	}
+	if err := c.warmupSource(ctx, c.user, "/helix/users"); err != nil {
+		return fmt.Errorf("bot token warmup: %w", err)
+	}
+	return nil
+}
+
+// warmupSource mints src's token against endpoint and drains the response so
+// the connection stays poolable. Shared by the app-token and bot-token warms.
+func (c *Client) warmupSource(ctx context.Context, src *Source, endpoint string) error {
+	res, err := c.request(ctx, src, getCall(endpoint))
 	if err != nil {
 		return err
 	}
@@ -93,11 +132,51 @@ func (c *Client) Warmup(ctx context.Context) error {
 // drainResponse relies on it as the backstop for a non-terminating response.
 const clientTimeout = 10 * time.Second
 
+// helixIdleConnTimeout / helixH2ReadIdleTimeout / helixH2PingTimeout keep the
+// pooled connection to api.twitch.tv alive across quiet chat.
+//
+// The transport previously inherited http.DefaultTransport's 90s
+// IdleConnTimeout, which is shorter than an ordinary lull in a Twitch chat. A
+// channel quiet for 90 seconds lost its pooled connection, and the next
+// message paid a fresh TLS handshake to api.twitch.tv -- measured at 126ms
+// from a pod on 2026-08-20 (versus ~15-25ms on a warm connection). That is a
+// far more frequent mid-stream cost than token expiry, because it recurs
+// every time chat goes quiet rather than once per token lifetime.
+//
+// Raising IdleConnTimeout alone is not enough: the far end reaps idle
+// connections on its own schedule, so a connection Go still believes is
+// pooled can already be dead, and the next send discovers that instead of a
+// handshake. The h2 PINGs are what actually keep it warm -- they are real
+// traffic on the wire, so the flow never looks idle to the remote reaper, and
+// when the path does die the missing PONG closes the connection within
+// ReadIdle+Ping instead of never. Pings do not defeat local idle reaping;
+// only stream activity moves lastIdle.
+//
+// Values and the reasoning behind them are taken wholesale from
+// app/gossip/internal/core/http.go, which solved this exact problem for the
+// stats fetchers -- read its comments for the full derivation, including why
+// this uses net/http's own HTTP2Config rather than
+// golang.org/x/net/http2.ConfigureTransports (ForceAttemptHTTP2 makes the
+// bundled h2 transport own TLSNextProto and keeps a back-pointer, so these
+// fields are merged in per connection; reaching for x/net would install a
+// second, competing h2 implementation and promote an indirect dependency to a
+// direct one for no gain).
+const (
+	helixIdleConnTimeout   = 10 * time.Minute
+	helixH2ReadIdleTimeout = 15 * time.Second
+	helixH2PingTimeout     = 3 * time.Second
+)
+
 func newHTTPClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = maxIdleConnections
 	transport.MaxIdleConnsPerHost = maxIdleConnectionsPerHost
+	transport.IdleConnTimeout = helixIdleConnTimeout
 	transport.ForceAttemptHTTP2 = true
+	transport.HTTP2 = &http.HTTP2Config{
+		SendPingTimeout: helixH2ReadIdleTimeout,
+		PingTimeout:     helixH2PingTimeout,
+	}
 	return &http.Client{Transport: transport, Timeout: clientTimeout}
 }
 

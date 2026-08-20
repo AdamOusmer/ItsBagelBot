@@ -4,7 +4,9 @@
 package twitch
 
 import (
+	"context"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -132,5 +134,138 @@ func TestGetEvictsLeastRecentlyUsedWhenNoneIdle(t *testing.T) {
 	}
 	if _, ok := b.cache["overflow"]; !ok {
 		t.Error("new broadcaster missing after LRU eviction")
+	}
+}
+
+// nearExpirySource builds a Source whose cached token is within
+// refreshMargin of expiry -- i.e. due for renewal -- with refresh wired to
+// fn so tests can observe whether a sweep actually called it.
+func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *Source {
+	s := &Source{refresh: fn}
+	s.mu.Lock()
+	s.token = "stale"
+	s.expires = time.Now().Add(refreshMargin - time.Second)
+	s.mu.Unlock()
+	return s
+}
+
+// TestSweepOnceRefreshesNearExpirySource pins the reason this sweep exists:
+// a cached broadcaster Source close to expiry gets renewed by a sweep pass,
+// through the same refreshIfDue path token.go's per-Source background
+// refresher uses.
+func TestSweepOnceRefreshesNearExpirySource(t *testing.T) {
+	var calls int32
+	b := NewBroadcasterTokens(func(string) *Source {
+		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
+			atomic.AddInt32(&calls, 1)
+			return "fresh", time.Hour, nil
+		})
+	})
+	b.Get("chan-a")
+
+	b.sweepOnce(context.Background())
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("refresh calls = %d, want 1 for a near-expiry source", got)
+	}
+}
+
+// TestSweepOnceLeavesHealthySourceAlone covers the flip side: a source whose
+// token is nowhere near expiry must not trigger a refresh call, or the sweep
+// would mint far more often than refreshMargin ever requires.
+func TestSweepOnceLeavesHealthySourceAlone(t *testing.T) {
+	var calls int32
+	b := NewBroadcasterTokens(func(string) *Source {
+		s := &Source{refresh: func(context.Context) (string, time.Duration, error) {
+			atomic.AddInt32(&calls, 1)
+			return "fresh", time.Hour, nil
+		}}
+		s.mu.Lock()
+		s.token = "healthy"
+		s.expires = time.Now().Add(2 * time.Hour)
+		s.mu.Unlock()
+		return s
+	})
+	b.Get("chan-a")
+
+	b.sweepOnce(context.Background())
+
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Fatalf("refresh calls = %d, want 0 for a healthy token", got)
+	}
+}
+
+// TestSweepOnceSkipsEvictedSource pins the "eviction is free" property
+// StartRefreshSweep's doc claims: once an entry is out of the cache, a
+// sweep pass must never touch it again, since a single ticker (not one per
+// Source) is exactly what makes eviction handling free in the first place.
+func TestSweepOnceSkipsEvictedSource(t *testing.T) {
+	var calls int32
+	b := NewBroadcasterTokens(func(string) *Source {
+		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
+			atomic.AddInt32(&calls, 1)
+			return "fresh", time.Hour, nil
+		})
+	})
+	b.Get("chan-a")
+
+	b.mu.Lock()
+	delete(b.cache, "chan-a")
+	b.mu.Unlock()
+
+	b.sweepOnce(context.Background())
+
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Fatalf("refresh calls = %d, want 0 for a source evicted before the sweep", got)
+	}
+}
+
+// TestSweepOnceDoesNotExtendLastUsed guards against a sweep quietly
+// defeating sourceIdleTTL: if sweeping counted as use, an otherwise-idle
+// broadcaster would never go idle long enough to be evicted.
+func TestSweepOnceDoesNotExtendLastUsed(t *testing.T) {
+	b := NewBroadcasterTokens(func(string) *Source {
+		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
+			return "fresh", time.Hour, nil
+		})
+	})
+	b.Get("chan-a")
+	old := time.Now().Add(-sourceIdleTTL - time.Minute)
+	b.cache["chan-a"].lastUsed = old
+
+	b.sweepOnce(context.Background())
+
+	if got := b.cache["chan-a"].lastUsed; !got.Equal(old) {
+		t.Fatalf("sweep changed lastUsed to %v, want unchanged %v", got, old)
+	}
+}
+
+// TestSweepOnceDoesNotHoldLockDuringRefresh is the correctness property the
+// whole design turns on: sweepOnce must release b.mu before running any
+// refresh, because refresh performs NATS RPC and HTTP I/O and Get (which
+// also takes b.mu) sits on the send path of every broadcaster-identity
+// message the process handles. The fake refresh here calls b.Get from
+// inside the refresh call itself; if sweepOnce still held the lock at that
+// point, this would deadlock (b.mu is not reentrant) instead of returning.
+func TestSweepOnceDoesNotHoldLockDuringRefresh(t *testing.T) {
+	var b *BroadcasterTokens
+	b = NewBroadcasterTokens(func(string) *Source {
+		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
+			b.Get("other-chan")
+			return "fresh", time.Hour, nil
+		})
+	})
+	b.Get("chan-a")
+
+	done := make(chan struct{})
+	go func() {
+		b.sweepOnce(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("sweepOnce deadlocked: b.mu was still held while refresh ran")
 	}
 }
