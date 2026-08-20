@@ -58,6 +58,14 @@ type Request struct {
 	// TimeWindow selects the fortnite.stats window: "lifetime" (default) or
 	// "season" (the current season only).
 	TimeWindow string `json:"time_window,omitempty"`
+
+	// --- paceman (PaceMan.gg Minecraft speedrun pace tracking) ---------------
+
+	// HoursBetween is the session-cutoff gap paceman.session/paceman.nethers
+	// pass upstream as hoursBetween: how long a player can go without starting a
+	// new run before PaceMan calls the session over. Zero (the common case) lets
+	// the provider apply its own default rather than every caller repeating it.
+	HoursBetween int `json:"hours_between,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.
@@ -287,5 +295,72 @@ type McsrSessionReply struct {
 	Played      int    `json:"played"`
 	SinceUnix   int64  `json:"since_unix"`
 	HasSnapshot bool   `json:"has_snapshot"`
+	Error       string `json:"error,omitempty"`
+}
+
+// --- paceman (PaceMan.gg Minecraft speedrun pace tracking) -------------------
+//
+// PaceMan is an independent upstream from MCSR Ranked: it tracks in-progress
+// speedrun splits (nether, bastion/fortress, portal, stronghold, end) rather
+// than ranked match results, so it gets its own gossip provider and its own
+// cache/rate-limit budget. The commands it answers still hang off sesame's
+// existing mcsr module and reuse that module's linked account, since from a
+// broadcaster's perspective "which Minecraft player" is one setting either
+// way.
+
+// PacemanSessionReply is the answer to paceman.session (sesame's !pace): split
+// averages and nether count over the current rolling session window, plus
+// nethers-per-hour when the player runs the PaceMan Tracker. Avg strings are
+// PaceMan's own pre-formatted "m:ss"; Empty is true when the player has no
+// pace tracked this window (NetherCount is 0), which is a normal answer, not
+// an error.
+type PacemanSessionReply struct {
+	Player      string `json:"player"`
+	NetherCount int    `json:"nether_count"`
+	Nether      string `json:"nether"`
+	Bastion     string `json:"bastion"`
+	Fortress    string `json:"fortress"`
+	// Structure-order averages: first/second structure entered, whichever it was.
+	FirstStructure  string  `json:"first_structure"`
+	SecondStructure string  `json:"second_structure"`
+	FirstPortal     string  `json:"first_portal"`
+	Stronghold      string  `json:"stronghold"`
+	End             string  `json:"end"`
+	Finish          string  `json:"finish"`
+	NPH             float64 `json:"nph"`
+	Empty           bool    `json:"empty"`
+	Error           string  `json:"error,omitempty"`
+}
+
+// PacemanNethersReply is the answer to paceman.nethers (sesame's !nethers):
+// just the nether-entrance count and pace for the session, the subset of
+// PacemanSessionReply that command needs. NPH is 0 (and Empty true only when
+// Count is also 0) for a player who does not run the PaceMan Tracker.
+type PacemanNethersReply struct {
+	Player string  `json:"player"`
+	Count  int     `json:"count"`
+	Avg    string  `json:"avg"`
+	NPH    float64 `json:"nph"`
+	Empty  bool    `json:"empty"`
+	Error  string  `json:"error,omitempty"`
+}
+
+// PacemanLastFortReply is the answer to paceman.lastfort (sesame's
+// !lastfort): the most recent run that reached a second structure (bastion or
+// fortress), with each split rendered as elapsed time since the run started.
+// A split the run never reached renders as "" (module renders that as an em
+// dash); AgoSeconds is how long ago the run's data last updated. Empty is
+// true when the lookback window holds no such run.
+type PacemanLastFortReply struct {
+	Player      string `json:"player"`
+	Nether      string `json:"nether"`
+	Bastion     string `json:"bastion"`
+	Fortress    string `json:"fortress"`
+	FirstPortal string `json:"first_portal"`
+	Stronghold  string `json:"stronghold"`
+	End         string `json:"end"`
+	Finish      string `json:"finish"`
+	AgoSeconds  int64  `json:"ago_seconds"`
+	Empty       bool   `json:"empty"`
 	Error       string `json:"error,omitempty"`
 }

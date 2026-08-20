@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/govee"
 	"ItsBagelBot/app/gossip/internal/providers/hypixel"
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
+	"ItsBagelBot/app/gossip/internal/providers/paceman"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
 
 	"go.uber.org/zap"
@@ -32,6 +33,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendUrchin(out, cfg, d, log)
 	out = appendHypixel(out, cfg, d, log)
 	out = appendMcsr(out, cfg, d, log)
+	out = appendPaceman(out, cfg, d, log)
 	out = appendFortnite(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
 	return out
@@ -79,6 +81,20 @@ func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 // (dark until tested). The api-fortnite.com key gates only the stats
 // endpoint: the shop upstream (fortnite-api.com) is public, so a keyless
 // provider still answers !store and merely skips !fnstats (shop-only mode).
+// appendPaceman adds the paceman provider. Its public API needs no key, so
+// unlike appendUrchin/appendHypixel there is no credential to gate on — the
+// only switch is the operator-controlled PacemanEnabled kill switch.
+func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	if !cfg.PacemanEnabled {
+		log.Warn("paceman provider disabled: PACEMAN_ENABLED=false")
+		return out
+	}
+	return append(out, paceman.New(paceman.Config{
+		BaseURL:   cfg.PacemanBaseURL,
+		RateLimit: cfg.PacemanRateLimit,
+	}, d))
+}
+
 func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	if !cfg.FortniteEnabled {
 		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")

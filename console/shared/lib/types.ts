@@ -908,7 +908,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'MCSR Ranked',
     tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
     description:
-      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account.',
+      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account.',
     icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
@@ -950,6 +950,90 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
           wins: '3',
           losses: '1',
           matches: '4'
+        }
+      },
+      {
+        key: 'pace',
+        label: '!pace',
+        tagline: 'Split averages for the current session, from PaceMan.gg.',
+        event: '!pace',
+        command: 'pace',
+        enableKey: 'paceEnabled',
+        messageKey: 'paceMessage',
+        defaultMessage:
+          '{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph',
+        tokens: [
+          'player',
+          'nethers',
+          'nether',
+          'bastion',
+          'fortress',
+          'firststructure',
+          'secondstructure',
+          'firstportal',
+          'stronghold',
+          'end',
+          'finish',
+          'nph'
+        ],
+        previewSamples: {
+          player: 'Feinberg',
+          nethers: '3',
+          nether: '1:42',
+          bastion: '3:55',
+          fortress: '7:12',
+          firststructure: '3:55',
+          secondstructure: '7:12',
+          firstportal: '9:20',
+          stronghold: '12:05',
+          end: '13:50',
+          finish: '0:00',
+          nph: '5.3'
+        }
+      },
+      {
+        key: 'nethers',
+        label: '!nethers',
+        tagline: 'Nether-entrance count and pace for the current session.',
+        event: '!nethers',
+        command: 'nethers',
+        enableKey: 'nethersEnabled',
+        messageKey: 'nethersMessage',
+        defaultMessage: '{player}: {nethers} nethers this session (avg {nether}) · {nph} nph',
+        tokens: ['player', 'nethers', 'nether', 'nph'],
+        previewSamples: { player: 'Feinberg', nethers: '3', nether: '1:42', nph: '5.3' }
+      },
+      {
+        key: 'lastfort',
+        label: '!lastfort',
+        tagline: 'Splits for the most recent run that reached a fortress or bastion.',
+        event: '!lastfort',
+        command: 'lastfort',
+        enableKey: 'lastFortEnabled',
+        messageKey: 'lastFortMessage',
+        defaultMessage:
+          '{player} last fort: nether {nether} · bastion {bastion} · fortress {fortress} · fp {firstportal} · sh {stronghold} · {ago} ago',
+        tokens: [
+          'player',
+          'nether',
+          'bastion',
+          'fortress',
+          'firstportal',
+          'stronghold',
+          'end',
+          'finish',
+          'ago'
+        ],
+        previewSamples: {
+          player: 'Feinberg',
+          nether: '1:42',
+          bastion: '3:55',
+          fortress: '7:12',
+          firstportal: '9:20',
+          stronghold: '—',
+          end: '—',
+          finish: '—',
+          ago: '12m'
         }
       }
     ],

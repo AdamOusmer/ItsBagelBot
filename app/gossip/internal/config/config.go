@@ -52,6 +52,17 @@ type Config struct {
 	McsrEnabled   bool
 	McsrRateLimit float64
 
+	// PaceMan provider (speedrun pace tracking for !pace/!nethers/!lastfort,
+	// stacked on the mcsr module's linked account). The public API needs no
+	// key at all, so unlike urchin/hypixel there is nothing to gate on: it
+	// stays enabled unless an operator explicitly flips PACEMAN_ENABLED=false.
+	// PaceMan rate-limits per client IP in a fixed 60-second window (180 for
+	// player-stat routes, 120 for cursor histories); the default takes the
+	// stricter class.
+	PacemanBaseURL   string
+	PacemanEnabled   bool
+	PacemanRateLimit float64
+
 	// Fortnite provider (!fnstats + !store), off by default behind
 	// FORTNITE_ENABLED. Two upstreams: the shop rides fortnite-api.com's
 	// public /v2/shop, stats ride api-fortnite.com (x-api-key). The key gates
@@ -117,6 +128,10 @@ func Load() *Config {
 		McsrAPIKey:    env.Get("MCSR_API_KEY", ""),
 		McsrEnabled:   env.GetBool("MCSR_ENABLED", true),
 		McsrRateLimit: env.GetFloat("MCSR_RATE_LIMIT", 500.0),
+
+		PacemanBaseURL:   env.Get("PACEMAN_BASE_URL", "https://paceman.gg/stats/api"),
+		PacemanEnabled:   env.GetBool("PACEMAN_ENABLED", true),
+		PacemanRateLimit: env.GetFloat("PACEMAN_RATE_LIMIT", 120.0),
 
 		FortniteBaseURL:      env.Get("FORTNITE_BASE_URL", "https://fortnite-api.com"),
 		FortniteStatsBaseURL: env.Get("FORTNITE_STATS_BASE_URL", "https://prod.api-fortnite.com"),
