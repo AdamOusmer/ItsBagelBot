@@ -102,6 +102,25 @@ async function premiumAlreadyHeld(
   }
 }
 
+// Cancellation only means something for a live Tebex subscription: a
+// staff-granted period or a VIP grant has nothing to cancel, and neither does a
+// free account. Returns the refusal to surface, or null when the redirect out
+// to Tebex-hosted management is the right answer.
+async function tebexSubscriptionMissing(
+  ownerId: string
+): Promise<{ status: number; data: { error: string } } | null> {
+  try {
+    const state = await billingState(ownerId);
+    if (state.status === 'paid' && state.source === 'tebex') return null;
+    return {
+      status: 409,
+      data: { error: 'There is no Tebex subscription to cancel for this account.' }
+    };
+  } catch {
+    return { status: 502, data: { error: 'Could not verify the current plan. Try again in a moment.' } };
+  }
+}
+
 // Entitlement is attributed to the owner; Tebex collects payment from whoever
 // completes checkout. Null means no usable URL came back, which the caller
 // turns into the one user-facing failure this has.
@@ -287,14 +306,8 @@ export const actions: Actions = {
     const url = links().cancelUrl;
     if (!url) return fail(503, { error: 'Subscription management is not available right now.' });
 
-    try {
-      const state = await billingState(actor.id);
-      if (state.status !== 'paid' || state.source !== 'tebex') {
-        return fail(409, { error: 'There is no Tebex subscription to cancel for this account.' });
-      }
-    } catch {
-      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
-    }
+    const blocked = await tebexSubscriptionMissing(actor.id);
+    if (blocked) return fail(blocked.status, blocked.data);
 
     throw redirect(303, url);
   }
