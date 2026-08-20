@@ -1,3 +1,17 @@
+# Mirrors the <meta http-equiv="Content-Security-Policy"> in src/layouts/Layout.astro.
+# The two policies intersect in the browser, so any drift silently makes the
+# stricter one win; keep them in sync.
+#
+# script-src has no 'unsafe-inline': every executable script is an external
+# bundle (vite assetsInlineLimit:0 in astro.config.mjs keeps it that way). The
+# inline <script type="application/ld+json"> / "application/json" islands are
+# data blocks, never executed, and browsers do not apply script-src to them
+# (verified: no securitypolicyviolation event on a prod build).
+#
+# style-src keeps 'unsafe-inline': the reveal system sets --reveal-i through
+# style="" attributes on ~360 elements per page, and Astro inlines small
+# stylesheets. Dropping it needs style-src-attr, which pre-2022 browsers ignore
+# and would fall back to blocking those attributes.
 /*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com
   X-Frame-Options: DENY
