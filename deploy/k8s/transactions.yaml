@@ -233,7 +233,7 @@ metadata:
   name: transactions
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: transactions
   ports:

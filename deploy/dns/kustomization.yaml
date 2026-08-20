@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # DaemonSet + kube-dns Service. The Corefile is NOT listed here on purpose:
+  # its ConfigMap also holds NodeHosts, which a k3s node controller rewrites
+  # and which `kubectl apply` would delete. Push Corefile changes with the
+  # merge-patch documented in the header of coredns.yaml.
+  - coredns.yaml

@@ -94,12 +94,34 @@ spec:
       # Resolve external hosts (Twitch OAuth login) without the cluster
       # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
       # conntrack race; cap any DNS stall well under a few seconds.
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
           - {name: single-request-reopen}
-          - {name: timeout, value: "2"}
-          - {name: attempts, value: "2"}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
       securityContext:
         # Keep the congestion window across an idle gap. This sysctl is
         # per-netns: the nodes run 0, but a pod netns inherits the kernel
@@ -114,6 +136,7 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
           image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787194469-cb0d16209c6d
@@ -323,7 +346,7 @@ metadata:
 spec:
   # Region-aware: prefer same-city (zone==city) endpoints; spill cross-city only
   # when no local pod is ready. traefik uses this ClusterIP via nativeLB.
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: console-dashboard
   ports:
