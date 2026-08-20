@@ -29,6 +29,18 @@ function billingActor(s: Session | null | undefined): { id: string; login: strin
   return { id: s.user_id, login: s.login };
 }
 
+// The preamble every billing action shares: signed in, and allowed to spend on
+// this account. Returns the actor or the refusal, so an action states the rule
+// once instead of unpacking it in two branches of its own.
+function billingGate(
+  s: Session | null | undefined
+): { ok: true; actor: { id: string; login: string } } | { ok: false; status: number; error: string } {
+  if (!s) return { ok: false, status: 401, error: 'Not signed in.' };
+  const actor = billingActor(s);
+  if (!actor) return { ok: false, status: 403, error: 'You do not have access to manage billing.' };
+  return { ok: true, actor };
+}
+
 type BillingLinks = {
   cancelUrl: string | null;
 };
@@ -51,7 +63,7 @@ function links(): BillingLinks {
 
 // 'monthly' or anything else (the "buy one month" button posts 'once'),
 // pulled out so the subscribe action's own DEMO branch stays a single line.
-function demoSubscribePlan(form: FormData): 'monthly' | 'single' {
+function subscribePlan(form: FormData): 'monthly' | 'single' {
   return form.get('plan') === 'monthly' ? 'monthly' : 'single';
 }
 
@@ -235,19 +247,17 @@ export const actions: Actions = {
     // so the whole purchase journey is clickable without a session or an RPC.
     // Guarded on the module-level DEMO const (dev + env.DEMO), same as the load.
     if (DEMO) {
-      const plan = demoSubscribePlan(await request.formData());
+      const plan = subscribePlan(await request.formData());
       throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
     }
 
-    const s = locals.session;
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    const actor = billingActor(s);
-    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { error: gate.error });
+    const actor = gate.actor;
 
     // 'monthly' = auto-renewing subscription, anything else = one paid month.
     // Recurring billing only ever happens on an explicit monthly choice.
-    const form = await request.formData();
-    const packageType = form.get('plan') === 'monthly' ? 'subscription' : 'single';
+    const packageType = subscribePlan(await request.formData()) === 'monthly' ? 'subscription' : 'single';
 
     const blocked = await premiumAlreadyHeld(actor.id);
     if (blocked) return fail(blocked.status, blocked.data);
@@ -271,12 +281,12 @@ export const actions: Actions = {
       throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
     }
 
-    const s = locals.session;
-    if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
-    // A gift is the buyer's own purchase (they pay, the recipient gets premium),
-    // so the buyer stays the acting session user below — but access is still
-    // gated to owners + billing-granted delegates.
-    if (!billingActor(s)) return fail(403, { gift: true, error: 'You do not have access to manage billing.' });
+    // A gift is the buyer's own purchase (they pay, the recipient gets
+    // premium), so the buyer stays the acting session user — but access is
+    // still gated to owners + billing-granted delegates.
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });
+    const s = locals.session!;
 
     const validated = giftValidate(await request.formData());
     if (!validated.ok) return fail(validated.status, validated.data);
@@ -298,10 +308,9 @@ export const actions: Actions = {
       throw redirect(303, '/billing');
     }
 
-    const s = locals.session;
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    const actor = billingActor(s);
-    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { error: gate.error });
+    const actor = gate.actor;
 
     const url = links().cancelUrl;
     if (!url) return fail(503, { error: 'Subscription management is not available right now.' });
