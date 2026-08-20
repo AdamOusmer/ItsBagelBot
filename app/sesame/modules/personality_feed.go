@@ -30,41 +30,38 @@ const feedBoardTop = 3
 // channel's own count and rank.
 const feedStandingOnly = -1
 
-// feedRankCommand answers !bagels: how often this channel has fed the bagel
-// and where that places it. The fleet-wide tally stays on the "feed the bagel"
-// reaction; this command is the per-channel half.
-func feedRankCommand(d engine.Deps) module.RunFunc {
+// feedLookupCommand is the shape both leaderboard commands share: bail without
+// a store, read the board at the limit this command needs, answer the shared
+// failure line when the read fails, otherwise render. Only the limit, the log
+// key and the renderer differ, so they live as arguments rather than as a
+// second copy of the body.
+func feedLookupCommand(d engine.Deps, limit int, logKey string, render func(*module.Context, engine.FeedBoard) string) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		if d.Personality == nil {
 			return nil
 		}
-		board, err := d.Personality.FeedBoard(ctx, c.BroadcasterID, feedStandingOnly)
+		board, err := d.Personality.FeedBoard(ctx, c.BroadcasterID, limit)
 		if err != nil {
-			c.Log.Warn("personality: feed rank lookup failed", zap.Error(err))
+			c.Log.Warn("personality: "+logKey+" lookup failed", zap.Error(err))
 			feedEmit(c, emit, i18n.T(c.Locale, "feed.unavailable"))
 			return nil
 		}
-		feedEmit(c, emit, feedRankText(c, board))
+		feedEmit(c, emit, render(c, board))
 		return nil
 	}
+}
+
+// feedRankCommand answers !bagels: how often this channel has fed the bagel
+// and where that places it. The fleet-wide tally stays on the "feed the bagel"
+// reaction; this command is the per-channel half.
+func feedRankCommand(d engine.Deps) module.RunFunc {
+	return feedLookupCommand(d, feedStandingOnly, "feed rank", feedRankText)
 }
 
 // feedBoardCommand answers !bagelboard: the channels that fed the bagel most,
 // then where the asking channel sits among them.
 func feedBoardCommand(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		if d.Personality == nil {
-			return nil
-		}
-		board, err := d.Personality.FeedBoard(ctx, c.BroadcasterID, feedBoardTop)
-		if err != nil {
-			c.Log.Warn("personality: feed board lookup failed", zap.Error(err))
-			feedEmit(c, emit, i18n.T(c.Locale, "feed.unavailable"))
-			return nil
-		}
-		feedEmit(c, emit, feedBoardText(c, board))
-		return nil
-	}
+	return feedLookupCommand(d, feedBoardTop, "feed board", feedBoardText)
 }
 
 // feedRankText renders !bagels: the standing, or the nudge when this channel
@@ -74,12 +71,7 @@ func feedRankText(c *module.Context, board engine.FeedBoard) string {
 	if board.Rank == 0 {
 		return feedText(c, "feed.rank.none", "channel", channel)
 	}
-	return feedText(c, "feed.rank",
-		"channel", channel,
-		"count", strconv.FormatUint(board.Channel, 10),
-		"rank", strconv.FormatUint(board.Rank, 10),
-		"ranked", strconv.FormatUint(board.Ranked, 10),
-	)
+	return feedText(c, "feed.rank", append([]string{"channel", channel}, feedStandingArgs(board)...)...)
 }
 
 // feedBoardText renders !bagelboard: the podium plus this channel's standing.
@@ -101,11 +93,16 @@ func feedBoardStanding(c *module.Context, board engine.FeedBoard) string {
 	if board.Rank == 0 || board.Channel == 0 {
 		return feedText(c, "feed.board.none")
 	}
-	return feedText(c, "feed.board.standing",
+	return feedText(c, "feed.board.standing", feedStandingArgs(board)...)
+}
+
+// feedStandingArgs is the count/rank/ranked triple both standing lines expand.
+func feedStandingArgs(board engine.FeedBoard) []string {
+	return []string{
 		"count", strconv.FormatUint(board.Channel, 10),
 		"rank", strconv.FormatUint(board.Rank, 10),
 		"ranked", strconv.FormatUint(board.Ranked, 10),
-	)
+	}
 }
 
 // feedBoardPlaces renders the podium, one "1. name (count)" per entry.
