@@ -105,6 +105,7 @@ var (
 		{Name: "token", Type: field.TypeBytes},
 		{Name: "refresh_token", Type: field.TypeBytes, Nullable: true},
 		{Name: "platform", Type: field.TypeEnum, Enums: []string{"twitch"}, Default: "twitch"},
+		{Name: "access_token_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "user_tokens", Type: field.TypeUint64},
 	}
 	// TokensTable holds the schema information for the "tokens" table.
@@ -115,7 +116,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tokens_users_tokens",
-				Columns:    []*schema.Column{TokensColumns[5]},
+				Columns:    []*schema.Column{TokensColumns[6]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -124,7 +125,7 @@ var (
 			{
 				Name:    "tokens_type_platform_user_tokens",
 				Unique:  true,
-				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[5]},
+				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[6]},
 			},
 		},
 	}
@@ -156,6 +157,13 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "user_status_subscription_source_subscription_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[6], UsersColumns[10], UsersColumns[11]},
+			},
+		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{

@@ -18,6 +18,9 @@ var (
 
 func gate() chan struct{} {
 	queryGateOnce.Do(func() {
+		// defaultMaxConns is the shared fallback with openPool's
+		// SetMaxOpenConns (pkg/db/pool.go) - see its doc comment in
+		// provider.go for the server-headroom math behind its value.
 		size := env.GetInt("DB_QUERY_CONCURRENCY", env.GetInt("DB_MAX_OPEN_CONNS", defaultMaxConns))
 		if size <= 0 {
 			size = defaultMaxConns

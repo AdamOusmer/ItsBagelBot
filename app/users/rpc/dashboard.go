@@ -201,7 +201,12 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	d.writeThenInvalidate(ctx, msg, "grant", req.BroadcasterUserID, "grant_save",
 		func(ctx context.Context) error {
-			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken))
+			// Expiry unknown here: the dashboard's OAuth callback doesn't
+			// forward Twitch's expires_in through GrantSaveRequest today, so
+			// nil (see UpsertToken's doc) is correct -- outgress's
+			// stored-token refresh path fills it in on the token's first
+			// rotation through that path.
+			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken), nil)
 		})
 }
 
@@ -218,7 +223,7 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	accessToken, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	accessToken, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	hasGrant := err == nil && len(accessToken) > 0
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }

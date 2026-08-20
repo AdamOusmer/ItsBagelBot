@@ -351,7 +351,16 @@ func (r *Users) Reproject(ctx context.Context) error {
 // UpsertToken encrypts and stores an OAuth token. The associated data binds
 // the ciphertext to the user, token type and platform, so a ciphertext copied
 // onto another row fails authentication on decrypt.
-func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform, accessToken []byte, refreshToken []byte) error {
+//
+// accessTokenExpiresAt is plaintext (a timestamp, not a secret) and optional:
+// nil means the caller doesn't know when accessToken expires (the admin
+// token-set and dashboard OAuth-callback callers, today) and clears any
+// previously stored expiry, because a stale expiry left over from a
+// different access token would let a reader wrongly treat the new one as
+// still valid. Callers that do know it (outgress's stored-token refresh
+// path, from Twitch's expires_in) pass it so Token can serve it back without
+// a mint -- see Token's doc and app/outgress/internal/twitch/token.go.
+func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform, accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -396,7 +405,8 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 					SetUserID(userID).
 					SetType(tokenType).
 					SetPlatform(platform).
-					SetToken(sealed.Ciphertext)
+					SetToken(sealed.Ciphertext).
+					SetNillableAccessTokenExpiresAt(accessTokenExpiresAt)
 
 				if len(sealedRefresh.Ciphertext) > 0 {
 					create.SetRefreshToken(sealedRefresh.Ciphertext)
@@ -414,7 +424,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 						if err != nil {
 							return err
 						}
-						update := existing.Update().SetToken(sealed.Ciphertext)
+						update := applyTokenExpiry(existing.Update().SetToken(sealed.Ciphertext), accessTokenExpiresAt)
 						if len(sealedRefresh.Ciphertext) > 0 {
 							update.SetRefreshToken(sealedRefresh.Ciphertext)
 						}
@@ -428,7 +438,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 				return err
 			}
 
-			update := existing.Update().SetToken(sealed.Ciphertext)
+			update := applyTokenExpiry(existing.Update().SetToken(sealed.Ciphertext), accessTokenExpiresAt)
 
 			if len(sealedRefresh.Ciphertext) > 0 {
 				update.SetRefreshToken(sealedRefresh.Ciphertext)
@@ -439,9 +449,16 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 	})
 }
 
-// Token decrypts and returns the stored OAuth token and refresh token.
-// Plaintext is returned to the caller and deliberately never cached.
-func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, err error) {
+// Token decrypts and returns the stored OAuth token, refresh token, and the
+// access token's expiry. Plaintext is returned to the caller and
+// deliberately never cached.
+//
+// accessTokenExpiresAt is nil whenever the row doesn't carry a known expiry
+// (see UpsertToken's doc for why that happens) -- ALWAYS treat nil as
+// "unknown, not usable", never as "no expiry ever". It is a plaintext
+// timestamp read straight off the row; it needs no unpack because, unlike
+// accessToken/refreshToken, it was never sealed (see the schema field doc).
+func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform) (accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, err error) {
 
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Tokens, error) {
 		return r.client.Tokens.Query().
@@ -453,23 +470,37 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 			Only(ctx)
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	aad := tokenAAD(userID, tokenType, platform)
 
 	accessToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if len(row.RefreshToken) > 0 {
 		if refreshToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.RefreshToken, AttachedData: aad}); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, row.AccessTokenExpiresAt, nil
+}
+
+// applyTokenExpiry sets or clears access_token_expires_at on an update
+// builder for one existing token row. Unlike SetNillableAccessTokenExpiresAt
+// (used on create, where "unset" already means null), an update must
+// actively CLEAR a nil expiry: the row being overwritten may still carry an
+// expiry that belonged to the token it is replacing, and leaving that in
+// place would let Token hand a caller a TTL for a token that is no longer
+// stored here.
+func applyTokenExpiry(u *ent.TokensUpdateOne, expiresAt *time.Time) *ent.TokensUpdateOne {
+	if expiresAt != nil {
+		return u.SetAccessTokenExpiresAt(*expiresAt)
+	}
+	return u.ClearAccessTokenExpiresAt()
 }
 
 func tokenAAD(userID uint64, tokenType tokens.Type, platform tokens.Platform) []byte {

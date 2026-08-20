@@ -126,7 +126,18 @@ func main() {
 	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	// mysql check alongside nats: PingContext exercises the same pool
+	// repository code uses, catching a wedged pool or rotated-out creds
+	// that nc.IsConnected alone would miss (pkg/db/health.go). Degrades
+	// rather than fails readiness: a hard-fail would pull every
+	// notifications pod out of service on the same DB blip
+	// simultaneously, turning a brief outage into a total one. A healthy
+	// ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT);
+	// much higher means the pool went cold and is paying the ~18ms
+	// handshake instead of reusing a conn.
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Degrades(db.HealthCheck("mysql", driver.DB())))
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),

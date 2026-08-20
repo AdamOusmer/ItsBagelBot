@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 	"strconv"
@@ -55,7 +56,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client, packer := openStore(ctx, log)
+	client, dbPool, packer := openStore(ctx, log)
 	defer func() { _ = client.Close() }()
 
 	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
@@ -75,7 +76,18 @@ func main() {
 	subjects := subscribeRPCs(ctx, wiring, client, log)
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "users-rpc"), "failed to subscribe rpc health")
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", nc.IsConnected))
+	// mysql check alongside nats: PingContext exercises the same pool
+	// repository/rpc code uses, catching a wedged pool or rotated-out
+	// creds that nc.IsConnected alone would miss (pkg/db/health.go).
+	// Degrades rather than fails readiness: a hard-fail would pull every
+	// users pod out of service on the same DB blip simultaneously,
+	// turning a brief outage into a total one. A healthy ping lands in
+	// single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher
+	// means the pool went cold and is paying the ~18ms handshake instead
+	// of reusing a conn.
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", nc.IsConnected),
+		health.Degrades(db.HealthCheck("mysql", dbPool)))
 	subjects.logReady(log)
 
 	<-ctx.Done()
@@ -84,8 +96,9 @@ func main() {
 }
 
 // openStore reads the encryption keyset, opens the database, runs migrations,
-// and returns the ent client and the field-crypto packer.
-func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypto) {
+// and returns the ent client, the underlying pool (for the health check) and
+// the field-crypto packer.
+func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *sql.DB, *crypto.Crypto) {
 	keysetJSON, err := os.ReadFile(env.MustGet("TINK_KEYSET_PATH"))
 	fatalIf(log, err, "failed to read tink keyset")
 
@@ -104,7 +117,7 @@ func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *crypto.Crypt
 	if env.GetBool("DB_AUTO_MIGRATE", true) {
 		fatalIf(log, client.Schema.Create(ctx), "failed to run migrations")
 	}
-	return client, packer
+	return client, driver.DB(), packer
 }
 
 // connectBus reconciles the BAGEL_DATA stream owned by users, opens the RPC
@@ -220,9 +233,34 @@ func seedBootstrapStaff(ctx context.Context, client *ent.Client, log *zap.Logger
 		"failed to seed bootstrap staff")
 }
 
+// subscriptionSweepInterval is deliberately configurable and defaults far
+// looser than the old hardcoded 1m. Measured live over 20.6 days uptime:
+// ExpireSubscriptions was 87,561 executions / 1,632,597 rows examined / 0 rows
+// sent (58% of all application server-side DB time), and users runs 3
+// replicas with no leader election, so a 1-minute ticker fired the full-scan
+// sweep 3x/minute (verified: +6 executions in a 120s window). Investigated
+// giving this a real leader election instead of just slowing it down: grepped
+// the repo for an existing lease/leader primitive users-svc could reach.
+// app/outgress has one (ValkeyBatchStore, pkg/ratelimit's LeaseManager), but
+// both are built on a Valkey client outgress already has wired for other
+// reasons, and users-svc has no Valkey client at all -- wiring one solely to
+// elect a sweep leader would be a new infra dependency for a job that isn't
+// latency sensitive. Deferred; if users-svc ever gets a Valkey client for
+// another reason, revisit a SET NX PX lease here instead of just widening the
+// interval further. Expiry sweeping has no need for 60s precision -- a paid
+// subscription that outlives its expiry by a few extra minutes is not a
+// correctness problem (ApplyBilling and the per-candidate re-checked UPDATE
+// below are what enforce correctness) -- so the tradeoff is: up to
+// USERS_SUBSCRIPTION_SWEEP_INTERVAL of extra time before an expired grant is
+// actually revoked, in exchange for 1/5th the full-table-scan traffic (and
+// still 3x that per replica until leader election lands).
+func subscriptionSweepInterval() time.Duration {
+	return env.GetDuration("USERS_SUBSCRIPTION_SWEEP_INTERVAL", 5*time.Minute)
+}
+
 func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 	const tebexGrace = 24 * time.Hour
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(subscriptionSweepInterval())
 	defer ticker.Stop()
 
 	for {

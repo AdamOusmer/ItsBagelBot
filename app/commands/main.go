@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
@@ -111,7 +112,8 @@ func main() {
 	defer done()
 	log := core.Log
 
-	client := ent.NewClient(ent.Driver(svcboot.MustEntDriver(log, "bagel_commands")))
+	driver := svcboot.MustEntDriver(log, "bagel_commands")
+	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
 	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
@@ -137,7 +139,18 @@ func main() {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.Bool("nats", n.RPC.IsConnected))
+	// mysql check alongside nats: PingContext exercises the same pool
+	// repository code uses, catching a wedged pool or rotated-out creds
+	// that n.RPC.IsConnected alone would miss (pkg/db/health.go).
+	// Degrades rather than fails readiness: a hard-fail would pull every
+	// commands pod out of service on the same DB blip simultaneously,
+	// turning a brief outage into a total one. A healthy ping lands in
+	// single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher
+	// means the pool went cold and is paying the ~18ms handshake instead
+	// of reusing a conn.
+	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
+		health.Bool("nats", n.RPC.IsConnected),
+		health.Degrades(db.HealthCheck("mysql", driver.DB())))
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),

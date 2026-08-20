@@ -41,7 +41,11 @@ jobs:
             # sql/upsert is required by the commands/modules batch flush
             # (INSERT ... ON DUPLICATE KEY UPDATE); applied to every schema so
             # generated clients stay uniform across services.
-            go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert "./$schema"
+            # sql/lock is required too: it emits the ForUpdate/ForShare query
+            # methods the repository layer calls on every service's ent
+            # client. Generating with only sql/upsert silently drops those
+            # methods and breaks the build.
+            go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock "./$schema"
           done
 
       # -race detects race conditions (good for a concurrent bot); -v names the

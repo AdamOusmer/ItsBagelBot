@@ -28,5 +28,10 @@ func openPool(dsn string, maxConns int) (*sql.DB, error) {
 	pool.SetConnMaxLifetime(connMaxLifetime)
 	pool.SetConnMaxIdleTime(connMaxIdleTime)
 
+	// SetMaxIdleConns above only *permits* the pool to hold connections open;
+	// nothing establishes or refreshes them between requests. startKeepAlive
+	// is what keeps a small floor genuinely warm - see keepalive.go.
+	startKeepAlive(pool)
+
 	return pool, nil
 }

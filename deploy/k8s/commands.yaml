@@ -87,6 +87,35 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-service
       containers:
         - name: commands
           image: ghcr.io/adamousmer/itsbagelbot/commands:main-1787011027-4cfd46290494@sha256:aad3cfdcaff55cdb608f251d7777a053deed2bf5a9adb4dd7086253750f79617 # {"$imagepolicy": "flux-system:commands"}
@@ -120,10 +149,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Raised 4->8 2026-08-20: perf_schema showed Max_used_connections=50 of
+            # 200 over 20.6d uptime, Threads_connected steady 7-12, 0 row lock waits,
+            # dataset <2MB buffer-pool resident. DB_MAX_OPEN_CONNS (sql pool) and
+            # DB_QUERY_CONCURRENCY (pkg/db/gate.go) are independent stacked gates that
+            # were throttling an idle server. New ceiling 18 pods x 8 = 144, well under
+            # 200; pkg/db/provider.go defaultMaxConns now also 8.
             - name: DB_MAX_OPEN_CONNS
-              value: "4"
+              value: "8"
             - name: DB_QUERY_CONCURRENCY
-              value: "4"
+              value: "8"
             - name: DB_AUTO_MIGRATE
               value: "true"
             - name: GOMEMLIMIT

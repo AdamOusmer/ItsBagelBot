@@ -22,6 +22,8 @@ const (
 	FieldRefreshToken = "refresh_token"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldAccessTokenExpiresAt holds the string denoting the access_token_expires_at field in the database.
+	FieldAccessTokenExpiresAt = "access_token_expires_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// Table holds the table name of the tokens in the database.
@@ -42,6 +44,7 @@ var Columns = []string{
 	FieldToken,
 	FieldRefreshToken,
 	FieldPlatform,
+	FieldAccessTokenExpiresAt,
 }
 
 // ForeignKeys holds the SQL foreign-keys that are owned by the "tokens"
@@ -132,6 +135,11 @@ func ByType(opts ...sql.OrderTermOption) OrderOption {
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByAccessTokenExpiresAt orders the results by the access_token_expires_at field.
+func ByAccessTokenExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAccessTokenExpiresAt, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.
