@@ -162,7 +162,8 @@ spec:
             - name: NODE_ENV
               value: production
             # adapter-node sits behind cloudflared+traefik. The app answers
-            # under two public hostnames (dashboard. and stats.itsbagelbot.com),
+            # under three public hostnames (dashboard., stats. and
+            # commands.itsbagelbot.com),
             # so instead of pinning one ORIGIN it derives each request's origin
             # from traefik's forwarded headers — traefik always sets both, and
             # overwrites client-supplied values, so the origin-checked CSRF on
@@ -371,7 +372,8 @@ spec:
     # (traefik auto-priority is rule length). The status page's real route,
     # health.itsbagelbot.com/dashboard (status-routes.yaml), matches neither.
     - match: >-
-        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)) &&
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+         Host(`commands.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
       middlewares: [{name: dashboard-ratelimit}, {name: health-mask}]
@@ -386,7 +388,8 @@ spec:
     # tier is far tighter than the general one. Longer rule out-prioritizes
     # the host-only catch-all below.
     - match: >-
-        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)) &&
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+         Host(`commands.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`))
       kind: Rule
       middlewares: [{name: dashboard-auth-ratelimit}]
@@ -396,7 +399,16 @@ spec:
           scheme: https
           serversTransport: console-dashboard-transport
           nativeLB: true
-    - match: Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)
+    # commands.itsbagelbot.com is the short host the bot hands out for a
+    # channel's public command page (!cmd -> <host>/user/<login>). Same app,
+    # no reroute: the path is already /user/<login> on every hostname. It has
+    # to be matched here even though the tunnel's *.itsbagelbot.com rule
+    # already delivers it -- traefik's unrouted-host fallback proxies stray
+    # hostnames to the marketing site, so an unlisted host serves the wrong
+    # page rather than 404ing visibly.
+    - match: >-
+        Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+        Host(`commands.itsbagelbot.com`)
       kind: Rule
       middlewares: [{name: dashboard-ratelimit}]
       services:

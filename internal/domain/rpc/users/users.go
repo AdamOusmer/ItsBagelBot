@@ -168,6 +168,22 @@ type UpsertUserRequest struct {
 	Email string `json:"email,omitempty"`
 }
 
+// LoginResolveRequest asks the users service to map a Twitch login to the
+// broadcaster id behind it. It backs the public command page's /user/<login>
+// URL: the login is only a lookup key, and the id it returns is what selects
+// the commands rendered.
+type LoginResolveRequest struct {
+	Login string `json:"login"`
+}
+
+// LoginResolveReply carries the resolved id plus the stored (canonical-casing)
+// login, which the page redirects to so a channel has a single URL.
+type LoginResolveReply struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Error    string `json:"error,omitempty"`
+}
+
 // EmailGetRequest asks for a user's decrypted contact email. Internal-only:
 // the subject is export/import-scoped on the NATS account level so only
 // services that send transactional mail can call it.

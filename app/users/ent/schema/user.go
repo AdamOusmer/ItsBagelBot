@@ -126,5 +126,17 @@ func (User) Indexes() []ent.Index {
 		// previously type=ALL scanning all 19 rows (and every row thereafter) for
 		// zero matches; at 10k users that full scan becomes ~43M rows/day.
 		index.Fields("status", "subscription_source", "subscription_expires_at"),
+
+		// Backs the login -> id resolve behind the public command page
+		// (/user/<login>), which is unauthenticated and cacheable by anyone
+		// with the URL. Without it that lookup is a full table scan on every
+		// cold cache entry, from an endpoint no login gates -- the same shape
+		// the sweep predicate above cost us before it was indexed.
+		// Deliberately non-unique: a Twitch rename frees the old login for
+		// someone else, so two rows can legitimately carry the same username
+		// until the renamed user next signs in and the upsert refreshes it.
+		// The resolve takes the most recently updated row (see
+		// Users.IDByUsername) rather than rejecting the collision.
+		index.Fields("username"),
 	}
 }

@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The marketing site's footer (web/src/components/layout/Footer.astro), as it
-  // was first converted for routes/user/[userId]: sign-off, brand + three link
+  // was first converted for routes/user/[channel]: sign-off, brand + three link
   // columns, legal strip. Extracted here so every public page signs off the same
   // way; copy comes from the i18n catalog and the site links follow the
   // visitor's locale.
