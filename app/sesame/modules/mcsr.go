@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
@@ -33,6 +33,14 @@ const mcsrSnapshotTimeout = 10 * time.Second
 const (
 	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
 	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
+
+	// PaceMan-backed templates. PaceMan is a separate upstream from MCSR
+	// Ranked (its own gossip provider, its own cache/rate-limit budget) but
+	// the commands stay on this module: "which Minecraft player" is one
+	// broadcaster setting either way.
+	defaultMcsrPaceTemplate     = "{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph"
+	defaultMcsrNethersTemplate  = "{player}: {nethers} nethers this session (avg {nether}) · {nph} nph"
+	defaultMcsrLastFortTemplate = "{player} last fort: nether {nether} · bastion {bastion} · fortress {fortress} · fp {firstportal} · sh {stronghold} · {ago} ago"
 )
 
 // mcsrConfig is the module's dashboard configuration. Account is the linked
@@ -45,6 +53,13 @@ type mcsrConfig struct {
 	EloMessage     string `json:"eloMessage"`
 	SessionEnabled string `json:"sessionEnabled"`
 	SessionMessage string `json:"sessionMessage"`
+
+	PaceEnabled     string `json:"paceEnabled"`
+	PaceMessage     string `json:"paceMessage"`
+	NethersEnabled  string `json:"nethersEnabled"`
+	NethersMessage  string `json:"nethersMessage"`
+	LastFortEnabled string `json:"lastFortEnabled"`
+	LastFortMessage string `json:"lastFortMessage"`
 }
 
 // Mcsr owns the MCSR Ranked commands backed by the gossip service. It is a
@@ -55,6 +70,12 @@ type mcsrConfig struct {
 // since the stream started). The session baseline is snapshotted when
 // stream.online arrives — gossip stores the player's standing keyed by
 // this channel — so "this stream" is exactly the live session's duration.
+//
+// !pace, !nethers and !lastfort ride the same linked account but answer
+// through the paceman gossip provider instead: PaceMan.gg tracks live
+// speedrun splits (nether/bastion/fortress/portal/stronghold/end), a
+// different concern from MCSR Ranked's match results, so it is a separate
+// upstream and a separate cache/rate-limit budget behind the same module.
 func Mcsr(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -66,6 +87,12 @@ func Mcsr(d engine.Deps) module.Module {
 		Run(mcsrEloRun(d))
 	m.Command("session").Everyone().Cooldown(mcsrCooldown).Aliases("mcsrsession").
 		Run(mcsrSessionRun(d))
+	m.Command("pace").Everyone().Cooldown(mcsrCooldown).Aliases("pacesession", "splits").
+		Run(mcsrPaceRun(d))
+	m.Command("nethers").Everyone().Cooldown(mcsrCooldown).Aliases("nph").
+		Run(mcsrNethersRun(d))
+	m.Command("lastfort").Everyone().Cooldown(mcsrCooldown).Aliases("lastpace", "previousfort").
+		Run(mcsrLastFortRun(d))
 
 	// Snapshot the linked account's standing the moment the stream goes online.
 	// The pipeline only runs this when the module is enabled, and it wires the
@@ -217,4 +244,243 @@ func mcsrRank(rank int) string {
 		return "—"
 	}
 	return strconv.Itoa(rank)
+}
+
+// mcsrPaceRun answers !pace with this session's PaceMan split averages,
+// nether count and nethers-per-hour. Template tokens: {player} {nethers}
+// {nether} {bastion} {fortress} {firstportal} {stronghold} {end} {finish}
+// {nph}. No nethers tracked this window is a normal PaceMan answer (the
+// player simply hasn't started a run), not an error, so it gets a plain
+// i18n line instead of a template full of zeroes.
+func mcsrPaceRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.PaceEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply gossiprpc.PacemanSessionReply
+		req := gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "paceman", Endpoint: "session"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emitPaceEmpty(c, emit, reply.Player, "mcsr.pace.empty")
+			return nil
+		}
+
+		tmpl := orDefault(cfg.PaceMessage, defaultMcsrPaceTemplate)
+		msg := module.ExpandString(tmpl, mcsrPaceTokens(reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// mcsrPaceTokens resolves !pace's template tokens. Split across two switches
+// (session-summary vs. per-split averages) rather than one ten-case block,
+// so neither half is the thing that trips the complexity gate.
+func mcsrPaceTokens(reply gossiprpc.PacemanSessionReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		if v, ok := mcsrPaceSummaryToken(reply, key); ok {
+			return v, true
+		}
+		return mcsrPaceSplitToken(reply, key)
+	}
+}
+
+func mcsrPaceSummaryToken(reply gossiprpc.PacemanSessionReply, key string) (string, bool) {
+	switch key {
+	case "player":
+		return reply.Player, true
+	case "nethers":
+		return strconv.Itoa(reply.NetherCount), true
+	case "nether":
+		return reply.Nether, true
+	case "nph":
+		return trimScore(reply.NPH), true
+	}
+	return "", false
+}
+
+func mcsrPaceSplitToken(reply gossiprpc.PacemanSessionReply, key string) (string, bool) {
+	switch key {
+	case "bastion":
+		return reply.Bastion, true
+	case "fortress":
+		return reply.Fortress, true
+	case "firststructure":
+		return reply.FirstStructure, true
+	case "secondstructure":
+		return reply.SecondStructure, true
+	case "firstportal":
+		return reply.FirstPortal, true
+	case "stronghold":
+		return reply.Stronghold, true
+	case "end":
+		return reply.End, true
+	case "finish":
+		return reply.Finish, true
+	default:
+		return module.ParseDynamic(key)
+	}
+}
+
+// mcsrNethersRun answers !nethers with just the session's nether-entrance
+// count and pace. Template tokens: {player} {nethers} {nether} {nph}.
+func mcsrNethersRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.NethersEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply gossiprpc.PacemanNethersReply
+		req := gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "paceman", Endpoint: "nethers"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emitPaceEmpty(c, emit, reply.Player, "mcsr.pace.empty")
+			return nil
+		}
+
+		tmpl := orDefault(cfg.NethersMessage, defaultMcsrNethersTemplate)
+		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
+			switch key {
+			case "player":
+				return reply.Player, true
+			case "nethers":
+				return strconv.Itoa(reply.Count), true
+			case "nether":
+				return reply.Avg, true
+			case "nph":
+				return trimScore(reply.NPH), true
+			default:
+				return module.ParseDynamic(key)
+			}
+		})
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// mcsrLastFortRun answers !lastfort with the most recent run that reached a
+// second structure (bastion or fortress). Template tokens: {player} {nether}
+// {bastion} {fortress} {firstportal} {stronghold} {ago}. An empty lookback
+// window (no fortress pace recently) is a normal answer, not an error.
+func mcsrLastFortRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.LastFortEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply gossiprpc.PacemanLastFortReply
+		req := gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "paceman", Endpoint: "lastfort"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emitPaceEmpty(c, emit, reply.Player, "mcsr.pace.nofort")
+			return nil
+		}
+
+		tmpl := orDefault(cfg.LastFortMessage, defaultMcsrLastFortTemplate)
+		msg := module.ExpandString(tmpl, mcsrLastFortTokens(reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+func mcsrLastFortTokens(reply gossiprpc.PacemanLastFortReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		if v, ok := mcsrLastFortSplitToken(reply, key); ok {
+			return v, true
+		}
+		switch key {
+		case "player":
+			return reply.Player, true
+		case "ago":
+			return mcsrAge(reply.AgoSeconds), true
+		default:
+			return module.ParseDynamic(key)
+		}
+	}
+}
+
+// mcsrLastFortSplitToken renders the run's split tokens. It is separate from
+// the reply's own fields so the token switch stays inside the complexity
+// budget as splits are added.
+func mcsrLastFortSplitToken(reply gossiprpc.PacemanLastFortReply, key string) (string, bool) {
+	switch key {
+	case "nether":
+		return mcsrSplit(reply.Nether), true
+	case "bastion":
+		return mcsrSplit(reply.Bastion), true
+	case "fortress":
+		return mcsrSplit(reply.Fortress), true
+	case "firstportal":
+		return mcsrSplit(reply.FirstPortal), true
+	case "stronghold":
+		return mcsrSplit(reply.Stronghold), true
+	case "end":
+		return mcsrSplit(reply.End), true
+	case "finish":
+		return mcsrSplit(reply.Finish), true
+	}
+	return "", false
+}
+
+// emitPaceEmpty answers a pace command that found nothing to report: no
+// nethers tracked this session, or no fortress pace in the lookback window.
+// Both are normal PaceMan answers, not errors, so they get one plain chat
+// line via i18n instead of a template with nothing to fill it.
+func emitPaceEmpty(c *module.Context, emit module.Emit, player, key string) {
+	emit(&module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: c.Env.BroadcasterUserID,
+		Text:          player + ": " + i18n.T(c.Locale, key),
+	})
+}
+
+// mcsrSplit renders a lastfort split, dashing a run that never reached it
+// (the provider answers "" for that case).
+func mcsrSplit(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+// mcsrAge renders a lastfort run's age as a short human duration: enough
+// resolution to answer "how stale is this pace" without a full clock string.
+func mcsrAge(seconds int64) string {
+	switch {
+	case seconds < 60:
+		return "<1m"
+	case seconds < 3600:
+		return strconv.FormatInt(seconds/60, 10) + "m"
+	case seconds < 86400:
+		return strconv.FormatInt(seconds/3600, 10) + "h"
+	default:
+		return strconv.FormatInt(seconds/86400, 10) + "d"
+	}
 }

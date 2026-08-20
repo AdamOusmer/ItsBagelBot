@@ -36,6 +36,8 @@
   "loyalty.points.adjusted": "@{target} now has {points} {name}.",
   "loyalty.points.unknown": "@{user} I haven't seen {target} in this channel yet.",
   "loyalty.points.usage": "Usage: !points — or !points \u003cset|add\u003e \u003cuser\u003e \u003camount\u003e",
+  "mcsr.pace.empty": "no pace tracked this session",
+  "mcsr.pace.nofort": "no fortress pace tracked recently",
   "mcsr.session.started": "session tracking just started (%s elo), ask again after a match!",
   "mcsr.unrated": "unrated",
   "ping": "Pong! ItsBagelBot has been up for %s",

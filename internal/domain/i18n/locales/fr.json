@@ -36,6 +36,8 @@
   "loyalty.points.adjusted": "@{target} a maintenant {points} {name}.",
   "loyalty.points.unknown": "@{user} je n'ai pas encore vu {target} sur cette chaîne.",
   "loyalty.points.usage": "Utilisation : !points — ou !points \u003cset|add\u003e \u003cutilisateur\u003e \u003cmontant\u003e",
+  "mcsr.pace.empty": "aucun pace suivi cette session",
+  "mcsr.pace.nofort": "aucun pace de forteresse suivi récemment",
   "mcsr.session.started": "le suivi de session vient de démarrer (%s elo), redemandez après une partie !",
   "mcsr.unrated": "non classé",
   "ping": "Pong ! ItsBagelBot est actif depuis %s",
