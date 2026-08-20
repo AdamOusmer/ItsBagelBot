@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -71,6 +72,26 @@ func (_u *TokensUpdate) SetNillablePlatform(v *tokens.Platform) *TokensUpdate {
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (_u *TokensUpdate) SetAccessTokenExpiresAt(v time.Time) *TokensUpdate {
+	_u.mutation.SetAccessTokenExpiresAt(v)
+	return _u
+}
+
+// SetNillableAccessTokenExpiresAt sets the "access_token_expires_at" field if the given value is not nil.
+func (_u *TokensUpdate) SetNillableAccessTokenExpiresAt(v *time.Time) *TokensUpdate {
+	if v != nil {
+		_u.SetAccessTokenExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (_u *TokensUpdate) ClearAccessTokenExpiresAt() *TokensUpdate {
+	_u.mutation.ClearAccessTokenExpiresAt()
 	return _u
 }
 
@@ -168,6 +189,12 @@ func (_u *TokensUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.AccessTokenExpiresAt(); ok {
+		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.AccessTokenExpiresAtCleared() {
+		_spec.ClearField(tokens.FieldAccessTokenExpiresAt, field.TypeTime)
+	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -260,6 +287,26 @@ func (_u *TokensUpdateOne) SetNillablePlatform(v *tokens.Platform) *TokensUpdate
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
+func (_u *TokensUpdateOne) SetAccessTokenExpiresAt(v time.Time) *TokensUpdateOne {
+	_u.mutation.SetAccessTokenExpiresAt(v)
+	return _u
+}
+
+// SetNillableAccessTokenExpiresAt sets the "access_token_expires_at" field if the given value is not nil.
+func (_u *TokensUpdateOne) SetNillableAccessTokenExpiresAt(v *time.Time) *TokensUpdateOne {
+	if v != nil {
+		_u.SetAccessTokenExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearAccessTokenExpiresAt clears the value of the "access_token_expires_at" field.
+func (_u *TokensUpdateOne) ClearAccessTokenExpiresAt() *TokensUpdateOne {
+	_u.mutation.ClearAccessTokenExpiresAt()
 	return _u
 }
 
@@ -386,6 +433,12 @@ func (_u *TokensUpdateOne) sqlSave(ctx context.Context) (_node *Tokens, err erro
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.AccessTokenExpiresAt(); ok {
+		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.AccessTokenExpiresAtCleared() {
+		_spec.ClearField(tokens.FieldAccessTokenExpiresAt, field.TypeTime)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

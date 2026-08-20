@@ -10,6 +10,7 @@ import (
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
 )
 
 // User holds the schema definition for the User entity.
@@ -96,5 +97,34 @@ func (User) Edges() []ent.Edge {
 }
 
 func (User) Indexes() []ent.Index {
-	return nil
+	return []ent.Index{
+		// Covers Users.ExpireSubscriptions' sweep predicate (app/users/repository/billing.go),
+		// which was measured live at 87,561 executions / 1,632,597 rows examined /
+		// 0 rows sent over 20.6 days uptime (100% SUM_NO_INDEX_USED, 58% of all
+		// application server-side DB time) -- EXPLAIN showed type=ALL, key=NULL,
+		// a full table scan every 20s (ticker fires every minute x3 replicas,
+		// no leader election). The query is:
+		//   status = 'paid' AND subscription_expires_at IS NOT NULL AND (
+		//     (subscription_source = 'admin' AND subscription_expires_at <= now) OR
+		//     (subscription_source = 'tebex' AND subscription_expires_at <= now-grace)
+		//   )
+		// Column order is deliberate: status is the equality predicate that
+		// eliminates the overwhelming majority of rows ('free'/'vip' never match,
+		// and today only a handful of users are 'paid' at all), so it belongs
+		// leftmost. subscription_source is the second equality predicate -- each
+		// OR branch pins it to exactly one literal ('admin' or 'tebex') -- so
+		// putting it before the range column keeps both branches served by the
+		// same index prefix (MySQL executes this OR-of-equal-conjunctions as two
+		// range scans over the same (status, subscription_source) prefix and
+		// merges them). subscription_expires_at is last because it's the only
+		// range predicate; range columns must trail every equality column in a
+		// composite index or the remaining columns can't be used for seeking.
+		// This also makes the index covering for the .Select(id, subscription_source)
+		// narrowing below: InnoDB secondary indexes always carry the PK (id), and
+		// subscription_source is already a key column, so the read never touches
+		// the clustered row (no email_enc / billing-block hydration) -- was
+		// previously type=ALL scanning all 19 rows (and every row thereafter) for
+		// zero matches; at 10k users that full scan becomes ~43M rows/day.
+		index.Fields("status", "subscription_source", "subscription_expires_at"),
+	}
 }

@@ -42,10 +42,83 @@ type Config struct {
 }
 
 const (
-	defaultMaxConns = 4
+	// defaultMaxConns is the per-pod ceiling applied twice: SetMaxOpenConns
+	// in openPool (pkg/db/pool.go) and, independently, the DB_QUERY_CONCURRENCY
+	// semaphore in pkg/db/gate.go, which falls back to this same constant
+	// when unset. Both used to default to 4.
+	//
+	// Measured 2026-08-20: the managed MySQL HeatWave instance allows up to
+	// 200 connections and peaked at 50 under real load; row lock waits are 0
+	// and the whole dataset (<2 MB) is fully buffer-pool resident, so there
+	// is no server-side contention this cap was protecting against. Meanwhile
+	// only 9-12 sessions were open across 18 DB-backed pods each permitted 4
+	// (72 possible) - the fleet was throttling itself against an idle
+	// server, not the other way around.
+	//
+	// Raised to 8: at today's fleet size (18 DB-backed pods) that is
+	// 18*8=144 connections if every pod maxed out simultaneously, 72% of the
+	// 200 limit. Measured headroom on 2026-08-20: the server's
+	// Max_used_connections high-water mark over 20.6 days of uptime was 50,
+	// against a max_connections of 200, with Threads_connected sitting at 7-12
+	// in steady state. 18 DB-backed pods x 8 = 144 is the new theoretical
+	// ceiling, which fits, though it is a cap rather than an expectation --
+	// actual usage is driven by concurrency and the app has never come close.
+	//
+	// (A 157 reading was briefly observed the same day and is NOT a production
+	// signal: it was self-inflicted by an audit that opened ~250 bare TCP
+	// probes to port 3306, visible as a matching +255 on Aborted_connects.
+	// Recorded here because that number looked alarming and cost time once.)
+	//
+	// Revisit alongside the server's own max_connections if the fleet grows
+	// much past ~20 DB-backed pods.
+	//
+	// This is a code default only, consulted when DB_MAX_OPEN_CONNS /
+	// DB_QUERY_CONCURRENCY are unset. deploy/k8s/{users,transactions,modules,
+	// commands,loyalty,notifications}.yaml all currently pin both to the
+	// literal "4" as pod env vars, which override this constant - an operator
+	// has to raise those Doppler/manifest values for this change to take
+	// effect anywhere in production.
+	defaultMaxConns = 8
 
+	// connMaxLifetime forcibly recycles a connection regardless of use,
+	// bounding how long any single connection can live (picks up server-side
+	// config changes, cert rotation, etc. within this window). Unchanged: it
+	// is not implicated in the idle-reaping problem below, and 30 minutes is
+	// still a reasonable recycle cadence against the fleet's measured ~150
+	// connections/day/service churn.
 	connMaxLifetime = 30 * time.Minute
-	connMaxIdleTime = 5 * time.Minute
+
+	// connMaxIdleTime used to be 5 minutes, far shorter than the gap between
+	// requests on most of these pods. Live evidence on 2026-08-20: only 9-12
+	// MySQL sessions open across 18 pods x 4 connections (72 possible), most
+	// pods holding zero, and one connection observed idle at 253s and gone on
+	// the next sample. A request landing on an empty pool pays TCP (1 RTT) +
+	// TLS (2 RTT) + MySQL auth (2 RTT) + the session-var round trip (1 RTT) =
+	// ~5 extra round trips, ~18ms at the measured 3.6ms pod-to-MySQL RTT,
+	// before the query's own round trip even starts. That was the dominant
+	// DB latency in this system, not query execution (0.25-0.40ms
+	// server-side, ~90% of wall time is transport).
+	//
+	// Set equal to connMaxLifetime: database/sql closes a connection on
+	// whichever of the two limits it hits first, so an idle timeout equal to
+	// the lifetime can never fire strictly before the lifetime does -
+	// idle-based reaping is effectively disabled and every connection
+	// recycles on the lifetime clock instead. This is the "remove idle
+	// reaping, rely on ConnMaxLifetime" option, chosen over just raising the
+	// idle timeout to some other number because it needs no second constant
+	// to keep in sync with connMaxLifetime by hand.
+	//
+	// Assumption: OCI MySQL HeatWave has no custom wait_timeout configuration
+	// applied, so it is running MySQL's own default, 28800s (8h). 30 minutes
+	// is 16x under that, so a connection reused right up against
+	// connMaxLifetime is never at risk of the server closing it first. If
+	// that assumption is wrong and an operator has set a shorter
+	// wait_timeout, this needs to drop below it or connection reuse starts
+	// surfacing "MySQL server has gone away" on a stale conn instead of
+	// paying the handshake. keepAlive (pkg/db/keepalive.go) is the other
+	// half of this fix: it pings a small floor of connections often enough
+	// that they never approach either timeout in the first place.
+	connMaxIdleTime = 30 * time.Minute
 )
 
 // NewDriver opens a bounded MySQL connection pool with the session settings

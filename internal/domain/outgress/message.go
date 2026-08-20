@@ -59,6 +59,24 @@ type StreamStatusJob struct {
 	BroadcasterID string `json:"broadcaster_id"`
 }
 
+// TokenWarmScope is the core-NATS (non-queue) cache-invalidation-bus scope
+// (subject = prefix + "." + TokenWarmScope, see internal/domain/invalidate)
+// the projector publishes on go-live to fan a broadcaster-token pre-warm out
+// to every outgress replica, and every outgress replica subscribes to.
+//
+// This rides the invalidate bus, not a Message/outgress lane, because the
+// warm needs an in-memory cache hit on EVERY replica (outgress runs 3, each
+// with an independent twitch.BroadcasterTokens LRU) and a lane consumer only
+// ever delivers to one of them. An earlier version of this fix published a
+// TypeWarmToken lane job on the queue-grouped outgress system lane
+// ("outgress-system", one durable consumer shared by all 3 replicas); that
+// warmed exactly one replica's cache; the other two still paid the full cold
+// mint on their own first "as":"broadcaster" send. See the outgress worker's
+// SubscribeTokenWarm and the projector's warmBroadcasterToken for the
+// measurements (id.twitch.tv is ~80.5ms TCP RTT from a pod, ~320ms for a full
+// cold mint) that make this worth doing at all.
+const TokenWarmScope = "token-warm"
+
 // EventSubJob is the payload of an "eventsub" message: the receive toggle's
 // intent for one channel. Enabled creates the channel's subscriptions on the
 // Conduit, disabled deletes them.

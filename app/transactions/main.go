@@ -90,12 +90,23 @@ func main() {
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
 	listenAddr := env.Get("LISTEN_ADDR", ":8080")
+	// mysql check alongside nats: PingContext exercises the same pool
+	// repository code uses, catching a wedged pool or rotated-out creds
+	// that nc.IsConnected alone would miss (pkg/db/health.go). Degrades
+	// rather than fails readiness: a hard-fail would pull every
+	// transactions pod out of service on the same DB blip
+	// simultaneously, turning a brief outage into a total one. A healthy
+	// ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT);
+	// much higher means the pool went cold and is paying the ~18ms
+	// handshake instead of reusing a conn.
 	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
-		Health:        health.NewSet(serviceName, health.Bool("nats", nc.IsConnected)),
-		NotifyGift:    notifier.Notify,
-		ApplyBilling:  billing.Apply,
-		App:           nrApp,
+		Health: health.NewSet(serviceName,
+			health.Bool("nats", nc.IsConnected),
+			health.Degrades(db.HealthCheck("mysql", driver.DB()))),
+		NotifyGift:   notifier.Notify,
+		ApplyBilling: billing.Apply,
+		App:          nrApp,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{

@@ -347,8 +347,12 @@ func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) user
 		return adminError(err.Error())
 	}
 
+	// Expiry unknown: an operator-installed token has no Twitch expires_in to
+	// carry, so nil here (see UpsertToken's doc) is correct, not a gap --
+	// outgress's stored-token path still falls back to minting until the
+	// grant is rotated once and the refresh closure fills the expiry in.
 	if err := a.repo.UpsertToken(ctx, u.ID, tokens.TypeUserToken, tokens.PlatformTwitch,
-		[]byte(req.AccessToken), []byte(req.RefreshToken)); err != nil {
+		[]byte(req.AccessToken), []byte(req.RefreshToken), nil); err != nil {
 		return adminError(err.Error())
 	}
 
