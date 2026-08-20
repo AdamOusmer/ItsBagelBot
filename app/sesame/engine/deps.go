@@ -110,12 +110,31 @@ type Deps struct {
 	Dedup *EventDedup
 }
 
-// FeedCounts is one feeding's readout: how often the bagel has been fed today
-// (valkey, TTL window) and ever (the modules service's permanent DB row). Both
-// counters are global across every channel.
+// FeedCounts is one feeding's fleet-wide readout: how often the bagel has been
+// fed today (valkey, TTL window) and ever (the modules service's permanent
+// row). One bagel, fed by every channel. The per-channel breakdown behind it
+// is read separately, by the leaderboard commands.
 type FeedCounts struct {
 	Today uint64
 	Total uint64
+}
+
+// FeedBoardEntry is one channel's place on the feed leaderboard: the channel,
+// the display name it carried at its last feeding, and its lifetime count.
+type FeedBoardEntry struct {
+	BroadcasterID uint64
+	Name          string
+	Count         uint64
+}
+
+// FeedBoard is a leaderboard readout: the top channels, how many channels are
+// ranked, and the asking channel's own standing (which may sit below the
+// returned entries). Channel and Rank are 0 for a channel that never fed.
+type FeedBoard struct {
+	Entries []FeedBoardEntry
+	Ranked  uint64
+	Channel uint64
+	Rank    uint64
 }
 
 // PersonalityStore is the state the personality module leans on. Fact and mood
@@ -126,17 +145,34 @@ type PersonalityStore interface {
 	// FactCursor bumps and returns a per-channel monotonic counter; the module
 	// indexes the fact list with it modulo the list length.
 	FactCursor(ctx context.Context, broadcasterID uint64) (int64, error)
-	// Feed records one feeding and returns the counts. Global: one bagel,
-	// shared across every channel.
-	Feed(ctx context.Context) (FeedCounts, error)
+	// Feed records one feeding by this channel and returns the fleet-wide
+	// counts. name is the channel's display name, stored so leaderboard lines
+	// can name it.
+	Feed(ctx context.Context, broadcasterID uint64, name string) (FeedCounts, error)
+	// FeedBoard reads the leaderboard without feeding anything: limit caps the
+	// entries (negative asks for the standing alone) and broadcasterID asks for
+	// that channel's own count and rank.
+	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
 	// Mood returns the stream's mood, seeding it with candidate when unset.
 	Mood(ctx context.Context, broadcasterID uint64, candidate string) (string, error)
 }
 
-// FeedTotalBumper increments the permanent global feed counter and returns the
-// new lifetime total; PersonalityRPC (the modules service) is the default.
-type FeedTotalBumper interface {
-	FeedBump(ctx context.Context) (uint64, error)
+// FeedTotals is what the permanent store returns for one recorded feeding: the
+// fleet-wide lifetime total plus this channel's own lifetime count and rank.
+type FeedTotals struct {
+	Total   uint64
+	Channel uint64
+	Rank    uint64
+}
+
+// FeedTotalPersister writes feedings to the permanent counters and reads the
+// leaderboard back; PersonalityRPC (the modules service) is the default.
+type FeedTotalPersister interface {
+	// FeedBump records one feeding on the fleet-wide counter and, when the
+	// feeding names a channel, that channel's row too.
+	FeedBump(ctx context.Context, broadcasterID uint64, name string) (FeedTotals, error)
+	// FeedBoard reads the leaderboard and the named channel's standing.
+	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this

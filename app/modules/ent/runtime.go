@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
@@ -15,6 +16,18 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	channelfeedcounterFields := schema.ChannelFeedCounter{}.Fields()
+	_ = channelfeedcounterFields
+	// channelfeedcounterDescCount is the schema descriptor for count field.
+	channelfeedcounterDescCount := channelfeedcounterFields[1].Descriptor()
+	// channelfeedcounter.DefaultCount holds the default value on creation for the count field.
+	channelfeedcounter.DefaultCount = channelfeedcounterDescCount.Default.(uint64)
+	// channelfeedcounterDescName is the schema descriptor for name field.
+	channelfeedcounterDescName := channelfeedcounterFields[2].Descriptor()
+	// channelfeedcounter.DefaultName holds the default value on creation for the name field.
+	channelfeedcounter.DefaultName = channelfeedcounterDescName.Default.(string)
+	// channelfeedcounter.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	channelfeedcounter.NameValidator = channelfeedcounterDescName.Validators[0].(func(string) error)
 	feedcounterFields := schema.FeedCounter{}.Fields()
 	_ = feedcounterFields
 	// feedcounterDescCount is the schema descriptor for count field.

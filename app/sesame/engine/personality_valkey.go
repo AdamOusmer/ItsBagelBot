@@ -22,10 +22,10 @@ const personalityTTL = 12 * time.Hour
 //
 //   - a monotonic per-channel fact cursor (personality:fact:<id>, no TTL) so
 //     the fun-fact list plays in order instead of repeating at random;
-//   - both halves of the global feed counter: the today window
+//   - both halves of the fleet-wide feed counter: the today window
 //     (personality:feed:global, TTL) and a live view of the lifetime total
 //     (personality:feed:total, no TTL) that is seeded from and persisted to
-//     the modules service's DB row through the injected FeedTotalBumper;
+//     the modules service's DB row through the injected FeedTotalPersister;
 //   - a per-stream mood (personality:mood:<id>), first roll wins.
 //
 // Fact and mood are best-effort (the module falls back to stateless randomness
@@ -33,11 +33,11 @@ const personalityTTL = 12 * time.Hour
 // reporting numbers that lost their meaning.
 type ValkeyPersonality struct {
 	client valkey.Client
-	total  FeedTotalBumper
+	total  FeedTotalPersister
 	log    *zap.Logger
 }
 
-func NewValkeyPersonality(client valkey.Client, total FeedTotalBumper, log *zap.Logger) *ValkeyPersonality {
+func NewValkeyPersonality(client valkey.Client, total FeedTotalPersister, log *zap.Logger) *ValkeyPersonality {
 	return &ValkeyPersonality{client: client, total: total, log: log}
 }
 
@@ -61,11 +61,15 @@ const feedTodayKey = "personality:feed:global"
 // reply path never waits on an RPC once the view is warm.
 const feedTotalKey = "personality:feed:total"
 
-// A warm feed updates both counters in one atomic master round trip. A cold
-// total returns nil without touching today's count, allowing the caller to
-// synchronously persist this feeding through FeedBump before seeding the live
-// view. The seed script keeps the larger of an already-raced live value and
-// the DB total, so concurrent cold callers never move the view backwards.
+// A warm feed updates both fleet-wide counters in one atomic master round trip.
+// A cold total returns nil without touching today's count, allowing the caller
+// to synchronously persist this feeding through FeedBump before seeding the
+// live view. The seed script keeps the larger of an already-raced live value
+// and the DB total, so concurrent cold callers never move the view backwards.
+//
+// The per-channel rows are deliberately not mirrored here: only the !bagels and
+// !bagelboard commands read them, they are rare and cooldown-gated, and a live
+// view would buy nothing but a second thing to keep in sync.
 var (
 	personalityTTLArg = strconv.FormatInt(int64(personalityTTL.Seconds()), 10)
 	feedKeys          = []string{feedTotalKey, feedTodayKey}
@@ -94,44 +98,59 @@ if today == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end
 return {today, current}`)
 )
 
-// Feed records one feeding on both counters and returns them: the lifetime
+// Feed records one feeding and returns the fleet-wide counters: the lifetime
 // total from the valkey live view (DB-seeded, persisted behind the reply) and
-// the valkey today window. An error on either side errors the whole call; the
-// module then stays silent instead of reporting half a readout.
-func (s *ValkeyPersonality) Feed(ctx context.Context) (FeedCounts, error) {
+// the valkey today window. The feeding also lands on the channel's own row
+// through the same write, which is what the leaderboard commands read. An
+// error on either side errors the whole call; the module then stays silent
+// instead of reporting half a readout.
+func (s *ValkeyPersonality) Feed(ctx context.Context, broadcasterID uint64, name string) (FeedCounts, error) {
 	if s.total == nil {
 		return FeedCounts{}, errors.New("personality: no feed total backend")
 	}
 	counts, err := decodeFeedCounts(feedWarmScript.Exec(ctx, s.client, feedKeys, feedWarmArgs))
 	if err == nil {
-		s.bumpBehind()
+		s.bumpBehind(broadcasterID, name)
 		return counts, nil
 	}
 	if !valkey.IsValkeyNil(err) {
 		return FeedCounts{}, err
 	}
 
-	dbTotal, err := s.total.FeedBump(ctx)
+	totals, err := s.total.FeedBump(ctx, broadcasterID, name)
 	if err != nil {
 		return FeedCounts{}, err
 	}
 	return decodeFeedCounts(feedSeedScript.Exec(ctx, s.client,
-		feedKeys, []string{strconv.FormatUint(dbTotal, 10), personalityTTLArg}))
+		feedKeys, []string{strconv.FormatUint(totals.Total, 10), personalityTTLArg}))
+}
+
+// FeedBoard reads the leaderboard from the permanent rows: the commands that
+// print it are cooldown-gated and rare, and the DB rows are the only place
+// channel names live.
+func (s *ValkeyPersonality) FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error) {
+	if s.total == nil {
+		return FeedBoard{}, errors.New("personality: no feed total backend")
+	}
+	return s.total.FeedBoard(ctx, broadcasterID, limit)
 }
 
 // bumpBehind persists one feeding to the modules service off the reply path,
 // mirroring ValkeyReputation.Bump: a failure only lets the DB lag the view
 // until the next cold seed reconciles them.
-func (s *ValkeyPersonality) bumpBehind() {
+func (s *ValkeyPersonality) bumpBehind(broadcasterID uint64, name string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if _, err := s.total.FeedBump(ctx); err != nil {
+		if _, err := s.total.FeedBump(ctx, broadcasterID, name); err != nil {
 			s.log.Debug("personality: feed write-behind failed", zap.Error(err))
 		}
 	}()
 }
 
+// decodeFeedCounts reads the two fleet-wide counters a feed script returns,
+// rejecting a short reply or a negative counter rather than reporting a number
+// that lost its meaning.
 func decodeFeedCounts(result valkey.ValkeyResult) (FeedCounts, error) {
 	values, err := result.ToArray()
 	if err != nil {
