@@ -81,10 +81,8 @@ const mintLeaseReleaseTimeout = 2 * time.Second
 // twitch stays free of a Valkey import: this lives in main, built over
 // deps.valkey, and is injected the same way StoredTokenIO already is.
 func (d *deps) newMintLease(accountID string) twitch.MintLease {
-	key := mintLeaseKeyPrefix + accountID
-	holder := d.host
-	client := d.valkey
 	log := d.log
+	lock := valkeyLock{client: d.valkey, key: mintLeaseKeyPrefix + accountID, owner: d.host}
 
 	return twitch.MintLease{
 		// The unavailable return distinguishes "Valkey itself is
@@ -95,7 +93,7 @@ func (d *deps) newMintLease(accountID string) twitch.MintLease {
 		// guaranteed wasted and mintOrAdopt skips straight to an
 		// uncoordinated mint instead.
 		Acquire: func(ctx context.Context) (func(), bool, bool) {
-			ok, err := acquireValkeyLock(ctx, client, key, holder, mintLeaseTTL)
+			ok, err := lock.acquire(ctx, mintLeaseTTL)
 			if err != nil {
 				log.Warn("mint lease backend unavailable; minting immediately, uncoordinated",
 					zap.String("account_id", accountID), zap.Error(err))
@@ -107,7 +105,7 @@ func (d *deps) newMintLease(accountID string) twitch.MintLease {
 			return func() {
 				releaseCtx, cancel := context.WithTimeout(context.Background(), mintLeaseReleaseTimeout)
 				defer cancel()
-				if err := releaseValkeyLock(releaseCtx, client, key, holder); err != nil {
+				if err := lock.release(releaseCtx); err != nil {
 					log.Warn("mint lease release failed; it will expire on its own",
 						zap.String("account_id", accountID), zap.Error(err))
 				}
@@ -116,11 +114,23 @@ func (d *deps) newMintLease(accountID string) twitch.MintLease {
 	}
 }
 
-// acquireValkeyLock claims key for owner via SET NX PX, the same
-// distributed-lock shape as channels.Registry.acquireLock. Returns false
-// (not an error) when another replica already holds it.
-func acquireValkeyLock(ctx context.Context, client valkey_go.Client, key, owner string, ttl time.Duration) (bool, error) {
-	res := client.Do(ctx, client.B().Set().Key(key).Value(owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build())
+// valkeyLock is one SET-NX distributed lock: the Valkey client, the key it
+// locks, and the owner value it claims/releases under. These three are fixed
+// for the lifetime of one lease (built once in newMintLease per accountID),
+// so bundling them lets acquire/release each take only what varies per call
+// (the TTL, or nothing) instead of threading client/key/owner through both
+// as separate parameters.
+type valkeyLock struct {
+	client valkey_go.Client
+	key    string
+	owner  string
+}
+
+// acquire claims the lock via SET NX PX, the same distributed-lock shape as
+// channels.Registry.acquireLock. Returns false (not an error) when another
+// replica already holds it.
+func (l valkeyLock) acquire(ctx context.Context, ttl time.Duration) (bool, error) {
+	res := l.client.Do(ctx, l.client.B().Set().Key(l.key).Value(l.owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build())
 	str, err := res.ToString()
 	if err != nil {
 		if valkey_go.IsValkeyNil(err) {
@@ -131,11 +141,11 @@ func acquireValkeyLock(ctx context.Context, client valkey_go.Client, key, owner 
 	return str == "OK", nil
 }
 
-// releaseValkeyLock deletes key only if its value still matches owner (a
+// release deletes the key only if its value still matches owner (a
 // compare-and-delete Lua script), so a replica can never release a lock it
 // no longer holds -- e.g. one it held past mintLeaseTTL that another replica
 // has since re-acquired.
-func releaseValkeyLock(ctx context.Context, client valkey_go.Client, key, owner string) error {
+func (l valkeyLock) release(ctx context.Context) error {
 	const luaDel = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
-	return client.Do(ctx, client.B().Eval().Script(luaDel).Numkeys(1).Key(key).Arg(owner).Build()).Error()
+	return l.client.Do(ctx, l.client.B().Eval().Script(luaDel).Numkeys(1).Key(l.key).Arg(l.owner).Build()).Error()
 }

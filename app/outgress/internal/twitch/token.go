@@ -371,6 +371,20 @@ func NewStoredUserTokenSource(creds ClientCredentials, fallbackRefresh string, i
 	// across two generations (see gen/Invalidate), so a plain local was no
 	// longer safe to read and write unsynchronized.
 	s := &Source{currentRefresh: fallbackRefresh}
+
+	// m bundles the four collaborators (creds, s, io, lease) that are fixed
+	// for the lifetime of this Source and were previously threaded as
+	// separate parameters through every function in the mint/lease/persist
+	// call chain below (mintOrAdopt, waitForLeaseOrAdoption,
+	// pollLeaseOrAdoption, mintLeased, persistAsyncThen, ...). Built once
+	// here and reused as a value receiver -- it is four small, already-
+	// cheap-to-copy fields (a struct of two strings, a pointer, and two
+	// func-field structs), so passing it by value on every call costs
+	// nothing that mattered before as separate arguments. Only ctx and
+	// whatever varies per call (forbid, release) still travel as explicit
+	// parameters.
+	m := minter{creds: creds, s: s, io: io, lease: lease}
+
 	s.refresh = func(ctx context.Context) (token string, ttl time.Duration, err error) {
 
 		stored := io.Load(ctx)
@@ -410,9 +424,24 @@ func NewStoredUserTokenSource(creds ClientCredentials, fallbackRefresh string, i
 			return "", 0, ErrNoRefreshToken
 		}
 
-		return mintOrAdopt(ctx, creds, s, io, lease, forbid)
+		return m.mintOrAdopt(ctx, forbid)
 	}
 	return s
+}
+
+// minter bundles the collaborators that mintOrAdopt and everything it calls
+// need for the lifetime of one Source: the Twitch client credentials, the
+// Source itself (for currentRefresh and consumeSkipAdopt), the users-service
+// IO, and the cross-replica mint lease. Built once by
+// NewStoredUserTokenSource's refresh closure -- see its doc -- so every
+// method below takes only what actually varies per call (ctx, and forbid or
+// release), instead of re-threading creds/s/io/lease through each one
+// individually.
+type minter struct {
+	creds ClientCredentials
+	s     *Source
+	io    StoredTokenIO
+	lease MintLease
 }
 
 // rearmSkipAdopt restores the post-401 guard after a failed refresh. It never
@@ -480,17 +509,18 @@ const (
 // Twitch hands back a new refresh token. Split out of the two mint paths
 // below (uncoordinated and leased) so neither duplicates the rotation logic.
 //
-// Takes s rather than a *string: two different generations' refresh
-// closures can call this concurrently (see currentRefresh's doc on Source),
-// so the read-then-conditionally-write has to go through s's own
-// synchronized accessors, not a bare pointer dereference.
-func mintOnce(ctx context.Context, creds ClientCredentials, s *Source) (oauthResponse, time.Duration, error) {
-	res, err := postToken(ctx, creds.refreshGrant(s.getCurrentRefresh()))
+// Reads/writes through m.s's own synchronized accessors rather than a bare
+// pointer dereference: two different generations' refresh closures can call
+// this concurrently (see currentRefresh's doc on Source), so the
+// read-then-conditionally-write has to go through s.getCurrentRefresh /
+// s.setCurrentRefresh, not a captured local.
+func (m minter) mintOnce(ctx context.Context) (oauthResponse, time.Duration, error) {
+	res, err := postToken(ctx, m.creds.refreshGrant(m.s.getCurrentRefresh()))
 	if err != nil {
 		return oauthResponse{}, 0, err
 	}
 	if res.RefreshToken != "" {
-		s.setCurrentRefresh(res.RefreshToken)
+		m.s.setCurrentRefresh(res.RefreshToken)
 	}
 	return res, time.Duration(res.ExpiresIn) * time.Second, nil
 }
@@ -499,16 +529,16 @@ func mintOnce(ctx context.Context, creds ClientCredentials, s *Source) (oauthRes
 // or a losing replica that gave up waiting for the winner (see mintOrAdopt).
 // Persist runs detached exactly as it always has -- see persistAsync's doc
 // for the ~16-20ms this saves on the caller's path.
-func mintAndPersistAsync(ctx context.Context, creds ClientCredentials, s *Source, persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error) (string, time.Duration, error) {
-	res, ttl, err := mintOnce(ctx, creds, s)
+func (m minter) mintAndPersistAsync(ctx context.Context) (string, time.Duration, error) {
+	res, ttl, err := m.mintOnce(ctx)
 	if err != nil {
 		return "", 0, err
 	}
-	// Read the refresh token back through s.getCurrentRefresh() (not a
+	// Read the refresh token back through m.s.getCurrentRefresh() (not a
 	// captured local) so this detached write persists whatever mintOnce
 	// just rotated it to, even if a concurrent generation's refresh mutates
 	// currentRefresh again immediately after this one returns.
-	persistAsync(persist, res.AccessToken, s.getCurrentRefresh(), time.Now().Add(ttl))
+	m.persistAsync(res.AccessToken, m.s.getCurrentRefresh(), time.Now().Add(ttl))
 	return res.AccessToken, ttl, nil
 }
 
@@ -521,14 +551,14 @@ func mintAndPersistAsync(ctx context.Context, creds ClientCredentials, s *Source
 // retries too (waitForAdoption), not just the one check already done in the
 // caller: within a single skip-round, no re-Load anywhere in this call may
 // hand back the token that was just invalidated.
-func mintOrAdopt(ctx context.Context, creds ClientCredentials, s *Source, io StoredTokenIO, lease MintLease, forbid string) (string, time.Duration, error) {
-	if lease.Acquire == nil {
-		return mintAndPersistAsync(ctx, creds, s, io.Persist)
+func (m minter) mintOrAdopt(ctx context.Context, forbid string) (string, time.Duration, error) {
+	if m.lease.Acquire == nil {
+		return m.mintAndPersistAsync(ctx)
 	}
 
-	release, ok, unavailable := lease.Acquire(ctx)
+	release, ok, unavailable := m.lease.Acquire(ctx)
 	if ok {
-		return mintLeased(ctx, creds, s, io.Persist, release)
+		return m.mintLeased(ctx, release)
 	}
 	if unavailable {
 		// The lease BACKEND is unreachable (Valkey down/timed out), not
@@ -543,10 +573,10 @@ func mintOrAdopt(ctx context.Context, creds ClientCredentials, s *Source, io Sto
 		// recoverable via adoption once the backend (and thus coordination)
 		// is back, which beats adding latency to every mint for the
 		// duration of an outage.
-		return mintAndPersistAsync(ctx, creds, s, io.Persist)
+		return m.mintAndPersistAsync(ctx)
 	}
 
-	if token, ttl, done, err := waitForLeaseOrAdoption(ctx, creds, s, lease, io, forbid); done {
+	if token, ttl, done, err := m.waitForLeaseOrAdoption(ctx, forbid); done {
 		return token, ttl, err
 	}
 	// Fallback: nobody ever showed an adoptable token, and the lease was
@@ -559,7 +589,7 @@ func mintOrAdopt(ctx context.Context, creds ClientCredentials, s *Source, io Sto
 	// mintLeaseTTL expire frees the lease immediately, and
 	// waitForLeaseOrAdoption polling for that (not just for adoption) is
 	// what catches it well before the budget runs out.
-	return mintAndPersistAsync(ctx, creds, s, io.Persist)
+	return m.mintAndPersistAsync(ctx)
 }
 
 // mintLeased runs the real mint while holding lease, then hands the Persist
@@ -588,13 +618,13 @@ func mintOrAdopt(ctx context.Context, creds ClientCredentials, s *Source, io Sto
 // documents, not a new class of failure. The common case (first Persist
 // attempt succeeds, ~16-20ms) is unaffected: the lease is released just as
 // promptly as before.
-func mintLeased(ctx context.Context, creds ClientCredentials, s *Source, persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error, release func()) (string, time.Duration, error) {
-	res, ttl, err := mintOnce(ctx, creds, s)
+func (m minter) mintLeased(ctx context.Context, release func()) (string, time.Duration, error) {
+	res, ttl, err := m.mintOnce(ctx)
 	if err != nil {
 		release()
 		return "", 0, err
 	}
-	persistAsyncThen(persist, res.AccessToken, s.getCurrentRefresh(), time.Now().Add(ttl), release)
+	m.persistAsyncThen(res.AccessToken, m.s.getCurrentRefresh(), time.Now().Add(ttl), release)
 	return res.AccessToken, ttl, nil
 }
 
@@ -625,12 +655,12 @@ func mintLeased(ctx context.Context, creds ClientCredentials, s *Source, persist
 // be non-nil). done=false means the budget was exhausted with the lease
 // still held by someone else and nothing adoptable -- the caller's
 // uncoordinated fallback applies.
-func waitForLeaseOrAdoption(ctx context.Context, creds ClientCredentials, s *Source, lease MintLease, io StoredTokenIO, forbid string) (token string, ttl time.Duration, done bool, err error) {
+func (m minter) waitForLeaseOrAdoption(ctx context.Context, forbid string) (token string, ttl time.Duration, done bool, err error) {
 	for attempt := 0; attempt < leaseWaitAttempts; attempt++ {
 		if attempt > 0 && !waitTick(ctx) {
 			return "", 0, false, nil
 		}
-		if token, ttl, done, stop, err := pollLeaseOrAdoption(ctx, creds, s, lease, io, forbid); done || stop {
+		if token, ttl, done, stop, err := m.pollLeaseOrAdoption(ctx, forbid); done || stop {
 			return token, ttl, done, err
 		}
 	}
@@ -661,16 +691,16 @@ func waitTick(ctx context.Context) bool {
 // so spending the rest of the budget on it cannot help -- the caller's
 // uncoordinated fallback applies right away, same as if the budget had run
 // out normally.
-func pollLeaseOrAdoption(ctx context.Context, creds ClientCredentials, s *Source, lease MintLease, io StoredTokenIO, forbid string) (token string, ttl time.Duration, done bool, stop bool, err error) {
-	release, ok, unavailable := lease.Acquire(ctx)
+func (m minter) pollLeaseOrAdoption(ctx context.Context, forbid string) (token string, ttl time.Duration, done bool, stop bool, err error) {
+	release, ok, unavailable := m.lease.Acquire(ctx)
 	if ok {
-		token, ttl, err := mintLeased(ctx, creds, s, io.Persist, release)
+		token, ttl, err := m.mintLeased(ctx, release)
 		return token, ttl, true, false, err
 	}
 	if unavailable {
 		return "", 0, false, true, nil
 	}
-	if token, ttl, ok := adoptCandidate(io.Load(ctx), forbid); ok {
+	if token, ttl, ok := adoptCandidate(m.io.Load(ctx), forbid); ok {
 		return token, ttl, true, false, nil
 	}
 	return "", 0, false, false, nil
@@ -731,8 +761,8 @@ const (
 // completes, which would abort the store write mid-flight. A background
 // context with its own persistTimeout keeps the write alive independently of
 // that lifetime. See persistAttempts for why the retry is unconditional.
-func persistAsync(persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error, accessToken, refreshToken string, expiresAt time.Time) {
-	persistAsyncThen(persist, accessToken, refreshToken, expiresAt, nil)
+func (m minter) persistAsync(accessToken, refreshToken string, expiresAt time.Time) {
+	m.persistAsyncThen(accessToken, refreshToken, expiresAt, nil)
 }
 
 // persistAsyncThen is persistAsync plus an optional onDone callback, run once
@@ -744,13 +774,13 @@ func persistAsync(persist func(ctx context.Context, accessToken, refreshToken st
 // retries -- see mintLeased's doc for the safety reasoning. persistAsync
 // itself passes onDone as nil, so its behaviour (retry fully, nothing to
 // call) is unchanged.
-func persistAsyncThen(persist func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) error, accessToken, refreshToken string, expiresAt time.Time, onDone func()) {
+func (m minter) persistAsyncThen(accessToken, refreshToken string, expiresAt time.Time, onDone func()) {
 	go func() {
 		for attempt := 0; attempt < persistAttempts; attempt++ {
 			if attempt > 0 {
 				time.Sleep(persistRetryBackoff)
 			}
-			ok := persistOnce(persist, accessToken, refreshToken, expiresAt)
+			ok := persistOnce(m.io.Persist, accessToken, refreshToken, expiresAt)
 			if attempt == 0 && onDone != nil {
 				onDone()
 			}
