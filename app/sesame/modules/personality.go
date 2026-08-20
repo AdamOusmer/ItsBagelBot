@@ -99,6 +99,7 @@ var personalityReactions = []reaction{
 	{name: "toast", phrases: withNames(botNames, "toast the {name}", "toast {name}"), cooldown: 30 * time.Second, reply: toastReply},
 	{name: "pet", phrases: withNames(botNames, "pet the {name}", "pet {name}", "pets the {name}", "hug the {name}", "hug {name}", "hugs the {name}", "{name} hug"), cooldown: 30 * time.Second, reply: packReply(personalityAffectionPack)},
 	{name: "feed", phrases: withNames(botNames, "feed the {name}", "feed {name}", "feeds the {name}"), cooldown: 30 * time.Second, reply: feedReply},
+	{name: "feedboard", phrases: withNames(botNames, "{name} leaderboard", "{name} feedboard", "{name} feed leaderboard", "who fed the {name} most", "who feeds the {name} most"), cooldown: 60 * time.Second, reply: feedBoardReply},
 	{name: "boop", phrases: withNames(botNames, "boop the {name}", "boop {name}", "boops the {name}"), cooldown: 30 * time.Second, reply: packReply(personalityBoopPack)},
 	{name: "mood", phrases: withNames(botNames, "{name} mood", "mood of the {name}"), cooldown: 60 * time.Second, reply: moodReply},
 	{name: "give", phrases: []string{"give me a bagel", "i want a bagel", "gimme bagel", "gimme a bagel"}, cooldown: 30 * time.Second, reply: packReply(personalityGiveBagel)},
@@ -217,19 +218,80 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	return personalityFacts[idx]
 }
 
-// feedReply records one feeding on the global counters (one bagel, shared by
-// every channel: a permanent DB total plus a valkey today window) and reports
-// both. No counts, no line: when the store is nil or erroring the reaction
-// stays silent rather than answering without its numbers.
-func feedReply(ctx context.Context, d engine.Deps, _ *module.Context) string {
+// feedReply records one feeding (fleet-wide counters plus this channel's own
+// row) and reports both halves: how much the bagel has eaten everywhere, and
+// where this channel stands among the channels feeding it. No counts, no line:
+// when the store is nil or erroring the reaction stays silent rather than
+// answering without its numbers.
+func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	if d.Personality == nil {
 		return ""
 	}
-	counts, err := d.Personality.Feed(ctx)
+	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName())
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf(pickLine(personalityFeedCountPack), counts.Today, counts.Total)
+	line := fmt.Sprintf(pickLine(personalityFeedCountPack), counts.Today, counts.Total)
+	standing := feedStanding(counts)
+	if standing == "" {
+		return line
+	}
+	return line + " " + standing
+}
+
+// feedStanding is the per-channel tail of the feed line. It is dropped when the
+// readout has no channel half (a feeding that named no broadcaster), which
+// keeps the fleet-wide line intact rather than printing "#0 of 0".
+func feedStanding(counts engine.FeedCounts) string {
+	if counts.Channel == 0 || counts.Rank == 0 || counts.Ranked == 0 {
+		return ""
+	}
+	return fmt.Sprintf(pickLine(personalityFeedStandingPack), counts.Channel, counts.Rank, counts.Ranked)
+}
+
+// feedBoardTop is how many channels the leaderboard line names. Three fits a
+// chat line comfortably next to the asking channel's own standing.
+const feedBoardTop = 3
+
+// feedBoardReply prints the feed leaderboard: the channels that fed the bagel
+// most, then where the asking channel sits. Silent without a store or a board,
+// same rule as the feed line.
+func feedBoardReply(ctx context.Context, d engine.Deps, c *module.Context) string {
+	if d.Personality == nil {
+		return ""
+	}
+	board, err := d.Personality.FeedBoard(ctx, c.BroadcasterID, feedBoardTop)
+	if err != nil || len(board.Entries) == 0 {
+		return ""
+	}
+	return "bagel leaderboard: " + strings.Join(feedBoardPlaces(board.Entries), ", ") + ". " + feedBoardStanding(board)
+}
+
+// feedBoardPlaces renders the podium, one "1. name (count)" per entry.
+func feedBoardPlaces(entries []engine.FeedBoardEntry) []string {
+	places := make([]string, 0, len(entries))
+	for i, entry := range entries {
+		places = append(places, fmt.Sprintf("%d. %s (%d)", i+1, feedBoardName(entry), entry.Count))
+	}
+	return places
+}
+
+// feedBoardName falls back to the id when a row predates the stored display
+// name (or the feeding event carried none), so a nameless row still ranks.
+func feedBoardName(entry engine.FeedBoardEntry) string {
+	if entry.Name != "" {
+		return entry.Name
+	}
+	return "channel " + strconv.FormatUint(entry.BroadcasterID, 10)
+}
+
+// feedBoardStanding closes the leaderboard line with the asking channel's own
+// place, or a nudge when it has never fed the bagel.
+func feedBoardStanding(board engine.FeedBoard) string {
+	if board.Rank == 0 || board.Channel == 0 {
+		return "this channel has never fed me once. just saying."
+	}
+	return fmt.Sprintf("this channel: %d feedings, #%d of %d.", board.Channel, board.Rank, board.Ranked)
 }
 
 // moodReply reports the stream's mood, rolling a candidate that only sticks if

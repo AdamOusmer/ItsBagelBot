@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The ChannelFeedCounterFunc type is an adapter to allow the use of ordinary
+// function as ChannelFeedCounter mutator.
+type ChannelFeedCounterFunc func(context.Context, *ent.ChannelFeedCounterMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelFeedCounterFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelFeedCounterMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelFeedCounterMutation", m)
+}
+
 // The FeedCounterFunc type is an adapter to allow the use of ordinary
 // function as FeedCounter mutator.
 type FeedCounterFunc func(context.Context, *ent.FeedCounterMutation) (ent.Value, error)

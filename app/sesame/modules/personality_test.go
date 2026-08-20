@@ -54,20 +54,30 @@ func personalityCtx(text string) *module.Context {
 }
 
 // fakePersonality scripts the PersonalityStore: fixed cursor/feed values, an
-// optional sticky mood, and an optional error that fails every call.
+// optional sticky mood, an optional leaderboard, and an optional error that
+// fails every call. fedBy records the channel the last feeding named.
 type fakePersonality struct {
 	cursor int64
 	feed   engine.FeedCounts
+	board  engine.FeedBoard
 	mood   string
 	err    error
+
+	fedBy   uint64
+	fedName string
 }
 
 func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) Feed(context.Context) (engine.FeedCounts, error) {
+func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name string) (engine.FeedCounts, error) {
+	f.fedBy, f.fedName = broadcasterID, name
 	return f.feed, f.err
+}
+
+func (f *fakePersonality) FeedBoard(_ context.Context, _ uint64, _ int) (engine.FeedBoard, error) {
+	return f.board, f.err
 }
 
 func (f *fakePersonality) Mood(_ context.Context, _ uint64, candidate string) (string, error) {
@@ -145,10 +155,66 @@ func TestPersonalityFactFallsBackWithoutStore(t *testing.T) {
 func TestPersonalityFeedReportsTodayAndLifetime(t *testing.T) {
 	pinPersonalityRand(t)
 	var col collector
+	store := &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213, Channel: 12, Rank: 4, Ranked: 57}}
+	require.NoError(t, personalityHandler(t, engine.Deps{Personality: store})(context.Background(), personalityCtx("feed the bagel"), col.emit))
+	require.Len(t, col.out, 1)
+	want := fmt.Sprintf(personalityFeedCountPack[0], 3, 48213) + " " + fmt.Sprintf(personalityFeedStandingPack[0], 12, 4, 57)
+	assert.Equal(t, want, col.out[0].Text)
+	assert.Equal(t, uint64(2), store.fedBy, "the feeding must name the channel it came from")
+}
+
+// A readout with no channel half (a feeding that named no broadcaster) keeps
+// the fleet-wide line rather than printing an empty standing.
+func TestPersonalityFeedDropsStandingWithoutChannelCounts(t *testing.T) {
+	pinPersonalityRand(t)
+	var col collector
 	d := engine.Deps{Personality: &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213}}}
 	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("feed the bagel"), col.emit))
 	require.Len(t, col.out, 1)
 	assert.Equal(t, fmt.Sprintf(personalityFeedCountPack[0], 3, 48213), col.out[0].Text)
+}
+
+func TestPersonalityLeaderboardRanksChannels(t *testing.T) {
+	pinPersonalityRand(t)
+	var col collector
+	board := engine.FeedBoard{
+		Entries: []engine.FeedBoardEntry{
+			{BroadcasterID: 9, Name: "Crumb", Count: 400},
+			{BroadcasterID: 8, Count: 120},
+		},
+		Ranked: 57, Channel: 12, Rank: 4,
+	}
+	d := engine.Deps{Personality: &fakePersonality{board: board}}
+	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("bagel leaderboard"), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "bagel leaderboard: 1. Crumb (400), 2. channel 8 (120). this channel: 12 feedings, #4 of 57.", col.out[0].Text)
+}
+
+// A channel that never fed still gets the podium, with a nudge instead of a
+// standing.
+func TestPersonalityLeaderboardNudgesUnrankedChannel(t *testing.T) {
+	pinPersonalityRand(t)
+	var col collector
+	board := engine.FeedBoard{Entries: []engine.FeedBoardEntry{{BroadcasterID: 9, Name: "Crumb", Count: 400}}, Ranked: 57}
+	d := engine.Deps{Personality: &fakePersonality{board: board}}
+	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("bagel leaderboard"), col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "never fed me once")
+}
+
+// No board, no line: an empty or erroring leaderboard stays silent rather than
+// printing an empty podium.
+func TestPersonalityLeaderboardSilentWithoutEntries(t *testing.T) {
+	pinPersonalityRand(t)
+	for name, deps := range map[string]engine.Deps{
+		"empty":    {Personality: &fakePersonality{}},
+		"error":    {Personality: &fakePersonality{err: assert.AnError}},
+		"no store": {},
+	} {
+		var col collector
+		require.NoError(t, personalityHandler(t, deps)(context.Background(), personalityCtx("bagel leaderboard"), col.emit), name)
+		assert.Empty(t, col.out, name)
+	}
 }
 
 func TestPersonalityFeedSilentWithoutCounts(t *testing.T) {
