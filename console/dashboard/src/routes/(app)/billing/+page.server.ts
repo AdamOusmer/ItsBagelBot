@@ -55,14 +55,14 @@ function demoSubscribePlan(form: FormData): 'monthly' | 'single' {
   return form.get('plan') === 'monthly' ? 'monthly' : 'single';
 }
 
-// Same recipient rules as the live gift path, kept in one place so both the
-// demo branch and the description above stay honest about "same rules". This
-// returns plain data rather than calling fail() itself: SvelteKit infers each
-// action's ActionData from fail() calls written directly inside that action,
-// so fail() is still called at the gift action's own call site below.
+// One set of recipient rules for both paths, demo and live. Returns plain data
+// rather than calling fail() itself: SvelteKit infers each action's ActionData
+// from fail() calls written directly inside that action, so fail() is still
+// called at the gift action's own call sites below.
 type GiftFormError = { gift: true; error: string; recipient: string; message: string };
+type GiftFailure = { ok: false; status: number; data: GiftFormError };
 
-function demoGiftValidate(form: FormData): { ok: true; recipient: string } | { ok: false; status: number; data: GiftFormError } {
+function giftValidate(form: FormData): { ok: true; recipient: string; message: string } | GiftFailure {
   const recipient = String(form.get('recipient') ?? '').trim();
   const message = String(form.get('message') ?? '').trim().slice(0, 280);
   if (!recipient) {
@@ -78,7 +78,46 @@ function demoGiftValidate(form: FormData): { ok: true; recipient: string } | { o
       data: { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message }
     };
   }
-  return { ok: true, recipient };
+  return { ok: true, recipient, message };
+}
+
+// The basket call and its failure mapping, lifted out of the action. The RPC's
+// own error strings are user-facing (the transactions service vets the
+// recipient: registered, not banned, not already premium), while anything else
+// is ours to log and generalise.
+async function giftCheckout(
+  session: { user_id: string; login: string },
+  recipient: string,
+  message: string,
+  ipAddress: string
+): Promise<{ ok: true; url: string } | GiftFailure> {
+  try {
+    const basket = await checkoutBasketCreate({
+      userId: session.user_id,
+      username: session.login,
+      recipientUsername: recipient,
+      ipAddress,
+      giftMessage: message
+    });
+    const url = optionalHttpsURL(basket.checkoutUrl ?? undefined);
+    if (url) return { ok: true, url };
+  } catch (err) {
+    if (err instanceof RpcError) {
+      logger.warn({ err }, `[billing] gift rejected for ${session.user_id} -> ${recipient}`);
+      return { ok: false, status: 409, data: { gift: true, error: err.message, recipient, message } };
+    }
+    logger.error({ err }, '[billing] gift basket create failed');
+  }
+  return {
+    ok: false,
+    status: 502,
+    data: {
+      gift: true,
+      error: 'Gifting is not available right now. Try again in a moment.',
+      recipient,
+      message
+    }
+  };
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -188,7 +227,7 @@ export const actions: Actions = {
     // identically in demo), then hand off to our own fake checkout instead of
     // minting a Tebex basket.
     if (DEMO) {
-      const validated = demoGiftValidate(await request.formData());
+      const validated = giftValidate(await request.formData());
       if (!validated.ok) return fail(validated.status, validated.data);
       throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
     }
@@ -200,45 +239,12 @@ export const actions: Actions = {
     // gated to owners + billing-granted delegates.
     if (!billingActor(s)) return fail(403, { gift: true, error: 'You do not have access to manage billing.' });
 
-    const form = await request.formData();
-    const recipient = String(form.get('recipient') ?? '').trim();
-    // Optional personal note. Capped here as defence-in-depth (the textarea caps
-    // it client-side and the transactions service caps + sanitizes again); empty
-    // falls back to the default gift email copy. Echoed back on failures so the
-    // gift modal can repopulate after a plain-form re-render.
-    const message = String(form.get('message') ?? '').trim().slice(0, 280);
+    const validated = giftValidate(await request.formData());
+    if (!validated.ok) return fail(validated.status, validated.data);
 
-    if (!recipient) return fail(400, { gift: true, error: 'Enter the Twitch username to gift to.', recipient, message });
-    if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
-      return fail(400, { gift: true, error: 'That does not look like a Twitch username.', recipient, message });
-    }
-    // No links in the gift note: it is emailed to the recipient, so a link (or
-    // any obfuscated form) is refused here as well as in the transactions
-    // service. Mirrors @bagel/shared/validation used live on the client.
-    if (message && containsLink(message)) {
-      return fail(400, { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message });
-    }
-
-    let checkoutUrl: string | null = null;
-    try {
-      const basket = await checkoutBasketCreate({
-        userId: s.user_id,
-        username: s.login,
-        recipientUsername: recipient,
-        ipAddress: getClientAddress(),
-        giftMessage: message
-      });
-      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    } catch (err) {
-      if (err instanceof RpcError) {
-        logger.warn({ err }, `[billing] gift rejected for ${s.user_id} -> ${recipient}`);
-        return fail(409, { gift: true, error: err.message, recipient, message });
-      }
-      logger.error({ err }, '[billing] gift basket create failed');
-    }
-
-    if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.', recipient, message });
-    throw redirect(303, checkoutUrl);
+    const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress());
+    if (!checkout.ok) return fail(checkout.status, checkout.data);
+    throw redirect(303, checkout.url);
   },
 
   // Cancellation/account management lives on Tebex. We still gate the button
