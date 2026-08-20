@@ -133,29 +133,71 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 	}
 }
 
+// CounterBumpTarget names the row one bump lands on: whose counter it is, which
+// counter, its scope, and — for the entry-scoped kinds — which bucket inside
+// it. The fields always travel together (they are exactly the accumulator's key
+// plus the viewer identity that rides along with it), so they travel as one
+// value rather than as five positional arguments at every call site. The
+// sibling CounterTarget in dedup.go is the read side of the same idea; a bump
+// additionally carries the scope and the viewer's display identity, which a
+// peek has no use for.
+//
+// A zero BroadcasterID is the reserved bot namespace, which carries bot-scope
+// counters and nothing else; the pairing is enforced in Bump.
+type CounterBumpTarget struct {
+	BroadcasterID uint64
+	Name          string
+	Scope         string
+	// Viewer carries the chatter's display identity when the source knew it,
+	// and their id keys the bucket of a viewer / viewer+command counter.
+	Viewer Viewer
+	// Command keys the bucket of a command / viewer+command counter; empty
+	// everywhere else.
+	Command string
+}
+
+// ChannelBump targets a plain per-channel counter: no viewer, no command
+// bucket, just a broadcaster's own row.
+func ChannelBump(broadcasterID uint64, name string) CounterBumpTarget {
+	return CounterBumpTarget{BroadcasterID: broadcasterID, Name: name, Scope: data.CounterScopeChannel}
+}
+
+// BotBump targets a fleet-wide counter: the reserved broadcaster-0 namespace,
+// bot scope.
+func BotBump(name string) CounterBumpTarget {
+	return CounterBumpTarget{Name: name, Scope: data.CounterScopeBot}
+}
+
 // BumpBot records one bot-scope counter delta under the reserved broadcaster-0
 // namespace: the narrow entry the pipeline's stats flusher uses, so callers
-// that only ever bump bot-wide counters don't carry the full Bump signature.
+// that only ever bump bot-wide counters name nothing but the counter.
 func (r *LoyaltyReporter) BumpBot(name string, delta int64) {
-	r.Bump(0, name, data.CounterScopeBot, Viewer{}, "", delta)
+	r.Bump(BotBump(name), delta)
 }
 
 // BumpChannel records one channel-scope counter delta for a broadcaster: the
 // pipeline's per-channel traffic split, which needs neither a viewer nor a
-// command bucket and so does not carry the full Bump signature.
+// command bucket.
 func (r *LoyaltyReporter) BumpChannel(broadcasterID uint64, name string, delta int64) {
-	r.Bump(broadcasterID, name, data.CounterScopeChannel, Viewer{}, "", delta)
+	r.Bump(ChannelBump(broadcasterID, name), delta)
 }
 
-// Bump records one counter delta. command keys the bucket of a command /
-// viewer+command bump ("" everywhere else). viewer carries the chatter's
-// display identity when the source knew it. Broadcaster 0 is the reserved bot
-// namespace and only carries bot-scope bumps.
-func (r *LoyaltyReporter) Bump(broadcasterID uint64, name, scope string, viewer Viewer, command string, delta int64) {
-	if name == "" || delta == 0 || (broadcasterID == 0) != (scope == data.CounterScopeBot) {
+// Bump records one counter delta against a target. A nameless counter, a zero
+// delta, or a broadcaster/scope pairing that contradicts the bot namespace is
+// dropped rather than aggregated: the loyalty service rejects all three anyway,
+// so the flush should not carry them.
+func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
+	name, viewer := target.Name, target.Viewer
+	if name == "" || delta == 0 || (target.BroadcasterID == 0) != (target.Scope == data.CounterScopeBot) {
 		return
 	}
-	key := counterAgg{broadcasterID: broadcasterID, name: name, scope: scope, viewerID: viewer.ID, command: command}
+	key := counterAgg{
+		broadcasterID: target.BroadcasterID,
+		name:          name,
+		scope:         target.Scope,
+		viewerID:      viewer.ID,
+		command:       target.Command,
+	}
 
 	r.mu.Lock()
 	agg := r.bumps[key]

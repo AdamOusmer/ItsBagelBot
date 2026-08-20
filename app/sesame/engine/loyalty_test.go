@@ -95,10 +95,10 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	for i := uint64(100); i < 100+1200; i++ {
 		r.Earn(1, i, "", "", 10, 300)
 	}
-	r.Bump(1, "deaths", data.CounterScopeChannel, Viewer{}, "", 1)
-	r.Bump(1, "deaths", data.CounterScopeChannel, Viewer{}, "", 2)
-	r.Bump(1, "hugs", data.CounterScopeViewer, Viewer{ID: 7, Login: "viewer7", Name: "Viewer7"}, "", 1)
-	r.Bump(1, "uses", data.CounterScopeViewerCommand, Viewer{ID: 7}, "hug", 4)
+	r.Bump(ChannelBump(1, "deaths"), 1)
+	r.Bump(ChannelBump(1, "deaths"), 2)
+	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "hugs", Scope: data.CounterScopeViewer, Viewer: Viewer{ID: 7, Login: "viewer7", Name: "Viewer7"}}, 1)
+	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "uses", Scope: data.CounterScopeViewerCommand, Viewer: Viewer{ID: 7}, Command: "hug"}, 4)
 	r.Close() // flushes
 
 	earned := pub.payloads[data.SubjectLoyaltyEarned]
@@ -145,13 +145,13 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Earn(0, 7, "", "", 10, 0)                               // no broadcaster
-	r.Earn(1, 0, "", "", 10, 0)                               // no viewer
-	r.Earn(1, 7, "", "", 0, 0)                                // nothing earned
-	r.Bump(1, "", "channel", Viewer{}, "", 1)                 // no name
-	r.Bump(1, "deaths", "channel", Viewer{}, "", 0)           // no delta
-	r.Bump(0, "deaths", "channel", Viewer{}, "", 1)           // channel bump without broadcaster
-	r.Bump(1, "feeds", data.CounterScopeBot, Viewer{}, "", 1) // bot bump outside bot namespace
+	r.Earn(0, 7, "", "", 10, 0)                                                                // no broadcaster
+	r.Earn(1, 0, "", "", 10, 0)                                                                // no viewer
+	r.Earn(1, 7, "", "", 0, 0)                                                                 // nothing earned
+	r.Bump(ChannelBump(1, ""), 1)                                                              // no name
+	r.Bump(ChannelBump(1, "deaths"), 0)                                                        // no delta
+	r.Bump(ChannelBump(0, "deaths"), 1)                                                        // channel bump without broadcaster
+	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "feeds", Scope: data.CounterScopeBot}, 1) // bot bump outside bot namespace
 	r.Close()
 	assert.Empty(t, pub.payloads)
 }
@@ -159,7 +159,7 @@ func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 func TestLoyaltyReporterBotNamespace(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Bump(0, "feeds", data.CounterScopeBot, Viewer{}, "", 2)
+	r.Bump(BotBump("feeds"), 2)
 	r.Close()
 
 	bumps := pub.payloads[data.SubjectLoyaltyCounters]
