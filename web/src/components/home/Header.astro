@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import ScrollCue from './ScrollCue.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -37,7 +38,12 @@ const t = useTranslations(lang);
 
 
     <div class="header-material">
-        <p class="top-text">{t('hero.topText')}</p>
+        <a class="eyebrow" href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
+            <span class="eyebrow__badge">
+                <span class="eyebrow__dot"></span>{t('hero.devBadge')}
+            </span>
+            <span class="eyebrow__text">{t('hero.topText')}</span>
+        </a>
 
         <h1>
             <span class="tan">{t('hero.title1')}</span>
@@ -50,17 +56,6 @@ const t = useTranslations(lang);
             {t('hero.lede')}
         </p>
 
-        <a class="dev-banner-link" href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
-            <div class="dev-banner">
-                <div class="dev-banner__dot"></div>
-                <div class="dev-banner__text">
-                    <strong>{t('hero.devTitle')}</strong>
-                    <p>{t('hero.devBody')}</p>
-                </div>
-                <span class="dev-banner__badge">{t('hero.devBadge')}</span>
-            </div>
-        </a>
-
         <div class="badges">
 
             <span>{t('hero.badge1')}</span>
@@ -71,6 +66,8 @@ const t = useTranslations(lang);
 
         </div>
     </div>
+
+    <ScrollCue />
 
 </header>
 
@@ -104,14 +101,10 @@ const t = useTranslations(lang);
         will-change: var(--hero-content-will-change, opacity, transform, filter);
     }
 
-    .dev-banner-link,
+    .eyebrow,
     .actions a,
     header button {
         pointer-events: var(--hero-ui-pointer-events, auto);
-    }
-
-    .dev-banner-link {
-        display: block;
     }
 
     .bg {
@@ -228,15 +221,61 @@ const t = useTranslations(lang);
     }
 
 
-    .top-text {
+    /* Status and tagline share one line, and the whole line is the Discord
+       invite. The old standalone dev banner sat between the lede and the badge
+       row and cost ~90px in a hero that had none to give. */
+    .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+        text-decoration: none;
+        opacity: 0;
+        animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
+    }
+
+    .eyebrow__badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        flex-shrink: 0;
+        padding: 4px 11px;
+        border-radius: 20px;
+        background: rgba(45, 106, 79, 0.15);
+        border: 1px solid rgba(64, 145, 108, 0.30);
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--green-light);
+        transition: border-color 0.2s;
+    }
+
+    .eyebrow__dot {
+        width: 7px;
+        height: 7px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--green-glow);
+        animation: pulse-dot 1.8s ease-in-out infinite;
+        animation-play-state: var(--hero-animation-state, running);
+    }
+
+    .eyebrow__text {
         font-family: var(--font-mono);
         font-size: 0.9rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--green-glow);
-        margin-bottom: 24px;
-        opacity: 0;
-        animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
+        transition: color 0.2s;
+    }
+
+    .eyebrow:hover .eyebrow__badge {
+        border-color: rgba(64, 145, 108, 0.7);
+    }
+
+    .eyebrow:hover .eyebrow__text {
+        color: var(--white);
     }
 
     h1 {
@@ -278,66 +317,6 @@ const t = useTranslations(lang);
         opacity: 0;
         animation: fadeUp 0.9s 0.5s var(--ease-out-expo) forwards;
         position: relative;
-    }
-
-    .dev-banner {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        padding: 15px 20px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: rgba(45, 106, 79, 0.07);
-        transition: border-color 0.2s, color 0.2s;
-    }
-
-    .dev-banner:hover {
-        border-color: rgba(201, 168, 124, 0.4);
-        color: var(--white);
-    }
-
-    .dev-banner__dot {
-        width: 10px;
-        height: 10px;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background: var(--green-glow);
-        animation: pulse-dot 1.8s ease-in-out infinite;
-        animation-play-state: var(--hero-animation-state, running);
-    }
-
-    .dev-banner__text {
-        flex: 1;
-    }
-
-    .dev-banner__text strong {
-        display: block;
-        font-family: var(--font-body);
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--green-glow);
-        margin-bottom: 5px;
-    }
-
-    .dev-banner__text p {
-        font-family: var(--font-body);
-        font-size: 0.80rem;
-        color: var(--muted);
-        line-height: 1.5;
-        margin: 0;
-    }
-
-    .dev-banner__badge {
-        flex-shrink: 0;
-        padding: 5px 10px;
-        border-radius: 20px;
-        background: rgba(45, 106, 79, 0.15);
-        border: 1px solid rgba(64, 145, 108, 0.30);
-        font-family: var(--font-mono);
-        font-size: 0.70rem;
-        letter-spacing: 0.10em;
-        text-transform: uppercase;
-        color: var(--green-light);
     }
 
     .badges {
@@ -391,6 +370,21 @@ const t = useTranslations(lang);
         }
     }
 
+    /* Short viewports (720p laptops) have no spare vertical room: the copy
+       already overflows its own padding box, the eyebrow line lands within 1px
+       of the fixed 76px nav, and the ScrollCue needs a gutter under the badges.
+       Tightening these two margins by 24px total buys ~12px at each end, since
+       the overflow is split evenly above and below by justify-content: center. */
+    @media (max-height: 820px) {
+        h1 {
+            margin-bottom: 16px;
+        }
+
+        .badges {
+            margin-top: 16px;
+        }
+    }
+
     @media (max-width: 900px) {
         header {
             padding: clamp(72px, 10vh, 92px) 24px 28px;
@@ -413,42 +407,34 @@ const t = useTranslations(lang);
             margin-bottom: 18px;
         }
 
-        .top-text {
-            font-size: 0.78rem;
-            letter-spacing: 0.16em;
+        /* Neither tagline fits beside the badge at this width (the French one
+           is 40 characters), and letting it wrap in a row leaves the badge
+           floating against a two-line block. Stack instead. */
+        .eyebrow {
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 14px;
         }
 
-        .header-material > p:not(.top-text) {
+        .eyebrow__text {
+            text-align: center;
+        }
+
+        .eyebrow__text {
+            font-size: 0.78rem;
+            letter-spacing: 0.16em;
+        }
+
+        .eyebrow__badge {
+            padding: 3px 9px;
+            font-size: 0.62rem;
+        }
+
+        .header-material > p {
             max-width: min(520px, 100%);
             font-size: 0.98rem;
             line-height: 1.58;
             margin-bottom: 18px;
-        }
-
-        .dev-banner-link {
-            width: min(100%, 520px);
-        }
-
-        .dev-banner {
-            gap: 12px;
-            padding: 12px 14px;
-            border-radius: 8px;
-        }
-
-        .dev-banner__text strong {
-            font-size: 0.8rem;
-            margin-bottom: 4px;
-        }
-
-        .dev-banner__text p {
-            font-size: 0.74rem;
-            line-height: 1.35;
-        }
-
-        .dev-banner__badge {
-            padding: 4px 8px;
-            font-size: 0.62rem;
         }
 
         .badges {
@@ -479,10 +465,19 @@ const t = useTranslations(lang);
             height: clamp(380px, 118vw, 500px);
         }
 
-        .top-text {
+        .eyebrow {
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .eyebrow__text {
             font-size: 0.68rem;
             letter-spacing: 0.14em;
-            margin-bottom: 12px;
+        }
+
+        .eyebrow__dot {
+            width: 6px;
+            height: 6px;
         }
 
         h1 {
@@ -490,28 +485,10 @@ const t = useTranslations(lang);
             margin-bottom: 16px;
         }
 
-        .header-material > p:not(.top-text) {
+        .header-material > p {
             font-size: 0.92rem;
             line-height: 1.52;
             margin-bottom: 16px;
-        }
-
-        .dev-banner {
-            gap: 10px;
-            padding: 11px 12px;
-        }
-
-        .dev-banner__dot {
-            width: 8px;
-            height: 8px;
-        }
-
-        .dev-banner__text strong {
-            font-size: 0.76rem;
-        }
-
-        .dev-banner__text p {
-            font-size: 0.7rem;
         }
 
         .badges {
@@ -528,10 +505,6 @@ const t = useTranslations(lang);
         header {
             padding-top: 66px;
             padding-bottom: 16px;
-        }
-
-        .dev-banner {
-            padding: 10px 11px;
         }
 
         .badges {

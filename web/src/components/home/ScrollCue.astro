@@ -1,0 +1,223 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * ScrollCue — the "there is more below" affordance for the hero.
+ *
+ * Deliberately NOT part of `.header-material`: the hero stack (eyebrow, h1,
+ * lede, dev banner, badges) is already dense, and adding a sixth item to that
+ * flex column pushes the fold on short viewports. This lives in the hero's
+ * bottom padding gutter instead, absolutely positioned against the sticky
+ * <header>, so it costs the content stack zero layout.
+ *
+ * It reads `--hero-p` (set by script/scroll.js) rather than running its own
+ * scroll listener, and multiplies by 6 so the cue is gone after ~17% of a
+ * viewport of scroll: once the user has scrolled, the prompt has done its job
+ * and lingering competes with the section coming in underneath.
+ *
+ * Sits well clear of the badge row rather than tucked against the bottom
+ * edge: dropping the dev banner freed 82px in the hero, and the cue reads as
+ * an instruction when it has air around it instead of looking like chrome.
+ *
+ * It hides below 700px of viewport height on desktop, where the hero copy has
+ * already overrun the viewport on its own (measured at 1280x600: the badge row
+ * ends 6px from the bottom edge, the eyebrow sits 22px behind the fixed nav)
+ * and there is no bottom edge left to sit on.
+ */
+
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<button class="cue" type="button" data-scroll-cue>
+    <span class="cue__inner">
+        <span class="cue__label">{t('hero.scrollCue')}</span>
+        <span class="cue__rail" aria-hidden="true">
+            <span class="cue__dot"></span>
+        </span>
+    </span>
+</button>
+
+<style>
+    .cue {
+        position: absolute;
+        left: 50%;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+        transform: translateX(-50%);
+        display: block;
+        padding: 6px 16px 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        /* Fades out over the first ~17vh of scroll, six times faster than the
+           hero copy behind it, so the two do not cross-fade against each other. */
+        opacity: max(0, calc(1 - var(--hero-p, 0) * 6));
+        pointer-events: var(--hero-ui-pointer-events, auto);
+        z-index: 2;
+    }
+
+    .cue__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--cue-gap, 8px);
+        opacity: 0;
+        /* 1.6s: after the badges' 0.8s entrance has settled. The cue arriving
+           last is what makes it read as an instruction rather than decoration. */
+        animation: cueIn 700ms 1600ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+    }
+
+    .cue__label {
+        display: none;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--muted, #b0a898);
+        transition: color 0.2s;
+    }
+
+    .cue__rail {
+        position: relative;
+        display: block;
+        width: 2px;
+        border-radius: 1px;
+        height: var(--cue-rail, 24px);
+        background: linear-gradient(to bottom, rgba(201, 168, 124, 0), rgba(201, 168, 124, 0.45));
+        overflow: hidden;
+        transition: background 0.2s;
+    }
+
+    .cue__dot {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 4px;
+        height: 4px;
+        margin-left: -1px;
+        border-radius: 50%;
+        background: var(--green-glow, #52b788);
+        box-shadow: 0 0 8px rgba(82, 183, 136, 0.85);
+        animation: cueFall 2.4s ease-in-out infinite;
+        animation-play-state: var(--hero-animation-state, running);
+    }
+
+    .cue:hover .cue__label {
+        color: var(--white, #fff);
+    }
+
+    .cue:hover .cue__rail {
+        background: linear-gradient(to bottom, rgba(201, 168, 124, 0), rgba(201, 168, 124, 0.65));
+    }
+
+    .cue:focus-visible {
+        outline: 1px solid var(--tan, #c9a87c);
+        outline-offset: 4px;
+        border-radius: 6px;
+    }
+
+    @keyframes cueIn {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Animates `top` rather than `transform` so one keyframe block covers any
+       rail height, and pauses at the bottom so the eye is not caught by a
+       continuous strobe in the corner of a page someone is reading. */
+    @keyframes cueFall {
+        0% {
+            top: 0;
+            opacity: 0;
+        }
+        15% {
+            opacity: 1;
+        }
+        55% {
+            opacity: 1;
+        }
+        70%, 100% {
+            top: 100%;
+            opacity: 0;
+        }
+    }
+
+    /* Full size, lifted clear of the bottom edge. Gated because the label and
+       a 42px rail stand 73px tall, and the gutter under the badges only grows
+       by ~1px per 2px of viewport height: 141px at 1280x900, 110px at 1280x830,
+       70px at 1280x710 where the cue would land on the badge row itself. Narrow viewports are exempt from the height test since the
+       mobile breakpoints shrink the hero copy far more than the viewport. */
+    @media (min-height: 840px), (max-width: 900px) and (min-height: 600px) {
+        .cue {
+            --cue-rail: 42px;
+            --cue-gap: 12px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+        }
+
+        .cue__label {
+            display: block;
+        }
+    }
+
+    /* Below this the desktop hero has already overrun the viewport on its own,
+       so there is no bottom edge to sit on. Narrow viewports are exempt: the
+       mobile breakpoints shrink the hero copy far more than the viewport. */
+    @media (min-width: 901px) and (max-height: 700px) {
+        .cue {
+            display: none;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .cue__inner {
+            opacity: 1;
+            animation: none;
+        }
+
+        .cue__dot {
+            animation: none;
+            top: 100%;
+            opacity: 1;
+        }
+    }
+</style>
+
+<script>
+    /* Clicking the cue is the same gesture as scrolling one viewport: it hands
+       off to the shared Lenis instance so the smooth-scroll easing matches a
+       real wheel scroll, and falls back to native scrolling if Lenis has not
+       booted yet (loader still up, or JS chunk still in flight).
+
+       The target is one viewport height, NOT the next section's offsetTop: the
+       Encryption section is pulled up underneath the sticky hero, so its
+       document offset is 0 and scrolling to it would go nowhere. One viewport
+       is also exactly where --hero-p reaches 1 and the hero has fully faded. */
+    function onClick() {
+        const top = window.scrollY + window.innerHeight;
+        const lenis = (window as any).lenis;
+
+        if (lenis?.scrollTo) {
+            lenis.scrollTo(top, { duration: 1.1 });
+            return;
+        }
+
+        window.scrollTo({ top, behavior: 'smooth' });
+    }
+
+    function setup() {
+        document
+            .querySelectorAll<HTMLElement>('[data-scroll-cue]')
+            .forEach((el) => el.addEventListener('click', onClick));
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+</script>
