@@ -129,7 +129,22 @@
     "eventRateLabel": "Events per second",
     "perSecond": "/s",
     "liveNote": "Counting live",
-    "degraded": "Live counters are temporarily unavailable, so the numbers below are not current. They will catch up on their own."
+    "degraded": "Live counters are temporarily unavailable, so the numbers below are not current. They will catch up on their own.",
+    "boardsEyebrow": "Per channel",
+    "trafficBoardTitle": "Busiest channels",
+    "trafficBoardNote": "Ranked by chat messages handled since the bot joined.",
+    "feedBoardTitle": "Feed the bagel",
+    "feedBoardNote": "One bagel, every channel feeds it.",
+    "feedTotalLabel": "Feedings, all time",
+    "feedRankedNote": "{count} channels have fed it.",
+    "colRank": "#",
+    "colChannel": "Channel",
+    "colMessages": "Messages",
+    "colEvents": "Events",
+    "unknownChannel": "Unnamed channel",
+    "boardEmpty": "No ranking yet — the board fills as channels rack up traffic.",
+    "feedBoardEmpty": "Nobody has fed the bagel yet.",
+    "rightNow": "right now"
   },
   "overview": {
     "statusHeading": "Bot status",

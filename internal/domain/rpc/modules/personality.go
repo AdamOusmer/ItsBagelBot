@@ -40,7 +40,10 @@ type FeedBoardRequest struct {
 // channels are ranked in total and the asking channel's own place in them.
 type FeedBoardReply struct {
 	Entries []FeedBoardEntry `json:"entries,omitempty"`
-	Ranked  uint64           `json:"ranked"`
+	// Total is the fleet-wide lifetime count (one bagel, every channel feeds
+	// it) — the same number a feeding returns, read without feeding anything.
+	Total  uint64 `json:"total"`
+	Ranked uint64 `json:"ranked"`
 	Channel uint64           `json:"channel,omitempty"`
 	Rank    uint64           `json:"rank,omitempty"`
 	Error   string           `json:"error,omitempty"`

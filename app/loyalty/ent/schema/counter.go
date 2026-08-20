@@ -47,6 +47,11 @@ func (Counter) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id", "name").
 			Unique(),
+		// Cross-broadcaster board read (repository.CounterBoard): one counter
+		// name, every channel, ordered by value. The unique index above leads
+		// with user_id, so it cannot serve a name-only lookup — without this
+		// one the public stats boards full-scan the counters table.
+		index.Fields("name", "value"),
 	}
 }
 

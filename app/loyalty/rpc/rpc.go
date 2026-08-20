@@ -43,6 +43,7 @@ type loyaltyRPC struct {
 //	<prefix>.counter.delete {user_id, name}                 -> {}
 //	<prefix>.counter.entry.delete {user_id, name, viewer_id|command} -> {found}
 //	<prefix>.counter.list   {user_id}                       -> {counters}
+//	<prefix>.counter.board  {name, limit}                   -> {board}
 //	<prefix>.counter.entries {user_id, name, limit}         -> {entries, found}
 //
 // Counter verbs accept user_id "0": the reserved bot namespace holding the
@@ -65,6 +66,7 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 		{"counter.delete", l.handleCounterDelete},
 		{"counter.entry.delete", l.handleCounterEntryDelete},
 		{"counter.list", l.handleCounterList},
+		{"counter.board", l.handleCounterBoard},
 		{"counter.entries", l.handleCounterEntries},
 	}
 
@@ -290,6 +292,25 @@ func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrp
 	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command}
 	found, err := l.repo.CounterEntryDelete(ctx, userID, req.Name, target)
 	return l.foundReply("loyalty counter.entry.delete", found, err)
+}
+
+// handleCounterBoard ranks channels by one counter name across every
+// broadcaster. It is the only counter verb that takes no user_id: the board is
+// the cross-channel view, so there is no owner to authorize against. Callers
+// that must not see it are kept out by the NATS import, as everywhere else.
+func (l *loyaltyRPC) handleCounterBoard(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	rows, err := l.repo.CounterBoard(ctx, req.Name, req.Limit)
+	if err != nil {
+		return l.fail("loyalty counter.board", err)
+	}
+	board := make([]loyaltyrpc.CounterRank, 0, len(rows))
+	for _, row := range rows {
+		board = append(board, loyaltyrpc.CounterRank{
+			UserID: strconv.FormatUint(row.UserID, 10),
+			Value:  row.Value,
+		})
+	}
+	return loyaltyrpc.Reply{Board: board, Found: true}
 }
 
 func (l *loyaltyRPC) handleCounterList(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
