@@ -112,6 +112,17 @@ func (p *Personality) FeedChannel(ctx context.Context, broadcasterID uint64) (ui
 	return row.Count, rank, nil
 }
 
+// FeedTotal reads the fleet-wide lifetime count without feeding the bagel: the
+// same number FeedBump returns, for readers (the public stats page) that must
+// not have a side effect. A bagel nobody has fed yet reads 0.
+func (p *Personality) FeedTotal(ctx context.Context) (uint64, error) {
+	row, err := p.client.FeedCounter.Get(ctx, feedCounterID)
+	if ent.IsNotFound(err) {
+		return 0, nil
+	}
+	return countOf(row, err)
+}
+
 // FeedRanked is how many channels have ever fed the bagel: the denominator of
 // a "#3 of 57" standing.
 func (p *Personality) FeedRanked(ctx context.Context) (uint64, error) {

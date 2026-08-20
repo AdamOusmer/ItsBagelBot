@@ -11,6 +11,10 @@
 
   // Fallback poll of /stats/data, armed only while the SSE stream is failed.
   const POLL_MS = 5000;
+  // The leaderboards are a lifetime ranking behind a 15s server-side fresh
+  // window, so they get their own lazy poll instead of a place in the 2s
+  // stream: a board that changes place once a week does not need a frame.
+  const BOARDS_POLL_MS = 60_000;
   // 0 -> value rise on first paint (ease-out-quart, as the shared countUp action).
   const INTRO_MS = 900;
   // Time constant of the chase that re-bases the odometer onto a fresh snapshot:
@@ -42,6 +46,10 @@
   // own so an outage frame cannot rebase the odometer (see applySnapshot).
   let live = $state(seed);
   let degraded = $state(seed.degraded);
+
+  // The two per-channel boards. Same seed-not-binding rule as the odometer, but
+  // no extrapolation: these are printed exactly as the server last sent them.
+  let boards = $state(untrack(() => data.boards));
 
   // What the tiles actually print. Seeded from the SSR numbers so the no-JS /
   // pre-hydration render already carries the real values; onMount then runs the
@@ -169,6 +177,18 @@
     }
   }
 
+  /** Lazy refresh of the leaderboards; a hidden tab keeps its last ranking. */
+  async function refreshBoards(): Promise<void> {
+    if (document.hidden) return;
+    try {
+      const res = await fetch('/stats/boards', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      boards = await res.json();
+    } catch {
+      // Keep the last ranking on a network blip rather than emptying the board.
+    }
+  }
+
   /**
    * Live snapshots over SSE. EventSource reconnects on its own, so a failure
    * only needs to arm the old 5s poll of /stats/data as a stand-in and stand it
@@ -205,6 +225,7 @@
     const timer = setInterval(() => {
       if (streamDown) void refresh();
     }, POLL_MS);
+    const boardTimer = setInterval(() => void refreshBoards(), BOARDS_POLL_MS);
 
     const onVisible = () => {
       if (document.hidden) return;
@@ -215,12 +236,14 @@
         raf = requestAnimationFrame(tick);
       }
       if (streamDown) void refresh();
+      void refreshBoards();
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       es.close();
       clearInterval(timer);
+      clearInterval(boardTimer);
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(raf);
     };
@@ -235,36 +258,29 @@
   // the headline stays one translatable sentence.
   const headline = $derived(t('stats.headline').split(' '));
 
+  // Two tiles, not four: each lifetime total carries its own live rate as a
+  // subline, so the page opens on the two numbers it is actually about.
   const tiles = $derived([
     {
       icon: 'send' as IconName,
       tan: false,
       label: t('stats.messagesLabel'),
       value: totalFmt.format(Math.round(display.messages)),
-      unit: ''
+      rate: live.msg_rate === null ? null : rateFmt.format(display.msgRate),
+      rateLabel: t('stats.messageRateLabel')
     },
     {
       icon: 'pulse' as IconName,
       tan: true,
       label: t('stats.eventsLabel'),
       value: totalFmt.format(Math.round(display.events)),
-      unit: ''
-    },
-    {
-      icon: 'activity' as IconName,
-      tan: false,
-      label: t('stats.messageRateLabel'),
-      value: live.msg_rate === null ? PENDING : rateFmt.format(display.msgRate),
-      unit: live.msg_rate === null ? '' : t('stats.perSecond')
-    },
-    {
-      icon: 'lanes' as IconName,
-      tan: true,
-      label: t('stats.eventRateLabel'),
-      value: live.event_rate === null ? PENDING : rateFmt.format(display.eventRate),
-      unit: live.event_rate === null ? '' : t('stats.perSecond')
+      rate: live.event_rate === null ? null : rateFmt.format(display.eventRate),
+      rateLabel: t('stats.eventRateLabel')
     }
   ]);
+
+  const traffic = $derived(boards.channels);
+  const feed = $derived(boards.feed);
 </script>
 
 <svelte:head>
@@ -323,14 +339,106 @@
             <span class="label">{tile.label}</span>
           </div>
           <div class="value">
-            <span class="num">{tile.value}</span>{#if tile.unit}<small class="unit">{tile.unit}</small>{/if}
+            <span class="num">{tile.value}</span>
+          </div>
+          <div class="rate">
+            {#if tile.rate === null}
+              <span class="rate-num">{PENDING}</span>
+            {:else}
+              <span class="rate-num">{tile.rate}</span><small class="unit">{t('stats.perSecond')}</small>
+            {/if}
+            <span class="rate-label">{tile.rateLabel} · {t('stats.rightNow')}</span>
           </div>
         </Card>
       </div>
     {/each}
   </section>
 
-  <footer class="foot reveal" style="--i:8">
+  <section class="boards" aria-label={t('stats.boardsEyebrow')}>
+    <div class="board-wrap reveal" style="--i:6">
+      <Card class="board">
+        <header class="board-head">
+          <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
+          <div class="board-titles">
+            <h2>{t('stats.trafficBoardTitle')}</h2>
+            <p>{t('stats.trafficBoardNote')}</p>
+          </div>
+        </header>
+        {#if traffic.length === 0}
+          <p class="empty">{t('stats.boardEmpty')}</p>
+        {:else}
+          <!-- Own scroll container: a ten-digit total on a narrow phone must
+               scroll the table, never the page. -->
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="rank" scope="col">{t('stats.colRank')}</th>
+                  <th scope="col">{t('stats.colChannel')}</th>
+                  <th class="n" scope="col">{t('stats.colMessages')}</th>
+                  <th class="n" scope="col">{t('stats.colEvents')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each traffic as row, i (row.id)}
+                  <tr>
+                    <td class="rank">{i + 1}</td>
+                    <td class="chan">
+                      {#if row.name}
+                        <a href="/user/{row.name}">{row.name}</a>
+                      {:else}
+                        <span class="unnamed">{t('stats.unknownChannel')}</span>
+                      {/if}
+                    </td>
+                    <td class="n">{totalFmt.format(row.messages)}</td>
+                    <td class="n">{totalFmt.format(row.events)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </Card>
+    </div>
+
+    <div class="board-wrap reveal" style="--i:6.5">
+      <Card class="board">
+        <header class="board-head">
+          <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
+          <div class="board-titles">
+            <h2>{t('stats.feedBoardTitle')}</h2>
+            <p>{t('stats.feedBoardNote')}</p>
+          </div>
+        </header>
+        <div class="feed-total">
+          <span class="num tan">{totalFmt.format(feed.total)}</span>
+          <span class="label">{t('stats.feedTotalLabel')}</span>
+        </div>
+        {#if feed.entries.length === 0}
+          <p class="empty">{t('stats.feedBoardEmpty')}</p>
+        {:else}
+          <ol class="feed-list">
+            {#each feed.entries as row, i (row.id)}
+              <li>
+                <span class="rank">{i + 1}</span>
+                <span class="chan">
+                  {#if row.name}
+                    <a href="/user/{row.name}">{row.name}</a>
+                  {:else}
+                    <span class="unnamed">{t('stats.unknownChannel')}</span>
+                  {/if}
+                </span>
+                <span class="n">{totalFmt.format(row.count)}</span>
+              </li>
+            {/each}
+          </ol>
+          <p class="ranked">{t('stats.feedRankedNote', { count: totalFmt.format(feed.ranked) })}</p>
+        {/if}
+      </Card>
+    </div>
+  </section>
+
+  <footer class="foot reveal" style="--i:7.5">
     <span class="pip" aria-hidden="true"></span>
     <span>{t('stats.liveNote')}</span>
   </footer>
@@ -480,6 +588,171 @@
     color: var(--bb-muted);
   }
 
+  /* Rate subline: the tile's second number, deliberately a read-out rather than
+     an odometer — same tabular figures, a third of the size. */
+  .rate {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: calc(-1 * var(--bb-space-3));
+  }
+
+  .rate-num {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: clamp(16px, 1.8vw, 22px);
+    line-height: 1;
+    color: var(--bb-green-glow);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rate-label {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: var(--bb-tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+
+  .boards {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: var(--bb-space-4);
+    align-items: start;
+  }
+
+  .board-wrap { min-width: 0; }
+
+  .boards :global(.card) {
+    --card-pad: clamp(20px, 2.4vw, 30px);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-4);
+    min-width: 0;
+  }
+
+  .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
+  .board-titles { min-width: 0; }
+
+  .board-head h2 {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: clamp(18px, 2vw, 22px);
+    line-height: 1.2;
+    letter-spacing: var(--bb-tracking-tight);
+    color: var(--bb-white);
+    margin: 0;
+  }
+
+  .board-head p {
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--bb-muted);
+    margin: 4px 0 0;
+  }
+
+  .empty {
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--bb-muted);
+    margin: 0;
+  }
+
+  .table-scroll { overflow-x: auto; margin: 0 calc(-1 * var(--bb-space-2)); padding: 0 var(--bb-space-2); }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th {
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: var(--bb-tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    font-weight: 500;
+    text-align: left;
+    padding: 0 var(--bb-space-3) var(--bb-space-2) 0;
+    white-space: nowrap;
+  }
+
+  td {
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    color: var(--bb-white);
+    padding: var(--bb-space-2) var(--bb-space-3) var(--bb-space-2) 0;
+    border-top: 1px solid var(--bb-border);
+    white-space: nowrap;
+  }
+
+  th:last-child, td:last-child { padding-right: 0; }
+
+  /* Rank column: a fixed mono gutter so the names line up whatever the digits. */
+  .rank {
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
+    color: var(--bb-muted);
+    width: 2.5ch;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .n { text-align: right; font-variant-numeric: tabular-nums; }
+  th.n { text-align: right; padding-right: 0; }
+
+  .chan { min-width: 0; }
+  .chan a {
+    color: var(--bb-white);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color 140ms ease, border-color 140ms ease;
+  }
+  .chan a:hover, .chan a:focus-visible { color: var(--bb-green-glow); border-bottom-color: currentColor; }
+  .unnamed { color: var(--bb-muted); font-style: italic; }
+
+  /* Feed board: one big tan total, then the podium as a list — the ranking is
+     one number per row, so a table would be three quarters chrome. */
+  .feed-total { display: flex; flex-direction: column; gap: 4px; }
+  .feed-total .num {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1;
+    letter-spacing: var(--bb-tracking-tight);
+    font-variant-numeric: tabular-nums;
+  }
+  .feed-total .num.tan { color: var(--bb-tan-light); }
+  .feed-total .label {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: var(--bb-tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+
+  .feed-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .feed-list li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-2) 0;
+    border-top: 1px solid var(--bb-border);
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    color: var(--bb-white);
+  }
+  .feed-list .chan { flex: 1 1 auto; overflow-wrap: anywhere; }
+  .feed-list .n { flex: 0 0 auto; }
+
+  .ranked {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--bb-muted);
+    margin: 0;
+  }
+
   .foot {
     display: flex;
     align-items: center;
@@ -501,6 +774,10 @@
   }
 
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  @media (max-width: 900px) {
+    .boards { grid-template-columns: minmax(0, 1fr); }
+  }
 
   @media (max-width: 720px) {
     .tiles { grid-template-columns: minmax(0, 1fr); }

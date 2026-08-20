@@ -248,6 +248,7 @@ type LoyaltyStore interface {
 // stats flusher needs: one batched, loss-tolerant bot-scope counter delta.
 type CounterBumper interface {
 	BumpBot(name string, delta int64)
+	BumpChannel(broadcasterID uint64, name string, delta int64)
 }
 
 // LoyaltyTicker arms and disarms a broadcaster's watch tick for the length of

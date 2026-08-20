@@ -3,6 +3,7 @@
 
 import type { PageServerLoad } from './$types';
 import { publicStats } from '$lib/server/public-stats';
+import { publicBoards } from '$lib/server/public-boards';
 
 // Public page: it lives outside (app), so no auth gate runs on it (see
 // routes/(app)/+layout.server.ts) and the root layout still supplies the
@@ -13,5 +14,6 @@ import { publicStats } from '$lib/server/public-stats';
 // cache holding it would show a frozen "live" page.
 export const load: PageServerLoad = async ({ setHeaders }) => {
   setHeaders({ 'cache-control': 'no-store' });
-  return { stats: await publicStats() };
+  const [stats, boards] = await Promise.all([publicStats(), publicBoards()]);
+  return { stats, boards };
 };
