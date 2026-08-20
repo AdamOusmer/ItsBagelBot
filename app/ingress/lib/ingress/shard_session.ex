@@ -50,6 +50,18 @@ defmodule Ingress.ShardSession do
   @takeover_deadline_ms 5_000
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
+  # How often a session verifies it still holds its cluster-wide name. A
+  # registry CRDT merge after a netsplit heal drops registrations for processes
+  # that are still alive: on 2026-08-20 shards 0 and 4 kept serving bound
+  # sockets with no registry entry, which made them invisible to every converge
+  # pass (all of which discover shards through the registry) and left shard 4
+  # bound to a conduit slot a scale-down had already removed. Nothing else
+  # re-registers -- the only two paths back into the registry are duplicate
+  # takeover and rebalance rollback, and neither fires when the name is simply
+  # free -- so unregistered-but-serving is otherwise a stable state. 30s is two
+  # ticks inside the reconciler's 15s interval, so a lost name costs at most one
+  # health pass of invisibility.
+  @registry_check_interval_ms 30_000
 
   defstruct shard_id: nil,
             conduit_id: nil,
@@ -69,6 +81,13 @@ defmodule Ingress.ShardSession do
             last_frame_system_ms: nil,
             # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
             takeover: nil,
+            # Whether this session believes it owns `{:shard, id}` in the
+            # registry: `:named` (it should), `:released` (handed the name to a
+            # successor for a drain or rebalance) or `:rescue` (never had one).
+            # Only a `:named` session may repair a missing registration --
+            # re-registering a released copy would steal the name back
+            # mid-handoff, and a rescue is unnamed by design.
+            name_state: :named,
             # Optional Mint connection options used by the isolated WebSocket
             # benchmark for its temporary CA. Production leaves this empty.
             ws_connect_opts: [],
@@ -115,9 +134,11 @@ defmodule Ingress.ShardSession do
     state = %__MODULE__{
       shard_id: shard_id,
       conduit_id: Keyword.fetch!(opts, :conduit_id),
+      name_state: if(Keyword.get(opts, :rescue?, false), do: :rescue, else: :named),
       ws_connect_opts: Keyword.get(opts, :ws_connect_opts, [])
     }
 
+    schedule_registry_check()
     {:ok, state, {:continue, :connect}}
   end
 
@@ -142,7 +163,7 @@ defmodule Ingress.ShardSession do
   @impl true
   def handle_call(:release_name, _from, state) do
     Horde.Registry.unregister(Ingress.Registry, {:shard, state.shard_id})
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | name_state: :released}}
   end
 
   # A steady-state rebalance uses the same make-before-break handoff as a
@@ -152,8 +173,18 @@ defmodule Ingress.ShardSession do
   @impl true
   def handle_call(:reclaim_name, _from, state) do
     result = Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil)
-    {:reply, result, state}
+    {:reply, result, %{state | name_state: reclaimed_name_state(result, state.name_state)}}
   end
+
+  # Holding the name again -- freshly registered, or already ours because the
+  # release never propagated -- puts the session back under the self-check that
+  # repairs a lost registration. Any other answer leaves the handoff alone.
+  defp reclaimed_name_state({:ok, _pid}, _previous), do: :named
+
+  defp reclaimed_name_state({:error, {:already_registered, pid}}, _prev) when pid == self(),
+    do: :named
+
+  defp reclaimed_name_state(_result, previous), do: previous
 
   # The other copy of this shard is bound but lost the registry merge; it is
   # taking the registration over and asks us to stand down. If we bound
@@ -191,6 +222,9 @@ defmodule Ingress.ShardSession do
     %{
       shard_id: state.shard_id,
       state: derive_state(state),
+      # Callers that reap or re-register sessions need to tell a session that
+      # lost its name from one that gave it up; `state` alone cannot.
+      name_state: state.name_state,
       node: node(),
       # Worker node (machine) name from the downward-API env, so the admin
       # console can show the host instead of the pod IP carried in `node`.
@@ -219,6 +253,11 @@ defmodule Ingress.ShardSession do
 
   @impl true
   def handle_info(:retry_connect, state), do: {:noreply, connect(state)}
+
+  def handle_info(:registry_check, state) do
+    schedule_registry_check()
+    {:noreply, verify_registration(state)}
+  end
 
   def handle_info(:welcome_deadline, %{session_id: nil} = state) do
     Logger.warning("no session_welcome within deadline; reconnecting")
@@ -691,6 +730,43 @@ defmodule Ingress.ShardSession do
     end
 
     state |> teardown() |> schedule_retry()
+  end
+
+  # --- registration self-check -----------------------------------------------
+
+  defp schedule_registry_check,
+    do: Process.send_after(self(), :registry_check, @registry_check_interval_ms)
+
+  # A session that should own its name but does not is repaired here, because
+  # nothing else will: `Ingress.ConduitManager` discovers shards through the
+  # registry, so a session missing from it is missing from the reconciler too.
+  # Skipped while a takeover is in flight -- that path is deliberately
+  # unregistered until its own deadline resolves the duplicate.
+  defp verify_registration(%{name_state: :named, takeover: nil} = state) do
+    case Horde.Registry.lookup(Ingress.Registry, {:shard, state.shard_id}) do
+      [{pid, _}] when pid == self() -> state
+      [{_other, _}] -> state
+      [] -> reregister(state)
+    end
+  end
+
+  defp verify_registration(state), do: state
+
+  # The name is held by another pid: this copy is a duplicate, not an orphan.
+  # Deliberately not resolved here -- an unregistered copy receives no
+  # name-conflict signal, and killing whichever copy noticed first would as
+  # often close the socket Twitch is actually routing to. The reconciler's
+  # health pass settles it from Twitch's own view of the slot.
+  defp reregister(state) do
+    case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
+      {:ok, _pid} ->
+        Logger.warning("shard registration was missing; re-registered")
+        Metrics.count("Shard/RegistrationRepairs")
+        state
+
+      {:error, {:already_registered, _pid}} ->
+        state
+    end
   end
 
   # --- duplicate-shard takeover helpers --------------------------------------
