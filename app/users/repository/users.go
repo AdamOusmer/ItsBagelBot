@@ -150,6 +150,44 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 	})
 }
 
+// IDByUsername resolves a Twitch login to its broadcaster id. It backs the
+// public command page, whose URL is keyed by login (/user/<login>) so the link
+// a viewer sees names the channel it serves; the page then reads everything
+// else from the id this returns. The id, never the URL, decides whose commands
+// render -- the page used to take the channel label from a query string, which
+// let anyone rewrite a shared link to attribute one channel's commands to
+// another handle.
+//
+// Ordering by updated_at is not cosmetic: username carries no unique
+// constraint because a Twitch rename frees the old login for someone else, and
+// our row keeps the stale login until that user next signs in. When two rows
+// collide the freshest write is the one Twitch agrees with, so the lookup
+// takes it instead of failing the page. Matching is left to the column's
+// collation (utf8mb4 _ci), which is case-insensitive; the caller lowercases
+// anyway so the cache key is stable.
+//
+// Deliberately uncached here: the console caches the resolve under its own
+// login key with a fabric policy, and a second in-process cache keyed by name
+// would keep serving a login after a rename moved it to a different id.
+func (r *Users) IDByUsername(ctx context.Context, username string) (uint64, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	if err := validate.Username(username); err != nil {
+		return 0, err
+	}
+
+	return db.WithQuery(ctx, func(ctx context.Context) (uint64, error) {
+		row, err := r.client.User.Query().
+			Where(user.UsernameEQ(username)).
+			Order(ent.Desc(user.FieldUpdatedAt)).
+			Select(user.FieldID).
+			First(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return row.ID, nil
+	})
+}
+
 // updateAndPublish validates the id, applies a single-field update inside the
 // write-through exec, and announces the change so the projector folds it into
 // the Valkey user projection. It backs the SetX write-through mutators.

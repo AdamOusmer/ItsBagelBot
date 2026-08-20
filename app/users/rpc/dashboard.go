@@ -49,6 +49,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"active_get":    d.handleActiveGet,
 		"status_get":    d.handleStatusGet,
 		"state_get":     d.handleStateGet,
+		"login_resolve": d.handleLoginResolve,
 		"onboarded_set": d.handleOnboardedSet,
 		"locale_set":    d.handleLocaleSet,
 		"cursor_set":    d.handleCursorSet,
@@ -260,7 +261,12 @@ func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
 		return map[string]any{
-			"active":                      view.IsActive,
+			"active": view.IsActive,
+			// Twitch login, echoed so the public command page can label a
+			// channel from the broadcaster id alone. The page used to take the
+			// name from a query string, which let anyone rewrite the link to
+			// attribute one channel's commands to another handle.
+			"username":                    view.Username,
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
 			"locale":                      view.Locale,
@@ -271,6 +277,38 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"subscription_ref":            view.SubscriptionRef,
 			"subscription_cancel_pending": view.SubscriptionCancelPending,
 		}
+	})
+}
+
+// handleLoginResolve maps a Twitch login to its broadcaster id for the public
+// command page, whose URL is keyed by login so the shared link names the
+// channel it serves. Everything the page renders is then read from the id, so
+// the login in the URL is a lookup key and never a label the caller controls.
+//
+// The reply echoes the stored username rather than the requested one: it is the
+// canonical casing, and the page redirects to it so one channel has one URL.
+func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.LoginResolveRequest](msg)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := timeout(ctx)
+	defer cancel()
+
+	id, err := d.repo.IDByUsername(ctx, req.Login)
+	if err != nil {
+		respondErr(msg, "not found")
+		return
+	}
+	view, err := d.repo.Get(ctx, id)
+	if err != nil {
+		respondErr(msg, err.Error())
+		return
+	}
+	bus.Respond(msg, map[string]any{
+		"user_id":  strconv.FormatUint(view.ID, 10),
+		"username": view.Username,
 	})
 }
 

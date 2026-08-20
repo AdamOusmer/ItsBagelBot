@@ -5,7 +5,7 @@
   // from web/src/components/layout/NavLink.astro): two stacked glyph rows in a
   // mask — the resting row rolls out as the lit row rolls in, glyph by glyph —
   // over an ember rail that sweeps open underneath. Extracted verbatim from
-  // routes/user/[userId], which is where this markup first landed.
+  // routes/user/[channel], which is where this markup first landed.
   let {
     href,
     label,

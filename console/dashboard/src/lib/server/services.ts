@@ -405,7 +405,7 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null };
+export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -418,11 +418,20 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
 export const accountState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: { active: boolean; status: string; onboarded?: boolean; creator_code?: string | null }): AccountState => ({
+  map: (r: {
+    active: boolean;
+    status: string;
+    onboarded?: boolean;
+    creator_code?: string | null;
+    username?: string | null;
+  }): AccountState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
     onboarded: !!r.onboarded,
-    creatorCode: r.creator_code?.trim() ? r.creator_code : null
+    creatorCode: r.creator_code?.trim() ? r.creator_code : null,
+    // Authoritative Twitch login from the users service. The public command
+    // page labels the channel with this, never with a caller-supplied string.
+    username: (r.username ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -431,7 +440,7 @@ export const accountState = defineRead({
     policy: POLICY.entity,
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null } };
+      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '' } };
       // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
       // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
       // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
@@ -439,7 +448,7 @@ export const accountState = defineRead({
       // For now, let's just return false and let SWR correct it if it was true, but this might flash.
       // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
       // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null } };
+      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '' } };
     }
   }
 });
@@ -515,6 +524,35 @@ export type BillingState = {
   subscriptionRef: string | null;
   cancelPending: boolean;
 };
+
+export type ResolvedChannel = { userId: string; username: string };
+
+// Login -> broadcaster id for the public command page, whose URL is keyed by
+// the channel's login (/user/<login>) so a shared link names the channel it
+// serves. Only the id it returns selects what the page renders; the login is a
+// lookup key, never a label. The page previously carried the channel name in a
+// query string, which let anyone edit a link and pass one channel's commands
+// off as another streamer's.
+//
+// Cached under the login, not the id: it is the request key, and the page is
+// unauthenticated so one hot channel would otherwise hit the users service on
+// every view. The SWR tail means a Twitch rename can serve the old login for
+// up to the policy window; a rename is rare and the page it lands on is still
+// the right channel (the id behind the row does not change).
+export const resolveLogin = defineRead({
+  subject: `${SUB.dashboard}.login_resolve`,
+  request: (login: string) => ({ login }),
+  map: (r: { user_id?: string; username?: string }): ResolvedChannel => ({
+    userId: (r.user_id ?? '').trim(),
+    username: (r.username ?? '').trim()
+  }),
+  timeoutMs: READ_TIMEOUT_MS,
+  cache: {
+    fabric,
+    key: (login: string) => `login:${login}`,
+    policy: POLICY.entity
+  }
+});
 
 // Billing-page variant of accountState: same state_get RPC but carrying the
 // paid-until date and grant source. Deliberately no Valkey L2 (the projected
