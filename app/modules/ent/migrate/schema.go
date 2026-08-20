@@ -8,6 +8,25 @@ import (
 )
 
 var (
+	// ChannelFeedCountersColumns holds the columns for the "channel_feed_counters" table.
+	ChannelFeedCountersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "count", Type: field.TypeUint64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 64, Default: ""},
+	}
+	// ChannelFeedCountersTable holds the schema information for the "channel_feed_counters" table.
+	ChannelFeedCountersTable = &schema.Table{
+		Name:       "channel_feed_counters",
+		Columns:    ChannelFeedCountersColumns,
+		PrimaryKey: []*schema.Column{ChannelFeedCountersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelfeedcounter_count",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelFeedCountersColumns[1]},
+			},
+		},
+	}
 	// FeedCountersColumns holds the columns for the "feed_counters" table.
 	FeedCountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -86,6 +105,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		ChannelFeedCountersTable,
 		FeedCountersTable,
 		GoveeCredentialsTable,
 		ModulesTable,

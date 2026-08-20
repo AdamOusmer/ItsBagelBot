@@ -39,6 +39,10 @@ var (
 func Personality(d engine.Deps) module.Module {
 	m := module.NewModule("personality", module.KindCore)
 	m.On("channel.chat.message", personalityOnChat(d))
+	m.Command("bagels").Everyone().Aliases("fed", "bagelcount").
+		Cooldown(feedCommandCooldown).Run(feedRankCommand(d))
+	m.Command("bagelboard").Everyone().Aliases("feedboard", "bagellb").
+		Cooldown(feedCommandCooldown).Run(feedBoardCommand(d))
 	return m.Build()
 }
 
@@ -217,15 +221,17 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	return personalityFacts[idx]
 }
 
-// feedReply records one feeding on the global counters (one bagel, shared by
-// every channel: a permanent DB total plus a valkey today window) and reports
-// both. No counts, no line: when the store is nil or erroring the reaction
-// stays silent rather than answering without its numbers.
-func feedReply(ctx context.Context, d engine.Deps, _ *module.Context) string {
+// feedReply records one feeding (the fleet-wide counters plus this channel's
+// own row) and reports the fleet-wide numbers. The per-channel standing the
+// same write produces is not printed here: !bagels and !bagelboard are the
+// surfaces for it, and the reaction stays a one-line joke. No counts, no line:
+// when the store is nil or erroring the reaction stays silent rather than
+// answering without its numbers.
+func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	if d.Personality == nil {
 		return ""
 	}
-	counts, err := d.Personality.Feed(ctx)
+	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName())
 	if err != nil {
 		return ""
 	}

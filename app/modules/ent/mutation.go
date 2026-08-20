@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
@@ -27,11 +28,434 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeFeedCounter     = "FeedCounter"
-	TypeGoveeCredential = "GoveeCredential"
-	TypeModules         = "Modules"
-	TypeQuote           = "Quote"
+	TypeChannelFeedCounter = "ChannelFeedCounter"
+	TypeFeedCounter        = "FeedCounter"
+	TypeGoveeCredential    = "GoveeCredential"
+	TypeModules            = "Modules"
+	TypeQuote              = "Quote"
 )
+
+// ChannelFeedCounterMutation represents an operation that mutates the ChannelFeedCounter nodes in the graph.
+type ChannelFeedCounterMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *uint64
+	count         *uint64
+	addcount      *int64
+	name          *string
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*ChannelFeedCounter, error)
+	predicates    []predicate.ChannelFeedCounter
+}
+
+var _ ent.Mutation = (*ChannelFeedCounterMutation)(nil)
+
+// channelfeedcounterOption allows management of the mutation configuration using functional options.
+type channelfeedcounterOption func(*ChannelFeedCounterMutation)
+
+// newChannelFeedCounterMutation creates new mutation for the ChannelFeedCounter entity.
+func newChannelFeedCounterMutation(c config, op Op, opts ...channelfeedcounterOption) *ChannelFeedCounterMutation {
+	m := &ChannelFeedCounterMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelFeedCounter,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelFeedCounterID sets the ID field of the mutation.
+func withChannelFeedCounterID(id uint64) channelfeedcounterOption {
+	return func(m *ChannelFeedCounterMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelFeedCounter
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelFeedCounter, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelFeedCounter.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelFeedCounter sets the old ChannelFeedCounter of the mutation.
+func withChannelFeedCounter(node *ChannelFeedCounter) channelfeedcounterOption {
+	return func(m *ChannelFeedCounterMutation) {
+		m.oldValue = func(context.Context) (*ChannelFeedCounter, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelFeedCounterMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelFeedCounterMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ChannelFeedCounter entities.
+func (m *ChannelFeedCounterMutation) SetID(id uint64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelFeedCounterMutation) ID() (id uint64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelFeedCounterMutation) IDs(ctx context.Context) ([]uint64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uint64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelFeedCounter.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCount sets the "count" field.
+func (m *ChannelFeedCounterMutation) SetCount(u uint64) {
+	m.count = &u
+	m.addcount = nil
+}
+
+// Count returns the value of the "count" field in the mutation.
+func (m *ChannelFeedCounterMutation) Count() (r uint64, exists bool) {
+	v := m.count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCount returns the old "count" field's value of the ChannelFeedCounter entity.
+// If the ChannelFeedCounter object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelFeedCounterMutation) OldCount(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCount: %w", err)
+	}
+	return oldValue.Count, nil
+}
+
+// AddCount adds u to the "count" field.
+func (m *ChannelFeedCounterMutation) AddCount(u int64) {
+	if m.addcount != nil {
+		*m.addcount += u
+	} else {
+		m.addcount = &u
+	}
+}
+
+// AddedCount returns the value that was added to the "count" field in this mutation.
+func (m *ChannelFeedCounterMutation) AddedCount() (r int64, exists bool) {
+	v := m.addcount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCount resets all changes to the "count" field.
+func (m *ChannelFeedCounterMutation) ResetCount() {
+	m.count = nil
+	m.addcount = nil
+}
+
+// SetName sets the "name" field.
+func (m *ChannelFeedCounterMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ChannelFeedCounterMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the ChannelFeedCounter entity.
+// If the ChannelFeedCounter object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelFeedCounterMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ChannelFeedCounterMutation) ResetName() {
+	m.name = nil
+}
+
+// Where appends a list predicates to the ChannelFeedCounterMutation builder.
+func (m *ChannelFeedCounterMutation) Where(ps ...predicate.ChannelFeedCounter) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelFeedCounterMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelFeedCounterMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelFeedCounter, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelFeedCounterMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelFeedCounterMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelFeedCounter).
+func (m *ChannelFeedCounterMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelFeedCounterMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.count != nil {
+		fields = append(fields, channelfeedcounter.FieldCount)
+	}
+	if m.name != nil {
+		fields = append(fields, channelfeedcounter.FieldName)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelFeedCounterMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		return m.Count()
+	case channelfeedcounter.FieldName:
+		return m.Name()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelFeedCounterMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		return m.OldCount(ctx)
+	case channelfeedcounter.FieldName:
+		return m.OldName(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelFeedCounter field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelFeedCounterMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCount(v)
+		return nil
+	case channelfeedcounter.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelFeedCounter field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelFeedCounterMutation) AddedFields() []string {
+	var fields []string
+	if m.addcount != nil {
+		fields = append(fields, channelfeedcounter.FieldCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelFeedCounterMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		return m.AddedCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelFeedCounterMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelFeedCounter numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelFeedCounterMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelFeedCounterMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelFeedCounterMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ChannelFeedCounter nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelFeedCounterMutation) ResetField(name string) error {
+	switch name {
+	case channelfeedcounter.FieldCount:
+		m.ResetCount()
+		return nil
+	case channelfeedcounter.FieldName:
+		m.ResetName()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelFeedCounter field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelFeedCounterMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelFeedCounterMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelFeedCounterMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelFeedCounterMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelFeedCounterMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelFeedCounterMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelFeedCounterMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown ChannelFeedCounter unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelFeedCounterMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown ChannelFeedCounter edge %s", name)
+}
 
 // FeedCounterMutation represents an operation that mutates the FeedCounter nodes in the graph.
 type FeedCounterMutation struct {

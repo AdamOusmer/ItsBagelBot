@@ -34,19 +34,32 @@ func personalityHandler(t *testing.T, d engine.Deps) module.EventHandler {
 	m := Personality(d)
 	assert.Equal(t, "personality", m.Name)
 	assert.Equal(t, module.KindCore, m.Kind, "personality must be a core module: always on, not removable")
-	assert.Empty(t, m.Commands, "personality owns no commands")
+	assert.Len(t, m.Commands, 2, "personality owns the two feed-leaderboard commands")
 	h := m.Events["channel.chat.message"]
 	require.NotNil(t, h, "personality must handle channel.chat.message")
 	return h
 }
 
+// personalityCommand returns one of the module's baked commands by trigger.
+func personalityCommand(t *testing.T, d engine.Deps, name string) module.RunFunc {
+	t.Helper()
+	for _, cmd := range Personality(d).Commands {
+		if cmd.Name == name {
+			return cmd.Run
+		}
+	}
+	t.Fatalf("personality has no %q command", name)
+	return nil
+}
+
 func personalityCtx(text string) *module.Context {
 	return &module.Context{
 		Env: lane.Envelope{
-			Type:              "channel.chat.message",
-			Text:              text,
-			BroadcasterUserID: "2",
-			ChatterUserName:   "Bob",
+			Type:                "channel.chat.message",
+			Text:                text,
+			BroadcasterUserID:   "2",
+			BroadcasterUserName: "Chan",
+			ChatterUserName:     "Bob",
 		},
 		BroadcasterID: 2,
 		Log:           zap.NewNop(),
@@ -54,20 +67,30 @@ func personalityCtx(text string) *module.Context {
 }
 
 // fakePersonality scripts the PersonalityStore: fixed cursor/feed values, an
-// optional sticky mood, and an optional error that fails every call.
+// optional sticky mood, an optional leaderboard, and an optional error that
+// fails every call. fedBy records the channel the last feeding named.
 type fakePersonality struct {
 	cursor int64
 	feed   engine.FeedCounts
+	board  engine.FeedBoard
 	mood   string
 	err    error
+
+	fedBy   uint64
+	fedName string
 }
 
 func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) Feed(context.Context) (engine.FeedCounts, error) {
+func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name string) (engine.FeedCounts, error) {
+	f.fedBy, f.fedName = broadcasterID, name
 	return f.feed, f.err
+}
+
+func (f *fakePersonality) FeedBoard(_ context.Context, _ uint64, _ int) (engine.FeedBoard, error) {
+	return f.board, f.err
 }
 
 func (f *fakePersonality) Mood(_ context.Context, _ uint64, candidate string) (string, error) {
@@ -145,10 +168,12 @@ func TestPersonalityFactFallsBackWithoutStore(t *testing.T) {
 func TestPersonalityFeedReportsTodayAndLifetime(t *testing.T) {
 	pinPersonalityRand(t)
 	var col collector
-	d := engine.Deps{Personality: &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213}}}
-	require.NoError(t, personalityHandler(t, d)(context.Background(), personalityCtx("feed the bagel"), col.emit))
+	store := &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213}}
+	require.NoError(t, personalityHandler(t, engine.Deps{Personality: store})(context.Background(), personalityCtx("feed the bagel"), col.emit))
 	require.Len(t, col.out, 1)
 	assert.Equal(t, fmt.Sprintf(personalityFeedCountPack[0], 3, 48213), col.out[0].Text)
+	assert.Equal(t, uint64(2), store.fedBy, "the feeding must name the channel that fed, for its leaderboard row")
+	assert.Equal(t, "Chan", store.fedName, "the display name rides along so the board can name the channel")
 }
 
 func TestPersonalityFeedSilentWithoutCounts(t *testing.T) {
@@ -296,4 +321,71 @@ func TestPersonalityNormalizeChat(t *testing.T) {
 	assert.Equal(t, "good night itsbagelbot", normalizeChat("good night, @itsbagelbot!!"))
 	assert.Equal(t, "gn bagel", normalizeChat("gn   bagel 🥯"))
 	assert.Equal(t, "", normalizeChat("!?@"))
+}
+
+// !bagels answers with this channel's own count and rank; it must never feed
+// the bagel on the way.
+func TestFeedRankCommandReportsChannelStanding(t *testing.T) {
+	store := &fakePersonality{board: engine.FeedBoard{Ranked: 57, Channel: 12, Rank: 4}}
+	var col collector
+	run := personalityCommand(t, engine.Deps{Personality: store}, "bagels")
+	require.NoError(t, run(context.Background(), personalityCtx("!bagels"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Chan has fed the bagel 12 times: #4 of 57 channels.", col.out[0].Text)
+	assert.Zero(t, store.fedBy, "reading the standing must not record a feeding")
+}
+
+func TestFeedRankCommandNudgesUnrankedChannel(t *testing.T) {
+	var col collector
+	run := personalityCommand(t, engine.Deps{Personality: &fakePersonality{board: engine.FeedBoard{Ranked: 57}}}, "bagels")
+	require.NoError(t, run(context.Background(), personalityCtx("!bagels"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "never fed the bagel")
+}
+
+func TestFeedBoardCommandRanksChannels(t *testing.T) {
+	board := engine.FeedBoard{
+		Entries: []engine.FeedBoardEntry{
+			{BroadcasterID: 9, Name: "Crumb", Count: 400},
+			{BroadcasterID: 8, Count: 120},
+		},
+		Ranked: 57, Channel: 12, Rank: 4,
+	}
+	var col collector
+	run := personalityCommand(t, engine.Deps{Personality: &fakePersonality{board: board}}, "bagelboard")
+	require.NoError(t, run(context.Background(), personalityCtx("!bagelboard"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t,
+		"Bagel leaderboard: 1. Crumb (400), 2. channel 8 (120). This channel: 12 feedings, #4 of 57.",
+		col.out[0].Text, "a nameless row still ranks, under its id")
+}
+
+func TestFeedBoardCommandOnEmptyBoard(t *testing.T) {
+	var col collector
+	run := personalityCommand(t, engine.Deps{Personality: &fakePersonality{}}, "bagelboard")
+	require.NoError(t, run(context.Background(), personalityCtx("!bagelboard"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "Nobody has fed the bagel yet")
+}
+
+// A failing read says so rather than going silent: unlike the chat reaction,
+// a command was asked a direct question and owes an answer.
+func TestFeedCommandsReportUnavailableOnError(t *testing.T) {
+	for _, name := range []string{"bagels", "bagelboard"} {
+		var col collector
+		run := personalityCommand(t, engine.Deps{Personality: &fakePersonality{err: assert.AnError}}, name)
+		require.NoError(t, run(context.Background(), personalityCtx("!"+name), "", col.emit), name)
+		require.Len(t, col.out, 1, name)
+		assert.Contains(t, col.out[0].Text, "cannot count right now", name)
+	}
+}
+
+// Without a store the commands stay quiet: nothing to read, nothing to say.
+func TestFeedCommandsSilentWithoutStore(t *testing.T) {
+	for _, name := range []string{"bagels", "bagelboard"} {
+		var col collector
+		run := personalityCommand(t, engine.Deps{}, name)
+		require.NoError(t, run(context.Background(), personalityCtx("!"+name), "", col.emit), name)
+		assert.Empty(t, col.out, name)
+	}
 }
