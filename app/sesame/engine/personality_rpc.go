@@ -36,10 +36,9 @@ func NewPersonalityRPC(nc *nats.Conn, modulesPrefix string) *PersonalityRPC {
 }
 
 // FeedBump records one feeding on the permanent counters and returns the new
-// lifetime totals, optionally with the leaderboard the caller needs to seed
-// its live view.
-func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, name string, withBoard bool) (FeedTotals, error) {
-	request := modulesrpc.FeedBumpRequest{BroadcasterID: broadcasterID, Name: name, WithBoard: withBoard}
+// lifetime totals.
+func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, name string) (FeedTotals, error) {
+	request := modulesrpc.FeedBumpRequest{BroadcasterID: broadcasterID, Name: name}
 	reply, err := bus.RequestJSONTimeout[modulesrpc.FeedBumpReply](ctx, c.nc, c.subject, request, personalityRPCTimeout)
 	if err != nil {
 		return FeedTotals{}, err
@@ -47,16 +46,11 @@ func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, nam
 	if reply.Error != "" {
 		return FeedTotals{}, errors.New(reply.Error)
 	}
-	return FeedTotals{
-		Total:   reply.Total,
-		Channel: reply.Channel,
-		Rank:    reply.Rank,
-		Board:   toEngineEntries(reply.Board),
-	}, nil
+	return FeedTotals{Total: reply.Total, Channel: reply.Channel, Rank: reply.Rank}, nil
 }
 
 // FeedBoard reads the leaderboard straight from the permanent rows: the
-// reaction that prints it is rare and cooldown-gated, so it never needs the
+// commands that print it are rare and cooldown-gated, so they never need a
 // hot-path live view.
 func (c *PersonalityRPC) FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error) {
 	request := modulesrpc.FeedBoardRequest{Limit: limit, BroadcasterID: broadcasterID}

@@ -72,17 +72,6 @@ var personalityFeedCountPack = []string{
 	"Are you calling me hangry? *Chews my %d of the day appreciatively* %d lifetime.",
 }
 
-// personalityFeedStandingPack is the per-channel tail of the feed line. Every
-// line takes three %d, in this order: this channel's lifetime feedings, its
-// rank on the leaderboard (1 = fed the most) and how many channels are ranked.
-var personalityFeedStandingPack = []string{
-	"this channel: %d feedings, rank #%d of %d. no pressure.",
-	"you've done %d of those. #%d out of %d channels. the board never lies.",
-	"%d feedings from this channel. that's #%d of %d. climb or cope.",
-	"this place is at %d feedings, #%d of %d on the bagel leaderboard.",
-	"%d here. #%d of %d overall. I keep receipts.",
-}
-
 // personalityBoopPack answers "boop the bagel".
 var personalityBoopPack = []string{
 	"boop received. processing. ok. you may live.",
