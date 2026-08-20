@@ -43,6 +43,15 @@ const (
 	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
 
+	// personalBestTTL: a player's daily/weekly/monthly/all-time PB only moves
+	// on a discrete event (they finish a run faster than their standing best
+	// for that window), the same "point value, not a rolling window" shape as
+	// mcsr's lastMatchTTL — so it sits longer than the session TTLs above
+	// (which track a continuously-rolling window and need to feel closer to
+	// live) while still being short enough that a viewer asking right after a
+	// new PB run sees it inside the same couple of minutes.
+	personalBestTTL = 3 * time.Minute
+
 	// defaultHoursBetween is the session-cutoff gap passed as hoursBetween
 	// when a caller does not override it: long enough to survive a bathroom
 	// break between runs, short enough that yesterday's runs never bleed into
@@ -65,10 +74,15 @@ const (
 
 // Config carries the provider's environment. PaceMan has no API key at all;
 // BaseURL/RateLimit exist purely so an operator can point at a different host
-// or tighten the budget without a redeploy.
+// or tighten the budget without a redeploy. UserBaseURL is a second base: the
+// /user personal-best lookup (paceman.personal_best) lives under
+// paceman.gg/api/us, a different host path than the /stats/api split-tracking
+// routes every other endpoint here calls, so it needs its own HTTP client
+// pointed at its own base rather than a path glued onto BaseURL.
 type Config struct {
-	BaseURL   string
-	RateLimit float64
+	BaseURL     string
+	UserBaseURL string
+	RateLimit   float64
 }
 
 // providerName is the subject token this provider answers under.
@@ -76,11 +90,12 @@ const providerName = "paceman"
 
 // api holds the provider's runtime pieces; the declared endpoints capture it.
 type api struct {
-	http    *core.HTTPClient
-	cache   *core.Cache
-	log     *zap.Logger
-	limiter *ratelimit.Limiter
-	buckets core.Buckets
+	http     *core.HTTPClient
+	userHTTP *core.HTTPClient
+	cache    *core.Cache
+	log      *zap.Logger
+	limiter  *ratelimit.Limiter
+	buckets  core.Buckets
 }
 
 // New builds the paceman provider.
@@ -90,6 +105,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
 	b.Endpoint("nethers").Timeout(handlerTimeout).Handle(p.nethers)
 	b.Endpoint("lastfort").Timeout(handlerTimeout).Handle(p.lastfort)
+	b.Endpoint("personal_best").Timeout(handlerTimeout).Handle(p.personalBest)
 	return b.Build()
 }
 
@@ -98,15 +114,20 @@ func newAPI(cfg Config, d provider.Deps) *api {
 	if base == "" {
 		base = "https://paceman.gg/stats/api"
 	}
+	userBase := strings.TrimSuffix(cfg.UserBaseURL, "/")
+	if userBase == "" {
+		userBase = "https://paceman.gg/api/us"
+	}
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:    core.NewHTTPClient(base, nil, httpTimeout),
-		cache:   d.Cache,
-		log:     d.Logger(),
-		limiter: d.Limiter,
-		buckets: core.NewBuckets("ratelimit:gossip:paceman", cfg.RateLimit, rateWindowSeconds),
+		http:     core.NewHTTPClient(base, nil, httpTimeout),
+		userHTTP: core.NewHTTPClient(userBase, nil, httpTimeout),
+		cache:    d.Cache,
+		log:      d.Logger(),
+		limiter:  d.Limiter,
+		buckets:  core.NewBuckets("ratelimit:gossip:paceman", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
@@ -160,6 +181,28 @@ type recentTimestamp struct {
 	Stronghold  *float64 `json:"stronghold"`
 	End         *float64 `json:"end"`
 	Finish      *float64 `json:"finish"`
+}
+
+// pbCompletion is one personal-best entry from the /user envelope's pbs
+// object: PaceMan precomputes the milliseconds already, gossip only formats
+// it. A nil pbCompletion (the JSON field is `null`) means the player has no
+// best in that window yet, distinct from a present-but-zero time.
+type pbCompletion struct {
+	Time int64 `json:"time"`
+}
+
+// userPBsResponse is the /user?name=&sortByTime=1 envelope subset gossip
+// reads: this single call answers all four PB windows at once (see
+// fetchUserPBs), so !pb never pays a second round trip for daily vs. weekly
+// vs. monthly vs. all-time — only the reply shaping picks which field to
+// read.
+type userPBsResponse struct {
+	PBs struct {
+		Daily   *pbCompletion `json:"daily"`
+		Weekly  *pbCompletion `json:"weekly"`
+		Monthly *pbCompletion `json:"monthly"`
+		AllTime *pbCompletion `json:"allTime"`
+	} `json:"pbs"`
 }
 
 // friendlyError maps an upstream failure onto a user-facing reply error, or
@@ -237,6 +280,21 @@ func (p *api) fetchLastFort(ctx context.Context, account string) ([]recentTimest
 	return resp, nil
 }
 
+// fetchUserPBs loads all four of a player's precomputed personal bests in one
+// call. sortByTime=1 matches the site's own leaderboard ordering; it has no
+// bearing on this single-player lookup but is included so the request mirrors
+// what PaceMan's own client sends, in case an unordered variant of the
+// endpoint is ever rate-limited differently. Uses userHTTP (api/us), not the
+// http client every other fetch in this file uses (stats/api) — see Config.
+func (p *api) fetchUserPBs(ctx context.Context, account string) (userPBsResponse, error) {
+	var resp userPBsResponse
+	q := url.Values{"name": {account}, "sortByTime": {"1"}}
+	if err := p.userHTTP.GetJSON(ctx, "/user", q, &resp); err != nil {
+		return userPBsResponse{}, err
+	}
+	return resp, nil
+}
+
 // --- cached fetches --------------------------------------------------------------
 
 func (p *api) cachedSessionStats(ctx context.Context, account string, hoursBetween int, isPremium bool) (sessionStatsResponse, error) {
@@ -257,6 +315,17 @@ func (p *api) cachedLastFort(ctx context.Context, account string, isPremium bool
 	key := core.Key(providerName, "lastfort", cacheAccount(account, 0))
 	return core.Cached(ctx, p.cache, key, lastFortTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) ([]recentTimestamp, error) {
 		return p.fetchLastFort(ctx, account)
+	})
+}
+
+// cachedUserPBs caches the whole four-window pbs object under one key per
+// account: !pb daily and !pb weekly for the same player hit the same cache
+// entry, so asking about a second window right after the first costs nothing
+// extra.
+func (p *api) cachedUserPBs(ctx context.Context, account string, isPremium bool) (userPBsResponse, error) {
+	key := core.Key(providerName, "personal-best", cacheAccount(account, 0))
+	return core.Cached(ctx, p.cache, key, personalBestTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (userPBsResponse, error) {
+		return p.fetchUserPBs(ctx, account)
 	})
 }
 
@@ -322,6 +391,64 @@ func buildLastFortReply(account string, run recentTimestamp) gossiprpc.PacemanLa
 		Finish:      splitDuration(run.Start, run.Finish),
 		AgoSeconds:  int64(time.Since(unixTime(run.Start)).Seconds()),
 	}
+}
+
+// normalizePBWindow maps a request's raw TimeWindow onto the four windows
+// PaceMan precomputes. Anything unrecognized (including "", the bare-name
+// form's zero value) falls through to "all-time" — the same "no window typed
+// means all-time" default sesame's argument parsing applies before the call
+// even reaches here, so this is a defensive second normalization, not the
+// primary one.
+func normalizePBWindow(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "daily":
+		return "daily"
+	case "weekly":
+		return "weekly"
+	case "monthly":
+		return "monthly"
+	default:
+		return "all-time"
+	}
+}
+
+// selectPB picks the one pbCompletion the normalized window names out of the
+// four PaceMan returned in a single call.
+func selectPB(resp userPBsResponse, window string) *pbCompletion {
+	switch window {
+	case "daily":
+		return resp.PBs.Daily
+	case "weekly":
+		return resp.PBs.Weekly
+	case "monthly":
+		return resp.PBs.Monthly
+	default:
+		return resp.PBs.AllTime
+	}
+}
+
+// pacemanFormatTime renders a completion time in milliseconds the way MCSR
+// speedrunning clients display a run (minutes:seconds.milliseconds),
+// matching the mcsr provider's own mcsrFormatTime so a PaceMan-sourced time
+// and an MCSR-Ranked-sourced time read identically in chat.
+func pacemanFormatTime(ms int64) string {
+	if ms <= 0 {
+		return ""
+	}
+	minutes := ms / 60000
+	seconds := (ms % 60000) / 1000
+	millis := ms % 1000
+	return fmt.Sprintf("%d:%02d.%03d", minutes, seconds, millis)
+}
+
+// buildPersonalBestReply shapes the cached four-window response down to the
+// one window a !pb call asked for.
+func buildPersonalBestReply(account, window string, resp userPBsResponse) gossiprpc.PacemanPersonalBestReply {
+	pb := selectPB(resp, window)
+	if pb == nil {
+		return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Empty: true}
+	}
+	return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Time: pacemanFormatTime(pb.Time)}
 }
 
 // --- endpoints ------------------------------------------------------------------
@@ -412,4 +539,28 @@ func lastFortErrorReply(log *zap.Logger, account string, err error) gossiprpc.Pa
 		msg = "stats lookup failed"
 	}
 	return gossiprpc.PacemanLastFortReply{Player: account, Error: msg}
+}
+
+func (p *api) personalBest(ctx context.Context, req gossiprpc.Request) any {
+	log := monitor.TxnLogger(ctx, p.log)
+	account := strings.TrimSpace(req.Account)
+	window := normalizePBWindow(req.TimeWindow)
+	if account == "" {
+		return gossiprpc.PacemanPersonalBestReply{Window: window, Error: "missing account"}
+	}
+
+	resp, err := p.cachedUserPBs(ctx, account, req.IsPremium)
+	if err != nil {
+		return personalBestErrorReply(log, account, window, err)
+	}
+	return buildPersonalBestReply(account, window, resp)
+}
+
+func personalBestErrorReply(log *zap.Logger, account, window string, err error) gossiprpc.PacemanPersonalBestReply {
+	msg := friendlyError(err)
+	if msg == "" {
+		log.Warn("paceman personal best fetch failed", zap.String("account", account), zap.Error(err))
+		msg = "stats lookup failed"
+	}
+	return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Error: msg}
 }

@@ -908,7 +908,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'MCSR Ranked',
     tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
     description:
-      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !lastmatch shows the most recent match; !record compares two players\' head-to-head record; !lb shows the top 5 of the elo, phase-point or record leaderboard; !race shows the weekly race leader and your own time. !elo, !lastmatch, !record and !lb all accept a trailing "season:11" to look at a past season. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account.',
+      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !lastmatch shows the most recent match; !record compares two players\' head-to-head record; !lb shows the top 5 of the elo, phase-point or record leaderboard; !race shows the weekly race leader and your own time. !elo, !lastmatch, !record and !lb all accept a trailing "season:11" to look at a past season. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account. !pb shows a personal best: daily/weekly/monthly from PaceMan, or "ranked" for the MCSR Ranked season best; a player name can follow any of those, or stand alone for the all-time PaceMan best.',
     icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
@@ -1094,6 +1094,19 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         defaultMessage: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})',
         tokens: ['leader', 'leadertime', 'player', 'time', 'rank'],
         previewSamples: { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' }
+      },
+      {
+        key: 'pb',
+        label: '!pb',
+        tagline: 'Personal best time: PaceMan daily/weekly/monthly/all-time, or the MCSR Ranked season best.',
+        event: '!pb [daily|weekly|monthly|ranked] [player]',
+        command: 'pb',
+        previewArgs: 'daily',
+        enableKey: 'pbEnabled',
+        messageKey: 'pbMessage',
+        defaultMessage: '{player}: {time} ({window} PB)',
+        tokens: ['player', 'time', 'window'],
+        previewSamples: { player: 'Feinberg', time: '6:40.123', window: 'daily' }
       }
     ],
     settings: [

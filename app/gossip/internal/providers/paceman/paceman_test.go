@@ -50,6 +50,18 @@ func newTestProvider(t *testing.T, handler http.Handler) provider.Provider {
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
+// newTestProviderPB is newTestProvider but also points UserBaseURL at the
+// fake server: personal_best is the one endpoint that calls the api/us host
+// instead of stats/api, so its tests need both bases wired to the same
+// httptest server (routed by path, like every other test in this file).
+func newTestProviderPB(t *testing.T, handler http.Handler) provider.Provider {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return New(Config{BaseURL: srv.URL, UserBaseURL: srv.URL},
+		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+}
+
 func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
@@ -221,6 +233,73 @@ func TestLastFortUpstream4xx(t *testing.T) {
 	}))
 
 	reply := endpoint(t, p, "lastfort")(context.Background(), gossiprpc.Request{Account: "ghost"}).(gossiprpc.PacemanLastFortReply)
+	assert.Equal(t, "player not found", reply.Error)
+}
+
+// pbBody mirrors the real /user?name=&sortByTime=1 envelope confirmed by
+// hand (curl) against paceman.gg: pbs is null per-window when the player has
+// no best there yet, and a present entry only carries a "time" gossip reads.
+const pbBody = `{
+	"user": {"uuid": "9a8e", "twitchId": "1", "daily": 0, "weekly": 0, "monthly": 0, "bonus": 1, "score": 1},
+	"completions": [],
+	"pbs": {
+		"daily": {"_id": "1", "submitted": 1716945000000, "time": 400123},
+		"weekly": {"_id": "2", "submitted": 1716945000000, "time": 390456},
+		"monthly": {"_id": "3", "submitted": 1716945000000, "time": 380789},
+		"allTime": {"_id": "4", "submitted": 1716945000000, "time": 370012}
+	}
+}`
+
+const pbEmptyBody = `{
+	"user": {"uuid": "9a8e", "twitchId": "1", "daily": 0, "weekly": 0, "monthly": 0, "bonus": 1, "score": 1},
+	"completions": [],
+	"pbs": {"daily": null, "weekly": null, "monthly": null, "allTime": null}
+}`
+
+func TestPersonalBestWindows(t *testing.T) {
+	cases := []struct {
+		window string
+		want   string
+	}{
+		{"daily", "6:40.123"},
+		{"weekly", "6:30.456"},
+		{"monthly", "6:20.789"},
+		{"", "6:10.012"}, // bare (no window typed) means all-time
+		{"all-time", "6:10.012"},
+	}
+	for _, tc := range cases {
+		p := newTestProviderPB(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/user", r.URL.Path)
+			assert.Equal(t, "Feinberg", r.URL.Query().Get("name"))
+			assert.Equal(t, "1", r.URL.Query().Get("sortByTime"))
+			_, _ = w.Write([]byte(pbBody))
+		}))
+
+		reply := endpoint(t, p, "personal_best")(context.Background(), gossiprpc.Request{Account: "Feinberg", TimeWindow: tc.window}).(gossiprpc.PacemanPersonalBestReply)
+		require.Empty(t, reply.Error, "window %q", tc.window)
+		assert.False(t, reply.Empty, "window %q", tc.window)
+		assert.Equal(t, tc.want, reply.Time, "window %q", tc.window)
+	}
+}
+
+func TestPersonalBestNoneInWindow(t *testing.T) {
+	p := newTestProviderPB(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(pbEmptyBody))
+	}))
+
+	reply := endpoint(t, p, "personal_best")(context.Background(), gossiprpc.Request{Account: "Newbie", TimeWindow: "daily"}).(gossiprpc.PacemanPersonalBestReply)
+	require.Empty(t, reply.Error)
+	assert.True(t, reply.Empty, "a null pb for the window must read as no personal best, not an error")
+	assert.Equal(t, "", reply.Time)
+}
+
+func TestPersonalBestUpstream4xx(t *testing.T) {
+	p := newTestProviderPB(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`Failed to find user with uuid: UNKNOWN`))
+	}))
+
+	reply := endpoint(t, p, "personal_best")(context.Background(), gossiprpc.Request{Account: "ghost"}).(gossiprpc.PacemanPersonalBestReply)
 	assert.Equal(t, "player not found", reply.Error)
 }
 

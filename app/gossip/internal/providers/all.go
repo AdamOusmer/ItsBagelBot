@@ -90,8 +90,9 @@ func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps,
 		return out
 	}
 	return append(out, paceman.New(paceman.Config{
-		BaseURL:   cfg.PacemanBaseURL,
-		RateLimit: cfg.PacemanRateLimit,
+		BaseURL:     cfg.PacemanBaseURL,
+		UserBaseURL: cfg.PacemanUserBaseURL,
+		RateLimit:   cfg.PacemanRateLimit,
 	}, d))
 }
 

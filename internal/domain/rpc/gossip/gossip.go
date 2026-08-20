@@ -55,8 +55,11 @@ type Request struct {
 	// AccountType is the platform namespace Account lives in for fortnite.stats:
 	// "epic" (default), "psn" or "xbl". Zero on every non-fortnite request.
 	AccountType string `json:"account_type,omitempty"`
-	// TimeWindow selects the fortnite.stats window: "lifetime" (default) or
-	// "season" (the current season only).
+	// TimeWindow selects a provider's answer window. On fortnite.stats:
+	// "lifetime" (default) or "season" (the current season only). On
+	// paceman.personal_best: "" (all-time, default), "daily", "weekly" or
+	// "monthly" — the same four buckets PaceMan itself precomputes per
+	// player, so the provider never aggregates a window client-side.
 	TimeWindow string `json:"time_window,omitempty"`
 
 	// --- paceman (PaceMan.gg Minecraft speedrun pace tracking) ---------------
@@ -388,6 +391,23 @@ type PacemanLastFortReply struct {
 	AgoSeconds  int64  `json:"ago_seconds"`
 	Empty       bool   `json:"empty"`
 	Error       string `json:"error,omitempty"`
+}
+
+// PacemanPersonalBestReply is the answer to paceman.personal_best (sesame's
+// !pb daily/weekly/monthly and the bare all-time form): the player's PaceMan
+// personal best for the requested window. PaceMan precomputes all four
+// windows on the same /user lookup (see fetchUserPBs), so this is always one
+// upstream call no matter which window was asked for. Window echoes the
+// normalized window the reply answers ("daily", "weekly", "monthly" or
+// "all-time"), for a template that wants to say which one it printed. Empty
+// is true when the player has not set a personal best in that window yet —
+// a normal PaceMan answer, not an error — and Time is "" in that case.
+type PacemanPersonalBestReply struct {
+	Player string `json:"player"`
+	Window string `json:"window"`
+	Time   string `json:"time"`
+	Empty  bool   `json:"empty"`
+	Error  string `json:"error,omitempty"`
 }
 
 // --- mcsr: match history, versus, leaderboards, weekly race -----------------

@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -550,4 +551,162 @@ func TestMcsrEloSeasonToken(t *testing.T) {
 	call := gw.lastCall(t)
 	assert.Equal(t, "Feinberg", call.req.Account)
 	assert.Equal(t, 5, call.req.Season)
+}
+
+// --- !pb ---------------------------------------------------------------------------
+
+func TestMcsrPbBareIsAllTime(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Feinberg", Window: "all-time", Time: "6:10.012"},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg: 6:10.012 (all-time PB)", col.out[0].Text)
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "paceman", call.provider)
+	assert.Equal(t, "personal_best", call.endpoint)
+	assert.Equal(t, "", call.req.TimeWindow, "no window typed must mean all-time, not an unset request")
+}
+
+func TestMcsrPbWindowArg(t *testing.T) {
+	cases := []struct{ window string }{{"daily"}, {"weekly"}, {"monthly"}}
+	for _, tc := range cases {
+		t.Run(tc.window, func(t *testing.T) {
+			gw := &fakeGossip{replies: map[string]any{
+				"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Feinberg", Window: tc.window, Time: "6:40.123"},
+			}}
+			cmd := findCmd(t, mcsrModule(gw), "pb")
+
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), tc.window, col.emit))
+			require.Len(t, col.out, 1)
+			assert.Equal(t, "Feinberg: 6:40.123 ("+tc.window+" PB)", col.out[0].Text)
+			assert.Equal(t, tc.window, gw.lastCall(t).req.TimeWindow)
+		})
+	}
+}
+
+// A bare typed name with no window keyword resolves as the account, not a
+// window — "!pb Feinberg" is the all-time form for that player, same as
+// !elo/!pace's argument handling.
+func TestMcsrPbBareName(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "lowk3y_", Window: "all-time", Time: "5:59.000"},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "lowk3y_", col.emit))
+	call := gw.lastCall(t)
+	assert.Equal(t, "lowk3y_", call.req.Account)
+	assert.Equal(t, "", call.req.TimeWindow)
+}
+
+func TestMcsrPbWindowAndName(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "lowk3y_", Window: "weekly", Time: "6:01.500"},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "weekly lowk3y_", col.emit))
+	call := gw.lastCall(t)
+	assert.Equal(t, "lowk3y_", call.req.Account)
+	assert.Equal(t, "weekly", call.req.TimeWindow)
+}
+
+// No personal best in the requested window is a normal PaceMan answer, not
+// an error: it must render the translated plain line, never a zero time.
+func TestMcsrPbNoneInWindow(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Newbie", Window: "daily", Empty: true},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Newbie"}`), "daily", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Newbie: no personal best yet (daily)", col.out[0].Text)
+}
+
+func TestMcsrPbRanked(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, BestTimeMS: 595036},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "ranked", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg: 9:55.036 (ranked PB)", col.out[0].Text)
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "mcsr", call.provider)
+	assert.Equal(t, "user", call.endpoint)
+}
+
+// An unrated player never got a season best recorded upstream (BestTimeMS
+// stays 0), same "no personal best" line as an empty PaceMan window.
+func TestMcsrPbRankedUnrated(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Newbie", Elo: -1, BestTimeMS: 0},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Newbie"}`), "ranked", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Newbie: no personal best yet (ranked)", col.out[0].Text)
+}
+
+func TestMcsrPbToggleOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Feinberg", Time: "6:10.012"},
+	}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"pbEnabled":"off"}`), "", col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, gw.calls)
+}
+
+func TestMcsrPbUpstream4xxChatsBack(t *testing.T) {
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
+	cmd := findCmd(t, mcsrModule(gw), "pb")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "ghostplayer", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
+}
+
+// --- parseMcsrPbArgs -----------------------------------------------------------------
+
+func TestParseMcsrPbArgs(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       string
+		wantWindow string
+		wantRest   string
+	}{
+		{"bare", "", "", ""},
+		{"bare name", "Feinberg", "", "Feinberg"},
+		{"window only", "daily", "daily", ""},
+		{"window and name", "weekly Feinberg", "weekly", "Feinberg"},
+		{"ranked keyword", "ranked", "ranked", ""},
+		{"case insensitive window", "DAILY", "daily", ""},
+		{"unrecognized first word is a name", "monthlyish", "", "monthlyish"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			window, rest := parseMcsrPbArgs(tc.args)
+			assert.Equal(t, tc.wantWindow, window)
+			assert.Equal(t, tc.wantRest, rest)
+		})
+	}
 }
