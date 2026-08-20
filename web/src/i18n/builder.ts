@@ -500,6 +500,21 @@ export const SURFACES: SurfaceDef[] = [
     ],
   },
   {
+    id: 'mcsr-pb',
+    group: { en: 'Game stats', fr: 'Stats de jeu' },
+    label: { en: 'MCSR: !pb', fr: 'MCSR: !pb' },
+    dashPath: '/modules/mcsr',
+    hint: { en: 'MCSR Ranked module → personal-best reply (PaceMan daily/weekly/monthly/all-time, or MCSR Ranked season best).', fr: 'Module MCSR Ranked → réponse du record personnel (PaceMan quotidien/hebdomadaire/mensuel/de tous les temps, ou le meilleur temps de la saison MCSR Ranked).' },
+    example: { en: '{player}: {time} ({window} PB)', fr: '{player}: {time} ({window} PB)' },
+    prompt: { en: '!pb daily', fr: '!pb daily' },
+    vars: [
+      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
+      v('{time}', '6:40.123', { en: 'Time', fr: 'Temps' }, { en: 'The personal best for the requested window.', fr: 'Le record personnel pour la période demandée.' }),
+      v('{window}', 'daily', { en: 'Window', fr: 'Période' }, { en: 'Which window answered: daily, weekly, monthly, all-time or ranked.', fr: 'La période qui a répondu : quotidien, hebdomadaire, mensuel, de tous les temps ou classé.' }),
+      ...DYNAMIC,
+    ],
+  },
+  {
     id: 'fn-stats',
     group: { en: 'Game stats', fr: 'Stats de jeu' },
     label: { en: 'Fortnite: !fn / !fn season', fr: 'Fortnite: !fn / !fn season' },

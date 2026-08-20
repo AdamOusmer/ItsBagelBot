@@ -39,6 +39,7 @@ const (
 	defaultMcsrRecordTemplate    = "{playera} {winsa} - {winsb} {playerb} · {played} played"
 	defaultMcsrLbTemplate        = "{board}: {list}"
 	defaultMcsrRaceTemplate      = "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
+	defaultMcsrPbTemplate        = "{player}: {time} ({window} PB)"
 
 	// PaceMan-backed templates. PaceMan is a separate upstream from MCSR
 	// Ranked (its own gossip provider, its own cache/rate-limit budget) but
@@ -75,6 +76,9 @@ type mcsrConfig struct {
 	LbMessage        string `json:"lbMessage"`
 	RaceEnabled      string `json:"raceEnabled"`
 	RaceMessage      string `json:"raceMessage"`
+
+	PbEnabled string `json:"pbEnabled"`
+	PbMessage string `json:"pbMessage"`
 }
 
 // Mcsr owns the MCSR Ranked commands backed by the gossip service. It is a
@@ -92,6 +96,14 @@ type mcsrConfig struct {
 // weekly-race pool. !elo, !lastmatch, !record and !lb all accept a trailing
 // "season:<n>" argument token (parseMcsrSeason) to look at a past season
 // instead of the current one.
+//
+// !pb <window> [player] answers the player's PaceMan personal best for
+// "daily"/"weekly"/"monthly" (an optional trailing player defaults to the
+// bare-name form, e.g. "!pb Feinberg" == all-time) or the MCSR Ranked
+// season-best time for "ranked". The first three windows ride PaceMan's own
+// precomputed pbs object (one call, see the paceman provider); "ranked"
+// answers from the mcsr provider's existing user lookup instead — it already
+// fetches BestTimeMS for !elo, unused until now.
 //
 // !pace, !nethers and !lastfort ride the same linked account but answer
 // through the paceman gossip provider instead: PaceMan.gg tracks live
@@ -123,6 +135,8 @@ func Mcsr(d engine.Deps) module.Module {
 		Run(mcsrLbRun(d))
 	m.Command("race").Everyone().Cooldown(mcsrCooldown).Aliases("weeklyrace").
 		Run(mcsrRaceRun(d))
+	m.Command("pb").Everyone().Cooldown(mcsrCooldown).Aliases("personalbest").
+		Run(mcsrPbRun(d))
 
 	// Snapshot the linked account's standing the moment the stream goes online.
 	// The pipeline only runs this when the module is enabled, and it wires the
@@ -905,4 +919,169 @@ func mcsrRaceTokens(reply gossiprpc.McsrWeeklyRaceReply) func(string) (string, b
 			return module.ParseDynamic(key)
 		}
 	}
+}
+
+// --- !pb (PaceMan personal best / MCSR Ranked season best) -----------------
+
+// mcsrPbWindows is the set of window keywords !pb recognizes as its first
+// argument. Anything else (including nothing) falls through to the bare-name
+// form: parseMcsrPbArgs then treats the whole argument string as a player
+// name and mcsrPbRun defaults the window to all-time.
+var mcsrPbWindows = map[string]bool{
+	"daily":   true,
+	"weekly":  true,
+	"monthly": true,
+	"ranked":  true,
+}
+
+// parseMcsrPbArgs splits !pb's optional leading window keyword off the rest
+// of the argument string, mirroring parseMcsrSeason's "peel a recognized
+// token, leave everything else for account resolution" shape. window is ""
+// when no recognized keyword was typed (the bare "!pb" and "!pb <player>"
+// forms), which mcsrPbRun then treats as all-time.
+func parseMcsrPbArgs(args string) (window, rest string) {
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return "", ""
+	}
+	first := strings.ToLower(fields[0])
+	if mcsrPbWindows[first] {
+		return first, strings.Join(fields[1:], " ")
+	}
+	return "", args
+}
+
+// mcsrPbRun answers !pb. The window keyword picks one of two independent
+// upstreams (paceman's precomputed pbs for daily/weekly/monthly/all-time, or
+// mcsr's own season-best for ranked), so the dispatch is kept to a single if
+// and both branches live in their own helper — see mcsrPbPaceRun and
+// mcsrPbRankedRun — rather than one long switch in the run function.
+func mcsrPbRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.PbEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		window, rest := parseMcsrPbArgs(args)
+		account := resolveAccount(accountSources{Arg: rest, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+
+		if window == "ranked" {
+			return mcsrPbRankedRun(ctx, d, c, cfg, account, emit)
+		}
+		return mcsrPbPaceRun(ctx, d, c, cfg, account, window, emit)
+	}
+}
+
+// mcsrPbPaceRun answers the daily/weekly/monthly/all-time windows from the
+// paceman provider's personal_best endpoint, which resolves all four in one
+// upstream call and hands back the one the request asked for.
+func mcsrPbPaceRun(ctx context.Context, d engine.Deps, c *module.Context, cfg mcsrConfig, account, window string, emit module.Emit) error {
+	var reply gossiprpc.PacemanPersonalBestReply
+	req := gossiprpc.Request{Account: account, TimeWindow: window, IsPremium: c.Regress.IsPremium()}
+	if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "paceman", Endpoint: "personal_best"}, req, &reply); err != nil {
+		if chatReplyError(c, emit, account, err) {
+			return nil
+		}
+		return err
+	}
+
+	if reply.Empty {
+		emitMcsrPbEmpty(c, emit, reply.Player, reply.Window)
+		return nil
+	}
+
+	tmpl := orDefault(cfg.PbMessage, defaultMcsrPbTemplate)
+	msg := module.ExpandString(tmpl, mcsrPbTokens(reply.Player, reply.Time, mcsrPbWindowLabel(c.Locale, reply.Window)))
+	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+	return nil
+}
+
+// mcsrPbRankedRun answers the ranked window from the mcsr provider's
+// existing user lookup: BestTimeMS is already fetched for !elo and simply
+// went unread until !pb ranked needed it, so this adds no new upstream call.
+// A 0 BestTimeMS covers both "rated but no ranked completion yet" and
+// "unrated" (the upstream never populates a season best for either) — both
+// read as the same "no personal best" line.
+func mcsrPbRankedRun(ctx context.Context, d engine.Deps, c *module.Context, cfg mcsrConfig, account string, emit module.Emit) error {
+	var reply gossiprpc.McsrUserReply
+	req := gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
+	if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "user"}, req, &reply); err != nil {
+		if chatReplyError(c, emit, account, err) {
+			return nil
+		}
+		return err
+	}
+
+	if reply.BestTimeMS <= 0 {
+		emitMcsrPbEmpty(c, emit, reply.Nickname, "ranked")
+		return nil
+	}
+
+	tmpl := orDefault(cfg.PbMessage, defaultMcsrPbTemplate)
+	msg := module.ExpandString(tmpl, mcsrPbTokens(reply.Nickname, mcsrMsToClock(reply.BestTimeMS), mcsrPbWindowLabel(c.Locale, "ranked")))
+	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+	return nil
+}
+
+// mcsrPbTokens resolves !pb's template tokens: {player} {time} {window}.
+func mcsrPbTokens(player, timeStr, windowLabel string) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		switch key {
+		case "player":
+			return player, true
+		case "time":
+			return timeStr, true
+		case "window":
+			return windowLabel, true
+		default:
+			return module.ParseDynamic(key)
+		}
+	}
+}
+
+// emitMcsrPbEmpty answers a !pb lookup that found no personal best in the
+// requested window: a normal PaceMan/MCSR answer (the player just hasn't set
+// one there yet), not an error, so it gets a plain translated line instead of
+// a template rendering a fake zero time.
+func emitMcsrPbEmpty(c *module.Context, emit module.Emit, player, window string) {
+	emit(&module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: c.Env.BroadcasterUserID,
+		Text:          player + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.pb.empty"), mcsrPbWindowLabel(c.Locale, window)),
+	})
+}
+
+// mcsrPbWindowLabel translates a normalized window ("daily", "weekly",
+// "monthly", "all-time" or "ranked") into the {window} token's display word,
+// localized so both the successful-reply token and the empty-reply sentence
+// it is interpolated into read as one language.
+func mcsrPbWindowLabel(locale, window string) string {
+	switch window {
+	case "daily":
+		return i18n.T(locale, "mcsr.pb.window.daily")
+	case "weekly":
+		return i18n.T(locale, "mcsr.pb.window.weekly")
+	case "monthly":
+		return i18n.T(locale, "mcsr.pb.window.monthly")
+	case "ranked":
+		return i18n.T(locale, "mcsr.pb.window.ranked")
+	default:
+		return i18n.T(locale, "mcsr.pb.window.alltime")
+	}
+}
+
+// mcsrMsToClock renders a completion time in milliseconds the way the mcsr
+// and paceman providers both do (minutes:seconds.milliseconds), for the one
+// caller here that reads a raw ms value straight from a reply (BestTimeMS)
+// instead of a pre-formatted Time string.
+func mcsrMsToClock(ms int64) string {
+	if ms <= 0 {
+		return ""
+	}
+	minutes := ms / 60000
+	seconds := (ms % 60000) / 1000
+	millis := ms % 1000
+	return fmt.Sprintf("%d:%02d.%03d", minutes, seconds, millis)
 }
