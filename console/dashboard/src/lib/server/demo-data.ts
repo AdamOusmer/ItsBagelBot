@@ -101,18 +101,92 @@ export const demoDelegationReceived = [{ owner_user_id: '42', owner_login: 'ferr
 
 export const demoSavedLocale = DEFAULT_LOCALE;
 
+// The billing demo is a JOURNEY (free -> checkout -> paid -> cancel-pending),
+// not a static fixture, so unlike every other demo* export above this one is
+// mutable module state: a plain `let`, flipped by the mutators below and read
+// back by demoBilling(). It starts FREE on purpose, otherwise the purchase
+// buttons on the billing page would have nothing left to demonstrate. It lives
+// for the process's lifetime (a dev server run), same lifetime as every other
+// in-memory demo store in this file.
+let demoBillingState: BillingState = {
+  active: false,
+  status: 'free',
+  expiresAt: null,
+  source: '',
+  subscriptionRef: null,
+  cancelPending: false
+};
+
 export function demoBilling(): { account: BillingState; links: { cancelUrl: string } } {
   return {
-    account: {
-      active: true,
-      status: 'paid',
-      expiresAt: new Date(Date.now() + 15 * 864e5).toISOString(),
-      source: 'tebex',
-      subscriptionRef: 'tbx-r-demo',
-      cancelPending: false
-    } as BillingState,
+    account: demoBillingState,
     links: { cancelUrl: 'https://example.tebex.io/account' }
   };
+}
+
+// Stands in for the Tebex webhook that would otherwise flip the account async.
+// A 'monthly' purchase gets a subscriptionRef (there is a live subscription to
+// manage/cancel); 'single' does not (it is a one-off month, nothing recurs).
+// Both still expire 30 days out, mirroring one paid month either way.
+export function demoCheckoutComplete(plan: 'monthly' | 'single'): void {
+  demoBillingState = {
+    active: true,
+    status: 'paid',
+    expiresAt: new Date(Date.now() + 30 * 864e5).toISOString(),
+    source: 'tebex',
+    subscriptionRef: plan === 'monthly' ? 'tbx-r-demo' : null,
+    cancelPending: false
+  };
+}
+
+// Mirrors what a real Tebex cancellation does: the plan keeps running until
+// expiresAt, it just will not renew. Only meaningful once a checkout has run.
+export function demoCancelPending(): void {
+  demoBillingState = { ...demoBillingState, cancelPending: true };
+}
+
+// Replays the journey from the top. Exported (not just used internally) so a
+// demo session can be reset without restarting the dev server.
+export function demoBillingReset(): void {
+  demoBillingState = {
+    active: false,
+    status: 'free',
+    expiresAt: null,
+    source: '',
+    subscriptionRef: null,
+    cancelPending: false
+  };
+}
+
+export type DemoTransaction = {
+  id: string;
+  kind: 'premium' | 'gift';
+  plan: 'monthly' | 'single';
+  recipient: string | null;
+  amount: number;
+  currency: string;
+  at: string;
+};
+
+// In-memory ledger, one entry per completed fake checkout. Nothing renders it
+// yet: it exists so the demo journey leaves a real record behind, the same way
+// a Tebex webhook would leave one in the transactions service, for a future
+// history UI to read.
+export const demoTransactions: DemoTransaction[] = [];
+
+// Both plans price the same $7 per paid month in this demo (matches the
+// billing page's displayed price); only the recurrence differs, and that is
+// captured on the billing state itself, not here.
+export function demoRecordTransaction(kind: 'premium' | 'gift', plan: 'monthly' | 'single', recipient: string | null): void {
+  demoTransactions.push({
+    id: `demo-tx-${demoTransactions.length + 1}`,
+    kind,
+    plan,
+    recipient,
+    amount: 7,
+    currency: 'CAD',
+    at: new Date().toISOString()
+  });
 }
 
 // Demo book so the quotes tab renders without a live backend.

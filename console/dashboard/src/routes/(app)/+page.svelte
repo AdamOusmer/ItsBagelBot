@@ -6,7 +6,7 @@
   import { page } from '$app/state';
   import { Button, Card, ButtonLink, Modal, Skeleton, getI18n, connectionUiState, toast, type ConnSignals, type ConnUi } from '@bagel/shared';
   import type { ActionResult } from '@sveltejs/kit';
-  import OnboardingModal from '$lib/components/OnboardingModal.svelte';
+  import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
   import OverviewHead from '$lib/components/overview/OverviewHead.svelte';
   import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
   import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
@@ -332,7 +332,7 @@
 </section>
 
 <!-- First-visit setup stepper -->
-<OnboardingModal open={onboardOpen} onDone={finishOnboarding} />
+<OnboardingGuide open={onboardOpen} name={data.displayName ?? data.login} onDone={finishOnboarding} />
 
 <form method="POST" action="?/onboarded" use:enhance bind:this={onboardForm} hidden></form>
 

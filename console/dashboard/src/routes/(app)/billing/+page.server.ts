@@ -29,6 +29,18 @@ function billingActor(s: Session | null | undefined): { id: string; login: strin
   return { id: s.user_id, login: s.login };
 }
 
+// The preamble every billing action shares: signed in, and allowed to spend on
+// this account. Returns the actor or the refusal, so an action states the rule
+// once instead of unpacking it in two branches of its own.
+function billingGate(
+  s: Session | null | undefined
+): { ok: true; actor: { id: string; login: string } } | { ok: false; status: number; error: string } {
+  if (!s) return { ok: false, status: 401, error: 'Not signed in.' };
+  const actor = billingActor(s);
+  if (!actor) return { ok: false, status: 403, error: 'You do not have access to manage billing.' };
+  return { ok: true, actor };
+}
+
 type BillingLinks = {
   cancelUrl: string | null;
 };
@@ -46,6 +58,139 @@ function optionalHttpsURL(value: string | undefined): string | null {
 function links(): BillingLinks {
   return {
     cancelUrl: optionalHttpsURL(env.TEBEX_CANCEL_URL)
+  };
+}
+
+// 'monthly' or anything else (the "buy one month" button posts 'once'),
+// pulled out so the subscribe action's own DEMO branch stays a single line.
+function subscribePlan(form: FormData): 'monthly' | 'single' {
+  return form.get('plan') === 'monthly' ? 'monthly' : 'single';
+}
+
+// One set of recipient rules for both paths, demo and live. Returns plain data
+// rather than calling fail() itself: SvelteKit infers each action's ActionData
+// from fail() calls written directly inside that action, so fail() is still
+// called at the gift action's own call sites below.
+type GiftFormError = { gift: true; error: string; recipient: string; message: string };
+type GiftFailure = { ok: false; status: number; data: GiftFormError };
+
+function giftValidate(form: FormData): { ok: true; recipient: string; message: string } | GiftFailure {
+  const recipient = String(form.get('recipient') ?? '').trim();
+  const message = String(form.get('message') ?? '').trim().slice(0, 280);
+  if (!recipient) {
+    return { ok: false, status: 400, data: { gift: true, error: 'Enter the Twitch username to gift to.', recipient, message } };
+  }
+  if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
+    return { ok: false, status: 400, data: { gift: true, error: 'That does not look like a Twitch username.', recipient, message } };
+  }
+  if (message && containsLink(message)) {
+    return {
+      ok: false,
+      status: 400,
+      data: { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message }
+    };
+  }
+  return { ok: true, recipient, message };
+}
+
+// Never send an already-premium account to Tebex: a staff-granted period, an
+// active Tebex entitlement, or a VIP grant must run out before a new charge is
+// possible. Returns the refusal to surface, or null when the sale may proceed.
+async function premiumAlreadyHeld(
+  ownerId: string
+): Promise<{ status: number; data: { error: string } } | null> {
+  try {
+    const state = await billingState(ownerId);
+    if (state.status === 'free') return null;
+    return {
+      status: 409,
+      data: {
+        error:
+          'This account already has premium. Subscribing again is blocked so nobody is double-charged.'
+      }
+    };
+  } catch {
+    return { status: 502, data: { error: 'Could not verify the current plan. Try again in a moment.' } };
+  }
+}
+
+// Cancellation only means something for a live Tebex subscription: a
+// staff-granted period or a VIP grant has nothing to cancel, and neither does a
+// free account. Returns the refusal to surface, or null when the redirect out
+// to Tebex-hosted management is the right answer.
+async function tebexSubscriptionMissing(
+  ownerId: string
+): Promise<{ status: number; data: { error: string } } | null> {
+  try {
+    const state = await billingState(ownerId);
+    if (state.status === 'paid' && state.source === 'tebex') return null;
+    return {
+      status: 409,
+      data: { error: 'There is no Tebex subscription to cancel for this account.' }
+    };
+  } catch {
+    return { status: 502, data: { error: 'Could not verify the current plan. Try again in a moment.' } };
+  }
+}
+
+// Entitlement is attributed to the owner; Tebex collects payment from whoever
+// completes checkout. Null means no usable URL came back, which the caller
+// turns into the one user-facing failure this has.
+async function subscribeCheckout(
+  actor: { id: string; login: string },
+  packageType: 'subscription' | 'single',
+  ipAddress: string
+): Promise<string | null> {
+  try {
+    const basket = await checkoutBasketCreate({
+      userId: actor.id,
+      username: actor.login,
+      ipAddress,
+      packageType
+    });
+    return optionalHttpsURL(basket.checkoutUrl ?? undefined);
+  } catch (err) {
+    logger.error({ err }, '[billing] basket create failed');
+    return null;
+  }
+}
+
+// The basket call and its failure mapping, lifted out of the action. The RPC's
+// own error strings are user-facing (the transactions service vets the
+// recipient: registered, not banned, not already premium), while anything else
+// is ours to log and generalise.
+async function giftCheckout(
+  session: { user_id: string; login: string },
+  recipient: string,
+  message: string,
+  ipAddress: string
+): Promise<{ ok: true; url: string } | GiftFailure> {
+  try {
+    const basket = await checkoutBasketCreate({
+      userId: session.user_id,
+      username: session.login,
+      recipientUsername: recipient,
+      ipAddress,
+      giftMessage: message
+    });
+    const url = optionalHttpsURL(basket.checkoutUrl ?? undefined);
+    if (url) return { ok: true, url };
+  } catch (err) {
+    if (err instanceof RpcError) {
+      logger.warn({ err }, `[billing] gift rejected for ${session.user_id} -> ${recipient}`);
+      return { ok: false, status: 409, data: { gift: true, error: err.message, recipient, message } };
+    }
+    logger.error({ err }, '[billing] gift basket create failed');
+  }
+  return {
+    ok: false,
+    status: 502,
+    data: {
+      gift: true,
+      error: 'Gifting is not available right now. Try again in a moment.',
+      recipient,
+      message
+    }
   };
 }
 
@@ -98,45 +243,28 @@ export const actions: Actions = {
   // not fall back to a static package URL that could charge without attributing
   // the resulting entitlement.
   subscribe: async ({ locals, request, getClientAddress }) => {
-    const s = locals.session;
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    const actor = billingActor(s);
-    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
+    // Demo stands in for Tebex-hosted checkout with our own fake checkout page,
+    // so the whole purchase journey is clickable without a session or an RPC.
+    // Guarded on the module-level DEMO const (dev + env.DEMO), same as the load.
+    if (DEMO) {
+      const plan = subscribePlan(await request.formData());
+      throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
+    }
+
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { error: gate.error });
+    const actor = gate.actor;
 
     // 'monthly' = auto-renewing subscription, anything else = one paid month.
     // Recurring billing only ever happens on an explicit monthly choice.
-    const form = await request.formData();
-    const packageType = form.get('plan') === 'monthly' ? 'subscription' : 'single';
+    const packageType = subscribePlan(await request.formData()) === 'monthly' ? 'subscription' : 'single';
 
-    // Never send an already-premium account to Tebex: a staff-granted period,
-    // active Tebex entitlement, or VIP grant must run out before a new charge is
-    // possible. Checked against the owner's account (actor.id).
-    try {
-      const state = await billingState(actor.id);
-      if (state.status !== 'free') {
-        return fail(409, { error: 'This account already has premium. Subscribing again is blocked so nobody is double-charged.' });
-      }
-    } catch {
-      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
-    }
+    const blocked = await premiumAlreadyHeld(actor.id);
+    if (blocked) return fail(blocked.status, blocked.data);
 
-    let checkoutUrl: string | null = null;
-    try {
-      // Entitlement is attributed to the owner (actor.id); Tebex collects payment
-      // from whoever completes checkout.
-      const basket = await checkoutBasketCreate({
-        userId: actor.id,
-        username: actor.login,
-        ipAddress: getClientAddress(),
-        packageType
-      });
-      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    } catch (err) {
-      logger.error({ err }, '[billing] basket create failed');
-    }
-
-    if (!checkoutUrl) return fail(503, { error: 'Subscriptions are not available right now.' });
-    throw redirect(303, checkoutUrl);
+    const url = await subscribeCheckout(actor, packageType, getClientAddress());
+    if (!url) return fail(503, { error: 'Subscriptions are not available right now.' });
+    throw redirect(303, url);
   },
 
   // Gift premium to another registered user. The transactions service resolves
@@ -144,73 +272,51 @@ export const actions: Actions = {
   // already premium); its error strings are user-facing, so surface them
   // verbatim on the gift form. The buyer's own plan does not gate gifting.
   gift: async ({ locals, request, getClientAddress }) => {
-    const s = locals.session;
-    if (!s) return fail(401, { gift: true, error: 'Not signed in.' });
-    // A gift is the buyer's own purchase (they pay, the recipient gets premium),
-    // so the buyer stays the acting session user below — but access is still
-    // gated to owners + billing-granted delegates.
-    if (!billingActor(s)) return fail(403, { gift: true, error: 'You do not have access to manage billing.' });
-
-    const form = await request.formData();
-    const recipient = String(form.get('recipient') ?? '').trim();
-    // Optional personal note. Capped here as defence-in-depth (the textarea caps
-    // it client-side and the transactions service caps + sanitizes again); empty
-    // falls back to the default gift email copy. Echoed back on failures so the
-    // gift modal can repopulate after a plain-form re-render.
-    const message = String(form.get('message') ?? '').trim().slice(0, 280);
-
-    if (!recipient) return fail(400, { gift: true, error: 'Enter the Twitch username to gift to.', recipient, message });
-    if (!/^@?[A-Za-z0-9_]{3,25}$/.test(recipient)) {
-      return fail(400, { gift: true, error: 'That does not look like a Twitch username.', recipient, message });
-    }
-    // No links in the gift note: it is emailed to the recipient, so a link (or
-    // any obfuscated form) is refused here as well as in the transactions
-    // service. Mirrors @bagel/shared/validation used live on the client.
-    if (message && containsLink(message)) {
-      return fail(400, { gift: true, error: "Gift notes can't contain links or web addresses. Please remove it and try again.", recipient, message });
+    // Same validation as the live path (so the gift modal's errors behave
+    // identically in demo), then hand off to our own fake checkout instead of
+    // minting a Tebex basket.
+    if (DEMO) {
+      const validated = giftValidate(await request.formData());
+      if (!validated.ok) return fail(validated.status, validated.data);
+      throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
     }
 
-    let checkoutUrl: string | null = null;
-    try {
-      const basket = await checkoutBasketCreate({
-        userId: s.user_id,
-        username: s.login,
-        recipientUsername: recipient,
-        ipAddress: getClientAddress(),
-        giftMessage: message
-      });
-      checkoutUrl = optionalHttpsURL(basket.checkoutUrl ?? undefined);
-    } catch (err) {
-      if (err instanceof RpcError) {
-        logger.warn({ err }, `[billing] gift rejected for ${s.user_id} -> ${recipient}`);
-        return fail(409, { gift: true, error: err.message, recipient, message });
-      }
-      logger.error({ err }, '[billing] gift basket create failed');
-    }
+    // A gift is the buyer's own purchase (they pay, the recipient gets
+    // premium), so the buyer stays the acting session user — but access is
+    // still gated to owners + billing-granted delegates.
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });
+    const s = locals.session!;
 
-    if (!checkoutUrl) return fail(502, { gift: true, error: 'Gifting is not available right now. Try again in a moment.', recipient, message });
-    throw redirect(303, checkoutUrl);
+    const validated = giftValidate(await request.formData());
+    if (!validated.ok) return fail(validated.status, validated.data);
+
+    const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress());
+    if (!checkout.ok) return fail(checkout.status, checkout.data);
+    throw redirect(303, checkout.url);
   },
 
   // Cancellation/account management lives on Tebex. We still gate the button
   // behind an owner session so delegated or view-as sessions cannot act on it.
   cancel: async ({ locals }) => {
-    const s = locals.session;
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    const actor = billingActor(s);
-    if (!actor) return fail(403, { error: 'You do not have access to manage billing.' });
+    // A real cancellation just redirects out to Tebex-hosted management; the
+    // demo has nowhere to redirect to, so it flips cancelPending itself and
+    // sends the browser straight back.
+    if (DEMO) {
+      const { demoCancelPending } = await import('$lib/server/demo-data');
+      demoCancelPending();
+      throw redirect(303, '/billing');
+    }
+
+    const gate = billingGate(locals.session);
+    if (!gate.ok) return fail(gate.status, { error: gate.error });
+    const actor = gate.actor;
 
     const url = links().cancelUrl;
     if (!url) return fail(503, { error: 'Subscription management is not available right now.' });
 
-    try {
-      const state = await billingState(actor.id);
-      if (state.status !== 'paid' || state.source !== 'tebex') {
-        return fail(409, { error: 'There is no Tebex subscription to cancel for this account.' });
-      }
-    } catch {
-      return fail(502, { error: 'Could not verify the current plan. Try again in a moment.' });
-    }
+    const blocked = await tebexSubscriptionMissing(actor.id);
+    if (blocked) return fail(blocked.status, blocked.data);
 
     throw redirect(303, url);
   }
