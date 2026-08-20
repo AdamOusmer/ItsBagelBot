@@ -163,6 +163,11 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[6], UsersColumns[10], UsersColumns[11]},
 			},
+			{
+				Name:    "user_username",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[1]},
+			},
 		},
 	}
 	// Tables holds all the tables in the schema.

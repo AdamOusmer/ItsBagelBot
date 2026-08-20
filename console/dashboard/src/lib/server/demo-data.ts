@@ -32,6 +32,7 @@ import type { BillingState, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { PublicStats } from './public-stats';
+import type { PublicBoards } from './public-boards';
 import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
@@ -336,7 +337,7 @@ export function demoCommandDigest(digest: (rows: CommandView[]) => Omit<CommandD
   return { ...digest(demoDigestRows), ok: true };
 }
 
-// Public channel profile (/user/[userId]).
+// Public channel profile (/user/[channel]).
 export const demoCreatorCode = 'MAVEY10';
 
 export const demoPublicCommands = [
@@ -384,6 +385,33 @@ export function demoStats(now: number): PublicStats {
     events_total: Math.floor(2_430_000_000 + secs * 137),
     msg_rate: msgRate,
     event_rate: eventRate,
+    degraded: false
+  };
+}
+
+// The two public leaderboards, as a fixed ranking: they are a slow lifetime
+// view, so a demo does not need them to move.
+const DEMO_CHANNELS = [
+  { id: '11', name: 'bagelwatch', messages: 41_882_301, events: 68_004_112, feeds: 9_144 },
+  { id: '12', name: 'nightcrust', messages: 28_100_774, events: 45_930_615, feeds: 7_820 },
+  { id: '13', name: 'sourdoughgg', messages: 19_774_003, events: 31_006_884, feeds: 6_401 },
+  { id: '14', name: 'poppyseed_tv', messages: 12_440_918, events: 20_118_733, feeds: 4_990 },
+  { id: '15', name: 'everythingbagel', messages: 8_902_551, events: 15_772_400, feeds: 3_318 },
+  { id: '16', name: 'lox_and_key', messages: 6_113_204, events: 10_884_009, feeds: 2_744 },
+  { id: '17', name: 'schmear_tactics', messages: 4_502_886, events: 7_990_115, feeds: 1_902 },
+  { id: '18', name: 'toastmodern', messages: 3_118_440, events: 5_442_007, feeds: 1_388 },
+  { id: '19', name: 'proofingroom', messages: 2_004_119, events: 3_871_552, feeds: 940 },
+  { id: '20', name: 'crumbcam', messages: 1_442_007, events: 2_660_884, feeds: 611 }
+];
+
+export function demoBoards(): PublicBoards {
+  return {
+    channels: DEMO_CHANNELS.map(({ id, name, messages, events }) => ({ id, name, messages, events })),
+    feed: {
+      total: DEMO_CHANNELS.reduce((sum, c) => sum + c.feeds, 0),
+      ranked: 57,
+      entries: DEMO_CHANNELS.map(({ id, name, feeds }) => ({ id, name, count: feeds }))
+    },
     degraded: false
   };
 }
