@@ -51,6 +51,15 @@ type CounterEntry struct {
 	Value       int64  `json:"value"`
 }
 
+// CounterRank is one channel's place on a fleet-wide counter board, as
+// counter.board returns them (highest first). The board crosses broadcasters
+// (every channel that ever bumped the named counter), so the row is keyed by
+// the owning broadcaster rather than by a viewer.
+type CounterRank struct {
+	UserID string `json:"user_id"`
+	Value  int64  `json:"value"`
+}
+
 // Reply is the reply shape for every loyalty verb; verbs fill only their
 // fields. A missing row is not an error: balance.get returns a zero Balance,
 // counter.get sets Found=false so the caller can distinguish "0" from "no such
@@ -61,6 +70,7 @@ type Reply struct {
 	Counter  *Counter       `json:"counter,omitempty"`
 	Counters []Counter      `json:"counters,omitempty"`
 	Entries  []CounterEntry `json:"entries,omitempty"`
+	Board    []CounterRank  `json:"board,omitempty"`
 	Found    bool           `json:"found,omitempty"`
 	Error    string         `json:"error,omitempty"`
 }

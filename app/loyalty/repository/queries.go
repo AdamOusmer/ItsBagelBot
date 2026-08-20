@@ -48,6 +48,23 @@ func ValidCounterName(name string) (string, error) {
 	return n, nil
 }
 
+// writableCounterName validates a name for a write verb and, for a real
+// broadcaster, refuses the system-owned fleet stats names (data.SystemCounter).
+// Those rows are written for every channel by sesame and ranked on the public
+// stats boards, so letting a channel create, set, rename or delete its own row
+// would let it edit a public leaderboard. The bot namespace (user 0) keeps full
+// control: that is the admin console's counter surface.
+func writableCounterName(userID uint64, name string) (string, error) {
+	n, err := ValidCounterName(name)
+	if err != nil {
+		return "", err
+	}
+	if userID != 0 && data.SystemCounter(n) {
+		return "", fmt.Errorf("%w: reserved counter name", ErrInvalidInput)
+	}
+	return n, nil
+}
+
 // ValidScope reports the canonical scope, defaulting empty to channel.
 func ValidScope(scope string) (string, error) {
 	switch scope {
@@ -265,12 +282,46 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	return row, entry.Value, true, nil
 }
 
-// CountersList returns the channel's counter definitions.
+// CountersList returns the channel's counter definitions. The system-owned
+// fleet stats rows sesame writes on every channel are left out: the broadcaster
+// cannot edit them (writableCounterName), so listing them would only offer a
+// dashboard row whose every action fails. The bot namespace still sees them —
+// that is where the admin console manages the fleet totals.
 func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Counter, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
+		q := r.client.Counter.Query().Where(counter.UserIDEQ(userID))
+		if userID != 0 {
+			q = q.Where(counter.NameNotIn(data.CounterMessagesProcessed, data.CounterEventsProcessed))
+		}
+		return q.Order(counter.ByName()).All(ctx)
+	})
+}
+
+// CounterBoard ranks every channel that holds the named channel-scope counter,
+// highest value first — the cross-broadcaster read behind the public stats
+// boards, where one counter name (say "messages_processed") is written by every
+// channel and the interesting answer is who leads.
+//
+// The reserved bot namespace (user 0) is excluded: it holds the fleet-wide
+// total of the same counter name, which would otherwise take rank 1 forever.
+// Entry-scoped rows are excluded too — their Value column is an unused 0.
+//
+// Backed by the (name, value) index; without it this is a full scan of the
+// counters table, which is why the index ships with this query.
+func (r *Loyalty) CounterBoard(ctx context.Context, name string, limit int) ([]*ent.Counter, error) {
+	n, err := ValidCounterName(name)
+	if err != nil {
+		return nil, err
+	}
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
 		return r.client.Counter.Query().
-			Where(counter.UserIDEQ(userID)).
-			Order(counter.ByName()).
+			Where(
+				counter.NameEQ(n),
+				counter.UserIDNEQ(0),
+				counter.ScopeEQ(data.CounterScopeChannel),
+			).
+			Order(counter.ByValue(entsql.OrderDesc()), counter.ByUserID()).
+			Limit(clampLimit(limit)).
 			All(ctx)
 	})
 }
@@ -278,7 +329,7 @@ func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Count
 // CounterCreate upserts a counter definition. An existing counter keeps its
 // value and scope (create is idempotent, not a reset).
 func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope string) (*ent.Counter, error) {
-	n, err := ValidCounterName(name)
+	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +374,9 @@ type SetTarget struct {
 // resets the whole counter (deletes every entry), the "!counter reset"
 // semantics. A missing counter is (false, nil).
 func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, target SetTarget, value int64) (bool, error) {
+	if _, err := writableCounterName(userID, name); err != nil {
+		return false, err
+	}
 	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
 	if err != nil || !found {
 		return found, err
@@ -369,6 +423,9 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, ta
 // (no such bucket) holds either way. The worker's live Valkey view converges
 // the same way a delete does: TTL expiry, or re-seed on the next cold read.
 func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name string, target SetTarget) (bool, error) {
+	if _, err := writableCounterName(userID, name); err != nil {
+		return false, err
+	}
 	row, _, found, err := r.CounterGet(ctx, userID, name, 0, "")
 	if err != nil || !found {
 		return found, err
@@ -411,11 +468,11 @@ func normalizeLogin(login string) string {
 // same way a delete does: TTL expiry, or re-seed from the service on the next
 // cold read.
 func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newName string) (bool, error) {
-	n, err := ValidCounterName(name)
+	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return false, err
 	}
-	nn, err := ValidCounterName(newName)
+	nn, err := writableCounterName(userID, newName)
 	if err != nil || nn == n {
 		return false, fmt.Errorf("%w: new name", ErrInvalidInput)
 	}
@@ -461,7 +518,7 @@ func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) 
 
 // CounterDelete removes a counter and its viewer entries.
 func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string) error {
-	n, err := ValidCounterName(name)
+	n, err := writableCounterName(userID, name)
 	if err != nil {
 		return err
 	}

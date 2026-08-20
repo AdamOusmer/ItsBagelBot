@@ -80,7 +80,11 @@ func readFeedBoard(ctx context.Context, repo *repository.Personality, req module
 	if err != nil {
 		return modulesrpc.FeedBoardReply{}, err
 	}
-	reply := modulesrpc.FeedBoardReply{Entries: board, Ranked: ranked}
+	total, err := repo.FeedTotal(ctx)
+	if err != nil {
+		return modulesrpc.FeedBoardReply{}, err
+	}
+	reply := modulesrpc.FeedBoardReply{Entries: board, Total: total, Ranked: ranked}
 	if req.BroadcasterID == 0 {
 		return reply, nil
 	}

@@ -140,6 +140,13 @@ func (r *LoyaltyReporter) BumpBot(name string, delta int64) {
 	r.Bump(0, name, data.CounterScopeBot, Viewer{}, "", delta)
 }
 
+// BumpChannel records one channel-scope counter delta for a broadcaster: the
+// pipeline's per-channel traffic split, which needs neither a viewer nor a
+// command bucket and so does not carry the full Bump signature.
+func (r *LoyaltyReporter) BumpChannel(broadcasterID uint64, name string, delta int64) {
+	r.Bump(broadcasterID, name, data.CounterScopeChannel, Viewer{}, "", delta)
+}
+
 // Bump records one counter delta. command keys the bucket of a command /
 // viewer+command bump ("" everywhere else). viewer carries the chatter's
 // display identity when the source knew it. Broadcaster 0 is the reserved bot

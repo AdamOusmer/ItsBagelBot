@@ -128,7 +128,22 @@
     "eventRateLabel": "Événements par seconde",
     "perSecond": "/s",
     "liveNote": "Comptage en direct",
-    "degraded": "Les compteurs en direct sont momentanément indisponibles : les chiffres ci-dessous ne sont donc pas à jour. Ils se remettront à niveau tout seuls."
+    "degraded": "Les compteurs en direct sont momentanément indisponibles : les chiffres ci-dessous ne sont donc pas à jour. Ils se remettront à niveau tout seuls.",
+    "boardsEyebrow": "Par chaîne",
+    "trafficBoardTitle": "Chaînes les plus actives",
+    "trafficBoardNote": "Classées selon les messages de chat traités depuis l'arrivée du bot.",
+    "feedBoardTitle": "Nourrir le bagel",
+    "feedBoardNote": "Un seul bagel, nourri par toutes les chaînes.",
+    "feedTotalLabel": "Repas, depuis toujours",
+    "feedRankedNote": "{count} chaînes l'ont nourri.",
+    "colRank": "#",
+    "colChannel": "Chaîne",
+    "colMessages": "Messages",
+    "colEvents": "Événements",
+    "unknownChannel": "Chaîne sans nom",
+    "boardEmpty": "Pas encore de classement : le tableau se remplit à mesure que les chaînes accumulent du trafic.",
+    "feedBoardEmpty": "Personne n'a encore nourri le bagel.",
+    "rightNow": "en ce moment"
   },
   "overview": {
     "statusHeading": "État du bot",

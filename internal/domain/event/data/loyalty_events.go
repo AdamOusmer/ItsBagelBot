@@ -30,6 +30,22 @@ const (
 	CounterScopeViewerCommand = "viewer_command"
 )
 
+// The two counter names sesame writes for everyone: once fleet-wide in the bot
+// namespace, and once per channel behind the public stats boards. They are
+// system-owned — the loyalty service refuses to create, set, rename or delete
+// them for a broadcaster, and keeps them out of the dashboard's counter list —
+// so a channel cannot edit its own standing on a public leaderboard.
+const (
+	CounterMessagesProcessed = "messages_processed"
+	CounterEventsProcessed   = "events_processed"
+)
+
+// SystemCounter reports whether a counter name belongs to the fleet stats set
+// above rather than to the broadcaster whose row holds it.
+func SystemCounter(name string) bool {
+	return name == CounterMessagesProcessed || name == CounterEventsProcessed
+}
+
 // LoyaltyEarnEntry is one viewer's summed accrual inside a flush window:
 // points from subs/cheers/watch ticks plus the watch seconds the window
 // covered. Login/name are carried when the source event knew them so the
