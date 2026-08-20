@@ -169,3 +169,23 @@ func TestValidScope(t *testing.T) {
 	_, err = ValidScope("global")
 	assert.ErrorIs(t, err, ErrInvalidInput)
 }
+
+// The fleet stats names are system-owned: a broadcaster may not create, set,
+// rename or delete the row that ranks it on a public leaderboard, and the
+// name normalization must not offer a way around the guard. The bot namespace
+// (the admin console's counter surface) keeps full control.
+func TestWritableCounterNameReservesSystemCounters(t *testing.T) {
+	_, err := writableCounterName(123, data.CounterMessagesProcessed)
+	require.ErrorIs(t, err, ErrInvalidInput)
+
+	_, err = writableCounterName(123, "  !Messages_Processed ")
+	require.ErrorIs(t, err, ErrInvalidInput)
+
+	n, err := writableCounterName(0, data.CounterEventsProcessed)
+	require.NoError(t, err)
+	assert.Equal(t, data.CounterEventsProcessed, n)
+
+	n, err = writableCounterName(123, "deaths")
+	require.NoError(t, err)
+	assert.Equal(t, "deaths", n)
+}

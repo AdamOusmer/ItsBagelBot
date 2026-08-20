@@ -149,14 +149,16 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
-	// Bot-wide lifetime totals count everything that decoded, filtered or not.
-	p.stats.count(env.Type == chatType)
+	// Bot-wide lifetime totals count everything that decoded, filtered or not,
+	// and the same line splits them per channel for the public board. An
+	// envelope whose broadcaster id will not parse still counts fleet-wide.
+	broadcasterID, ok := env.BroadcasterID()
+	p.stats.count(broadcasterID, env.Type == chatType)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
 	}
 
-	broadcasterID, ok := env.BroadcasterID()
 	if !ok {
 		traceResult(ctx, "invalid")
 		return nil

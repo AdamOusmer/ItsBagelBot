@@ -59,6 +59,11 @@ var (
 				Unique:  true,
 				Columns: []*schema.Column{CountersColumns[1], CountersColumns[2]},
 			},
+			{
+				Name:    "counter_name_value",
+				Unique:  false,
+				Columns: []*schema.Column{CountersColumns[2], CountersColumns[4]},
+			},
 		},
 	}
 	// CounterEntriesColumns holds the columns for the "counter_entries" table.
