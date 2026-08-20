@@ -80,7 +80,7 @@ for (const surface of data.surfaces) {
                 <small class="hint" id="cb-name-hint">{ui.nameHint}</small>
             </div>
 
-            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea rows="4" maxlength="2504" data-template></textarea></label>
+            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea id="cb-template" name="template" rows="4" maxlength="2504" data-template></textarea></label>
             <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
 
             <section class="palette">
@@ -95,13 +95,13 @@ for (const surface of data.surfaces) {
                 <div class="more-grid">
                     <div class="span2"><label for="cb-aliases">{ui.aliasLabel}</label><input id="cb-aliases" placeholder="hi, heya" data-aliases aria-describedby="cb-alias-hint" /><small class="hint" id="cb-alias-hint">{ui.aliasHint}</small></div>
                     <label>{ui.permLabel}
-                        <select data-perm>
+                        <select id="cb-perm" name="perm" data-perm>
                             {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
                         </select>
                     </label>
                     <div><label for="cb-cooldown">{ui.cooldownLabel}</label><input id="cb-cooldown" type="number" min="0" max="86400" value="0" data-cooldown aria-describedby="cb-cd-hint" /><small class="hint" id="cb-cd-hint">{ui.cooldownHint}</small></div>
                     <label class="span2">{ui.styleLabel}
-                        <select data-style>
+                        <select id="cb-style" name="style" data-style>
                             {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
                         </select>
                     </label>
@@ -521,12 +521,17 @@ for (const surface of data.surfaces) {
             const nameInput = document.createElement('input');
             nameInput.type = 'text';
             nameInput.className = 'ctr-name';
+            // Named so the field is not anonymous to the browser (Chrome flags
+            // id-less, name-less form fields); defaultName comes from the var's
+            // {counter:x} token, which is unique per card.
+            nameInput.name = `counter-${defaultName}-name`;
             nameInput.placeholder = defaultName;
             nameInput.maxLength = data.limits.nameMax;
             nameInput.setAttribute('aria-label', ui.counterNameAria);
 
             const scopeSelect = document.createElement('select');
             scopeSelect.className = 'ctr-scope';
+            scopeSelect.name = `counter-${defaultName}-scope`;
             scopeSelect.setAttribute('aria-label', ui.counterScopeAria);
             for (const scope of scopes) {
                 const opt = document.createElement('option');
