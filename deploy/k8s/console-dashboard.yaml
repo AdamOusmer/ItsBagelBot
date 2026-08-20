@@ -116,7 +116,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787158747-2d0ce71070ff
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787189317-f36094537fd7
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
