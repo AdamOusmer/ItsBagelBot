@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
@@ -34,6 +35,11 @@ const (
 	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
 	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
 
+	defaultMcsrLastMatchTemplate = "{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago"
+	defaultMcsrRecordTemplate    = "{playera} {winsa} - {winsb} {playerb} · {played} played"
+	defaultMcsrLbTemplate        = "{board}: {list}"
+	defaultMcsrRaceTemplate      = "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
+
 	// PaceMan-backed templates. PaceMan is a separate upstream from MCSR
 	// Ranked (its own gossip provider, its own cache/rate-limit budget) but
 	// the commands stay on this module: "which Minecraft player" is one
@@ -60,6 +66,15 @@ type mcsrConfig struct {
 	NethersMessage  string `json:"nethersMessage"`
 	LastFortEnabled string `json:"lastFortEnabled"`
 	LastFortMessage string `json:"lastFortMessage"`
+
+	LastMatchEnabled string `json:"lastMatchEnabled"`
+	LastMatchMessage string `json:"lastMatchMessage"`
+	RecordEnabled    string `json:"recordEnabled"`
+	RecordMessage    string `json:"recordMessage"`
+	LbEnabled        string `json:"lbEnabled"`
+	LbMessage        string `json:"lbMessage"`
+	RaceEnabled      string `json:"raceEnabled"`
+	RaceMessage      string `json:"raceMessage"`
 }
 
 // Mcsr owns the MCSR Ranked commands backed by the gossip service. It is a
@@ -70,6 +85,13 @@ type mcsrConfig struct {
 // since the stream started). The session baseline is snapshotted when
 // stream.online arrives — gossip stores the player's standing keyed by
 // this channel — so "this stream" is exactly the live session's duration.
+//
+// !lastmatch (most recent match result), !record (head-to-head totals
+// between two players) and !lb (top of the elo/phase/record leaderboards)
+// round out the MCSR Ranked surface; !race answers from the separate
+// weekly-race pool. !elo, !lastmatch, !record and !lb all accept a trailing
+// "season:<n>" argument token (parseMcsrSeason) to look at a past season
+// instead of the current one.
 //
 // !pace, !nethers and !lastfort ride the same linked account but answer
 // through the paceman gossip provider instead: PaceMan.gg tracks live
@@ -93,6 +115,14 @@ func Mcsr(d engine.Deps) module.Module {
 		Run(mcsrNethersRun(d))
 	m.Command("lastfort").Everyone().Cooldown(mcsrCooldown).Aliases("lastpace", "previousfort").
 		Run(mcsrLastFortRun(d))
+	m.Command("lastmatch").Everyone().Cooldown(mcsrCooldown).Aliases("rankedmatch").
+		Run(mcsrLastMatchRun(d))
+	m.Command("record").Everyone().Cooldown(mcsrCooldown).Aliases("matchrecord").
+		Run(mcsrRecordRun(d))
+	m.Command("lb").Everyone().Cooldown(mcsrCooldown).Aliases("leaderboard", "rankedlb").
+		Run(mcsrLbRun(d))
+	m.Command("race").Everyone().Cooldown(mcsrCooldown).Aliases("weeklyrace").
+		Run(mcsrRaceRun(d))
 
 	// Snapshot the linked account's standing the moment the stream goes online.
 	// The pipeline only runs this when the module is enabled, and it wires the
@@ -136,9 +166,11 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 			return nil
 		}
 
-		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		rest, season := parseMcsrSeason(args)
+		account := resolveAccount(accountSources{Arg: rest, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		var reply gossiprpc.McsrUserReply
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "user"}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
+		req := gossiprpc.Request{Account: account, Season: season, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "user"}, req, &reply); err != nil {
 			if chatReplyError(c, emit, account, err) {
 				return nil
 			}
@@ -482,5 +514,395 @@ func mcsrAge(seconds int64) string {
 		return strconv.FormatInt(seconds/3600, 10) + "h"
 	default:
 		return strconv.FormatInt(seconds/86400, 10) + "d"
+	}
+}
+
+// parseMcsrSeason splits a trailing "season:<n>" token off a command's typed
+// argument string. It is shared by !elo, !lastmatch, !record and !lb: all
+// four forward Season on their gossip request, so the parsing lives once
+// here instead of once per command. Returns the args with that token
+// removed (so the remaining text still resolves cleanly as a player name)
+// and the parsed season, or 0 when no valid token was present — gossip then
+// omits Season and the provider defaults to "current season", identical to
+// today's behavior when nobody types the token at all.
+func parseMcsrSeason(args string) (rest string, season int) {
+	fields := strings.Fields(args)
+	kept := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if season == 0 {
+			if n, ok := mcsrSeasonValue(f); ok {
+				season = n
+				continue
+			}
+		}
+		kept = append(kept, f)
+	}
+	return strings.Join(kept, " "), season
+}
+
+// mcsrSeasonPrefix is the token prefix parseMcsrSeason looks for.
+const mcsrSeasonPrefix = "season:"
+
+func mcsrSeasonValue(field string) (int, bool) {
+	if !strings.HasPrefix(strings.ToLower(field), mcsrSeasonPrefix) {
+		return 0, false
+	}
+	n, err := strconv.Atoi(field[len(mcsrSeasonPrefix):])
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+// mcsrLastMatchRun answers !lastmatch with the player's most recent match.
+// Template tokens: {player} {opponent} {result} {time} {seed} {structure}
+// {elochange} {ago}. No matches at all is a normal MCSR answer (a brand-new
+// player), not an error, so it gets a plain i18n line instead of a template
+// full of blanks.
+func mcsrLastMatchRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.LastMatchEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		rest, season := parseMcsrSeason(args)
+		account := resolveAccount(accountSources{Arg: rest, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply gossiprpc.McsrLastMatchReply
+		req := gossiprpc.Request{Account: account, Season: season, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "last_match"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emit(&module.Output{
+				Type:          outgress.TypeChat,
+				BroadcasterID: c.Env.BroadcasterUserID,
+				Text:          reply.Player + ": " + i18n.T(c.Locale, "mcsr.lastmatch.empty"),
+			})
+			return nil
+		}
+
+		tmpl := orDefault(cfg.LastMatchMessage, defaultMcsrLastMatchTemplate)
+		msg := module.ExpandString(tmpl, mcsrLastMatchTokens(c.Locale, reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// mcsrLastMatchTokens is split across two switches (summary vs. per-match
+// detail) so neither half is the thing that trips the complexity gate, same
+// as mcsrPaceTokens above.
+func mcsrLastMatchTokens(locale string, reply gossiprpc.McsrLastMatchReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		if v, ok := mcsrLastMatchSummaryToken(locale, reply, key); ok {
+			return v, true
+		}
+		return mcsrLastMatchDetailToken(reply, key)
+	}
+}
+
+func mcsrLastMatchSummaryToken(locale string, reply gossiprpc.McsrLastMatchReply, key string) (string, bool) {
+	switch key {
+	case "player":
+		return reply.Player, true
+	case "opponent":
+		return reply.Opponent, true
+	case "result":
+		return mcsrMatchResultText(locale, reply), true
+	case "elochange":
+		return signed(reply.EloChange), true
+	}
+	return "", false
+}
+
+func mcsrLastMatchDetailToken(reply gossiprpc.McsrLastMatchReply, key string) (string, bool) {
+	switch key {
+	case "time":
+		return mcsrSplit(reply.Time), true
+	case "seed":
+		return mcsrSplit(reply.Seed), true
+	case "structure":
+		return mcsrSplit(reply.Structure), true
+	case "ago":
+		return mcsrAge(reply.AgoSeconds), true
+	default:
+		return module.ParseDynamic(key)
+	}
+}
+
+// mcsrMatchResultText renders {result} so a forfeit or decay match never
+// reads like an ordinary completed race: Result alone ("win"/"loss"/"draw")
+// would claim a real finish happened when the match may never have reached
+// one.
+func mcsrMatchResultText(locale string, reply gossiprpc.McsrLastMatchReply) string {
+	base := mcsrResultWord(locale, reply.Result)
+	switch {
+	case reply.Forfeited:
+		return base + " " + i18n.T(locale, "mcsr.lastmatch.forfeit")
+	case reply.Decayed:
+		return base + " " + i18n.T(locale, "mcsr.lastmatch.decay")
+	default:
+		return base
+	}
+}
+
+func mcsrResultWord(locale, result string) string {
+	switch result {
+	case "win":
+		return i18n.T(locale, "mcsr.lastmatch.win")
+	case "loss":
+		return i18n.T(locale, "mcsr.lastmatch.loss")
+	default:
+		return i18n.T(locale, "mcsr.lastmatch.draw")
+	}
+}
+
+// mcsrRecordRun answers !record with the head-to-head totals between two
+// players. Template tokens: {playera} {playerb} {winsa} {winsb} {played}.
+func mcsrRecordRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.RecordEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		rest, season := parseMcsrSeason(args)
+		accountA, accountB := mcsrRecordAccounts(rest, cfg, c)
+		if accountA == "" || accountB == "" {
+			emit(&module.Output{
+				Type:          outgress.TypeChat,
+				BroadcasterID: c.Env.BroadcasterUserID,
+				Text:          i18n.T(c.Locale, "mcsr.record.usage"),
+			})
+			return nil
+		}
+
+		var reply gossiprpc.McsrRecordReply
+		req := gossiprpc.Request{Account: accountA, AccountB: accountB, Season: season, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "versus"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, accountA, err) {
+				return nil
+			}
+			return err
+		}
+
+		tmpl := orDefault(cfg.RecordMessage, defaultMcsrRecordTemplate)
+		msg := module.ExpandString(tmpl, mcsrRecordTokens(reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// mcsrRecordAccounts resolves !record's two sides. Two typed usernames
+// compare those two directly; one typed username compares it against the
+// module's linked account, the "how do I stack up against them" shorthand
+// the command promises. Zero typed usernames has nothing to compare, so both
+// come back empty and the caller sends the usage line instead of a call.
+func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b string) {
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return "", ""
+	}
+	first := strings.TrimPrefix(fields[0], "@")
+	if len(fields) == 1 {
+		self := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		return self, first
+	}
+	return first, strings.TrimPrefix(fields[1], "@")
+}
+
+func mcsrRecordTokens(reply gossiprpc.McsrRecordReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		switch key {
+		case "playera":
+			return reply.PlayerA, true
+		case "playerb":
+			return reply.PlayerB, true
+		case "winsa":
+			return strconv.Itoa(reply.WinsA), true
+		case "winsb":
+			return strconv.Itoa(reply.WinsB), true
+		case "played":
+			return strconv.Itoa(reply.Played), true
+		default:
+			return module.ParseDynamic(key)
+		}
+	}
+}
+
+// mcsrLbRun answers !lb with the top of one leaderboard. Sub-argument picks
+// the board (default elo; "phase" for phase points, add "predicted" for the
+// current season's projected points; "record" for season-best times); an
+// optional "country:<cc>" token filters every board but record (the
+// provider drops it there rather than erroring, per the upstream's own
+// limitation). Template tokens: {board} {list}; {list} is the whole "#1
+// Name 2010 · #2 Name2 1990 · ..." line since chat gets one line no matter
+// how the broadcaster's template wraps it.
+func mcsrLbRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.LbEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		rest, season := parseMcsrSeason(args)
+		board, country, predicted := parseMcsrBoardArgs(rest)
+
+		var reply gossiprpc.McsrLeaderboardReply
+		req := gossiprpc.Request{Board: board, Country: country, Predicted: predicted, Season: season, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "leaderboard"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, mcsrBoardLabel(board), err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emit(&module.Output{
+				Type:          outgress.TypeChat,
+				BroadcasterID: c.Env.BroadcasterUserID,
+				Text:          mcsrBoardLabel(reply.Board) + ": " + i18n.T(c.Locale, "mcsr.leaderboard.empty"),
+			})
+			return nil
+		}
+
+		tmpl := orDefault(cfg.LbMessage, defaultMcsrLbTemplate)
+		msg := module.ExpandString(tmpl, mcsrLbTokens(reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+// parseMcsrBoardArgs reads !lb's board word ("phase"/"record", default
+// elo), the "predicted" flag and an optional "country:<cc>" token out of the
+// (season-stripped) argument string. Tokens are unordered flags rather than
+// positional args so "!lb country:us phase" and "!lb phase country:us" both
+// work.
+func parseMcsrBoardArgs(args string) (board, country string, predicted bool) {
+	for _, f := range strings.Fields(args) {
+		lf := strings.ToLower(f)
+		switch {
+		case lf == "phase":
+			board = "phase"
+		case lf == "record":
+			board = "record"
+		case lf == "predicted":
+			predicted = true
+		case strings.HasPrefix(lf, "country:"):
+			country = strings.TrimPrefix(lf, "country:")
+		}
+	}
+	return board, country, predicted
+}
+
+func mcsrBoardLabel(board string) string {
+	switch board {
+	case "phase":
+		return "Phase"
+	case "record":
+		return "Record"
+	default:
+		return "Elo"
+	}
+}
+
+func mcsrLbTokens(reply gossiprpc.McsrLeaderboardReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		switch key {
+		case "board":
+			return mcsrBoardLabel(reply.Board), true
+		case "list":
+			return mcsrFormatLeaderboard(reply.Entries), true
+		default:
+			return module.ParseDynamic(key)
+		}
+	}
+}
+
+// mcsrFormatLeaderboard joins the reply's top entries into the one chat line
+// !lb promises: "#1 Name 2010 · #2 Name2 1990 · ...".
+func mcsrFormatLeaderboard(entries []gossiprpc.McsrLeaderboardEntry) string {
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, "#"+strconv.Itoa(e.Rank)+" "+e.Name+" "+e.Value)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// mcsrRaceRun answers !race with the weekly-race seed's #1 holder and the
+// queried player's own time and placement. Template tokens: {leader}
+// {leadertime} {player} {time} {rank}. No season token: the upstream does
+// not accept one on this endpoint. A player with no time yet this week
+// still gets the leader info plus a plain i18n line, not silence or an
+// error.
+func mcsrRaceRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		var cfg mcsrConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.RaceEnabled) || d.Gossip == nil {
+			return nil
+		}
+
+		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		var reply gossiprpc.McsrWeeklyRaceReply
+		req := gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
+		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "weekly_race"}, req, &reply); err != nil {
+			if chatReplyError(c, emit, account, err) {
+				return nil
+			}
+			return err
+		}
+
+		if reply.Empty {
+			emit(&module.Output{
+				Type:          outgress.TypeChat,
+				BroadcasterID: c.Env.BroadcasterUserID,
+				Text:          i18n.T(c.Locale, "mcsr.race.empty"),
+			})
+			return nil
+		}
+		if !reply.HasPlayer {
+			emit(&module.Output{
+				Type:          outgress.TypeChat,
+				BroadcasterID: c.Env.BroadcasterUserID,
+				Text:          mcsrRaceLeaderText(reply) + " · " + reply.Player + ": " + i18n.T(c.Locale, "mcsr.race.noplayer"),
+			})
+			return nil
+		}
+
+		tmpl := orDefault(cfg.RaceMessage, defaultMcsrRaceTemplate)
+		msg := module.ExpandString(tmpl, mcsrRaceTokens(reply))
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		return nil
+	}
+}
+
+func mcsrRaceLeaderText(reply gossiprpc.McsrWeeklyRaceReply) string {
+	return "#1 " + reply.LeaderName + " (" + reply.LeaderTime + ")"
+}
+
+func mcsrRaceTokens(reply gossiprpc.McsrWeeklyRaceReply) func(string) (string, bool) {
+	return func(key string) (string, bool) {
+		switch key {
+		case "leader":
+			return reply.LeaderName, true
+		case "leadertime":
+			return reply.LeaderTime, true
+		case "player":
+			return reply.Player, true
+		case "time":
+			return reply.PlayerTime, true
+		case "rank":
+			return strconv.Itoa(reply.PlayerRank), true
+		default:
+			return module.ParseDynamic(key)
+		}
 	}
 }

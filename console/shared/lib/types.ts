@@ -908,7 +908,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     label: 'MCSR Ranked',
     tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
     description:
-      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account.',
+      'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !lastmatch shows the most recent match; !record compares two players\' head-to-head record; !lb shows the top 5 of the elo, phase-point or record leaderboard; !race shows the weekly race leader and your own time. !elo, !lastmatch, !record and !lb all accept a trailing "season:11" to look at a past season. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account.',
     icon: 'gamepad',
     category: 'Games',
     defaultEnabled: false,
@@ -1035,6 +1035,65 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
           finish: '—',
           ago: '12m'
         }
+      },
+      {
+        key: 'lastmatch',
+        label: '!lastmatch',
+        tagline: 'The most recent match: opponent, result, seed and elo change.',
+        event: '!lastmatch',
+        command: 'lastmatch',
+        enableKey: 'lastMatchEnabled',
+        messageKey: 'lastMatchMessage',
+        defaultMessage:
+          '{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago',
+        tokens: ['player', 'opponent', 'result', 'time', 'seed', 'structure', 'elochange', 'ago'],
+        previewSamples: {
+          player: 'Feinberg',
+          opponent: 'lowk3y_',
+          result: 'won',
+          time: '11:03.135',
+          seed: 'Desert Temple',
+          structure: 'Treasure',
+          elochange: '+21',
+          ago: '2m'
+        }
+      },
+      {
+        key: 'record',
+        label: '!record',
+        tagline: 'Head-to-head wins between two players.',
+        event: '!record <player> [player2]',
+        command: 'record',
+        previewArgs: 'Feinberg lowk3y_',
+        enableKey: 'recordEnabled',
+        messageKey: 'recordMessage',
+        defaultMessage: '{playera} {winsa} - {winsb} {playerb} · {played} played',
+        tokens: ['playera', 'playerb', 'winsa', 'winsb', 'played'],
+        previewSamples: { playera: 'Feinberg', playerb: 'lowk3y_', winsa: '20', winsb: '14', played: '34' }
+      },
+      {
+        key: 'lb',
+        label: '!lb',
+        tagline: 'Top 5 of the elo, phase-point or record leaderboard.',
+        event: '!lb [phase [predicted]|record] [country:xx]',
+        command: 'lb',
+        enableKey: 'lbEnabled',
+        messageKey: 'lbMessage',
+        defaultMessage: '{board}: {list}',
+        tokens: ['board', 'list'],
+        previewSamples: { board: 'Elo', list: '#1 Feinberg 2464 · #2 lowk3y_ 2436' }
+      },
+      {
+        key: 'race',
+        label: '!race',
+        tagline: "This week's race leader and the player's own time.",
+        event: '!race',
+        command: 'race',
+        enableKey: 'raceEnabled',
+        messageKey: 'raceMessage',
+        defaultMessage: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})',
+        tokens: ['leader', 'leadertime', 'player', 'time', 'rank'],
+        previewSamples: { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' }
       }
     ],
     settings: [
