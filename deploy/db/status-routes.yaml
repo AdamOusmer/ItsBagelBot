@@ -13,7 +13,7 @@ metadata:
   name: commands-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: commands
   ports:
@@ -27,7 +27,7 @@ metadata:
   name: loyalty-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: loyalty
   ports:
@@ -41,7 +41,7 @@ metadata:
   name: modules-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: modules
   ports:
@@ -55,7 +55,7 @@ metadata:
   name: notifications-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: notifications
   ports:
@@ -69,7 +69,7 @@ metadata:
   name: projector-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: projector
   ports:
@@ -83,7 +83,7 @@ metadata:
   name: users-status
   namespace: db
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: users
   ports:

@@ -24,7 +24,7 @@ metadata:
   name: gossip-status
   namespace: app
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: gossip
   ports:
@@ -38,7 +38,7 @@ metadata:
   name: outgress-status
   namespace: app
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: outgress
   ports:
@@ -52,7 +52,7 @@ metadata:
   name: sesame-status
   namespace: app
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: sesame
   ports:

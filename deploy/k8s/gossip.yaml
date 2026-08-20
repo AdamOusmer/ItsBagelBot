@@ -103,6 +103,35 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-service
       containers:
         - name: gossip
           image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787194469-cb0d16209c6d@sha256:aa3094009ee618ca3bdb9bedd1136f6710f68cb9a901050361eaff6785bf6d38

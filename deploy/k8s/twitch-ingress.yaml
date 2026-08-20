@@ -107,12 +107,34 @@ spec:
       # Resolve external hosts (Twitch EventSub/Helix) without the cluster
       # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
       # conntrack race; cap any DNS stall well under a few seconds.
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
           - {name: single-request-reopen}
-          - {name: timeout, value: "2"}
-          - {name: attempts, value: "2"}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
       securityContext:
         # Keep the congestion window across an idle gap. This sysctl is
         # per-netns: the nodes run 0, but a pod netns inherits the kernel
@@ -127,6 +149,7 @@ spec:
         runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
         runAsGroup: 999
         seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
       containers:
         - name: ingress
           image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1787254007-c739a93c3aff
@@ -261,12 +284,24 @@ spec:
                 +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
           resources:
             requests:
-              # Live steady state is 195-240m across all three node-local pods.
-              cpu: 250m
-              memory: 256Mi
+              # Raised 250m -> 500m and 256Mi -> 384Mi on 2026-08-20. The old
+              # request cited a 195-240m steady state; measured usage was 378m
+              # per pod, ALREADY above the request, and that sample was taken
+              # at a trough -- one live channel and 59 msg/s against a lifetime
+              # NATS average of ~275 msg/s, so a busy night is several times
+              # this. A pod running above its CPU request keeps only its
+              # request share once the node contends, which is exactly when the
+              # firehose needs the cores. Memory measured 190Mi against a
+              # 256Mi request; 384Mi keeps headroom for BEAM growth under load
+              # without approaching the limit.
+              # The limit is unchanged: cpu "2" matches the +S 2:2 scheduler
+              # count in BEAM_FLAGS above, and changing one without the other
+              # would either strand schedulers or oversubscribe them.
+              cpu: 500m
+              memory: 384Mi
             limits:
               cpu: "2"
-              memory: 512Mi
+              memory: 1Gi
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/twitch-ingress/tls, readOnly: true}
@@ -323,7 +358,7 @@ metadata:
   name: twitch-ingress-status
   namespace: app
 spec:
-  trafficDistribution: PreferClose
+  trafficDistribution: PreferSameNode
   selector:
     app: twitch-ingress
   ports:

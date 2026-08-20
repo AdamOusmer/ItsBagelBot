@@ -4,6 +4,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # PriorityClasses must exist before any pod that names one -- a pod
+  # referencing a missing class is rejected by the API server, so this is
+  # listed first deliberately.
+  - priorityclasses.yaml
   - console-admin.yaml
   - commands.yaml
   - console-dashboard.yaml
