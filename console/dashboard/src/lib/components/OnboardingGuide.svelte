@@ -96,24 +96,42 @@
 
   let step = $state(0);
   const last = $derived(step === steps.length - 1);
-  const nextDisabled = $derived(steps[step].consent === true && !consentAccepted);
+
+  // Consent is a GATE, not a step that happens to carry a toggle. Guarding
+  // only the Next button left three ways around it: the step dots jumped
+  // straight past the consent step, Done was then enabled because the step
+  // showing had no `consent` flag of its own, and Escape dismissed the whole
+  // guide. Nothing may move beyond the consent step, or finish, until the box
+  // is checked.
+  const consentStep = steps.findIndex((s) => s.consent === true);
+  const consentBlocked = $derived(consentStep >= 0 && !consentAccepted);
+  /** Furthest step reachable right now. */
+  const maxStep = $derived(consentBlocked ? consentStep : steps.length - 1);
+  const nextDisabled = $derived(step + 1 > maxStep);
+  const doneDisabled = $derived(consentBlocked);
   const anchor = $derived(ANCHORS[step]);
 
   // The pair is centred on its anchor, so a percentage alone puts half of it
   // past the edge on a narrow window. Measure the pair and the viewport, then
   // clamp the centre into a corridor that is guaranteed to fit.
-  const MARGIN = 20;
+  const MARGIN = 34;
   let vw = $state(0);
   let vh = $state(0);
   let pairW = $state(0);
   let pairH = $state(0);
+  let boxW = $state(0);
+  let boxH = $state(0);
+  $effect(() => {
+    if (pairW > boxW) boxW = pairW;
+    if (pairH > boxH) boxH = pairH;
+  });
   const clampAxis = (pct: number, span: number, size: number) => {
     const half = size / 2 + MARGIN;
     const want = (pct / 100) * span;
     return span < size + MARGIN * 2 ? span / 2 : Math.min(Math.max(want, half), span - half);
   };
-  const px = $derived(clampAxis(anchor.x, vw, pairW));
-  const py = $derived(clampAxis(anchor.y, vh, pairH));
+  const px = $derived(clampAxis(anchor.x, vw, boxW));
+  const py = $derived(clampAxis(anchor.y, vh, boxH));
 
   // Bubble sits on the side of the blob that has room to breathe. Past the
   // 55% line the right edge is getting close, so the bubble goes left of the
@@ -144,7 +162,10 @@
   }
   function goTo(i: number) {
     hoverExpression = null;
-    step = i;
+    // Clamped rather than trusted: the dots are disabled past `maxStep`, and
+    // this is the second lock, so a keyboard activation or a stale render
+    // cannot land on a step the gate has not opened yet.
+    step = Math.max(0, Math.min(i, maxStep));
   }
 
   // Bubble is the actual dialog surface; focus it on open and on every step
@@ -169,7 +190,9 @@
   });
 
   function onKeydown(e: KeyboardEvent) {
-    if (open && e.key === 'Escape') {
+    // Escape is a dismissal, and dismissing is exactly what consent may not be
+    // dodged by. It stays live once the box is checked.
+    if (open && e.key === 'Escape' && !consentBlocked) {
       e.preventDefault();
       onDone();
     }
@@ -198,8 +221,6 @@
             active={open}
             follow
             cycle={false}
-            sequence="entrance"
-            sequenceKey={step}
             expression={hoverExpression}
             title={t('onboarding.title')}
           />
@@ -268,6 +289,7 @@
                   type="button"
                   class="dot {i === step ? 'on' : ''}"
                   aria-label={t('onboarding.goToStep', { n: i + 1 })}
+                  disabled={i > maxStep}
                   onclick={() => goTo(i)}
                 ></button>
               {/each}
@@ -279,7 +301,7 @@
                 <button type="button" class="btn ghost" onclick={onDone}>{t('onboarding.skip')}</button>
               {/if}
               {#if last}
-                <button type="button" class="btn primary" onclick={onDone} disabled={nextDisabled}>{t('onboarding.done')}</button>
+                <button type="button" class="btn primary" onclick={onDone} disabled={doneDisabled}>{t('onboarding.done')}</button>
               {:else}
                 <button type="button" class="btn primary" onclick={goNext} disabled={nextDisabled}>{t('onboarding.next')}</button>
               {/if}
@@ -318,16 +340,6 @@
     transition: transform 620ms var(--bb-ease-out-expo, ease);
   }
 
-  /* Phones cannot fit a 120px blob beside a bubble: stack them and park the
-     pair in the middle, so the walk becomes a vertical settle instead. */
-  @media (max-width: 560px) {
-    .pair,
-    .pair.side-left {
-      flex-direction: column;
-      gap: 10px;
-    }
-  }
-
   .pair {
     display: flex;
     align-items: center;
@@ -338,6 +350,16 @@
     /* Bubble goes to the left of the blob: reverse the row instead of
        swapping which child is which. */
     flex-direction: row-reverse;
+  }
+
+  /* Phones cannot fit a 120px blob beside a bubble: stack them and park the
+     pair in the middle, so the walk becomes a vertical settle instead. */
+  @media (max-width: 560px) {
+    .pair,
+    .pair.side-left {
+      flex-direction: column;
+      gap: 10px;
+    }
   }
 
   .blob-slot {
@@ -448,6 +470,9 @@
     transition: background var(--bb-dur-fast, 180ms) ease, transform var(--bb-dur-fast, 180ms) var(--bb-ease-out-back, ease);
   }
   .dot.on { background: var(--bb-tan); transform: scale(1.25); }
+  /* A step the consent gate has not opened yet: visibly not a target, rather
+     than a dot that looks clickable and refuses. */
+  .dot:disabled { cursor: not-allowed; opacity: 0.35; }
   .nav { display: flex; gap: 8px; }
 
   @media (prefers-reduced-motion: reduce) {
