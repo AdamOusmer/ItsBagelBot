@@ -149,24 +149,46 @@ func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *
 	return s
 }
 
-// TestSweepOnceRefreshesNearExpirySource pins the reason this sweep exists:
-// a cached broadcaster Source close to expiry gets renewed by a sweep pass,
-// through the same refreshIfDue path token.go's per-Source background
-// refresher uses.
-func TestSweepOnceRefreshesNearExpirySource(t *testing.T) {
-	var calls int32
-	b := NewBroadcasterTokens(func(string) *Source {
-		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
-			atomic.AddInt32(&calls, 1)
-			return "fresh", time.Hour, nil
+// TestSweepOnceRefreshesOrSkipsSource covers both ends of sweepOnce's
+// per-entry decision from one shared scaffold: a near-expiry source in the
+// cache (the reason this sweep exists -- it gets renewed through the same
+// refreshIfDue path token.go's per-Source background refresher uses) versus
+// one evicted from the cache before the sweep runs (which sweepOnce must
+// never touch again -- see StartRefreshSweep's "eviction is free" doc,
+// which depends on a single ticker rather than one per Source).
+func TestSweepOnceRefreshesOrSkipsSource(t *testing.T) {
+	cases := []struct {
+		name      string
+		evict     bool
+		wantCalls int32
+	}{
+		{name: "near-expiry source in cache is refreshed", evict: false, wantCalls: 1},
+		{name: "source evicted before sweep is left alone", evict: true, wantCalls: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls int32
+			b := NewBroadcasterTokens(func(string) *Source {
+				return nearExpirySource(func(context.Context) (string, time.Duration, error) {
+					atomic.AddInt32(&calls, 1)
+					return "fresh", time.Hour, nil
+				})
+			})
+			b.Get("chan-a")
+
+			if tc.evict {
+				b.mu.Lock()
+				delete(b.cache, "chan-a")
+				b.mu.Unlock()
+			}
+
+			b.sweepOnce(context.Background())
+
+			if got := atomic.LoadInt32(&calls); got != tc.wantCalls {
+				t.Fatalf("refresh calls = %d, want %d", got, tc.wantCalls)
+			}
 		})
-	})
-	b.Get("chan-a")
-
-	b.sweepOnce(context.Background())
-
-	if got := atomic.LoadInt32(&calls); got != 1 {
-		t.Fatalf("refresh calls = %d, want 1 for a near-expiry source", got)
 	}
 }
 
@@ -192,31 +214,6 @@ func TestSweepOnceLeavesHealthySourceAlone(t *testing.T) {
 
 	if got := atomic.LoadInt32(&calls); got != 0 {
 		t.Fatalf("refresh calls = %d, want 0 for a healthy token", got)
-	}
-}
-
-// TestSweepOnceSkipsEvictedSource pins the "eviction is free" property
-// StartRefreshSweep's doc claims: once an entry is out of the cache, a
-// sweep pass must never touch it again, since a single ticker (not one per
-// Source) is exactly what makes eviction handling free in the first place.
-func TestSweepOnceSkipsEvictedSource(t *testing.T) {
-	var calls int32
-	b := NewBroadcasterTokens(func(string) *Source {
-		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
-			atomic.AddInt32(&calls, 1)
-			return "fresh", time.Hour, nil
-		})
-	})
-	b.Get("chan-a")
-
-	b.mu.Lock()
-	delete(b.cache, "chan-a")
-	b.mu.Unlock()
-
-	b.sweepOnce(context.Background())
-
-	if got := atomic.LoadInt32(&calls); got != 0 {
-		t.Fatalf("refresh calls = %d, want 0 for a source evicted before the sweep", got)
 	}
 }
 
