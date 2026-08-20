@@ -5,7 +5,7 @@
   import { onMount, untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, PageHead, AlertBanner, Skeleton, toast } from '@bagel/shared';
-  import type { ShardSnapshot } from '@bagel/shared';
+  import type { Shard, ShardSnapshot } from '@bagel/shared';
   import {
     barWidth,
     eventsPerSecond,
@@ -132,9 +132,21 @@
     if (!ms || ms <= 0) return '—';
     return `${Math.round(ms / 1000)}s window`;
   }
-  function stateBadge(state: string): { label: string; tone: string } {
-    if (state === 'connected') return { label: 'healthy', tone: 'green' };
-    if (state === 'reconnecting' || state === 'connecting') return { label: 'restarting', tone: 'warn' };
+  // derive_state/1 in ingress emits connecting | binding | migrating while a
+  // socket is coming up or being handed over. All three are transient and heal
+  // on their own, so none is a fault worth waking an operator for; only
+  // backoff and unresponsive mean the shard is actually stuck.
+  const RESTARTING = new Set(['connecting', 'reconnecting', 'binding', 'migrating']);
+
+  // `unregistered` means no process at all answers for the slot, which is a
+  // different failure from a session ingress is running but cannot steer
+  // (managed === false). Conflating the two is what let a shard serving live
+  // events and a zombie shard both read as "degraded".
+  function stateBadge(s: Shard): { label: string; tone: string } {
+    if (s.state === 'unregistered') return { label: 'missing', tone: 'err' };
+    if (s.managed === false) return { label: 'unmanaged', tone: 'warn' };
+    if (s.state === 'connected') return { label: 'healthy', tone: 'green' };
+    if (RESTARTING.has(s.state)) return { label: 'restarting', tone: 'warn' };
     return { label: 'degraded', tone: 'err' };
   }
   function podIndex(raw?: string): string {
@@ -326,7 +338,7 @@
 
     <div class="shard-grid">
       {#each snap.shards as s (s.shard_id)}
-        {@const sb = stateBadge(s.state)}
+        {@const sb = stateBadge(s)}
         {@const utilization = loadUtilization(s.load)}
         {@const ltone = loadTone(s.load)}
         <div class="card shard-card">
@@ -340,6 +352,9 @@
           </div>
           <div class="shard-meta">
             <span>{s.bound ? 'bound' : 'unbound'}</span>
+            {#if s.managed === false && s.state !== 'unregistered'}
+              <span class="warn-tag">no registry entry</span>
+            {/if}
             {#if s.handshake_in_flight}<span class="warn-tag">handshaking</span>{/if}
             <span>{keepalive(s.keepalive_ms)}</span>
             <span>{s.attempts ?? 0} att</span>
