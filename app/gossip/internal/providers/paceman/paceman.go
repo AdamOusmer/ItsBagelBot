@@ -11,12 +11,16 @@
 // PaceMan's read endpoints need no key. They are rate-limited per client IP in
 // a fixed 60-second window, so the budget here is keyed to the source address
 // the fleet shares rather than to an account, and 429 carries Retry-After.
+//
+// This file holds the provider's wiring, upstream shapes and the
+// fetch/cached HTTP layer. paceman_endpoints.go holds the four gossip
+// endpoints (session, nethers, lastfort, personal_best) and the reply-shaping
+// helpers built on top of this layer.
 package paceman
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -24,8 +28,6 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
-	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
@@ -253,19 +255,28 @@ func cacheAccount(account string, hoursBetween int) string {
 
 // --- upstream fetches ------------------------------------------------------------
 
-func (p *api) fetchSessionStats(ctx context.Context, account string, hoursBetween int) (sessionStatsResponse, error) {
+// sessionQuery bundles the account and session-cutoff gap threaded through
+// the session-stats/session-nethers fetch+cache pairs, so their signatures
+// carry one named value instead of the same (account string, hoursBetween
+// int) pair repeated across all four functions.
+type sessionQuery struct {
+	Account      string
+	HoursBetween int
+}
+
+func (p *api) fetchSessionStats(ctx context.Context, q sessionQuery) (sessionStatsResponse, error) {
 	var resp sessionStatsResponse
-	q := url.Values{"name": {account}, "hoursBetween": {strconv.Itoa(hoursBetween)}}
-	if err := p.http.GetJSON(ctx, "/getSessionStats/", q, &resp); err != nil {
+	vals := url.Values{"name": {q.Account}, "hoursBetween": {strconv.Itoa(q.HoursBetween)}}
+	if err := p.http.GetJSON(ctx, "/getSessionStats/", vals, &resp); err != nil {
 		return sessionStatsResponse{}, err
 	}
 	return resp, nil
 }
 
-func (p *api) fetchSessionNethers(ctx context.Context, account string, hoursBetween int) (sessionNethersResponse, error) {
+func (p *api) fetchSessionNethers(ctx context.Context, q sessionQuery) (sessionNethersResponse, error) {
 	var resp sessionNethersResponse
-	q := url.Values{"name": {account}, "hoursBetween": {strconv.Itoa(hoursBetween)}, "dp": {"0"}}
-	if err := p.http.GetJSON(ctx, "/getSessionNethers/", q, &resp); err != nil {
+	vals := url.Values{"name": {q.Account}, "hoursBetween": {strconv.Itoa(q.HoursBetween)}, "dp": {"0"}}
+	if err := p.http.GetJSON(ctx, "/getSessionNethers/", vals, &resp); err != nil {
 		return sessionNethersResponse{}, err
 	}
 	return resp, nil
@@ -297,17 +308,17 @@ func (p *api) fetchUserPBs(ctx context.Context, account string) (userPBsResponse
 
 // --- cached fetches --------------------------------------------------------------
 
-func (p *api) cachedSessionStats(ctx context.Context, account string, hoursBetween int, isPremium bool) (sessionStatsResponse, error) {
-	key := core.Key(providerName, "session-stats", cacheAccount(account, hoursBetween))
+func (p *api) cachedSessionStats(ctx context.Context, q sessionQuery, isPremium bool) (sessionStatsResponse, error) {
+	key := core.Key(providerName, "session-stats", cacheAccount(q.Account, q.HoursBetween))
 	return core.Cached(ctx, p.cache, key, sessionTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (sessionStatsResponse, error) {
-		return p.fetchSessionStats(ctx, account, hoursBetween)
+		return p.fetchSessionStats(ctx, q)
 	})
 }
 
-func (p *api) cachedSessionNethers(ctx context.Context, account string, hoursBetween int, isPremium bool) (sessionNethersResponse, error) {
-	key := core.Key(providerName, "session-nethers", cacheAccount(account, hoursBetween))
+func (p *api) cachedSessionNethers(ctx context.Context, q sessionQuery, isPremium bool) (sessionNethersResponse, error) {
+	key := core.Key(providerName, "session-nethers", cacheAccount(q.Account, q.HoursBetween))
 	return core.Cached(ctx, p.cache, key, nethersTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (sessionNethersResponse, error) {
-		return p.fetchSessionNethers(ctx, account, hoursBetween)
+		return p.fetchSessionNethers(ctx, q)
 	})
 }
 
@@ -327,240 +338,4 @@ func (p *api) cachedUserPBs(ctx context.Context, account string, isPremium bool)
 	return core.Cached(ctx, p.cache, key, personalBestTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (userPBsResponse, error) {
 		return p.fetchUserPBs(ctx, account)
 	})
-}
-
-// --- reply shaping -----------------------------------------------------------------
-
-// buildSessionReply combines the two session upstream calls into one reply.
-// Empty tracks NetherCount alone: a run cannot reach any later split without
-// first entering a nether, so a zero nether count is the one check that means
-// "nothing tracked this window" for every field below it.
-func buildSessionReply(account string, stats sessionStatsResponse, nethers sessionNethersResponse) gossiprpc.PacemanSessionReply {
-	return gossiprpc.PacemanSessionReply{
-		Player:          account,
-		NetherCount:     stats.Nether.Count,
-		Nether:          stats.Nether.Avg,
-		Bastion:         stats.Bastion.Avg,
-		Fortress:        stats.Fortress.Avg,
-		FirstStructure:  stats.FirstStructure.Avg,
-		SecondStructure: stats.SecondStructure.Avg,
-		FirstPortal:     stats.FirstPortal.Avg,
-		Stronghold:      stats.Stronghold.Avg,
-		End:             stats.End.Avg,
-		Finish:          stats.Finish.Avg,
-		NPH:             nethers.RNPH,
-		Empty:           stats.Nether.Count == 0,
-	}
-}
-
-// unixTime converts a PaceMan fractional-second epoch value to a time.Time at
-// whole-second resolution; sub-second precision does not change either the
-// "m:ss" split rendering or the "how long ago" rounding these replies do.
-func unixTime(sec float64) time.Time { return time.Unix(int64(sec), 0) }
-
-// formatMMSS renders an elapsed duration the way PaceMan's own "avg" fields
-// do ("m:ss"), so a computed split reads identically to an upstream one.
-func formatMMSS(seconds float64) string {
-	if seconds < 0 {
-		seconds = 0
-	}
-	total := int64(seconds)
-	return fmt.Sprintf("%d:%02d", total/60, total%60)
-}
-
-// splitDuration renders one run split as elapsed time since the run started,
-// or "" when the run never reached it (module.go turns that into an em dash).
-func splitDuration(start float64, split *float64) string {
-	if split == nil {
-		return ""
-	}
-	return formatMMSS(*split - start)
-}
-
-// buildLastFortReply shapes one recentTimestamp row into the reply, deriving
-// each split's elapsed time from its wall-clock timestamp and the run's start.
-func buildLastFortReply(account string, run recentTimestamp) gossiprpc.PacemanLastFortReply {
-	return gossiprpc.PacemanLastFortReply{
-		Player:      account,
-		Nether:      splitDuration(run.Start, run.Nether),
-		Bastion:     splitDuration(run.Start, run.Bastion),
-		Fortress:    splitDuration(run.Start, run.Fortress),
-		FirstPortal: splitDuration(run.Start, run.FirstPortal),
-		Stronghold:  splitDuration(run.Start, run.Stronghold),
-		End:         splitDuration(run.Start, run.End),
-		Finish:      splitDuration(run.Start, run.Finish),
-		AgoSeconds:  int64(time.Since(unixTime(run.Start)).Seconds()),
-	}
-}
-
-// normalizePBWindow maps a request's raw TimeWindow onto the four windows
-// PaceMan precomputes. Anything unrecognized (including "", the bare-name
-// form's zero value) falls through to "all-time" — the same "no window typed
-// means all-time" default sesame's argument parsing applies before the call
-// even reaches here, so this is a defensive second normalization, not the
-// primary one.
-func normalizePBWindow(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "daily":
-		return "daily"
-	case "weekly":
-		return "weekly"
-	case "monthly":
-		return "monthly"
-	default:
-		return "all-time"
-	}
-}
-
-// selectPB picks the one pbCompletion the normalized window names out of the
-// four PaceMan returned in a single call.
-func selectPB(resp userPBsResponse, window string) *pbCompletion {
-	switch window {
-	case "daily":
-		return resp.PBs.Daily
-	case "weekly":
-		return resp.PBs.Weekly
-	case "monthly":
-		return resp.PBs.Monthly
-	default:
-		return resp.PBs.AllTime
-	}
-}
-
-// pacemanFormatTime renders a completion time in milliseconds the way MCSR
-// speedrunning clients display a run (minutes:seconds.milliseconds),
-// matching the mcsr provider's own mcsrFormatTime so a PaceMan-sourced time
-// and an MCSR-Ranked-sourced time read identically in chat.
-func pacemanFormatTime(ms int64) string {
-	if ms <= 0 {
-		return ""
-	}
-	minutes := ms / 60000
-	seconds := (ms % 60000) / 1000
-	millis := ms % 1000
-	return fmt.Sprintf("%d:%02d.%03d", minutes, seconds, millis)
-}
-
-// buildPersonalBestReply shapes the cached four-window response down to the
-// one window a !pb call asked for.
-func buildPersonalBestReply(account, window string, resp userPBsResponse) gossiprpc.PacemanPersonalBestReply {
-	pb := selectPB(resp, window)
-	if pb == nil {
-		return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Empty: true}
-	}
-	return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Time: pacemanFormatTime(pb.Time)}
-}
-
-// --- endpoints ------------------------------------------------------------------
-
-func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
-	log := monitor.TxnLogger(ctx, p.log)
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
-		return gossiprpc.PacemanSessionReply{Error: "missing account"}
-	}
-	hoursBetween := resolveHoursBetween(req.HoursBetween)
-
-	stats, err := p.cachedSessionStats(ctx, account, hoursBetween, req.IsPremium)
-	if err != nil {
-		return sessionErrorReply(log, account, err)
-	}
-	nethers, err := p.cachedSessionNethers(ctx, account, hoursBetween, req.IsPremium)
-	if err != nil {
-		return sessionErrorReply(log, account, err)
-	}
-	return buildSessionReply(account, stats, nethers)
-}
-
-// sessionErrorReply maps a fetch failure to a paceman.session reply: a
-// friendly hit (upstream 4xx/429) stays quiet in the logs since it is normal
-// upstream behavior, anything else logs a warning and answers a generic
-// message so the viewer still gets a line instead of silence.
-func sessionErrorReply(log *zap.Logger, account string, err error) gossiprpc.PacemanSessionReply {
-	msg := friendlyError(err)
-	if msg == "" {
-		log.Warn("paceman session fetch failed", zap.String("account", account), zap.Error(err))
-		msg = "stats lookup failed"
-	}
-	return gossiprpc.PacemanSessionReply{Player: account, Error: msg}
-}
-
-func (p *api) nethers(ctx context.Context, req gossiprpc.Request) any {
-	log := monitor.TxnLogger(ctx, p.log)
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
-		return gossiprpc.PacemanNethersReply{Error: "missing account"}
-	}
-	hoursBetween := resolveHoursBetween(req.HoursBetween)
-
-	nethers, err := p.cachedSessionNethers(ctx, account, hoursBetween, req.IsPremium)
-	if err != nil {
-		return nethersErrorReply(log, account, err)
-	}
-	return gossiprpc.PacemanNethersReply{
-		Player: account,
-		Count:  nethers.Count,
-		Avg:    nethers.Avg,
-		NPH:    nethers.RNPH,
-		Empty:  nethers.Count == 0,
-	}
-}
-
-func nethersErrorReply(log *zap.Logger, account string, err error) gossiprpc.PacemanNethersReply {
-	msg := friendlyError(err)
-	if msg == "" {
-		log.Warn("paceman nethers fetch failed", zap.String("account", account), zap.Error(err))
-		msg = "stats lookup failed"
-	}
-	return gossiprpc.PacemanNethersReply{Player: account, Error: msg}
-}
-
-func (p *api) lastfort(ctx context.Context, req gossiprpc.Request) any {
-	log := monitor.TxnLogger(ctx, p.log)
-	account := strings.TrimSpace(req.Account)
-	if account == "" {
-		return gossiprpc.PacemanLastFortReply{Error: "missing account"}
-	}
-
-	runs, err := p.cachedLastFort(ctx, account, req.IsPremium)
-	if err != nil {
-		return lastFortErrorReply(log, account, err)
-	}
-	if len(runs) == 0 {
-		return gossiprpc.PacemanLastFortReply{Player: account, Empty: true}
-	}
-	return buildLastFortReply(account, runs[0])
-}
-
-func lastFortErrorReply(log *zap.Logger, account string, err error) gossiprpc.PacemanLastFortReply {
-	msg := friendlyError(err)
-	if msg == "" {
-		log.Warn("paceman lastfort fetch failed", zap.String("account", account), zap.Error(err))
-		msg = "stats lookup failed"
-	}
-	return gossiprpc.PacemanLastFortReply{Player: account, Error: msg}
-}
-
-func (p *api) personalBest(ctx context.Context, req gossiprpc.Request) any {
-	log := monitor.TxnLogger(ctx, p.log)
-	account := strings.TrimSpace(req.Account)
-	window := normalizePBWindow(req.TimeWindow)
-	if account == "" {
-		return gossiprpc.PacemanPersonalBestReply{Window: window, Error: "missing account"}
-	}
-
-	resp, err := p.cachedUserPBs(ctx, account, req.IsPremium)
-	if err != nil {
-		return personalBestErrorReply(log, account, window, err)
-	}
-	return buildPersonalBestReply(account, window, resp)
-}
-
-func personalBestErrorReply(log *zap.Logger, account, window string, err error) gossiprpc.PacemanPersonalBestReply {
-	msg := friendlyError(err)
-	if msg == "" {
-		log.Warn("paceman personal best fetch failed", zap.String("account", account), zap.Error(err))
-		msg = "stats lookup failed"
-	}
-	return gossiprpc.PacemanPersonalBestReply{Player: account, Window: window, Error: msg}
 }
