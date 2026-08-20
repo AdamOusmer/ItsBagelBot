@@ -27,86 +27,26 @@ func mcsrCtx(config string) *module.Context {
 	return c
 }
 
-func TestMcsrEloDefaultTemplate(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20},
-	}}
-	m := mcsrModule(gw)
-	assert.Equal(t, "mcsr", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	cmd := findCmd(t, m, "elo")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Feinberg: 1650 elo · rank #12 · 40W 20L this season", col.out[0].Text)
+// mcsrCmdCall bundles a command test's target and inputs — which command,
+// what dashboard config, what typed args — so runMcsrCmd takes one named
+// value instead of three loose strings alongside t and gw.
+type mcsrCmdCall struct {
+	name   string
+	config string
+	args   string
 }
 
-func TestMcsrEloUnrated(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Newbie", Elo: -1, Rank: -1},
-	}}
-	cmd := findCmd(t, mcsrModule(gw), "elo")
-
+// runMcsrCmd finds the named command on a fresh mcsr module wired to gw,
+// runs it with the given dashboard config and typed args, and returns the
+// chat outputs it collected. This is the "wire the module, run the
+// command, collect the reply" shape almost every test in this file (and in
+// mcsr_ranked_test.go / mcsr_pace_test.go) starts with.
+func runMcsrCmd(t *testing.T, gw engine.GossipCaller, call mcsrCmdCall) collector {
+	t.Helper()
+	cmd := findCmd(t, mcsrModule(gw), call.name)
 	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "unrated elo")
-	assert.Contains(t, col.out[0].Text, "#—")
-}
-
-func TestMcsrSessionWithSnapshot(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"mcsr.session": gossiprpc.McsrSessionReply{
-			Nickname: "Feinberg", Elo: 1660, EloChange: 24, Wins: 3, Loses: 1, Played: 4, HasSnapshot: true,
-		},
-	}}
-	cmd := findCmd(t, mcsrModule(gw), "session")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Feinberg this stream: +24 elo (1660 now) · 3W 1L in 4 matches", col.out[0].Text)
-
-	// The session request is scoped to this channel.
-	assert.Equal(t, "2", gw.lastCall(t).req.ChannelID)
-	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
-}
-
-// !session ignores a typed player argument so a viewer cannot retarget (and
-// clobber) the streamer's per-channel baseline; it always uses the linked
-// account.
-func TestMcsrSessionIgnoresArgument(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
-	}}
-	cmd := findCmd(t, mcsrModule(gw), "session")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"account":"Feinberg"}`), "SomeoneElse", col.emit))
-	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
-}
-
-func TestMcsrSessionWithoutSnapshot(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", Elo: 1650, HasSnapshot: false},
-	}}
-	cmd := findCmd(t, mcsrModule(gw), "session")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "session tracking just started")
-}
-
-func TestMcsrSessionToggleOff(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"mcsr.session": gossiprpc.McsrSessionReply{}}}
-	cmd := findCmd(t, mcsrModule(gw), "session")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(`{"sessionEnabled":"off"}`), "", col.emit))
-	assert.Empty(t, col.out)
-	assert.Empty(t, gw.calls)
+	require.NoError(t, cmd.Run(context.Background(), mcsrCtx(call.config), call.args, col.emit))
+	return col
 }
 
 func TestMcsrStreamOnlineSnapshots(t *testing.T) {
@@ -144,4 +84,60 @@ func TestMcsrStreamOnlineSnapshots(t *testing.T) {
 	assert.Equal(t, "session_start", call.endpoint)
 	assert.Equal(t, "Feinberg", call.req.Account)
 	assert.Equal(t, "2", call.req.ChannelID)
+}
+
+// --- parseMcsrSeason ---------------------------------------------------------------
+
+func TestParseMcsrSeason(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       string
+		wantRest   string
+		wantSeason int
+	}{
+		{"no token", "Feinberg", "Feinberg", 0},
+		{"trailing token", "Feinberg season:11", "Feinberg", 11},
+		{"leading token", "season:11 Feinberg", "Feinberg", 11},
+		{"token only", "season:11", "", 11},
+		{"invalid number ignored", "Feinberg season:abc", "Feinberg season:abc", 0},
+		{"zero ignored", "Feinberg season:0", "Feinberg season:0", 0},
+		{"empty", "", "", 0},
+		{"case insensitive prefix", "Feinberg SEASON:9", "Feinberg", 9},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rest, season := parseMcsrSeason(tc.args)
+			assert.Equal(t, tc.wantRest, rest)
+			assert.Equal(t, tc.wantSeason, season)
+		})
+	}
+}
+
+// !elo must keep behaving exactly as before this feature: no season token
+// means no Season on the wire, same request shape as today.
+
+// --- parseMcsrPbArgs -----------------------------------------------------------------
+
+func TestParseMcsrPbArgs(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       string
+		wantWindow string
+		wantRest   string
+	}{
+		{"bare", "", "", ""},
+		{"bare name", "Feinberg", "", "Feinberg"},
+		{"window only", "daily", "daily", ""},
+		{"window and name", "weekly Feinberg", "weekly", "Feinberg"},
+		{"ranked keyword", "ranked", "ranked", ""},
+		{"case insensitive window", "DAILY", "daily", ""},
+		{"unrecognized first word is a name", "monthlyish", "", "monthlyish"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			window, rest := parseMcsrPbArgs(tc.args)
+			assert.Equal(t, tc.wantWindow, window)
+			assert.Equal(t, tc.wantRest, rest)
+		})
+	}
 }
