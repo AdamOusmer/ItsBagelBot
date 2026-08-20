@@ -8,9 +8,12 @@
 import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+// Lives with the other demo gates in console/shared, not here: see that file
+// for why a demo ROUTE needs stripping rather than `dev`-gating.
+import { stripDemoRoutes } from '../shared/scripts/strip-demo-routes.mjs';
 
 export default defineConfig({
-  plugins: [sveltekit()],
+  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), sveltekit()],
   // The shared package ships .svelte/.ts source; Vite must bundle (not externalize)
   // it for SSR so components compile. `newrelic` must stay external so it resolves
   // to the singleton preloaded via --import at runtime (bundling its native modules
