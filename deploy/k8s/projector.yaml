@@ -89,7 +89,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1787014270-b7f46561a5a3@sha256:4bcffd39cf31101d27f2c10d55b7ec7e2a0c5fae9ab40c2c1397e9d2bdbf3cec # {"$imagepolicy": "flux-system:projector"}
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1787252044-f4347119cdf9@sha256:6710f204b08274f1a19d18b3cfcbeca918f1e5eae516d68f2a686f46dbe3ccf3 # {"$imagepolicy": "flux-system:projector"}
           imagePullPolicy: IfNotPresent
           env:
             # The lane catalog is partition-gated; the projector reconciles the
