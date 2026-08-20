@@ -1,0 +1,232 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+#
+# Off-OCI backup of the managed MySQL instance.
+#
+# Why this exists: every byte of irreplaceable state lives in one OCI MySQL
+# instance (10.0.2.206) and the k3s control plane (cp1) is ALSO an OCI host, so
+# a single OCI account loss takes both at once. Measured 2026-08-20: the whole
+# prod dataset is ~1.1 MB across 9 schemas (~700 rows), so a full logical dump
+# every 6h costs nothing -- there is no case for incremental or binlog shipping
+# at this size, and mysqldump restores onto a *different* MySQL vendor/version,
+# which a physical/snapshot backup does not.
+#
+# Destination is Cloudflare R2, not a node PVC: node1/2/3 are Servarica and cp1
+# is OCI, so any in-fleet destination still shares a failure domain with the
+# thing it is backing up. worker1 pulls the same objects down to its NVMe on a
+# systemd timer (worker1 CANNOT dump directly -- verified 2026-08-20, the
+# tailnet does not share the OCI subnet route to it, `nc 10.0.2.206 3306`
+# blocked).
+#
+# Dumps are encrypted IN THE POD with openssl smime (RSA-4096 + AES-256-CBC
+# hybrid) against a public cert. The private key is never in the cluster or in
+# git, so a cluster compromise cannot read historical backups. openssl smime was
+# chosen over age/gpg purely because it is already in the stock mysql image --
+# adding age would mean either a custom image build or an `apk add` at runtime.
+---
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: backup-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: backup-doppler-token
+  managedSecret:
+    name: backup-env
+    namespace: db
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-mysql-scripts
+  namespace: db
+data:
+  dump.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+    cd /work
+
+    printf '%s\n' "$DB_CA_CERT" > ca.pem
+    printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
+
+    export MYSQL_PWD="$DB_PASS"
+    MY="--host=$DB_HOST --port=$DB_PORT --user=$DB_USER --ssl-ca=ca.pem --ssl-mode=VERIFY_CA"
+
+    # Enumerate schemas instead of hardcoding them: services onboard new
+    # schemas regularly (loyalty landed 2026-07-11) and a hardcoded list fails
+    # silently -- the job stays green while quietly not backing up the new one.
+    #
+    # The LIKE 'mysql%' exclusion is not paranoia about the `mysql` schema: this
+    # managed instance also owns mysql_audit / mysql_option / mysql_tasks, and
+    # HeatWave auto-REVOKEs EVENT and TRIGGER on them the moment you GRANT
+    # ... ON *.*. Without this filter mysqldump aborts partway with
+    # "Couldn't execute 'show events': Access denied ... to database
+    # 'mysql_audit' (1044)" -- measured 2026-08-20, dump died at 2743 bytes.
+    SCHEMAS=$(mysql $MY -N -B -e "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema','performance_schema','sys') AND schema_name NOT LIKE 'mysql%'" | tr '\n' ' ')
+    if [ -z "$(echo "$SCHEMAS" | tr -d ' ')" ]; then
+      echo "FATAL: zero schemas visible -- refusing to write an empty backup" >&2
+      exit 1
+    fi
+    echo "schemas: $SCHEMAS"
+
+    STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+    OUT="mysql-${STAMP}.sql.gz.enc"
+
+    {
+      echo "-- itsbagelbot mysql logical backup ${STAMP}"
+      echo "-- schemas: ${SCHEMAS}"
+      echo "--"
+      # Grants are dumped as text because a managed MySQL will not let you
+      # restore mysql.user directly -- on a rebuild you replay these by hand.
+      # Non-fatal: the backup user may lack SELECT on mysql.user, and losing
+      # grants is recoverable from Doppler while losing rows is not.
+      echo "-- === GRANTS ==="
+      mysql $MY -N -B -e "SELECT CONCAT('SHOW GRANTS FOR ''',user,'''@''',host,''';') FROM mysql.user WHERE user NOT LIKE 'mysql.%' AND user <> ''" 2>/dev/null \
+        | while read -r q; do mysql $MY -N -B -e "$q" 2>/dev/null | sed 's/$/;/;s/^/-- /'; done \
+        || echo "-- grants unavailable (no SELECT on mysql.user)"
+      echo "-- === DATA ==="
+      # --no-tablespaces: the backup user has no PROCESS privilege, and without
+      # this flag mysqldump aborts on "Access denied; you need PROCESS" rather
+      # than skipping the tablespace query.
+      mysqldump $MY \
+        --databases $SCHEMAS \
+        --single-transaction \
+        --routines --triggers --events \
+        --hex-blob \
+        --no-tablespaces \
+        --set-gtid-purged=OFF
+    } | gzip -9 > dump.sql.gz
+
+    # Sanity gate before encryption: a truncated dump still gzips fine, so
+    # check the trailer mysqldump always writes rather than trusting exit codes
+    # through the pipe (sh has no pipefail).
+    if ! gzip -dc dump.sql.gz | tail -5 | grep -q "Dump completed"; then
+      echo "FATAL: dump has no completion marker -- truncated, not uploading" >&2
+      exit 1
+    fi
+
+    openssl smime -encrypt -binary -aes-256-cbc -outform DER \
+      -in dump.sql.gz -out "$OUT" pub.pem
+    sha256sum "$OUT" > "${OUT}.sha256"
+    rm -f dump.sql.gz ca.pem pub.pem
+    ls -l "$OUT"
+  upload.sh: |
+    #!/bin/sh
+    set -eu
+    cd /work
+
+    export RCLONE_CONFIG_R2_TYPE=s3
+    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+    export RCLONE_CONFIG_R2_ACL=private
+    # The R2 token is scoped to one bucket, so it cannot ListBuckets; without
+    # this rclone fails the bucket-exists preflight before it ever uploads.
+    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+
+    rclone copy /work "r2:${R2_BUCKET}/mysql/daily/" \
+      --include "*.enc" --include "*.sha256" --stats-one-line
+
+    # Keep the 1st-of-month run forever-ish. Retention on the daily prefix is
+    # 30d; at ~1 MB/dump the entire yearly footprint is single-digit MB, so the
+    # limit here is prefix hygiene, not cost.
+    if [ "$(date -u +%d)" = "01" ]; then
+      rclone copy /work "r2:${R2_BUCKET}/mysql/monthly/" \
+        --include "*.enc" --include "*.sha256" --stats-one-line
+    fi
+
+    # Retention is NOT done here. R2 implements PutBucketLifecycleConfiguration
+    # (verified 2026-08-20; it does not implement object lock or versioning), so
+    # the 30d/400d expiry lives as bucket lifecycle rules on the daily/ and
+    # monthly/ prefixes. A rule keeps pruning if this CronJob is broken,
+    # suspended, or deleted -- an `rclone delete` here would not, and would put
+    # a second copy of the retention policy somewhere it can drift from the
+    # first. It also means this job never needs a delete on the happy path.
+    rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-mysql
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  schedule: "23 */6 * * *" # every 6h, off the top of the hour
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: backup-mysql
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            role: node
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          volumes:
+            # medium: Memory -- the plaintext dump exists only between the two
+            # containers and must never land on a node disk, where it would
+            # outlive the pod as an unencrypted file full of OAuth refresh
+            # tokens.
+            - name: work
+              emptyDir: {medium: Memory, sizeLimit: 512Mi}
+            - name: scripts
+              configMap:
+                name: backup-mysql-scripts
+                defaultMode: 0555
+          initContainers:
+            - name: dump
+              image: mysql:8.4-oracle@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/dump.sh"]
+              env:
+                - {name: DB_PORT, value: "3306"}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 50m, memory: 192Mi}
+                limits: {memory: 512Mi}
+          containers:
+            - name: upload
+              image: rclone/rclone:1.71.2@sha256:3103526c506266a9ecdf064efe99bf3677d92ef6407af124d8c56b4f49cbaa51
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/upload.sh"]
+              env:
+                - {name: HOME, value: /work}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
