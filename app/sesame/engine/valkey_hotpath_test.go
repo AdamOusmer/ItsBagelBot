@@ -122,20 +122,46 @@ func (f hotPathFixture) testGreetClaim(t *testing.T) {
 }
 
 func (f hotPathFixture) testFeedCounters(t *testing.T) {
-	totalKey, todayKey := f.prefix+":feed-total", f.prefix+":feed-today"
-	f.cleanupKeys(t, totalKey, todayKey)
-	_, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"60"}))
+	totalKey, todayKey, boardKey := f.prefix+":feed-total", f.prefix+":feed-today", f.prefix+":feed-board"
+	f.cleanupKeys(t, totalKey, todayKey, boardKey)
+	keys, counterKeys := []string{totalKey, todayKey, boardKey}, []string{totalKey, todayKey}
+
+	_, err := decodeFeedWarm(feedWarmScript.Exec(f.ctx, f.client, keys, []string{"60", "7"}))
 	require.True(t, valkey.IsValkeyNil(err), "missing total must decode as Valkey nil")
-	seeded, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"100", "60"}))
+	seeded, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, counterKeys, []string{"100", "60"}))
 	require.NoError(t, err)
 	require.Equal(t, FeedCounts{Today: 1, Total: 100}, seeded)
-	warm, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"60"}))
+
+	// The total is warm but the board has not been seeded yet: still cold, so
+	// the caller reseeds instead of ranking against an empty board.
+	_, err = decodeFeedWarm(feedWarmScript.Exec(f.ctx, f.client, keys, []string{"60", "7"}))
+	require.True(t, valkey.IsValkeyNil(err), "missing board must decode as Valkey nil")
+
+	ranked, err := feedBoardSeedScript.Exec(f.ctx, f.client, []string{boardKey},
+		[]string{"60", "9", "5", "4", "7"}).AsInt64()
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 2, Total: 101}, warm)
-	stale, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"99", "60"}))
+	require.EqualValues(t, 2, ranked)
+
+	warm, err := decodeFeedWarm(feedWarmScript.Exec(f.ctx, f.client, keys, []string{"60", "7"}))
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 3, Total: 101}, stale)
+	require.Equal(t, FeedCounts{Today: 2, Total: 101, Channel: 5, Rank: 2, Ranked: 2}, warm)
+	warm, err = decodeFeedWarm(feedWarmScript.Exec(f.ctx, f.client, keys, []string{"60", "7"}))
+	require.NoError(t, err)
+	require.Equal(t, FeedCounts{Today: 3, Total: 102, Channel: 6, Rank: 2, Ranked: 2}, warm)
+
+	stale, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, counterKeys, []string{"99", "60"}))
+	require.NoError(t, err)
+	require.Equal(t, FeedCounts{Today: 4, Total: 102}, stale)
+
+	// Reseeding must never walk a score back: the live view has counted two
+	// feedings the DB snapshot has not caught up with yet.
+	_, err = feedBoardSeedScript.Exec(f.ctx, f.client, []string{boardKey}, []string{"60", "4", "7"}).AsInt64()
+	require.NoError(t, err)
+	score, err := f.client.Do(f.ctx, f.client.B().Zscore().Key(boardKey).Member("7").Build()).AsFloat64()
+	require.NoError(t, err)
+	require.EqualValues(t, 6, score, "ZADD GT keeps the live view's higher count")
 	requirePositiveTTL(t, f.ctx, f.client, todayKey)
+	requirePositiveTTL(t, f.ctx, f.client, boardKey)
 }
 
 func (f hotPathFixture) cleanupKeys(tb testingTB, keys ...string) {
@@ -150,6 +176,7 @@ type hotPathBenchmark struct {
 	counter string
 	total   string
 	today   string
+	board   string
 }
 
 func newHotPathBenchmark(b *testing.B) hotPathBenchmark {
@@ -158,12 +185,15 @@ func newHotPathBenchmark(b *testing.B) hotPathBenchmark {
 	fixture := hotPathBenchmark{
 		ctx: context.Background(), client: client,
 		counter: prefix + ":counter", total: prefix + ":total", today: prefix + ":today",
+		board: prefix + ":board",
 	}
 	b.Cleanup(func() {
-		client.Do(context.Background(), client.B().Del().Key(fixture.counter, fixture.total, fixture.today).Build())
+		client.Do(context.Background(), client.B().Del().Key(fixture.counter, fixture.total, fixture.today, fixture.board).Build())
 	})
 	require.NoError(b, client.Do(fixture.ctx, client.B().Set().Key(fixture.counter).Value("0").Build()).Error())
 	require.NoError(b, client.Do(fixture.ctx, client.B().Set().Key(fixture.total).Value("1").Build()).Error())
+	require.NoError(b, client.Do(fixture.ctx,
+		client.B().Zadd().Key(fixture.board).ScoreMember().ScoreMember(1, "7").Build()).Error())
 	return fixture
 }
 
@@ -179,8 +209,8 @@ func (f hotPathBenchmark) benchmarkLoyalty(b *testing.B) {
 func (f hotPathBenchmark) benchmarkFeed(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client,
-			[]string{f.total, f.today}, []string{"60"})); err != nil {
+		if _, err := decodeFeedWarm(feedWarmScript.Exec(f.ctx, f.client,
+			[]string{f.total, f.today, f.board}, []string{"60", "7"})); err != nil {
 			b.Fatal(err)
 		}
 	}

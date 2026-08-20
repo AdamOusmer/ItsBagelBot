@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// ChannelFeedCounter is the predicate function for channelfeedcounter builders.
+type ChannelFeedCounter func(*sql.Selector)
+
 // FeedCounter is the predicate function for feedcounter builders.
 type FeedCounter func(*sql.Selector)
 

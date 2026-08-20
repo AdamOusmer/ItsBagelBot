@@ -16,31 +16,74 @@ import (
 
 const personalityRPCTimeout = 2 * time.Second
 
-// PersonalityRPC implements FeedTotalBumper by forwarding to the modules
+// PersonalityRPC implements FeedTotalPersister by forwarding to the modules
 // service's personality RPC over NATS request/reply. The permanent counter
-// row lives with the modules service; sesame bumps it through
-// bagel.rpc.modules.personality.feed.
+// rows (the fleet-wide total and the per-channel leaderboard) live with the
+// modules service; sesame bumps and reads them through
+// bagel.rpc.modules.personality.feed and its .board sibling.
 type PersonalityRPC struct {
-	nc      *nats.Conn
-	subject string // e.g. "bagel.rpc.modules.personality.feed"
+	nc           *nats.Conn
+	subject      string // e.g. "bagel.rpc.modules.personality.feed"
+	boardSubject string // e.g. "bagel.rpc.modules.personality.feed.board"
 }
 
-// NewPersonalityRPC returns a FeedTotalBumper backed by the modules
+// NewPersonalityRPC returns a FeedTotalPersister backed by the modules
 // personality RPC. prefix is the modules RPC subject prefix (default
 // "bagel.rpc.modules"); the client appends ".personality.feed".
 func NewPersonalityRPC(nc *nats.Conn, modulesPrefix string) *PersonalityRPC {
-	return &PersonalityRPC{nc: nc, subject: modulesPrefix + ".personality.feed"}
+	subject := modulesPrefix + ".personality.feed"
+	return &PersonalityRPC{nc: nc, subject: subject, boardSubject: subject + ".board"}
 }
 
-// FeedBump increments the permanent global feed counter and returns the new
-// lifetime total.
-func (c *PersonalityRPC) FeedBump(ctx context.Context) (uint64, error) {
-	reply, err := bus.RequestJSONTimeout[modulesrpc.FeedBumpReply](ctx, c.nc, c.subject, modulesrpc.FeedBumpRequest{}, personalityRPCTimeout)
+// FeedBump records one feeding on the permanent counters and returns the new
+// lifetime totals, optionally with the leaderboard the caller needs to seed
+// its live view.
+func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, name string, withBoard bool) (FeedTotals, error) {
+	request := modulesrpc.FeedBumpRequest{BroadcasterID: broadcasterID, Name: name, WithBoard: withBoard}
+	reply, err := bus.RequestJSONTimeout[modulesrpc.FeedBumpReply](ctx, c.nc, c.subject, request, personalityRPCTimeout)
 	if err != nil {
-		return 0, err
+		return FeedTotals{}, err
 	}
 	if reply.Error != "" {
-		return 0, errors.New(reply.Error)
+		return FeedTotals{}, errors.New(reply.Error)
 	}
-	return reply.Total, nil
+	return FeedTotals{
+		Total:   reply.Total,
+		Channel: reply.Channel,
+		Rank:    reply.Rank,
+		Board:   toEngineEntries(reply.Board),
+	}, nil
+}
+
+// FeedBoard reads the leaderboard straight from the permanent rows: the
+// reaction that prints it is rare and cooldown-gated, so it never needs the
+// hot-path live view.
+func (c *PersonalityRPC) FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error) {
+	request := modulesrpc.FeedBoardRequest{Limit: limit, BroadcasterID: broadcasterID}
+	reply, err := bus.RequestJSONTimeout[modulesrpc.FeedBoardReply](ctx, c.nc, c.boardSubject, request, personalityRPCTimeout)
+	if err != nil {
+		return FeedBoard{}, err
+	}
+	if reply.Error != "" {
+		return FeedBoard{}, errors.New(reply.Error)
+	}
+	return FeedBoard{
+		Entries: toEngineEntries(reply.Entries),
+		Ranked:  reply.Ranked,
+		Channel: reply.Channel,
+		Rank:    reply.Rank,
+	}, nil
+}
+
+func toEngineEntries(entries []modulesrpc.FeedBoardEntry) []FeedBoardEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	board := make([]FeedBoardEntry, 0, len(entries))
+	for _, entry := range entries {
+		board = append(board, FeedBoardEntry{
+			BroadcasterID: entry.BroadcasterID, Name: entry.Name, Count: entry.Count,
+		})
+	}
+	return board
 }

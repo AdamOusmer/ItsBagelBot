@@ -28,19 +28,92 @@ type PersonalityWiring struct {
 	Log        *zap.Logger
 }
 
-// SubscribePersonality answers the personality verbs under w.Prefix. There is
-// one: feed, the permanent global feed-counter bump. It rides the MODULES_RPC
-// account export like the quote verbs, but sesame's WORKER_RPC imports are
-// scoped per subtree, so the verb needs its own import line in nats-auth.conf
-// (a bare export is not enough for the request to cross accounts).
+// feedBoardSeedLimit caps the leaderboard sesame is handed to seed its live
+// view. The bot runs in the low hundreds of channels, so this ships the whole
+// board today; the cap only exists so a reply can never grow unbounded as the
+// channel count does. Channels beyond it are missing from sesame's ranks until
+// they feed the bagel themselves, which is the same place their row came from.
+const feedBoardSeedLimit = 1000
+
+// SubscribePersonality answers the personality verbs under w.Prefix: feed,
+// which records one feeding on the fleet-wide counter and the feeding
+// channel's row, and feed.board, the read-only leaderboard. They ride the
+// MODULES_RPC account export like the quote verbs, but sesame's WORKER_RPC
+// imports are scoped per subtree, so each verb needs its own import line in
+// nats-auth.conf (a bare export is not enough for the request to cross
+// accounts).
 func SubscribePersonality(w PersonalityWiring) error {
-	handler := func(ctx context.Context, _ modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
-		total, err := w.Repo.FeedBump(ctx)
+	if err := subscribeFeedBump(w); err != nil {
+		return err
+	}
+	return subscribeFeedBoard(w)
+}
+
+// subscribeFeedBump answers the write verb: one feeding, both counters.
+func subscribeFeedBump(w PersonalityWiring) error {
+	handler := func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
+		totals, err := w.Repo.FeedBump(ctx, req.BroadcasterID, req.Name)
 		if err != nil {
 			return modulesrpc.FeedBumpReply{Error: err.Error()}
 		}
-		return modulesrpc.FeedBumpReply{Total: total}
+		reply := modulesrpc.FeedBumpReply{Total: totals.Total, Channel: totals.Channel, Rank: totals.Rank}
+		if !req.WithBoard {
+			return reply
+		}
+		board, err := w.Repo.FeedBoard(ctx, feedBoardSeedLimit)
+		if err != nil {
+			return modulesrpc.FeedBumpReply{Error: err.Error()}
+		}
+		reply.Board = toBoardEntries(board)
+		return reply
 	}
 	subject := w.Prefix + ".feed"
 	return bus.QueueSubscribeJSON[modulesrpc.FeedBumpRequest, modulesrpc.FeedBumpReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, handler)
+}
+
+// subscribeFeedBoard answers the read verb: the leaderboard, plus the asking
+// channel's own standing when it named itself.
+func subscribeFeedBoard(w PersonalityWiring) error {
+	handler := func(ctx context.Context, req modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
+		reply, err := readFeedBoard(ctx, w.Repo, req)
+		if err != nil {
+			return modulesrpc.FeedBoardReply{Error: err.Error()}
+		}
+		return reply
+	}
+	subject := w.Prefix + ".feed.board"
+	return bus.QueueSubscribeJSON[modulesrpc.FeedBoardRequest, modulesrpc.FeedBoardReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, handler)
+}
+
+// readFeedBoard collects the three reads a leaderboard answer needs, keeping
+// the error handling out of the subscribe handler.
+func readFeedBoard(ctx context.Context, repo *repository.Personality, req modulesrpc.FeedBoardRequest) (modulesrpc.FeedBoardReply, error) {
+	board, err := repo.FeedBoard(ctx, req.Limit)
+	if err != nil {
+		return modulesrpc.FeedBoardReply{}, err
+	}
+	ranked, err := repo.FeedRanked(ctx)
+	if err != nil {
+		return modulesrpc.FeedBoardReply{}, err
+	}
+	reply := modulesrpc.FeedBoardReply{Entries: toBoardEntries(board), Ranked: ranked}
+	if req.BroadcasterID == 0 {
+		return reply, nil
+	}
+	count, rank, err := repo.FeedChannel(ctx, req.BroadcasterID)
+	if err != nil {
+		return modulesrpc.FeedBoardReply{}, err
+	}
+	reply.Channel, reply.Rank = count, rank
+	return reply, nil
+}
+
+func toBoardEntries(rows []repository.FeedBoardRow) []modulesrpc.FeedBoardEntry {
+	entries := make([]modulesrpc.FeedBoardEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, modulesrpc.FeedBoardEntry{
+			BroadcasterID: row.BroadcasterID, Name: row.Name, Count: row.Count,
+		})
+	}
+	return entries
 }

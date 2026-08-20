@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/modules/ent/migrate"
 
+	"ItsBagelBot/app/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/modules/ent/feedcounter"
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
@@ -26,6 +27,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// ChannelFeedCounter is the client for interacting with the ChannelFeedCounter builders.
+	ChannelFeedCounter *ChannelFeedCounterClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
 	FeedCounter *FeedCounterClient
 	// GoveeCredential is the client for interacting with the GoveeCredential builders.
@@ -45,6 +48,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.ChannelFeedCounter = NewChannelFeedCounterClient(c.config)
 	c.FeedCounter = NewFeedCounterClient(c.config)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
@@ -139,12 +143,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:             ctx,
-		config:          cfg,
-		FeedCounter:     NewFeedCounterClient(cfg),
-		GoveeCredential: NewGoveeCredentialClient(cfg),
-		Modules:         NewModulesClient(cfg),
-		Quote:           NewQuoteClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
+		FeedCounter:        NewFeedCounterClient(cfg),
+		GoveeCredential:    NewGoveeCredentialClient(cfg),
+		Modules:            NewModulesClient(cfg),
+		Quote:              NewQuoteClient(cfg),
 	}, nil
 }
 
@@ -162,19 +167,20 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:             ctx,
-		config:          cfg,
-		FeedCounter:     NewFeedCounterClient(cfg),
-		GoveeCredential: NewGoveeCredentialClient(cfg),
-		Modules:         NewModulesClient(cfg),
-		Quote:           NewQuoteClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
+		FeedCounter:        NewFeedCounterClient(cfg),
+		GoveeCredential:    NewGoveeCredentialClient(cfg),
+		Modules:            NewModulesClient(cfg),
+		Quote:              NewQuoteClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		FeedCounter.
+//		ChannelFeedCounter.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -196,6 +202,7 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.ChannelFeedCounter.Use(hooks...)
 	c.FeedCounter.Use(hooks...)
 	c.GoveeCredential.Use(hooks...)
 	c.Modules.Use(hooks...)
@@ -205,6 +212,7 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.ChannelFeedCounter.Intercept(interceptors...)
 	c.FeedCounter.Intercept(interceptors...)
 	c.GoveeCredential.Intercept(interceptors...)
 	c.Modules.Intercept(interceptors...)
@@ -214,6 +222,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *ChannelFeedCounterMutation:
+		return c.ChannelFeedCounter.mutate(ctx, m)
 	case *FeedCounterMutation:
 		return c.FeedCounter.mutate(ctx, m)
 	case *GoveeCredentialMutation:
@@ -224,6 +234,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Quote.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// ChannelFeedCounterClient is a client for the ChannelFeedCounter schema.
+type ChannelFeedCounterClient struct {
+	config
+}
+
+// NewChannelFeedCounterClient returns a client for the ChannelFeedCounter from the given config.
+func NewChannelFeedCounterClient(c config) *ChannelFeedCounterClient {
+	return &ChannelFeedCounterClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelfeedcounter.Hooks(f(g(h())))`.
+func (c *ChannelFeedCounterClient) Use(hooks ...Hook) {
+	c.hooks.ChannelFeedCounter = append(c.hooks.ChannelFeedCounter, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelfeedcounter.Intercept(f(g(h())))`.
+func (c *ChannelFeedCounterClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelFeedCounter = append(c.inters.ChannelFeedCounter, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelFeedCounter entity.
+func (c *ChannelFeedCounterClient) Create() *ChannelFeedCounterCreate {
+	mutation := newChannelFeedCounterMutation(c.config, OpCreate)
+	return &ChannelFeedCounterCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelFeedCounter entities.
+func (c *ChannelFeedCounterClient) CreateBulk(builders ...*ChannelFeedCounterCreate) *ChannelFeedCounterCreateBulk {
+	return &ChannelFeedCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelFeedCounterClient) MapCreateBulk(slice any, setFunc func(*ChannelFeedCounterCreate, int)) *ChannelFeedCounterCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelFeedCounterCreateBulk{err: fmt.Errorf("calling to ChannelFeedCounterClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelFeedCounterCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelFeedCounterCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelFeedCounter.
+func (c *ChannelFeedCounterClient) Update() *ChannelFeedCounterUpdate {
+	mutation := newChannelFeedCounterMutation(c.config, OpUpdate)
+	return &ChannelFeedCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelFeedCounterClient) UpdateOne(_m *ChannelFeedCounter) *ChannelFeedCounterUpdateOne {
+	mutation := newChannelFeedCounterMutation(c.config, OpUpdateOne, withChannelFeedCounter(_m))
+	return &ChannelFeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelFeedCounterClient) UpdateOneID(id uint64) *ChannelFeedCounterUpdateOne {
+	mutation := newChannelFeedCounterMutation(c.config, OpUpdateOne, withChannelFeedCounterID(id))
+	return &ChannelFeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelFeedCounter.
+func (c *ChannelFeedCounterClient) Delete() *ChannelFeedCounterDelete {
+	mutation := newChannelFeedCounterMutation(c.config, OpDelete)
+	return &ChannelFeedCounterDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelFeedCounterClient) DeleteOne(_m *ChannelFeedCounter) *ChannelFeedCounterDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelFeedCounterClient) DeleteOneID(id uint64) *ChannelFeedCounterDeleteOne {
+	builder := c.Delete().Where(channelfeedcounter.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelFeedCounterDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelFeedCounter.
+func (c *ChannelFeedCounterClient) Query() *ChannelFeedCounterQuery {
+	return &ChannelFeedCounterQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelFeedCounter},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelFeedCounter entity by its id.
+func (c *ChannelFeedCounterClient) Get(ctx context.Context, id uint64) (*ChannelFeedCounter, error) {
+	return c.Query().Where(channelfeedcounter.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelFeedCounterClient) GetX(ctx context.Context, id uint64) *ChannelFeedCounter {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelFeedCounterClient) Hooks() []Hook {
+	return c.hooks.ChannelFeedCounter
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelFeedCounterClient) Interceptors() []Interceptor {
+	return c.inters.ChannelFeedCounter
+}
+
+func (c *ChannelFeedCounterClient) mutate(ctx context.Context, m *ChannelFeedCounterMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelFeedCounterCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelFeedCounterUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelFeedCounterUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelFeedCounterDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelFeedCounter mutation op: %q", m.Op())
 	}
 }
 
@@ -762,9 +905,10 @@ func (c *QuoteClient) mutate(ctx context.Context, m *QuoteMutation) (Value, erro
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		FeedCounter, GoveeCredential, Modules, Quote []ent.Hook
+		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote []ent.Hook
 	}
 	inters struct {
-		FeedCounter, GoveeCredential, Modules, Quote []ent.Interceptor
+		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules,
+		Quote []ent.Interceptor
 	}
 )
