@@ -250,6 +250,18 @@ spec:
                     configMapKeyRef:
                       name: fleet-ca
                       key: ca.pem
+                # mTLS client identity. The NATS listeners flipped to
+                # verify:true on 2026-08-18 and this pod template was missed,
+                # so every run since failed. It does NOT surface as a connect
+                # error: pkg/bus/connect.go sets nats.RetryOnFailedConnect(true),
+                # so Connect returns a handle that never finishes its handshake
+                # and the failure appears 30s later as
+                # "rpc bagel.rpc.internal.notifications.cleanup request:
+                # context deadline exceeded". Mirror of the Deployment above.
+                - name: NATS_CLIENT_CERT_FILE
+                  value: /etc/nats-client/tls/tls.crt
+                - name: NATS_CLIENT_KEY_FILE
+                  value: /etc/nats-client/tls/tls.key
               envFrom:
                 - secretRef:
                     name: notifications-env
@@ -263,3 +275,9 @@ spec:
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+          volumes:
+            - name: nats-client-tls
+              secret:
+                secretName: nats-client-tls
