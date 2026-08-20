@@ -42,6 +42,35 @@ defmodule Ingress.ShardHealthTest do
     end
   end
 
+  describe "unmanaged_action/2" do
+    defp unmanaged(id, name_state \\ :named),
+      do: %{shard_id: id, name_state: name_state, state: "connected", bound: true}
+
+    test "stops a session for a slot the conduit no longer has" do
+      assert ShardHealth.unmanaged_action(unmanaged(4), 3) == :stop
+    end
+
+    test "leaves an in-range slot to the session's own registration self-check" do
+      assert ShardHealth.unmanaged_action(unmanaged(0), 3) == :ignore
+    end
+
+    test "never touches a rescue session, which is unnamed by design" do
+      assert ShardHealth.unmanaged_action(unmanaged(4, :rescue), 3) == :ignore
+      assert ShardHealth.unmanaged_action(unmanaged(0, :rescue), 3) == :ignore
+    end
+
+    test "never touches a session mid-handoff, which released its name on purpose" do
+      assert ShardHealth.unmanaged_action(unmanaged(4, :released), 3) == :ignore
+    end
+
+    test "a status from an older ingress still gets its out-of-range slot reaped" do
+      legacy = %{shard_id: 4, state: "connected", bound: true}
+
+      assert ShardHealth.unmanaged_action(legacy, 3) == :stop
+      assert ShardHealth.unmanaged_action(%{legacy | shard_id: 1}, 3) == :ignore
+    end
+  end
+
   describe "heal_action/3" do
     test "unreachable session is restarted" do
       assert ShardHealth.heal_action(:unreachable, 1, @now) == :restart

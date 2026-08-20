@@ -177,6 +177,11 @@ export interface Shard {
   keepalive_ms?: number;
   attempts?: number;
   load?: number;
+  // False when ingress is running this session without a registry entry for
+  // it: the socket serves, but no converge pass can see or steer it. Optional
+  // so a snapshot from an ingress older than the unmanaged-shard sweep still
+  // renders (absent reads as "no claim", not as "unmanaged").
+  managed?: boolean;
 }
 
 export interface ShardSnapshot {
