@@ -116,7 +116,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787190653-e63a7589f684
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:main-1787194469-cb0d16209c6d
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
