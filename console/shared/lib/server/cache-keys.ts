@@ -38,12 +38,13 @@ export const POLICY = {
   entity: { freshMs: 120_000, swrMs: 600_000, staleIfErrorMs: 600_000 },
   security: { freshMs: 60_000, swrMs: 120_000, staleIfErrorMs: 300_000 },
   projected: { freshMs: 600_000, swrMs: 1_800_000 },
-  // board: the public per-channel leaderboards. Lifetime rankings move slowly
-  // and each refresh costs two ranked counter queries plus a name lookup per
-  // listed channel, so they get a slow fresh window and a long stale-if-error
-  // tail — an anonymous page keeps showing yesterday's ranking rather than an
+  // board: the public per-channel leaderboards. The window that actually paces
+  // the underlying reads is the shared Valkey snapshot behind them (see
+  // public-boards.ts); this in-process layer only keeps a busy pod from asking
+  // Valkey once per request. Short, therefore — but with a long stale-if-error
+  // tail, so an anonymous page keeps showing the last ranking rather than an
   // empty board while a service is down.
-  board: { freshMs: 15_000, swrMs: 60_000, staleIfErrorMs: 300_000 },
+  board: { freshMs: 1_000, swrMs: 2_000, staleIfErrorMs: 300_000 },
   // govee: the third-party device list + key-presence flag. Both are read on
   // every govee page load (and every /events invalidation), but the underlying
   // Govee cloud call is slow and rate-limited, so a short fresh window plus a
