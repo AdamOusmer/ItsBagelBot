@@ -13,9 +13,15 @@
 //
 // Unlike the odometer next to them, these move slowly and cost more per read
 // (two ranked counter queries, a board query, and one name lookup per listed
-// channel), so they live behind their own cache key and their own slow policy
-// rather than riding the 1s `live` snapshot. The page polls them on a lazy
-// timer; nothing here is on a hot path.
+// channel), so a fresh read is rare. The caching is deliberately two-layer:
+//
+//   Valkey (BOARDS_TTL_MS) — ONE snapshot for the whole deployment. The fabric
+//     cache is in-process, so a pod-local window alone let three pods answer
+//     three different rankings; a reader hopping pods between two frames saw
+//     the board flicker between them. The shared key makes every pod serve the
+//     same bytes for the same window.
+//   fabric  (POLICY.board)  — a short in-process window in front of it, so a
+//     busy pod reads Valkey a few times a second at most, not once per request.
 //
 // The same three rules as public-stats.ts apply: one shared snapshot for every
 // visitor, an absent counter is honestly 0, and an unreachable service degrades
@@ -23,6 +29,7 @@
 import { rpc } from '@bagel/shared/server/nats';
 import { dev } from '$app/environment';
 import { POLICY } from '@bagel/shared/server/cache-keys';
+import { sharedSnapshot } from '@bagel/shared/server/shared-snapshot';
 import { fabric, SUB, accountState } from './services';
 
 // Gated on the build-time `dev` constant first, so Rollup erases the demo
@@ -30,6 +37,17 @@ import { fabric, SUB, accountState } from './services';
 const DEMO = dev && process.env.DEMO === '1';
 
 const CACHE_KEY = 'public-stats:boards';
+
+// The cross-pod snapshot. Versioned because the shape is stored, not derived:
+// a payload change must not be read back by an older pod mid-rollout.
+const SHARED_KEY = 'public-stats:boards:v1';
+
+// How long one snapshot serves the whole deployment. Deliberately the stream's
+// own tick: the boards ride the same 2s frames as the odometer, so a feeding or
+// a rank change lands as fast as the message counters beside it. Because the
+// key is shared, that cadence costs the fleet one board read every 2s in total
+// — not one per pod, and never one per viewer.
+const BOARDS_TTL_MS = 2_000;
 
 const COUNTER_MESSAGES = 'messages_processed';
 const COUNTER_EVENTS = 'events_processed';
@@ -184,6 +202,24 @@ async function loadFeed(): Promise<PublicBoards['feed'] | null> {
   }
 }
 
+/**
+ * The deployment-wide snapshot: one board read per tick for the whole fleet,
+ * not one per pod. Without it three pods answer three rankings and a reader
+ * hopping pods between frames watches the board flicker between them.
+ *
+ * A degraded snapshot is never published: it is the empty board, and pinning
+ * that across every pod would turn one service blip into a window of blank
+ * leaderboards everywhere.
+ */
+function sharedBoards(): Promise<PublicBoards> {
+  return sharedSnapshot({
+    key: SHARED_KEY,
+    ttlMs: BOARDS_TTL_MS,
+    load: loadBoards,
+    publish: (boards) => !boards.degraded
+  });
+}
+
 async function loadBoards(): Promise<PublicBoards> {
   const [channels, feed] = await Promise.all([loadTraffic(), loadFeed()]);
   return {
@@ -199,9 +235,9 @@ async function loadBoards(): Promise<PublicBoards> {
  * as an error.
  */
 export async function publicBoards(): Promise<PublicBoards> {
-  if (DEMO) return (await import('./demo-data')).demoBoards();
+  if (DEMO) return (await import('./demo-data')).demoBoards(Date.now());
   try {
-    return await fabric.readKey(CACHE_KEY, POLICY.board, loadBoards);
+    return await fabric.readKey(CACHE_KEY, POLICY.board, sharedBoards);
   } catch {
     return { channels: [], feed: EMPTY_FEED, degraded: true };
   }
