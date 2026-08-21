@@ -131,12 +131,13 @@ async function counterBoard(name: string): Promise<Map<string, number> | null> {
 }
 
 /**
- * Name one channel for the board.
+ * Name one channel the users service has to be asked about.
  *
- * The users service is the only authority on a channel's login (never a
- * caller-supplied string), and its answer is cached per channel for minutes, so
- * a board refresh usually resolves every row without an RPC. A lookup that
- * fails leaves the row unnamed rather than dropping it — the numbers are still
+ * Only reached for a channel the feed board did not already name (see
+ * nameTraffic). The users service is the only authority on a channel's login —
+ * never a caller-supplied string — and its answer is cached per channel for
+ * minutes, so even these rows usually resolve without an RPC. A lookup that
+ * fails leaves the row unnamed rather than dropping it: the numbers are still
  * true, and the page prints an "unnamed channel" label.
  */
 async function channelName(id: string): Promise<string> {
@@ -159,20 +160,39 @@ function mergeTraffic(messages: Map<string, number>, events: Map<string, number>
 }
 
 /**
- * Cut the merged rows to the shown size and name them. The cut comes first, so
- * a board refresh costs at most BOARD_SIZE name lookups however deep the two
- * counter boards were read.
+ * Cut the merged rows to the shown size and name them.
+ *
+ * The feed board is read on the same tick and stores each channel's name with
+ * its row, so it already answers the naming question for every channel that has
+ * ever fed the bagel — which, on a board ranked by traffic, is most of them.
+ * Those names are taken as they are: asking the users service for a name we
+ * were just handed would be a second round trip for the same answer, and it
+ * would print the two boards' names differently (the stored display name beside
+ * the bare login) for the same channel on the same page.
+ *
+ * The users service is the fallback for the rest, and the cut comes first, so a
+ * refresh costs at most BOARD_SIZE lookups however deep the counter boards were
+ * read — usually none.
  */
-async function nameTraffic(rows: ChannelTraffic[]): Promise<ChannelTraffic[]> {
+async function nameTraffic(rows: ChannelTraffic[], known: Map<string, string>): Promise<ChannelTraffic[]> {
   const shown = rows.slice(0, BOARD_SIZE);
-  const names = await Promise.all(shown.map((row) => channelName(row.id)));
+  const names = await Promise.all(shown.map((row) => known.get(row.id) ?? channelName(row.id)));
   return shown.map((row, i) => ({ ...row, name: names[i] }));
 }
 
-async function loadTraffic(): Promise<ChannelTraffic[] | null> {
+/** The names the feed board already carries, by broadcaster id. */
+function feedNames(feed: PublicBoards['feed'] | null): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const entry of feed?.entries ?? []) {
+    if (entry.id && entry.name) names.set(entry.id, entry.name);
+  }
+  return names;
+}
+
+async function loadTraffic(known: Map<string, string>): Promise<ChannelTraffic[] | null> {
   const [messages, events] = await Promise.all([counterBoard(COUNTER_MESSAGES), counterBoard(COUNTER_EVENTS)]);
   if (messages === null || events === null) return null;
-  return nameTraffic(mergeTraffic(messages, events));
+  return nameTraffic(mergeTraffic(messages, events), known);
 }
 
 const EMPTY_FEED = { total: 0, ranked: 0, entries: [] as FeedEntry[] };
@@ -220,8 +240,16 @@ function sharedBoards(): Promise<PublicBoards> {
   });
 }
 
+/**
+ * Both boards, in two stages rather than one: the feed board is read first
+ * because it names channels for free, and the traffic board's own lookups are
+ * then only for the channels it did not cover. The two counter queries behind
+ * the traffic board still run concurrently with each other, so the extra stage
+ * costs one round trip, and saves up to ten.
+ */
 async function loadBoards(): Promise<PublicBoards> {
-  const [channels, feed] = await Promise.all([loadTraffic(), loadFeed()]);
+  const feed = await loadFeed();
+  const channels = await loadTraffic(feedNames(feed));
   return {
     channels: channels ?? [],
     feed: feed ?? EMPTY_FEED,
