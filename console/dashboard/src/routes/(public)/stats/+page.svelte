@@ -291,6 +291,15 @@
 
   const traffic = $derived(boards.channels);
   const feed = $derived(boards.feed);
+
+  // Both boards label a channel with the name the fleet stored for it, which is
+  // a display name: usually the login with capitals, which the public channel
+  // page lowercases on the way in — but not always (a localized display name
+  // has no login shape at all). Link by id when the label cannot be one, rather
+  // than linking somewhere that 404s.
+  const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
+  const channelHref = (row: { id: string; name: string }) =>
+    `/user/${LOGIN_SHAPE.test(row.name) ? row.name : row.id}`;
 </script>
 
 <svelte:head>
@@ -395,7 +404,7 @@
                     <td class="rank">{i + 1}</td>
                     <td class="chan">
                       {#if row.name}
-                        <a href="/user/{row.name}">{row.name}</a>
+                        <a href={channelHref(row)}>{row.name}</a>
                       {:else}
                         <span class="unnamed">{t('stats.unknownChannel')}</span>
                       {/if}
@@ -433,7 +442,7 @@
                 <span class="rank">{i + 1}</span>
                 <span class="chan">
                   {#if row.name}
-                    <a href="/user/{row.name}">{row.name}</a>
+                    <a href={channelHref(row)}>{row.name}</a>
                   {:else}
                     <span class="unnamed">{t('stats.unknownChannel')}</span>
                   {/if}
