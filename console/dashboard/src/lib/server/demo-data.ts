@@ -389,8 +389,10 @@ export function demoStats(now: number): PublicStats {
   };
 }
 
-// The two public leaderboards, as a fixed ranking: they are a slow lifetime
-// view, so a demo does not need them to move.
+// The two public leaderboards. The ranking is fixed — it is a lifetime view —
+// but the counts climb with the clock like demoStats does, so a demo shows the
+// same thing the live page does: boards that tick with the stream rather than
+// sitting still between reloads.
 const DEMO_CHANNELS = [
   { id: '11', name: 'bagelwatch', messages: 41_882_301, events: 68_004_112, feeds: 9_144 },
   { id: '12', name: 'nightcrust', messages: 28_100_774, events: 45_930_615, feeds: 7_820 },
@@ -404,13 +406,25 @@ const DEMO_CHANNELS = [
   { id: '20', name: 'crumbcam', messages: 1_442_007, events: 2_660_884, feeds: 611 }
 ];
 
-export function demoBoards(): PublicBoards {
+export function demoBoards(now: number): PublicBoards {
+  const secs = (now - DEMO_EPOCH) / 1000;
+  // Each channel accrues at its own pace, highest first, so the demo board
+  // moves without ever reordering itself.
+  const grown = DEMO_CHANNELS.map((c, i) => {
+    const rate = 6 - i * 0.5;
+    return {
+      ...c,
+      messages: Math.floor(c.messages + secs * rate),
+      events: Math.floor(c.events + secs * rate * 1.7),
+      feeds: Math.floor(c.feeds + secs / (600 + i * 120))
+    };
+  });
   return {
-    channels: DEMO_CHANNELS.map(({ id, name, messages, events }) => ({ id, name, messages, events })),
+    channels: grown.map(({ id, name, messages, events }) => ({ id, name, messages, events })),
     feed: {
-      total: DEMO_CHANNELS.reduce((sum, c) => sum + c.feeds, 0),
+      total: grown.reduce((sum, c) => sum + c.feeds, 0),
       ranked: 57,
-      entries: DEMO_CHANNELS.map(({ id, name, feeds }) => ({ id, name, count: feeds }))
+      entries: grown.map(({ id, name, feeds }) => ({ id, name, count: feeds }))
     },
     degraded: false
   };

@@ -11,10 +11,9 @@
 
   // Fallback poll of /stats/data, armed only while the SSE stream is failed.
   const POLL_MS = 5000;
-  // The leaderboards are a lifetime ranking behind a 15s server-side fresh
-  // window, so they get their own lazy poll instead of a place in the 2s
-  // stream: a board that changes place once a week does not need a frame.
-  const BOARDS_POLL_MS = 60_000;
+  // The boards ride the same 2s stream as the counters (a `boards` event beside
+  // each snapshot frame), so this poll is only the stand-in for a failed
+  // stream, at the same cadence as the counters' own fallback.
   // 0 -> value rise on first paint (ease-out-quart, as the shared countUp action).
   const INTRO_MS = 900;
   // Time constant of the chase that re-bases the odometer onto a fresh snapshot:
@@ -177,7 +176,7 @@
     }
   }
 
-  /** Lazy refresh of the leaderboards; a hidden tab keeps its last ranking. */
+  /** Fallback refresh of the leaderboards; a hidden tab keeps its last ranking. */
   async function refreshBoards(): Promise<void> {
     if (document.hidden) return;
     try {
@@ -205,6 +204,16 @@
         // Malformed frame: ignore it, the next one is 2s out.
       }
     };
+    // The boards arrive on their own event so the counter frame keeps its
+    // shape. They are printed as sent — no extrapolation, no chase: a rank is
+    // a fact about a moment, not a trajectory.
+    es.addEventListener('boards', (ev) => {
+      try {
+        boards = JSON.parse((ev as MessageEvent<string>).data) as typeof boards;
+      } catch {
+        // Malformed frame: keep the last ranking.
+      }
+    });
     return es;
   }
 
@@ -223,9 +232,10 @@
 
     const es = openStream();
     const timer = setInterval(() => {
-      if (streamDown) void refresh();
+      if (!streamDown) return;
+      void refresh();
+      void refreshBoards();
     }, POLL_MS);
-    const boardTimer = setInterval(() => void refreshBoards(), BOARDS_POLL_MS);
 
     const onVisible = () => {
       if (document.hidden) return;
@@ -235,7 +245,8 @@
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(tick);
       }
-      if (streamDown) void refresh();
+      if (!streamDown) return;
+      void refresh();
       void refreshBoards();
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -243,7 +254,6 @@
     return () => {
       es.close();
       clearInterval(timer);
-      clearInterval(boardTimer);
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(raf);
     };
