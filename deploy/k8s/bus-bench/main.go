@@ -16,6 +16,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,7 @@ func main() {
 		payloadSize  = flag.Int("payload-size", 256, "")
 		confirmEvery = flag.Int("confirm-every", 512, "")
 		rate         = flag.Int("rate", 0, "per-pod offered msg/s; 0 = unbounded")
+		feeders      = flag.Int("feeders", 8, "publish goroutines; one distinct publish partition each so every pooled connection gets a worker")
 		podIndex     = flag.Int("pod-index", 0, "distinct per publisher pod; seeded into the high bits so sequence identities never collide across pods")
 		maxBytes     = flag.Int64("max-bytes", 1<<30, "")
 		origMaxBytes = flag.Int64("original-max-bytes", 0, "")
@@ -84,7 +86,7 @@ func main() {
 	case "setup":
 		err = runSetup(*url, *stream, *maxBytes)
 	case "publish":
-		err = runPublish(*url, *subject, *duration, *startAt, *payloadSize, *confirmEvery, *rate, *podIndex)
+		err = runPublish(*url, *subject, *duration, *startAt, *payloadSize, *confirmEvery, *rate, *podIndex, *feeders)
 	case "consume":
 		err = runConsume(*url, *subject, *group, *duration, *startAt, *payloadSize)
 	case "cleanup":
@@ -325,7 +327,7 @@ func sortAsc(v []int64) {
 	slices.Sort(v)
 }
 
-func runPublish(url, subject string, duration time.Duration, startAt int64, payloadSize, confirmEvery, rate, podIndex int) error {
+func runPublish(url, subject string, duration time.Duration, startAt int64, payloadSize, confirmEvery, rate, podIndex, feeders int) error {
 	waitUntil(startAt)
 	windowStart := time.Now()
 	deadline := windowStart.Add(duration)
@@ -338,55 +340,70 @@ func runPublish(url, subject string, duration time.Duration, startAt int64, payl
 
 	ctx := context.Background()
 	var (
-		seq      uint64
 		admitted uint64
 		pErrs    uint64
-		samples  []int64
 	)
-	if confirmEvery <= 0 {
-		confirmEvery = 1 << 62
+	// hashStreamRouter pins one routing key to ONE pooled connection, so an
+	// unpartitioned feeder engages exactly one worker of the pool and the
+	// other members never build a worker at all. One feeder per pooled
+	// connection, each under its own publish partition, is the minimum shape
+	// that exercises the whole publisher; ordering is per-feeder, which is
+	// all the latency samples need.
+	if feeders < 1 {
+		feeders = 1
 	}
-	// rate > 0 paces the loop on an absolute schedule (nextSlot += interval,
-	// sleep until it) rather than a ticker: a ticker coalesces whenever a send
-	// blocks, which silently collapses the offered rate instead of applying
-	// backpressure where it belongs. Offered load must be steady-state for the
-	// consume ceiling to mean anything: the explicit-ACK contract bounds
-	// in-flight work (MaxAckPending) and terminates past MaxDeliver, so an
-	// accidental backlog poisons the measurement with redeliveries.
-	var nextSlot time.Time
-	if rate > 0 {
-		nextSlot = time.Now()
+	samplesCh := make(chan []int64, feeders)
+	var wg sync.WaitGroup
+	for f := 0; f < feeders; f++ {
+		wg.Add(1)
+		go func(f int) {
+			defer wg.Done()
+			fctx := bus.WithPublishPartition(ctx, strconv.Itoa(f))
+			seq := uint64(f)
+			var samples []int64
+			var nextSlot time.Time
+			if rate > 0 {
+				nextSlot = time.Now()
+			}
+			for time.Now().Before(deadline) {
+				if rate > 0 {
+					nextSlot = nextSlot.Add(time.Second * time.Duration(feeders) / time.Duration(rate))
+					if d := time.Until(nextSlot); d > 0 {
+						time.Sleep(d)
+					}
+				}
+				seq += uint64(feeders)
+				globalSeq := uint64(podIndex)<<48 | seq
+				body := buildPayload(globalSeq, time.Now().UnixNano(), payloadSize)
+				if confirmEvery > 0 && seq%uint64(confirmEvery) == 0 {
+					t0 := time.Now()
+					cerr := bus.PublishConfirmed(fctx, pub, bus.Publication{
+						Subject: subject,
+						ID:      fmt.Sprintf("bench-%d-%d", podIndex, seq),
+						Payload: body,
+					})
+					samples = append(samples, time.Since(t0).Nanoseconds())
+					if cerr != nil {
+						atomic.AddUint64(&pErrs, 1)
+					} else {
+						atomic.AddUint64(&admitted, 1)
+					}
+					continue
+				}
+				if rerr := bus.PublishRaw(fctx, pub, subject, body); rerr != nil {
+					atomic.AddUint64(&pErrs, 1)
+				} else {
+					atomic.AddUint64(&admitted, 1)
+				}
+			}
+			samplesCh <- samples
+		}(f)
 	}
-	for time.Now().Before(deadline) {
-		if rate > 0 {
-			nextSlot = nextSlot.Add(time.Second / time.Duration(rate))
-			if d := time.Until(nextSlot); d > 0 {
-				time.Sleep(d)
-			}
-		}
-		seq++
-		globalSeq := uint64(podIndex)<<48 | seq
-		body := buildPayload(globalSeq, time.Now().UnixNano(), payloadSize)
-		if seq%uint64(confirmEvery) == 0 {
-			t0 := time.Now()
-			cerr := bus.PublishConfirmed(ctx, pub, bus.Publication{
-				Subject: subject,
-				ID:      fmt.Sprintf("bench-%d", seq),
-				Payload: body,
-			})
-			samples = append(samples, time.Since(t0).Nanoseconds())
-			if cerr != nil {
-				pErrs++
-			} else {
-				admitted++
-			}
-			continue
-		}
-		if rerr := bus.PublishRaw(ctx, pub, subject, body); rerr != nil {
-			pErrs++
-		} else {
-			admitted++
-		}
+	wg.Wait()
+	close(samplesCh)
+	var samples []int64
+	for s := range samplesCh {
+		samples = append(samples, s...)
 	}
 
 	flushCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
