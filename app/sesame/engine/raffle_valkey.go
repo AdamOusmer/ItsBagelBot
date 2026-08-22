@@ -213,9 +213,6 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log, rng: rngPick}
 }
 
-func raffleKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
-
-// clampRaffleOpen applies the store's floors and ceilings to one open request.
 // Pure, so the gate below stays a straight line; remindSecs is what the
 // reminder clock arms with (0: no reminders).
 func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
@@ -453,7 +450,6 @@ func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uin
 	return read, nil
 }
 
-// pickWinners draws min(n, len(members)) distinct members uniformly at random;
 // fewer entrants than winners means everyone wins. Pure apart from the store's
 // rng indirection.
 func pickWinners(rng func(total, n int) []int, members []string, n int64) []string {
@@ -516,7 +512,6 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 	return res, nil
 }
 
-// rngPick returns n distinct indices uniform over [0,total) via partial
 // Fisher-Yates with crypto/rand. It lives on the store as an indirection so
 // tests can pin the pick while production draws stay cryptographically random.
 func rngPick(total, n int) []int {
@@ -603,7 +598,6 @@ func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, key string) bool {
 	return err == nil && got == "OK"
 }
 
-// DigestPool is the receipt's tamper-evidence: SHA-256 over the version tag
 // and the pool's canonical form (join-time-sorted members, newline-joined).
 // Anyone holding the announced winners, the entrant count and the snapshot can
 // recompute it and detect a pool that changed after the fact. The snapshot key
@@ -615,14 +609,12 @@ func DigestPool(members []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// marshalJSON is json.Marshal ignoring the error for the one shape here (a
 // slice and ints cannot fail); kept named so the call site explains itself.
 func marshalJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
 }
 
-// mentionList renders winner ids as chat mentions: "@a, @b". Winners are
 // stored as logins (the queue precedent), so a prefix is all it takes.
 func mentionList(winners []string) string {
 	prefixed := make([]string, len(winners))
@@ -632,7 +624,6 @@ func mentionList(winners []string) string {
 	return strings.Join(prefixed, ", ")
 }
 
-// expandTokens substitutes {token} placeholders with values; unknown tokens
 // pass through untouched.
 func expandTokens(tmpl string, kv ...string) string {
 	pairs := make([]string, 0, len(kv))
