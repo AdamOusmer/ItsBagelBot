@@ -46,7 +46,10 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 // stored JSON, so it is bounded here before any narrowing conversion — the
 // same ceiling Open clamps configured counts to.
 func pickWinners(rng func(total, n int) []int, members []string, n int64) []string {
-	if n < 0 || n > maxRaffleWinners {
+	if n < 0 {
+		n = 0
+	}
+	if n > maxRaffleWinners {
 		n = maxRaffleWinners
 	}
 	if n >= int64(len(members)) {
