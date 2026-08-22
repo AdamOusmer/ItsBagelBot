@@ -80,6 +80,10 @@ type Deps struct {
 	// Queue is the per-broadcaster play queue behind the queue module. nil
 	// leaves the module's commands inert.
 	Queue QueueStore
+	// Raffle is the per-broadcaster raffle behind the raffle module. nil
+	// leaves the module's commands inert. Its deadline-key expiry auto-close
+	// rides the same keyspace notifications as Timers and LoyaltyTick.
+	Raffle RaffleStore
 	// Quotes is the channel-quotes store behind the quotes module. nil leaves
 	// the module's commands inert.
 	Quotes QuotesStore

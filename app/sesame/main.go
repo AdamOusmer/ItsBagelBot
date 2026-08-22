@@ -108,12 +108,14 @@ func main() {
 	defer loyaltyReporter.Close() // flushes pending accruals on shutdown
 	loyalty, loyaltyTick := newLoyalty(w, proj, live, loyaltyReporter)
 
+	raffle := newRaffle(w, proj)
+
 	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
 	// install their false-positive-suppression sets onto the same instance.
 	guard := automod.New()
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
-		stats: loyaltyReporter,
+		stats: loyaltyReporter, raffle: raffle,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)
