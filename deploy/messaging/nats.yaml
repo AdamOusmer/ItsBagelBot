@@ -171,10 +171,13 @@ spec:
             # Raised 2026-08-23 from 4GiB, which sat inside a rounding error of
             # the real workload: live heap reached 3.9GiB under load, so the GC
             # cycled continuously against the cliff and stalled the read loop.
-            # 6.5GiB keeps the ~80%-of-limit ratio over the new 8Gi container
-            # limit and puts the GC target well clear of worst-case heap.
+            # 6656MiB (6.5Gi) keeps the ~80%-of-limit ratio over the new 8Gi
+            # container limit and puts the GC target well clear of worst-case
+            # heap. It MUST be spelled as an integer: the Go runtime aborts at
+            # startup on fractional forms like "6.5GiB" (fatal error:
+            # malformed GOMEMLIMIT) — measured, not guessed.
             - name: GOMEMLIMIT
-              value: "6.5GiB"
+              value: "6656MiB"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
