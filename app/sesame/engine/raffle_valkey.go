@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"math/big"
 	"strconv"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -287,7 +287,7 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec
 		return false, err
 	}
 
-	state, err := json.Marshal(RaffleState{
+	state, err := codec.Marshal(RaffleState{
 		OpenedBy: spec.OpenedBy, OpenedAt: time.Now().UnixMilli(),
 		Winners: spec.Winners, RemindSeconds: remindSecs,
 	})
@@ -393,10 +393,10 @@ func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64
 // unreadable.
 func decodeReceipt(resultJSON, claimsJSON string) (*RaffleResult, bool) {
 	var res RaffleResult
-	if json.Unmarshal([]byte(resultJSON), &res) != nil {
+	if codec.UnmarshalFromString(resultJSON, &res) != nil {
 		return nil, false
 	}
-	if claimsJSON != "" && json.Unmarshal([]byte(claimsJSON), &res.Claims) != nil {
+	if claimsJSON != "" && codec.UnmarshalFromString(claimsJSON, &res.Claims) != nil {
 		res.Claims = nil
 	}
 	return &res, true
@@ -436,7 +436,7 @@ func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uin
 			return nil, err
 		}
 		st := RaffleState{}
-		if json.Unmarshal([]byte(v), &st) != nil {
+		if codec.UnmarshalFromString(v, &st) != nil {
 			return read, nil // unreadable state: draw with the raw override
 		}
 		read.Count = st.Winners
@@ -611,7 +611,7 @@ func DigestPool(members []string) string {
 
 // slice and ints cannot fail); kept named so the call site explains itself.
 func marshalJSON(v any) string {
-	b, _ := json.Marshal(v)
+	b, _ := codec.Marshal(v)
 	return string(b)
 }
 
