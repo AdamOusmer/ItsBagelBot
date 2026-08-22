@@ -474,34 +474,40 @@ func (s *ValkeyRaffleStore) holdDraw(ctx context.Context, broadcasterID uint64) 
 	return got == "OK"
 }
 
-// readDrawPhase gathers everything the outcome needs while the lock is held:
-// the winner count (the override when positive, else the state's configured
-// count) and the full canonical pool sorted by join time. found=false means no
-// raffle was running. ZRANGE over a raffle-sized zset is thousands of small
-// strings at worst — bounded by chat, not by design.
-func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uint64, override int64) (count int64, members []string, found bool, err error) {
-	count = override
+// drawRead is one draw's inputs under the lock: the winner count (the
+// override when positive, else the state's configured count) and the full
+// canonical pool sorted by join time. A nil result means no raffle was
+// running. ZRANGE over a raffle-sized zset is thousands of small strings at
+// worst — bounded by chat, not by design.
+type drawRead struct {
+	Count   int64
+	Members []string
+}
+
+func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uint64, override int64) (*drawRead, error) {
+	read := &drawRead{Count: override}
 	if override <= 0 {
 		v, err := s.client.Do(ctx, s.client.B().Get().
 			Key(raffleKey(raffleStatePrefix, broadcasterID)).Build()).ToString()
 		if valkey.IsValkeyNil(err) {
-			return 0, nil, false, nil // nothing running
+			return nil, nil // nothing running
 		}
 		if err != nil {
-			return 0, nil, false, err
+			return nil, err
 		}
 		st := RaffleState{}
 		if json.Unmarshal([]byte(v), &st) != nil {
-			return 0, nil, false, err
+			return read, nil // unreadable state: draw with the raw override
 		}
-		count = st.Winners
+		read.Count = st.Winners
 	}
-	members, err = s.client.Do(ctx, s.client.B().Zrange().
+	members, err := s.client.Do(ctx, s.client.B().Zrange().
 		Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Min("0").Max("-1").Build()).AsStrSlice()
 	if err != nil {
-		return 0, nil, true, err
+		return nil, err
 	}
-	return count, members, true, nil
+	read.Members = members
+	return read, nil
 }
 
 // pickWinners draws min(n, len(members)) distinct members uniformly at random;
@@ -551,16 +557,16 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 		return nil, nil // another path holds the draw: let it announce
 	}
 
-	count, members, found, err := s.readDrawPhase(ctx, broadcasterID, winners)
-	if err != nil || !found {
+	read, err := s.readDrawPhase(ctx, broadcasterID, winners)
+	if err != nil || read == nil {
 		return nil, err
 	}
 
 	now := time.Now().UnixMilli()
 	res := &RaffleResult{
-		Winners:  pickWinners(s.rng, members, count),
-		Entrants: int64(len(members)),
-		Digest:   DigestPool(members),
+		Winners:  pickWinners(s.rng, read.Members, read.Count),
+		Entrants: int64(len(read.Members)),
+		Digest:   DigestPool(read.Members),
 		DrawnAt:  now,
 	}
 	s.writeDrawPhase(ctx, broadcasterID, res)
@@ -698,12 +704,11 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	if len(res.Winners) == 0 {
 		text = i18n.T(locale, "raffle.auto_empty")
 	} else {
-		text = expandTokens(i18n.T(locale, "raffle.auto_closed"), map[string]string{
-			"targets":  mentionList(res.Winners),
-			"count":    strconv.FormatInt(int64(len(res.Winners)), 10),
-			"entrants": strconv.FormatInt(res.Entrants, 10),
-			"claim":    strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10),
-		})
+		text = expandTokens(i18n.T(locale, "raffle.auto_closed"),
+			"targets", mentionList(res.Winners),
+			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
+			"entrants", strconv.FormatInt(res.Entrants, 10),
+			"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10))
 	}
 	s.post(dctx, broadcasterID, text)
 }
@@ -735,10 +740,9 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, expandTokens(i18n.T(locale, "raffle.remind"), map[string]string{
-		"mins":  strconv.FormatInt((left+59)/60, 10),
-		"count": strconv.FormatInt(entrants, 10),
-	}))
+	s.post(dctx, broadcasterID, expandTokens(i18n.T(locale, "raffle.remind"),
+		"mins", strconv.FormatInt((left+59)/60, 10),
+		"count", strconv.FormatInt(entrants, 10)))
 
 	// Re-arm at min(interval, left): the final tick lands just before the draw.
 	next := st.RemindSeconds
@@ -819,12 +823,10 @@ func mentionList(winners []string) string {
 
 // expandTokens substitutes {token} placeholders with values; unknown tokens
 // pass through untouched.
-func expandTokens(tmpl string, kv map[string]string) string {
-	return strings.NewReplacer(func() []string {
-		out := make([]string, 0, len(kv)*2)
-		for k, v := range kv {
-			out = append(out, "{"+k+"}", v)
-		}
-		return out
-	}()...).Replace(tmpl)
+func expandTokens(tmpl string, kv ...string) string {
+	pairs := make([]string, 0, len(kv))
+	for i := 0; i+1 < len(kv); i += 2 {
+		pairs = append(pairs, "{"+kv[i]+"}", kv[i+1])
+	}
+	return strings.NewReplacer(pairs...).Replace(tmpl)
 }
