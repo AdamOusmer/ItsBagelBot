@@ -22,7 +22,7 @@ type fakeRaffle struct {
 	open        bool
 	pool        []string
 	lastSpec    engine.RaffleOpenSpec // last Open's request
-	drawResult  *engine.RaffleResult // nil: Draw reports "nothing running"
+	drawResult  *engine.RaffleResult  // nil: Draw reports "nothing running"
 	lastResult  *engine.RaffleResult
 	lastFound   bool
 	claimScript func(login string) engine.RaffleClaim
@@ -41,24 +41,24 @@ func (f *fakeRaffle) Open(_ context.Context, _ uint64, spec engine.RaffleOpenSpe
 	return true, nil
 }
 
-func (f *fakeRaffle) Join(_ context.Context, _ uint64, userID string) (bool, int64, bool, error) {
-	if f.err != nil {
-		return false, 0, false, f.err
-	}
+func (f *fakeRaffle) Join(_ context.Context, _ uint64, userID string) (engine.RaffleEntry, error) {
+	entry := engine.RaffleEntry{Open: f.open, Entrants: int64(len(f.pool))}
 	for _, p := range f.pool {
 		if p == userID {
-			return false, int64(len(f.pool)), f.open, nil
+			return entry, nil
 		}
 	}
 	if !f.open {
-		return false, int64(len(f.pool)), false, nil
+		return entry, nil
 	}
 	f.pool = append(f.pool, userID)
-	return true, int64(len(f.pool)), true, nil
+	entry.Entrants = int64(len(f.pool))
+	entry.Joined = true
+	return entry, nil
 }
 
-func (f *fakeRaffle) Status(_ context.Context, _ uint64) (bool, int64, int64, error) {
-	return f.open, int64(len(f.pool)), 600, f.err
+func (f *fakeRaffle) Status(_ context.Context, _ uint64) (engine.RaffleStatus, error) {
+	return engine.RaffleStatus{Open: f.open, Entrants: int64(len(f.pool)), SecondsLeft: 600}, f.err
 }
 
 func (f *fakeRaffle) Draw(_ context.Context, _ uint64, _ int64) (*engine.RaffleResult, error) {

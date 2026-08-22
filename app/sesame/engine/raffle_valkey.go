@@ -131,6 +131,22 @@ type RaffleOpenSpec struct {
 	Remind   time.Duration
 }
 
+// RaffleEntry reports one !join against the live raffle: whether the caller
+// got in, whether a raffle was open at all, and the pool size afterwards.
+type RaffleEntry struct {
+	Joined   bool
+	Open     bool
+	Entrants int64
+}
+
+// RaffleStatus is the live view a bare !raffle renders. SecondsLeft mirrors
+// TTL semantics: -1 when no raffle runs.
+type RaffleStatus struct {
+	Open        bool
+	Entrants    int64
+	SecondsLeft int64
+}
+
 // RaffleStore is the per-broadcaster raffle surface behind the raffle module:
 // one active raffle, joined with !join, closed by a mod or by its own deadline.
 type RaffleStore interface {
@@ -138,13 +154,12 @@ type RaffleStore interface {
 	// count at close, posting a time-left reminder every spec.Remind interval.
 	// ok=false means a raffle is already running (the deadline gate won).
 	Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (ok bool, err error)
-	// Join enters userID if a raffle is open. open=false means no raffle is
-	// running; joined=false with open=true means already entered. entrants
-	// reports the pool size either way.
-	Join(ctx context.Context, broadcasterID uint64, userID string) (joined bool, entrants int64, open bool, err error)
+	// Join enters userID if a raffle is open. Open=false means no raffle is
+	// running; Joined=false with Open=true means already entered.
+	Join(ctx context.Context, broadcasterID uint64, userID string) (RaffleEntry, error)
 	// Status reports whether a raffle is running, its pool size and the
-	// seconds left on its deadline (-1 when none runs, mirroring TTL semantics).
-	Status(ctx context.Context, broadcasterID uint64) (open bool, entrants, secondsLeft int64, err error)
+	// seconds left on its deadline.
+	Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error)
 	// Draw closes the raffle and picks min(winners, entries) distinct members
 	// uniformly at random. nil result means no raffle was running; a non-nil
 	// result with no winners means it closed with an empty pool. The receipt
@@ -179,20 +194,31 @@ const (
 	ClaimNone                       // no receipt, or caller isn't among the winners
 )
 
+// Claim outcome codes the Lua script returns as integer replies: 1 none, 2
+// already, 3 late, 4 recorded. Numbers, not string sentinels — a RESP2 bulk
+// starting with '-' would surface as an error on the Go side, and a typed
+// RaffleClaim deserves a numeric wire, not magic strings.
+const (
+	claimNoneCode    = 1
+	claimAlreadyCode = 2
+	claimLateCode    = 3
+	claimOkCode      = 4
+)
+
 // claimScript validates and records one !claim atomically: winner membership,
 // duplicate and window checks all read and write inside the script, so two
 // winners claiming in the same instant can't lose an update between HGET and
-// HSET. String sentinels carry the outcome (cjson handles the result blob).
+// HSET. cjson handles the result blob.
 var claimScript = valkey.NewLuaScript(`
 local r = redis.call('HGET', KEYS[1], 'result')
-if not r then return '-none' end
+if not r then return 1 end
 local ok, res = pcall(cjson.decode, r)
-if not ok then return '-none' end
+if not ok then return 1 end
 local found = false
 for _, w in ipairs(res.winners or {}) do
   if w == ARGV[1] then found = true end
 end
-if not found then return '-none' end
+if not found then return 1 end
 local claims = {}
 local c = redis.call('HGET', KEYS[1], 'claims')
 if c then
@@ -200,14 +226,14 @@ if c then
   if ok2 then claims = list end
 end
 for _, cl in ipairs(claims) do
-  if cl == ARGV[1] then return '-already' end
+  if cl == ARGV[1] then return 2 end
 end
 if tonumber(ARGV[3]) > tonumber(res.drawn_at or 0) + tonumber(ARGV[2]) * 1000 then
-  return '-late'
+  return 3
 end
 table.insert(claims, ARGV[1])
 redis.call('HSET', KEYS[1], 'claims', cjson.encode(claims))
-return '+ok'
+return 4
 `)
 
 // RaffleConfig carries everything the store needs beyond the Valkey client:
@@ -334,7 +360,7 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec
 	return true, nil
 }
 
-func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, userID string) (bool, int64, bool, error) {
+func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, userID string) (RaffleEntry, error) {
 	key := raffleKey(raffleEntriesPrefix, broadcasterID)
 	seconds := int64(raffleStateTTL.Seconds())
 	// One round trip: prove the raffle is open (state exists — the deadline key
@@ -352,44 +378,47 @@ func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, user
 		s.client.B().Expire().Key(key).Seconds(seconds).Build(),
 		s.client.B().Expire().Key(raffleKey(raffleStatePrefix, broadcasterID)).Seconds(seconds).Build(),
 	)
+	entry := RaffleEntry{}
 	exists, err := resps[0].AsInt64()
 	if err != nil {
-		return false, 0, false, err
+		return entry, err
 	}
-	entrants, err := resps[2].AsInt64()
+	entry.Entrants, err = resps[2].AsInt64()
 	if err != nil {
-		return false, 0, false, err
+		return entry, err
 	}
 	if exists == 0 {
-		return false, entrants, false, nil
+		return entry, nil
 	}
 	added, err := resps[1].AsInt64()
 	if err != nil {
-		return false, 0, true, err
+		entry.Open = true
+		return entry, err
 	}
-	return added > 0, entrants, true, nil
+	entry.Open = true
+	entry.Joined = added > 0
+	return entry, nil
 }
 
-func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (bool, int64, int64, error) {
-	key := raffleKey(raffleEntriesPrefix, broadcasterID)
+func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error) {
 	resps := s.client.DoMulti(ctx,
 		s.client.B().Exists().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build(),
-		s.client.B().Zcard().Key(key).Build(),
+		s.client.B().Zcard().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
 		s.client.B().Ttl().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build(),
 	)
+	st := RaffleStatus{SecondsLeft: -1}
 	open, err := resps[0].AsInt64()
 	if err != nil {
-		return false, 0, -1, err
+		return st, err
 	}
-	entrants, err := resps[1].AsInt64()
-	if err != nil {
-		return false, 0, -1, err
+	if st.Entrants, err = resps[1].AsInt64(); err != nil {
+		return st, err
 	}
-	ttl, err := resps[2].AsInt64()
-	if err != nil {
-		return false, 0, -1, err
+	if st.SecondsLeft, err = resps[2].AsInt64(); err != nil {
+		return st, err
 	}
-	return open > 0, entrants, ttl, nil
+	st.Open = open > 0
+	return st, nil
 }
 
 func (s *ValkeyRaffleStore) Cancel(ctx context.Context, broadcasterID uint64) (bool, error) {
@@ -544,28 +573,23 @@ func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, use
 	if userID == "" {
 		return ClaimNone, nil
 	}
-	out, err := claimScript.Exec(ctx, s.client,
+	code, err := claimScript.Exec(ctx, s.client,
 		[]string{raffleKey(raffleLastPrefix, broadcasterID)},
 		[]string{userID,
 			strconv.FormatInt(int64(raffleClaimWindow.Seconds()), 10),
 			strconv.FormatInt(time.Now().UnixMilli(), 10)},
-	).ToString()
+	).AsInt64()
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			// Script replies starting with '-' are error replies in RESP2;
-			// valkey-go surfaces them as errors, not strings.
-			return ClaimNone, nil
-		}
 		return ClaimNone, err
 	}
-	switch out {
-	case "+ok":
+	switch code {
+	case claimOkCode:
 		return ClaimOk, nil
-	case "-already":
+	case claimAlreadyCode:
 		return ClaimAlready, nil
-	case "-late":
+	case claimLateCode:
 		return ClaimLate, nil
-	default: // "-none" and anything unexpected
+	default: // claimNoneCode and anything unexpected
 		return ClaimNone, nil
 	}
 }
