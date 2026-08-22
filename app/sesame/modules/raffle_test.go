@@ -21,8 +21,7 @@ import (
 type fakeRaffle struct {
 	open        bool
 	pool        []string
-	winners     int64
-	remindArg   time.Duration // last Open's reminder argument
+	lastSpec    engine.RaffleOpenSpec // last Open's request
 	drawResult  *engine.RaffleResult // nil: Draw reports "nothing running"
 	lastResult  *engine.RaffleResult
 	lastFound   bool
@@ -30,7 +29,7 @@ type fakeRaffle struct {
 	err         error
 }
 
-func (f *fakeRaffle) Open(_ context.Context, _ uint64, _ string, winners int64, _ time.Duration, remind time.Duration) (bool, error) {
+func (f *fakeRaffle) Open(_ context.Context, _ uint64, spec engine.RaffleOpenSpec) (bool, error) {
 	if f.err != nil {
 		return false, f.err
 	}
@@ -38,8 +37,7 @@ func (f *fakeRaffle) Open(_ context.Context, _ uint64, _ string, winners int64, 
 		return false, nil
 	}
 	f.open = true
-	f.winners = winners
-	f.remindArg = remind
+	f.lastSpec = spec
 	return true, nil
 }
 
@@ -152,7 +150,7 @@ func TestRaffleOpenDefaults(t *testing.T) {
 	assert.Contains(t, out[0].Text, "!join")
 	assert.True(t, r.open)
 	// No explicit winner count: 0 means "the store's default" downstream.
-	assert.Zero(t, r.winners)
+	assert.Zero(t, r.lastSpec.Winners)
 }
 
 func TestRaffleOpenAlreadyRunning(t *testing.T) {
@@ -182,7 +180,7 @@ func TestRaffleOpenReminderArgs(t *testing.T) {
 		r := &fakeRaffle{}
 		m := Raffle(raffleDeps(r))
 		runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "open "+tc.args)
-		assert.Equal(t, tc.want, r.remindArg, "open %q", tc.args)
+		assert.Equal(t, tc.want, r.lastSpec.Remind, "open %q", tc.args)
 		assert.True(t, r.open)
 	}
 }
