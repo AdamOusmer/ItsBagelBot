@@ -88,8 +88,8 @@ func TestMentionListAndTokens(t *testing.T) {
 	assert.Equal(t, "@a, @b", mentionList([]string{"a", "b"}))
 	assert.Empty(t, mentionList(nil))
 
-	out := expandTokens("{targets} won {count}/{entrants}", map[string]string{
-		"targets": "@x", "count": "2", "entrants": "9"})
+	out := expandTokens("{targets} won {count}/{entrants}",
+		"targets", "@x", "count", "2", "entrants", "9")
 	assert.Equal(t, "@x won 2/9", out)
-	assert.Equal(t, "{unknown} stays", expandTokens("{unknown} stays", map[string]string{}))
+	assert.Equal(t, "{unknown} stays", expandTokens("{unknown} stays"))
 }
