@@ -14,14 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/app/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"ItsBagelBot/pkg/bus"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -183,58 +180,6 @@ type RaffleStore interface {
 	// this shares the deployment with.
 	StartExpiryWatcher(ctx context.Context)
 }
-
-// RaffleClaim is the outcome of a winner's !claim against the latest receipt.
-type RaffleClaim int
-
-const (
-	ClaimOk      RaffleClaim = iota // first claim by this winner, recorded
-	ClaimAlready                    // this winner already confirmed
-	ClaimLate                       // past raffleClaimWindow since the draw
-	ClaimNone                       // no receipt, or caller isn't among the winners
-)
-
-// Claim outcome codes the Lua script returns as integer replies: 1 none, 2
-// already, 3 late, 4 recorded. Numbers, not string sentinels — a RESP2 bulk
-// starting with '-' would surface as an error on the Go side, and a typed
-// RaffleClaim deserves a numeric wire, not magic strings.
-const (
-	claimNoneCode    = 1
-	claimAlreadyCode = 2
-	claimLateCode    = 3
-	claimOkCode      = 4
-)
-
-// claimScript validates and records one !claim atomically: winner membership,
-// duplicate and window checks all read and write inside the script, so two
-// winners claiming in the same instant can't lose an update between HGET and
-// HSET. cjson handles the result blob.
-var claimScript = valkey.NewLuaScript(`
-local r = redis.call('HGET', KEYS[1], 'result')
-if not r then return 1 end
-local ok, res = pcall(cjson.decode, r)
-if not ok then return 1 end
-local found = false
-for _, w in ipairs(res.winners or {}) do
-  if w == ARGV[1] then found = true end
-end
-if not found then return 1 end
-local claims = {}
-local c = redis.call('HGET', KEYS[1], 'claims')
-if c then
-  local ok2, list = pcall(cjson.decode, c)
-  if ok2 then claims = list end
-end
-for _, cl in ipairs(claims) do
-  if cl == ARGV[1] then return 2 end
-end
-if tonumber(ARGV[3]) > tonumber(res.drawn_at or 0) + tonumber(ARGV[2]) * 1000 then
-  return 3
-end
-table.insert(claims, ARGV[1])
-redis.call('HSET', KEYS[1], 'claims', cjson.encode(claims))
-return 4
-`)
 
 // RaffleConfig carries everything the store needs beyond the Valkey client:
 // where announcements go (the premium/standard lane split) and who resolves a
@@ -571,33 +516,6 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 	return res, nil
 }
 
-// Claim records a winner's prize confirmation on the latest receipt. All
-// validation rides the script; Go only translates the sentinel.
-func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, userID string) (RaffleClaim, error) {
-	if userID == "" {
-		return ClaimNone, nil
-	}
-	code, err := claimScript.Exec(ctx, s.client,
-		[]string{raffleKey(raffleLastPrefix, broadcasterID)},
-		[]string{userID,
-			strconv.FormatInt(int64(raffleClaimWindow.Seconds()), 10),
-			strconv.FormatInt(time.Now().UnixMilli(), 10)},
-	).AsInt64()
-	if err != nil {
-		return ClaimNone, err
-	}
-	switch code {
-	case claimOkCode:
-		return ClaimOk, nil
-	case claimAlreadyCode:
-		return ClaimAlready, nil
-	case claimLateCode:
-		return ClaimLate, nil
-	default: // claimNoneCode and anything unexpected
-		return ClaimNone, nil
-	}
-}
-
 // rngPick returns n distinct indices uniform over [0,total) via partial
 // Fisher-Yates with crypto/rand. It lives on the store as an indirection so
 // tests can pin the pick while production draws stay cryptographically random.
@@ -683,111 +601,6 @@ func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, key string) bool {
 		Key(key).Value("1").
 		Nx().ExSeconds(int64(raffleClaimTTL.Seconds())).Build()).ToString()
 	return err == nil && got == "OK"
-}
-
-// autoDraw draws with the state's configured winner count and announces.
-func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) {
-	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	res, err := s.Draw(dctx, broadcasterID, 0) // 0: use the state's configured count
-	if err != nil {
-		s.log.Warn("raffle: auto-close draw failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	if res == nil {
-		return // manual draw beat the expiry and tore the raffle down first
-	}
-	locale := s.localeOf(dctx, broadcasterID)
-	var text string
-	if len(res.Winners) == 0 {
-		text = i18n.T(locale, "raffle.auto_empty")
-	} else {
-		text = expandTokens(i18n.T(locale, "raffle.auto_closed"),
-			"targets", mentionList(res.Winners),
-			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
-			"entrants", strconv.FormatInt(res.Entrants, 10),
-			"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10))
-	}
-	s.post(dctx, broadcasterID, text)
-}
-
-// remindTick posts the time-left line and re-arms the reminder clock until the
-// deadline key is gone (drawn or cancelled): the next expiry lands at min(
-// configured interval, time actually left), so the last reminder never
-// overshoots the draw. A raffle opened without reminders has no key here.
-func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64) {
-	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	resps := s.client.DoMulti(dctx,
-		s.client.B().Ttl().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build(),
-		s.client.B().Zcard().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
-		s.client.B().Get().Key(raffleKey(raffleStatePrefix, broadcasterID)).Build(),
-	)
-	left, err := resps[0].AsInt64()
-	if err != nil || left <= 0 {
-		return // drawn or cancelled between expiry and tick: stay quiet
-	}
-	st := RaffleState{}
-	if v, err := resps[2].ToString(); err == nil {
-		_ = json.Unmarshal([]byte(v), &st)
-	}
-	entrants, err := resps[1].AsInt64()
-	if err != nil {
-		return
-	}
-
-	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, expandTokens(i18n.T(locale, "raffle.remind"),
-		"mins", strconv.FormatInt((left+59)/60, 10),
-		"count", strconv.FormatInt(entrants, 10)))
-
-	// Re-arm at min(interval, left): the final tick lands just before the draw.
-	next := st.RemindSeconds
-	if next <= 0 {
-		next = raffleDefaultRemind // legacy state without a cadence field
-	}
-	if next > left {
-		next = left
-	}
-	s.client.Do(dctx, s.client.B().Set().Key(raffleKey(raffleRemindPrefix, broadcasterID)).
-		Value("1").ExSeconds(next).Build())
-}
-
-// localeOf resolves the broadcaster's console language for engine-side lines,
-// degrading to the catalog default on any projection failure.
-func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) string {
-	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil {
-		return u.Locale
-	}
-	return ""
-}
-
-// post sends one engine-side chat line the way the timer store fires its
-// message: the send-time floor guard first, then whichever premium/standard
-// lane the broadcaster's own tier resolves to.
-func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text string) {
-	if text == "" {
-		return
-	}
-	if term, hit := moderation.CheckFloor(text); hit {
-		s.log.Warn("raffle: suppressed announcement carrying floor content",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("term", term))
-		return
-	}
-
-	subject := s.cfg.OutgressStandardSubject
-	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
-		subject = s.cfg.OutgressPremiumSubject
-	}
-	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
-	if err != nil {
-		s.log.Warn("raffle: failed to build outgress message", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	if err := bus.PublishRaw(ctx, s.cfg.Pub, subject, body); err != nil {
-		s.log.Warn("raffle: failed to publish", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-	}
 }
 
 // DigestPool is the receipt's tamper-evidence: SHA-256 over the version tag
