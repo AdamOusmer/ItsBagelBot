@@ -5,10 +5,6 @@ package engine
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -215,23 +211,6 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 
 // Pure, so the gate below stays a straight line; remindSecs is what the
 // reminder clock arms with (0: no reminders).
-func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
-	if spec.Winners <= 0 {
-		spec.Winners = raffleDefaultWinners
-	}
-	spec.Winners = min(spec.Winners, maxRaffleWinners)
-	spec.Duration = max(minRaffleDuration, min(spec.Duration, maxRaffleDuration))
-
-	var remindSecs int64
-	switch {
-	case spec.Remind < 0: // explicit off
-	case spec.Remind == 0:
-		remindSecs = raffleDefaultRemind
-	default:
-		remindSecs = max(minRaffleRemind, int64(spec.Remind.Seconds()))
-	}
-	return spec, remindSecs
-}
 
 // armDeadline claims the channel's raffle slot: exactly one caller's SET NX
 // wins, everyone else reports already-open. One round trip, correct across
@@ -450,20 +429,6 @@ func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uin
 	return read, nil
 }
 
-// fewer entrants than winners means everyone wins. Pure apart from the store's
-// rng indirection.
-func pickWinners(rng func(total, n int) []int, members []string, n int64) []string {
-	if n >= int64(len(members)) {
-		return members
-	}
-	pick := rng(len(members), int(n))
-	out := make([]string, len(pick))
-	for i, idx := range pick {
-		out[i] = members[idx]
-	}
-	return out
-}
-
 // writeDrawPhase tears the drawn raffle down and leaves the evidence: the pool
 // renamed aside intact (the auditable artifact), the receipt hash written,
 // state/deadline/reminder keys cleared. Between the read and this pipeline a
@@ -510,27 +475,6 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 	}
 	s.writeDrawPhase(ctx, broadcasterID, res)
 	return res, nil
-}
-
-// Fisher-Yates with crypto/rand. It lives on the store as an indirection so
-// tests can pin the pick while production draws stay cryptographically random.
-func rngPick(total, n int) []int {
-	idx := make([]int, total)
-	for i := range idx {
-		idx[i] = i
-	}
-	out := make([]int, 0, n)
-	for i := 0; i < n; i++ {
-		j, err := rand.Int(rand.Reader, big.NewInt(int64(total-i)))
-		if err != nil {
-			// CSPRNG unavailable is not survivable for a fair draw; fail loudly.
-			panic("raffle: crypto/rand unavailable: " + err.Error())
-		}
-		k := i + int(j.Int64())
-		idx[i], idx[k] = idx[k], idx[i]
-		out = append(out, idx[i])
-	}
-	return out
 }
 
 // StartExpiryWatcher implements two clocks off one subscription: expired
@@ -602,33 +546,3 @@ func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, key string) bool {
 // Anyone holding the announced winners, the entrant count and the snapshot can
 // recompute it and detect a pool that changed after the fact. The snapshot key
 // carries the same unix-milli stamp as DrawnAt so the pair is unambiguous.
-func DigestPool(members []string) string {
-	h := sha256.New()
-	h.Write([]byte("raffle-v1\n"))
-	h.Write([]byte(strings.Join(members, "\n")))
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-// slice and ints cannot fail); kept named so the call site explains itself.
-func marshalJSON(v any) string {
-	b, _ := codec.Marshal(v)
-	return string(b)
-}
-
-// stored as logins (the queue precedent), so a prefix is all it takes.
-func mentionList(winners []string) string {
-	prefixed := make([]string, len(winners))
-	for i, w := range winners {
-		prefixed[i] = "@" + w
-	}
-	return strings.Join(prefixed, ", ")
-}
-
-// pass through untouched.
-func expandTokens(tmpl string, kv ...string) string {
-	pairs := make([]string, 0, len(kv))
-	for i := 0; i+1 < len(kv); i += 2 {
-		pairs = append(pairs, "{"+kv[i]+"}", kv[i+1])
-	}
-	return strings.NewReplacer(pairs...).Replace(tmpl)
-}
