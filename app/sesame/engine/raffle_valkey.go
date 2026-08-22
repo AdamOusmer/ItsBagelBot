@@ -210,13 +210,16 @@ redis.call('HSET', KEYS[1], 'claims', cjson.encode(claims))
 return '+ok'
 `)
 
-// RaffleConfig carries the announcement path the auto-close and the reminder
-// ticks need: key expiry has no invoking chat message, so — like the timer
-// store firing its configured message — this store posts its lines itself,
-// splitting the premium/standard lanes off the broadcaster's tier.
+// RaffleConfig carries everything the store needs beyond the Valkey client:
+// where announcements go (the premium/standard lane split) and who resolves a
+// broadcaster's tier and locale on those paths. Key expiry has no invoking
+// chat message, so — like the timer store firing its configured message — this
+// store posts its lines itself.
 type RaffleConfig struct {
 	OutgressPremiumSubject  string
 	OutgressStandardSubject string
+	Pub                     bus.Publisher
+	Proj                    projection.Reader
 }
 
 // ValkeyRaffleStore implements RaffleStore on the shared Valkey client. Like
@@ -225,21 +228,18 @@ type RaffleConfig struct {
 // right after Open would tell chat the raffle doesn't exist yet.
 type ValkeyRaffleStore struct {
 	client valkey.Client
-	pub    bus.Publisher
-	proj   projection.Reader
 	cfg    RaffleConfig
 	log    *zap.Logger
 
 	rng func(total, n int) []int // partial Fisher-Yates over indices; swappable in tests
 }
 
-// NewValkeyRaffleStore builds the store on a primary-consistent view. proj
-// resolves the broadcaster's tier for the auto-close lane split.
-func NewValkeyRaffleStore(client valkey.Client, pub bus.Publisher, proj projection.Reader, cfg RaffleConfig, log *zap.Logger) *ValkeyRaffleStore {
+// NewValkeyRaffleStore builds the store on a primary-consistent view.
+func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logger) *ValkeyRaffleStore {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), pub: pub, proj: proj, cfg: cfg, log: log, rng: rngPick}
+	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log, rng: rngPick}
 }
 
 func raffleKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
@@ -496,7 +496,8 @@ func pickWinners(rng func(total, n int) []int, members []string, n int64) []stri
 // join can land in the pool — such an entrant is snapshotted but was never
 // eligible for the pick above; the digest makes the discrepancy visible rather
 // than silent, which is the point.
-func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID uint64, now int64, resultJSON string) {
+func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID uint64, res *RaffleResult) {
+	now := res.DrawnAt
 	snapKey := raffleSnapPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatInt(now, 10)
 	receipt := raffleKey(raffleLastPrefix, broadcasterID)
 	ttl := int64(raffleReceiptTTL.Seconds())
@@ -506,7 +507,7 @@ func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID ui
 		s.client.B().Del().Key(raffleKey(raffleStatePrefix, broadcasterID)).
 			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
 			Key(raffleKey(raffleRemindPrefix, broadcasterID)).Build(),
-		s.client.B().Hset().Key(receipt).FieldValue().FieldValue("result", resultJSON).Build(),
+		s.client.B().Hset().Key(receipt).FieldValue().FieldValue("result", marshalJSON(res)).Build(),
 		s.client.B().Expire().Key(receipt).Seconds(ttl).Build(),
 	) {
 		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
@@ -533,7 +534,7 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 		Digest:   DigestPool(members),
 		DrawnAt:  now,
 	}
-	s.writeDrawPhase(ctx, broadcasterID, now, marshalJSON(res))
+	s.writeDrawPhase(ctx, broadcasterID, res)
 	return res, nil
 }
 
@@ -730,7 +731,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 // localeOf resolves the broadcaster's console language for engine-side lines,
 // degrading to the catalog default on any projection failure.
 func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) string {
-	if u, err := s.proj.User(ctx, broadcasterID); err == nil {
+	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil {
 		return u.Locale
 	}
 	return ""
@@ -750,7 +751,7 @@ func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text
 	}
 
 	subject := s.cfg.OutgressStandardSubject
-	if u, err := s.proj.User(ctx, broadcasterID); err == nil && u.Premium() {
+	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
 		subject = s.cfg.OutgressPremiumSubject
 	}
 	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
@@ -758,7 +759,7 @@ func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text
 		s.log.Warn("raffle: failed to build outgress message", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	if err := bus.PublishRaw(ctx, s.pub, subject, body); err != nil {
+	if err := bus.PublishRaw(ctx, s.cfg.Pub, subject, body); err != nil {
 		s.log.Warn("raffle: failed to publish", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }

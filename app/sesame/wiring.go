@@ -96,7 +96,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Pub:        in.pub,
 		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:     engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
-		Gossip:    engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix),
+		Gossip:     engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix),
 		Followage:  engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge: engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
 		Log:        log,
@@ -206,9 +206,11 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 // the draw announced on the broadcaster's lane like a timer firing — and
 // starts its expiry watcher.
 func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
-	raffle := engine.NewValkeyRaffleStore(w.in.vc, w.in.pub, proj, engine.RaffleConfig{
+	raffle := engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
+		Pub:                     w.in.pub,
+		Proj:                    proj,
 	}, w.log)
 	go raffle.StartExpiryWatcher(w.ctx)
 	return raffle
