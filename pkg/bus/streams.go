@@ -6,6 +6,8 @@ package bus
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -483,6 +485,27 @@ func legacyTwitchIngressStream() StreamSpec {
 	return spec
 }
 
+type streamTopicResult struct {
+	name string
+	err  error
+}
+
+type streamTopicCache struct {
+	partitioned bool
+	entries     sync.Map
+}
+
+// The cache is deliberately unbounded and process-lifetime: the catalog is a
+// compile-time literal, so a (partition mode, topic) pair always resolves to
+// the same answer, and the key space is bounded by the handful of subject
+// literals each service publishes or binds — there is no attacker-controlled
+// cardinality to grow it. NATS_INGRESS_PARTITION is fixed for the life of the
+// pod (same assumption as the lane mode in bus.go), but the tests flip it via
+// t.Setenv and pin both resolutions of twitch.ingress.event.standard, so the
+// mode selects the generation rather than being baked into entries; in
+// production that costs one atomic load+compare on the hot path.
+var streamTopicCachePtr atomic.Pointer[streamTopicCache]
+
 // streamForTopic resolves the catalog stream that captures a subject, so
 // subscribers can bind explicitly instead of paying an account-wide lookup.
 // Every catalog subject set is disjoint (the broker enforces it, and
@@ -492,6 +515,26 @@ func legacyTwitchIngressStream() StreamSpec {
 // flip the standard subject must resolve to TWITCH_INGRESS, where it still
 // lives, or every standard consumer would bind a stream that does not exist.
 func streamForTopic(topic string) (string, error) {
+	partitioned := IngressPartitionEnabled()
+	cache := streamTopicCachePtr.Load()
+	for cache == nil || cache.partitioned != partitioned {
+		next := &streamTopicCache{partitioned: partitioned}
+		if streamTopicCachePtr.CompareAndSwap(cache, next) {
+			cache = next
+			break
+		}
+		cache = streamTopicCachePtr.Load()
+	}
+	if hit, ok := cache.entries.Load(topic); ok {
+		res := hit.(streamTopicResult)
+		return res.name, res.err
+	}
+	name, err := resolveStreamForTopic(topic)
+	cache.entries.Store(topic, streamTopicResult{name: name, err: err})
+	return name, err
+}
+
+func resolveStreamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
