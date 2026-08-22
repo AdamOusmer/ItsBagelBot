@@ -166,15 +166,15 @@ func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 // status answers a bare !raffle with whether one runs, its pool size and the
 // minutes left on its deadline.
 func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
-	open, entrants, left, err := rc.r.Status(ctx, rc.c.BroadcasterID)
+	st, err := rc.r.Status(ctx, rc.c.BroadcasterID)
 	if err != nil {
 		rc.log.Warn("raffle: status failed", rc.bid(), zap.Error(err))
 		return err
 	}
-	if open {
+	if st.Open {
 		rc.reply(emit, "", "raffle.status.open",
-			"count", strconv.FormatInt(entrants, 10),
-			"mins", strconv.FormatInt((left+59)/60, 10))
+			"count", strconv.FormatInt(st.Entrants, 10),
+			"mins", strconv.FormatInt((st.SecondsLeft+59)/60, 10))
 	} else {
 		rc.reply(emit, "", "raffle.status.closed")
 	}
@@ -247,18 +247,19 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 	if login == "" {
 		return nil
 	}
-	joined, entrants, open, err := rc.r.Join(ctx, rc.c.BroadcasterID, login)
+	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, login)
 	if err != nil {
 		rc.log.Warn("raffle: join failed", rc.bid(), zap.Error(err))
 		return err
 	}
+	count := strconv.FormatInt(entry.Entrants, 10)
 	switch {
-	case !open:
+	case !entry.Open:
 		rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
-	case joined:
-		rc.reply(emit, rc.cfg.JoinMessage, "raffle.joined", "count", strconv.FormatInt(entrants, 10))
+	case entry.Joined:
+		rc.reply(emit, rc.cfg.JoinMessage, "raffle.joined", "count", count)
 	default:
-		rc.reply(emit, rc.cfg.AlreadyMessage, "raffle.join.already", "count", strconv.FormatInt(entrants, 10))
+		rc.reply(emit, rc.cfg.AlreadyMessage, "raffle.join.already", "count", count)
 	}
 	return nil
 }
