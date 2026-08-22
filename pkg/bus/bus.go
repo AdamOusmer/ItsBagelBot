@@ -15,6 +15,8 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
+
+	"ItsBagelBot/pkg/env"
 )
 
 // The bus rides the JetStream cluster from ADR 0003: at-least-once delivery
@@ -186,7 +188,12 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 		// stops delivering and the pipeline stalls below that rate. At ~15 ms/event
 		// a 100k/s target needs ~1,500 in flight; 20,000 leaves headroom for
 		// latency spikes and burst scale-up without re-tuning per deploy.
-		MaxAckPending:  20000,
+		// Ceiling on unacked deliveries the server may hold for this queue
+		// group. Throughput is bounded by MaxAckPending / per-message dwell,
+		// so the historical inline 20000 capped lanes near ~65k msg/s however
+		// fast handlers ran; NATS_LANE_MAX_ACK_PENDING raises the window for
+		// lanes whose consumers drain fast enough to spend it.
+		MaxAckPending:  positiveInt(env.GetInt("NATS_LANE_MAX_ACK_PENDING", 20000), 20000),
 		DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
 		DeliverGroup:   group,
 		Metadata:       map[string]string{managedConsumerMetadata: "true"},

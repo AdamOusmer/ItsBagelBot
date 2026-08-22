@@ -218,13 +218,31 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 			return
 		}
 		msg.SetContext(ctx)
+		// The result watch MUST be installed before the handoff. A fast
+		// worker resolves the instant the send completes, and a handler
+		// installed after that winning transition is never called — the ack
+		// is silently dropped. This broker never fires AckWait redelivery
+		// while interest stays bound, so every dropped slot strands one
+		// MaxAckPending seat until max_age; that race is what capped the
+		// lane near 2-3k msg/s. The non-delivery arms unwind the watch
+		// themselves and resultWatch.finished makes double release a no-op.
+		w := &resultWatch{s: s, natsMsg: natsMsg}
+		w.timer = time.AfterFunc(s.progress, w.keepAlive)
+		msg.setResolveHandler(w.resolve)
+		s.acks.Add(1)
+		handed := false
 		select {
 		case output <- msg:
-			s.acks.Add(1)
-			s.watchResult(natsMsg, msg)
+			handed = true
 		case <-ctx.Done():
 		case <-s.closeCh:
 		case <-callbacks.stopped():
+		}
+		if !handed {
+			w.timer.Stop()
+			if w.finished.CompareAndSwap(false, true) {
+				s.acks.Done()
+			}
 		}
 	}
 }
