@@ -117,9 +117,33 @@ func raffleStandalone(d engine.Deps, log *zap.Logger, fn func(raffleCmd, context
 	}
 }
 
+// raffleRoute is one !raffle subcommand's dispatch row: the handler plus
+// whether it is moderator-gated. The gate lives in the router, so every route
+// spends zero branches on permission itself.
+type raffleRoute struct {
+	mod bool
+	run func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error
+}
+
+// raffleRoutes maps each !raffle subcommand ("" for bare !raffle) to its row.
+// A subcommand not in the table gets usage; a mod-only row typed by a non-mod
+// is silently ignored, matching the engine gate's silence.
+var raffleRoutes = map[string]raffleRoute{
+	"": {run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.status(ctx, emit) }},
+	"open": {mod: true, run: func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error {
+		return rc.open(ctx, args, emit)
+	}},
+	"draw": {mod: true, run: func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error {
+		return rc.draw(ctx, args, emit)
+	}},
+	"close": {mod: true, run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error {
+		return rc.draw(ctx, "", emit)
+	}},
+	"cancel": {mod: true, run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.cancel(ctx, emit) }},
+}
+
 // raffleDispatch handles !raffle and routes its subcommands. The engine's
-// command gate runs it for everyone; the moderator-only subcommands re-check
-// the role and silently ignore non-mods, matching the engine gate's silence.
+// command gate runs it for everyone; per-row mod flags re-check the role.
 func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		rc, ok := newRaffleCmd(d, c, log)
@@ -127,35 +151,15 @@ func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return nil
 		}
 		sub, rest := splitFirst(args)
-		isMod := c.Chatter().Allows(module.RoleModerator)
-
-		switch strings.ToLower(sub) {
-		case "":
-			return rc.status(ctx, emit)
-		case "open":
-			if !isMod {
-				return nil
-			}
-			return rc.open(ctx, rest, emit)
-		case "draw":
-			if !isMod {
-				return nil
-			}
-			return rc.draw(ctx, rest, emit)
-		case "close":
-			if !isMod {
-				return nil
-			}
-			return rc.draw(ctx, "", emit)
-		case "cancel":
-			if !isMod {
-				return nil
-			}
-			return rc.cancel(ctx, emit)
-		default:
+		route, known := raffleRoutes[strings.ToLower(sub)]
+		if !known {
 			rc.reply(emit, "", "raffle.err.usage")
 			return nil
 		}
+		if route.mod && !c.Chatter().Allows(module.RoleModerator) {
+			return nil
+		}
+		return route.run(rc, ctx, rest, emit)
 	}
 }
 
