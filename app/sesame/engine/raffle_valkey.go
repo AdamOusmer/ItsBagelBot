@@ -244,24 +244,15 @@ func NewValkeyRaffleStore(client valkey.Client, pub bus.Publisher, proj projecti
 
 func raffleKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
 
-// clampRaffleOpen applies the store's floors and ceilings to one open request:
-// winner count, raffle duration, reminder cadence. Pure, so the gate below
-// stays a straight line; remindSecs is what the reminder clock arms with (0:
-// no reminders).
+// clampRaffleOpen applies the store's floors and ceilings to one open request.
+// Pure, so the gate below stays a straight line; remindSecs is what the
+// reminder clock arms with (0: no reminders).
 func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 	if spec.Winners <= 0 {
 		spec.Winners = raffleDefaultWinners
 	}
-	if spec.Winners > maxRaffleWinners {
-		spec.Winners = maxRaffleWinners
-	}
-
-	switch {
-	case spec.Duration < minRaffleDuration:
-		spec.Duration = minRaffleDuration
-	case spec.Duration > maxRaffleDuration:
-		spec.Duration = maxRaffleDuration
-	}
+	spec.Winners = min(spec.Winners, maxRaffleWinners)
+	spec.Duration = max(minRaffleDuration, min(spec.Duration, maxRaffleDuration))
 
 	var remindSecs int64
 	switch {
@@ -269,11 +260,7 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 	case spec.Remind == 0:
 		remindSecs = raffleDefaultRemind
 	default:
-		if secs := int64(spec.Remind.Seconds()); secs > minRaffleRemind {
-			remindSecs = secs
-		} else {
-			remindSecs = minRaffleRemind
-		}
+		remindSecs = max(minRaffleRemind, int64(spec.Remind.Seconds()))
 	}
 	return spec, remindSecs
 }
@@ -425,19 +412,25 @@ func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64
 		}
 		return nil, false, err
 	}
+	res, ok := decodeReceipt(m)
+	return res, ok, nil
+}
+
+// decodeReceipt parses one receipt hash: the result blob is authoritative, the
+// claims list is best-effort — a corrupt claim array must not hide the
+// winners. ok=false when no receipt exists or the result blob is unreadable.
+func decodeReceipt(m map[string]string) (*RaffleResult, bool) {
 	if len(m) == 0 {
-		return nil, false, nil
+		return nil, false
 	}
 	var res RaffleResult
-	if err := json.Unmarshal([]byte(m["result"]), &res); err != nil {
-		return nil, false, err
+	if json.Unmarshal([]byte(m["result"]), &res) != nil {
+		return nil, false
 	}
-	if claims := m["claims"]; claims != "" {
-		if json.Unmarshal([]byte(claims), &res.Claims) != nil {
-			res.Claims = nil // a corrupt claim list must not hide the winners
-		}
+	if claims := m["claims"]; claims != "" && json.Unmarshal([]byte(claims), &res.Claims) != nil {
+		res.Claims = nil
 	}
-	return &res, true, nil
+	return &res, true
 }
 
 // holdDraw takes the per-channel draw lock so the manual command path and the
