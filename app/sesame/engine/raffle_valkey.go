@@ -120,14 +120,24 @@ type RaffleResult struct {
 	Claims   []string `json:"-"`        // from the claims field, not result JSON
 }
 
+// RaffleOpenSpec is one Open request. Zero values mean defaults (one winner,
+// ten... no — the module owns command-level defaults; the store clamps only).
+// Remind below zero disables the reminder ticker, exactly zero selects the
+// default cadence, anything positive is honored up to the spam floor.
+type RaffleOpenSpec struct {
+	OpenedBy string
+	Winners  int64 // <=0 -> raffleDefaultWinners
+	Duration time.Duration
+	Remind   time.Duration
+}
+
 // RaffleStore is the per-broadcaster raffle surface behind the raffle module:
 // one active raffle, joined with !join, closed by a mod or by its own deadline.
 type RaffleStore interface {
-	// Open starts a raffle lasting duration that will draw winners count at
-	// close, posting a time-left reminder every remind interval (0: default,
-	// negative: none). ok=false means a raffle is already running (the
-	// deadline gate won).
-	Open(ctx context.Context, broadcasterID uint64, openedBy string, winners int64, duration, remind time.Duration) (ok bool, err error)
+	// Open starts a raffle lasting spec.Duration that will draw spec.Winners
+	// count at close, posting a time-left reminder every spec.Remind interval.
+	// ok=false means a raffle is already running (the deadline gate won).
+	Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (ok bool, err error)
 	// Join enters userID if a raffle is open. open=false means no raffle is
 	// running; joined=false with open=true means already entered. entrants
 	// reports the pool size either way.
@@ -234,36 +244,45 @@ func NewValkeyRaffleStore(client valkey.Client, pub bus.Publisher, proj projecti
 
 func raffleKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
 
-func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, openedBy string, winners int64, duration, remind time.Duration) (bool, error) {
-	if winners <= 0 {
-		winners = raffleDefaultWinners
+// clampRaffleOpen applies the store's floors and ceilings to one open request:
+// winner count, raffle duration, reminder cadence. Pure, so the gate below
+// stays a straight line; remindSecs is what the reminder clock arms with (0:
+// no reminders).
+func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
+	if spec.Winners <= 0 {
+		spec.Winners = raffleDefaultWinners
 	}
-	if winners > maxRaffleWinners {
-		winners = maxRaffleWinners
+	if spec.Winners > maxRaffleWinners {
+		spec.Winners = maxRaffleWinners
 	}
+
 	switch {
-	case duration < minRaffleDuration:
-		duration = minRaffleDuration
-	case duration > maxRaffleDuration:
-		duration = maxRaffleDuration
+	case spec.Duration < minRaffleDuration:
+		spec.Duration = minRaffleDuration
+	case spec.Duration > maxRaffleDuration:
+		spec.Duration = maxRaffleDuration
 	}
+
 	var remindSecs int64
 	switch {
-	case remind < 0:
-		// Explicitly no reminders.
-	case remind == 0:
+	case spec.Remind < 0: // explicit off
+	case spec.Remind == 0:
 		remindSecs = raffleDefaultRemind
 	default:
-		if secs := int64(remind.Seconds()); secs > minRaffleRemind {
+		if secs := int64(spec.Remind.Seconds()); secs > minRaffleRemind {
 			remindSecs = secs
 		} else {
 			remindSecs = minRaffleRemind
 		}
 	}
+	return spec, remindSecs
+}
 
-	// The deadline key is the whole mutual exclusion: exactly one caller's SET
-	// NX wins, everyone else reports already-open. One round trip, correct
-	// across replicas — the cooldown idiom doubling as a clock.
+// armDeadline claims the channel's raffle slot: exactly one caller's SET NX
+// wins, everyone else reports already-open. One round trip, correct across
+// replicas — the cooldown idiom doubling as a clock. ok=false means the slot
+// was taken.
+func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint64, duration time.Duration) (bool, error) {
 	got, err := s.client.Do(ctx, s.client.B().Set().
 		Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
 		Value("1").
@@ -274,39 +293,55 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, open
 		}
 		return false, err
 	}
-	if got != "OK" {
-		return false, nil
+	return got == "OK", nil
+}
+
+// installState writes the raffle record beside a freshly claimed deadline,
+// clears any leftover entrant pool and arms the reminder clock. A failure here
+// compensates by releasing the deadline, so a half-applied open never locks
+// the channel out of opening a raffle.
+func (s *ValkeyRaffleStore) installState(ctx context.Context, broadcasterID uint64, state []byte, remindSecs int64) error {
+	batch := []valkey.Completed{
+		s.client.B().Set().Key(raffleKey(raffleStatePrefix, broadcasterID)).
+			Value(string(state)).ExSeconds(int64(raffleStateTTL.Seconds())).Build(),
+		s.client.B().Del().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
+	}
+	// The reminder clock: armed once here, re-armed by its own expiry path
+	// until the deadline key disappears. Leftovers from a prior raffle are
+	// overwritten either way.
+	if remindSecs > 0 {
+		batch = append(batch,
+			s.client.B().Set().Key(raffleKey(raffleRemindPrefix, broadcasterID)).
+				Value("1").ExSeconds(remindSecs).Build())
+	}
+	for _, r := range s.client.DoMulti(ctx, batch...) {
+		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
+			_ = s.client.Do(ctx, s.client.B().Del().
+				Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build()).Error()
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (bool, error) {
+	spec, remindSecs := clampRaffleOpen(spec)
+
+	ok, err := s.armDeadline(ctx, broadcasterID, spec.Duration)
+	if err != nil || !ok {
+		return false, err
 	}
 
 	state, err := json.Marshal(RaffleState{
-		OpenedBy: openedBy, OpenedAt: time.Now().UnixMilli(), Winners: winners, RemindSeconds: remindSecs,
+		OpenedBy: spec.OpenedBy, OpenedAt: time.Now().UnixMilli(),
+		Winners: spec.Winners, RemindSeconds: remindSecs,
 	})
-	if err == nil {
-		batch := []valkey.Completed{
-			s.client.B().Set().Key(raffleKey(raffleStatePrefix, broadcasterID)).
-				Value(string(state)).ExSeconds(int64(raffleStateTTL.Seconds())).Build(),
-			s.client.B().Del().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
-		}
-		// The reminder clock: armed once here, re-armed by its own expiry path
-		// until the deadline key disappears. Leftovers from a prior raffle are
-		// overwritten either way.
-		if remindSecs > 0 {
-			batch = append(batch,
-				s.client.B().Set().Key(raffleKey(raffleRemindPrefix, broadcasterID)).
-					Value("1").ExSeconds(remindSecs).Build())
-		}
-		// Leftover entrants from a cancelled/abandoned prior raffle must not
-		// leak into this one.
-		for _, r := range s.client.DoMulti(ctx, batch...) {
-			if err = r.Error(); err != nil && !valkey.IsValkeyNil(err) {
-				break
-			}
-		}
-	}
 	if err != nil {
-		// Compensate: release the gate so the channel isn't locked out of
-		// opening a raffle by a half-applied one.
-		_ = s.client.Do(ctx, s.client.B().Del().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build()).Error()
+		_ = s.client.Do(ctx, s.client.B().Del().
+			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build()).Error()
+		return false, err
+	}
+	if err := s.installState(ctx, broadcasterID, state, remindSecs); err != nil {
 		return false, err
 	}
 	return true, nil

@@ -26,13 +26,9 @@ const raffleModuleName = "raffle"
 // clean without dropping anyone's raffle entry (joins stay uncooled).
 const raffleWinnerCooldown = 5 * time.Second
 
-// raffleDefaults for a bare "!raffle open": ten minutes, one winner. The
-// reminder cadence default lives store-side (raffleDefaultRemind).
-const (
-	raffleDefaultMinutes = 10
-	raffleMaxMinutes     = 120
-	raffleMaxWinners     = 20
-)
+// raffleDefaultMinutes for a bare "!raffle open". Winner and reminder
+// defaults, plus every ceiling, live store-side in clampRaffleOpen.
+const raffleDefaultMinutes = 10
 
 // Raffle owns the channel raffle: a timed pool viewers join with !join that
 // closes itself on its deadline and draws winners uniformly at random. It is
@@ -181,35 +177,53 @@ func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
+// optInt parses one optional integer argument; ok=false leaves the field at
+// the caller's default. Non-numeric text (a stray word after !raffle open) is
+// simply not a number.
+func optInt(s string) (n int64, ok bool) {
+	n, err := strconv.ParseInt(s, 10, 64)
+	return n, err == nil
+}
+
+// parseOpenArgs decodes "!raffle open [minutes] [winners] [remind]". Absent
+// minutes/winners keep their zero values (module and store defaults); an
+// absent remind keeps zero (store's default cadence), while an explicit
+// remind of zero-or-less becomes a negative duration — the store's explicit
+// disable.
+func parseOpenArgs(args string) (minutes, winners int64, remind time.Duration) {
+	minArg, rest := splitFirst(args)
+	winArg, remRest := splitFirst(rest)
+	remArg, _ := splitFirst(remRest)
+
+	if n, ok := optInt(minArg); ok && n > 0 {
+		minutes = n
+	}
+	if n, ok := optInt(winArg); ok && n > 0 {
+		winners = n
+	}
+	if n, ok := optInt(remArg); ok {
+		if n > 0 {
+			remind = time.Duration(n) * time.Minute
+		} else {
+			remind = -time.Second
+		}
+	}
+	return minutes, winners, remind
+}
+
 // open starts a raffle from "<minutes> <winners> <remind>" args; all optional,
 // all clamped by the store. remind is the reminder cadence in minutes — 0 or
 // negative disables the time-left ticker, empty uses the store's default.
 // ok=false means the deadline gate found one running.
 func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) error {
-	minArg, rest := splitFirst(args)
-	winArg, rest2 := splitFirst(rest)
-	remArg, _ := splitFirst(rest2)
+	minutes, winners, remind := parseOpenArgs(args)
 
-	minutes := int64(raffleDefaultMinutes)
-	if n, err := strconv.ParseInt(minArg, 10, 64); err == nil && n > 0 {
-		minutes = n
-	}
-	winners := int64(0) // 0: the store's default
-	if n, err := strconv.ParseInt(winArg, 10, 64); err == nil && n > 0 {
-		winners = n
-	}
-	var remind time.Duration // 0: the store's default cadence
-	if n, err := strconv.ParseInt(remArg, 10, 64); err == nil {
-		if n <= 0 {
-			remind = -time.Second // explicit off (a negative reaches the store)
-		} else {
-			remind = time.Duration(n) * time.Minute
-		}
-	}
-
-	ok, err := rc.r.Open(ctx, rc.c.BroadcasterID,
-		strings.ToLower(rc.c.Env.ChatterUserLogin), winners,
-		time.Duration(minutes)*time.Minute, remind)
+	ok, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{
+		OpenedBy: strings.ToLower(rc.c.Env.ChatterUserLogin),
+		Winners:  winners,
+		Duration: time.Duration(minutes) * time.Minute,
+		Remind:   remind,
+	})
 	if err != nil {
 		rc.log.Warn("raffle: open failed", rc.bid(), zap.Error(err))
 		return err
