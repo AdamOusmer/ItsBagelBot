@@ -69,13 +69,13 @@ type batchPublisher struct {
 	wire   wireMode
 	modern jsapi.JetStream
 
-	mu     sync.RWMutex
-	closed bool
-	// workersMu guards the worker map alone. It is separate from mu because the
-	// map is read on every publish while mu is held for reading, so the two can
-	// never be the same lock without serializing the hot path.
-	workersMu sync.RWMutex
-	workers   map[string]*publishBatchWorker
+	// mu guards closed and workers together, so a single read acquisition covers
+	// an entire admission: closed check, worker lookup, queue send, accept count.
+	// Readers of an RWMutex do not contend each other — two RLocks on one mutex
+	// never serialize — and Close was already the only writer this state had.
+	mu      sync.RWMutex
+	closed  bool
+	workers map[string]*publishBatchWorker
 
 	stateMu sync.Mutex
 	// accepted counts messages a worker has taken, and is deliberately outside
@@ -117,6 +117,12 @@ type publishBatchWorker struct {
 	owner    *batchPublisher
 	slots    chan struct{}
 	acks     sync.WaitGroup
+
+	// timer times collectBatch's collection window and is reused across cohorts:
+	// NewTimer per window allocates a channel and pins a runtime timer for every
+	// cohort on a timed wire. collectBatch runs only on this goroutine, so the
+	// field takes no lock; run stops it on the way out.
+	timer *time.Timer
 
 	// Cohort shape is fixed per wire at worker creation: the Fast-Ingest wire
 	// amortizes a session over a much longer collection window than the
@@ -270,15 +276,23 @@ func (p *batchPublisher) publish(command publishCommand) error {
 func publishMessage(command publishCommand) *nats.Msg {
 	wire := nats.NewMsg(command.topic)
 	wire.Data = command.payload
+	// nats.NewMsg leaves Header nil, and every Set onto a nil Header allocates a
+	// fresh one-element slice and pays the canonicalization walk per call. Both
+	// identity keys below are already in canonical MIME form — Set would store
+	// them verbatim under exactly these strings — so they are assigned directly
+	// into a table sized for them plus the trace-header pair. The trace loop
+	// keeps Set: its keys arrive from NewRelic with outside casing, and
+	// canonicalization is what makes later Get calls find them.
+	wire.Header = make(nats.Header, 3)
 	// Preserve the fleet abstraction's message identity for subscribers, but
 	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
 	// not a broker dedup key.
-	wire.Header.Set(messageIDHeader, command.msgID)
+	wire.Header[messageIDHeader] = []string{command.msgID}
 	// Dual-write the former adapter's identity header for one rolling-release
 	// window. Old consumers only understand this header, and an empty UUID is
 	// unsafe for outgress's distributed lease owner. This is application
 	// identity—not Nats-Msg-Id—and therefore does not enable broker deduplication.
-	wire.Header.Set(legacyMessageIDHeader, command.msgID)
+	wire.Header[legacyMessageIDHeader] = []string{command.msgID}
 	if txn := newrelic.FromContext(command.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
@@ -302,19 +316,48 @@ func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
 // Close is the only writer, so it cannot begin while any of that is in flight,
 // which is why the lock is deliberately held across a send that blocks when a
 // worker's queue is full. A sender parked there is already past the closed
-// check, and Close waits for it rather than pulling the queue out from under it.
-// The read lock does not serialize admissions against each other; the guards
-// covering the worker map and the accept count do their own ordering.
+// check, and Close waits for it rather than pulling the queue out from under
+// it. Readers of an RWMutex do not contend each other, so sharing mu between
+// admissions and Close costs concurrent publishers nothing.
+//
+// A stream's first publish cannot stay inside that critical section: creating
+// its worker needs the write lock this same arm holds for reading. That arm
+// drops the read lock around startWorker instead of deadlocking on itself, then
+// re-enters — re-checking closed once the read lock is back, because a full
+// Close may have run entirely inside the gap.
 func (p *batchPublisher) admit(ctx context.Context, stream string, request publishRequest) error {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
 	if p.closed {
+		p.mu.RUnlock()
 		return errors.New("bus: publisher is closed")
 	}
-	worker, err := p.worker(stream)
+	if worker := p.workers[stream]; worker != nil {
+		err := p.admitLocked(ctx, worker, request)
+		p.mu.RUnlock()
+		return err
+	}
+	p.mu.RUnlock()
+
+	created, err := p.startWorker(stream)
 	if err != nil {
 		return err
 	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	// startWorker ran without the read lock held, so Close may have completed in
+	// between: closed can be true even though the worker was created moments
+	// ago, its stop signalled while this goroutine held no lock at all.
+	if p.closed {
+		return errors.New("bus: publisher is closed")
+	}
+	return p.admitLocked(ctx, created, request)
+}
+
+// admitLocked performs the queue send and the accept count for one admission.
+// The caller holds p.mu for reading across the whole call — see admit for why
+// that hold deliberately spans even a send parked on a full queue.
+func (p *batchPublisher) admitLocked(ctx context.Context, worker *publishBatchWorker, request publishRequest) error {
 	select {
 	case worker.requests <- request:
 		p.markAccepted()
@@ -336,27 +379,18 @@ func awaitPublishConfirmation(ctx context.Context, request publishRequest) error
 	}
 }
 
-// worker resolves a stream's worker and is called with the publisher read lock
-// held, which is what keeps Close out for the duration. Every publish after the
-// first on a stream is the read-only arm: taking an exclusive lock here just to
-// read the map would serialize the whole hot path behind one mutex.
-func (p *batchPublisher) worker(stream string) (*publishBatchWorker, error) {
-	p.workersMu.RLock()
-	worker := p.workers[stream]
-	p.workersMu.RUnlock()
-	if worker != nil {
-		return worker, nil
-	}
-	return p.startWorker(stream)
-}
-
-// startWorker creates a stream's worker. Worker creation is serialized on its
-// own guard because several first publishers may discover a stream at once, and
-// the map read above admits all of them; the re-check under the write lock is
-// what makes exactly one of them the creator.
+// startWorker creates a stream's worker under the publisher write lock. Several
+// first publishers may discover a stream at once — admit's unlocked miss admits
+// all of them — and the re-check here is what makes exactly one of them the
+// creator. It also refuses when closed: Close walks the worker map with no lock
+// at all once it publishes closed, so every insert has to be ordered before
+// that walk by this critical section rather than racing it.
 func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error) {
-	p.workersMu.Lock()
-	defer p.workersMu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return nil, errors.New("bus: publisher is closed")
+	}
 	if worker := p.workers[stream]; worker != nil {
 		return worker, nil
 	}
@@ -387,9 +421,11 @@ func (p *batchPublisher) Close() error {
 	flushErr := p.Flush(ctx)
 	cancel()
 
-	// The worker map needs no guard from here on: admissions create workers under
-	// the read lock, and every one of them now sees closed and returns before it
-	// reaches the map, so nothing can add a worker after the write lock above.
+	// The worker map needs no guard from here on: every remaining map access in
+	// admit checks closed under the same lock acquisition — the fast arm before
+	// its lookup, startWorker's write arm before any insert — so nothing can
+	// touch the map after the write lock above publishes closed. Everything
+	// inserted earlier happened-before this walk through that same lock.
 	for _, worker := range p.workers {
 		close(worker.stop)
 	}
@@ -472,6 +508,9 @@ func (p *batchPublisher) takeWindowErrLocked(target uint64) error {
 
 func (w *publishBatchWorker) run() {
 	defer func() {
+		if w.timer != nil {
+			w.timer.Stop()
+		}
 		w.acks.Wait()
 		close(w.done)
 	}()
@@ -512,13 +551,25 @@ func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishReques
 		}
 		return batch, true
 	}
-	timer := time.NewTimer(w.batchWait)
-	defer stopAndDrainTimer(timer)
+	// One timer serves every timed cohort of this worker. Reset at the top of
+	// each window relies on Go 1.23 timer semantics (this module declares go
+	// 1.26.5; the same precedent is documented at rpc_pool.go): a tick this loop
+	// has already received cannot recur, so the common expiry needs no drain.
+	// A cohort that fills before the deadline leaves the timer armed for the
+	// next Reset, which re-arms it in place. The one race left — a tick landing
+	// in the channel as the cohort completes on another case — can only cut the
+	// next collection window short, and cohorts already end early whenever
+	// batchSize lands first, so no message is lost or reordered by it.
+	if w.timer == nil {
+		w.timer = time.NewTimer(w.batchWait)
+	} else {
+		w.timer.Reset(w.batchWait)
+	}
 	for len(batch) < w.batchSize {
 		select {
 		case request := <-w.requests:
 			batch = append(batch, request)
-		case <-timer.C:
+		case <-w.timer.C:
 			return batch, true
 		case <-w.stop:
 			w.fail(batch, errors.New("bus: publisher closed"))
@@ -526,16 +577,6 @@ func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishReques
 		}
 	}
 	return batch, true
-}
-
-func stopAndDrainTimer(timer *time.Timer) {
-	if timer.Stop() {
-		return
-	}
-	select {
-	case <-timer.C:
-	default:
-	}
 }
 
 // publish drives one cohort. Cohorts are staged from this goroutine in wire
