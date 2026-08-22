@@ -167,8 +167,14 @@ spec:
             # member - which is exactly how two members were lost under load.
             # A soft limit below the container limit makes the GC work harder
             # instead of dying. Keep it ~80% of resources.limits.memory.
+            #
+            # Raised 2026-08-23 from 4GiB, which sat inside a rounding error of
+            # the real workload: live heap reached 3.9GiB under load, so the GC
+            # cycled continuously against the cliff and stalled the read loop.
+            # 6.5GiB keeps the ~80%-of-limit ratio over the new 8Gi container
+            # limit and puts the GC target well clear of worst-case heap.
             - name: GOMEMLIMIT
-              value: "4GiB"
+              value: "6.5GiB"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -184,9 +190,9 @@ spec:
             - {name: jetstream-data, mountPath: /data/jetstream}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # The LIMITS are the real ceiling and do not move: 5 cores because
-            # GOMAXPROCS is pinned to them, and 5Gi because memory-backed streams
-            # need headroom above JetStream's 4GB max_mem for dedup indexes,
+            # The LIMITS are the real ceiling: 5 cores because GOMAXPROCS is
+            # pinned to them, and 8Gi because memory-backed streams need
+            # headroom above JetStream's 4GB max_mem for dedup indexes,
             # connections and the Go runtime — and with every stream R3, each
             # member holds a copy of all of them rather than only the ones it
             # leads. Keep max_mem in nats-server.conf under this ceiling:
@@ -194,6 +200,14 @@ spec:
             # container limit. The OOM that briefly justified an 8Gi ceiling was
             # a 1 GiB memory-backed R3 bench stream resident on every member on
             # top of this catalog, not the catalog itself.
+            #
+            # Limit back at 8Gi as of 2026-08-23, for a different reason than
+            # that old ceiling: nodes have 12Gi allocatable each and sit
+            # otherwise idle, and at 5Gi with GOMEMLIMIT=4GiB the GC — not
+            # memory scarcity — was the bottleneck (live heap 3.9GiB, GC thrash,
+            # readloop stalls of seconds, commit p50 ~800ms). Required
+            # anti-affinity already puts exactly one member per node, so the
+            # extra 3Gi is reserved for nothing else.
             #
             # The REQUESTS are deliberately below them, which makes this pod
             # Burstable rather than Guaranteed. The upstream NATS chart
@@ -215,9 +229,8 @@ spec:
             # Go runtime. The older ~4.2 GiB worst case was derived from
             # max_mem 4096Mi, which is 3x more than this catalog can consume —
             # the request should track the catalog, not a config ceiling the
-            # streams cannot reach. max_mem and the 5Gi limit both stay put,
-            # so the pathological case is still absorbed; only the reservation
-            # moved.
+            # streams cannot reach. max_mem stays put above the larger
+            # ceiling, so the pathological case is still absorbed.
             #
             # What makes this safe now and did not before: this pod carries
             # priorityClassName bagel-data-plane (900000). The kubelet's
@@ -233,16 +246,16 @@ spec:
             # leader at load, and the 5-core limit still lets a catch-up burst
             # take every core. Nodes sit at 28% of 12 cores committed.
             #
-            # Together this returns 1 core and 2Gi per app node, which is
-            # deliberate headroom for the incoming BEAM service — BEAM sizes
-            # its scheduler pool off the cgroup and wants real room to land on
-            # (twitch-ingress, the BEAM service already here, requests 500m).
-            # If a hub member is ever evicted under node pressure, raise the
-            # memory request toward 2500Mi and re-check this arithmetic before
-            # looking anywhere else. If cpuManagerPolicy ever becomes static,
-            # revisit the CPU request too.
-            requests: {cpu: "1000m", memory: 2Gi}
-            limits: {cpu: "5", memory: 5Gi}
+            # Together this reserves 1 core and 4Gi per app node. The 2026-08-23
+            # bump from 2Gi trades half of the headroom kept for the incoming
+            # BEAM service (twitch-ingress, already here, requests 500m) for a
+            # reservation that sits above where a member actually runs under
+            # load; nodes are 12Gi and otherwise idle, so it costs nothing.
+            # If a hub member is ever evicted under node pressure, re-check this
+            # arithmetic before looking anywhere else. If cpuManagerPolicy ever
+            # becomes static, revisit the CPU request too.
+            requests: {cpu: "1000m", memory: 4Gi}
+            limits: {cpu: "5", memory: 8Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
