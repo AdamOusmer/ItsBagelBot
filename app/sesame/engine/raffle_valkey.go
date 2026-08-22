@@ -440,86 +440,107 @@ func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64
 	return &res, true, nil
 }
 
-func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winners int64) (*RaffleResult, error) {
-	claimKey := raffleKey(raffleDrawPrefix, broadcasterID)
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(claimKey).Value("1").
+// holdDraw takes the per-channel draw lock so the manual command path and the
+// deadline expiry cannot interleave their read/mutate phases. false means
+// another draw holds it and will announce; callers stay silent.
+func (s *ValkeyRaffleStore) holdDraw(ctx context.Context, broadcasterID uint64) bool {
+	got, err := s.client.Do(ctx, s.client.B().Set().Key(raffleKey(raffleDrawPrefix, broadcasterID)).Value("1").
 		Nx().PxMilliseconds(raffleDrawLockTTL.Milliseconds()).Build()).ToString()
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return nil, nil // another path holds the draw: let it announce
-		}
-		return nil, err
+		return false
 	}
-	if got != "OK" {
-		return nil, nil
-	}
+	return got == "OK"
+}
 
-	stateKey := raffleKey(raffleStatePrefix, broadcasterID)
-	poolKey := raffleKey(raffleEntriesPrefix, broadcasterID)
-
-	// Read phase under the lock: the record (for the configured winner count
-	// when the override says 0) and the full canonical pool (sorted by join
-	// time) the pick and digest both need. ZRANGE over a raffle-sized zset is
-	// thousands of small strings at worst — bounded by chat, not by design.
-	cfgCount := winners
-	var members []string
-	if cfgCount <= 0 {
-		v, err := s.client.Do(ctx, s.client.B().Get().Key(stateKey).Build()).ToString()
-		if err != nil && !valkey.IsValkeyNil(err) {
-			return nil, err
-		}
+// readDrawPhase gathers everything the outcome needs while the lock is held:
+// the winner count (the override when positive, else the state's configured
+// count) and the full canonical pool sorted by join time. found=false means no
+// raffle was running. ZRANGE over a raffle-sized zset is thousands of small
+// strings at worst — bounded by chat, not by design.
+func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uint64, override int64) (count int64, members []string, found bool, err error) {
+	count = override
+	if override <= 0 {
+		v, err := s.client.Do(ctx, s.client.B().Get().
+			Key(raffleKey(raffleStatePrefix, broadcasterID)).Build()).ToString()
 		if valkey.IsValkeyNil(err) {
-			return nil, nil // nothing running
+			return 0, nil, false, nil // nothing running
+		}
+		if err != nil {
+			return 0, nil, false, err
 		}
 		st := RaffleState{}
-		if err := json.Unmarshal([]byte(v), &st); err != nil {
-			return nil, err
+		if json.Unmarshal([]byte(v), &st) != nil {
+			return 0, nil, false, err
 		}
-		cfgCount = st.Winners
+		count = st.Winners
 	}
-	members, err = s.client.Do(ctx, s.client.B().Zrange().Key(poolKey).Min("0").Max("-1").Build()).AsStrSlice()
+	members, err = s.client.Do(ctx, s.client.B().Zrange().
+		Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Min("0").Max("-1").Build()).AsStrSlice()
 	if err != nil {
+		return 0, nil, true, err
+	}
+	return count, members, true, nil
+}
+
+// pickWinners draws min(n, len(members)) distinct members uniformly at random;
+// fewer entrants than winners means everyone wins. Pure apart from the store's
+// rng indirection.
+func pickWinners(rng func(total, n int) []int, members []string, n int64) []string {
+	if n >= int64(len(members)) {
+		return members
+	}
+	pick := rng(len(members), int(n))
+	out := make([]string, len(pick))
+	for i, idx := range pick {
+		out[i] = members[idx]
+	}
+	return out
+}
+
+// writeDrawPhase tears the drawn raffle down and leaves the evidence: the pool
+// renamed aside intact (the auditable artifact), the receipt hash written,
+// state/deadline/reminder keys cleared. Between the read and this pipeline a
+// join can land in the pool — such an entrant is snapshotted but was never
+// eligible for the pick above; the digest makes the discrepancy visible rather
+// than silent, which is the point.
+func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID uint64, now int64, resultJSON string) {
+	snapKey := raffleSnapPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatInt(now, 10)
+	receipt := raffleKey(raffleLastPrefix, broadcasterID)
+	ttl := int64(raffleReceiptTTL.Seconds())
+	for _, r := range s.client.DoMulti(ctx,
+		s.client.B().Rename().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Newkey(snapKey).Build(),
+		s.client.B().Expire().Key(snapKey).Seconds(ttl).Build(),
+		s.client.B().Del().Key(raffleKey(raffleStatePrefix, broadcasterID)).
+			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
+			Key(raffleKey(raffleRemindPrefix, broadcasterID)).Build(),
+		s.client.B().Hset().Key(receipt).FieldValue().FieldValue("result", resultJSON).Build(),
+		s.client.B().Expire().Key(receipt).Seconds(ttl).Build(),
+	) {
+		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
+			s.log.Warn("raffle: draw teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			break
+		}
+	}
+}
+
+func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winners int64) (*RaffleResult, error) {
+	if !s.holdDraw(ctx, broadcasterID) {
+		return nil, nil // another path holds the draw: let it announce
+	}
+
+	count, members, found, err := s.readDrawPhase(ctx, broadcasterID, winners)
+	if err != nil || !found {
 		return nil, err
 	}
 
 	now := time.Now().UnixMilli()
 	res := &RaffleResult{
+		Winners:  pickWinners(s.rng, members, count),
 		Entrants: int64(len(members)),
 		Digest:   DigestPool(members),
 		DrawnAt:  now,
 	}
-	if n := cfgCount; n < int64(len(members)) {
-		pick := s.rng(len(members), int(n))
-		res.Winners = make([]string, len(pick))
-		for i, idx := range pick {
-			res.Winners[i] = members[idx]
-		}
-	} else {
-		res.Winners = members // fewer entrants than winners: everyone wins
-	}
-
-	// Mutate phase, still under the lock: rename the pool aside intact (the
-	// auditable artifact), tear the raffle down, write the receipt. Between the
-	// read and this pipeline a join can land in the pool — such an entrant is
-	// snapshotted but was never eligible for the pick above; the digest makes
-	// the discrepancy visible rather than silent, which is the point.
-	snapKey := raffleSnapPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatInt(now, 10)
-	resultJSON := marshalJSON(res)
-	for _, r := range s.client.DoMulti(ctx,
-		s.client.B().Rename().Key(poolKey).Newkey(snapKey).Build(),
-		s.client.B().Expire().Key(snapKey).Seconds(int64(raffleReceiptTTL.Seconds())).Build(),
-		s.client.B().Del().Key(stateKey).
-			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
-			Key(raffleKey(raffleRemindPrefix, broadcasterID)).Build(),
-		s.client.B().Hset().Key(raffleKey(raffleLastPrefix, broadcasterID)).FieldValue().
-			FieldValue("result", resultJSON).Build(),
-		s.client.B().Expire().Key(raffleKey(raffleLastPrefix, broadcasterID)).Seconds(int64(raffleReceiptTTL.Seconds())).Build(),
-	) {
-		if err = r.Error(); err != nil && !valkey.IsValkeyNil(err) {
-			s.log.Warn("raffle: draw teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-			break
-		}
-	}
+	s.writeDrawPhase(ctx, broadcasterID, now, marshalJSON(res))
 	return res, nil
 }
 
