@@ -441,22 +441,20 @@ func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64
 		}
 		return nil, false, err
 	}
-	res, ok := decodeReceipt(m)
+	res, ok := decodeReceipt(m["result"], m["claims"])
 	return res, ok, nil
 }
 
-// decodeReceipt parses one receipt hash: the result blob is authoritative, the
-// claims list is best-effort — a corrupt claim array must not hide the
-// winners. ok=false when no receipt exists or the result blob is unreadable.
-func decodeReceipt(m map[string]string) (*RaffleResult, bool) {
-	if len(m) == 0 {
-		return nil, false
-	}
+// decodeReceipt parses one receipt's stored fields: the result blob is
+// authoritative, the claims blob best-effort — a corrupt claim array must not
+// hide the winners. ok=false when there is no receipt or the result blob is
+// unreadable.
+func decodeReceipt(resultJSON, claimsJSON string) (*RaffleResult, bool) {
 	var res RaffleResult
-	if json.Unmarshal([]byte(m["result"]), &res) != nil {
+	if json.Unmarshal([]byte(resultJSON), &res) != nil {
 		return nil, false
 	}
-	if claims := m["claims"]; claims != "" && json.Unmarshal([]byte(claims), &res.Claims) != nil {
+	if claimsJSON != "" && json.Unmarshal([]byte(claimsJSON), &res.Claims) != nil {
 		res.Claims = nil
 	}
 	return &res, true
@@ -654,14 +652,14 @@ func (s *ValkeyRaffleStore) onExpired(ctx context.Context, key string) {
 	case strings.HasPrefix(key, raffleDeadlinePrefix):
 		idStr := strings.TrimPrefix(key, raffleDeadlinePrefix)
 		if id, ok := parseRaffleID(idStr); ok {
-			if s.claimExpiry(ctx, raffleClaimPrefix, id) {
+			if s.claimExpiry(ctx, raffleKey(raffleClaimPrefix, id)) {
 				go s.autoDraw(context.WithoutCancel(ctx), id)
 			}
 		}
 	case strings.HasPrefix(key, raffleRemindPrefix):
 		idStr := strings.TrimPrefix(key, raffleRemindPrefix)
 		if id, ok := parseRaffleID(idStr); ok {
-			if s.claimExpiry(ctx, raffleRClaimPrefix, id) {
+			if s.claimExpiry(ctx, raffleKey(raffleRClaimPrefix, id)) {
 				go s.remindTick(context.WithoutCancel(ctx), id)
 			}
 		}
@@ -680,9 +678,9 @@ func parseRaffleID(s string) (uint64, bool) {
 
 // claimExpiry takes this replica's per-key claim so one expiry fires once
 // across the fleet (the timer:claim idiom).
-func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, prefix string, broadcasterID uint64) bool {
+func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, key string) bool {
 	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(raffleKey(prefix, broadcasterID)).Value("1").
+		Key(key).Value("1").
 		Nx().ExSeconds(int64(raffleClaimTTL.Seconds())).Build()).ToString()
 	return err == nil && got == "OK"
 }
