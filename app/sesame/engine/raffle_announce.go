@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -70,7 +70,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 	st := RaffleState{}
 	if v, err := resps[2].ToString(); err == nil {
-		_ = json.Unmarshal([]byte(v), &st)
+		_ = codec.UnmarshalFromString(v, &st)
 	}
 	entrants, err := resps[1].AsInt64()
 	if err != nil {
