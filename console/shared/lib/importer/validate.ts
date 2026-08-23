@@ -120,23 +120,10 @@ export function canonicalizeResponse(
   raw = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 
   const diags: ImportDiagnostic[] = [];
-  const lines: string[] = [];
-  for (let line of raw.split('\n')) {
-    line = line.trim();
-    if (line === '') continue;
-    if (byteLen(line) > MAX_RESPONSE_LINE_BYTES) {
-      const cut = truncateBytes(line, MAX_RESPONSE_LINE_BYTES);
-      diags.push(
-        warnDiag(
-          itemIndex,
-          CODE.responseTruncated,
-          `response line cut from ${byteLen(line)} to ${byteLen(cut)} bytes (Twitch per-message limit)`
-        )
-      );
-      line = cut;
-    }
-    lines.push(line);
-  }
+  const lines = raw
+    .split('\n')
+    .map((piece) => chatLine(piece, itemIndex, diags))
+    .filter((line): line is string => line !== null);
 
   if (lines.length > MAX_RESPONSE_LINES) {
     const extra = lines.length - MAX_RESPONSE_LINES;
@@ -150,6 +137,25 @@ export function canonicalizeResponse(
     lines.length = MAX_RESPONSE_LINES;
   }
   return { lines, diags };
+}
+
+// chatLine trims one source line into a chat-ready line, truncating past the
+// per-message byte limit with a diagnostic; blank lines vanish.
+function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): string | null {
+  let line = piece.trim();
+  if (line === '') return null;
+  if (byteLen(line) > MAX_RESPONSE_LINE_BYTES) {
+    const cut = truncateBytes(line, MAX_RESPONSE_LINE_BYTES);
+    diags.push(
+      warnDiag(
+        itemIndex,
+        CODE.responseTruncated,
+        `response line cut from ${byteLen(line)} to ${byteLen(cut)} bytes (Twitch per-message limit)`
+      )
+    );
+    line = cut;
+  }
+  return line;
 }
 
 // --- permissions -------------------------------------------------------------
@@ -231,22 +237,21 @@ export function findCollisions(existingNames: string[], m: ImportManifest | null
   if (!m || existingNames.length === 0) return [];
   const existing = new Set(existingNames.map(normalizeName));
 
-  const out: CollisionRef[] = [];
-  for (const c of m.commands ?? []) {
-    const name = normalizeName(c.name);
-    if (existing.has(name)) {
-      out.push({ kind: 'command', name });
-      continue;
-    }
-    if ((c.aliases ?? []).some((a) => existing.has(normalizeName(a)))) {
-      out.push({ kind: 'command', name });
-    }
-  }
-  for (const ctr of m.counters ?? []) {
-    const name = normalizeName(ctr.name);
-    if (existing.has(name)) out.push({ kind: 'counter', name });
-  }
-  return out;
+  return [
+    ...(m.commands ?? []).filter((c) => commandCollides(c, existing)).map((c) => collisionRef('command', c.name)),
+    ...(m.counters ?? []).filter((c) => existing.has(normalizeName(c.name))).map((c) => collisionRef('counter', c.name))
+  ];
+}
+
+// A command collides when its own normalized name OR any alias matches an
+// existing entry.
+function commandCollides(c: ManifestCommand, existing: Set<string>): boolean {
+  if (existing.has(normalizeName(c.name))) return true;
+  return (c.aliases ?? []).some((a) => existing.has(normalizeName(a)));
+}
+
+function collisionRef(kind: 'command' | 'counter', name: string): CollisionRef {
+  return { kind, name: normalizeName(name) };
 }
 
 // --- whole-manifest validation -----------------------------------------------
@@ -524,16 +529,22 @@ function validateCounterItem(c: ManifestCounter, index: number): ImportDiagnosti
 export function isRFC3339(s: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(s);
   if (!m) return false;
-  const y = +m[1];
-  const mo = +m[2];
-  const d = +m[3];
-  const h = +m[4];
-  const mi = +m[5];
-  const se = +m[6];
-  const daysInMonth = [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return (
-    mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth[mo - 1] && h <= 23 && mi <= 59 && se <= 60 // 60 = leap second, which Go's RFC3339 parse also accepts
-  );
+  return validCalendarDay(+m[1], +m[2], +m[3]) && validClock(+m[4], +m[5], +m[6]);
+}
+
+function validCalendarDay(y: number, mo: number, d: number): boolean {
+  if (mo < 1 || mo > 12 || d < 1) return false;
+  const daysInMonth = [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return d <= daysInMonth[mo - 1];
+}
+
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+function validClock(h: number, mi: number, s: number): boolean {
+  // s = 60 = leap second, which Go's RFC3339 parse also accepts
+  return h <= 23 && mi <= 59 && s <= 60;
 }
 
 // --- failed-item lookup (commit's drop filter) -------------------------------
@@ -566,11 +577,15 @@ export class FailedItems {
 
 // failedCollection maps a diagnostic code's kind prefix onto the manifest
 // collection it addresses.
+const FAILED_PREFIXES: readonly [prefix: string, collection: string][] = [
+  ['command', 'commands'],
+  ['timer', 'timers'],
+  ['trigger', 'triggers'],
+  ['quote', 'quotes'],
+  ['counter', 'counters']
+];
+
 function failedCollection(code: string): string | null {
-  if (code.startsWith('command')) return 'commands';
-  if (code.startsWith('timer')) return 'timers';
-  if (code.startsWith('trigger')) return 'triggers';
-  if (code.startsWith('quote')) return 'quotes';
-  if (code.startsWith('counter')) return 'counters';
-  return null;
+  const hit = FAILED_PREFIXES.find(([prefix]) => code.startsWith(prefix));
+  return hit ? hit[1] : null;
 }

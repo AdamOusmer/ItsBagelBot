@@ -386,88 +386,43 @@ function reindex(diags: ImportDiagnostic[], idx: number): void {
   for (const d of diags) d.item_index = idx;
 }
 
+// readTable selects one feature table and scans it whole; a missing table or
+// read failure degrades to an empty list plus one manifest-level diagnostic —
+// the shared preamble every extractor used to repeat.
+function readTable(db: Database, tables: Map<string, string>, candidates: string[], diags: ImportDiagnostic[]): Row[] {
+  const table = findTable(tables, candidates);
+  if (table === '') return [];
+  try {
+    const sel = selectAll(db, table);
+    if (sel.truncated) {
+      diags.push(manifestWarn(
+        `the "${table}" table has more than ${MAX_SCAN_ROWS} rows; only the first ${MAX_SCAN_ROWS} were imported`
+      ));
+    }
+    return sel.rows;
+  } catch (err) {
+    diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
+    return [];
+  }
+}
+
 // --- extraction ---------------------------------------------------------------
 
 // extractCommands reads the commands table into canonical commands. Disabled
 // rows are skipped (counted into one manifest-level warn); rows with neither
 // name nor response are treated as junk and dropped silently.
 function extractCommands(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['commands']> {
-  const table = findTable(tables, COMMAND_TABLE_CANDIDATES);
-  if (table === '') return [];
-
-  let rows: Row[];
-  try {
-    const sel = selectAll(db, table);
-    rows = sel.rows;
-    if (sel.truncated) {
-      diags.push(manifestWarn(
-        `the "${table}" table has more than ${MAX_SCAN_ROWS} rows; only the first ${MAX_SCAN_ROWS} were imported`
-      ));
-    }
-  } catch (err) {
-    diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
-    return [];
-  }
-
   const entries: NonNullable<ImportManifest['commands']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
   let disabled = 0;
 
-  for (const r of rows) {
-    const [nameRaw, nameOk] = r.first(COMMAND_NAME_COLUMNS);
-    if (!nameOk || nameRaw.trim() === '') continue;
-    const [enabledRaw, hasEnabled] = r.first(COMMAND_ENABLED_COLUMNS);
-    if (hasEnabled && !TRUTHY.has(enabledRaw.trim().toLowerCase())) {
+  for (const r of readTable(db, tables, COMMAND_TABLE_CANDIDATES, diags)) {
+    if (isJunkCommandRow(r)) continue;
+    if (isDisabledCommandRow(r)) {
       disabled++;
       continue;
     }
-    const [response] = r.first(COMMAND_RESPONSE_COLUMNS);
-    const normName = normalizeName(nameRaw);
-
-    const res = translateVariables(response, normName);
-    // Canonicalization findings carry index 0 here; the post-sort reindex
-    // pass below rewrites them onto final manifest slots.
-    const canon = canonicalizeResponse(res.text, 0);
-
-    const cmd: NonNullable<ImportManifest['commands']>[number] = {
-      name: nameRaw,
-      responses: canon.lines
-    };
-    const warns: ImportDiagnostic[] = [...res.diags, ...canon.diags];
-
-    let external = res.external;
-    const [permRaw, hasPerm] = r.first(COMMAND_PERM_COLUMNS);
-    if (hasPerm) {
-      const mapped = mapPermissionSLCB(permRaw);
-      cmd.permission = mapped.perm as typeof cmd.permission;
-      warns.push(...mapped.diags);
-    }
-    const [cdRaw, hasCd] = r.first(COMMAND_COOLDOWN_COLUMNS);
-    if (hasCd) {
-      const secs = goAtoi(cdRaw.trim());
-      if (secs !== null) {
-        // SLCB stores command cooldowns in seconds (its chat helper
-        // "!Command Cooldown <cmd> <minutes>" converts before write); the
-        // minutes reading was rejected — FORMAT_NOTES.md carries why.
-        // omitempty parity: a clamped 0 is omitted, like the Go manifest.
-        if (clampCooldown(secs) > 0) cmd.cooldown_seconds = clampCooldown(secs);
-      }
-    }
-    if (r.valueOf(COMMAND_TYPE_COLUMNS).toLowerCase().includes('script')) external = true;
-    if (external) {
-      warns.push(warnDiag(
-        -1,
-        'command_script_dependent',
-        `command ${JSON.stringify(normName)} depends on a script or external API/file call; that part stays literal text until re-implemented here`
-      ));
-    }
-    if (canon.lines.length === 0) {
-      warns.push(errDiag(
-        -1,
-        CODE.responseInvalid,
-        `command ${JSON.stringify(normName)} has no usable response after normalization`
-      ));
-    }
+    const { cmd, warns } = buildCommandRow(r);
     entries.push(cmd);
     allWarns.push(warns);
   }
@@ -483,49 +438,96 @@ function extractCommands(db: Database, tables: Map<string, string>, diags: Impor
   return entries;
 }
 
+function isJunkCommandRow(r: Row): boolean {
+  const [nameRaw, ok] = r.first(COMMAND_NAME_COLUMNS);
+  return !ok || nameRaw.trim() === '';
+}
+
+function isDisabledCommandRow(r: Row): boolean {
+  const [enabledRaw, hasEnabled] = r.first(COMMAND_ENABLED_COLUMNS);
+  return hasEnabled && !TRUTHY.has(enabledRaw.trim().toLowerCase());
+}
+
+// buildCommandRow translates one live command row. Canonicalization findings
+// carry index 0 here; the post-sort reindex pass rewrites them onto final
+// manifest slots.
+function buildCommandRow(r: Row): {
+  cmd: NonNullable<ImportManifest['commands']>[number];
+  warns: ImportDiagnostic[];
+} {
+  const [nameRaw] = r.first(COMMAND_NAME_COLUMNS);
+  const normName = normalizeName(nameRaw);
+  const [response] = r.first(COMMAND_RESPONSE_COLUMNS);
+
+  const res = translateVariables(response, normName);
+  const canon = canonicalizeResponse(res.text, 0);
+
+  const cmd: NonNullable<ImportManifest['commands']>[number] = {
+    name: nameRaw,
+    responses: canon.lines
+  };
+  const warns: ImportDiagnostic[] = [...res.diags, ...canon.diags];
+
+  applyRowPermission(r, cmd, warns);
+  applyRowCooldown(r, cmd);
+
+  let external = res.external;
+  if (r.valueOf(COMMAND_TYPE_COLUMNS).toLowerCase().includes('script')) external = true;
+  if (external) {
+    warns.push(warnDiag(
+      -1,
+      'command_script_dependent',
+      `command ${JSON.stringify(normName)} depends on a script or external API/file call; that part stays literal text until re-implemented here`
+    ));
+  }
+  if (canon.lines.length === 0) {
+    warns.push(errDiag(
+      -1,
+      CODE.responseInvalid,
+      `command ${JSON.stringify(normName)} has no usable response after normalization`
+    ));
+  }
+  return { cmd, warns };
+}
+
+function applyRowPermission(
+  r: Row,
+  cmd: NonNullable<ImportManifest['commands']>[number],
+  warns: ImportDiagnostic[]
+): void {
+  const [permRaw, hasPerm] = r.first(COMMAND_PERM_COLUMNS);
+  if (!hasPerm) return;
+  const mapped = mapPermissionSLCB(permRaw);
+  cmd.permission = mapped.perm as typeof cmd.permission;
+  warns.push(...mapped.diags);
+}
+
+function applyRowCooldown(r: Row, cmd: NonNullable<ImportManifest['commands']>[number]): void {
+  const [cdRaw, hasCd] = r.first(COMMAND_COOLDOWN_COLUMNS);
+  if (!hasCd) return;
+  const secs = goAtoi(cdRaw.trim());
+  // SLCB stores command cooldowns in seconds (its chat helper
+  // "!Command Cooldown <cmd> <minutes>" converts before write); the
+  // minutes reading was rejected — FORMAT_NOTES.md carries why.
+  // omitempty parity: a clamped 0 is omitted, like the Go manifest.
+  if (secs !== null && clampCooldown(secs) > 0) cmd.cooldown_seconds = clampCooldown(secs);
+}
+
 // extractTimers reads timer messages. SLCB fires all timers off one global
 // interval stored in its settings blob rather than per row, so a per-row
 // interval column is used only when present; otherwise every timer carries
 // DEFAULT_TIMER_INTERVAL_SECONDS with a single manifest-level warn saying so.
 function extractTimers(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['timers']> {
-  const table = findTable(tables, TIMER_TABLE_CANDIDATES);
-  if (table === '') return [];
-
-  let rows: Row[];
-  try {
-    const sel = selectAll(db, table);
-    rows = sel.rows;
-    if (sel.truncated) {
-      diags.push(manifestWarn(
-        `the "${table}" table has more than ${MAX_SCAN_ROWS} rows; only the first ${MAX_SCAN_ROWS} were imported`
-      ));
-    }
-  } catch (err) {
-    diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
-    return [];
-  }
-
   const entries: NonNullable<ImportManifest['timers']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
   let defaultedInterval = false;
 
-  for (const r of rows) {
-    const [message, ok] = r.first(TIMER_MESSAGE_COLUMNS);
-    if (!ok || message.trim() === '') continue;
-    const iv = timerInterval(r);
-    let interval: number;
-    if (iv.known) {
-      interval = iv.seconds;
-    } else {
-      interval = DEFAULT_TIMER_INTERVAL_SECONDS;
-      defaultedInterval = true;
-    }
-    const res = translateVariables(message, '');
-    const translated = res.text.trim();
-    if (translated === '') continue; // translation collapsed the message entirely
-
-    entries.push({ message: translated, interval_seconds: interval });
-    allWarns.push([...res.diags]);
+  for (const r of readTable(db, tables, TIMER_TABLE_CANDIDATES, diags)) {
+    const t = parseTimerRow(r);
+    if (!t) continue;
+    defaultedInterval ||= t.defaulted;
+    entries.push(t.entry);
+    allWarns.push(t.warns);
   }
 
   orderStable(entries, allWarns, (t) => t.message, diags);
@@ -536,6 +538,27 @@ function extractTimers(db: Database, tables: Map<string, string>, diags: ImportD
     ));
   }
   return entries;
+}
+
+// parseTimerRow translates one live timer row; null drops it silently. A row
+// with no usable interval marks `defaulted` even if its message later
+// collapses, matching the upstream flag's timing.
+function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[number]; warns: ImportDiagnostic[]; defaulted: boolean } | null {
+  const [message, ok] = r.first(TIMER_MESSAGE_COLUMNS);
+  if (!ok || message.trim() === '') return null;
+
+  const iv = timerInterval(r);
+  const interval = iv.known ? iv.seconds : DEFAULT_TIMER_INTERVAL_SECONDS;
+
+  const res = translateVariables(message, '');
+  const translated = res.text.trim();
+  if (translated === '') return null; // translation collapsed the message entirely
+
+  return {
+    entry: { message: translated, interval_seconds: interval },
+    warns: [...res.diags],
+    defaulted: !iv.known
+  };
 }
 
 // timerInterval resolves one timer row's interval in confirmed units: SLCB's
@@ -561,57 +584,49 @@ function timerInterval(r: Row): { seconds: number; known: boolean } {
 // collections wired to custom commands, not quotes; importing them as quotes
 // would surprise (decision recorded in FORMAT_NOTES.md).
 function extractQuotes(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['quotes']> {
-  const table = findTable(tables, QUOTE_TABLE_CANDIDATES);
-  if (table === '') return [];
-
-  let rows: Row[];
-  try {
-    const sel = selectAll(db, table);
-    rows = sel.rows;
-    if (sel.truncated) {
-      diags.push(manifestWarn(
-        `the "${table}" table has more than ${MAX_SCAN_ROWS} rows; only the first ${MAX_SCAN_ROWS} were imported`
-      ));
-    }
-  } catch (err) {
-    diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
-    return [];
-  }
-
   const entries: NonNullable<ImportManifest['quotes']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
 
-  for (const r of rows) {
-    const [textRaw, hasText] = r.first(QUOTE_TEXT_COLUMNS);
-    const text = textRaw.trim();
-    if (!hasText || text === '') continue;
-    const q: NonNullable<ImportManifest['quotes']>[number] = { text };
-    const warns: ImportDiagnostic[] = [];
-
-    const [author, hasAuthor] = r.first(QUOTE_AUTHOR_COLUMNS);
-    if (hasAuthor) q.added_by = author.trim();
-    const [dateRaw, hasDate] = r.first(QUOTE_DATE_COLUMNS);
-    if (hasDate) {
-      const ts = parseQuoteDate(dateRaw);
-      if (ts !== null) {
-        q.created_at = ts;
-      } else {
-        // Date format is channel-configurable in SLCB (default shown in its
-        // docs is MM/DD/YYYY); an unparseable value must not block the quote
-        // itself, it just loses created_at.
-        warns.push(warnDiag(
-          -1,
-          'quote_date_unparsed',
-          `quote date ${JSON.stringify(dateRaw)} uses a format this importer does not know; imported without a date`
-        ));
-      }
-    }
-    entries.push(q);
-    allWarns.push(warns);
+  for (const r of readTable(db, tables, QUOTE_TABLE_CANDIDATES, diags)) {
+    const parsed = parseQuoteRow(r);
+    if (!parsed) continue;
+    entries.push(parsed.entry);
+    allWarns.push(parsed.warns);
   }
 
   orderStable(entries, allWarns, (q) => q.text, diags);
   return entries;
+}
+
+function parseQuoteRow(r: Row): { entry: NonNullable<ImportManifest['quotes']>[number]; warns: ImportDiagnostic[] } | null {
+  const [textRaw, hasText] = r.first(QUOTE_TEXT_COLUMNS);
+  const text = textRaw.trim();
+  if (!hasText || text === '') return null;
+
+  const q: NonNullable<ImportManifest['quotes']>[number] = { text };
+  const warns: ImportDiagnostic[] = [];
+
+  const [author, hasAuthor] = r.first(QUOTE_AUTHOR_COLUMNS);
+  if (hasAuthor) q.added_by = author.trim();
+
+  const [dateRaw, hasDate] = r.first(QUOTE_DATE_COLUMNS);
+  if (hasDate) {
+    const ts = parseQuoteDate(dateRaw);
+    // Date format is channel-configurable in SLCB (default shown in its
+    // docs is MM/DD/YYYY); an unparseable value must not block the quote
+    // itself, it just loses created_at.
+    if (ts !== null) q.created_at = ts;
+    else warns.push(quoteDateDiag(dateRaw));
+  }
+  return { entry: q, warns };
+}
+
+function quoteDateDiag(dateRaw: string): ImportDiagnostic {
+  return warnDiag(
+    -1,
+    'quote_date_unparsed',
+    `quote date ${JSON.stringify(dateRaw)} uses a format this importer does not know; imported without a date`
+  );
 }
 
 // orderStable sorts items by key (ties keep insertion order, matching Go's
@@ -755,60 +770,93 @@ function goAtoi(s: string): number | null {
 //     warn: these gate on state we cannot express.
 export function mapPermissionSLCB(raw: string): { perm: string; diags: ImportDiagnostic[] } {
   const label = raw.trim().toLowerCase();
+  return applyPermOutcome(
+    SLCB_PERMS[label] ?? unknownSpelling(),
+    raw
+  );
+}
 
-  const adjusted = (perm: string, msg: string): { perm: string; diags: ImportDiagnostic[] } => ({
-    perm,
-    diags: [warnDiag(-1, 'command_permission_adjusted', msg)]
-  });
-  const unmapped = (msg: string): { perm: string; diags: ImportDiagnostic[] } => ({
-    perm: 'everyone',
-    diags: [warnDiag(-1, CODE.permissionUnmapped, msg)]
-  });
+// PermOutcome is one row of the SLCB permission table. Shared spellings run
+// through the repo-wide permission table so SLCB never diverges from how other
+// parsers land tiers; adjusted/unmapped rows carry their deliberate
+// destination plus the diagnostic explaining it.
+//
+// Everything SLCB-specific is handled here BEFORE falling back to the shared
+// table, because each case has a deliberate destination:
+//   - regular → everyone + warn. Our tier set has no regular level (same call
+//     the Moobot parser documents); widening beats dropping the command.
+//   - editor → lead_mod + warn. A Twitch channel editor is trusted staff above
+//     moderators, which is exactly this bot's lead_mod; mapping to mod would
+//     narrow, leaving unmapped would widen to everyone.
+//   - gamewisp subscriber → sub + warn (paid-subscriber equivalent).
+//   - invisible / user / min-rank / min-points / min-hours gates → everyone +
+//     warn: these gate on state we cannot express.
+type PermOutcome =
+  | { kind: 'shared'; word: string }
+  | { kind: 'adjusted'; perm: string; reason: (raw: string) => string }
+  | { kind: 'unmapped'; reason: (raw: string) => string };
 
-  switch (label) {
-    case '':
-      return sharedPerm('');
-    case '+a':
-    case 'everyone':
-      return sharedPerm('everyone');
-    case '+s':
-    case 'subscriber':
-    case 'subscribers':
-    case 'sub':
-      return sharedPerm('subscriber');
-    case '+gw':
-    case 'gamewisp subscriber':
-      return adjusted('sub', `GameWisp subscriber permission ${JSON.stringify(raw)} imported as sub`);
-    case '+m':
-    case 'moderator':
-    case 'moderators':
-    case 'mod':
-      return sharedPerm('moderator');
-    case 'vip':
-    case 'vips':
-      return sharedPerm('vip');
-    case 'streamer':
-    case 'broadcaster':
-    case 'owner':
-    case 'caster':
-      return sharedPerm('streamer');
-    case '+e':
-    case 'editor':
-    case 'editors':
-      return adjusted(
-        'lead_mod',
-        `permission ${JSON.stringify(raw)} has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)`
-      );
-    case '+r':
-    case 'regular':
-    case 'regulars':
-      return unmapped(
-        `permission ${JSON.stringify(raw)} (channel regulars) has no tier here; widened to everyone — tighten it after import if needed`
-      );
-    default:
-      return unmapped(
-        `permission ${JSON.stringify(raw)} is not one this importer knows; defaulted to everyone`
-      );
+const sharedWith = (word: string): PermOutcome => ({ kind: 'shared', word });
+const adjustedTo = (perm: string, reason: (raw: string) => string): PermOutcome => ({ kind: 'adjusted', perm, reason });
+
+const SLCB_PERMS: Record<string, PermOutcome> = {
+  '': sharedWith(''),
+  '+a': sharedWith('everyone'),
+  everyone: sharedWith('everyone'),
+  '+s': sharedWith('subscriber'),
+  subscriber: sharedWith('subscriber'),
+  subscribers: sharedWith('subscriber'),
+  sub: sharedWith('subscriber'),
+  '+gw': adjustedTo('sub', (raw) => `GameWisp subscriber permission ${JSON.stringify(raw)} imported as sub`),
+  'gamewisp subscriber': adjustedTo('sub', (raw) => `GameWisp subscriber permission ${JSON.stringify(raw)} imported as sub`),
+  '+m': sharedWith('moderator'),
+  moderator: sharedWith('moderator'),
+  moderators: sharedWith('moderator'),
+  mod: sharedWith('moderator'),
+  vip: sharedWith('vip'),
+  vips: sharedWith('vip'),
+  streamer: sharedWith('streamer'),
+  broadcaster: sharedWith('streamer'),
+  owner: sharedWith('streamer'),
+  caster: sharedWith('streamer'),
+  '+e': adjustedTo('lead_mod', (raw) => `permission ${JSON.stringify(raw)} has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)`),
+  editor: adjustedTo('lead_mod', (raw) => `permission ${JSON.stringify(raw)} has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)`),
+  editors: adjustedTo('lead_mod', (raw) => `permission ${JSON.stringify(raw)} has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)`),
+  '+r': widenedRegulars(),
+  regular: widenedRegulars(),
+  regulars: widenedRegulars()
+};
+
+// widenedRegulars lands on everyone with the unmapped code: channel regulars
+// have no tier here, so the mapping layer's widening fallback applies.
+function widenedRegulars(): PermOutcome {
+  return {
+    kind: 'unmapped',
+    reason: (raw) => `permission ${JSON.stringify(raw)} (channel regulars) has no tier here; widened to everyone — tighten it after import if needed`
+  };
+}
+
+function unknownSpelling(): PermOutcome {
+  return {
+    kind: 'unmapped',
+    reason: (raw) => `permission ${JSON.stringify(raw)} is not one this importer knows; defaulted to everyone`
+  };
+}
+
+function applyPermOutcome(outcome: PermOutcome, raw: string): { perm: string; diags: ImportDiagnostic[] } {
+  switch (outcome.kind) {
+    case 'shared':
+      return sharedPerm(outcome.word);
+    case 'adjusted':
+      return {
+        perm: outcome.perm,
+        diags: [warnDiag(-1, 'command_permission_adjusted', outcome.reason(raw))]
+      };
+    case 'unmapped':
+      return {
+        perm: 'everyone',
+        diags: [warnDiag(-1, CODE.permissionUnmapped, outcome.reason(raw))]
+      };
   }
 }
 

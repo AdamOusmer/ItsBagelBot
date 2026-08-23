@@ -296,22 +296,16 @@ function decodeBotCommand(entry: unknown): BotCommand {
 function flexText(v: unknown): string {
   if (v === undefined || v === null) return '';
   if (typeof v === 'string') return v;
-  if (Array.isArray(v)) {
-    const parts: string[] = [];
-    for (const el of v) {
-      if (typeof el === 'string') {
-        parts.push(el);
-        continue;
-      }
-      if (el !== null && typeof el === 'object' && typeof (el as Record<string, unknown>).text === 'string') {
-        parts.push((el as Record<string, unknown>).text as string);
-        continue;
-      }
-      throw new TypeError('timer message array elements must be strings or {text} objects');
-    }
-    return parts.join('\n');
-  }
+  if (Array.isArray(v)) return v.map(textElement).join('\n');
   throw new TypeError('timer message must be a string or an array of strings/{text} objects');
+}
+
+function textElement(el: unknown): string {
+  if (typeof el === 'string') return el;
+  if (el !== null && typeof el === 'object' && typeof (el as Record<string, unknown>).text === 'string') {
+    return (el as Record<string, unknown>).text as string;
+  }
+  throw new TypeError('timer message array elements must be strings or {text} objects');
 }
 
 interface BotTimer {
@@ -338,24 +332,22 @@ function decodeBotTimer(entry: unknown): BotTimer {
   const online = window(e.online);
   const offline = window(e.offline);
 
-  // text prefers the messages[] shape when present, falling back to message.
-  let text = '';
-  if (e.messages !== undefined) {
-    if (!Array.isArray(e.messages)) throw new TypeError('timer message must be a string or an array of strings/{text} objects');
-    text = e.messages.map((m) => flexText(m)).join('\n');
-  } else {
-    text = flexText(e.message);
-  }
-
   return {
     name: typeof e.name === 'string' ? e.name : '',
-    text,
+    text: timerText(e),
     enabled: typeof e.enabled === 'boolean' ? e.enabled : undefined,
     onlineEnabled: online.enabled,
     onlineInterval: online.interval,
     offlineEnabled: offline.enabled,
     offlineInterval: offline.interval
   };
+}
+
+// timerText prefers the messages[] shape when present, falling back to message.
+function timerText(e: Record<string, unknown>): string {
+  if (e.messages === undefined) return flexText(e.message);
+  if (!Array.isArray(e.messages)) throw new TypeError('timer message must be a string or an array of strings/{text} objects');
+  return e.messages.map((m) => flexText(m)).join('\n');
 }
 
 // Diagnostic codes this parser emits beyond the shared consts. Free-form
@@ -406,48 +398,30 @@ export const SE_CODE = {
 // exactly the niche lead_mod occupies here. Unknown numerics cannot be trusted
 // as "more than everyone" — inventing trust from an undocumented value is the
 // one unrecoverable mistake a permission mapper can make.
+const ACCESS_LEVELS: readonly {
+  level: number;
+  perm: 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
+  label: string;
+  recognized: boolean;
+}[] = [
+  { level: 100, perm: 'everyone', label: 'Everyone', recognized: true },
+  { level: 250, perm: 'sub', label: 'Subscriber', recognized: true },
+  { level: 300, perm: 'everyone', label: 'Regular', recognized: false },
+  { level: 400, perm: 'vip', label: 'VIP', recognized: true },
+  { level: 500, perm: 'mod', label: 'Moderator', recognized: true },
+  { level: 1000, perm: 'lead_mod', label: 'Super Moderator', recognized: true },
+  { level: 1500, perm: 'broadcaster', label: 'Broadcaster', recognized: true }
+];
+
 export function mapAccessLevel(level: number): { perm: 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster'; recognized: boolean } {
-  switch (level) {
-    case 100:
-      return { perm: 'everyone', recognized: true };
-    case 250:
-      return { perm: 'sub', recognized: true };
-    case 300:
-      return { perm: 'everyone', recognized: false };
-    case 400:
-      return { perm: 'vip', recognized: true };
-    case 500:
-      return { perm: 'mod', recognized: true };
-    case 1000:
-      return { perm: 'lead_mod', recognized: true };
-    case 1500:
-      return { perm: 'broadcaster', recognized: true };
-    default:
-      return { perm: 'everyone', recognized: false };
-  }
+  const row = ACCESS_LEVELS.find((r) => r.level === level);
+  return row ? { perm: row.perm, recognized: row.recognized } : { perm: 'everyone', recognized: false };
 }
 
 // levelLabel renders SE's own names inside warning messages so the broadcaster
 // sees their dashboard vocabulary, not ours.
 function levelLabel(level: number): string {
-  switch (level) {
-    case 100:
-      return 'Everyone';
-    case 250:
-      return 'Subscriber';
-    case 300:
-      return 'Regular';
-    case 400:
-      return 'VIP';
-    case 500:
-      return 'Moderator';
-    case 1000:
-      return 'Super Moderator';
-    case 1500:
-      return 'Broadcaster';
-    default:
-      return `unknown level ${level}`;
-  }
+  return ACCESS_LEVELS.find((r) => r.level === level)?.label ?? `unknown level ${level}`;
 }
 
 const q = (s: string): string => JSON.stringify(s);
@@ -492,253 +466,333 @@ export function parseStreamElements(raw: Uint8Array | string): {
   return { manifest, diagnostics: diags };
 }
 
+// NoteSink accumulates the per-item warn diagnostics that also surface on the
+// command as warnings: every lossy note is both a diagnostic at idx and a
+// message in cmd.warnings.
+interface NoteSink {
+  idx: number;
+  diags: ImportDiagnostic[];
+  notes: string[];
+}
+
+function addNote(sink: NoteSink, code: string, message: string): void {
+  sink.diags.push(warnDiag(sink.idx, code, message));
+  sink.notes.push(message);
+}
+
 function parseCommands(entries: unknown[], commands: ManifestCommand[], m: ImportManifest, diags: ImportDiagnostic[]): void {
   for (const entry of entries) {
-    let c: BotCommand;
-    try {
-      c = decodeBotCommand(entry);
-    } catch (err) {
-      diags.push(warnDiag(-1, SE_CODE.commandUnparseable, 'skipped one unparseable StreamElements command entry: ' + (err as Error).message));
+    const c = decodeCommandOrSkip(entry, diags);
+    if (!c) continue;
+    const problem = commandExclusion(c);
+    if (problem) {
+      diags.push(problem);
       continue;
     }
-
-    const name = normalizeName(c.command);
-
-    // Regex commands are a different feature (pattern-triggered), not a
-    // command with an unlucky name; importing one would ship a command whose
-    // trigger is a regex literal. Excluded, not errored-in-place, so the
-    // preview never offers a broken item for confirmation.
-    if (c.regex.trim() !== '') {
-      diags.push(warnDiag(-1, SE_CODE.commandRegexSkipped,
-        `command ${q(c.command)} uses a regex trigger (${c.regex}); regex commands have no equivalent here and were skipped`));
-      continue;
-    }
-    if (!flag(c.enabled)) {
-      diags.push(warnDiag(-1, SE_CODE.commandDisabledSkipped,
-        `command ${q(c.command)} is disabled upstream and was skipped`));
-      continue;
-    }
-    if (!flag(c.enabledOnline) && !flag(c.enabledOffline)) {
-      diags.push(warnDiag(-1, SE_CODE.commandDisabledSkipped,
-        `command ${q(c.command)} is disabled both online and offline upstream and was skipped`));
-      continue;
-    }
-
-    const idx = commands.length;
-    const notes: string[] = [];
-    const addNote = (code: string, msg: string): void => {
-      diags.push(warnDiag(idx, code, msg));
-      notes.push(msg);
-    };
-
-    const online = flag(c.enabledOnline);
-    const offline = flag(c.enabledOffline);
-    const onlineOnly = online && !offline;
-    if (!online && offline) {
-      addNote(SE_CODE.commandOfflineOnlyWidened,
-        `command ${q(name)} runs only while offline upstream; imported as always available (widening)`);
-    }
-
-    switch (c.type.trim().toLowerCase()) {
-      case '':
-      case 'say':
-        // Default response style; nothing to adjust.
-        break;
-      case 'reply':
-        addNote(SE_CODE.commandTypeReply,
-          `command ${q(name)} replies natively upstream; it posts as a normal chat message here`);
-        break;
-      case 'whisper':
-        addNote(SE_CODE.commandTypeWhisper,
-          `command ${q(name)} whispered its response upstream; the response posts publicly here`);
-        break;
-      default:
-        addNote(SE_CODE.commandTypeUnknown,
-          `command ${q(name)} has unknown response type ${q(c.type)}; posting as a normal chat message`);
-    }
-
-    if (c.cost > 0) {
-      addNote(SE_CODE.commandCostUnsupported,
-        `command ${q(name)} costs ${c.cost} loyalty points upstream; loyalty gating is not supported, so it is free here`);
-    }
-
-    const { perm, recognized } = mapAccessLevel(c.accessLevel);
-    if (!recognized) {
-      addNote(CODE.permissionUnmapped,
-        `command ${q(name)} requires accessLevel ${c.accessLevel} (${levelLabel(c.accessLevel)}), which has no equivalent here; widened to everyone`);
-    }
-
-    if (c.cooldownUser > 0) {
-      addNote(SE_CODE.commandUserCooldownDropped,
-        `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
-    }
-
-    const { text, warns } = translateVariables(c.reply);
-    for (const tok of warns) {
-      addNote(CODE.variableUnmapped,
-        `response uses ${tok}, which has no equivalent; left as literal text`);
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-
-    // Fields mirror Go's omitempty tags: absent/empty values are omitted so a
-    // serialized manifest stays identical to what the importer service emitted.
-    const cmd: ManifestCommand = { name, responses: lines };
-    const aliases: string[] = [];
-    for (const a of c.aliases) {
-      const norm = normalizeName(a);
-      if (norm === '') {
-        const msg = `command ${q(name)} had alias ${q(a)} that normalizes to nothing; dropped`;
-        diags.push(warnDiag(idx, SE_CODE.commandAliasDropped, msg));
-        notes.push(msg);
-      } else if (norm === name) {
-        const msg = `command ${q(name)} listed itself as an alias; dropped`;
-        diags.push(warnDiag(idx, SE_CODE.commandAliasDropped, msg));
-        notes.push(msg);
-      } else if (!aliases.includes(norm)) {
-        aliases.push(norm);
-      }
-    }
-    if (aliases.length > 0) cmd.aliases = aliases;
-    cmd.permission = perm;
-    if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
-    if (onlineOnly) cmd.online_only = true;
-    if (notes.length > 0) cmd.warnings = notes;
-    commands.push(cmd);
-
-    diags.push(...respDiags);
-
-    if (lines.length === 0 && c.reply.trim() !== '') {
-      // Canonicalization dropped everything (blank lines only after variable
-      // removal); mark it so commit skips rather than writes an empty command.
-      diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no usable response after translation`));
-    } else if (lines.length === 0) {
-      diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no response`));
-    }
-
-    keywordsToTriggers(c.keywords, c.reply, name, m, diags);
+    appendCommand(c, commands, m, diags);
   }
 }
 
-// keywordsToTriggers expands one command's keyword list into phrase triggers.
-// Each keyword gets the same translated response, flattened to a single line:
-// commit stores triggers as "phrase => response" textarea rows, so embedded
-// newlines would corrupt the rules blob.
+function decodeCommandOrSkip(entry: unknown, diags: ImportDiagnostic[]): BotCommand | null {
+  try {
+    return decodeBotCommand(entry);
+  } catch (err) {
+    diags.push(warnDiag(-1, SE_CODE.commandUnparseable, 'skipped one unparseable StreamElements command entry: ' + (err as Error).message));
+    return null;
+  }
+}
+
+// commandExclusion reports why an entry cannot land at all (attributed to
+// index -1: it owns no manifest slot), or null when it should be imported.
+//
+// Regex commands are a different feature (pattern-triggered), not a
+// command with an unlucky name; importing one would ship a command whose
+// trigger is a regex literal. Excluded, not errored-in-place, so the
+// preview never offers a broken item for confirmation.
+function commandExclusion(c: BotCommand): ImportDiagnostic | null {
+  if (c.regex.trim() !== '') {
+    return warnDiag(-1, SE_CODE.commandRegexSkipped,
+      `command ${q(c.command)} uses a regex trigger (${c.regex}); regex commands have no equivalent here and were skipped`);
+  }
+  if (!flag(c.enabled)) {
+    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
+      `command ${q(c.command)} is disabled upstream and was skipped`);
+  }
+  if (!flag(c.enabledOnline) && !flag(c.enabledOffline)) {
+    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
+      `command ${q(c.command)} is disabled both online and offline upstream and was skipped`);
+  }
+  return null;
+}
+
+function appendCommand(c: BotCommand, commands: ManifestCommand[], m: ImportManifest, diags: ImportDiagnostic[]): void {
+  const name = normalizeName(c.command);
+  const sink: NoteSink = { idx: commands.length, diags, notes: [] };
+  const online = flag(c.enabledOnline);
+
+  const { text, perm } = lossyNotes(c, name, online, sink);
+  const { lines, diags: respDiags } = canonicalizeResponse(text, sink.idx);
+
+  commands.push(assembleCommand(c, name, online, perm, lines, sink));
+  diags.push(...respDiags);
+  emptyResponseErrors(lines, c, name, sink.idx, diags);
+  keywordsToTriggers(c.keywords, c.reply, name, m, diags);
+}
+
+// lossyNotes emits, in pinned order (the golden fixtures pin diagnostic
+// order), every widening/dropping translation note for one command and sinks
+// the variable-translation warnings. Returns the translated response text and
+// the resolved permission tier.
+type AccessTier = ReturnType<typeof mapAccessLevel>['perm'];
+
+function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink): { text: string; perm: AccessTier } {
+  if (!online && flag(c.enabledOffline)) {
+    addNote(sink, SE_CODE.commandOfflineOnlyWidened,
+      `command ${q(name)} runs only while offline upstream; imported as always available (widening)`);
+  }
+
+  responseTypeNote(c, name, sink);
+
+  if (c.cost > 0) {
+    addNote(sink, SE_CODE.commandCostUnsupported,
+      `command ${q(name)} costs ${c.cost} loyalty points upstream; loyalty gating is not supported, so it is free here`);
+  }
+
+  const perm = accessLevelNote(c, name, sink).perm;
+
+  if (c.cooldownUser > 0) {
+    addNote(sink, SE_CODE.commandUserCooldownDropped,
+      `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
+  }
+
+  const { text, warns } = translateVariables(c.reply);
+  for (const tok of warns) {
+    addNote(sink, CODE.variableUnmapped,
+      `response uses ${tok}, which has no equivalent; left as literal text`);
+  }
+  return { text, perm };
+}
+
+// responseTypeNote covers the response-style column: say/default posts
+// unchanged, reply/whisper lose their delivery style, unknown types post as
+// plain chat messages.
+function responseTypeNote(c: BotCommand, name: string, sink: NoteSink): void {
+  switch (c.type.trim().toLowerCase()) {
+    case '':
+    case 'say':
+      break;
+    case 'reply':
+      addNote(sink, SE_CODE.commandTypeReply,
+        `command ${q(name)} replies natively upstream; it posts as a normal chat message here`);
+      break;
+    case 'whisper':
+      addNote(sink, SE_CODE.commandTypeWhisper,
+        `command ${q(name)} whispered its response upstream; the response posts publicly here`);
+      break;
+    default:
+      addNote(sink, SE_CODE.commandTypeUnknown,
+        `command ${q(name)} has unknown response type ${q(c.type)}; posting as a normal chat message`);
+  }
+}
+
+// accessLevelNote warns when the source tier has no equivalent here.
+function accessLevelNote(c: BotCommand, name: string, sink: NoteSink): ReturnType<typeof mapAccessLevel> {
+  const mapped = mapAccessLevel(c.accessLevel);
+  if (!mapped.recognized) {
+    addNote(sink, CODE.permissionUnmapped,
+      `command ${q(name)} requires accessLevel ${c.accessLevel} (${levelLabel(c.accessLevel)}), which has no equivalent here; widened to everyone`);
+  }
+  return mapped;
+}
+
+// assembleCommand builds the manifest entry with omitempty parity: absent or
+// empty values are omitted so a serialized manifest stays identical to what
+// the importer service emitted.
+function assembleCommand(
+  c: BotCommand,
+  name: string,
+  online: boolean,
+  perm: string,
+  lines: string[],
+  sink: NoteSink
+): ManifestCommand {
+  const cmd: ManifestCommand = { name, responses: lines };
+  const aliases = collectAliases(c, name, sink);
+  if (aliases.length > 0) cmd.aliases = aliases;
+  cmd.permission = perm as ManifestCommand['permission'];
+  if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
+  if (online && !flag(c.enabledOffline)) cmd.online_only = true;
+  if (sink.notes.length > 0) cmd.warnings = sink.notes;
+  return cmd;
+}
+
+// collectAliases normalizes the alias list, recording a drop note for every
+// alias that cannot land. Returns the kept, de-duplicated aliases.
+function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
+  const aliases: string[] = [];
+  for (const a of c.aliases) {
+    const norm = normalizeName(a);
+    if (norm === '') {
+      addNote(sink, SE_CODE.commandAliasDropped,
+        `command ${q(name)} had alias ${q(a)} that normalizes to nothing; dropped`);
+    } else if (norm === name) {
+      addNote(sink, SE_CODE.commandAliasDropped,
+        `command ${q(name)} listed itself as an alias; dropped`);
+    } else if (!aliases.includes(norm)) {
+      aliases.push(norm);
+    }
+  }
+  return aliases;
+}
+
+// emptyResponseErrors marks commands whose canonicalization left nothing, so
+// commit skips rather than writes an empty command.
+function emptyResponseErrors(lines: string[], c: BotCommand, name: string, idx: number, diags: ImportDiagnostic[]): void {
+  if (lines.length > 0) return;
+  if (c.reply.trim() !== '') {
+    // Canonicalization dropped everything (blank lines only after variable
+    // removal).
+    diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no usable response after translation`));
+  } else {
+    diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no response`));
+  }
+}
+
 function keywordsToTriggers(keywords: string[], reply: string, commandName: string, m: ImportManifest, diags: ImportDiagnostic[]): void {
   for (const kw of keywords) {
-    const phrase = kw.trim();
-    if (phrase === '') continue;
-
-    m.triggers ??= [];
-    const idx = m.triggers.length;
-    const { text, warns } = translateVariables(reply);
-    for (const tok of warns) {
-      diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
-        `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-    // CanonicalizeResponse attributes its findings with command_-prefixed
-    // codes; these items are triggers, so the codes are re-prefixed to keep
-    // FailedItems dropping the right collection.
-    for (const d of respDiags) {
-      if (d.code === CODE.responseTruncated) d.code = SE_CODE.triggerResponseTruncated;
-      else if (d.code === CODE.responseLineDropped) d.code = SE_CODE.triggerResponseLineDropped;
-    }
-    diags.push(...respDiags);
-
-    const response = lines.join(' ');
-    if (response === '' || phrase === '') {
-      diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
-        `keyword ${q(kw)} on command ${q(commandName)} has no usable phrase/response pair; skipped`));
-      continue;
-    }
-
-    m.triggers.push({ phrase, response });
+    appendKeywordTrigger(kw, reply, commandName, m, diags);
   }
   if (m.triggers?.length === 0) delete m.triggers;
 }
 
+// appendKeywordTrigger expands one keyword into a phrase trigger carrying the
+// same translated response, flattened to a single line: commit stores triggers
+// as "phrase => response" textarea rows, so embedded newlines would corrupt
+// the rules blob.
+function appendKeywordTrigger(kw: string, reply: string, commandName: string, m: ImportManifest, diags: ImportDiagnostic[]): void {
+  const phrase = kw.trim();
+  if (phrase === '') return;
+
+  m.triggers ??= [];
+  const idx = m.triggers.length;
+  const { text, warns } = translateVariables(reply);
+  for (const tok of warns) {
+    diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
+      `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
+  }
+
+  const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
+  // CanonicalizeResponse attributes its findings with command_-prefixed
+  // codes; these items are triggers, so the codes are re-prefixed to keep
+  // FailedItems dropping the right collection.
+  retitleResponseCodes(respDiags, SE_CODE.triggerResponseTruncated, SE_CODE.triggerResponseLineDropped);
+  diags.push(...respDiags);
+
+  const response = lines.join(' ');
+  if (response === '') {
+    diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
+      `keyword ${q(kw)} on command ${q(commandName)} has no usable phrase/response pair; skipped`));
+    return;
+  }
+  m.triggers.push({ phrase, response });
+}
+
+// retitleResponseCodes re-prefixes canonicalization findings from their
+// command_ codes onto the caller's item kind.
+function retitleResponseCodes(diags: ImportDiagnostic[], truncatedCode: string, lineDroppedCode: string): void {
+  for (const d of diags) {
+    if (d.code === CODE.responseTruncated) d.code = truncatedCode;
+    else if (d.code === CODE.responseLineDropped) d.code = lineDroppedCode;
+  }
+}
+
 function parseTimers(entries: unknown[], timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
   for (const entry of entries) {
-    let t: BotTimer;
-    try {
-      t = decodeBotTimer(entry);
-    } catch (err) {
-      diags.push(warnDiag(-1, SE_CODE.timerUnparseable, 'skipped one unparseable StreamElements timer entry: ' + (err as Error).message));
+    const t = decodeTimerOrSkip(entry, diags);
+    if (!t) continue;
+    const label = timerLabel(t);
+    const problem = timerExclusion(t, label);
+    if (problem) {
+      diags.push(problem);
       continue;
     }
-
-    let label = t.name;
-    if (label === '') {
-      label = firstLine(t.text);
-      if (label === '') label = '(unnamed)';
-    }
-
-    if (!flag(t.enabled)) {
-      diags.push(warnDiag(-1, SE_CODE.timerDisabledSkipped,
-        `timer ${q(label)} is disabled upstream and was skipped`));
-      continue;
-    }
-
-    const online = flag(t.onlineEnabled);
-    const offline = flag(t.offlineEnabled);
-    if (!online && !offline) {
-      diags.push(warnDiag(-1, SE_CODE.timerDisabledSkipped,
-        `timer ${q(label)} has neither an online nor an offline window enabled upstream and was skipped`));
-      continue;
-    }
-
-    const idx = timers.length;
-
-    // Decision record — interval units: StreamElements timer intervals are
-    // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
-    // API's own examples (online 5, offline 30) only make sense on a minute
-    // scale — a 5-second repeating announcement would sit below any sane rate
-    // limit and below this engine's 30s floor. Multiply by 60 here, once, so
-    // the manifest carries seconds like every consumer expects; commit clamps
-    // sub-floor values itself.
-    let interval = 0;
-    let onlineOnly = online;
-    if (online) interval = t.onlineInterval * 60;
-    else if (offline) interval = t.offlineInterval * 60;
-    if (interval < 0) interval = 0;
-
-    const addNote = (code: string, msg: string): void => {
-      diags.push(warnDiag(idx, code, msg));
-    };
-    if (!online && offline) {
-      onlineOnly = false;
-      addNote(SE_CODE.timerOfflineOnlyWidened,
-        `timer ${q(label)} runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)`);
-    }
-
-    const rawMsg = t.text;
-    const { text, warns } = translateVariables(rawMsg);
-    for (const tok of warns) {
-      addNote('timer_variable_unmapped',
-        `timer message uses ${tok}, which has no equivalent; left as literal text`);
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-    for (const d of respDiags) {
-      if (d.code === CODE.responseTruncated) d.code = SE_CODE.timerMessageTruncated;
-      else if (d.code === CODE.responseLineDropped) d.code = SE_CODE.timerLineDropped;
-    }
-    diags.push(...respDiags);
-
-    // omitempty parity: online_only false is omitted.
-    const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
-      message: lines.join('\n'),
-      interval_seconds: interval
-    };
-    if (onlineOnly) timer.online_only = true;
-    timers.push(timer);
-
-    if (timer.message.trim() === '') {
-      diags.push(errAt(idx, CODE.timerMessageEmpty, `timer ${q(label)} has no usable message after translation`));
-    }
+    appendTimer(t, label, timers, diags);
   }
+}
+
+function decodeTimerOrSkip(entry: unknown, diags: ImportDiagnostic[]): BotTimer | null {
+  try {
+    return decodeBotTimer(entry);
+  } catch (err) {
+    diags.push(warnDiag(-1, SE_CODE.timerUnparseable, 'skipped one unparseable StreamElements timer entry: ' + (err as Error).message));
+    return null;
+  }
+}
+
+function timerLabel(t: BotTimer): string {
+  return t.name !== '' ? t.name : firstLine(t.text) || '(unnamed)';
+}
+
+// timerExclusion reports why the timer cannot land at all, or null.
+function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
+  if (!flag(t.enabled)) {
+    return warnDiag(-1, SE_CODE.timerDisabledSkipped,
+      `timer ${q(label)} is disabled upstream and was skipped`);
+  }
+  if (!flag(t.onlineEnabled) && !flag(t.offlineEnabled)) {
+    return warnDiag(-1, SE_CODE.timerDisabledSkipped,
+      `timer ${q(label)} has neither an online nor an offline window enabled upstream and was skipped`);
+  }
+  return null;
+}
+
+function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
+  const idx = timers.length;
+  // Decision record — interval units: StreamElements timer intervals are
+  // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
+  // API's own examples (online 5, offline 30) only make sense on a minute
+  // scale — a 5-second repeating announcement would sit below any sane rate
+  // limit and below this engine's 30s floor. Multiply by 60 here, once, so
+  // the manifest carries seconds like every consumer expects; commit clamps
+  // sub-floor values itself.
+  const window = timerWindow(t);
+  if (window.widened) {
+    diags.push(warnDiag(idx, SE_CODE.timerOfflineOnlyWidened,
+      `timer ${q(label)} runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)`));
+  }
+
+  const { text, warns } = translateVariables(t.text);
+  for (const tok of warns) {
+    diags.push(warnDiag(idx, 'timer_variable_unmapped',
+      `timer message uses ${tok}, which has no equivalent; left as literal text`));
+  }
+
+  const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
+  retitleResponseCodes(respDiags, SE_CODE.timerMessageTruncated, SE_CODE.timerLineDropped);
+  diags.push(...respDiags);
+
+  // omitempty parity: online_only false is omitted.
+  const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
+    message: lines.join('\n'),
+    interval_seconds: window.seconds
+  };
+  if (window.onlineOnly) timer.online_only = true;
+  timers.push(timer);
+
+  if (timer.message.trim() === '') {
+    diags.push(errAt(idx, CODE.timerMessageEmpty, `timer ${q(label)} has no usable message after translation`));
+  }
+}
+
+// timerWindow resolves which firing window survives the import. Exactly one
+// of the two is enabled here (the neither case was excluded); an offline-only
+// timer widens with a note because timers here fire only while live.
+function timerWindow(t: BotTimer): { seconds: number; onlineOnly: boolean; widened: boolean } {
+  const clampNegative = (s: number): number => (s < 0 ? 0 : s);
+  if (flag(t.onlineEnabled)) {
+    return { seconds: clampNegative(t.onlineInterval * 60), onlineOnly: true, widened: false };
+  }
+  return { seconds: clampNegative(t.offlineInterval * 60), onlineOnly: false, widened: true };
 }
 
 // flag dereferences an optional boolean with the schema's enabled-by-default.

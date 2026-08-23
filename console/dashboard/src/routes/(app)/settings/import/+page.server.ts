@@ -140,8 +140,19 @@ function withJwtShapeCheck(missingError: string): (input: SourceInput) => InputR
 }
 
 function missingAnyInput(input: SourceInput, error: string): InputRefusal {
-  if (input.credential !== '' || input.fileB64 !== '' || input.preManifest) return null;
+  if (hasAnyInput(input)) return null;
   return { status: 400, error };
+}
+
+// hasAnyInput reports whether the post carried at least one of the three
+// inputs a preview can consume.
+function hasAnyInput(input: SourceInput): boolean {
+  if (input.preManifest !== undefined) return true;
+  return [input.credential, input.fileB64].some(nonEmpty);
+}
+
+function nonEmpty(v: string): boolean {
+  return v !== '';
 }
 
 function jwtShapeRefusal(credential: string): InputRefusal {

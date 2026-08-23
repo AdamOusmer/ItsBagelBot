@@ -100,68 +100,92 @@ function errorDiag(item_index: number, code: string, message: string): ImportDia
   return { severity: 'error', item_index, code, message };
 }
 
+// ParseOutcome is one source's fetch/parse leg: either the translated
+// manifest with its diagnostics, or a full refusal response explaining why
+// nothing could be previewed.
+type ParseOutcome =
+  | { manifest: ImportManifest; diags: ImportDiagnostic[] }
+  | { refusal: PreviewResponse };
+
+function refused(code: string, message: string): ParseOutcome {
+  return {
+    refusal: {
+      stats: emptyStats(),
+      diagnostics: [errorDiag(-1, code, message)],
+      error: message
+    }
+  };
+}
+
+// SOURCE_LEGS holds one fetch+parse function per API/file-backed source. The
+// browser-parsed Moobot flow posts its manifest directly and has no leg here.
+const SOURCE_LEGS: Partial<Record<ImportSource, (req: ImportPreviewRequest) => Promise<ParseOutcome>>> = {
+  streamelements: streamelementsLeg,
+  streamlabs_desktop: streamlabsDesktopLeg
+};
+
 // previewImport translates a source config into a reviewable manifest. A
 // failed preview (bad token, undecodable upload) comes back as
 // PreviewResponse.error — NOT as a thrown error — so the review step can render
 // the reason next to any fatal diagnostics. Only a truly wedged environment
 // (NATS down) propagates as a throw, which the action reports as a 502.
 export async function previewImport(s: Session, req: ImportPreviewRequest): Promise<PreviewResponse> {
-  let manifest: ImportManifest | undefined;
-  const parseDiags: ImportDiagnostic[] = [];
-
+  let outcome: ParseOutcome;
   if (req.manifest) {
-    // Pre-parsed manifests (browser-side Moobot parse keeps raw uploads off
-    // the wire) skip fetch/parse entirely. The caller is untrusted exactly
-    // like any other input: validateManifest below still runs, including the
-    // per-collection caps.
-    manifest = req.manifest;
-  } else   if (req.source === 'streamelements') {
-    let envelope: string;
-    try {
-      const fetched = await fetchStreamElements(req.credential ?? '');
-      envelope = JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
-    } catch (err) {
-      return {
-        stats: emptyStats(),
-        diagnostics: [errorDiag(-1, CODE.fetchFailed, (err as Error).message)],
-        error: (err as Error).message
-      };
-    }
-    const parsed = parseStreamElements(envelope);
-    manifest = parsed.manifest;
-    parseDiags.push(...parsed.diagnostics);
-  } else if (req.source === 'streamlabs_desktop') {
-    if (!req.file_b64)
-      return {
-        stats: emptyStats(),
-        diagnostics: [errorDiag(-1, CODE.fileRequired, 'upload your Chatbot.db file')],
-        error: 'upload your Chatbot.db file'
-      };
-    const file = Buffer.from(req.file_b64, 'base64');
-    if (file.byteLength > MAX_DECODED_FILE_BYTES) {
-      const msg = `file is ${file.byteLength} bytes; the limit is ${MAX_DECODED_FILE_BYTES}`;
-      return { stats: emptyStats(), diagnostics: [errorDiag(-1, CODE.fileTooLarge, msg)], error: msg };
-    }
-    try {
-      const parsed = await parseStreamLabsDesktop(file);
-      manifest = parsed.manifest;
-      parseDiags.push(...parsed.diagnostics);
-    } catch (err) {
-      return {
-        stats: emptyStats(),
-        diagnostics: [errorDiag(-1, CODE.parseFailed, (err as Error).message)],
-        error: (err as Error).message
-      };
-    }
+    outcome = preParsedManifest(req.manifest);
   } else {
-    const msg =
-      req.source === ''
-        ? 'source required'
-        : `${req.source}: unsupported source`;
-    return { stats: emptyStats(), diagnostics: [errorDiag(-1, CODE.unsupportedSource, msg)], error: msg };
+    const leg = SOURCE_LEGS[req.source as ImportSource];
+    outcome = leg ? await leg(req) : unsupportedSource(String(req.source));
   }
 
-  return finishPreview(s, manifest!, parseDiags);
+  if ('refusal' in outcome) return outcome.refusal;
+  return finishPreview(s, outcome.manifest, outcome.diags);
+}
+
+function preParsedManifest(manifest: ImportManifest): ParseOutcome {
+  // Pre-parsed manifests (browser-side Moobot parse keeps raw uploads off
+  // the wire) skip fetch/parse entirely. The caller is untrusted exactly
+  // like any other input: validateManifest below still runs, including the
+  // per-collection caps.
+  return { manifest, diags: [] };
+}
+
+async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  let envelope: string;
+  try {
+    const fetched = await fetchStreamElements(req.credential ?? '');
+    envelope = JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
+  } catch (err) {
+    return refused(CODE.fetchFailed, (err as Error).message);
+  }
+  const parsed = parseStreamElements(envelope);
+  return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
+}
+
+async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  if (!req.file_b64) return refused(CODE.fileRequired, 'upload your Chatbot.db file');
+
+  const file = Buffer.from(req.file_b64, 'base64');
+  if (file.byteLength > MAX_DECODED_FILE_BYTES) {
+    return refused(
+      CODE.fileTooLarge,
+      `file is ${file.byteLength} bytes; the limit is ${MAX_DECODED_FILE_BYTES}`
+    );
+  }
+
+  try {
+    const parsed = await parseStreamLabsDesktop(file);
+    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
+  } catch (err) {
+    return refused(CODE.parseFailed, (err as Error).message);
+  }
+}
+
+function unsupportedSource(source: string): ParseOutcome {
+  return refused(
+    CODE.unsupportedSource,
+    source === '' ? 'source required' : `${source}: unsupported source`
+  );
 }
 
 // finishPreview is the shared tail of every preview flow: canonicalization +
@@ -528,38 +552,56 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
   }
 }
 
+// TermBook accumulates the merged term list while deduplicating
+// case-insensitively, counting how many imports actually landed.
+interface TermBook {
+  seen: Map<string, true>;
+  terms: string[];
+  added: number;
+}
+
+function recordTerm(book: TermBook, t: string): void {
+  book.seen.set(t.toLowerCase(), true);
+  book.terms.push(t);
+}
+
 // mergeTermList unions an existing comma-joined list with imported terms,
-// deduplicating case-insensitively and capping at MAX_AUTOMOD_TERMS entries
-// (2 x 200 x ~100 bytes stays far under the modules service's 16KiB blob cap,
-// so hitting the cap mid-commit is impossible rather than handled).
+// capping at MAX_AUTOMOD_TERMS entries (2 x 200 x ~100 bytes stays far under
+// the modules service's 16KiB blob cap, so hitting the cap mid-commit is
+// impossible rather than handled).
 function mergeTermList(existing: string, imported: string[]): { value: string; diags: ImportDiagnostic[] } {
-  const seen = new Map<string, true>();
-  const out: string[] = [];
+  const book: TermBook = { seen: new Map(), terms: [], added: 0 };
   for (const t of splitTermList(existing)) {
-    seen.set(t.toLowerCase(), true);
-    out.push(t);
+    recordTerm(book, t);
   }
-  let added = 0;
-  let truncated = false;
+  const truncated = importTerms(book, imported);
+  return {
+    value: book.terms.join(','),
+    diags: truncated
+      ? [warnDiag(-1, CODE.automodTermsTooMany, `${book.added} term(s) dropped past the ${MAX_AUTOMOD_TERMS}-term limit`)]
+      : []
+  };
+}
+
+// importTerms folds the imported list in; returns whether absorption stopped
+// early at the term cap.
+function importTerms(book: TermBook, imported: string[]): boolean {
   for (const raw of imported) {
-    const t = raw.trim();
-    if (t === '') continue;
-    if (seen.has(t.toLowerCase())) continue;
-    if (out.length >= MAX_AUTOMOD_TERMS) {
-      truncated = true;
-      break;
-    }
-    seen.set(t.toLowerCase(), true);
-    out.push(t);
-    added++;
+    if (absorbTerm(raw, book)) return true;
   }
-  const diags: ImportDiagnostic[] = [];
-  if (truncated) {
-    diags.push(
-      warnDiag(-1, CODE.automodTermsTooMany, `${added} term(s) dropped past the ${MAX_AUTOMOD_TERMS}-term limit`)
-    );
-  }
-  return { value: out.join(','), diags };
+  return false;
+}
+
+// absorbTerm adds one imported term unless it is blank or a duplicate;
+// returns whether the cap stopped absorption (everything past it is dropped).
+function absorbTerm(raw: string, book: TermBook): boolean {
+  const t = raw.trim();
+  if (t === '') return false;
+  if (book.seen.has(t.toLowerCase())) return false;
+  if (book.terms.length >= MAX_AUTOMOD_TERMS) return true;
+  recordTerm(book, t);
+  book.added++;
+  return false;
 }
 
 function splitTermList(s: string): string[] {
