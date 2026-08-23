@@ -140,8 +140,7 @@ func (dc duelCmd) route(ctx context.Context, args string, emit module.Emit) erro
 	case handled || err != nil:
 		return err
 	case isChallengeShape(first):
-		target, stakeArg := splitChallenge(first, rest)
-		return dc.challenge(ctx, login, target, stakeArg, emit)
+		return dc.challenge(ctx, login, splitChallenge(first, rest), emit)
 	default:
 		return dc.stake(ctx, login, first, emit)
 	}
@@ -170,11 +169,20 @@ func isChallengeShape(first string) bool {
 	return err != nil && first != ""
 }
 
+// challengeReq is one parsed "!duel <user> <stake>" invocation.
+type challengeReq struct {
+	target string
+	stake  string
+}
+
 // splitChallenge splits "<user> <stake>"; callers checked isChallengeShape,
-// so the stake must parse or the whole token pair degrades to usage.
-func splitChallenge(first, rest string) (target, stakeArg string) {
-	stake, _ := splitFirst(rest)
-	return strings.TrimPrefix(strings.ToLower(first), "@"), stake
+// so the stake must parse or the whole request degrades to usage.
+func splitChallenge(first, rest string) challengeReq {
+	stakeArg, _ := splitFirst(rest)
+	return challengeReq{
+		target: strings.TrimPrefix(strings.ToLower(first), "@"),
+		stake:  stakeArg,
+	}
 }
 
 // status answers a bare !duel with what, if anything, runs.
@@ -301,12 +309,12 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 }
 
 // challenge starts a direct duel: "!duel <user> <stake>".
-func (dc duelCmd) challenge(ctx context.Context, login, target, stakeArg string, emit module.Emit) error {
-	if target == login {
+func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq, emit module.Emit) error {
+	if req.target == login {
 		dc.reply(emit, "", "duel.challenge.self")
 		return nil
 	}
-	stake, refused := dc.resolveStake(stakeArg)
+	stake, refused := dc.resolveStake(req.stake)
 	if refused != "" {
 		dc.refuseReply(emit, refused)
 		return nil
@@ -314,7 +322,7 @@ func (dc duelCmd) challenge(ctx context.Context, login, target, stakeArg string,
 	res, err := dc.s.Open(ctx, dc.c.BroadcasterID, engine.DuelOpenSpec{
 		Kind:             engine.DuelChallenge,
 		Opener:           login,
-		Challenged:       target,
+		Challenged:       req.target,
 		Stake:            stake,
 		ChallengeSeconds: dc.t.ChallengeSeconds,
 	})
@@ -324,7 +332,7 @@ func (dc duelCmd) challenge(ctx context.Context, login, target, stakeArg string,
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.ChallengeMessage, "duel.challenge.sent",
-			tk("target", target),
+			tk("target", req.target),
 			tk("stake", strconv.FormatInt(stake, 10)),
 			tk("pot", strconv.FormatInt(stake*2, 10)),
 			tk("secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10)))
