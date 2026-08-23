@@ -1,0 +1,122 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Stylized release-channel chip. Alpha, beta, and pre-release each have a
+ * distinct mark (hatch, pulse, ember rail); stable `release` stays quiet.
+ */
+interface Props {
+    tag: 'alpha' | 'beta' | 'prerelease' | 'release';
+    label: string;
+}
+
+const { tag, label } = Astro.props;
+---
+
+<span class:list={['rtag', `rtag--${tag}`]}>
+    {tag !== 'release' && <i class="rtag__mark" aria-hidden="true"></i>}
+    {label}
+</span>
+
+<style>
+    .rtag {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        flex-shrink: 0;
+        padding: 4px 11px;
+        border-radius: var(--radius-pill, 100px);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.66rem;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .rtag__mark {
+        width: 7px;
+        height: 7px;
+        flex-shrink: 0;
+        border-radius: 50%;
+    }
+
+    /* Alpha — experimental: dashed rim, diagonal hatch, pale tan. */
+    .rtag--alpha {
+        color: var(--tan-pale, #f5e6cf);
+        border: 1px dashed rgba(245, 230, 207, 0.5);
+        background:
+            repeating-linear-gradient(
+                -45deg,
+                rgba(245, 230, 207, 0.07) 0 3px,
+                transparent 3px 7px
+            ),
+            rgba(245, 230, 207, 0.04);
+    }
+
+    .rtag--alpha .rtag__mark {
+        background: var(--tan-pale, #f5e6cf);
+        box-shadow: 0 0 8px rgba(245, 230, 207, 0.45);
+        clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+        border-radius: 0;
+        width: 8px;
+        height: 8px;
+    }
+
+    /* Beta — live channel: green chip + pulse, matching the hero eyebrow. */
+    .rtag--beta {
+        color: var(--green-light, #40916c);
+        border: 1px solid rgba(64, 145, 108, 0.38);
+        background: rgba(45, 106, 79, 0.18);
+        text-shadow: 0 0 12px rgba(82, 183, 136, 0.35);
+    }
+
+    .rtag--beta .rtag__mark {
+        background: var(--green-glow, #52b788);
+        box-shadow: 0 0 10px rgba(82, 183, 136, 0.7);
+        animation: rtag-pulse 1.8s ease-in-out infinite;
+    }
+
+    /* Pre-release — dual-tone ember rail (tan fading into green). */
+    .rtag--prerelease {
+        color: var(--tan-light, #e0c49a);
+        border: 1px solid transparent;
+        background:
+            linear-gradient(rgba(17, 17, 16, 0.92), rgba(17, 17, 16, 0.92)) padding-box,
+            linear-gradient(90deg, rgba(201, 168, 124, 0.85), rgba(82, 183, 136, 0.65)) border-box;
+        box-shadow: 0 0 18px rgba(201, 168, 124, 0.12);
+    }
+
+    .rtag--prerelease .rtag__mark {
+        background: linear-gradient(90deg, var(--tan, #c9a87c), var(--green-glow, #52b788));
+        box-shadow: 0 0 10px rgba(201, 168, 124, 0.55);
+        animation: rtag-ember 2.4s ease-in-out infinite;
+    }
+
+    /* Release — quiet, no motion. The thing that shipped. */
+    .rtag--release {
+        color: var(--muted, #888077);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        background: rgba(255, 255, 255, 0.03);
+        letter-spacing: 0.1em;
+    }
+
+    @keyframes rtag-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.3; transform: scale(0.75); }
+    }
+
+    @keyframes rtag-ember {
+        0%, 100% { opacity: 0.7; filter: hue-rotate(0deg); }
+        50% { opacity: 1; filter: hue-rotate(18deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .rtag--beta .rtag__mark,
+        .rtag--prerelease .rtag__mark {
+            animation: none;
+        }
+    }
+</style>
