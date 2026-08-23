@@ -153,43 +153,49 @@ func emoteShape(text string) (token string, width int, ok bool) {
 // firstToken returns the leading whitespace-delimited token of text plus the
 // offset just past it ("" when text is blank).
 func firstToken(text string) (string, int) {
-	i, n := 0, len(text)
-	for i < n && isASCIISpace(text[i]) {
-		i++
+	start := skipSpaces(text, 0)
+	end := skipNonSpaces(text, start)
+	if start == end {
+		return "", end
 	}
-	start := i
-	for i < n && !isASCIISpace(text[i]) {
-		i++
-	}
-	return text[start:i], i
+	return text[start:end], end
 }
 
 // countRepeatedToken walks the tokens after offset i and returns how many
 // times in total (first occurrence included) token occurs, ok=false the moment
 // any token differs or the pyramid-width cap is exceeded.
 func countRepeatedToken(text string, i int, token string) (width int, ok bool) {
-	n := len(text)
 	width = 1
-	for i < n {
-		for i < n && isASCIISpace(text[i]) {
-			i++
+	for width <= maxPyramidWidth {
+		i = skipSpaces(text, i)
+		if i >= len(text) {
+			return width, true
 		}
-		if i >= n {
-			break
-		}
-		j := i
-		for i < n && !isASCIISpace(text[i]) {
-			i++
-		}
-		if i-j != len(token) || text[j:i] != token {
+		next := skipNonSpaces(text, i)
+		if text[i:next] != token {
 			return 0, false
 		}
+		i = next
 		width++
-		if width > maxPyramidWidth {
-			return 0, false
-		}
 	}
-	return width, true
+	return 0, false
+}
+
+// skipSpaces advances past ASCII whitespace; skipNonSpaces past everything
+// else. The pair is the whole tokenizer: byte-index arithmetic keeps the scan
+// allocation-free on the hot path.
+func skipSpaces(text string, i int) int {
+	for i < len(text) && isASCIISpace(text[i]) {
+		i++
+	}
+	return i
+}
+
+func skipNonSpaces(text string, i int) int {
+	for i < len(text) && !isASCIISpace(text[i]) {
+		i++
+	}
+	return i
 }
 
 // emoteTokenish requires at least one letter or digit, so punctuation spam
