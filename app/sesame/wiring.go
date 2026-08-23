@@ -113,6 +113,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
+		EmotePlay: engine.NewValkeyEmotePlay(in.vc),
+
 		Dedup: newDedup(w),
 
 		PublicBaseURL: cfg.PublicBaseURL,
