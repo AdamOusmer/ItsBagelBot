@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 

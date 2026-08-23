@@ -44,11 +44,11 @@ func TestContainsLinkCatches(t *testing.T) {
 		"user @ host . com",
 		"e x a m p l e . c o m",
 		// glyph / invisible (ASCII \u escapes, no raw invisibles in source)
-		"ｅｘａｍｐｌｅ.ｃｏｍ", // full-width example.com
-		"exa​mple.com", // zero-width space
-		"exam‌ple.com", // zero-width non-joiner
+		"ｅｘａｍｐｌｅ.ｃｏｍ",       // full-width example.com
+		"exa​mple.com",      // zero-width space
+		"exam‌ple.com",      // zero-width non-joiner
 		"example\ufeff.com", // BOM mid-string (backslash escape: Go rejects a raw BOM)
-		"exa­mple.com", // soft hyphen
+		"exa­mple.com",      // soft hyphen
 		// ip
 		"192.168.0.1",
 		"http://127.0.0.1:8080/x",

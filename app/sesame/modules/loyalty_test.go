@@ -84,9 +84,13 @@ func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin str
 		return loyaltyrpc.Balance{}, false, nil
 	}
 	if absolute {
-		return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: value}, true, nil
+		bal := f.standing(viewerLogin)
+		bal.Points = value
+		return bal, true, nil
 	}
-	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234 + value}, true, nil
+	bal := f.standing(viewerLogin)
+	bal.Points += value
+	return bal, true, nil
 }
 
 func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
@@ -94,10 +98,18 @@ func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin stri
 	if viewerLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, false, nil
 	}
-	if f.spendBad || amount > 1234 {
-		return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234}, true, false, nil
+	bal := f.standing(viewerLogin)
+	if f.spendBad || amount > bal.Points {
+		return bal, true, false, nil
 	}
-	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234 - amount}, true, true, nil
+	bal.Points -= amount
+	return bal, true, true, nil
+}
+
+// standing is the canned reply every balance verb serves; the games' tests
+// pin their arithmetic against the same 1234 the adjust path hands back.
+func (f *fakeLoyalty) standing(login string) loyaltyrpc.Balance {
+	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: login, Points: 1234}
 }
 
 func (f *fakeLoyalty) CounterCreate(_ context.Context, _ uint64, name, scope string) (loyaltyrpc.Counter, error) {
