@@ -371,23 +371,46 @@ func prepareDuelOpen(spec DuelOpenSpec) (int64, error) {
 	return openClock(spec), nil
 }
 
-// validateOpenSpec refuses the four malformed shapes an open request can
-// take, one branch each.
+// validateOpenSpec refuses the malformed shapes an open request can take.
+// One shape per branch, single operator each: every refusal names itself.
 func validateOpenSpec(spec DuelOpenSpec) error {
-	switch {
-	case spec.Stake <= 0:
+	if spec.Stake <= 0 {
 		return fmt.Errorf("duel: stake below the floor (%d)", spec.Stake)
-	case spec.Stake > DuelMaxStake:
+	}
+	if spec.Stake > DuelMaxStake {
 		return fmt.Errorf("duel: stake above the ceiling (%d)", spec.Stake)
-	case spec.Opener == "":
+	}
+	if spec.Opener == "" {
 		return fmt.Errorf("duel: open without an opener")
-	case spec.Kind == DuelChallenge && spec.Challenged == "":
+	}
+	if spec.Kind == DuelChallenge {
+		return validateChallenged(spec)
+	}
+	return validateKind(spec)
+}
+
+// validateChallenged completes the checks specific to the challenge flavor.
+func validateChallenged(spec DuelOpenSpec) error {
+	if spec.Challenged == "" {
 		return fmt.Errorf("duel: challenge without a challenged party")
 	}
-	if spec.Kind != DuelPot && spec.Kind != DuelChallenge {
-		return fmt.Errorf("duel: unknown kind %q", spec.Kind)
+	if spec.Opener == spec.Challenged {
+		return fmt.Errorf("duel: self-challenge (%q)", spec.Opener)
 	}
 	return nil
+}
+
+// validateKind completes the checks for the pot flavor and rejects unknown
+// kinds outright.
+func validateKind(spec DuelOpenSpec) error {
+	switch spec.Kind {
+	case DuelPot:
+		return nil
+	case DuelChallenge:
+		return nil // handled by validateChallenged's caller
+	default:
+		return fmt.Errorf("duel: unknown kind %q", spec.Kind)
+	}
 }
 
 // openClock resolves which of the two windows this flavor arms.

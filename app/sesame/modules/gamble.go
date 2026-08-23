@@ -132,10 +132,19 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 	}
 
 	roll := engine.RollGamble()
+	wager := wagerOutcome{roll: roll, bet: bet, balance: gc.balance}
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
-		return gc.settleWin(ctx, login, bet, roll, emit)
+		return gc.settleWin(ctx, login, wager, emit)
 	}
-	return gc.settleLoss(ctx, login, bet, roll, emit)
+	return gc.settleLoss(ctx, login, wager, emit)
+}
+
+// wagerOutcome bundles the three numbers every settled-wager line carries:
+// the dice, the stake and the post-wager standing.
+type wagerOutcome struct {
+	roll    int64
+	bet     int64
+	balance int64
 }
 
 // refusal is one rejected wager: the line to answer with and any bound
@@ -185,7 +194,8 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 }
 
 // settleWin credits the stake back plus its match and announces.
-func (gc gambleCmd) settleWin(ctx context.Context, login string, bet, roll int64, emit module.Emit) error {
+func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
+	bet := wager.bet
 	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, bet, false)
 	if err != nil {
 		gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
@@ -197,15 +207,16 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, bet, roll int64
 		gc.reply(emit, "", "gamble.err")
 		return nil
 	}
-	gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", roll, bet, newBal.Points)
+	wager.balance = newBal.Points
+	gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
 	return nil
 }
 
 // settleLoss rides the conditional debit: if a racing command drained the
 // account between our read and now, spent comes back false and chat gets the
 // honest "you can't cover that" instead of a phantom loss.
-func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int64, emit module.Emit) error {
-	newBal, _, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
+func (gc gambleCmd) settleLoss(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
+	newBal, _, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, wager.bet)
 	if err != nil {
 		gc.log.Warn("gamble: loss debit failed", gc.bid(), zap.Error(err))
 		return err
@@ -215,18 +226,19 @@ func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int6
 			tk("balance", strconv.FormatInt(newBal.Points, 10)))
 		return nil
 	}
-	gc.announce(emit, gc.tmpl.LoseMessage, "gamble.lose", roll, bet, newBal.Points)
+	wager.balance = newBal.Points
+	gc.announce(emit, gc.tmpl.LoseMessage, "gamble.lose", wager)
 	return nil
 }
 
 // announce emits one settled-wager line; every outcome line carries the same
 // four tokens (the dice and the money), only the template differs.
-func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, roll, bet, balance int64) {
+func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wager wagerOutcome) {
 	gc.reply(emit, override, key,
-		tk("roll", strconv.FormatInt(roll, 10)),
+		tk("roll", strconv.FormatInt(wager.roll, 10)),
 		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
-		tk("amount", strconv.FormatInt(bet, 10)),
-		tk("balance", strconv.FormatInt(balance, 10)))
+		tk("amount", strconv.FormatInt(wager.bet, 10)),
+		tk("balance", strconv.FormatInt(wager.balance, 10)))
 }
 
 // viewerID parses the chatter's Twitch id for balance reads; chat events
