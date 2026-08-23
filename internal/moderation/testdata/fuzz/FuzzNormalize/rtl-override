@@ -1,0 +1,2 @@
+go test fuzz v1
+string("\u202eright\u202dto\u202dleft")

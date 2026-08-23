@@ -21,7 +21,6 @@ func parseCommand(text string) (name, args string, ok bool) {
 	return strings.ToLower(name), strings.TrimSpace(args), true
 }
 
-
 // splitTrailingDigits splits a run of trailing ASCII digits off the end of s.
 // "clip30" -> ("clip", "30"); "clip" -> ("clip", ""). It is used by the command
 // resolver to match a numeric-suffix trigger like !clip30.

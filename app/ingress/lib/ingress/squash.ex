@@ -36,7 +36,7 @@ defmodule Ingress.Squash do
   use GenServer
 
   alias Ingress.Config.Squash, as: SquashConfig
-  alias Ingress.{Config, Metrics, Nats}
+  alias Ingress.{Config, Metrics, Nats, Pipeline}
 
   @keys_table __MODULE__.Keys
 
@@ -44,7 +44,8 @@ defmodule Ingress.Squash do
           broadcaster_user_id: String.t(),
           broadcaster_user_login: String.t() | nil,
           lane: :premium | :standard,
-          text: String.t()
+          text: String.t(),
+          emotes: [map()]
         }
   @type sender :: %{
           chatter_user_id: String.t() | nil,
@@ -246,6 +247,14 @@ defmodule Ingress.Squash do
       distinct_users: distinct
     }
 
+    # Folded senders share identical text, hence identical emote spans; the
+    # cohort carries the first occurrence's spans, which describe base.text.
+    message =
+      case base[:emotes] do
+        [_ | _] = emotes -> Map.put(message, :emotes, emotes)
+        _ -> message
+      end
+
     Metrics.count("Cohorts/Emitted")
     Metrics.count("Cohorts/Senders", count)
     state.publish.(Config.hot_lane_subject(base.lane), message)
@@ -319,7 +328,8 @@ defmodule Ingress.Squash do
       broadcaster_user_id: event["broadcaster_user_id"],
       broadcaster_user_login: event["broadcaster_user_login"],
       lane: lane,
-      text: text
+      text: text,
+      emotes: Pipeline.emote_spans(event)
     }
 
     sender = %{

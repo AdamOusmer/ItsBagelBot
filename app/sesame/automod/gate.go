@@ -17,17 +17,48 @@ const (
 	capsThreshold = 0.7 // fraction of letters uppercased
 	capsMinLen    = 12  // caps only counts on longer lines
 	symbolRatioHi = 0.6
-	repeatRun     = 8 // same rune repeated this many times in a row
+	// symbolMinCount is the absolute number of symbol runes a line must carry
+	// before its ratio is even considered (2026-08-22): a pure-ratio threshold
+	// flags any tiny punctuation line by construction - the shadow-mode audit's
+	// '^' and '???' deletes both measured ratio=1.0 on one and three runes.
+	// 8 matches repeatRun's intuition of "wall, not sentence" and keeps audited
+	// real walls (dozens of runes) far above it; lower it and one-character
+	// emoticons ":)" / "^" start deleting again. Deliberately gates ONLY the
+	// style symbol flag: zeroWidth/evasion and repeat-run stay ungated - they
+	// are evasion signals, not style preferences, so "a^b" (1 symbol + 1
+	// invisible) and "!!!!!!!!" (8-run repeat) must keep deleting.
+	symbolMinCount = 8
+	repeatRun      = 8 // same rune repeated this many times in a row
 )
+
+// channelID scopes a judged line to its broadcaster for every per-channel
+// layer: the learned style/vocab adaptation, purge-on-strike, and the emote
+// rescues. Zero means "channel unknown" and keeps every learned layer inert.
+// Internal only - callers hand the raw id in through WithChannel, which stays
+// the option API's bare uint64 and converts at the boundary.
+type channelID uint64
+
+// styleLimits is the EFFECTIVE caps/symbol ratio ceiling pair a line is
+// judged against: the profile-resolved static values raised through the
+// channel's learned baseline (styleThresholds). One value instead of two bare
+// floats so the thresholds travel as the single concept they are through
+// staticStyleFlags and restripe; caps judges the uppercased-letter fraction,
+// symbol the symbol-rune fraction (each still gated by its absolute count).
+type styleLimits struct {
+	caps   float64
+	symbol float64
+}
 
 // Gate is the inline automod. Safe for concurrent use: categories are read-only
 // after New, the emote set and lexicon are swapped atomically, and skeleton
 // buffers come from a pool.
 type Gate struct {
-	cats    []category
-	buf     sync.Pool
-	emotes  atomic.Pointer[EmoteSet]
-	lexicon atomic.Pointer[moderation.Lexicon]
+	cats     []category
+	buf      sync.Pool
+	emotes   atomic.Pointer[EmoteSet]
+	lexicon  atomic.Pointer[moderation.Lexicon]
+	extra    atomic.Pointer[extraBox]
+	baseline atomic.Pointer[Baseline]
 }
 
 // New builds a Gate with the default curated blocklists and the embedded
@@ -55,6 +86,12 @@ func (g *Gate) SetLexicon(l *moderation.Lexicon) {
 	g.lexicon.Store(l)
 }
 
+// SetBaseline injects the per-channel learned style layer (nil clears it).
+// Raise-only by construction: it may only move caps/symbol thresholds UP from
+// the static ceilings, so installing or removing it can never mint a verdict
+// that would not have existed before. Safe to call at any time.
+func (g *Gate) SetBaseline(b *Baseline) { g.baseline.Store(b) }
+
 // Signals is the council evidence Assess gathers alongside the verdict, for the
 // jurors that live outside the gate (the valkey campaign tracker and the
 // reputation store in the engine). Zero value = clean-path line, nothing to add.
@@ -69,16 +106,49 @@ type Signals struct {
 	SimHash uint64
 }
 
+// AssessOption adjusts a single Assess/InspectWith call. It is a plain VALUE,
+// not a closure, deliberately: the functional-option shape made the options
+// scratch state escape through an opaque interface call, costing exactly one
+// allocation on every Assess - including the zero-alloc clean path this gate
+// is built around (audited by TestInspectCleanShortIsNoneAndZeroAlloc). A
+// value option keeps the variadic backing array stack-allocated. Options exist
+// so the per-message inputs could grow beyond (role, text, cfg) without every
+// existing call site having to grow an argument they do not care about.
+type AssessOption struct {
+	msgCodes map[string]struct{}
+	ch       channelID
+	sender   string
+}
+
+// WithMessageEmotes supplies this message's span-derived emote codes. They are
+// the authoritative layer of emote membership (see emoteDominant): when present
+// they make caps-only availability true for the message regardless of whether
+// the third-party fetch ever succeeded.
+func WithMessageEmotes(codes map[string]struct{}) AssessOption {
+	return AssessOption{msgCodes: codes}
+}
+
+// WithChannel scopes the judged line to broadcaster ch for the learned layers
+// (baseline style adaptation, learned vocabulary, purge-on-strike). The zero
+// value keeps every learned layer inert - callers that do not know their
+// channel (legacy call sites, most tests) see byte-identical behavior.
+func WithChannel(ch uint64) AssessOption { return AssessOption{ch: channelID(ch)} }
+
+// WithChatter names who sent the line, feeding Vocab's d-sender consensus.
+// Empty (or a cohort fold, which carries one attributed sender) still counts
+// toward tau but never mints sender diversity on its own.
+func WithChatter(senderID string) AssessOption { return AssessOption{sender: senderID} }
+
 // Inspect returns the automod verdict for one chat line under the global default
 // config. It is the common call; InspectWith takes a per-broadcaster Config.
-func (g *Gate) Inspect(role module.Role, text string) Verdict {
-	return g.InspectWith(role, text, nil)
+func (g *Gate) Inspect(role module.Role, text string, opts ...AssessOption) Verdict {
+	return g.InspectWith(role, text, nil, opts...)
 }
 
 // InspectWith is Assess without the council signals, for callers (cohorts,
 // tests) that only need the verdict.
-func (g *Gate) InspectWith(role module.Role, text string, cfg *Config) Verdict {
-	v, _ := g.Assess(role, text, cfg)
+func (g *Gate) InspectWith(role module.Role, text string, cfg *Config, opts ...AssessOption) Verdict {
+	v, _ := g.Assess(role, text, cfg, opts...)
 	return v
 }
 
@@ -88,7 +158,10 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config) Verdict {
 // mostly-ascii line with no suspicious signal, no channel block-terms, from a
 // non-exempt chatter) returns ActionNone and zero Signals without allocating;
 // only a flagged, long, or block-term-bearing line pays for skeleton
-// normalization and the scans.
+// normalization and the scans. Both floor halves are still pre-scanned on the
+// clean path - allocation-free folded passes over the hate lexicon and the
+// infrastructure blocklists - so an immovable-floor hit there routes onto the
+// deep path instead of bailing clean.
 //
 // Council order on the deep path: immovable floor (infrastructure blocklist +
 // hate lexicon; every profile, never suppressed by allow-terms) -> language
@@ -96,7 +169,35 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config) Verdict {
 // lexicon categories gated by profile -> channel block-terms -> heuristics with
 // emote and allow-term suppression. In shadow mode the caller logs the verdict
 // and takes no action.
-func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Signals) {
+// assessScope is the resolved option set Assess acts on.
+type assessScope struct {
+	msgCodes map[string]struct{}
+	ch       channelID
+	sender   string
+}
+
+// applyOptions resolves the options last-non-zero-wins. Reading fields keeps
+// the variadic slice off the heap; zero fields never clobber an earlier
+// option's value, so call sites may pass the options in any order.
+func applyOptions(opts []AssessOption) assessScope {
+	var sc assessScope
+	for _, o := range opts {
+		if o.msgCodes != nil {
+			sc.msgCodes = o.msgCodes
+		}
+		if o.ch != 0 {
+			sc.ch = o.ch
+		}
+		if o.sender != "" {
+			sc.sender = o.sender
+		}
+	}
+	return sc
+}
+
+func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...AssessOption) (Verdict, Signals) {
+	sc := applyOptions(opts)
+
 	// Tier 0 trust gate: VIP, moderator, lead moderator and broadcaster exempt.
 	if role >= module.RoleVIP {
 		return Verdict{}, Signals{}
@@ -107,7 +208,12 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	// never to "everything off" - the floor is what keeps the account safe.
 	sec := cfg.resolved()
 	sig := scan(text)
-	flags := resolveStyle(sig, sec)
+
+	// Learned layers observe every judged line BEFORE any verdict resolves, so
+	// hype-channel chatter feeds the models regardless of outcome. Inert unless
+	// a provider was wired AND the caller scoped the line to a channel.
+	g.observeLearned(uint64(sc.ch), sc.sender, text, sig)
+	flags := g.resolveStyle(sig, sec, sc.ch, text)
 
 	if g.cleanPathBail(sig, flags, cfg, text) {
 		return Verdict{}, Signals{}
@@ -130,6 +236,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	// Immovable floor, part 2: the hate lexicon acts under every profile and is
 	// never suppressed by an allow-term.
 	if cat == moderation.CatHate {
+		g.purgeLearned(uint64(sc.ch), text)
 		return Verdict{Action: ActionTimeout, Seconds: 1800, Rule: "lex:hate:" + term}, out
 	}
 
@@ -138,14 +245,26 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config) (Verdict, Sign
 	allowed := cfg.allows(skel)
 	if !allowed {
 		if v, ok := lexVerdict(cat, term, sec); ok {
+			g.purgeLearned(uint64(sc.ch), text)
 			return v, out
 		}
 		if v, ok := cfg.blockTermVerdict(skel); ok {
+			g.purgeLearned(uint64(sc.ch), text)
 			return v, out
 		}
 	}
 
-	return g.heuristicVerdict(flags, allowed, text), out
+	return g.heuristicVerdict(styleAttempt{sig: sig, flags: flags, allowed: allowed, text: text}, sc), out
+}
+
+// styleAttempt is the style-juror's full view of one line: the resolved flags,
+// the signals they came from, whether a channel allow-term already forgives
+// the line, and the raw text the rescues re-read.
+type styleAttempt struct {
+	sig     signals
+	flags   styleFlags
+	allowed bool
+	text    string
 }
 
 // styleFlags are the per-line heuristic signals, resolved under the channel's
@@ -164,13 +283,73 @@ func (f styleFlags) any() bool { return f.zeroWidth || f.repeat || f.caps || f.s
 // onlyCaps is the emote false-positive shape: caps is the sole flag raised.
 func (f styleFlags) onlyCaps() bool { return f.caps && !f.zeroWidth && !f.repeat && !f.symbol }
 
-func resolveStyle(sig signals, sec sections) styleFlags {
+// onlySymbol is the emoji-hype false-positive shape: symbol ratio is the sole
+// flag raised.
+func (f styleFlags) onlySymbol() bool { return f.symbol && !f.zeroWidth && !f.repeat && !f.caps }
+
+// resolveStyle resolves the per-line heuristic signals under the channel's
+// sections and the LEARNED layers. Two reduce-only adaptations apply, in order:
+//
+//   - Baseline.Adjust raises the effective caps/symbol thresholds for channels
+//     whose house style is louder than the fleet default. The profile-resolved
+//     static values stay authoritative as floors (Adjust bottoms out at them),
+//     the symbol >=8-count floor is untouched, and a cold or unwired channel
+//     sees the static thresholds verbatim. tokenLen is observed only - there is
+//     no token-len ceiling to adjust today.
+//   - Tokens the channel's learned vocabulary knows contribute NO style
+//     evidence: their letters/symbols are subtracted before the caps/symbol
+//     comparisons re-run (learned.go). Only style evidence yields; zero-width
+//     and repeat-run are evasion signals computed once from the full line and
+//     never suppressed here.
+//
+// Both branches run only after a flag already fired on the static view, so an
+// unwired gate pays nothing beyond the original comparison.
+func (g *Gate) resolveStyle(sig signals, sec sections, ch channelID, text string) styleFlags {
+	lim := g.styleThresholds(ch, sec)
+	flags := staticStyleFlags(sig, sec, lim)
+	if flags.caps || flags.symbol {
+		if adj, stripped := g.stripLearned(sig, text, uint64(ch)); stripped {
+			flags.restripe(adj, sec, lim)
+		}
+	}
+	return flags
+}
+
+// styleThresholds resolves the effective ceiling pair for a line: the
+// profile-resolved static values raised through the channel's learned
+// baseline (Baseline.Adjust bottoms out at them, so the move is raise-only);
+// a cold or unwired channel sees the static thresholds verbatim.
+func (g *Gate) styleThresholds(ch channelID, sec sections) styleLimits {
+	lim := styleLimits{caps: sec.capsThresh, symbol: symbolRatioHi}
+	if bl := g.baseline.Load(); bl != nil && ch != 0 {
+		lim.caps = bl.Adjust(uint64(ch), KindCaps, lim.caps)
+		lim.symbol = bl.Adjust(uint64(ch), KindSymbol, lim.symbol)
+	}
+	return lim
+}
+
+// staticStyleFlags resolves the per-line heuristic signals under the channel's
+// sections and the effective thresholds. Zero-width injection is an evasion
+// signal checked under every level; repeat/caps/symbol are the toggleable
+// style section.
+func staticStyleFlags(sig signals, sec sections, lim styleLimits) styleFlags {
 	return styleFlags{
 		zeroWidth: sig.zeroWidth > 0,
 		repeat:    sec.style && sig.maxRepeat >= repeatRun,
-		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= sec.capsThresh,
-		symbol:    sec.style && sig.symbolRatio() >= symbolRatioHi,
+		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= lim.caps,
+		symbol:    sec.style && sig.symbols >= symbolMinCount && sig.symbolRatio() >= lim.symbol,
 	}
+}
+
+// restripe re-runs the caps/symbol comparisons against adj - the signals minus
+// the evidence contributed by tokens Known to the channel's learned vocabulary
+// (learned.go). Applied only when the subtraction found learned tokens;
+// otherwise the static flags stand. Only style evidence yields: zeroWidth and
+// repeat-run are evasion signals computed once from the full line and never
+// suppressed.
+func (f *styleFlags) restripe(adj signals, sec sections, lim styleLimits) {
+	f.caps = sec.style && adj.capsRatio() >= lim.caps
+	f.symbol = sec.style && adj.symbols >= symbolMinCount && adj.symbolRatio() >= lim.symbol
 }
 
 // cleanPathBail reports whether a line skips the deep path entirely: a short
@@ -178,9 +357,11 @@ func resolveStyle(sig signals, sec sections) styleFlags {
 // (preserving the zero-alloc hot path when no per-broadcaster config is in
 // play). A channel block-term needs the skeleton, so its presence forces the
 // deep path even for an otherwise-clean short line. The floor must hold even
-// here - a bare short slur would otherwise slip the bail - so a zero-alloc
-// folded pre-scan of the hate list routes a hit onto the deep path, where the
-// authoritative skeleton scan decides.
+// here - a bare short slur or scam line would otherwise slip the bail - so two
+// zero-alloc folded pre-scans route a hit onto the deep path, where the
+// authoritative skeleton scans decide: FloorPrescan covers the hate lexicon,
+// MatchFloorPrescan the infrastructure blocklists (IP-logger hosts, scam
+// bait). The pre-scans only ever route; they never produce verdicts.
 func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text string) bool {
 	if flags.any() || cfg.hasBlockTerms() {
 		return false
@@ -188,18 +369,32 @@ func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text st
 	if sig.hasNonASCII || sig.runes > shortLen {
 		return false
 	}
-	return !g.lexicon.Load().FloorPrescan(text)
+	if g.lexicon.Load().FloorPrescan(text) {
+		return false // hate floor: re-checked authoritatively on the skeleton
+	}
+	if kind, _ := moderation.MatchFloorPrescan(text); kind != moderation.FloorNone {
+		return false // infra floor: floorInfra re-runs MatchFloor on the skeleton
+	}
+	return true
 }
 
 // floorInfra scans the immovable floor, part 1: abusive infrastructure
-// (IP-logger domains, scam bait). Substring semantics: a domain hits inside
-// any URL shape. Enforced under every profile, never suppressed by allow.
+// (IP-logger domains, scam bait) via moderation.MatchFloor - one allocation-
+// free pass with word-bounded semantics. Hosts hit only at DNS-label
+// boundaries ("notgrabify.link" clean, "https://grabify.link/x" caught) and
+// scam bait only as adjacent whole tokens ("FREE,NITRO!!" caught, "free
+// nitrogen" clean), releasing the substring false positives the raw Contains
+// scan was timing people out for. The returned FloorKind.String() is exactly
+// the category name in defaultCategories, so verdicts keep their rule names.
+// Enforced under every profile, never suppressed by allow.
 func (g *Gate) floorInfra(skel []byte) (Verdict, bool) {
+	kind, _ := moderation.MatchFloor(skel)
+	if kind == moderation.FloorNone {
+		return Verdict{}, false
+	}
 	for _, c := range g.cats {
-		for _, term := range c.terms {
-			if bytes.Contains(skel, term) {
-				return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, true
-			}
+		if c.name == kind.String() {
+			return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, true
 		}
 	}
 	return Verdict{}, false
@@ -233,21 +428,57 @@ func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Ca
 }
 
 // heuristicVerdict resolves the style flags once every list-based juror has
-// passed. Emote false positive: a line whose ONLY flag is caps and which is
-// dominated by known third-party emote codes ("KEKW KEKW LUL") is communal
-// spam, not abuse; zero-width, repeat and symbol flags are never suppressed.
-// An allow-term suppresses heuristics too.
-func (g *Gate) heuristicVerdict(flags styleFlags, allowed bool, text string) Verdict {
-	if !flags.any() {
+// passed: the two single-explanation rescues (evaluateRescues) may suppress a
+// flagged line toward ActionNone, an allow-term suppresses every heuristic,
+// and anything still standing deletes.
+func (g *Gate) heuristicVerdict(attempt styleAttempt, sc assessScope) Verdict {
+	if !attempt.flags.any() {
 		return Verdict{}
 	}
-	if flags.onlyCaps() && g.emoteDominant(text) {
+	if g.evaluateRescues(attempt, sc) {
 		return Verdict{}
 	}
-	if allowed {
+	if attempt.allowed {
 		return Verdict{}
 	}
 	return Verdict{Action: ActionDelete, Rule: "heuristic"}
+}
+
+// evaluateRescues decides whether a flagged line suppresses toward ActionNone
+// under one of two rescues, each requiring the flagged shape to have exactly
+// ONE explanation - the lexicon, floor and block-term jurors above already
+// returned:
+//
+//   - caps-only: "KEKW KEKW LUL" is communal emote spam when the tokens are
+//     known emotes across the layered lookup (see emoteDominant). Availability,
+//     i.e. whether the gate knows enough to judge the line at all, comes from
+//     two sources with different trust:
+//   - message spans (msgCodes non-empty): per-message ground truth from the
+//     envelope's emotes array - authoritative even when every third-party
+//     fetch failed, which is what retired both the old "suppress when fetch
+//     unavailable" leniency for these lines and the static native-Twitch
+//     list that used to patch it;
+//   - the fetched third-party set, keeping its loaded-empty vs never-loaded
+//     semantics (emotesUnavailable): never loaded or cleared means an
+//     unverifiable guess, so caps-only lines suppress toward leniency; a
+//     loaded-but-empty set is deliberate ("we know the fetched codes; this
+//     isn't one") and keeps enforcing.
+//     Zero-width co-occurrence defeats both (suppression is caps-only).
+//   - symbol-only + emoji-dominant: pure-emoji hype ("🎉🎂🔥 hype!!!") reads as
+//     symbol spam because pictographs count as symbols; when emoji carry at
+//     least half the non-space runes the line is hype, not abuse.
+//
+// Zero-width, repeat, and multi-flag shapes are never suppressed.
+func (g *Gate) evaluateRescues(attempt styleAttempt, sc assessScope) bool {
+	if attempt.flags.onlyCaps() {
+		// Span presence makes availability true; dominance then decides. No
+		// spans -> fetched-layer semantics verbatim.
+		if g.emoteDominant(attempt.text, sc.msgCodes, uint64(sc.ch)) {
+			return true
+		}
+		return len(sc.msgCodes) == 0 && g.emotesUnavailable()
+	}
+	return attempt.flags.onlySymbol() && attempt.sig.emojiDominant()
 }
 
 // blockTermVerdict scans the channel's own block-terms (skeleton space); a hit
@@ -287,12 +518,40 @@ func lexVerdict(cat moderation.Category, term string, sec sections) (Verdict, bo
 	return Verdict{}, false
 }
 
+// linkMarkers are the skeleton substrings that mark a link-shaped token: TLDs
+// common in chat spam, the punycode prefix (homograph/hostile-IDN bait), and
+// the shortener hosts. Substring-on-skeleton, never parsed URLs: this is an
+// observation-only signal for the engine's campaign juror (it never produces a
+// verdict alone), so recall beats precision - chat links arrive bare
+// ("join discord.gg/x"), which url.Parse rejects, and both parsing and regex
+// would allocate on a path shared with every deep scan. Package-level table,
+// so the scan stays allocation-free.
+//
+// Entries subsumed by a wider substring are kept ANYWAY on purpose: bit.ly /
+// t.ly / cutt.ly sit inside ".ly", tinyurl.com inside ".com" - listing them
+// explicitly means trimming the TLD list later cannot silently drop shortener
+// coverage. Do not widen with two-letter TLDs beyond these (.co, .us, .in):
+// they hit ordinary prose ("dot co") far more often than spam, and the signal
+// is already recall-heavy.
+var linkMarkers = [][]byte{
+	[]byte("http"),
+	[]byte("www."),
+	[]byte(".com"), []byte(".net"), []byte(".org"),
+	[]byte(".gg"), []byte(".io"), []byte(".ly"), []byte(".tv"), []byte(".me"),
+	[]byte(".xyz"), []byte(".site"), []byte(".shop"), []byte(".link"),
+	[]byte("xn--"),
+	[]byte("bit.ly"), []byte("t.ly"), []byte("cutt.ly"),
+	[]byte("tinyurl.com"), []byte("is.gd"), []byte("t.co"),
+}
+
 // linkish reports whether the skeleton carries a link-shaped token: the spam
 // vector the campaign juror counts across senders. Deliberately crude - it is
 // a counting signal, never a verdict on its own.
 func linkish(skel []byte) bool {
-	return bytes.Contains(skel, []byte("http")) ||
-		bytes.Contains(skel, []byte("www.")) ||
-		bytes.Contains(skel, []byte(".com")) ||
-		bytes.Contains(skel, []byte(".gg"))
+	for _, m := range linkMarkers {
+		if bytes.Contains(skel, m) {
+			return true
+		}
+	}
+	return false
 }

@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"sync"
 
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
@@ -42,6 +43,11 @@ type Config struct {
 	// than AutomodEnforce because Shield Mode is broadcaster-visible and aggressive;
 	// it only takes effect when AutomodEnforce is also on. Off by default.
 	ShieldEnabled bool
+
+	// AdaptiveEnabled arms the learned false-positive layers (style baselines,
+	// community vocabulary, ingress emote spans). Off keeps gate verdicts
+	// byte-identical to the pre-learned gate; see internal/config.
+	AdaptiveEnabled bool
 }
 
 // Pipeline is the per-message stage the consumer hands each decoded message to.
@@ -90,7 +96,10 @@ type Pipeline struct {
 	// shieldEnabled gates the mass-raid Shield Mode escalation; raidGate dedups it
 	// per channel so one raid activates Shield Mode once, not on every folded burst.
 	shieldEnabled bool
-	raidGate      *raidCooldown
+	// adaptiveEnabled arms the learned FP layers; off drops span-derived emote
+	// codes at the door so gate options match the pre-learned call shape.
+	adaptiveEnabled bool
+	raidGate        *raidCooldown
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -114,6 +123,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		reputation:       d.Reputation,
 		campaign:         d.Campaign,
 		shieldEnabled:    cfg.ShieldEnabled,
+		adaptiveEnabled:  cfg.AdaptiveEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
 		roster:           newChatterRoster(),
 	}
@@ -121,7 +131,11 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		p.uses = newUseReporter(d.Pub, d.Log)
 	}
 	if d.Stats != nil {
-		p.stats = newBotStats(d.Stats)
+		// d.Log rides along so the automod detection-flag windows actually
+		// reach the fleet log ("automod detection flags", every 2s) - without
+		// it the sink logs to zap.NewNop() and the precision audit has no
+		// evidence to query.
+		p.stats = newBotStats(d.Stats, d.Log)
 	}
 	return p
 }
@@ -181,9 +195,15 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
 
+	// The views map is pooled and recycled once the stages have run: no stage
+	// retains it (enabled() copies Configs slices into the Context; the automod
+	// config is parsed out by value), so releasing here — before the envelope
+	// goes back — is safe.
+	defer PutModuleViews(views)
+
 	emission := emitState{
-		subject:    p.laneSubject(mctx.Regress),
-		replayBase: outputReplayBase(env),
+		subject: p.laneSubject(mctx.Regress),
+		env:     env,
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
@@ -210,6 +230,33 @@ func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broa
 	views, err := p.moduleViews(ctx, eventType, broadcasterID)
 	endStageForError(segment, err, "error")
 	return views, err
+}
+
+// viewsPool recycles the per-message ModuleView map. With automod wired (the
+// production default) NeedsModuleViews(chatType) is true and every chat line
+// rebuilt this map: one map alloc plus bucket growth per line on the raid-burst
+// path. Pooling it measured 14 -> 12 allocs/op, 1585 -> 705 B/op and
+// 1054 -> 833 ns/op on BenchmarkProcessNoOutputWithViews (M1 Pro, 2026-08-22).
+// Maps are pointer-shaped, so boxing them in the interface does not allocate.
+var viewsPool = sync.Pool{New: func() any {
+	return make(map[string]projection.ModuleView)
+}}
+
+// GetModuleViews returns an empty map from the pool; PutModuleViews clears it,
+// so no reset is needed here.
+func GetModuleViews() map[string]projection.ModuleView {
+	return viewsPool.Get().(map[string]projection.ModuleView)
+}
+
+// PutModuleViews returns a ModuleView map to the pool. The map is cleared here
+// (clear keeps the bucket array, so reuse re-grows nothing); nil is a no-op.
+// The caller must not use m again.
+func PutModuleViews(m map[string]projection.ModuleView) {
+	if m == nil {
+		return
+	}
+	clear(m)
+	viewsPool.Put(m)
 }
 
 func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, emission *emitState) {
@@ -270,9 +317,34 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 type emitState struct {
 	subject    string
 	replayBase string
+	// env and baseDone back the lazy replay base: the sha256+hex namespace is
+	// computed on the first emitted output, not eagerly per message. Only
+	// emitting messages read it, so every silent chat line — the raid-burst
+	// shape — skips the hash, hex encode and concat entirely. Measured on
+	// BenchmarkProcessNoOutput (M1 Pro, 2026-08-22) the swap is alloc-neutral
+	// at 12 allocs/op before and after: the compiler currently keeps the eager
+	// computation off the heap, but it cost 1 alloc/op the moment the base
+	// escapes (isolated AllocsPerRun), so laziness also pins that floor. Ids
+	// are byte-identical: the lazily computed base hashes the same env fields,
+	// so PublishConfirmed identity and broker-side replay folding are
+	// unchanged.
+	env        *lane.Envelope
+	baseDone   bool
 	ordinal    int
 	needsFlush bool
 	err        error
+}
+
+// replayID returns the stable id for this message's next output, computing the
+// replay base from the envelope on first use and caching it for the rest of the
+// message. An envelope without an EventID yields "" (ordinary publish + flush),
+// exactly as the eager version did.
+func (s *emitState) replayID() string {
+	if !s.baseDone {
+		s.replayBase = outputReplayBase(s.env)
+		s.baseDone = true
+	}
+	return replayOutputID(s.replayBase, s.ordinal)
 }
 
 // newEmit builds the sink command Run and event handlers hand their Outputs
@@ -303,7 +375,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 			return
 		}
 		state.ordinal++
-		replayID := replayOutputID(state.replayBase, state.ordinal)
+		replayID := state.replayID()
 		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
 			state.err = err
 			return
@@ -439,7 +511,9 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 	if err != nil {
 		return nil, err
 	}
-	views := make(map[string]projection.ModuleView, len(list))
+	// Pooled map: the caller releases it with PutModuleViews once the stages
+	// for this message have run.
+	views := GetModuleViews()
 	for _, v := range list {
 		views[v.Name] = v
 	}

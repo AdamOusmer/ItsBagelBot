@@ -162,6 +162,117 @@ defmodule Ingress.PipelineTest do
     end
   end
 
+  describe "emote spans" do
+    @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
+
+    setup do
+      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
+      start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
+      :ok
+    end
+
+    defp chat_event(text, fragments) do
+      %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => text, "fragments" => fragments}
+      }
+    end
+
+    test "mixed text, emote and cheermote fragments produce ordered id'd spans on the wire" do
+      event =
+        chat_event("hello Kappa world Cheer1000", [
+          %{"type" => "text", "text" => "hello ", "emote" => nil},
+          %{"type" => "emote", "text" => "Kappa", "emote" => %{"id" => "25"}},
+          %{"type" => "text", "text" => " world ", "emote" => nil},
+          %{
+            "type" => "cheermote",
+            "text" => "Cheer1000",
+            "cheermote" => %{"prefix" => "Cheer", "bits" => 1000, "tier" => "1000"}
+          }
+        ])
+
+      assert {:publish, _subject, message} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+
+      assert message.emotes == [
+               %{id: "25", begin: 6, end: 11},
+               %{id: "Cheer", begin: 18, end: 27}
+             ]
+
+      assert {:ok, encoded} = wire(message)
+
+      assert encoded["emotes"] == [
+               %{"id" => "25", "begin" => 6, "end" => 11},
+               %{"id" => "Cheer", "begin" => 18, "end" => 27}
+             ]
+    end
+
+    test "offsets count codepoints: unicode before an emote pins the span past bytes and graphemes" do
+      # Built from codepoints so editor normalization cannot silently change
+      # the arithmetic: ñ (1 cp, 2 bytes), 🇺🇸 (2 cps, 8 bytes, 1 grapheme) and
+      # a space give 4 codepoints — byte arithmetic says 12 and grapheme
+      # arithmetic says 3, so only codepoint counting lands the span at 4.
+      prefix = <<0x00F1::utf8>> <> <<0x1F1FA::utf8, 0x1F1F8::utf8>> <> " "
+
+      assert String.length(prefix) == 3 and byte_size(prefix) == 11
+
+      event =
+        chat_event(prefix <> "Kappa", [
+          %{"type" => "text", "text" => prefix, "emote" => nil},
+          %{"type" => "emote", "text" => "Kappa", "emote" => %{"id" => "25"}}
+        ])
+
+      assert {:publish, _subject, %{emotes: [%{begin: 4, end: 9} = span]}} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+
+      assert span.id == "25"
+    end
+
+    test "a ZWJ emoji counts every of its codepoints against later spans" do
+      # 👨 + ZWJ + 👩 + ZWJ + 👧 is one grapheme built from five codepoints;
+      # with the separating space the emote after it begins at 6, not at the
+      # grapheme offset 2.
+      zwj = "\u200D"
+      prefix = "👨" <> zwj <> "👩" <> zwj <> "👧" <> " "
+
+      assert String.length(prefix) == 2 and length(String.codepoints(prefix)) == 6
+
+      event =
+        chat_event(prefix <> "LUL", [
+          %{"type" => "text", "text" => prefix, "emote" => nil},
+          %{"type" => "emote", "text" => "LUL", "emote" => %{"id" => "425618"}}
+        ])
+
+      assert Pipeline.emote_spans(event) == [%{id: "425618", begin: 6, end: 9}]
+    end
+
+    test "chat without fragments or without emote fragments omits the emotes key entirely" do
+      plain = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => "just chatting"}
+      }
+
+      assert {:publish, _subject, message} =
+               Pipeline.route(notification("channel.chat.message", plain), @meta)
+
+      refute Map.has_key?(message, :emotes)
+      assert {:ok, encoded} = wire(message)
+      refute Map.has_key?(encoded, "emotes")
+
+      text_only =
+        chat_event("gg", [
+          %{"type" => "text", "text" => "gg", "emote" => nil}
+        ])
+
+      assert Pipeline.emote_spans(text_only) == []
+
+      assert Pipeline.emote_spans(%{}) == []
+      assert Pipeline.emote_spans(%{"message" => %{}}) == []
+    end
+  end
+
   describe "broadcaster_id/1" do
     test "channel events carry broadcaster_user_id" do
       assert Pipeline.broadcaster_id(%{"broadcaster_user_id" => "77"}) == "77"
@@ -448,5 +559,56 @@ defmodule Ingress.SquashTest do
   test "observe fails open to :first when the table is absent" do
     # No Squash started: the pipeline must never lose a message.
     assert Squash.observe(base("x"), sender("1")) == :first
+  end
+
+  test "folded cohorts carry the emote spans of the shared text" do
+    start_squash(window_ms: 20, sweep_ms: 10)
+
+    event = fn id ->
+      %{
+        "broadcaster_user_id" => "77",
+        "broadcaster_user_login" => "channel",
+        "chatter_user_id" => id,
+        "chatter_user_login" => "user#{id}",
+        "badges" => [],
+        "message" => %{
+          "text" => "gg Kappa",
+          "fragments" => [
+            %{"type" => "text", "text" => "gg ", "emote" => nil},
+            %{"type" => "emote", "text" => "Kappa", "emote" => %{"id" => "25"}}
+          ]
+        }
+      }
+    end
+
+    assert Squash.observe_chat(:standard, event.("1"), "gg Kappa", %{msg_id: "m1", ts: 0}) ==
+             :first
+
+    assert Squash.observe_chat(:standard, event.("2"), "gg Kappa", %{msg_id: "m2", ts: 0}) ==
+             :buffered
+
+    assert_receive {:published, _subject, cohort}, 500
+    assert cohort.emotes == [%{id: "25", begin: 3, end: 8}]
+  end
+
+  test "cohorts of plain text carry no emotes key" do
+    start_squash(window_ms: 20, sweep_ms: 10)
+
+    event = fn id ->
+      %{
+        "broadcaster_user_id" => "77",
+        "broadcaster_user_login" => "channel",
+        "chatter_user_id" => id,
+        "badges" => []
+      }
+    end
+
+    assert Squash.observe_chat(:standard, event.("1"), "same", %{msg_id: "m1", ts: 0}) == :first
+
+    assert Squash.observe_chat(:standard, event.("2"), "same", %{msg_id: "m2", ts: 0}) ==
+             :buffered
+
+    assert_receive {:published, _subject, cohort}, 500
+    refute Map.has_key?(cohort, :emotes)
   end
 end
