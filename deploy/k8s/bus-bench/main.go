@@ -521,18 +521,27 @@ type collector struct {
 	tracking bool
 }
 
+// measuring reports whether deliveries arriving at now count toward this
+// run's measurement window.
+func (c *collector) measuring(now int64) bool {
+	return now >= c.winStart && now < c.winEnd
+}
+
 func (c *collector) handle(msg *bus.Message) error {
 	now := time.Now().UnixNano()
-	if p := msg.Payload; len(p) >= 16 && now >= c.winStart && now < c.winEnd {
-		seq := binary.BigEndian.Uint64(p[0:8])
-		sentNs := int64(binary.BigEndian.Uint64(p[8:16]))
-		if i := c.latIdx.Add(1); i <= int64(len(c.lat)) {
-			c.lat[i-1] = now - sentNs
-		}
-		c.consumed.Add(1)
-		c.noteSeq(seq)
+	defer msg.Ack()
+
+	p := msg.Payload
+	if len(p) < 16 || !c.measuring(now) {
+		return nil
 	}
-	msg.Ack()
+	seq := binary.BigEndian.Uint64(p[0:8])
+	sentNs := int64(binary.BigEndian.Uint64(p[8:16]))
+	if i := c.latIdx.Add(1); i <= int64(len(c.lat)) {
+		c.lat[i-1] = now - sentNs
+	}
+	c.consumed.Add(1)
+	c.noteSeq(seq)
 	return nil
 }
 
