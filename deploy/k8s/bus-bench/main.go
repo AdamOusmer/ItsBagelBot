@@ -130,6 +130,22 @@ func (t unixNano) wait() {
 	}
 }
 
+// setupReport says what setup did: created the stream, or raised an existing
+// stream's cap (recording the cap it found), or left it as it was.
+type setupReport struct {
+	Created          bool  `json:"created"`
+	Raised           bool  `json:"raised"`
+	OriginalMaxBytes int64 `json:"original_max_bytes,omitempty"`
+}
+
+// cleanupReport says what teardown removed and reverted.
+type cleanupReport struct {
+	DeletedConsumer  bool   `json:"deleted_consumer"`
+	Consumer         string `json:"consumer"`
+	RevertedMaxBytes bool   `json:"reverted_max_bytes"`
+	MaxBytes         int64  `json:"max_bytes,omitempty"`
+}
+
 func emit(report any) {
 	b, merr := codec.Marshal(report)
 	if merr != nil {
@@ -251,7 +267,7 @@ func runSetup(lane benchLane, maxBytes int64) error {
 		if _, cerr := js.CreateStream(ctx, benchStreamConfig(lane.stream, maxBytes)); cerr != nil {
 			return cerr
 		}
-		emit(map[string]any{"created": true})
+		emit(setupReport{Created: true})
 	case err != nil:
 		return err
 	default:
@@ -262,10 +278,10 @@ func runSetup(lane benchLane, maxBytes int64) error {
 			if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
 				return uerr
 			}
-			emit(map[string]any{"created": false, "original_max_bytes": original})
+			emit(setupReport{OriginalMaxBytes: original})
 			return nil
 		}
-		emit(map[string]any{"created": false, "raised": false})
+		emit(setupReport{Raised: false})
 	}
 	return nil
 }
@@ -321,24 +337,22 @@ func runCleanup(lane benchLane, originalMaxBytes int64) error {
 
 	durable := durableFor(lane)
 
-	report := map[string]any{"deleted_consumer": false, "reverted_max_bytes": false}
 	deleted, err := deleteBenchConsumer(ctx, js, lane.stream, durable)
 	if err != nil {
 		return err
 	}
-	report["deleted_consumer"] = deleted
-	report["consumer"] = durable
 
 	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, originalMaxBytes)
 	if err != nil {
 		return err
 	}
-	report["reverted_max_bytes"] = reverted
-	if reverted {
-		report["max_bytes"] = originalMaxBytes
-	}
 
-	emit(report)
+	emit(cleanupReport{
+		DeletedConsumer:  deleted,
+		Consumer:         durable,
+		RevertedMaxBytes: reverted,
+		MaxBytes:         originalMaxBytes,
+	})
 	return nil
 }
 
