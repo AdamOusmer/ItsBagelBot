@@ -11,16 +11,16 @@ import DashFrame from '../../components/guides/DashFrame.astro';
 const sections = [
     { id: 'how', heading: 'How modules work', note: 'One switch per feature. Click the tile to make its messages sound like you.' },
     { id: 'welcome', heading: 'Welcoming people', note: 'Alerts, raid shoutouts, trigger words, and the time where you live.' },
-    { id: 'economy', heading: 'Points, rewards & timers', note: 'Loyalty points for watching, channel-point rewards that do things, and scheduled messages.' },
-    { id: 'together', heading: 'Playing together', note: "A raffle chat can't argue with, a fair play queue and a quote book for chat's greatest hits." },
-    { id: 'games', heading: 'Game stats in chat', note: 'Hypixel Bedwars, MCSR Ranked and Fortnite, one command away.' },
-    { id: 'safety', heading: 'Moderation & built-ins', note: "AutoMod's four levels, and the three commands that come with the bot." },
+    { id: 'economy', heading: 'Points, rewards & timers', note: 'Loyalty points for watching, channel-point rewards that do things, scheduled messages, and two wager games for the brave.' },
+    { id: 'together', heading: 'Playing together', note: "A raffle chat can't argue with, a fair play queue, a quote book for chat's greatest hits, and a cheer squad for emote pyramids." },
+    { id: 'games', heading: 'Game stats in chat', note: 'Bedwars, MCSR Ranked, Fortnite, Clash Royale and Valorant, one command away.' },
+    { id: 'safety', heading: 'Moderation & built-ins', note: "AutoMod's four levels, and the four commands that come with the bot." },
 ];
 ---
 
 <Layout
     title="The modules handbook — ItsBagelBot Guides"
-    description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, raffles, play queue, quotes, game stats and AutoMod."
+    description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, raffles, wager games, play queue, quotes, game stats, emote pyramids and AutoMod."
     ogType="article"
 >
     <PageHero
@@ -43,6 +43,8 @@ const sections = [
                 settings. Most modules speak in chat, and every line they say is a template you can
                 rewrite, with the same brace variables as
                 <a href="/guides/commands">custom commands</a> (plus a few extras per module, listed below).
+                Every template comes with the same live chat rehearsal as commands, right under its
+                editor: you watch the reply land in a mock chat before any viewer does.
             </p>
             <DashFrame
                 path="/modules"
@@ -56,7 +58,7 @@ const sections = [
                     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Broadcaster</span></div>
                     <span class="df-eyebrow">Manage</span>
                     <p class="df-title">Channel <i>modules</i></p>
-                    <p class="df-sub">Optional features for your channel. 1 of 13 enabled.</p>
+                    <p class="df-sub">Optional features for your channel. 1 of 20 enabled.</p>
                     <div class="df-cols df-cols--rail">
                         <div class="df-rail"><b>Categories</b><span>Chat Tools</span><span class="is-active">Community</span><span>Games</span></div>
                         <div style="display:grid; gap:10px; align-content:start;">
@@ -157,6 +159,31 @@ const sections = [
                 Timer messages are posted exactly as written: brace variables do not run inside timers.
                 Keep them for commands and module replies.
             </p>
+            <h3>Gamble</h3>
+            <p>
+                Turns your points into a game: viewers stake their own balance with
+                <code>!gamble 100</code>, or <code>!gamble half</code> / <code>!gamble all</code> for
+                the fearless, and the bot rolls 1-100. Landing inside the win chance you set pays the
+                stake back plus its match; anything else takes it. You also pick the bet limits and a
+                per-viewer cooldown, and every payout and debit moves real loyalty points through the
+                same ledger as <code>!points</code>. The win and lose lines are templates, with
+                <code>&#123;roll&#125;</code>, <code>&#123;chance&#125;</code>,
+                <code>&#123;amount&#125;</code> and <code>&#123;balance&#125;</code>.
+            </p>
+            <h3>Duels</h3>
+            <p>
+                Viewer-vs-viewer point duels, two ways. The pot: someone opens with
+                <code>!duel 100</code>, everyone adds their own stake while the window is open, then
+                the bot draws one winner weighted by stake and they take everything. The challenge:
+                <code>!duel @maya_live 500</code> names an opponent who must type
+                <code>!duel accept</code> before time runs out — equal stakes, a coin flip, winner
+                takes both. Declines, cancellations and no-shows always refund every point.
+            </p>
+            <p class="gtip">
+                <b>Fair by design</b>
+                Both games ride the Loyalty Points ledger: nobody can wager what they don't have, and
+                the odds are exactly the number you set.
+            </p>
         </Fragment>
 
         <Fragment slot="together">
@@ -210,11 +237,18 @@ const sections = [
                 allow. Mods can prune with <code>!quote remove</code>. The collection is browsable and
                 editable from its dashboard page.
             </p>
+            <h3>Emote Pyramids &amp; Streaks</h3>
+            <p>
+                A cheer squad for chat's art projects. The module watches chat stack the same emote
+                into a pyramid (1-2-3 and back down) or hold a streak of single-emote messages, and
+                fires a celebration line when one lands clean — nothing else posted in between.
+                Fully automatic: no commands, no settings, just the switch.
+            </p>
         </Fragment>
 
         <Fragment slot="games">
             <p>
-                Four integrations put game stats in chat so nobody alt-tabs. Link your account once on
+                Five integrations put game stats in chat so nobody alt-tabs. Link your account once on
                 the module's page; every reply is a rewritable template with game-specific variables.
             </p>
             <div class="gtable-wrap">
@@ -241,6 +275,11 @@ const sections = [
                             <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
                             <td>Lifetime profile (level, win/loss, win rate), the current battle deck with its average elixir, Path of Legends standing, and trophy-road record — by player tag.</td>
                         </tr>
+                        <tr>
+                            <td>Valorant Stats</td>
+                            <td><code>!val</code> <code>!val matches</code> <code>!val account</code> <code>!val lb</code> <code>!val shop</code></td>
+                            <td>Competitive standing (tier, RR, last game's change, peak tier), recent ranked games as agent K/D/A lines, who a Riot ID resolves to with account level, regional top-10 leaderboards on PC or console, and today's skin rotation with VP prices and the reset countdown. Squashed spellings like <code>!valrank</code> work too; a shard or ladder word anywhere in the line scopes that one lookup.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -263,14 +302,15 @@ const sections = [
                 (slurs, scam links) can never be turned off. There is no tile or settings page for
                 it in the dashboard yet; the finer controls are on their way.
             </p>
-            <h3>The three built-ins</h3>
+            <h3>The four built-ins</h3>
             <p>
                 On the <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commands page</a>,
-                above your own commands, live three that ship with the bot:
+                above your own commands, live four that ship with the bot:
             </p>
             <ul>
                 <li><code>!followage</code>: how long someone has followed you.</li>
                 <li><code>!accountage</code>: how old a Twitch account is.</li>
+                <li><code>!uptime</code>: how long your current stream has been live.</li>
                 <li><code>!clip</code>: creates a clip of the last moments and posts the link (live only). Its reply is a template you can rewrite, with <code>&#123;clip&#125;</code>, <code>&#123;user&#125;</code> and <code>&#123;target&#125;</code>.</li>
             </ul>
             <p>
