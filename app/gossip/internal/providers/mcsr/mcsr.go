@@ -207,9 +207,15 @@ func (p *api) admit(isPremium bool) func(context.Context) error {
 }
 
 // fetchUser loads a player's live standing straight from the API.
+//
+// Account is raw chat text and was proven live (red-team F2) to parse as URL
+// syntax when interpolated bare: "?x=1" became a query string, "#x" a
+// fragment, each forcing upstream calls with attacker-chosen shape while
+// carrying the provider's API-key headers. Every path segment below is
+// therefore escaped individually - a segment may never change the request.
 func (p *api) fetchUser(ctx context.Context, account string) (gossiprpc.McsrUserReply, error) {
 	var resp userResponse
-	if err := p.http.GetJSON(ctx, "/users/"+strings.TrimSpace(account), nil, &resp); err != nil {
+	if err := p.http.GetJSON(ctx, "/users/"+url.PathEscape(strings.TrimSpace(account)), nil, &resp); err != nil {
 		return gossiprpc.McsrUserReply{}, err
 	}
 	d := resp.Data
@@ -644,7 +650,7 @@ func (p *api) fetchLastMatch(ctx context.Context, account string, season int) (m
 	if season > 0 {
 		q.Set("season", strconv.Itoa(season))
 	}
-	if err := p.http.GetJSON(ctx, "/users/"+strings.TrimSpace(account)+"/matches", q, &resp); err != nil {
+	if err := p.http.GetJSON(ctx, "/users/"+url.PathEscape(strings.TrimSpace(account))+"/matches", q, &resp); err != nil {
 		return matchesResponse{}, err
 	}
 	return resp, nil
@@ -672,7 +678,7 @@ func (p *api) fetchVersus(ctx context.Context, q versusQuery) (versusResponse, e
 	if q.Season > 0 {
 		vals = url.Values{"season": {strconv.Itoa(q.Season)}}
 	}
-	path := "/users/" + strings.TrimSpace(q.A) + "/versus/" + strings.TrimSpace(q.B)
+	path := "/users/" + url.PathEscape(strings.TrimSpace(q.A)) + "/versus/" + url.PathEscape(strings.TrimSpace(q.B))
 	if err := p.http.GetJSON(ctx, path, vals, &resp); err != nil {
 		return versusResponse{}, err
 	}

@@ -8,7 +8,6 @@
     Icon,
     Button,
     PageHead,
-    AlertBanner,
     ConfirmDialog,
     Modal,
     Skeleton,
@@ -186,15 +185,7 @@
       <Skeleton variant="block" height="200px" />
     </div>
   {:else}
-    {#if scope?.legacyInUse}
-      <AlertBanner>
-        {Object.values(scope.sources).filter((s) => s === 'legacy').length} of {services.length}
-        services still use the broad legacy Doppler token
-        {#if scope.legacyExcessProjects.length}
-          — it can also reach {scope.legacyExcessProjects.join(', ')}
-        {/if}. Set DOPPLER_TOKEN_&lt;SERVICE&gt; per project to finish the least-privilege migration.
-      </AlertBanner>
-    {:else if scope}
+    {#if scope}
       <p class="scope-ok">
         <Icon name="check" size={13} /> Every service resolves a per-project scoped Doppler token.
       </p>
