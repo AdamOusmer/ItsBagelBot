@@ -92,7 +92,14 @@ type batchPublisher struct {
 	// the life of the process.
 	firstErr   error
 	firstErrAt uint64
-	changed    chan struct{}
+
+	// signal wakes every Flush waiting on completed, one Broadcast per cohort
+	// instead of the close-and-reallocate channel this replaced. A generation
+	// counter over a single long-lived channel was the other candidate and is
+	// rejected on semantics: a channel send reaches exactly one receiver, so a
+	// second concurrent Flush would sleep through wakeups that close-and-
+	// realloc used to deliver to all of them; Broadcast preserves exactly that.
+	signal *sync.Cond
 }
 
 type publishRequest struct {
@@ -123,6 +130,16 @@ type publishBatchWorker struct {
 	// cohort on a timed wire. collectBatch runs only on this goroutine, so the
 	// field takes no lock; run stops it on the way out.
 	timer *time.Timer
+
+	// ackTimers recycles awaitAsync's PubAck-wait timers. A single hoisted field
+	// like timer above would race: up to maxInflightCohorts ack goroutines call
+	// awaitAsync concurrently, each Resetting the shared timer. The pool keeps
+	// one per waiter with no per-cohort allocation. Get Resets before use,
+	// relying on Go 1.23 timer semantics (see armWindowTimer): a tick sent
+	// before Reset cannot be received after it, so no drain is needed. run's
+	// acks.Wait precedes close(done), so every borrowed timer is Stopped by its
+	// putAckTimer defer before teardown finishes.
+	ackTimers sync.Pool
 
 	// Cohort shape is fixed per wire at worker creation: the Fast-Ingest wire
 	// amortizes a session over a much longer collection window than the
@@ -182,11 +199,12 @@ func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.
 		nc.Close()
 		return nil, fmt.Errorf("bus: modern jetstream batch publisher: %w", err)
 	}
-	return &batchPublisher{
+	publisher := &batchPublisher{
 		nc: nc, js: js, modern: modern, log: log, wire: wire,
 		workers: make(map[string]*publishBatchWorker),
-		changed: make(chan struct{}),
-	}, nil
+	}
+	publisher.signal = sync.NewCond(&publisher.stateMu)
+	return publisher, nil
 }
 
 // nuidPool hands out NUID generators. The package-global nuid.Next() serializes
@@ -326,9 +344,35 @@ func publishMessage(command publishCommand) *nats.Msg {
 func newPublishRequest(command publishCommand, wire *nats.Msg) publishRequest {
 	request := publishRequest{msg: wire}
 	if command.confirmed {
-		request.confirmed = make(chan error, 1)
+		request.confirmed = getConfirmChan()
 	}
 	return request
+}
+
+// confirmChanPool recycles the buffered verdict channel of confirmed publishes,
+// which otherwise costs one allocation per confirmed message.
+var confirmChanPool = sync.Pool{
+	New: func() any { return make(chan error, 1) },
+}
+
+// getConfirmChan drains any verdict left over by a prior waiter that abandoned
+// on ctx.Done after finish had already delivered into the buffer.
+func getConfirmChan() chan error {
+	confirmed := confirmChanPool.Get().(chan error)
+	select {
+	case <-confirmed:
+	default:
+	}
+	return confirmed
+}
+
+// putConfirmChan returns a drained verdict channel to the pool. It is called
+// only from awaitPublishConfirmation after receiving the verdict: that receive
+// orders after finish's single send, so no writer can touch the channel again.
+// An abandoned wait never puts its channel back — its verdict may still be in
+// flight — and simply drops it to the garbage collector instead.
+func putConfirmChan(confirmed chan error) {
+	confirmChanPool.Put(confirmed)
 }
 
 // admit is the whole per-message critical section: the closed check, the worker
@@ -393,6 +437,7 @@ func awaitPublishConfirmation(ctx context.Context, request publishRequest) error
 	}
 	select {
 	case err := <-request.confirmed:
+		putConfirmChan(request.confirmed)
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
@@ -422,6 +467,7 @@ func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error)
 		batchSize:     publishBatchSize(p.wire),
 		batchWait:     publishBatchWait(p.wire),
 		overlapCommit: atomicPublishOverlap(),
+		ackTimers:     sync.Pool{New: func() any { return time.NewTimer(defaultPublishAckWait) }},
 	}
 	p.workers[stream] = worker
 	go worker.run()
@@ -479,16 +525,11 @@ func (p *batchPublisher) complete(count int, err error) {
 		p.firstErrAt = p.completed
 	}
 	p.completed += uint64(count)
-	p.notifyLocked()
+	p.signal.Broadcast()
 	p.stateMu.Unlock()
 	if err != nil {
 		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", count), zap.Error(err))
 	}
-}
-
-func (p *batchPublisher) notifyLocked() {
-	close(p.changed)
-	p.changed = make(chan struct{})
 }
 
 func (p *batchPublisher) Flush(ctx context.Context) error {
@@ -497,18 +538,32 @@ func (p *batchPublisher) Flush(ctx context.Context) error {
 	// the caller by traffic it never emitted.
 	target := p.accepted.Load()
 	p.stateMu.Lock()
-	for p.completed < target {
-		changed := p.changed
-		p.stateMu.Unlock()
-		select {
-		case <-changed:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	// Cond.Wait has no select arm for ctx.Done, so a watcher broadcasts the
+	// cancellation into the same cond; cancel plus this reap guarantee it exits
+	// before Flush returns.
+	ctx, cancel := context.WithCancel(ctx)
+	wake := make(chan struct{})
+	go func() {
+		<-ctx.Done()
 		p.stateMu.Lock()
+		p.signal.Broadcast()
+		p.stateMu.Unlock()
+		close(wake)
+	}()
+	var err error
+	for p.completed < target {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+			break
+		}
+		p.signal.Wait()
 	}
-	err := p.takeWindowErrLocked(target)
+	if err == nil {
+		err = p.takeWindowErrLocked(target)
+	}
 	p.stateMu.Unlock()
+	cancel()
+	<-wake
 	return err
 }
 
@@ -695,8 +750,8 @@ func joinAsyncCohort(size int, futures []nats.PubAckFuture, startErr, awaitErr e
 // ambiguous for the messages still unresolved, so the cohort fails without
 // replay.
 func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
-	timer := time.NewTimer(defaultPublishAckWait)
-	defer timer.Stop()
+	timer := w.ackTimer()
+	defer w.putAckTimer(timer)
 	for _, future := range futures {
 		select {
 		case <-future.Ok():
@@ -707,6 +762,25 @@ func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
 		}
 	}
 	return nil
+}
+
+// ackTimer borrows a PubAck-wait timer from the worker's pool, Reset for this
+// cohort; see ackTimers for why this is a pool rather than one field and why
+// Reset needs no drain.
+func (w *publishBatchWorker) ackTimer() *time.Timer {
+	if timer, ok := w.ackTimers.Get().(*time.Timer); ok {
+		timer.Reset(defaultPublishAckWait)
+		return timer
+	}
+	return time.NewTimer(defaultPublishAckWait)
+}
+
+// putAckTimer stops and returns a borrowed timer. Stop after a fire is a no-op
+// under Go 1.23 semantics — the tick was already paired with our receive or is
+// discarded by Stop.
+func (w *publishBatchWorker) putAckTimer(timer *time.Timer) {
+	timer.Stop()
+	w.ackTimers.Put(timer)
 }
 
 func (w *publishBatchWorker) fail(batch []publishRequest, err error) {
