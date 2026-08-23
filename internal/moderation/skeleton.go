@@ -53,22 +53,26 @@ var confusables = map[rune]rune{
 	0x03b1: 'a', 0x03b2: 'b', 0x03b5: 'e', 0x03b7: 'h', 0x03b9: 'i', // α β ε η ι
 	0x03ba: 'k', 0x03bd: 'v', 0x03bf: 'o', 0x03c1: 'p', 0x03c4: 't', // κ ν ο ρ τ
 	0x03c5: 'y', 0x03c7: 'x', 0x03b6: 'z', 0x03c9: 'w', 0x03c3: 'o', // υ χ ζ ω σ
-	// Digit/symbol leet (scoped to skeleton blocklist matching). GATED - see
-	// isLeetFold and the quorum in Normalize.
+}
+
+// leetFolds holds the digit/symbol folds scoped to skeleton blocklist matching.
+// Their own table encodes the gate: unlike confusables these fold ONLY behind
+// the two-letter quorum in Normalize. Unconditional folding turned any number
+// into letter soup ("1080" -> "ioao", "1337" -> "ieet") that could drift onto
+// lexicon terms or wreck dedup fingerprints; letters-only obfuscation ("h4te",
+// "n0t") carries its own real letters and keeps folding.
+var leetFolds = map[byte]byte{
 	'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's',
 }
 
-// isLeetFold reports whether a confusable key is a digit/symbol whose fold is
-// gated behind the two-letter quorum in Normalize. Unconditional folding turned
-// any number into letter soup ("1080" -> "ioao", "1337" -> "ieet") that could
-// drift onto lexicon terms or wreck dedup fingerprints; letters-only obfuscation
-// ("h4te", "n0t") carries its own real letters and keeps folding.
-func isLeetFold(r rune) bool {
-	switch r {
-	case '0', '1', '3', '4', '5', '7', '8', '@', '$':
-		return true
+const lowerDelta = 'a' - 'A'
+
+// asciiLower lowercases one ASCII byte, passing everything else through.
+func asciiLower(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + lowerDelta
 	}
-	return false
+	return c
 }
 
 // Normalize folds a message into its detection skeleton and writes it into dst (a
@@ -174,15 +178,19 @@ func foldToken(dst []byte, mark int) []byte {
 	return dst
 }
 
-// foldByte lowercases one skeleton byte and applies its confusable fold when
-// the byte has one — leet folds additionally require the token's two-letter
-// quorum, decided once by the caller.
+// foldByte lowercases one skeleton byte and applies its confusable fold.
+// Leet digits live in their own gated table: they fold only when the caller
+// established the token's two-letter quorum, everyone else folds always.
 func foldByte(c byte, leet bool) byte {
-	if 'A' <= c && c <= 'Z' {
-		c += 'a' - 'A'
+	c = asciiLower(c)
+	if to, gated := leetFolds[c]; gated {
+		if leet {
+			return to
+		}
+		return c
 	}
-	if f, ok := confusables[rune(c)]; ok && (!isLeetFold(rune(c)) || leet) {
-		c = byte(f)
+	if to, ok := confusables[rune(c)]; ok {
+		return byte(to)
 	}
 	return c
 }
@@ -198,7 +206,7 @@ func foldByte(c byte, leet bool) byte {
 func tokenQuorum(tok []byte) bool {
 	votes := 0
 	for _, c := range tok {
-		if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' {
+		if asciiLower(c) >= 'a' && asciiLower(c) <= 'z' {
 			votes++
 			if votes >= 2 {
 				return true
@@ -246,7 +254,12 @@ func skelKindOf(r rune) skelKind {
 // an uppercase cross-script lookalike too (uppercase Cyrillic 'А' lowercases
 // to 'а' before the fold), closing an evasion gap.
 func writeSkelRune(tok []byte, lr rune) []byte {
-	if f, ok := confusables[lr]; ok && !isLeetFold(lr) {
+	if lr < utf8.RuneSelf {
+		if _, gated := leetFolds[byte(lr)]; gated {
+			return utf8.AppendRune(tok, lr)
+		}
+	}
+	if f, ok := confusables[lr]; ok {
 		lr = f
 	}
 	return utf8.AppendRune(tok, lr)
