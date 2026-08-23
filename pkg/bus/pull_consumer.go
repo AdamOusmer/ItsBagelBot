@@ -674,7 +674,7 @@ func pullWireMessage(wire jsapi.Msg) *nats.Msg {
 	if core.Header == nil {
 		core.Header = nats.Header{}
 	}
-	if core.Header.Get(MessageIDHeader) == "" && core.Header.Get(legacyMessageIDHeader) == "" {
+	if core.Header.Get(MessageIDHeader) == "" {
 		core.Header.Set(MessageIDHeader,
 			jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream))
 	}

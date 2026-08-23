@@ -52,6 +52,7 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	requestMsg := nats.NewMsg(subject)
 	requestMsg.Data = body
 	insertTraceHeaders(ctx, requestMsg)
+	SignRequest(requestMsg)
 
 	segment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.request", operation: "request", destination: subject,
@@ -138,6 +139,16 @@ func QueueSubscribeJSON[Req any, Resp any](
 
 		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
 		defer cancel()
+
+		// A handler panic on the delivery goroutine kills the whole process;
+		// answer the requester with the conventional error envelope instead.
+		defer func() {
+			if r := recover(); r != nil {
+				txn.NoticeError(fmt.Errorf("rpc handler panic: %v", r))
+				log.Error("rpc handler panic recovered", zap.String("subject", subject), zap.Any("panic", r))
+				respondAndLog(msg, subject, start, log, txn, map[string]string{"error": "internal error"})
+			}
+		}()
 
 		handleSegment := txn.StartSegment("rpc.handler")
 		reply := handle(ctx, req)

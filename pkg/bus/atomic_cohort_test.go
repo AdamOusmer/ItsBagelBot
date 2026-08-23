@@ -309,7 +309,7 @@ func newOverlapWorker(newAtomic func() (atomicCohortPublisher, error)) *publishB
 		requests:      make(chan publishRequest, 8),
 		stop:          make(chan struct{}),
 		done:          make(chan struct{}),
-		slots:         make(chan struct{}, maxInflightCohorts),
+		slots:         make(chan struct{}, inflightCohorts()),
 		batchSize:     defaultAtomicPublishBatchSize,
 		batchWait:     defaultPublishBatchWait,
 		overlapCommit: true,

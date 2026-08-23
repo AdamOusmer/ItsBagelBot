@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 // RPCPool moves a core-NATS RPC handler off the subscription's delivery
@@ -162,9 +163,9 @@ const (
 	//	than a slow one, so the ceiling stops where the budget stops.
 	//
 	// Pools are per subscription, so the process-wide worst case is this ceiling
-	// times the number of subjects. gossip registers fifteen: urchin 5, fortnite
-	// 4, mcsr 3, govee 2, hypixel 1 (clashroyale is written but not returned by
-	// providers.All, so it subscribes nothing). All fifteen saturated with
+	// times the number of subjects. gossip registers nineteen: urchin 5,
+	// fortnite 4, clashroyale 4, mcsr 3, govee 2, hypixel 1. All nineteen
+	// saturated with
 	// pathological 4MiB bodies is past the limit and is NOT defended by this
 	// ceiling; it is defended by the shape of the workload (chat commands, one or
 	// two hot endpoints at a time), by the per-upstream buckets, and by the fact
@@ -342,11 +343,20 @@ func (p *RPCPool) dropWorker() {
 	p.live--
 }
 
-// handle runs one job. A panic in a handler still takes the process down exactly
-// as it did when the handler ran on the subscription goroutine; recovering here
-// would leave the requester waiting on a reply nobody is going to send.
+// handle runs one job. Recovery used to be skipped because it would leave the
+// requester waiting on a reply nobody was going to send; the answer is to send
+// that reply from the recovery path. Without this, one persisted bad handler
+// input (sesame's {random} int64 overflow) crash-looped whole pods fleet-wide
+// until someone purged database rows by hand.
 func (p *RPCPool) handle(job rpcJob) {
 	defer p.complete()
+	defer func() {
+		if r := recover(); r != nil {
+			zap.L().Error("rpc handler panic recovered",
+				zap.Any("panic", r), zap.String("subject", job.msg.Subject))
+			_ = sendResponse(job.msg, []byte(`{"error":"internal error"}`))
+		}
+	}()
 	job.handler(job.msg)
 }
 

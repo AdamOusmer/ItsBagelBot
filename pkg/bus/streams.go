@@ -149,6 +149,87 @@ var OutgressStream = StreamSpec{
 	Replicas: 3,
 }
 
+// YouTubeOutgressStream is the YouTube twin of OutgressStream: the same
+// perishable chat-lane shape (WorkQueue, 5s MaxAge, memory, R3) because the
+// economics are identical — a chat reply that outlives its retry budget must
+// never be sent late, and one that vanishes with its peer stalls its
+// consumers. It is a SEPARATE stream rather than extra subjects on
+// TWITCH_OUTGRESS because the two platforms roll and scale independently:
+// deleting the YouTube lanes must never touch the Twitch stream object.
+//
+// Sends here cost 50 quota units each (see internal/youtube.Budget), so the
+// perishability is doubly right: dropping a send nobody will ever read is
+// strictly better than spending real daily budget on it.
+var YouTubeOutgressStream = StreamSpec{
+	Name:         "YOUTUBE_OUTGRESS",
+	Subjects:     []string{"youtube.outgress.premium", "youtube.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     64 << 20, // 64 MiB: YouTube chat volume is far below Twitch's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// DiscordOutgressStream is the Discord twin of OutgressStream: the same
+// perishable chat-lane shape (WorkQueue, 5s MaxAge, memory, R3) because the
+// economics are identical — a Discord message that outlives its retry budget
+// must never be sent late, and one that vanishes with its peer stalls its
+// consumers. It is a SEPARATE stream rather than extra subjects on an existing
+// one because Discord rolls and scales independently of Twitch/YouTube, and a
+// bot-token revocation (Discord invalidates ALL tokens on any credential
+// reset) must be able to take only these lanes down.
+//
+// MaxBytes is 32 MiB, not the 64 MiB the YouTube twin carries: each memory
+// stream costs its byte cap three times per hub peer (replica + RAFT WAL) plus
+// one 128 MiB ingest queue, and TestMemoryStreamsFitTheHubMemoryBudget holds
+// the sum under the pod's 5 GiB limit. At announcement volume 32 MiB under R3
+// is a deep lag budget; growing it is a deliberate edit there.
+var DiscordOutgressStream = StreamSpec{
+	Name:         "DISCORD_OUTGRESS",
+	Subjects:     []string{"discord.outgress.premium", "discord.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     32 << 20, // 32 MiB: announcement volume is far below Twitch chat's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// YouTubeIngressStream captures the yt-ingress firehose — the YouTube twin of
+// TwitchIngressStream, with the same staleness policy (10s: chat is live or
+// it is nothing) and the same memory/R3 backing. The standard lane is NOT
+// partitioned out: YouTube volume is orders of magnitude below Twitch's, so a
+// second RAFT loop buys nothing yet. Like its Twitch twin it is enumerated,
+// not wildcarded, so adding a lane means editing this list.
+//
+// Ownership is deliberately outgress for now: it is the only consumer of
+// these subjects today (the lifecycle lane feeds the live-chat directory).
+// When a YouTube sesame exists, reconciliation moves there.
+var YouTubeIngressStream = StreamSpec{
+	Name: "YOUTUBE_INGRESS",
+	Subjects: []string{
+		"youtube.ingress.event.premium",
+		"youtube.ingress.event.standard",
+		"youtube.ingress.event.stream",
+		// Status rides along under the same 10s window, mirroring how
+		// TWITCH_INGRESS carries twitch.ingress.status.>: observability with a
+		// self-expiring replay window.
+		"youtube.ingress.status.>",
+	},
+	Retention: nats.LimitsPolicy,
+	MaxAge:    10 * time.Second,
+	Storage:   nats.MemoryStorage,
+	Replicas:  3,
+	// 32 MiB under R3 is trivially inside the hub's memory budget at YouTube
+	// volume; MaxMsgsPer keeps one hot channel from evicting lifecycle events
+	// the directory consumer still needs.
+	MaxBytes:     32 << 20,
+	MaxMsgsPer:   100_000,
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
 // OutgressSystemStream carries the outgress control lane: EventSub enroll
 // (enable/disable/reconnect) jobs and stream_status live re-checks. Unlike chat
 // these are control-plane work that MUST survive until acknowledged — an enroll
@@ -492,10 +573,11 @@ func legacyTwitchIngressStream() StreamSpec {
 // flip the standard subject must resolve to TWITCH_INGRESS, where it still
 // lives, or every standard consumer would bind a stream that does not exist.
 func streamForTopic(topic string) (string, error) {
-	specs := make([]StreamSpec, 0, len(DataStreams)+2)
+	specs := make([]StreamSpec, 0, len(DataStreams)+4)
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
-	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream)
+	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
+		YouTubeOutgressStream, YouTubeIngressStream, DiscordOutgressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {
