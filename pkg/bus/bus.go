@@ -348,7 +348,7 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 // actually reached.
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
 	mode := consumeMode()
-	if mode == laneModeExplicit || isHotIngressLane(target.stream, target.topic) {
+	if mode == laneModeExplicit || isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic) {
 		return mode
 	}
 	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",
