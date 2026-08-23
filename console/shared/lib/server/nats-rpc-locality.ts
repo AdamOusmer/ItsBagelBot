@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { ErrorCode } from 'nats';
+import { RequestError } from '@nats-io/transport-node';
 
 const RPC_NODE_TOKEN = 'node';
 
@@ -10,13 +10,10 @@ export function rpcSubjectsForNode(subject: string, node: string | undefined): s
   return [`${subject}.${RPC_NODE_TOKEN}.${node}`, subject];
 }
 
+// v3 clients drop the ErrorCode enum: requests reject with a RequestError whose
+// cause is a NoRespondersError exactly when no local responder exists.
 function isNoResponders(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === ErrorCode.NoResponders
-  );
+  return error instanceof RequestError && error.isNoResponders();
 }
 
 // A generic retry is safe only when NATS proves no local responder exists.
