@@ -959,120 +959,184 @@ function asciiLower(s: string): string {
   return out;
 }
 
-// classifyToken resolves one scanned token to its replacement text. Returns
-// warned=true when the token was an attempted-but-unmappable variable; false
-// covers both clean translations and silent literals.
-function classifyToken(tok: string): { repl: string; warned: boolean } {
-  let inner = '';
-  let delimited = false;
-  if (tok.startsWith('$(') && tok.endsWith(')') && tok.length > 3) {
-    inner = tok.slice(2, -1);
-    delimited = true;
-  } else if (tok.startsWith('${') && tok.endsWith('}') && tok.length > 3) {
-    inner = tok.slice(2, -1);
-    delimited = true;
-  } else if (tok.startsWith('{') && tok.endsWith('}') && tok.length > 2) {
-    inner = tok.slice(1, -1);
-  } else {
-    return { repl: tok, warned: false };
-  }
-
-  const [head0, rest0] = splitHead(inner.trim());
-  // Sub-field suffixes are compared ASCII-case-insensitively ($(USER.NAME)
-  // must resolve like $(user.name)); argument payloads keep their original
-  // bytes so counter names and choice items survive verbatim.
-  const head = head0;
-  const rest = asciiLower(rest0);
-
-  const unmap = (): { repl: string; warned: boolean } => {
-    if (delimited) return { repl: tok, warned: true };
-    // Bare-brace bodies with a known head but unusable shape (e.g.
-    // {random:xq}) stay literal without a warning: bare braces are ambiguous
-    // punctuation, unlike an explicit $(…) attempt.
-    return { repl: tok, warned: head === 'count' || head === 'getcount' };
-  };
-
-  switch (head) {
-    case '':
-      if (delimited && rest !== '') return { repl: tok, warned: true }; // $(:3) ranges, other headless tokens
-      return { repl: tok, warned: false };
-    case 'user':
-      if (rest === '' || rest === '.name') return { repl: '{user}', warned: false };
-      return unmap();
-    case 'sender':
-    case 'source':
-      if (rest === '' || rest === '.name') return { repl: '{sender}', warned: false };
-      return unmap();
-    case 'touser':
-      if (rest0 === '') return { repl: '{touser}', warned: false };
-      return unmap();
-    case 'target':
-      if (rest === '' || rest === '.user' || rest === '.name') return { repl: '{touser}', warned: false };
-      return unmap();
-    case 'channel':
-      if (rest === '' || rest === '.alias' || rest === '.display_name') return { repl: '{channel}', warned: false };
-      return unmap();
-    case '1':
-      if (delimited && rest0 === ':') return { repl: '{args}', warned: false };
-      return unmap();
-    case 'getcount': {
-      const name = firstWord(rest0);
-      if (name === '') return unmap();
-      const norm = normalizeName(name);
-      if (norm !== '') return { repl: `{counter:${norm}}`, warned: false };
-      return unmap();
-    }
-    case 'count':
-      // Mutating upstream (increments and returns); our {counter:*}
-      // substitution only reads. Silently rewriting would drop the increment
-      // side-effect, which is a behavior change, not a translation — warn.
-      return { repl: tok, warned: true };
-    case 'random':
-      return classifyRandom(tok, rest0, delimited);
-    case 'choose':
-      if (delimited) return unmap();
-      return pickBare(tok, rest0);
-    default:
-      return unmap();
-  }
+// TokenView carries one scanned token through the rule table below. head is
+// the lower-cased name run; restRaw/rest are the remainder in original and
+// lower-cased bytes (sub-field suffixes compare case-insensitively so
+// $(USER.NAME) resolves like $(user.name), while argument payloads keep their
+// original bytes so counter names and choice items survive verbatim);
+// delimited says whether an explicit $(…)/${…} wrapper was present.
+interface TokenView {
+  tok: string;
+  head: string;
+  restRaw: string;
+  rest: string;
+  delimited: boolean;
 }
+
+type TokenOutcome = { repl: string; warned: boolean };
+
+// classifyToken resolves one scanned token to its replacement text by looking
+// its head up in TOKEN_RULES (unknown heads fall through to unmapped).
+// Returns warned=true when the token was an attempted-but-unmappable variable;
+// false covers both clean translations and silent literals.
+function classifyToken(tok: string): TokenOutcome {
+  const v = readToken(tok);
+  if (!v) return { repl: tok, warned: false };
+  return (TOKEN_RULES[v.head] ?? unmapped)(v);
+}
+
+function readToken(tok: string): TokenView | null {
+  if (isDelimitedToken(tok)) return tokenOf(tok, tok.slice(2, -1), true);
+  if (isBareBraceToken(tok)) return tokenOf(tok, tok.slice(1, -1), false);
+  return null;
+}
+
+function isDelimitedToken(tok: string): boolean {
+  return (
+    (tok.startsWith('$(') && tok.endsWith(')') && tok.length > 3) ||
+    (tok.startsWith('${') && tok.endsWith('}') && tok.length > 3)
+  );
+}
+
+function isBareBraceToken(tok: string): boolean {
+  return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
+}
+
+function tokenOf(tok: string, inner: string, delimited: boolean): TokenView {
+  const [head, restRaw] = splitHead(inner.trim());
+  return { tok, head, restRaw, rest: asciiLower(restRaw), delimited };
+}
+
+const ok = (repl: string): TokenOutcome => ({ repl, warned: false });
+const silentLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: false });
+const flaggedLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: true });
+
+// unmapped keeps an attempted-but-unmappable variable literal. Explicit
+// $(…)/${…} attempts warn — someone clearly wrote a variable — while
+// bare-brace bodies stay silent except the counter families: bare braces are
+// ambiguous punctuation, but rewriting count/getcount would drop their
+// increment side-effect.
+function unmapped(v: TokenView): TokenOutcome {
+  if (v.delimited) return flaggedLiteral(v);
+  return { repl: v.tok, warned: v.head === 'count' || v.head === 'getcount' };
+}
+
+// bakedIdentity maps one identity family: bare or dot-subfield suffixes land
+// on a single canonical key, anything else falls back to unmapped.
+function bakedIdentity(repl: string, ...suffixes: string[]): (v: TokenView) => TokenOutcome {
+  return (v) => (v.rest === '' || suffixes.includes(v.rest) ? ok(repl) : unmapped(v));
+}
+
+// headless separates explicit headless tokens ($(:3)-style ranges and other
+// nameless attempts, which warn) from bare nameless braces (punctuation).
+function headless(v: TokenView): TokenOutcome {
+  return v.delimited && v.rest !== '' ? flaggedLiteral(v) : silentLiteral(v);
+}
+
+function touserParam(v: TokenView): TokenOutcome {
+  return v.restRaw === '' ? ok('{touser}') : unmapped(v);
+}
+
+// argsRange maps $(1:) — words 1..end — to {args}; every other numeric form
+// stays put.
+function argsRange(v: TokenView): TokenOutcome {
+  return v.delimited && v.restRaw === ':' ? ok('{args}') : unmapped(v);
+}
+
+function getCounterParam(v: TokenView): TokenOutcome {
+  const name = firstWord(v.restRaw);
+  if (name === '') return unmapped(v);
+  const norm = normalizeName(name);
+  return norm !== '' ? ok(`{counter:${norm}}`) : unmapped(v);
+}
+
+function chooseParam(v: TokenView): TokenOutcome {
+  if (v.delimited) return unmapped(v);
+  // The legacy bare {choose a,b,c} form warns on failure like an explicit
+  // attempt: someone clearly wrote a choice list.
+  const items = pickItems(v.restRaw);
+  return items ? ok('{choice:' + items.join(',') + '}') : flaggedLiteral(v);
+}
+
+// TOKEN_RULES resolves a token body by its head name. Adding a variable later
+// is a row here, not a branch in the scanner.
+const TOKEN_RULES: Record<string, (v: TokenView) => TokenOutcome> = {
+  '': headless,
+  user: bakedIdentity('{user}', '.name'),
+  sender: bakedIdentity('{sender}', '.name'),
+  source: bakedIdentity('{sender}', '.name'),
+  touser: touserParam,
+  target: bakedIdentity('{touser}', '.user', '.name'),
+  channel: bakedIdentity('{channel}', '.alias', '.display_name'),
+  '1': argsRange,
+  getcount: getCounterParam,
+  // Mutating upstream (increments and returns); our {counter:*} substitution
+  // only reads, so the token always stays literal with a warning.
+  count: flaggedLiteral,
+  random: classifyRandom,
+  choose: chooseParam
+};
+
+// Each RANDOM_ROWS entry renders one documented $(random …)/{random …}
+// spelling, or null when its arguments do not parse; classifyRandom walks the
+// rows in order and the first hit wins. Rows are mutually exclusive by prefix,
+// mirroring the upstream grammar: bare range, dot-forms ($(random.X)),
+// space-pick, plain bare-brace range.
+type RandomRow = (v: TokenView) => string | null;
+
+const RANDOM_ROWS: RandomRow[] = [
+  (v) => (v.restRaw === '' ? '{random}' : null),
+  dotRandomRange,
+  dotRandomNumber,
+  dotRandomPick,
+  spaceRandomPick,
+  plainRandomRange
+];
 
 // classifyRandom resolves $(random …) forms. Bare-brace random uses a space
 // before the range ({random 5-10}); delimited uses a dot ($(random.5-10)).
-function classifyRandom(tok: string, rest: string, delimited: boolean): { repl: string; warned: boolean } {
-  if (rest === '') return { repl: '{random}', warned: false };
-  if (rest.startsWith('.')) {
-    const body = rest.slice(1);
-    const bodyLower = asciiLower(body);
-    const range = parseRange(body);
-    if (range) return { repl: rangeKey(range[0], range[1]), warned: false };
-    if (bodyLower.startsWith('number')) {
-      const fields = body.slice('number'.length).trim().split(/\s+/).filter(Boolean);
-      if (fields.length === 1) {
-        const r = parseRange(fields[0]);
-        if (r) return { repl: rangeKey(r[0], r[1]), warned: false };
-      }
-    }
-    if (bodyLower.startsWith('pick')) {
-      const items = pickItems(body.slice('pick'.length));
-      if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-    }
-  } else if (rest.startsWith(' pick')) {
-    const items = pickItems(rest.slice(' pick'.length));
-    if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-  } else if (!delimited) {
-    const r = parseRange(rest);
-    if (r) return { repl: rangeKey(r[0], r[1]), warned: false };
-  }
-  return { repl: tok, warned: delimited };
+// An unusable shape stays literal, warning only on the explicit attempt.
+function classifyRandom(v: TokenView): TokenOutcome {
+  const repl = RANDOM_ROWS.map((row) => row(v)).find((r) => r !== null);
+  if (repl !== undefined) return ok(repl);
+  return v.delimited ? flaggedLiteral(v) : silentLiteral(v);
 }
 
-// pickBare resolves the legacy bare {choose a,b,c} form. It warns on failure
-// like an explicit attempt: someone clearly wrote a choice list.
-function pickBare(tok: string, spec: string): { repl: string; warned: boolean } {
-  const items = pickItems(spec);
-  if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-  return { repl: tok, warned: true };
+function dotRandomRange(v: TokenView): string | null {
+  if (!v.rest.startsWith('.')) return null;
+  const r = parseRange(v.restRaw.slice(1));
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function dotRandomNumber(v: TokenView): string | null {
+  if (!v.rest.startsWith('.number')) return null;
+  const fields = v.restRaw.slice(1 + 'number'.length).trim().split(/\s+/).filter(Boolean);
+  if (fields.length !== 1) return null;
+  const r = parseRange(fields[0]);
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function dotRandomPick(v: TokenView): string | null {
+  if (!v.rest.startsWith('.pick')) return null;
+  return pickKey(pickItems(v.restRaw.slice(1 + 'pick'.length)));
+}
+
+function spaceRandomPick(v: TokenView): string | null {
+  if (!v.rest.startsWith(' pick')) return null;
+  return pickKey(pickItems(v.restRaw.slice(' pick'.length)));
+}
+
+function plainRandomRange(v: TokenView): string | null {
+  // Dot-prefixed rests can never satisfy goAtoi's integer halves (a leading
+  // '.', letter or space cannot open an int), so this row only has to exclude
+  // the delimited form to match the upstream ladder's reach exactly.
+  if (v.delimited || v.rest.startsWith('.')) return null;
+  const r = parseRange(v.restRaw);
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function pickKey(items: string[] | null): string | null {
+  return items ? '{choice:' + items.join(',') + '}' : null;
 }
 
 // pickItems splits a random.pick argument list honoring quotes: items may be

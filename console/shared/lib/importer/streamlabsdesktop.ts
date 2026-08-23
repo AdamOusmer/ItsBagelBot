@@ -871,6 +871,27 @@ interface TranslationResult {
   external: boolean; // used $readapi/$readline/... style parameters
 }
 
+// ScanState threads one response through the per-parameter handlers below:
+// pos is the index of the '$' being dispatched, out the output under
+// construction, argMax the highest $argN/$numN index seen (drives the
+// arg-slot rule), seenWarns the dedupe keys for emitted diagnostics.
+interface ScanState {
+  text: string;
+  cmdName: string;
+  res: TranslationResult;
+  out: string;
+  pos: number;
+  argMax: number;
+  seenWarns: Set<string>;
+}
+
+function warnOnce(s: ScanState, code: string, message: string): void {
+  const key = `${code}|${message}`;
+  if (s.seenWarns.has(key)) return;
+  s.seenWarns.add(key);
+  s.res.diags.push(warnDiag(-1, code, message));
+}
+
 // translateVariables rewrites SLCB $parameters in one response/timer message
 // into this bot's {key} set, leaving anything unmappable as literal text plus
 // a warn diagnostic naming the token: deleting a broadcaster's text silently
@@ -880,140 +901,170 @@ interface TranslationResult {
 // ({counter:name}); empty for timer messages, where $count has no referent and
 // stays literal.
 export function translateVariables(text: string, cmdName: string): TranslationResult {
-  const res: TranslationResult = { text: '', diags: [], external: false };
-  let out = '';
-  const seenWarns = new Set<string>();
-
-  const addWarn = (code: string, msg: string): void => {
-    const key = `${code}|${msg}`;
-    if (seenWarns.has(key)) return;
-    seenWarns.add(key);
-    res.diags.push(warnDiag(-1, code, msg));
+  const s: ScanState = {
+    text,
+    cmdName,
+    res: { text: '', diags: [], external: false },
+    out: '',
+    pos: 0,
+    argMax: 0,
+    seenWarns: new Set()
   };
 
-  let argMax = 0; // highest $argN/$numN index seen; drives the arg-slot rule
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
     if (ch !== '$') {
-      out += ch;
+      s.out += ch;
       i++;
       continue;
     }
     const [name, next] = scanIdent(text, i + 1);
     if (name === '') {
-      out += ch; // "$" with no identifier: literal dollar sign
+      s.out += ch; // "$" with no identifier: literal dollar sign
       i++;
       continue;
     }
-
-    if (SIMPLE_PARAMS[name] !== undefined) {
-      out += SIMPLE_PARAMS[name];
-      i = next;
-    } else if (name === 'count') {
-      if (cmdName === '') {
-        out += '$count';
-        addWarn(
-          CODE.variableUnmapped,
-          'response uses "$count", which counts uses of a specific command; timers have no command to count, left as literal text'
-        );
-      } else {
-        out += `{counter:${normalizeName(cmdName)}}`;
-      }
-      i = next;
-    } else if (name === 'checkcount') {
-      const arg = parenArg(text, next);
-      if (arg === null || arg.trim() === '') {
-        out += '$checkcount';
-        addWarn(CODE.variableUnmapped, '"$checkcount(...)" is missing its argument; left as literal text');
-        i = next;
-      } else {
-        out += `{counter:${normalizeName(arg)}}`;
-        i = skipParens(text, next);
-      }
-    } else if (name === 'randnum') {
-      const endSpan = skipParensSpan(text, next);
-      if (endSpan === null) {
-        out += '$randnum';
-        addWarn(CODE.variableUnmapped, '"$randnum" is missing its (min,max) arguments; left as literal text');
-        i = next;
-      } else {
-        const target = randnumTarget(text.slice(next, endSpan));
-        if (target !== null) {
-          out += target;
-        } else {
-          out += text.slice(i, endSpan);
-          addWarn(
-            CODE.variableUnmapped,
-            `response uses ${JSON.stringify(text.slice(i, endSpan))}, whose range is not two numbers; left as literal text`
-          );
-        }
-        i = endSpan;
-      }
-    } else if (isArgsSlot(name)) {
-      const n = argsSlotIndex(name);
-      if (n > argMax) argMax = n;
-      out += `$${name}`; // provisionally literal; resolved below
-      i = next;
-    } else if (EXTERNAL_PARAMS.has(name)) {
-      out += `$${name}`;
-      const endSpan = skipParensSpan(text, next);
-      if (endSpan !== null) {
-        out += text.slice(next, endSpan);
-        i = endSpan;
-      } else {
-        i = next;
-      }
-      res.external = true;
-    } else if (name === 'desc') {
-      // $desc(...) is a first-line metadata directive ("sync custom
-      // description to the web" per SLCB docs), not response content; keeping
-      // it would post the instruction into chat. Stripped when it opens the
-      // first line, kept literal elsewhere.
-      const endSpan = skipParensSpan(text, next);
-      if (endSpan !== null && out.trim() === '') {
-        i = endSpan;
-        if (i < text.length && text[i] === '\n') {
-          i++; // swallow the directive line break too
-        } else if (i + 1 < text.length && text[i] === '\r' && text[i + 1] === '\n') {
-          i += 2;
-        }
-      } else if (endSpan !== null) {
-        out += `$desc${text.slice(next, endSpan)}`;
-        i = endSpan;
-      } else {
-        out += '$desc';
-        i = next;
-      }
-    } else {
-      out += `$${name}`;
-      const endSpan = skipParensSpan(text, next);
-      if (endSpan !== null) {
-        out += text.slice(next, endSpan);
-        i = endSpan;
-      } else {
-        i = next;
-      }
-      addWarn(CODE.variableUnmapped, `response uses $${name}, which has no equivalent here; left as literal text`);
-    }
+    s.pos = i;
+    i = dispatchParam(s, name, next);
   }
 
   // Arg-slot rule: a lone $arg1/$num1 IS "everything after the command" and
   // rewrites to {args}; any higher index means the command splits positional
   // words we cannot express, so every slot stays literal with one shared
   // explanation.
-  let final = out;
-  if (argMax === 1) {
+  let final = s.out;
+  if (s.argMax === 1) {
     final = replaceWord(final, ['arg1', 'num1', 'argl1'], '{args}');
-  } else if (argMax > 1) {
-    addWarn(
+  } else if (s.argMax > 1) {
+    warnOnce(
+      s,
       CODE.variableUnmapped,
-      `response uses numbered argument slots up to $arg${argMax}; positional splitting has no equivalent, all slots left as literal text`
+      `response uses numbered argument slots up to $arg${s.argMax}; positional splitting has no equivalent, all slots left as literal text`
     );
   }
 
-  res.text = final;
-  return res;
+  s.res.text = final;
+  return s.res;
+}
+
+// dispatchParam routes one scanned $name to its rule: the SIMPLE_PARAMS map
+// first, then PARAM_HANDLERS, then the predicate families (numbered arg slots,
+// external calls), finally the unknown fallback. Adding a parameter later is a
+// row in one of those tables, not a branch here.
+type ParamHandler = (s: ScanState, name: string, next: number) => number;
+
+const PARAM_HANDLERS: Record<string, ParamHandler> = {
+  count: countParam,
+  checkcount: checkCountParam,
+  randnum: randnumParam,
+  desc: descParam
+};
+
+function dispatchParam(s: ScanState, name: string, next: number): number {
+  const simple = SIMPLE_PARAMS[name];
+  if (simple !== undefined) {
+    s.out += simple;
+    return next;
+  }
+  const handler = PARAM_HANDLERS[name];
+  if (handler) return handler(s, name, next);
+  if (isArgsSlot(name)) return argsSlotParam(s, name, next);
+  if (EXTERNAL_PARAMS.has(name)) return externalParam(s, name, next);
+  return unknownParam(s, name, next);
+}
+
+function countParam(s: ScanState, _name: string, next: number): number {
+  if (s.cmdName !== '') {
+    s.out += `{counter:${normalizeName(s.cmdName)}}`;
+    return next;
+  }
+  s.out += '$count';
+  warnOnce(
+    s,
+    CODE.variableUnmapped,
+    'response uses "$count", which counts uses of a specific command; timers have no command to count, left as literal text'
+  );
+  return next;
+}
+
+function checkCountParam(s: ScanState, _name: string, next: number): number {
+  const arg = parenArg(s.text, next);
+  if (arg === null || arg.trim() === '') {
+    s.out += '$checkcount';
+    warnOnce(s, CODE.variableUnmapped, '"$checkcount(...)" is missing its argument; left as literal text');
+    return next;
+  }
+  s.out += `{counter:${normalizeName(arg)}}`;
+  return skipParens(s.text, next);
+}
+
+function randnumParam(s: ScanState, _name: string, next: number): number {
+  const endSpan = skipParensSpan(s.text, next);
+  if (endSpan === null) {
+    s.out += '$randnum';
+    warnOnce(s, CODE.variableUnmapped, '"$randnum" is missing its (min,max) arguments; left as literal text');
+    return next;
+  }
+  const target = randnumTarget(s.text.slice(next, endSpan));
+  if (target !== null) {
+    s.out += target;
+    return endSpan;
+  }
+  s.out += s.text.slice(s.pos, endSpan);
+  warnOnce(
+    s,
+    CODE.variableUnmapped,
+    `response uses ${JSON.stringify(s.text.slice(s.pos, endSpan))}, whose range is not two numbers; left as literal text`
+  );
+  return endSpan;
+}
+
+function argsSlotParam(s: ScanState, name: string, next: number): number {
+  const n = argsSlotIndex(name);
+  if (n > s.argMax) s.argMax = n;
+  s.out += `$${name}`; // provisionally literal; resolved by the arg-slot rule
+  return next;
+}
+
+function externalParam(s: ScanState, name: string, next: number): number {
+  s.res.external = true;
+  s.out += `$${name}`;
+  const endSpan = skipParensSpan(s.text, next);
+  if (endSpan === null) return next;
+  s.out += s.text.slice(next, endSpan);
+  return endSpan;
+}
+
+function descParam(s: ScanState, _name: string, next: number): number {
+  // $desc(...) is a first-line metadata directive ("sync custom description to
+  // the web" per SLCB docs), not response content; keeping it would post the
+  // instruction into chat. Stripped when it opens the first line, kept literal
+  // elsewhere.
+  const endSpan = skipParensSpan(s.text, next);
+  if (endSpan === null) {
+    s.out += '$desc';
+    return next;
+  }
+  if (s.out.trim() === '') return swallowDirectiveBreak(s.text, endSpan);
+  s.out += `$desc${s.text.slice(next, endSpan)}`;
+  return endSpan;
+}
+
+// swallowDirectiveBreak eats the break directly after a leading $desc(...)
+// directive so stripping it does not leave a blank first line.
+function swallowDirectiveBreak(text: string, at: number): number {
+  if (text[at] === '\n') return at + 1;
+  if (text[at] === '\r' && text[at + 1] === '\n') return at + 2;
+  return at;
+}
+
+function unknownParam(s: ScanState, name: string, next: number): number {
+  const endSpan = skipParensSpan(s.text, next);
+  s.out += `$${name}`;
+  if (endSpan !== null) s.out += s.text.slice(next, endSpan);
+  warnOnce(s, CODE.variableUnmapped, `response uses $${name}, which has no equivalent here; left as literal text`);
+  return endSpan ?? next;
 }
 
 // scanIdent reads a $parameter identifier starting at start; returns the name

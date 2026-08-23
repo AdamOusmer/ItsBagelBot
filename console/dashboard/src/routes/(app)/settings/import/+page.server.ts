@@ -28,6 +28,10 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 // is a hostile-input backstop, not an expected shape.
 const MAX_MANIFEST_JSON_BYTES = 8 * 1024 * 1024;
 
+// Shape-check ceiling on a pasted StreamElements JWT (three dot-separated
+// base64url segments, <=4KB), mirroring the shared parser's own gate.
+const MAX_CREDENTIAL_LEN = 4096;
+
 // Per-session budget just for preview/commit, tighter than hooks.server.ts's
 // global write tier (30 burst / 0.5/s fleet-wide) which already applies to
 // these actions as non-GET requests. A second, smaller bucket earns its keep
@@ -48,7 +52,34 @@ async function importAllowed(s: Session): Promise<boolean> {
 // gate shape as every other DEMO surface (dev && process.env.DEMO === '1'):
 // `dev` is a build-time constant, so Rollup folds the branch and its dynamic
 // import edge out of production builds entirely.
+//
+// Decision record — keep this const ABOVE every transitive reader (measured
+// 2026-08-23): with importGate declared first, Rollup folded the initializer
+// to false but stopped substituting references (requireOwner's dynamic
+// demo-data import survived as live code behind a runtime flag) and the
+// production-clean scan failed. Constant propagation is transitive through
+// calls, so the declaring order below is load-bearing.
 const DEMO = dev && process.env.DEMO === '1';
+
+// GateVerdict collapses the two refusals every action shares into one value:
+// each action spends a single branch on them. fail() stays at the call site so
+// SvelteKit keeps inferring ActionData from literals inside the action body.
+type GateVerdict = { ok: true; session: Session } | { ok: false; status: number; error: string };
+
+// importGate merges the owner-only rule with the preview/commit rate budget.
+// Owner-only: an import overwrites the board's commands/modules wholesale, and
+// delegates are scoped to read-mostly sections by design. The route also sits
+// outside every grantable section path, so the hooks guard already bounces
+// delegates — this is defense in depth, same as settings/+page.server.ts.
+// DEMO mints the fixture identity here because hooks never put a session in
+// locals without OAuth; the demo board is an owner by construction.
+async function importGate(locals: App.Locals): Promise<GateVerdict> {
+  const s = await requireOwner(locals);
+  if (!s) return { ok: false, status: 403, error: 'Not allowed.' };
+  if (!(await importAllowed(s)))
+    return { ok: false, status: 429, error: 'Too many import attempts. Wait a minute and try again.' };
+  return { ok: true, session: s };
+}
 
 const SOURCES: readonly ImportSource[] = ['streamelements', 'fossabot', 'moobot', 'streamlabs_desktop'];
 
@@ -56,12 +87,8 @@ function isSource(v: string): v is ImportSource {
   return (SOURCES as readonly string[]).includes(v);
 }
 
-// Owner-only: an import overwrites the board's commands/modules wholesale, and
-// delegates are scoped to read-mostly sections by design. The route also sits
-// outside every grantable section path, so the hooks guard already bounces
-// delegates — this is defense in depth, same as settings/+page.server.ts.
-// DEMO mints the fixture identity here because hooks never put a session in
-// locals without OAuth; the demo board is an owner by construction.
+// requireOwner resolves the acting session (the DEMO fixture identity when
+// DEMO=1) or null; importGate owns the policy reasoning above it.
 async function requireOwner(locals: App.Locals): Promise<Session | null> {
   if (DEMO) {
     const { demoSession } = await import('$lib/server/demo-data');
@@ -78,17 +105,132 @@ export const load: PageServerLoad = async ({ locals }) => {
   return {};
 };
 
+// SourceInput carries the three form-borne inputs a preview may use: a pasted
+// credential (StreamElements), an uploaded export (StreamLabs .db), or an
+// already-parsed manifest (Moobot — the browser decoded its own export so the
+// raw file never crosses the wire).
+interface SourceInput {
+  credential: string;
+  fileB64: string;
+  preManifest?: ImportManifest;
+}
+
+// InputRefusal is one input-level rejection, or null when the source's inputs
+// are acceptable.
+type InputRefusal = { status: number; error: string } | null;
+
+// JWT_SHAPE mirrors @bagel/shared/importer/streamelements: three
+// dot-separated base64url segments. Failing here gives a readable message
+// before any fetch is attempted and guarantees no credential with interior
+// whitespace or control chars reaches the transport.
+const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+// SOURCE_INPUT_RULES decides per source whether the extracted inputs are
+// acceptable; the action body stays guard → resolve → execute. The credential
+// shape check runs for every source that kept one, exactly as before.
+const SOURCE_INPUT_RULES: Record<Exclude<ImportSource, 'fossabot'>, (input: SourceInput) => InputRefusal> = {
+  streamelements: (input) =>
+    missingAnyInput(input, 'Paste your StreamElements JWT first.') ?? jwtShapeRefusal(input.credential),
+  moobot: withJwtShapeCheck('Choose a file to upload.'),
+  streamlabs_desktop: withJwtShapeCheck('Choose a file to upload.')
+};
+
+function withJwtShapeCheck(missingError: string): (input: SourceInput) => InputRefusal {
+  return (input) => missingAnyInput(input, missingError) ?? jwtShapeRefusal(input.credential);
+}
+
+function missingAnyInput(input: SourceInput, error: string): InputRefusal {
+  if (input.credential !== '' || input.fileB64 !== '' || input.preManifest) return null;
+  return { status: 400, error };
+}
+
+function jwtShapeRefusal(credential: string): InputRefusal {
+  if (credential === '') return null;
+  if (credential.length <= MAX_CREDENTIAL_LEN && JWT_SHAPE.test(credential)) return null;
+  return {
+    status: 400,
+    error:
+      'That does not look like a StreamElements JWT. Copy the whole token: three segments separated by dots, no spaces.'
+  };
+}
+
+// decodePreManifest parses an optional posted manifest. It is untrusted input
+// — it goes through validateManifest (caps, lengths, perms) in
+// $lib/server/importer before anything renders or commits.
+function decodePreManifest(form: FormData):
+  | { ok: true; manifest?: ImportManifest }
+  | { ok: false; status: number; error: string } {
+  const rawManifest = String(form.get('manifest') ?? '');
+  if (rawManifest === '') return { ok: true };
+  if (rawManifest.length > MAX_MANIFEST_JSON_BYTES)
+    return { ok: false, status: 400, error: 'The parsed import is too large to verify.' };
+  try {
+    const parsed = JSON.parse(rawManifest) as ImportManifest;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      throw new Error('not an object');
+    return { ok: true, manifest: parsed };
+  } catch {
+    return { ok: false, status: 400, error: 'The parsed import could not be decoded. Run the preview again.' };
+  }
+}
+
+// readUpload base64-encodes an uploaded export, reporting whether one was
+// present so the caller can clear any pasted credential (the two must never
+// disagree about which to use).
+async function readUpload(form: FormData): Promise<
+  { ok: true; fileB64: string; uploaded: boolean } | { ok: false; status: number; error: string }
+> {
+  const upload = form.get('file');
+  if (!(upload instanceof File) || upload.size === 0) return { ok: true, fileB64: '', uploaded: false };
+  if (upload.size > MAX_UPLOAD_BYTES)
+    return {
+      ok: false,
+      status: 400,
+      error: 'That file is too large. Exported bot configs should be well under 20 MB.'
+    };
+  try {
+    return {
+      ok: true,
+      fileB64: Buffer.from(await upload.arrayBuffer()).toString('base64'),
+      uploaded: true
+    };
+  } catch {
+    return { ok: false, status: 400, error: 'Could not read that file.' };
+  }
+}
+
+// readSourceInput extracts the common form parts (manifest JSON first, then
+// the upload, mirroring the original refusal order for doubly-bad posts) and
+// applies the source's acceptance rule.
+async function readSourceInput(
+  form: FormData,
+  source: Exclude<ImportSource, 'fossabot'>
+): Promise<{ ok: true; input: SourceInput } | { ok: false; status: number; error: string }> {
+  const pre = decodePreManifest(form);
+  if (!pre.ok) return { ok: false, status: pre.status, error: pre.error };
+
+  const up = await readUpload(form);
+  if (!up.ok) return { ok: false, status: up.status, error: up.error };
+
+  const input: SourceInput = {
+    // Client-parsed path first: manifest present means no credential/file is
+    // expected; a present upload clears any pasted credential.
+    preManifest: pre.manifest,
+    fileB64: up.fileB64,
+    credential: up.uploaded ? '' : String(form.get('credential') ?? '').trim()
+  };
+  const refusal = SOURCE_INPUT_RULES[source](input);
+  if (refusal) return { ok: false, ...refusal };
+  return { ok: true, input };
+}
+
 export const actions: Actions = {
 // preview translates one source config into a reviewable manifest. The
 // identity comes from the session; the form carries the source choice and one
-// of: a pasted credential (StreamElements), an uploaded export (StreamLabs
-// .db), or an already-parsed manifest (Moobot — the browser decoded its own
-// export so the raw file never crosses the wire).
+// of the inputs described on SourceInput.
 preview: async ({ request, locals }) => {
-    const s = await requireOwner(locals);
-    if (!s) return fail(403, { error: 'Not allowed.', step: 'preview' });
-    if (!(await importAllowed(s)))
-      return fail(429, { error: 'Too many import attempts. Wait a minute and try again.', step: 'preview' });
+    const gate = await importGate(locals);
+    if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'preview' });
 
     const form = await request.formData();
     const source = String(form.get('source') ?? '');
@@ -100,65 +242,8 @@ preview: async ({ request, locals }) => {
     if (source === 'fossabot')
       return fail(400, { error: 'Fossabot import is not available yet.', step: 'preview' });
 
-    // Client-parsed path first: manifest present means no credential/file is
-    // expected. The manifest is untrusted input — it goes through
-    // validateManifest (caps, lengths, perms) in $lib/server/importer before
-    // anything renders or commits.
-    let preManifest: ImportManifest | undefined;
-    const rawManifest = String(form.get('manifest') ?? '');
-    if (rawManifest) {
-      if (rawManifest.length > MAX_MANIFEST_JSON_BYTES)
-        return fail(400, { error: 'The parsed import is too large to verify.', step: 'preview' });
-      try {
-        const parsed = JSON.parse(rawManifest) as ImportManifest;
-        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-          throw new Error('not an object');
-        preManifest = parsed;
-      } catch {
-        return fail(400, { error: 'The parsed import could not be decoded. Run the preview again.', step: 'preview' });
-      }
-    }
-
-    let credential = String(form.get('credential') ?? '').trim();
-    let fileB64 = '';
-    const upload = form.get('file');
-    if (upload instanceof File && upload.size > 0) {
-      if (upload.size > MAX_UPLOAD_BYTES)
-        return fail(400, {
-          error: 'That file is too large. Exported bot configs should be well under 20 MB.',
-          step: 'preview'
-        });
-      try {
-        fileB64 = Buffer.from(await upload.arrayBuffer()).toString('base64');
-      } catch {
-        return fail(400, { error: 'Could not read that file.', step: 'preview' });
-      }
-      credential = '';
-    }
-
-    if (!credential && !fileB64 && !preManifest)
-      return fail(400, {
-        error:
-          source === 'streamelements'
-            ? 'Paste your StreamElements JWT first.'
-            : 'Choose a file to upload.',
-        step: 'preview'
-      });
-
-    // Shape-check mirrors @bagel/shared/importer/streamelements: three
-    // dot-separated base64url segments, <=4KB. Failing here gives a readable
-    // message before any fetch is attempted, and guarantees no credential with
-    // interior whitespace or control chars reaches the transport.
-    if (
-      credential &&
-      (credential.length > 4096 ||
-        !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(credential))
-    )
-      return fail(400, {
-        error:
-          'That does not look like a StreamElements JWT. Copy the whole token: three segments separated by dots, no spaces.',
-        step: 'preview'
-      });
+    const read = await readSourceInput(form, source);
+    if (!read.ok) return fail(read.status, { error: read.error, step: 'preview' });
 
     if (DEMO) {
       const demo = await import('$lib/server/demo-import');
@@ -167,11 +252,11 @@ preview: async ({ request, locals }) => {
 
     let preview: PreviewResponse;
     try {
-      preview = await previewImport(s, {
+      preview = await previewImport(gate.session, {
         source,
-        credential,
-        file_b64: fileB64,
-        manifest: preManifest
+        credential: read.input.credential,
+        file_b64: read.input.fileB64,
+        manifest: read.input.preManifest
       });
     } catch {
       return fail(502, { error: 'The importer service did not answer. Try again in a moment.', step: 'preview' });
@@ -194,10 +279,8 @@ preview: async ({ request, locals }) => {
   // validateManifest (counts, lengths, perms, caps) over every incoming
   // manifest before writing, so a hand-edited POST cannot land junk.
   commit: async ({ request, locals }) => {
-    const s = await requireOwner(locals);
-    if (!s) return fail(403, { error: 'Not allowed.', step: 'commit' });
-    if (!(await importAllowed(s)))
-      return fail(429, { error: 'Too many import attempts. Wait a minute and try again.', step: 'commit' });
+    const gate = await importGate(locals);
+    if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'commit' });
 
     const form = await request.formData();
     const source = String(form.get('source') ?? '');
@@ -219,7 +302,7 @@ preview: async ({ request, locals }) => {
 
     let commit: CommitResponse;
     try {
-      commit = await commitImport(s, {
+      commit = await commitImport(gate.session, {
         source: isSource(source) ? source : '',
         manifest,
         overwrite
