@@ -49,16 +49,26 @@ func TestEscalateByReputation(t *testing.T) {
 	assert.Equal(t, automod.ActionDelete, escalateByReputation(del, 99).Action)
 }
 
+// Strikes now require an enforceable hostile verdict, so the fan-out test
+// arms enforcement and uses raid text: a benign or unenforced fold bumps nobody.
+// Rationale for the changed expectation: strikes used to accrue before the
+// verdict existed at all — even benign copypasta folds built repeat-offender
+// records that later escalated punishments nobody had served.
 func TestCohortFansOutReputationPerSender(t *testing.T) {
 	rep := newFakeRep()
-	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Reputation: rep}
-	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+	d := Deps{
+		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
+		Pub: &fakePublisher{}, Log: zap.NewNop(), Automod: automod.New(), Reputation: rep,
+	}
+	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
+		OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutomodEnforce: true,
+	})
 
 	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
-		"text":                "spam",
+		"text":                raidLink,
 		"senders": []map[string]any{
 			{"chatter_user_id": "a"},
 			{"chatter_user_id": "b"},
@@ -70,6 +80,59 @@ func TestCohortFansOutReputationPerSender(t *testing.T) {
 
 	assert.Equal(t, 2, rep.bumps["a"])
 	assert.Equal(t, 1, rep.bumps["b"])
+}
+
+// A hostile fold only builds strikes when its punishment will actually be
+// served: shadow mode and clean copypasta folds both leave scores untouched.
+func TestCohortStrikesRequireEnforcedVerdict(t *testing.T) {
+	tests := []struct {
+		name      string
+		enforce   bool
+		text      string
+		wantTotal int
+	}{
+		{name: "shadow hostile fold", enforce: false, text: raidLink, wantTotal: 0},
+		{name: "benign fold under enforce", enforce: true, text: "PogChamp what a play", wantTotal: 0},
+		{name: "hostile fold under enforce", enforce: true, text: raidLink, wantTotal: 3},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rep := newFakeRep()
+			d := Deps{
+				Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
+				Pub: &fakePublisher{}, Log: zap.NewNop(), Automod: automod.New(), Reputation: rep,
+			}
+			p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
+				OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutomodEnforce: tc.enforce,
+			})
+			require.NoError(t, p.Process(hostileCohort(t, 3, tc.text)))
+
+			total := 0
+			for _, n := range rep.bumps {
+				total += n
+			}
+			assert.Equal(t, tc.wantTotal, total)
+		})
+	}
+}
+
+// Shadow-mode single-chatter verdicts are logged but must not score the
+// chatter: arming enforcement day one would otherwise inherit escalated
+// punishments from un-actioned history.
+func TestShadowSingleChatterDoesNotBumpReputation(t *testing.T) {
+	rep := newFakeRep()
+	pub := &fakePublisher{}
+	d := Deps{
+		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
+		Pub: pub, Log: zap.NewNop(), Automod: automod.New(), Reputation: rep,
+	}
+	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
+		OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutomodEnforce: false,
+	})
+
+	require.NoError(t, p.Process(ipLoggerChat(t)))
+	assert.Empty(t, pub.got, "shadow emits nothing")
+	assert.Empty(t, rep.bumps, "and records no strike")
 }
 
 func TestReputationEscalatesTimeoutToBan(t *testing.T) {

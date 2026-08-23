@@ -112,11 +112,20 @@ func main() {
 	duel := newDuel(w, proj, loyalty)
 
 	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
-	// install their false-positive-suppression sets onto the same instance.
+	// install their false-positive-suppression sets onto the same instance. The
+	// learned layers (Vocab as ExtraEmotes provider, Baseline style ceilings) are
+	// dark-launched behind SESAME_AUTOMOD_ADAPTIVE: unset, they are never
+	// installed and span-derived emote codes stay unused at the pipeline door,
+	// keeping verdicts byte-identical to the pre-learned gate.
 	guard := automod.New()
+	if cfg.AdaptiveEnabled {
+		guard.SetExtraEmotes(automod.NewVocab())
+		guard.SetBaseline(automod.NewBaseline(automod.DefaultCeiling()))
+	}
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 		stats: loyaltyReporter, raffle: raffle, duel: duel,
+		seq: engine.NewSequencer(),
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)

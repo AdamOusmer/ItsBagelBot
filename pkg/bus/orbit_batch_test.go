@@ -77,9 +77,6 @@ func assertMessageIdentityPreserved(t *testing.T, msg *nats.Msg) {
 	if msg.Header.Get(messageIDHeader) == "" {
 		t.Fatal("lost its fleet message id during strip")
 	}
-	if msg.Header.Get(legacyMessageIDHeader) == "" {
-		t.Fatal("lost its rollout compatibility id during strip")
-	}
 }
 
 func assertBrokerDedupAbsent(t *testing.T, msg *nats.Msg) {
@@ -111,7 +108,6 @@ func stagedBatch(n int) []publishRequest {
 	for i := 0; i < n; i++ {
 		msg := nats.NewMsg("data.test.batch")
 		msg.Header.Set(messageIDHeader, "id-"+itoa(i+1))
-		msg.Header.Set(legacyMessageIDHeader, "id-"+itoa(i+1))
 		batch = append(batch, publishRequest{msg: msg})
 	}
 	return batch

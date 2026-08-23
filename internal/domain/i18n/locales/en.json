@@ -37,6 +37,8 @@
   "duel.status.pot": "Pot duel live: {count} in, {pot} {points} in the pot — drawing in ~{secs}s. Type !duel <amount> to join!",
   "duel.usage": "Usage: !duel \u003camount\u003e — !duel \u003cuser\u003e \u003camount\u003e — !duel accept|decline|cancel",
   "duel.won": "The blades fall — @{winner} defeats @{loser} and takes {pot} {points}!",
+  "emoteplay.pyramid": "{user} completed the {emote} pyramid! ({height} tall)",
+  "emoteplay.streak": "{emote} streak ×{count}!",
   "external.retry": "still looking that up, try again in a moment",
   "feed.board": "Bagel leaderboard: {places}. {standing}",
   "feed.board.empty": "Nobody has fed the bagel yet. Say \"feed the bagel\" and take first place.",

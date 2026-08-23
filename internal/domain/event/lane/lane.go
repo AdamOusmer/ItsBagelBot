@@ -10,6 +10,7 @@ package lane
 import (
 	"ItsBagelBot/pkg/codec"
 	"strconv"
+	"time"
 )
 
 // Badge is one Twitch chat badge as carried on a channel.chat.message event.
@@ -34,6 +35,21 @@ type Sender struct {
 	Badges           []Badge `json:"badges,omitempty"`
 }
 
+// EmoteSpan is one emote occurrence inside a chat message's Text. Ingress
+// copies it off the EventSub channel.chat.message emotes array onto every chat
+// envelope (and onto a squashed cohort's base event, identically). Begin/End
+// are rune indexes into the RAW Text - End exclusive - so consumers slice
+// runes, not bytes; ID is Twitch's own emote id, opaque here. The array covers
+// NATIVE Twitch emotes and cheermotes only: third-party (BTTV/FFZ/7TV) codes
+// have no EventSub entry and arrive as plain text, which is why the automod
+// still fetches those separately. Absent when the line carries no emotes;
+// unknown fields are ignored on both sides, so older/newer peers interoperate.
+type EmoteSpan struct {
+	ID    string `json:"id"`
+	Begin int    `json:"begin"`
+	End   int    `json:"end"`
+}
+
 // Envelope is the wire contract published by ingress. Consumers read exactly the
 // fields ingress writes. Every event carries its Twitch EventSub `type` and the
 // `lane` it was routed on; the rest depends on the type:
@@ -51,14 +67,15 @@ type Envelope struct {
 	// (API calls, lookups, cooldown keys), the *UserName is what the viewer set as
 	// their display name and is what chat-facing text should show. See
 	// BroadcasterName / ChatterName.
-	BroadcasterUserID    string  `json:"broadcaster_user_id,omitempty"`
-	BroadcasterUserLogin string  `json:"broadcaster_user_login,omitempty"`
-	BroadcasterUserName  string  `json:"broadcaster_user_name,omitempty"`
-	ChatterUserID        string  `json:"chatter_user_id,omitempty"`
-	ChatterUserLogin     string  `json:"chatter_user_login,omitempty"`
-	ChatterUserName      string  `json:"chatter_user_name,omitempty"`
-	Text                 string  `json:"text,omitempty"`
-	Badges               []Badge `json:"badges,omitempty"`
+	BroadcasterUserID    string      `json:"broadcaster_user_id,omitempty"`
+	BroadcasterUserLogin string      `json:"broadcaster_user_login,omitempty"`
+	BroadcasterUserName  string      `json:"broadcaster_user_name,omitempty"`
+	ChatterUserID        string      `json:"chatter_user_id,omitempty"`
+	ChatterUserLogin     string      `json:"chatter_user_login,omitempty"`
+	ChatterUserName      string      `json:"chatter_user_name,omitempty"`
+	Text                 string      `json:"text,omitempty"`
+	Badges               []Badge     `json:"badges,omitempty"`
+	Emotes               []EmoteSpan `json:"emotes,omitempty"`
 
 	// Senders is set only on a folded duplicate cohort: the identical non-command
 	// lines the ingress squash collapsed into this one channel.chat.message. When
@@ -71,6 +88,14 @@ type Envelope struct {
 
 	MsgID   string `json:"msg_id,omitempty"`
 	ShardID int    `json:"shard_id,omitempty"`
+
+	// ReceivedAt is ingress's EventSub notification receipt time (Twitch's
+	// message_timestamp, RFC 3339), published on every lane body (see
+	// app/ingress/lib/ingress/pipeline.ex). It is the only ordering signal
+	// stream.online / stream.offline carry: the consumer pool gives no
+	// cross-message ordering, so lifecycle writers compare EventVersion
+	// instead of trusting arrival order. Absent on older envelopes.
+	ReceivedAt string `json:"received_at,omitempty"`
 }
 
 // BroadcasterName is the broadcaster's Twitch display name for chat-facing text,
@@ -90,6 +115,22 @@ func (e Envelope) ChatterName() string {
 		return e.ChatterUserName
 	}
 	return e.ChatterUserLogin
+}
+
+// EventVersion returns the event's ordering version: the ReceivedAt instant as
+// unix milliseconds. Zero when the envelope predates the field or carries an
+// unparseable timestamp — callers must treat 0 as "no ordering claim" and fall
+// back to their own clock rather than letting a timestamp-less event win a
+// comparison against a stamped one.
+func (e Envelope) EventVersion() int64 {
+	if e.ReceivedAt == "" {
+		return 0
+	}
+	t, err := time.Parse(time.RFC3339, e.ReceivedAt)
+	if err != nil {
+		return 0
+	}
+	return t.UnixMilli()
 }
 
 // BroadcasterID returns the broadcaster the event belongs to as a uint64. For

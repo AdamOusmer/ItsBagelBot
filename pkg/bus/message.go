@@ -13,12 +13,6 @@ const (
 	// MessageIDHeader carries the fleet's logical message identity without
 	// enabling JetStream's broker-side deduplication index.
 	MessageIDHeader = messageIDHeader
-
-	// legacyMessageIDHeader is accepted for retained pre-migration messages and
-	// temporarily dual-written so old consumers remain safe during the native
-	// subscriber's rolling deployment. It is application identity, never a
-	// JetStream deduplication key.
-	legacyMessageIDHeader = "_watermill_message_uuid"
 )
 
 // Metadata is transport metadata copied from the NATS headers. Values are

@@ -150,7 +150,10 @@ func TestFloorImmovableAcrossLevels(t *testing.T) {
 
 // Level none disables the style checks (caps) but the floor still holds.
 func TestLevelNoneDropsStyle(t *testing.T) {
-	g := New()
+	// Loaded-empty emote set keeps caps enforcing; a never-loaded set now
+	// suppresses caps-only lines by design (TestCapsOnlyRescueByEmoteAvailability),
+	// and these tests are about level toggles, not emote availability.
+	g := newGateWithEmotes()
 	shout := "STOP SCREAMING IN CHAT RIGHT NOW PLEASE"
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
 		t.Fatalf("moderate caps should flag, got %s", v.Action)
@@ -162,7 +165,7 @@ func TestLevelNoneDropsStyle(t *testing.T) {
 }
 
 func TestStrictTightensCaps(t *testing.T) {
-	g := New()
+	g := newGateWithEmotes() // loaded-empty: caps enforcing (see TestLevelNoneDropsStyle)
 	if v := g.InspectWith(module.RoleEveryone, capsMid, nil); v.Action != ActionNone {
 		t.Fatalf("moderate: mid-caps under threshold should pass, got %s", v.Action)
 	}
@@ -191,7 +194,7 @@ func TestBlockTermFlags(t *testing.T) {
 }
 
 func TestAllowTermSuppressesNonFloor(t *testing.T) {
-	g := New()
+	g := newGateWithEmotes()                   // loaded-empty: caps enforcing (see TestLevelNoneDropsStyle)
 	shout := "SCREAMING LOUDLY HELLO EVERYONE" // caps -> would be a heuristic delete
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
 		t.Fatalf("baseline caps should flag, got %s", v.Action)
