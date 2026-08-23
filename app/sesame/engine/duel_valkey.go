@@ -305,11 +305,6 @@ func NewValkeyDuelStore(client valkey.Client, cfg DuelConfig, log *zap.Logger) *
 	return &ValkeyDuelStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log}
 }
 
-// validStake accepts exactly the ledger entries worth counting.
-func validStake(n int64, err error) bool {
-	return err == nil && n > 0
-}
-
 // readable reports whether a hash read failed outright or came back empty —
 // both mean the opener-seeded fallback stands.
 func readable(err error, m map[string]string) bool {
@@ -612,18 +607,6 @@ func (s *ValkeyDuelStore) readLedger(ctx context.Context, broadcasterID uint64) 
 		return poolSummary{}, err
 	}
 	return poolSummary{entrants: int64(len(vals)), pot: sumStakes(vals)}, nil
-}
-
-// sumStakes totals the readable stakes; an unreadable entry is skipped
-// rather than poisoning the pot.
-func sumStakes(vals []string) int64 {
-	var total int64
-	for _, v := range vals {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			total += n
-		}
-	}
-	return total
 }
 
 func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, login string) (int64, error) {
@@ -981,19 +964,6 @@ func (s *ValkeyDuelStore) autoResolve(ctx context.Context, broadcasterID uint64)
 	}
 }
 
-// parseDuelLedger converts a raw hash read into canonical stakes, dropping
-// unreadable or non-positive entries rather than poisoning the pool.
-func parseDuelLedger(m map[string]string) []DuelStake {
-	entries := make([]DuelStake, 0, len(m))
-	for login, v := range m {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if validStake(n, err) {
-			entries = append(entries, DuelStake{Login: login, Stake: n})
-		}
-	}
-	return SortDuelStakes(entries)
-}
-
 // autoDraw pays the pot to one stake-weighted winner and announces.
 func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st *DuelState) {
 	m, err := s.client.Do(ctx, s.client.B().Hgetall().
@@ -1079,12 +1049,4 @@ func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterI
 			break
 		}
 	}
-}
-
-func ledgerMap(sorted []DuelStake) map[string]int64 {
-	m := make(map[string]int64, len(sorted))
-	for _, e := range sorted {
-		m[e.Login] = e.Stake
-	}
-	return m
 }
