@@ -195,19 +195,15 @@ func (s *ValkeyLoyaltyClock) Disarm(ctx context.Context, broadcasterID uint64) {
 	if broadcasterID == 0 {
 		return
 	}
-	s.forget(broadcasterID)
+	// The ledgers only describe the current live session, so they go with the
+	// tick key: the next stream starts from a clean streak and cadence.
+	s.tmu.Lock()
+	delete(s.failures, broadcasterID)
+	delete(s.fires, broadcasterID)
+	s.tmu.Unlock()
 	if err := s.client.Do(ctx, s.client.B().Del().Key(loyaltyTickKey(broadcasterID)).Build()).Error(); err != nil {
 		s.log.Warn("loyalty: failed to disarm watch tick", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
-}
-
-// forget drops a broadcaster's failure streak and fire count — the ledgers
-// only describe the current live session.
-func (s *ValkeyLoyaltyClock) forget(broadcasterID uint64) {
-	s.tmu.Lock()
-	defer s.tmu.Unlock()
-	delete(s.failures, broadcasterID)
-	delete(s.fires, broadcasterID)
 }
 
 // rearmIfLive arms mid-stream (module enabled from the dashboard while live).
@@ -350,20 +346,19 @@ func (s *ValkeyLoyaltyClock) onExpired(ctx context.Context, key string) {
 	if !strings.HasPrefix(key, loyaltyTickKeyPrefix) || strings.HasPrefix(key, loyaltyTickClaimPrefix) {
 		return
 	}
-	idStr := strings.TrimPrefix(key, loyaltyTickKeyPrefix)
-	broadcasterID, err := strconv.ParseUint(idStr, 10, 64)
+	broadcasterID, err := strconv.ParseUint(strings.TrimPrefix(key, loyaltyTickKeyPrefix), 10, 64)
 	if err != nil || broadcasterID == 0 {
 		return
 	}
-	go s.fire(ctx, idStr, broadcasterID)
+	go s.fire(ctx, broadcasterID)
 }
 
 // fire claims one tick fleet-wide, re-validates live state and module config,
 // accrues one tick over the current chatter list, then re-arms. A failed
 // attempt still re-arms — it must not stop the clock for the rest of the
-// stream — but re-arms short when the cause may be gone (see afterFailure).
-func (s *ValkeyLoyaltyClock) fire(ctx context.Context, idStr string, broadcasterID uint64) {
-	claimKey := loyaltyTickClaimPrefix + idStr
+// stream — but re-arms short when the cause may be gone (see settle).
+func (s *ValkeyLoyaltyClock) fire(ctx context.Context, broadcasterID uint64) {
+	claimKey := loyaltyTickClaimPrefix + strconv.FormatUint(broadcasterID, 10)
 	got, err := s.client.Do(ctx, s.client.B().Set().Key(claimKey).Value("1").Nx().
 		ExSeconds(int64(loyaltyTickClaimTTL.Seconds())).Build()).ToString()
 	if err != nil || got != "OK" {
@@ -374,7 +369,7 @@ func (s *ValkeyLoyaltyClock) fire(ctx context.Context, idStr string, broadcaster
 	if err != nil {
 		// The read failed rather than answering offline; retry soon instead of
 		// sitting out until the reconciler's next sweep.
-		s.rearm(ctx, broadcasterID, s.afterFailure(broadcasterID, err))
+		s.rearmAfterFailure(ctx, broadcasterID, err)
 		return
 	}
 	if !live {
@@ -386,17 +381,15 @@ func (s *ValkeyLoyaltyClock) fire(ctx context.Context, idStr string, broadcaster
 	}
 
 	if err := s.accrue(ctx, broadcasterID, cfg); err != nil {
-		s.rearm(ctx, broadcasterID, s.afterFailure(broadcasterID, err))
+		s.rearmAfterFailure(ctx, broadcasterID, err)
 		return
 	}
-	s.resetFailures(broadcasterID)
+	s.rearm(ctx, broadcasterID, s.settleSuccess(ctx, broadcasterID))
+}
 
-	if s.noteFire(broadcasterID)%watchTickReconfirmEvery == 0 {
-		s.requestLiveRecheck(ctx, broadcasterID)
-	}
-
-	// Exact interval on re-arm: the first fire's jitter set the phase.
-	s.rearm(ctx, broadcasterID, watchTickInterval)
+// rearmAfterFailure records a failed attempt and re-arms at its policy delay.
+func (s *ValkeyLoyaltyClock) rearmAfterFailure(ctx context.Context, broadcasterID uint64, cause error) {
+	s.rearm(ctx, broadcasterID, s.settleFailure(broadcasterID, cause))
 }
 
 // rearm sets the tick key's next expiry. NX keeps a reconciler arm that raced
@@ -479,12 +472,29 @@ func (e *chattersError) Error() string {
 	return e.message
 }
 
-// afterFailure records one failed attempt and picks the next re-arm delay.
+// settleSuccess folds a good tick into the ledgers: it clears the failure
+// streak, advances the reconfirm cadence (publishing the periodic live
+// re-check when due) and answers the next re-arm delay — the exact interval,
+// since the first fire's jitter set the phase.
+func (s *ValkeyLoyaltyClock) settleSuccess(ctx context.Context, broadcasterID uint64) time.Duration {
+	confirm := false
+	s.tmu.Lock()
+	delete(s.failures, broadcasterID)
+	s.fires[broadcasterID]++
+	confirm = s.fires[broadcasterID]%watchTickReconfirmEvery == 0
+	s.tmu.Unlock()
+	if confirm {
+		s.requestLiveRecheck(ctx, broadcasterID)
+	}
+	return watchTickInterval
+}
+
+// settleFailure records one failed attempt and answers its re-arm delay.
 // Persistent trouble escalates the log level once per streak — at
 // loyaltyEscalationLevel every line becomes an actionable Error naming the
 // two real-world causes (stale grant scope, lost moderator seat) instead of
 // an identical Warn repeating forever.
-func (s *ValkeyLoyaltyClock) afterFailure(broadcasterID uint64, cause error) time.Duration {
+func (s *ValkeyLoyaltyClock) settleFailure(broadcasterID uint64, cause error) time.Duration {
 	s.tmu.Lock()
 	n := s.failures[broadcasterID] + 1
 	s.failures[broadcasterID] = n
@@ -503,24 +513,7 @@ func (s *ValkeyLoyaltyClock) afterFailure(broadcasterID uint64, cause error) tim
 	return rearmAfterFailure(n)
 }
 
-// resetFailures clears a broadcaster's failure streak after a good tick, so
-// the escalation level measures a continuous problem rather than history.
-func (s *ValkeyLoyaltyClock) resetFailures(broadcasterID uint64) {
-	s.tmu.Lock()
-	delete(s.failures, broadcasterID)
-	s.tmu.Unlock()
-}
-
-// noteFire counts one successful fire toward the reconfirm cadence and
-// returns the running count.
-func (s *ValkeyLoyaltyClock) noteFire(broadcasterID uint64) int {
-	s.tmu.Lock()
-	defer s.tmu.Unlock()
-	s.fires[broadcasterID]++
-	return s.fires[broadcasterID]
-}
-
-// rearmAfterFailure is the pure policy behind afterFailure: the first couple
+// rearmAfterFailure is the pure policy behind settleFailure: the first couple
 // of failures retry inside a minute (a blip then costs viewers one minute,
 // not one window), anything longer-standing waits out the normal interval so
 // a hard-down dependency stops spending Helix calls. The reconciler still
