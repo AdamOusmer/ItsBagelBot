@@ -197,11 +197,7 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, bet, roll int64
 		gc.reply(emit, "", "gamble.err")
 		return nil
 	}
-	gc.reply(emit, gc.tmpl.WinMessage, "gamble.win",
-		"roll", strconv.FormatInt(roll, 10),
-		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
-		"amount", strconv.FormatInt(bet, 10),
-		"balance", strconv.FormatInt(newBal.Points, 10))
+	gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", roll, bet, newBal.Points)
 	return nil
 }
 
@@ -219,12 +215,18 @@ func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int6
 			"balance", strconv.FormatInt(newBal.Points, 10))
 		return nil
 	}
-	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
+	gc.announce(emit, gc.tmpl.LoseMessage, "gamble.lose", roll, bet, newBal.Points)
+	return nil
+}
+
+// announce emits one settled-wager line; every outcome line carries the same
+// four tokens (the dice and the money), only the template differs.
+func (gc gambleCmd) announce(emit module.Emit, override, key string, roll, bet, balance int64) {
+	gc.reply(emit, override, key,
 		"roll", strconv.FormatInt(roll, 10),
 		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
 		"amount", strconv.FormatInt(bet, 10),
-		"balance", strconv.FormatInt(newBal.Points, 10))
-	return nil
+		"balance", strconv.FormatInt(balance, 10))
 }
 
 // viewerID parses the chatter's Twitch id for balance reads; chat events
