@@ -267,7 +267,13 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		if strings.HasPrefix(base, botCounterTokenPrefix) {
 			continue // bot counters are admin-only; the token stays visible
 		}
-		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, base, viewer, command, 1)
+		value, err := p.loyalty.CounterBump(ctx, CounterBump{
+			BroadcasterID: c.BroadcasterID,
+			Name:          base,
+			Viewer:        viewer,
+			Command:       command,
+			Delta:         1,
+		})
 		if err != nil {
 			p.log.Warn("counter token bump failed",
 				zap.Uint64("broadcaster_id", c.BroadcasterID),
@@ -282,10 +288,14 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 }
 
 // firstArg returns the first whitespace-delimited word of a command's
-// arguments — the same word emitResponse renders as {touser}.
+// arguments — the same word emitResponse renders as {touser}. Fields rather
+// than a space Cut so a tab after the mention cannot glue itself to the name.
 func firstArg(args string) string {
-	word, _, _ := strings.Cut(args, " ")
-	return word
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }
 
 // gateRule is the set of checks one command is gated by, so the gate takes a
