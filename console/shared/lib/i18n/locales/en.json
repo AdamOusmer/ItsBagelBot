@@ -985,5 +985,29 @@
       "step2": "Choose \"Add to Home Screen\".",
       "close": "Close"
     }
+  },
+  "leaderboard": {
+    "title": "{channel} leaderboard",
+    "metaDescription": "The most loyal viewers of {channel} on ItsBagelBot \u2014 points earned and time watched, updated live.",
+    "eyebrow": "Hall of fame",
+    "headlinePrefix": "the leaderboard of",
+    "tagline": "Every point {channel}'s community has earned by watching live, subscribing, gifting and cheering \u2014 all in one place.",
+    "visitChannel": "Visit channel page",
+    "podiumLabel": "Top three viewers",
+    "boardLabel": "Full standings",
+    "boardTitle": "Standings",
+    "boardNote": "Ranked by points earned in {channel}'s chat.",
+    "colRank": "Rank",
+    "colViewer": "Viewer",
+    "colWatched": "Watched",
+    "colPoints": "Points",
+    "watchUnit": "hrs",
+    "anonymousViewer": "mystery viewer",
+    "soloNote": "The podium stands alone so far \u2014 someone has to be second.",
+    "rankedNote": "Showing the top {count} of {channel}'s regulars",
+    "emptyTitle": "No legends yet",
+    "emptyBody": "This board fills up as {channel}'s community watches live, subscribes, gifts and cheers. Tune in and claim the top spot.",
+    "degraded": "Live standings are temporarily unavailable. They will catch up on their own.",
+    "earnNote": "Earned by watching live \u00b7 subs \u00b7 gifts \u00b7 cheers"
   }
 }
