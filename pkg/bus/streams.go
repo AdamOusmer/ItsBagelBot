@@ -442,6 +442,64 @@ var TwitchIngressRetryStream = StreamSpec{
 // load-bearing wherever this slice is reconciled: the narrowing must land before
 // the create, or the create is refused for overlap. See the migration note on
 // TwitchIngressStandardStream.
+// Sends here cost 50 quota units each (see internal/youtube.Budget), so the
+// perishability is doubly right: dropping a send nobody will ever read is
+// strictly better than spending real daily budget on it.
+var YouTubeOutgressStream = StreamSpec{
+	Name:         "YOUTUBE_OUTGRESS",
+	Subjects:     []string{"youtube.outgress.premium", "youtube.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     64 << 20, // 64 MiB: YouTube chat volume is far below Twitch's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// MaxBytes is 32 MiB, not the 64 MiB the YouTube twin carries: each memory
+// stream costs its byte cap three times per hub peer (replica + RAFT WAL) plus
+// one 128 MiB ingest queue, and TestMemoryStreamsFitTheHubMemoryBudget holds
+// the sum under the pod's 5 GiB limit. At announcement volume 32 MiB under R3
+// is a deep lag budget; growing it is a deliberate edit there.
+var DiscordOutgressStream = StreamSpec{
+	Name:         "DISCORD_OUTGRESS",
+	Subjects:     []string{"discord.outgress.premium", "discord.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     32 << 20, // 32 MiB: announcement volume is far below Twitch chat's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// Ownership is deliberately outgress for now: it is the only consumer of
+// these subjects today (the lifecycle lane feeds the live-chat directory).
+// When a YouTube sesame exists, reconciliation moves there.
+var YouTubeIngressStream = StreamSpec{
+	Name: "YOUTUBE_INGRESS",
+	Subjects: []string{
+		"youtube.ingress.event.premium",
+		"youtube.ingress.event.standard",
+		"youtube.ingress.event.stream",
+		// Status rides along under the same 10s window, mirroring how
+		// TWITCH_INGRESS carries twitch.ingress.status.>: observability with a
+		// self-expiring replay window.
+		"youtube.ingress.status.>",
+	},
+	Retention: nats.LimitsPolicy,
+	MaxAge:    10 * time.Second,
+	Storage:   nats.MemoryStorage,
+	Replicas:  3,
+	// 32 MiB under R3 is trivially inside the hub's memory budget at YouTube
+	// volume; MaxMsgsPer keeps one hot channel from evicting lifecycle events
+	// the directory consumer still needs.
+	MaxBytes:     32 << 20,
+	MaxMsgsPer:   100_000,
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
+
 var DataStreams = []StreamSpec{
 	BagelDataStream,
 	TwitchIngressStream,
