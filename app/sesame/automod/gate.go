@@ -31,6 +31,24 @@ const (
 	repeatRun      = 8 // same rune repeated this many times in a row
 )
 
+// channelID scopes a judged line to its broadcaster for every per-channel
+// layer: the learned style/vocab adaptation, purge-on-strike, and the emote
+// rescues. Zero means "channel unknown" and keeps every learned layer inert.
+// Internal only - callers hand the raw id in through WithChannel, which stays
+// the option API's bare uint64 and converts at the boundary.
+type channelID uint64
+
+// styleLimits is the EFFECTIVE caps/symbol ratio ceiling pair a line is
+// judged against: the profile-resolved static values raised through the
+// channel's learned baseline (styleThresholds). One value instead of two bare
+// floats so the thresholds travel as the single concept they are through
+// staticStyleFlags and restripe; caps judges the uppercased-letter fraction,
+// symbol the symbol-rune fraction (each still gated by its absolute count).
+type styleLimits struct {
+	caps   float64
+	symbol float64
+}
+
 // Gate is the inline automod. Safe for concurrent use: categories are read-only
 // after New, the emote set and lexicon are swapped atomically, and skeleton
 // buffers come from a pool.
@@ -98,7 +116,7 @@ type Signals struct {
 // existing call site having to grow an argument they do not care about.
 type AssessOption struct {
 	msgCodes map[string]struct{}
-	ch       uint64
+	ch       channelID
 	sender   string
 }
 
@@ -114,7 +132,7 @@ func WithMessageEmotes(codes map[string]struct{}) AssessOption {
 // (baseline style adaptation, learned vocabulary, purge-on-strike). The zero
 // value keeps every learned layer inert - callers that do not know their
 // channel (legacy call sites, most tests) see byte-identical behavior.
-func WithChannel(ch uint64) AssessOption { return AssessOption{ch: ch} }
+func WithChannel(ch uint64) AssessOption { return AssessOption{ch: channelID(ch)} }
 
 // WithChatter names who sent the line, feeding Vocab's d-sender consensus.
 // Empty (or a cohort fold, which carries one attributed sender) still counts
@@ -154,7 +172,7 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config, opts ...A
 // assessScope is the resolved option set Assess acts on.
 type assessScope struct {
 	msgCodes map[string]struct{}
-	ch       uint64
+	ch       channelID
 	sender   string
 }
 
@@ -194,7 +212,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// Learned layers observe every judged line BEFORE any verdict resolves, so
 	// hype-channel chatter feeds the models regardless of outcome. Inert unless
 	// a provider was wired AND the caller scoped the line to a channel.
-	g.observeLearned(sc.ch, sc.sender, text, sig)
+	g.observeLearned(uint64(sc.ch), sc.sender, text, sig)
 	flags := g.resolveStyle(sig, sec, sc.ch, text)
 
 	if g.cleanPathBail(sig, flags, cfg, text) {
@@ -218,7 +236,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// Immovable floor, part 2: the hate lexicon acts under every profile and is
 	// never suppressed by an allow-term.
 	if cat == moderation.CatHate {
-		g.purgeLearned(sc.ch, text)
+		g.purgeLearned(uint64(sc.ch), text)
 		return Verdict{Action: ActionTimeout, Seconds: 1800, Rule: "lex:hate:" + term}, out
 	}
 
@@ -227,16 +245,16 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	allowed := cfg.allows(skel)
 	if !allowed {
 		if v, ok := lexVerdict(cat, term, sec); ok {
-			g.purgeLearned(sc.ch, text)
+			g.purgeLearned(uint64(sc.ch), text)
 			return v, out
 		}
 		if v, ok := cfg.blockTermVerdict(skel); ok {
-			g.purgeLearned(sc.ch, text)
+			g.purgeLearned(uint64(sc.ch), text)
 			return v, out
 		}
 	}
 
-	return g.heuristicVerdict(sig, flags, allowed, text, sc.msgCodes, sc.ch), out
+	return g.heuristicVerdict(sig, flags, allowed, text, sc), out
 }
 
 // styleFlags are the per-line heuristic signals, resolved under the channel's
@@ -276,39 +294,40 @@ func (f styleFlags) onlySymbol() bool { return f.symbol && !f.zeroWidth && !f.re
 //
 // Both branches run only after a flag already fired on the static view, so an
 // unwired gate pays nothing beyond the original comparison.
-func (g *Gate) resolveStyle(sig signals, sec sections, ch uint64, text string) styleFlags {
-	capsThresh, symRatio := g.styleThresholds(ch, sec.capsThresh, symbolRatioHi)
-	flags := staticStyleFlags(sig, sec, capsThresh, symRatio)
+func (g *Gate) resolveStyle(sig signals, sec sections, ch channelID, text string) styleFlags {
+	lim := g.styleThresholds(ch, sec)
+	flags := staticStyleFlags(sig, sec, lim)
 	if flags.caps || flags.symbol {
-		if adj, stripped := g.stripLearned(sig, text, ch); stripped {
-			flags.restripe(adj, sec, capsThresh, symRatio)
+		if adj, stripped := g.stripLearned(sig, text, uint64(ch)); stripped {
+			flags.restripe(adj, sec, lim)
 		}
 	}
 	return flags
 }
 
-// styleThresholds raises the profile-resolved static values through the
-// channel's learned baseline (Baseline.Adjust bottoms out at them, so the move
-// is raise-only); a cold or unwired channel sees the static thresholds
-// verbatim.
-func (g *Gate) styleThresholds(ch uint64, capsThresh, symRatio float64) (float64, float64) {
+// styleThresholds resolves the effective ceiling pair for a line: the
+// profile-resolved static values raised through the channel's learned
+// baseline (Baseline.Adjust bottoms out at them, so the move is raise-only);
+// a cold or unwired channel sees the static thresholds verbatim.
+func (g *Gate) styleThresholds(ch channelID, sec sections) styleLimits {
+	lim := styleLimits{caps: sec.capsThresh, symbol: symbolRatioHi}
 	if bl := g.baseline.Load(); bl != nil && ch != 0 {
-		capsThresh = bl.Adjust(ch, KindCaps, capsThresh)
-		symRatio = bl.Adjust(ch, KindSymbol, symRatio)
+		lim.caps = bl.Adjust(uint64(ch), KindCaps, lim.caps)
+		lim.symbol = bl.Adjust(uint64(ch), KindSymbol, lim.symbol)
 	}
-	return capsThresh, symRatio
+	return lim
 }
 
 // staticStyleFlags resolves the per-line heuristic signals under the channel's
 // sections and the effective thresholds. Zero-width injection is an evasion
 // signal checked under every level; repeat/caps/symbol are the toggleable
 // style section.
-func staticStyleFlags(sig signals, sec sections, capsThresh, symRatio float64) styleFlags {
+func staticStyleFlags(sig signals, sec sections, lim styleLimits) styleFlags {
 	return styleFlags{
 		zeroWidth: sig.zeroWidth > 0,
 		repeat:    sec.style && sig.maxRepeat >= repeatRun,
-		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= capsThresh,
-		symbol:    sec.style && sig.symbols >= symbolMinCount && sig.symbolRatio() >= symRatio,
+		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= lim.caps,
+		symbol:    sec.style && sig.symbols >= symbolMinCount && sig.symbolRatio() >= lim.symbol,
 	}
 }
 
@@ -318,9 +337,9 @@ func staticStyleFlags(sig signals, sec sections, capsThresh, symRatio float64) s
 // otherwise the static flags stand. Only style evidence yields: zeroWidth and
 // repeat-run are evasion signals computed once from the full line and never
 // suppressed.
-func (f *styleFlags) restripe(adj signals, sec sections, capsThresh, symRatio float64) {
-	f.caps = sec.style && adj.capsRatio() >= capsThresh
-	f.symbol = sec.style && adj.symbols >= symbolMinCount && adj.symbolRatio() >= symRatio
+func (f *styleFlags) restripe(adj signals, sec sections, lim styleLimits) {
+	f.caps = sec.style && adj.capsRatio() >= lim.caps
+	f.symbol = sec.style && adj.symbols >= symbolMinCount && adj.symbolRatio() >= lim.symbol
 }
 
 // cleanPathBail reports whether a line skips the deep path entirely: a short
@@ -402,11 +421,11 @@ func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Ca
 // passed: the two single-explanation rescues (evaluateRescues) may suppress a
 // flagged line toward ActionNone, an allow-term suppresses every heuristic,
 // and anything still standing deletes.
-func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, text string, msgCodes map[string]struct{}, ch uint64) Verdict {
+func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, text string, sc assessScope) Verdict {
 	if !flags.any() {
 		return Verdict{}
 	}
-	if g.evaluateRescues(sig, flags, text, msgCodes, ch) {
+	if g.evaluateRescues(sig, flags, text, sc) {
 		return Verdict{}
 	}
 	if allowed {
@@ -440,14 +459,14 @@ func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, tex
 //     least half the non-space runes the line is hype, not abuse.
 //
 // Zero-width, repeat, and multi-flag shapes are never suppressed.
-func (g *Gate) evaluateRescues(sig signals, flags styleFlags, text string, msgCodes map[string]struct{}, ch uint64) bool {
+func (g *Gate) evaluateRescues(sig signals, flags styleFlags, text string, sc assessScope) bool {
 	if flags.onlyCaps() {
 		// Span presence makes availability true; dominance then decides. No
 		// spans -> fetched-layer semantics verbatim.
-		if g.emoteDominant(text, msgCodes, ch) {
+		if g.emoteDominant(text, sc.msgCodes, uint64(sc.ch)) {
 			return true
 		}
-		return len(msgCodes) == 0 && g.emotesUnavailable()
+		return len(sc.msgCodes) == 0 && g.emotesUnavailable()
 	}
 	return flags.onlySymbol() && sig.emojiDominant()
 }

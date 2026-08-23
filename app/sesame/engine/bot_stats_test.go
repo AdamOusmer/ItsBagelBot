@@ -319,7 +319,7 @@ func TestFlagBucketClassification(t *testing.T) {
 		{"mystery:rule:x", "other"},
 	}
 	for _, tc := range tests {
-		assert.Equalf(t, tc.want, flagRuleNames[flagBucket(tc.rule)], "rule %q", tc.rule)
+		assert.Equalf(t, tc.want, string(flagRuleNames[flagBucket(flagRule(tc.rule))]), "rule %q", tc.rule)
 	}
 }
 
@@ -369,13 +369,13 @@ func TestFlagVerdictCountersAccuracy(t *testing.T) {
 			t.Cleanup(s.Close)
 
 			for _, op := range tc.ops {
-				s.flag(op.broadcasterID, op.rule, op.enforced)
+				s.flag(op.broadcasterID, flagRule(op.rule), op.enforced)
 			}
 
 			assert.Equal(t, tc.wantTotal, s.flagsTotal.Load())
 			assert.Equal(t, tc.wantEnforced, s.flagsEnforced.Load())
 			for i, name := range flagRuleNames {
-				assert.Equalf(t, tc.wantRules[name], s.flagsByRule[i].Load(), "bucket %s", name)
+				assert.Equalf(t, tc.wantRules[string(name)], s.flagsByRule[i].Load(), "bucket %s", name)
 			}
 
 			s.mu.Lock()
@@ -400,7 +400,7 @@ func TestFlagBucketsRespectSlotCap(t *testing.T) {
 	t.Cleanup(s.Close)
 
 	for i := 0; i < flagRuleSlotCap*10; i++ {
-		s.flag(123, "unknown:"+strconv.Itoa(i), true)
+		s.flag(123, flagRule("unknown:"+strconv.Itoa(i)), true)
 	}
 	assert.Equal(t, int64(flagRuleSlotCap*10), s.flagsByRule[bktOther].Load(), "all fold into other")
 	assert.Equal(t, int64(flagRuleSlotCap*10), s.flagsTotal.Load())

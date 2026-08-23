@@ -56,30 +56,33 @@ const (
 	flagRuleSlotCap = 24
 )
 
-// The verdict rule strings the automod emits, mirrored as constants so the
-// per-rule flag buckets stay in sync with what moderate.go logs. Sources:
-// automod/rules.go floor categories ("ip_logger", "scam"), gate.go's
+// flagRule is the verdict rule string the automod emits (gate.go's
 // heuristicVerdict/blockTermVerdict, lexVerdict's "lex:<cat>:<term>" prefixes,
-// and moderate.go's council/reputation suffixes ("council:campaign",
-// "+campaign", "+repeat"). A verdict carrying suffixes is classified by its
-// base rule, so "scam+campaign+repeat" lands on scam: enumerating every
-// suffix combination would triple the bucket set for little audit value.
+// moderate.go's council/reputation suffixes), named so the per-rule flag
+// buckets stay in sync with what moderate.go logs: the whole lookup chain
+// below (flag -> flagBucket -> baseRuleBucket) is typed on it, and a Verdict
+// crosses over at the stats boundary via flagRule(v.Rule). A verdict carrying
+// suffixes is classified by its base rule, so "scam+campaign+repeat" lands on
+// scam: enumerating every suffix combination would triple the bucket set for
+// little audit value.
+type flagRule string
+
 const (
-	ruleIPLogger       = "ip_logger"
-	ruleScam           = "scam"
-	ruleHeuristic      = "heuristic"
-	ruleBlockTerm      = "block_term"
-	ruleLexHate        = "lex:hate:"
-	ruleLexHarassment  = "lex:harassment:"
-	ruleLexSexual      = "lex:sexual:"
-	ruleLexProfanity   = "lex:profanity:"
-	ruleCouncil        = "council:campaign"
-	ruleSuffixRepeat   = "+repeat"
-	ruleSuffixCampaign = "+campaign"
+	ruleIPLogger       flagRule = "ip_logger"
+	ruleScam           flagRule = "scam"
+	ruleHeuristic      flagRule = "heuristic"
+	ruleBlockTerm      flagRule = "block_term"
+	ruleLexHate        flagRule = "lex:hate:"
+	ruleLexHarassment  flagRule = "lex:harassment:"
+	ruleLexSexual      flagRule = "lex:sexual:"
+	ruleLexProfanity   flagRule = "lex:profanity:"
+	ruleCouncil        flagRule = "council:campaign"
+	ruleSuffixRepeat   flagRule = "+repeat"
+	ruleSuffixCampaign flagRule = "+campaign"
 	// ruleShieldMode mirrors outgress.TypeShieldMode: the mass-raid channel
 	// escalation counted as its own detection event.
-	ruleShieldMode = "shield_mode"
-	ruleOther      = "other"
+	ruleShieldMode flagRule = "shield_mode"
+	ruleOther      flagRule = "other"
 )
 
 // flagRuleBucket indexes flagsByRule; the order defines the log-field names.
@@ -100,7 +103,7 @@ const (
 	bktCount
 )
 
-var flagRuleNames = [bktCount]string{
+var flagRuleNames = [bktCount]flagRule{
 	bktIPLogger:      ruleIPLogger,
 	bktScam:          ruleScam,
 	bktHeuristic:     ruleHeuristic,
@@ -117,7 +120,7 @@ var flagRuleNames = [bktCount]string{
 // flagBucket maps a full verdict rule string onto its bucket: strip the known
 // escalation suffixes, then match the base exactly (floor/heuristic/block
 // term/council) or by lexicon category prefix.
-func flagBucket(rule string) flagRuleBucket {
+func flagBucket(rule flagRule) flagRuleBucket {
 	return baseRuleBucket(stripRuleSuffixes(rule))
 }
 
@@ -126,15 +129,15 @@ func flagBucket(rule string) flagRuleBucket {
 // ("scam+campaign+repeat"), so the fold loops until neither matches; a verdict
 // carrying suffixes is classified by its base rule, since enumerating every
 // suffix combination would triple the bucket set for little audit value.
-func stripRuleSuffixes(rule string) string {
+func stripRuleSuffixes(rule flagRule) flagRule {
 	base := rule
 	for {
-		if s, ok := strings.CutSuffix(base, ruleSuffixRepeat); ok {
-			base = s
+		if s, ok := strings.CutSuffix(string(base), string(ruleSuffixRepeat)); ok {
+			base = flagRule(s)
 			continue
 		}
-		if s, ok := strings.CutSuffix(base, ruleSuffixCampaign); ok {
-			base = s
+		if s, ok := strings.CutSuffix(string(base), string(ruleSuffixCampaign)); ok {
+			base = flagRule(s)
 			continue
 		}
 		break
@@ -146,7 +149,7 @@ func stripRuleSuffixes(rule string) string {
 // built once at package init. The lexicon categories are absent on purpose:
 // their verdict strings carry a term suffix ("lex:hate:slur"), so they match
 // by prefix in baseRuleBucket's fallback, not by whole-string equality.
-var baseRuleBuckets = map[string]flagRuleBucket{
+var baseRuleBuckets = map[flagRule]flagRuleBucket{
 	ruleIPLogger:   bktIPLogger,
 	ruleScam:       bktScam,
 	ruleHeuristic:  bktHeuristic,
@@ -160,7 +163,7 @@ var baseRuleBuckets = map[string]flagRuleBucket{
 // disjoint, non-overlapping prefixes is cheaper to keep correct than a second
 // map keyed on truncated strings.
 var lexBaseRules = [...]struct {
-	prefix string
+	prefix flagRule
 	bucket flagRuleBucket
 }{
 	{ruleLexHate, bktLexHate},
@@ -172,12 +175,12 @@ var lexBaseRules = [...]struct {
 // baseRuleBucket resolves a suffix-free base rule onto its bucket: an exact
 // hit against the floor/heuristic/block-term/council/shield set, else a
 // lexicon category prefix, else other.
-func baseRuleBucket(base string) flagRuleBucket {
+func baseRuleBucket(base flagRule) flagRuleBucket {
 	if bkt, ok := baseRuleBuckets[base]; ok {
 		return bkt
 	}
 	for _, lx := range lexBaseRules {
-		if strings.HasPrefix(base, lx.prefix) {
+		if strings.HasPrefix(string(base), string(lx.prefix)) {
 			return lx.bucket
 		}
 	}
@@ -287,8 +290,9 @@ func (s *botStats) count(broadcasterID uint64, isChat bool) {
 
 // flag records one automod verdict: fleet total, enforced subset when the
 // action was actually emitted, and the rule's bucket. broadcasterID 0 (an
-// unreadable channel) still counts fleet-wide, like count.
-func (s *botStats) flag(broadcasterID uint64, rule string, enforced bool) {
+// unreadable channel) still counts fleet-wide, like count. The rule crosses
+// from Verdict.Rule via flagRule(v.Rule) at the moderate.go call sites.
+func (s *botStats) flag(broadcasterID uint64, rule flagRule, enforced bool) {
 	if s == nil {
 		return
 	}
@@ -378,7 +382,7 @@ func (s *botStats) flushFlags() {
 		zap.Int64(flagFieldEnforced, s.flagsEnforced.Swap(0)))
 	for i, name := range flagRuleNames {
 		if d := s.flagsByRule[i].Swap(0); d != 0 {
-			fields = append(fields, zap.Int64(flagFieldRulePfx+name, d))
+			fields = append(fields, zap.Int64(flagFieldRulePfx+string(name), d))
 		}
 	}
 	s.log.Debug("automod detection flags", fields...)
