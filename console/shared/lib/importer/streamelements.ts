@@ -340,10 +340,13 @@ function flexText(v: unknown): string {
 
 function textElement(el: unknown): string {
   if (typeof el === 'string') return el;
-  if (el !== null && typeof el === 'object' && typeof (el as Record<string, unknown>).text === 'string') {
-    return (el as Record<string, unknown>).text as string;
-  }
-  throw new TypeError('timer message array elements must be strings or {text} objects');
+  if (!isTextObject(el)) throw new TypeError('timer message array elements must be strings or {text} objects');
+  return (el as Record<string, unknown>).text as string;
+}
+
+function isTextObject(el: unknown): boolean {
+  if (el === null || typeof el !== 'object') return false;
+  return typeof (el as Record<string, unknown>).text === 'string';
 }
 
 interface BotTimer {
