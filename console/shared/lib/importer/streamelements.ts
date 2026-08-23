@@ -506,11 +506,25 @@ function omitIfEmpty(m: ImportManifest, key: 'commands' | 'timers'): void {
 // kappa v2 envelope, mirroring the Go decoder's error prose.
 function decodeSeEnvelope(raw: Uint8Array | string): Record<string, unknown> {
   const doc = parseEnvelopeJson(decodeText(raw));
-  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) throw notEnvelope('JSON must be an object');
+  if (!isPlainObject(doc)) throw notEnvelope('JSON must be an object');
   const env = doc as Record<string, unknown>;
-  requireArrayField(env, 'commands');
-  requireArrayField(env, 'timers');
+  arrayFieldOrThrow(env, 'commands');
+  arrayFieldOrThrow(env, 'timers');
   return env;
+}
+
+function isPlainObject(doc: unknown): boolean {
+  if (doc === null || typeof doc !== 'object') return false;
+  return !Array.isArray(doc);
+}
+
+// arrayFieldOrThrow accepts a missing key (treated as empty) and refuses
+// present-yet-non-array values exactly like the Go decoder.
+function arrayFieldOrThrow(env: Record<string, unknown>, field: string): unknown[] {
+  const value = env[field];
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw notEnvelope(`${field} must be an array`);
+  return value;
 }
 
 function decodeText(raw: Uint8Array | string): string {
@@ -527,11 +541,6 @@ function parseEnvelopeJson(text: string): unknown {
 
 function notEnvelope(reason: string): Error {
   return new Error(`streamelements: payload is not a commands/timers envelope: ${reason}`);
-}
-
-function requireArrayField(env: Record<string, unknown>, field: string): void {
-  const value = env[field];
-  if (value !== undefined && !Array.isArray(value)) throw notEnvelope(`${field} must be an array`);
 }
 
 // NoteSink accumulates the per-item warn diagnostics that also surface on the
@@ -840,7 +849,7 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
 
   const { text, warns } = translateVariables(t.text);
   for (const tok of warns) {
-    diags.push(warnDiag(idx, 'timer_variable_unmapped',
+    diags.push(warnDiag(idx, SE_CODE.timerVariableUnmapped,
       `timer message uses ${tok}, which has no equivalent; left as literal text`));
   }
 

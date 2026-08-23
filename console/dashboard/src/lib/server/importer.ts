@@ -308,7 +308,9 @@ async function resolveCollisions(
   return existingNames && !overwrite ? findCollisions(existingNames, manifest) : [];
 }
 
-function collisionNames(collisions: CommitResponse['skipped'], kind: string): Set<string> {
+type CollisionKind = 'command' | 'counter';
+
+function collisionNames(collisions: CommitResponse['skipped'], kind: CollisionKind): Set<string> {
   return new Set((collisions ?? []).filter((c) => c.kind === kind).map((c) => c.name));
 }
 
@@ -329,6 +331,18 @@ async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeo
 // moduleBlob exposes one module's stored configs for client-side merging.
 function moduleBlob(ctx: CommitContext, name: string): Record<string, unknown> {
   return (ctx.modules?.find((m) => m.name === name)?.configs as Record<string, unknown> | undefined) ?? {};
+}
+
+// ModulePatch names one modules-service blob patch request.
+interface ModulePatch {
+  name: 'timers' | 'triggers' | 'automod';
+  configs: Record<string, unknown>;
+}
+
+// patchModule patches one of the channel's module blobs through the modules
+// service; every blob leg funnels through this single request builder.
+async function patchModule(ctx: CommitContext, patch: ModulePatch): Promise<void> {
+  await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: patch.name, is_enabled: true, configs: patch.configs });
 }
 
 // commitCommands upserts the eligible commands in sequential chunks of
@@ -480,7 +494,7 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
     } satisfies TimerDef);
   }
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'timers', is_enabled: true, configs: { timers: merged } });
+    await patchModule(ctx, { name: 'timers', configs: { timers: merged } });
     ctx.applied.timers += targets.length;
   } catch (err) {
     ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module timers patch failed: ${String(err)}`));
@@ -514,7 +528,7 @@ async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>):
   }
   if (landed === 0) return;
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'triggers', is_enabled: true, configs: { rules: lines.join('\n') } });
+    await patchModule(ctx, { name: 'triggers', configs: { rules: lines.join('\n') } });
     ctx.applied.triggers += landed;
   } catch (err) {
     ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module triggers patch failed: ${String(err)}`));
@@ -550,7 +564,7 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
     ctx.diags.push(...merged.diags);
   }
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'automod', is_enabled: true, configs: partial });
+    await patchModule(ctx, { name: 'automod', configs: partial });
   } catch (err) {
     ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module automod patch failed: ${String(err)}`));
   }

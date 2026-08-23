@@ -565,6 +565,23 @@ function validClock(h: number, mi: number, s: number): boolean {
 
 // --- failed-item lookup (commit's drop filter) -------------------------------
 
+// FailedCollection names the manifest collections the commit drop filter
+// addresses: the diagnostic-code prefixes map onto exactly these.
+export type FailedCollection = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
+
+const FAILED_PREFIXES: readonly [prefix: string, collection: FailedCollection][] = [
+  ['command', 'commands'],
+  ['timer', 'timers'],
+  ['trigger', 'triggers'],
+  ['quote', 'quotes'],
+  ['counter', 'counters']
+];
+
+function failedCollection(code: string): FailedCollection | null {
+  const hit = FAILED_PREFIXES.find(([prefix]) => code.startsWith(prefix));
+  return hit ? hit[1] : null;
+}
+
 // FailedItems indexes a diagnostic slice into a lookup the commit path uses to
 // drop unappliable items: errorItems(diags).has('commands', 3) answers whether
 // manifest.Commands[3] carried an error-severity finding. Diagnostics whose
@@ -572,7 +589,7 @@ function validClock(h: number, mi: number, s: number): boolean {
 // because dropping whole collections over a global warning would turn one bad
 // automod list into a silently empty import.
 export class FailedItems {
-  private readonly sets: Map<string, Set<number>>;
+  private readonly sets: Map<FailedCollection, Set<number>>;
 
   constructor(diags: ImportDiagnostic[]) {
     this.sets = new Map();
@@ -586,22 +603,7 @@ export class FailedItems {
     }
   }
 
-  has(collection: string, idx: number): boolean {
+  has(collection: FailedCollection, idx: number): boolean {
     return this.sets.get(collection)?.has(idx) ?? false;
   }
-}
-
-// failedCollection maps a diagnostic code's kind prefix onto the manifest
-// collection it addresses.
-const FAILED_PREFIXES: readonly [prefix: string, collection: string][] = [
-  ['command', 'commands'],
-  ['timer', 'timers'],
-  ['trigger', 'triggers'],
-  ['quote', 'quotes'],
-  ['counter', 'counters']
-];
-
-function failedCollection(code: string): string | null {
-  const hit = FAILED_PREFIXES.find(([prefix]) => code.startsWith(prefix));
-  return hit ? hit[1] : null;
 }

@@ -34,16 +34,30 @@ import type {
 } from '../types';
 
 // Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
+// Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
+// Every code this parser emits is a row here, so call sites never repeat raw
+// strings (the golden fixtures compare them verbatim).
 const CODE = {
   moduleReadFailed: 'module_read_failed',
   nameInvalid: 'command_name_invalid',
   aliasInvalid: 'command_alias_invalid',
   permissionUnmapped: 'command_permission_unmapped',
+  permissionWidened: 'command_permission_widened',
+  permissionCollapsed: 'command_permission_collapsed',
   variableUnmapped: 'command_variable_unmapped',
   responseTruncated: 'command_response_truncated',
   responseLineDropped: 'command_response_line_dropped',
   intervalClamped: 'timer_interval_clamped',
-  timerMessageEmpty: 'timer_message_empty'
+  timerMessageEmpty: 'timer_message_empty',
+  counterValueAbsent: 'counter_value_absent',
+  counterValueFractional: 'counter_value_fractional',
+  commandDisabled: 'command_disabled',
+  permissionGroupsSkipped: 'permission_groups_skipped',
+  responseOverridesSkipped: 'response_overrides_skipped',
+  timerDisabled: 'timer_disabled',
+  timerCommandUnresolved: 'timer_command_unresolved',
+  aliasUnresolved: 'command_alias_unresolved',
+  aliasArguments: 'command_alias_arguments'
 } as const;
 
 export const MOOBOT_SECTIONS = {
@@ -218,7 +232,7 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
   }
   const perm = widestTier(distinct);
   if (distinct.length > 1) {
-    diags.push(warnDiag(itemIndex, 'command_permission_collapsed',
+    diags.push(warnDiag(itemIndex, CODE.permissionCollapsed,
       `allowed groups [${labels.join(', ')}] collapse to the widest tier ${q(perm)}; the narrower restrictions are lost`));
   }
   return { perm, diags };
@@ -243,7 +257,7 @@ function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[
   }
   if (id === 3) {
     // Regulars widens to everyone: we have no regular tier (CONTRACT §7).
-    diags.push(warnDiag(itemIndex, 'command_permission_widened',
+    diags.push(warnDiag(itemIndex, CODE.permissionWidened,
       'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'));
   }
   return { perm, label };
@@ -543,12 +557,12 @@ function timerSection(items: Record<string, unknown>[], _sec: RawSection, state:
 
 function permissionGroupSection(items: Record<string, unknown>[], _sec: RawSection, state: ParseState): void {
   const names = items.map((g) => asStr(g.name)).filter((n) => n !== '');
-  state.diags.push(warnDiag(-1, 'permission_groups_skipped',
+  state.diags.push(warnDiag(-1, CODE.permissionGroupsSkipped,
     `${names.length} custom permission group(s) [${names.join(', ')}] gate dashboard access there and have no equivalent; skipped`));
 }
 
 function responseOverrideSection(_items: Record<string, unknown>[], sec: RawSection, state: ParseState): void {
-  state.diags.push(warnDiag(-1, 'response_overrides_skipped',
+  state.diags.push(warnDiag(-1, CODE.responseOverridesSkipped,
     `${(sec.data as unknown[]).length} customized built-in response template(s) have no importable target; skipped`));
 }
 
@@ -623,7 +637,7 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   if (item.enabled === false) {
     // Kept with an error rather than dropped: preview shows exactly
     // why it cannot land while commit skips it.
-    state.diags.push(errDiag(idx, 'command_disabled',
+    state.diags.push(errDiag(idx, CODE.commandDisabled,
       'command is disabled in Moobot; importing would enable it, so commit will skip it'));
   }
 
@@ -659,14 +673,14 @@ function applyCounterValue(
   state: ParseState
 ): void {
   if (counterUsed && asNum(item.counter) === undefined) {
-    state.diags.push(warnDiag(idx, 'counter_value_absent',
+    state.diags.push(warnDiag(idx, CODE.counterValueAbsent,
       `<counter> imported as {counter:${name}}; it starts at 0 because the export carries no counter value`));
   }
   const counter = asNum(item.counter);
   if (counter === undefined) return;
   const value = Math.trunc(counter);
   if (counter !== value) {
-    state.diags.push(warnDiag(idx, 'counter_value_fractional',
+    state.diags.push(warnDiag(idx, CODE.counterValueFractional,
       `counter value ${counter} floored to ${value} (counters are whole numbers here)`));
   }
   state.counters.push({ name, value });
@@ -703,7 +717,7 @@ function applyAliases(state: ParseState): void {
 function attachAlias(a: RawAlias, byName: Map<string, ManifestCommand>, diags: ImportDiagnostic[]): void {
   const target = byName.get(normalizeName(asStr(a.id)));
   if (asStr(a.type) !== 'custom' || !target) {
-    diags.push(warnDiag(-1, 'command_alias_unresolved',
+    diags.push(warnDiag(-1, CODE.aliasUnresolved,
       `alias ${q(asStr(a.alias))} targets ${asStr(a.type)} command ${q(asStr(a.id))}, which is not part of this export; skipped`));
     return;
   }
@@ -721,7 +735,7 @@ function attachAlias(a: RawAlias, byName: Map<string, ManifestCommand>, diags: I
 function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
   const args = a.arguments;
   if (typeof args === 'string' && args !== '') {
-    diags.push(warnDiag(-1, 'command_alias_arguments',
+    diags.push(warnDiag(-1, CODE.aliasArguments,
       `alias ${q(asStr(a.alias))} appends fixed arguments ${q(args)}, which have no equivalent; dropped`));
   }
 }
@@ -737,7 +751,7 @@ function expandTimer(t: RawTimer, state: ParseState): void {
   let desc = asStr(t.description);
   if (desc === '') desc = '<unnamed>';
   if (t.enabled === false) {
-    state.diags.push(errDiag(-1, 'timer_disabled',
+    state.diags.push(errDiag(-1, CODE.timerDisabled,
       `timer ${q(desc)} is disabled in Moobot; importing would enable it, so it is skipped`));
     return;
   }
@@ -764,7 +778,7 @@ function expandTimerCommands(t: RawTimer, desc: string, interval: number, state:
     state.diags.push(errDiag(-1, CODE.timerMessageEmpty,
       `timer ${q(desc)} references commands missing from this export (${resolution.unresolved.join(', ')}); skipped`));
   } else if (resolution.unresolved.length > 0) {
-    state.diags.push(warnDiag(firstIdx, 'timer_command_unresolved',
+    state.diags.push(warnDiag(firstIdx, CODE.timerCommandUnresolved,
       `timer ${q(desc)} also references commands missing from this export (${resolution.unresolved.join(', ')})`));
   }
 }
