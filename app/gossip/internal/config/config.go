@@ -174,12 +174,13 @@ func Load() *Config {
 		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
 		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),
 		ValorantAPIKey:         env.Get("VALORANT_API_KEY", ""),
-		// HenrikDev's enhanced tier allows 90 requests/min for public bots
-		// (basic is 30); the default sits under the enhanced ceiling so bursts
-		// deny locally instead of tripping the upstream limiter, which also
-		// poisons any cache fill in flight. A basic-tier key MUST set
-		// VALORANT_RATE_LIMIT=30 or it will 429 constantly.
-		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 80.0),
+		// The fleet runs HenrikDev's instant Basic tier: 30 requests/min. The
+		// default sits AT the ceiling because every gossip pod shares one key,
+		// and the local bucket denying at 30 is strictly cheaper than the
+		// upstream's own 429 poisoning any cache fill in flight. Upgrading the
+		// Doppler key to Enhanced (90/min) MUST be paired with raising this to
+		// ~80, or a third of the paid allowance goes unused.
+		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 30.0),
 		// valorant-api.com publishes no hard per-client limit; 60/min is
 		// conservative for a multi-MB skins payload that caches for a day.
 		ValorantContentRateLimit: env.GetFloat("VALORANT_CONTENT_RATE_LIMIT", 60.0),
