@@ -164,6 +164,15 @@ const TRUTHY = new Set(['1', 'true', 'yes']);
 // as an editable number, whereas dropping every timer would lose them outright.
 export const DEFAULT_TIMER_INTERVAL_SECONDS = 600;
 
+// Codes this parser emits beyond the shared consts. Free-form snake_case;
+// every code is a row here so call sites never repeat raw strings.
+const SLCB_CODE = {
+  manifestSourceNote: 'manifest_source_note',
+  permissionAdjusted: 'command_permission_adjusted',
+  scriptDependent: 'command_script_dependent',
+  quoteDateUnparsed: 'quote_date_unparsed'
+} as const;
+
 // --- parse -------------------------------------------------------------------
 
 export interface ParseResult {
@@ -213,22 +222,31 @@ function readSchema(db: Database): Map<string, string> {
 // first, then one missing-table note per absent table, then the nothing-
 // importable note when the whole database came up empty.
 function parseDatabase(db: Database): ParseResult {
-  const tables = readSchema(db);
-  const diags: ImportDiagnostic[] = [];
+  const ctx: SectionContext = { db, tables: readSchema(db), diags: [] };
 
   const manifest: ImportManifest = {};
-  const commands = extractCommands(db, tables, diags);
+  const commands = extractCommands(ctx);
   if (commands.length) manifest.commands = commands;
-  const timers = extractTimers(db, tables, diags);
+  const timers = extractTimers(ctx);
   if (timers.length) manifest.timers = timers;
-  const quotes = extractQuotes(db, tables, diags);
+  const quotes = extractQuotes(ctx);
   if (quotes.length) manifest.quotes = quotes;
 
-  diags.push(...missingTableNotes(tables));
+  const diags = ctx.diags;
+
+  diags.push(...missingTableNotes(ctx.tables));
   if (isEmptyStats(statsOf(manifest))) {
     diags.push(manifestWarn('Chatbot.db contained no importable commands, timers or quotes'));
   }
   return { manifest, diagnostics: diags };
+}
+
+// SectionContext carries what every feature-table extractor shares: the open
+// database, the discovered table map and the section's diagnostic stream.
+interface SectionContext {
+  db: Database;
+  tables: Map<string, string>;
+  diags: ImportDiagnostic[];
 }
 
 // missingTableNotes degrades each absent feature table to a manifest-level
@@ -319,6 +337,13 @@ function findTable(tables: Map<string, string>, candidates: string[]): string {
   return '';
 }
 
+// FieldRead is one candidate-column probe's outcome: the raw cell text (empty
+// when nothing usable was found) and whether a usable value existed.
+interface FieldRead {
+  value: string;
+  present: boolean;
+}
+
 // Row is one result row keyed by lower-cased column name. first returns the
 // first candidate column that exists AND holds a non-empty value, so a schema
 // that renamed e.g. Response→ResponseText still parses without code changes.
@@ -327,12 +352,12 @@ class Row {
   constructor(cells: Record<string, string>) {
     this.cols = cells;
   }
-  first(candidates: string[]): [value: string, ok: boolean] {
+  first(candidates: string[]): FieldRead {
     for (const c of candidates) {
       const v = this.cols[c.toLowerCase()];
-      if (v !== undefined && v.trim() !== '') return [v, true];
+      if (v !== undefined && v.trim() !== '') return { value: v, present: true };
     }
-    return ['', false];
+    return { value: '', present: false };
   }
   valueOf(candidates: string[]): string {
     for (const c of candidates) {
@@ -390,7 +415,7 @@ function truncateCell(s: string): string {
 }
 
 function manifestWarn(message: string): ImportDiagnostic {
-  return warnDiag(-1, 'manifest_source_note', message);
+  return warnDiag(-1, SLCB_CODE.manifestSourceNote, message);
 }
 
 // reindex rewrites item-level diagnostics onto the item's final manifest index
@@ -402,19 +427,19 @@ function reindex(diags: ImportDiagnostic[], idx: number): void {
 // readTable selects one feature table and scans it whole; a missing table or
 // read failure degrades to an empty list plus one manifest-level diagnostic —
 // the shared preamble every extractor used to repeat.
-function readTable(db: Database, tables: Map<string, string>, candidates: string[], diags: ImportDiagnostic[]): Row[] {
-  const table = findTable(tables, candidates);
+function readTable(ctx: SectionContext, candidates: string[]): Row[] {
+  const table = findTable(ctx.tables, candidates);
   if (table === '') return [];
   try {
-    const sel = selectAll(db, table);
+    const sel = selectAll(ctx.db, table);
     if (sel.truncated) {
-      diags.push(manifestWarn(
+      ctx.diags.push(manifestWarn(
         `the "${table}" table has more than ${MAX_SCAN_ROWS} rows; only the first ${MAX_SCAN_ROWS} were imported`
       ));
     }
     return sel.rows;
   } catch (err) {
-    diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
+    ctx.diags.push(manifestWarn(`could not read the "${table}" table: ${String(err)}`));
     return [];
   }
 }
@@ -424,12 +449,13 @@ function readTable(db: Database, tables: Map<string, string>, candidates: string
 // extractCommands reads the commands table into canonical commands. Disabled
 // rows are skipped (counted into one manifest-level warn); rows with neither
 // name nor response are treated as junk and dropped silently.
-function extractCommands(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['commands']> {
+function extractCommands(ctx: SectionContext): NonNullable<ImportManifest['commands']> {
+  const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['commands']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
   let disabled = 0;
 
-  for (const r of readTable(db, tables, COMMAND_TABLE_CANDIDATES, diags)) {
+  for (const r of readTable(ctx, COMMAND_TABLE_CANDIDATES)) {
     if (isJunkCommandRow(r)) continue;
     if (isDisabledCommandRow(r)) {
       disabled++;
@@ -452,13 +478,13 @@ function extractCommands(db: Database, tables: Map<string, string>, diags: Impor
 }
 
 function isJunkCommandRow(r: Row): boolean {
-  const [nameRaw, ok] = r.first(COMMAND_NAME_COLUMNS);
-  return !ok || nameRaw.trim() === '';
+  const name = r.first(COMMAND_NAME_COLUMNS);
+  return !name.present || name.value.trim() === '';
 }
 
 function isDisabledCommandRow(r: Row): boolean {
-  const [enabledRaw, hasEnabled] = r.first(COMMAND_ENABLED_COLUMNS);
-  return hasEnabled && !TRUTHY.has(enabledRaw.trim().toLowerCase());
+  const enabled = r.first(COMMAND_ENABLED_COLUMNS);
+  return enabled.present && !TRUTHY.has(enabled.value.trim().toLowerCase());
 }
 
 // buildCommandRow translates one live command row. Canonicalization findings
@@ -468,9 +494,9 @@ function buildCommandRow(r: Row): {
   cmd: NonNullable<ImportManifest['commands']>[number];
   warns: ImportDiagnostic[];
 } {
-  const [nameRaw] = r.first(COMMAND_NAME_COLUMNS);
+  const nameRaw = r.first(COMMAND_NAME_COLUMNS).value;
   const normName = normalizeName(nameRaw);
-  const [response] = r.first(COMMAND_RESPONSE_COLUMNS);
+  const response = r.first(COMMAND_RESPONSE_COLUMNS).value;
 
   const res = translateVariables(response, normName);
   const canon = canonicalizeResponse(res.text, 0);
@@ -489,7 +515,7 @@ function buildCommandRow(r: Row): {
   if (external) {
     warns.push(warnDiag(
       -1,
-      'command_script_dependent',
+      SLCB_CODE.scriptDependent,
       `command ${JSON.stringify(normName)} depends on a script or external API/file call; that part stays literal text until re-implemented here`
     ));
   }
@@ -508,17 +534,17 @@ function applyRowPermission(
   cmd: NonNullable<ImportManifest['commands']>[number],
   warns: ImportDiagnostic[]
 ): void {
-  const [permRaw, hasPerm] = r.first(COMMAND_PERM_COLUMNS);
-  if (!hasPerm) return;
-  const mapped = mapPermissionSLCB(permRaw);
+  const perm = r.first(COMMAND_PERM_COLUMNS);
+  if (!perm.present) return;
+  const mapped = mapPermissionSLCB(perm.value);
   cmd.permission = mapped.perm as typeof cmd.permission;
   warns.push(...mapped.diags);
 }
 
 function applyRowCooldown(r: Row, cmd: NonNullable<ImportManifest['commands']>[number]): void {
-  const [cdRaw, hasCd] = r.first(COMMAND_COOLDOWN_COLUMNS);
-  if (!hasCd) return;
-  const secs = goAtoi(cdRaw.trim());
+  const cd = r.first(COMMAND_COOLDOWN_COLUMNS);
+  if (!cd.present) return;
+  const secs = goAtoi(cd.value.trim());
   // SLCB stores command cooldowns in seconds (its chat helper
   // "!Command Cooldown <cmd> <minutes>" converts before write); the
   // minutes reading was rejected — FORMAT_NOTES.md carries why.
@@ -530,12 +556,13 @@ function applyRowCooldown(r: Row, cmd: NonNullable<ImportManifest['commands']>[n
 // interval stored in its settings blob rather than per row, so a per-row
 // interval column is used only when present; otherwise every timer carries
 // DEFAULT_TIMER_INTERVAL_SECONDS with a single manifest-level warn saying so.
-function extractTimers(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['timers']> {
+function extractTimers(ctx: SectionContext): NonNullable<ImportManifest['timers']> {
+  const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['timers']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
   let defaultedInterval = false;
 
-  for (const r of readTable(db, tables, TIMER_TABLE_CANDIDATES, diags)) {
+  for (const r of readTable(ctx, TIMER_TABLE_CANDIDATES)) {
     const t = parseTimerRow(r);
     if (!t) continue;
     defaultedInterval ||= t.defaulted;
@@ -557,8 +584,10 @@ function extractTimers(db: Database, tables: Map<string, string>, diags: ImportD
 // with no usable interval marks `defaulted` even if its message later
 // collapses, matching the upstream flag's timing.
 function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[number]; warns: ImportDiagnostic[]; defaulted: boolean } | null {
-  const [message, ok] = r.first(TIMER_MESSAGE_COLUMNS);
-  if (!ok || message.trim() === '') return null;
+  const read = r.first(TIMER_MESSAGE_COLUMNS);
+  if (!read.present || read.value.trim() === '') return null;
+
+  const message = read.value;
 
   const iv = timerInterval(r);
   const interval = iv.known ? iv.seconds : DEFAULT_TIMER_INTERVAL_SECONDS;
@@ -595,11 +624,12 @@ function positiveInt(raw: string): number | null {
 // list feature) is deliberately NOT read: those entries are usually GIF/URL
 // collections wired to custom commands, not quotes; importing them as quotes
 // would surprise (decision recorded in FORMAT_NOTES.md).
-function extractQuotes(db: Database, tables: Map<string, string>, diags: ImportDiagnostic[]): NonNullable<ImportManifest['quotes']> {
+function extractQuotes(ctx: SectionContext): NonNullable<ImportManifest['quotes']> {
+  const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['quotes']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
 
-  for (const r of readTable(db, tables, QUOTE_TABLE_CANDIDATES, diags)) {
+  for (const r of readTable(ctx, QUOTE_TABLE_CANDIDATES)) {
     const parsed = parseQuoteRow(r);
     if (!parsed) continue;
     entries.push(parsed.entry);
@@ -611,24 +641,24 @@ function extractQuotes(db: Database, tables: Map<string, string>, diags: ImportD
 }
 
 function parseQuoteRow(r: Row): { entry: NonNullable<ImportManifest['quotes']>[number]; warns: ImportDiagnostic[] } | null {
-  const [textRaw, hasText] = r.first(QUOTE_TEXT_COLUMNS);
-  const text = textRaw.trim();
-  if (!hasText || text === '') return null;
+  const textRead = r.first(QUOTE_TEXT_COLUMNS);
+  const text = textRead.value.trim();
+  if (!textRead.present || text === '') return null;
 
   const q: NonNullable<ImportManifest['quotes']>[number] = { text };
   const warns: ImportDiagnostic[] = [];
 
-  const [author, hasAuthor] = r.first(QUOTE_AUTHOR_COLUMNS);
-  if (hasAuthor) q.added_by = author.trim();
+  const author = r.first(QUOTE_AUTHOR_COLUMNS);
+  if (author.present) q.added_by = author.value.trim();
 
-  const [dateRaw, hasDate] = r.first(QUOTE_DATE_COLUMNS);
-  if (hasDate) {
-    const ts = parseQuoteDate(dateRaw);
+  const date = r.first(QUOTE_DATE_COLUMNS);
+  if (date.present) {
+    const ts = parseQuoteDate(date.value);
     // Date format is channel-configurable in SLCB (default shown in its
     // docs is MM/DD/YYYY); an unparseable value must not block the quote
     // itself, it just loses created_at.
     if (ts !== null) q.created_at = ts;
-    else warns.push(quoteDateDiag(dateRaw));
+    else warns.push(quoteDateDiag(date.value));
   }
   return { entry: q, warns };
 }
@@ -636,7 +666,7 @@ function parseQuoteRow(r: Row): { entry: NonNullable<ImportManifest['quotes']>[n
 function quoteDateDiag(dateRaw: string): ImportDiagnostic {
   return warnDiag(
     -1,
-    'quote_date_unparsed',
+    SLCB_CODE.quoteDateUnparsed,
     `quote date ${JSON.stringify(dateRaw)} uses a format this importer does not know; imported without a date`
   );
 }
@@ -869,7 +899,7 @@ function applyPermOutcome(outcome: PermOutcome, raw: string): { perm: string; di
     case 'adjusted':
       return {
         perm: outcome.perm,
-        diags: [warnDiag(-1, 'command_permission_adjusted', outcome.reason(raw))]
+        diags: [warnDiag(-1, SLCB_CODE.permissionAdjusted, outcome.reason(raw))]
       };
     case 'unmapped':
       return {
