@@ -106,10 +106,10 @@ func SignUserClaim(claim *UserClaim, key []byte) (value, signature string, err e
 	return value, hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-// VerifyUserClaim validates and decodes the web tier's attestation. Claims
-// older than maxSkew are refused; the jti is tracked to stop same-window
-// replays.
-func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserClaim, error) {
+// authenticatedClaim extracts and authenticates the claim payload: both
+// headers present, base64 decode, HMAC over "v1\0raw", JSON decode. Freshness
+// and replay stay in VerifyUserClaim.
+func authenticatedClaim(msg *nats.Msg, key []byte) (*UserClaim, error) {
 	value := msg.Header.Get(HeaderUserClaim)
 	sig := msg.Header.Get(HeaderUserClaimSig)
 	if value == "" || sig == "" {
@@ -130,6 +130,17 @@ func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserCla
 	if err := codec.Unmarshal(raw, &claim); err != nil {
 		return nil, fmt.Errorf("malformed user claim")
 	}
+	return &claim, nil
+}
+
+// VerifyUserClaim validates and decodes the web tier's attestation. Claims
+// older than maxSkew are refused; the jti is tracked to stop same-window
+// replays.
+func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserClaim, error) {
+	claim, err := authenticatedClaim(msg, key)
+	if err != nil {
+		return nil, err
+	}
 	skew := time.Since(time.UnixMilli(claim.IssuedAt))
 	if skew < 0 {
 		skew = -skew
@@ -140,7 +151,7 @@ func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserCla
 	if nonceSeen("user-claim:"+claim.UserID, claim.Nonce, time.Now()) {
 		return nil, fmt.Errorf("replayed user claim")
 	}
-	return &claim, nil
+	return claim, nil
 }
 
 func mustHex(s string) []byte {
