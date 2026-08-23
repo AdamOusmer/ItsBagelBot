@@ -106,15 +106,15 @@ func (t *tokenMark) fold(dst []byte) []byte {
 func foldTokenBytes(tok []byte) {
 	leet := tokenQuorum(tok)
 	for i, c := range tok {
-		tok[i] = foldByte(c, leet)
+		tok[i] = byte(foldByte(skelByte(c), leet))
 	}
 }
 
 // foldByte lowercases one skeleton byte and applies its confusable fold.
 // Leet digits live in their own gated table: they fold only when the caller
 // established the token's two-letter quorum, everyone else folds always.
-func foldByte(c byte, leet bool) byte {
-	c = asciiLower(c)
+func foldByte(c skelByte, leet bool) skelByte {
+	c = c.lower()
 	if to, gated := leetFolds[c]; gated {
 		if leet {
 			return to
@@ -122,7 +122,7 @@ func foldByte(c byte, leet bool) byte {
 		return c
 	}
 	if to, ok := confusables[rune(c)]; ok {
-		return byte(to)
+		return skelByte(to)
 	}
 	return c
 }
@@ -138,7 +138,7 @@ func foldByte(c byte, leet bool) byte {
 func tokenQuorum(tok []byte) bool {
 	votes := 0
 	for _, c := range tok {
-		if asciiLower(c) >= 'a' && asciiLower(c) <= 'z' {
+		if l := skelByte(c).lower(); 'a' <= l && l <= 'z' {
 			votes++
 			if votes >= 2 {
 				return true
@@ -177,47 +177,40 @@ func skelKindOf(r rune) skelKind {
 	}
 }
 
-// writeSkelRune stages one LOWERCASED post-NFKC rune onto the unicode path's
-// token buffer as UTF-8: lookalike LETTERS fold unconditionally here - their
-// single-byte latin fold is what votes toward the shared tokenQuorum and what
-// a quorum-less token must still emit - while leet digits/symbols land raw
-// and wait for the quorum-gated fold in the shared tokenMark fold core. Lowercase
-// first, THEN stage (and fold): a single lowercase confusables entry catches
-// an uppercase cross-script lookalike too (uppercase Cyrillic 'А' lowercases
-// to 'а' before the fold), closing an evasion gap.
-func writeSkelRune(tok []byte, lr rune) []byte {
-	if lr < utf8.RuneSelf {
-		if _, gated := leetFolds[byte(lr)]; gated {
-			return utf8.AppendRune(tok, lr)
-		}
-	}
-	if f, ok := confusables[lr]; ok {
-		lr = f
-	}
-	return utf8.AppendRune(tok, lr)
-}
-
 // tokenBuf pools the reusable byte buffer normalizeUnicode accumulates each
 // whitespace-token into before flushing it folded - the unicode twin of the
 // fast path's reuse of caller-owned dst, keeping the deep path's per-token
 // bookkeeping allocation-free at chat-line scale. Growth past the initial cap
 // happens only on absurdly long tokens.
-var tokenBuf = sync.Pool{New: func() any { b := make([]byte, 0, 64); return &b }}
+var tokenBuf = sync.Pool{New: func() any { return &tokenStaging{buf: make([]byte, 0, 64)} }}
 
-// flushUnicodeToken runs the buffered token through the SAME byte-level
-// tokenMark fold core the fast path uses and appends it to dst, emptying the
-// buffer. The buffer already holds lowercased, unconditionally-folded UTF-8
-// (writeSkelRune), so folding's only remaining work here is the quorum-
-// gated leet fold; multi-byte runes pass its byte loop untouched because no
-// confusables key falls in a UTF-8 continuation or lead-byte position.
-func flushUnicodeToken(dst []byte, tbp *[]byte) []byte {
-	tok := *tbp
-	if len(tok) == 0 {
+// tokenStaging is the unicode path's pooled per-token buffer: runes stage into
+// it lowercased via write (the writeSkelRune semantics), and flushInto runs
+// the finished token through the shared byte-level fold core before appending
+// it to the skeleton. Owning buffer+pool as one named value keeps the
+// (dst, buf-pointer) pair out of the pipeline signatures.
+type tokenStaging struct{ buf []byte }
+
+func (t *tokenStaging) write(lr rune) {
+	if lr < utf8.RuneSelf {
+		if _, gated := leetFolds[skelByte(lr)]; gated {
+			t.buf = utf8.AppendRune(t.buf, lr)
+			return
+		}
+	}
+	if f, ok := confusables[lr]; ok {
+		lr = f
+	}
+	t.buf = utf8.AppendRune(t.buf, lr)
+}
+
+func (t *tokenStaging) flushInto(dst []byte) []byte {
+	if len(t.buf) == 0 {
 		return dst
 	}
-	foldTokenBytes(tok)
-	dst = append(dst, tok...)
-	*tbp = tok[:0]
+	foldTokenBytes(t.buf)
+	dst = append(dst, t.buf...)
+	t.buf = t.buf[:0]
 	return dst
 }
 
@@ -228,8 +221,8 @@ func flushUnicodeToken(dst []byte, tbp *[]byte) []byte {
 // boundary.
 func normalizeUnicode(dst []byte, text string) []byte {
 	nf := norm.NFKC.AppendString(nil, sanitizeUTF8(text))
-	tbp := tokenBuf.Get().(*[]byte)
-	defer tokenBuf.Put(tbp)
+	st := tokenBuf.Get().(*tokenStaging)
+	defer tokenBuf.Put(st)
 	spaced := false
 	for i := 0; i < len(nf); {
 		r, size := utf8.DecodeRune(nf[i:])
@@ -238,7 +231,7 @@ func normalizeUnicode(dst []byte, text string) []byte {
 		case skelStrip:
 			continue
 		case skelSpace:
-			dst = flushUnicodeToken(dst, tbp)
+			dst = st.flushInto(dst)
 			if !spaced {
 				dst = append(dst, ' ')
 			}
@@ -246,9 +239,9 @@ func normalizeUnicode(dst []byte, text string) []byte {
 			continue
 		}
 		spaced = false
-		*tbp = writeSkelRune(*tbp, unicode.ToLower(r))
+		st.write(unicode.ToLower(r))
 	}
-	return flushUnicodeToken(dst, tbp)
+	return st.flushInto(dst)
 }
 
 // sanitizeUTF8 replaces every invalid byte run in s with U+FFFD BEFORE NFKC
