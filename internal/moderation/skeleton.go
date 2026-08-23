@@ -169,15 +169,22 @@ func foldToken(dst []byte, mark int) []byte {
 	tok := dst[mark:]
 	leet := tokenQuorum(tok)
 	for i, c := range tok {
-		if 'A' <= c && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		if f, ok := confusables[rune(c)]; ok && (!isLeetFold(rune(c)) || leet) {
-			c = byte(f)
-		}
-		tok[i] = c
+		tok[i] = foldByte(c, leet)
 	}
 	return dst
+}
+
+// foldByte lowercases one skeleton byte and applies its confusable fold when
+// the byte has one — leet folds additionally require the token's two-letter
+// quorum, decided once by the caller.
+func foldByte(c byte, leet bool) byte {
+	if 'A' <= c && c <= 'Z' {
+		c += 'a' - 'A'
+	}
+	if f, ok := confusables[rune(c)]; ok && (!isLeetFold(rune(c)) || leet) {
+		c = byte(f)
+	}
+	return c
 }
 
 // tokenQuorum reports whether tok carries >=2 real ascii letter BYTES - the
