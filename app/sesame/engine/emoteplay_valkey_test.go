@@ -194,32 +194,34 @@ func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
 // chat moment — and reports how many observed the completion.
 func raceWidthOneLines(t *testing.T, ctx context.Context, store *ValkeyEmotePlay, replicas int) int {
 	t.Helper()
-	results := make(chan EmotePlayResult, replicas)
+	outcomes := make(chan bumpOutcome, replicas)
 	var wg sync.WaitGroup
 	wg.Add(replicas)
 	for i := 0; i < replicas; i++ {
 		go func(i int) {
 			defer wg.Done()
-			// t.Error rather than require: FailNow must stay on the test
-			// goroutine, workers report and drain instead.
 			res, err := store.Bump(ctx, EmotePlayUpdate{
 				MsgID: "race-" + strconv.Itoa(i), Emote: "Kappa", Width: 1, Copies: 1,
 			})
-			if err != nil {
-				t.Errorf("racer %d: %v", i, err)
-				results <- EmotePlayResult{}
-				return
-			}
-			results <- res
+			outcomes <- bumpOutcome{res: res, err: err}
 		}(i)
 	}
 	wg.Wait()
-	close(results)
+	close(outcomes)
 	completions := 0
-	for res := range results {
-		if res.PyramidDone {
+	for out := range outcomes {
+		require.NoError(t, out.err)
+		if out.res.PyramidDone {
 			completions++
 		}
 	}
 	return completions
+}
+
+// bumpOutcome carries one racer's result through the channel so the worker
+// closure stays a straight line and every assertion lands on the test
+// goroutine.
+type bumpOutcome struct {
+	res EmotePlayResult
+	err error
 }

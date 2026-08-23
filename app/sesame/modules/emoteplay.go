@@ -79,13 +79,20 @@ func emotePlayOnChat(d engine.Deps) module.EventHandler {
 			Copies:        copies,
 		})
 		if err != nil {
-			if c.Log != nil {
-				c.Log.Debug("emoteplay: bump failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
-			}
+			logBumpFailure(c, err)
 			return nil
 		}
 		emotePlayAnnounce(c, emit, emote, res)
 		return nil
+	}
+}
+
+// logBumpFailure keeps the handler branch-light: a valkey outage during emote
+// spam must not grow the handler's shape, so the Debug sink lives here.
+func logBumpFailure(c *module.Context, err error) {
+	if c.Log != nil {
+		c.Log.Debug("emoteplay: bump failed",
+			zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
 	}
 }
 
@@ -202,12 +209,19 @@ func skipNonSpaces(text string, i int) int {
 // ("...", "???") never registers as an emote. Any non-ASCII rune counts: emote
 // codes exist in CJK scripts, and decoding one short token is cheap.
 func emoteTokenish(token string) bool {
-	for _, r := range token {
-		if r >= utf8.RuneSelf || unicode.IsLetter(r) || unicode.IsDigit(r) {
-			return true
-		}
+	return strings.ContainsFunc(token, emoteRuneOK)
+}
+
+// emoteRuneOK is emoteTokenish's predicate, kept operator-free: each acceptance
+// reason is its own plain branch.
+func emoteRuneOK(r rune) bool {
+	if r >= utf8.RuneSelf {
+		return true
 	}
-	return false
+	if unicode.IsLetter(r) {
+		return true
+	}
+	return unicode.IsDigit(r)
 }
 
 func isASCIISpace(b byte) bool {
