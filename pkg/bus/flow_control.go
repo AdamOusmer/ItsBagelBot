@@ -5,7 +5,7 @@ package bus
 
 import (
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -67,9 +67,16 @@ type flowPosition struct {
 // flowCursor tracks the highest delivery this process has actually taken off
 // the wire. The flow response never claims more than this, so the replicated
 // ack floor can never move past a message the pod did not receive.
+//
+// The pair is two atomics rather than a mutex. Writers serialize on the stream
+// word's CAS (every commit is CAS-from-observed, so the stream never regresses)
+// and store the consumer sample after winning it; readers load consumer before
+// stream, which sequentially-consistent atomics pin to at most one window of
+// staleness — a response may under-claim an ack floor but can never over-claim
+// one.
 type flowCursor struct {
-	mu       sync.Mutex
-	position flowPosition
+	consumer atomic.Uint64
+	stream   atomic.Uint64
 }
 
 // record gates on the STREAM sequence, which is monotonic across a consumer
@@ -79,39 +86,50 @@ type flowCursor struct {
 // floor at MaxAckPending with no redelivery and no error. It returns false for a
 // sample that did not advance the cursor.
 func (c *flowCursor) record(consumer, stream uint64) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.isSessionReset(consumer) {
-		c.position = flowPosition{consumer: consumer, stream: stream}
+	for {
+		prevStream := c.stream.Load()
+		prevConsumer := c.consumer.Load()
+		if c.consumer.Load() != prevConsumer {
+			continue // a writer committed mid-read; re-decide against the settled pair
+		}
+		if !isSessionReset(prevConsumer, consumer) && stream <= prevStream {
+			return false
+		}
+		if !c.stream.CompareAndSwap(prevStream, stream) {
+			continue // lost the word to a concurrent commit or reset; re-decide
+		}
+		c.consumer.Store(consumer)
 		return true
 	}
-	if stream <= c.position.stream {
-		return false
-	}
-	c.position = flowPosition{consumer: consumer, stream: stream}
-	return true
 }
 
 // isSessionReset recognises the server's own reset signature: a consumer
 // sequence further back than a whole ack window cannot be reordering.
-func (c *flowCursor) isSessionReset(consumer uint64) bool {
-	return c.position.consumer > consumer &&
-		c.position.consumer-consumer > flowSessionResetGap
+func isSessionReset(stored, consumer uint64) bool {
+	return stored > consumer &&
+		stored-consumer > flowSessionResetGap
 }
 
 func (c *flowCursor) snapshot() flowPosition {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.position
+	// Consumer-before-stream: worst case this returns last window's consumer
+	// beside the fresh stream, which only under-claims an ack floor.
+	consumer := c.consumer.Load()
+	return flowPosition{consumer: consumer, stream: c.stream.Load()}
 }
 
 // reset drops the cursor when this process recreates its own consumer. The new
 // consumer's sequences start over, so keeping the old pair would answer flow
-// control with an ack floor from a session the server no longer has.
+// control with an ack floor from a session the server no longer has. A record
+// committing inside these two stores can leave a mixed pair whose values are
+// each genuine receipts — conservative in the same direction as snapshot.
 func (c *flowCursor) reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.position = flowPosition{}
+	for {
+		prev := c.stream.Load()
+		if c.stream.CompareAndSwap(prev, 0) {
+			c.consumer.Store(0)
+			return
+		}
+	}
 }
 
 // flowControlResponse builds the receipt-level acknowledgement for one push
