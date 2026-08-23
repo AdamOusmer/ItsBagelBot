@@ -71,36 +71,55 @@ const (
 	BetOK
 )
 
-// ResolveGambleBet parses "!gamble <arg>" against the chatter's standing.
-// "all" stakes the whole balance, "half" stakes half of it (floor), anything
-// else must be a positive number inside [minBet, maxBet] and covered by the
-// balance. The returned bet is what the caller may escrow; any other outcome
-// leaves it zero.
+// gambleStake is one parsed wager token: its amount plus whether it was
+// derived from the standing ("all"/"half") rather than written out.
+type gambleStake struct {
+	amount  int64
+	derived bool
+}
+
+// parseGambleStake decodes the "!gamble" argument against the chatter's
+// standing. Derived stakes read their amount off the balance; anything else
+// must be a positive number.
+func parseGambleStake(arg string, balance int64) (gambleStake, GambleBetOutcome) {
+	switch arg {
+	case "":
+		return gambleStake{}, BetEmpty
+	case "all":
+		return gambleStake{amount: balance, derived: true}, BetOK
+	case "half":
+		return gambleStake{amount: balance / 2, derived: true}, BetOK
+	}
+	n, err := strconv.ParseInt(strings.TrimPrefix(arg, "@"), 10, 64)
+	if err != nil || n <= 0 {
+		return gambleStake{}, BetInvalid
+	}
+	return gambleStake{amount: n}, BetOK
+}
+
+// ResolveGambleBet parses "!gamble <arg>" against the chatter's standing,
+// then bounds the wager by the house rules: inside [minBet, maxBet] and
+// covered by the balance. A derived stake ("all"/"half") asks for "as much
+// as the house allows" — it is silently capped at maxBet instead of refused,
+// since refusing "!gamble all" because the standing exceeds the cap would
+// read as a bug. The returned bet is what the caller may escrow; any other
+// outcome leaves it zero.
 func ResolveGambleBet(arg string, balance, minBet, maxBet int64) (int64, GambleBetOutcome) {
 	arg = strings.ToLower(strings.TrimSpace(arg))
-	if arg == "" {
-		return 0, BetEmpty
+	stake, outcome := parseGambleStake(arg, balance)
+	if outcome != BetOK {
+		return 0, outcome
 	}
-	var bet int64
-	derived := false
-	switch arg {
-	case "all":
-		bet, derived = balance, true
-	case "half":
-		bet, derived = balance/2, true
-	default:
-		n, err := strconv.ParseInt(strings.TrimPrefix(arg, "@"), 10, 64)
-		if err != nil || n <= 0 {
-			return 0, BetInvalid
-		}
-		bet = n
-	}
-	if derived {
-		// A derived stake asks for "as much as the house allows": it is
-		// silently capped at maxBet instead of refused — refusing "!gamble
-		// all" because the standing exceeds the cap would read as a bug.
+	bet := stake.amount
+	if stake.derived {
 		bet = min(bet, maxBet)
 	}
+	return boundGambleBet(bet, balance, minBet, maxBet, stake.derived)
+}
+
+// boundGambleBet applies the three refusals a parsed wager can trip; derived
+// stakes already capped at maxBet, so the over-cap refusal is theirs alone.
+func boundGambleBet(bet, balance, minBet, maxBet int64, derived bool) (int64, GambleBetOutcome) {
 	switch {
 	case bet < minBet:
 		return 0, BetBelowMin

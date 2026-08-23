@@ -78,7 +78,7 @@ func duelDeps(f *fakeDuel) engine.Deps {
 
 func TestDuelStatusNone(t *testing.T) {
 	m := Duel(duelDeps(&fakeDuel{}))
-	out := runGames(t, m, "duel", gamesCtx("alice", ""), "")
+	out := runGames(t, m, gamesCtx("alice", ""), "")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "No duel running")
 }
@@ -89,7 +89,7 @@ func TestDuelStatusPot(t *testing.T) {
 		Pot: 700, Entrants: 4, Stake: 100, SecondsLeft: 42,
 	}}
 	m := Duel(duelDeps(f))
-	out := runGames(t, m, "duel", gamesCtx("alice", ""), "")
+	out := runGames(t, m, gamesCtx("alice", ""), "")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "4 in")
 	assert.Contains(t, out[0].Text, "700 points in the pot")
@@ -102,7 +102,7 @@ func TestDuelStatusChallenge(t *testing.T) {
 		Challenged: "crust", Stake: 500, SecondsLeft: 30,
 	}}
 	m := Duel(duelDeps(f))
-	out := runGames(t, m, "duel", gamesCtx("alice", ""), "")
+	out := runGames(t, m, gamesCtx("alice", ""), "")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@maya vs @crust")
 	assert.Contains(t, out[0].Text, "500 points each")
@@ -114,7 +114,7 @@ func TestDuelJoinRunningPot(t *testing.T) {
 	f := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 3, Pot: 450}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("bob", ""), "150")
+	out := runGames(t, m, gamesCtx("bob", ""), "150")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@bob you're in with 150")
 	assert.Contains(t, out[0].Text, "3 in the duel")
@@ -128,7 +128,7 @@ func TestDuelStakeOpensWhenIdle(t *testing.T) {
 	f := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("bob", ""), "250")
+	out := runGames(t, m, gamesCtx("bob", ""), "250")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "Pot duel is LIVE")
 	assert.Contains(t, out[0].Text, "250 points")
@@ -144,13 +144,13 @@ func TestDuelStakeLimitsAndUsage(t *testing.T) {
 	m := Duel(duelDeps(f))
 	ctx := gamesCtx("bob", `{"minStake":10,"maxStake":900}`)
 
-	out := runGames(t, m, "duel", ctx, "5")
+	out := runGames(t, m, ctx, "5")
 	assert.Contains(t, out[0].Text, "minimum stake is 10")
 
-	out = runGames(t, m, "duel", ctx, "1000")
+	out = runGames(t, m, ctx, "1000")
 	assert.Contains(t, out[0].Text, "max stake is 900")
 
-	out = runGames(t, m, "duel", ctx, "lots")
+	out = runGames(t, m, ctx, "lots")
 	assert.Contains(t, out[0].Text, "!duel <amount>")
 
 	assert.Empty(t, f.joinLogin, "refused stakes never reach the store")
@@ -160,7 +160,7 @@ func TestDuelJoinBlockedByChallenge(t *testing.T) {
 	f := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, ChallengePending: true}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("bob", ""), "100")
+	out := runGames(t, m, gamesCtx("bob", ""), "100")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "head-to-head challenge is pending")
 }
@@ -178,7 +178,7 @@ func TestDuelJoinRefusals(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := Duel(duelDeps(&fakeDuel{joinRes: tc.res}))
-			out := runGames(t, m, "duel", gamesCtx("bob", ""), "100")
+			out := runGames(t, m, gamesCtx("bob", ""), "100")
 			require.Len(t, out, 1)
 			assert.Contains(t, out[0].Text, tc.want)
 		})
@@ -191,7 +191,7 @@ func TestDuelChallengeSent(t *testing.T) {
 	f := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("maya", ""), "@crust 400")
+	out := runGames(t, m, gamesCtx("maya", ""), "@crust 400")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@maya challenges @crust for 400 points")
 	assert.Contains(t, out[0].Text, "winner takes 800", "the reply names the doubled pot")
@@ -206,7 +206,7 @@ func TestDuelChallengeSelf(t *testing.T) {
 	f := &fakeDuel{}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("maya", ""), "maya 400")
+	out := runGames(t, m, gamesCtx("maya", ""), "maya 400")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "can't duel yourself")
 	assert.Empty(t, f.openSpec.Kind, "a self-duel never reaches the store")
@@ -220,7 +220,7 @@ func TestDuelAcceptWins(t *testing.T) {
 	}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("crust", ""), "accept")
+	out := runGames(t, m, gamesCtx("crust", ""), "accept")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@crust defeats @maya")
 	assert.Contains(t, out[0].Text, "takes 800 points")
@@ -241,7 +241,7 @@ func TestDuelAcceptRefusals(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := Duel(duelDeps(&fakeDuel{acceptRes: tc.res}))
-			out := runGames(t, m, "duel", gamesCtx("crust", ""), "accept")
+			out := runGames(t, m, gamesCtx("crust", ""), "accept")
 			require.Len(t, out, 1)
 			assert.Contains(t, out[0].Text, tc.want)
 		})
@@ -256,7 +256,7 @@ func TestDuelDeclineRefundsOpener(t *testing.T) {
 	}}
 	m := Duel(duelDeps(f))
 
-	out := runGames(t, m, "duel", gamesCtx("crust", ""), "decline")
+	out := runGames(t, m, gamesCtx("crust", ""), "decline")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@crust declined the challenge")
 	assert.Contains(t, out[0].Text, "@maya's 400 points are back")
@@ -267,7 +267,7 @@ func TestDuelCancelAuthorization(t *testing.T) {
 	t.Run("denied viewer", func(t *testing.T) {
 		f := &fakeDuel{cancelRes: engine.DuelCancelResult{Found: true}}
 		m := Duel(duelDeps(f))
-		out := runGames(t, m, "duel", queueCtx("randy", ""), "cancel")
+		out := runGames(t, m, queueCtx("randy", ""), "cancel")
 		require.Len(t, out, 1)
 		assert.Contains(t, out[0].Text, "only the opener or a moderator")
 	})
@@ -276,7 +276,7 @@ func TestDuelCancelAuthorization(t *testing.T) {
 			Cancelled: true, Refunded: 3, Total: 1500,
 		}}
 		m := Duel(duelDeps(f))
-		out := runGames(t, m, "duel", queueCtx("mod_kim", "moderator"), "cancel")
+		out := runGames(t, m, queueCtx("mod_kim", "moderator"), "cancel")
 		require.Len(t, out, 1)
 		assert.True(t, f.cancelMod, "the chatter's moderator role rides to the store")
 		assert.Contains(t, out[0].Text, "Duel cancelled — 3 refunded, 1500 points returned")
@@ -284,7 +284,7 @@ func TestDuelCancelAuthorization(t *testing.T) {
 	t.Run("nothing running", func(t *testing.T) {
 		f := &fakeDuel{}
 		m := Duel(duelDeps(f))
-		out := runGames(t, m, "duel", queueCtx("mod_kim", "moderator"), "cancel")
+		out := runGames(t, m, queueCtx("mod_kim", "moderator"), "cancel")
 		require.Len(t, out, 1)
 		assert.Contains(t, out[0].Text, "No duel running")
 		assert.True(t, f.cancelCalled, "the module asks the store; the store's not-found drives the reply")

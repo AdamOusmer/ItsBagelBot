@@ -10,8 +10,6 @@ import (
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -67,6 +65,7 @@ type gambleConfig struct {
 
 // gambleCmd bundles the per-invocation state every handler shares.
 type gambleCmd struct {
+	gameReplier
 	d       engine.Deps
 	c       *module.Context
 	cfg     engine.GambleSettings
@@ -84,14 +83,12 @@ func newGambleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (gc gambleC
 	var raw gambleConfig
 	_ = c.Decode(&raw)
 	gc = gambleCmd{
-		d:    d,
-		c:    c,
-		cfg:  engine.ClampGambleSettings(raw.MinBet, raw.MaxBet, raw.WinPercent, raw.CooldownSeconds),
-		tmpl: raw,
-		log:  log,
-	}
-	if strings.TrimSpace(gc.tmpl.PointsName) == "" {
-		gc.tmpl.PointsName = "points"
+		gameReplier: newGameReplier(c, raw.PointsName),
+		d:           d,
+		c:           c,
+		cfg:         engine.ClampGambleSettings(raw.MinBet, raw.MaxBet, raw.WinPercent, raw.CooldownSeconds),
+		tmpl:        raw,
+		log:         log,
 	}
 	return gc, true
 }
@@ -119,70 +116,107 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 	}
 	gc.balance = bal.Points
 
-	bet, outcome := engine.ResolveGambleBet(arg, gc.balance, gc.cfg.MinBet, gc.cfg.MaxBet)
-	switch outcome {
-	case engine.BetOK:
-	case engine.BetEmpty, engine.BetInvalid:
-		gc.reply(emit, "", "gamble.usage")
-		return nil
-	case engine.BetBelowMin:
-		gc.reply(emit, "", "gamble.min", "min", strconv.FormatInt(gc.cfg.MinBet, 10))
-		return nil
-	case engine.BetAboveMax:
-		gc.reply(emit, "", "gamble.max", "max", strconv.FormatInt(gc.cfg.MaxBet, 10))
-		return nil
-	default: // BetOverBalance
-		gc.reply(emit, "", "gamble.broke", "balance", strconv.FormatInt(gc.balance, 10))
+	bet, refused := gc.refuse(arg)
+	if refused.key != "" {
+		gc.reply(emit, "", refused.key, refused.kv...)
 		return nil
 	}
 
-	// The per-user cooldown claims only once the wager itself is real, so
-	// typo spam never locks anyone out of their next honest attempt.
-	if gc.d.Cooldown != nil && gc.cfg.CooldownSeconds > 0 {
-		allowed, err := gc.d.Cooldown.Allow(ctx,
-			gambleCooldownKey(gc.c.BroadcasterID, login),
-			engine.GambleCooldown(gc.cfg.CooldownSeconds))
-		if err != nil {
-			gc.log.Warn("gamble: cooldown check failed", gc.bid(), zap.Error(err))
-			return err
-		}
-		if !allowed {
-			gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
-			return nil
-		}
+	allowed, err := gc.claimCooldown(ctx, login)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
+		return nil
 	}
 
 	roll := engine.RollGamble()
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
-		newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, bet, false)
-		if err != nil {
-			gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
-			return err
-		}
-		if !found {
-			// The balance read above saw them; a vanished row mid-wager is a
-			// loyalty-service hiccup, not something chat should see a lie for.
-			gc.reply(emit, "", "gamble.err")
-			return nil
-		}
-		gc.reply(emit, gc.tmpl.WinMessage, "gamble.win",
-			"roll", strconv.FormatInt(roll, 10),
-			"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
-			"amount", strconv.FormatInt(bet, 10),
-			"balance", strconv.FormatInt(newBal.Points, 10))
+		return gc.settleWin(ctx, login, bet, roll, emit)
+	}
+	return gc.settleLoss(ctx, login, bet, roll, emit)
+}
+
+// refusal is one rejected wager: the i18n key to answer with and any bound
+// tokens it carries. Empty outcome means the bet stands.
+type refusal struct {
+	key string
+	kv  []string
+}
+
+// refuse maps the parsed wager against the channel's limits and the
+// chatter's standing; every outcome but BetOK answers with itself.
+func (gc gambleCmd) refuse(arg string) (int64, refusal) {
+	bet, outcome := engine.ResolveGambleBet(arg, gc.balance, gc.cfg.MinBet, gc.cfg.MaxBet)
+	switch outcome {
+	case engine.BetOK:
+		return bet, refusal{}
+	case engine.BetEmpty, engine.BetInvalid:
+		return 0, refusal{key: "gamble.usage"}
+	case engine.BetBelowMin:
+		return 0, refusal{key: "gamble.min", kv: boundKV("min", gc.cfg.MinBet)}
+	case engine.BetAboveMax:
+		return 0, refusal{key: "gamble.max", kv: boundKV("max", gc.cfg.MaxBet)}
+	default: // BetOverBalance
+		return 0, refusal{key: "gamble.broke", kv: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
+	}
+}
+
+// boundKV renders a limit line's token pair.
+func boundKV(name string, limit int64) []string {
+	return []string{name, strconv.FormatInt(limit, 10)}
+}
+
+// claimCooldown takes the chatter's per-user window once the wager itself is
+// real — typo spam never locks anyone out of their next honest attempt.
+func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, error) {
+	if gc.d.Cooldown == nil || gc.cfg.CooldownSeconds <= 0 {
+		return true, nil
+	}
+	allowed, err := gc.d.Cooldown.Allow(ctx,
+		gambleCooldownKey(gc.c.BroadcasterID, login),
+		engine.GambleCooldown(gc.cfg.CooldownSeconds))
+	if err != nil {
+		gc.log.Warn("gamble: cooldown check failed", gc.bid(), zap.Error(err))
+		return false, err
+	}
+	return allowed, nil
+}
+
+// settleWin credits the stake back plus its match and announces.
+func (gc gambleCmd) settleWin(ctx context.Context, login string, bet, roll int64, emit module.Emit) error {
+	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, bet, false)
+	if err != nil {
+		gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
+		return err
+	}
+	if !found {
+		// The balance read above saw them; a vanished row mid-wager is a
+		// loyalty-service hiccup, not something chat should see a lie for.
+		gc.reply(emit, "", "gamble.err")
 		return nil
 	}
+	gc.reply(emit, gc.tmpl.WinMessage, "gamble.win",
+		"roll", strconv.FormatInt(roll, 10),
+		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
+		"amount", strconv.FormatInt(bet, 10),
+		"balance", strconv.FormatInt(newBal.Points, 10))
+	return nil
+}
 
-	// The loss rides the conditional debit: if a racing command drained the
-	// account between our read and now, spent comes back false and chat gets
-	// the honest "you can't cover that" instead of a phantom loss.
+// settleLoss rides the conditional debit: if a racing command drained the
+// account between our read and now, spent comes back false and chat gets the
+// honest "you can't cover that" instead of a phantom loss.
+func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int64, emit module.Emit) error {
 	newBal, _, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
 	if err != nil {
 		gc.log.Warn("gamble: loss debit failed", gc.bid(), zap.Error(err))
 		return err
 	}
 	if !spent {
-		gc.reply(emit, "", "gamble.broke", "balance", strconv.FormatInt(newBal.Points, 10))
+		gc.reply(emit, "", "gamble.broke",
+			"balance", strconv.FormatInt(newBal.Points, 10))
 		return nil
 	}
 	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
@@ -199,35 +233,6 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 func (gc gambleCmd) viewerID() uint64 {
 	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
 	return id
-}
-
-// reply emits one localized system line; kv are {token},value pairs, with
-// {user} and the currency word always available. override is the
-// broadcaster's customized template ("" for fixed system lines).
-func (gc gambleCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(gc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		switch k {
-		case "user":
-			return gc.c.Env.ChatterUserLogin, true
-		case "points":
-			return gc.tmpl.PointsName, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: gc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
 }
 
 func (gc gambleCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", gc.c.BroadcasterID) }

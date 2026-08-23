@@ -65,7 +65,7 @@ func TestCommandOptionsLand(t *testing.T) {
 	m := NewModule("", KindCore)
 	m.Command("so").
 		Mod().
-		Cooldown(30 * time.Second).
+		Cooldown(30*time.Second).
 		LiveOnly().
 		AllowUser("12345").
 		Aliases("shoutout", "SO2").

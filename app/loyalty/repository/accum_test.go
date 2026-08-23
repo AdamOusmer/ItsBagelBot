@@ -52,12 +52,12 @@ func TestRecordBumpsFoldsAndValidates(t *testing.T) {
 	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
 		{Name: "!Deaths", Delta: 1}, // normalized to "deaths"
 		{Name: "deaths", Delta: 2},  // folds with the one above
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},     // viewer scope, identity carried
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},    // viewer scope, identity carried
 		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},     // folds; name fills in, login kept
 		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},                                      // viewer scope without viewer: dropped
 		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2}, // command normalized
 		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},                  // pooled command scope
-		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},                                   // nameless source: pools on the row (channel shape)
+		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},                                    // nameless source: pools on the row (channel shape)
 		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 1},                                        // bot outside bot namespace: dropped
 		{Name: "bot:x", Delta: 1}, // reserved ':' name: dropped
 		{Name: "", Delta: 1},      // no name: dropped

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/sesame/engine"
-	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -55,13 +55,13 @@ func Live(d engine.Deps) module.Module {
 				d.Timers.ArmAll(wctx, id)
 			}
 		}()
-		
+
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: strconv.FormatUint(id, 10),
 			Text:          i18n.T(c.Locale, "bagels_ready"),
 		})
-		
+
 		log.Debug("stream online", zap.Uint64("broadcaster_id", id))
 		return nil
 	})

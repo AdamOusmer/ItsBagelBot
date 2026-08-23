@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-
 // Expand performs a single-pass {key} substitution over tmpl, appending the
 // result into dst and returning the grown slice. It allocates nothing of its
 // own: the caller passes a pooled scratch buffer (see GetBuf) as dst.
@@ -70,7 +69,6 @@ func normalizeKey(key string) string {
 	}
 	return strings.ToLower(key)
 }
-
 
 // ExpandString wraps Expand for callers who do not pool their own buffers,
 // returning a newly allocated string.

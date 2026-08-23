@@ -35,11 +35,12 @@ func gamesCtx(login, config string) *module.Context {
 	return c
 }
 
-func runGames(t *testing.T, m module.Module, name string, c *module.Context, args string) []module.Output {
+// runGames runs a wager game's single command (each registers exactly one)
+// against ctx and returns what it emitted.
+func runGames(t *testing.T, m module.Module, c *module.Context, args string) []module.Output {
 	t.Helper()
-	cmd := findCmd(t, m, name)
 	var col collector
-	require.NoError(t, cmd.Run(t.Context(), c, args, col.emit))
+	require.NoError(t, m.Commands[0].Run(t.Context(), c, args, col.emit))
 	return col.out
 }
 
@@ -57,7 +58,7 @@ func TestGambleWinCreditsStake(t *testing.T) {
 	cd := &fakeCooldown{}
 	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
 
-	out := runGames(t, m, "gamble", gamesCtx("alice", ""), "300")
+	out := runGames(t, m, gamesCtx("alice", ""), "300")
 	require.Len(t, out, 1)
 	assert.Equal(t, outgress.TypeChat, out[0].Type)
 	assert.Contains(t, out[0].Text, "@alice")
@@ -76,7 +77,7 @@ func TestGambleLossDebitsThroughSpend(t *testing.T) {
 	fake := &fakeLoyalty{}
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
 
-	out := runGames(t, m, "gamble", gamesCtx("alice", ""), "300")
+	out := runGames(t, m, gamesCtx("alice", ""), "300")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "lost 300")
 	assert.Contains(t, out[0].Text, "934")
@@ -92,14 +93,14 @@ func TestGambleRefusedWagersNeverClaimCooldown(t *testing.T) {
 	cfg := `{"minBet":10,"maxBet":500}`
 	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
 
-	out := runGames(t, m, "gamble", gamesCtx("alice", cfg), "")
+	out := runGames(t, m, gamesCtx("alice", cfg), "")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "!gamble")
 
-	out = runGames(t, m, "gamble", gamesCtx("alice", cfg), "5")
+	out = runGames(t, m, gamesCtx("alice", cfg), "5")
 	assert.Contains(t, out[0].Text, "minimum bet is 10")
 
-	out = runGames(t, m, "gamble", gamesCtx("alice", cfg), "900")
+	out = runGames(t, m, gamesCtx("alice", cfg), "900")
 	assert.Contains(t, out[0].Text, "max bet is 500")
 
 	assert.Empty(t, cd.keys, "no refusal may burn the chatter's cooldown")
@@ -113,7 +114,7 @@ func TestGambleDerivedAndOverBalance(t *testing.T) {
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
 
 	// The fake's standing is 1234; "all" caps at the default 1000 max.
-	out := runGames(t, m, "gamble", gamesCtx("bob", ""), "all")
+	out := runGames(t, m, gamesCtx("bob", ""), "all")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "won 1000")
 	require.Len(t, fake.adjusts, 1)
@@ -121,7 +122,7 @@ func TestGambleDerivedAndOverBalance(t *testing.T) {
 
 	// An explicit number under a raised cap but over the standing refuses on
 	// funds rather than driving the balance negative.
-	out = runGames(t, m, "gamble", gamesCtx("bob", `{"maxBet":5000}`), "2000")
+	out = runGames(t, m, gamesCtx("bob", `{"maxBet":5000}`), "2000")
 	assert.Contains(t, out[0].Text, "can't cover that")
 	assert.Len(t, fake.adjusts, 1, "refusal moved nothing")
 }
@@ -133,18 +134,18 @@ func TestGamblePerUserCooldown(t *testing.T) {
 	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
 
 	ctx := gamesCtx("carol", `{"cooldownSeconds":30}`)
-	out := runGames(t, m, "gamble", ctx, "10")
+	out := runGames(t, m, ctx, "10")
 	require.Len(t, out, 1)
 	require.Len(t, cd.keys, 1)
 	assert.Contains(t, cd.keys[0], "carol", "cooldown keys per user, not per channel")
 	assert.Contains(t, cd.keys[0], "games:gamble:100")
 
-	out = runGames(t, m, "gamble", ctx, "10")
+	out = runGames(t, m, ctx, "10")
 	assert.Contains(t, out[0].Text, "breather", "second wager inside the window is cooled")
 
 	// Another viewer is unaffected by carol's claim.
 	cd.allow = append(cd.allow, true)
-	out = runGames(t, m, "gamble", gamesCtx("dave", `{"cooldownSeconds":30}`), "10")
+	out = runGames(t, m, gamesCtx("dave", `{"cooldownSeconds":30}`), "10")
 	assert.NotContains(t, out[0].Text, "breather")
 }
 
@@ -154,7 +155,7 @@ func TestGambleCustomTemplates(t *testing.T) {
 	cfg := `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
 
-	out := runGames(t, m, "gamble", gamesCtx("erin", cfg), "50")
+	out := runGames(t, m, gamesCtx("erin", cfg), "50")
 	require.Len(t, out, 1)
 	assert.Equal(t, "@erin busted 50 crumbs, 1184 left", out[0].Text)
 }
