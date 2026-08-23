@@ -410,7 +410,7 @@ spec:
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
         Host(`commands.itsbagelbot.com`)
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}]
+      middlewares: [{name: dashboard-ratelimit}, {name: dashboard-compress}]
       services:
         - name: console-dashboard
           port: 443
@@ -474,6 +474,34 @@ spec:
     burst: 10
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
+---
+# Compresses compressible responses on the origin leg of the tunnel. Browsers
+# already receive brotli compressed at the Cloudflare edge regardless of what
+# the origin sends, but everything between CF and the pod travels uncompressed
+# today: every uncached HTML page, __data.json and JSON endpoint leaves the
+# nodes at full size. gzip here cuts that leg roughly 70%, which is the whole
+# point given the goal of reducing node outgress.
+#
+# text/event-stream MUST stay excluded: /events and /stats/stream stream
+# indefinitely, and the compression middleware buffers responses, which turns
+# both into a broken stream that never flushes. Pre-compressed formats are
+# excluded because compressing them again costs CPU for ~0% size gain.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-compress
+  namespace: app
+spec:
+  compress:
+    excludedContentTypes:
+      - text/event-stream
+      - application/grpc
+      - font/woff2
+      - image/png
+      - image/jpeg
+      - image/webp
+      - image/avif
+      - video/mp4
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
