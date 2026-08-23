@@ -312,6 +312,25 @@ func (f envelopeFlight[T]) refresh() {
 	}()
 }
 
+// StoreCached writes one entry in exactly the format Cached reads — value
+// envelope for 2*ttl (fresh window ttl + stale tail), typed negative for
+// negativeTTL, nothing at all for a non-friendly failure — WITHOUT running a
+// fetch. It is the hydration half of batch lookups: one upstream answer covers
+// many players, and each of them must land in the shared cache individually so
+// the next single-player query hits instead of refetching. A key that already
+// holds an entry is overwritten; every writer of these keys derives its value
+// from the same upstream, so last-write-wins cannot move data backwards.
+func StoreCached[T any](ctx context.Context, c *Cache, key string, ttl, negativeTTL time.Duration, v T, ferr error) {
+	f := envelopeFlight[T]{cache: c, key: key, ttl: ttl, negativeTTL: negativeTTL}
+	env, storeTTL, err := f.envelopeFor(v, ferr)
+	if err != nil {
+		return // infrastructure failure: nothing learnable, leave uncached to retry
+	}
+	if b, merr := codec.Marshal(env); merr == nil {
+		_ = c.store.Set(ctx, key, b, storeTTL)
+	}
+}
+
 // GetJSON reads a raw (non-fetching) entry, for provider-owned state like the
 // mcsr stream-start snapshot.
 func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) {
@@ -332,4 +351,11 @@ func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duratio
 		return err
 	}
 	return c.store.Set(ctx, key, b, ttl)
+}
+
+// DelJSON drops a raw entry — the write half of the GetJSON/SetJSON pair, for
+// provider-owned state that must not outlive its session (the stream-start
+// snapshots stream.offline clears).
+func (c *Cache) DelJSON(ctx context.Context, key string) error {
+	return c.store.Del(ctx, key)
 }
