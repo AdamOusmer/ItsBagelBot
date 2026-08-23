@@ -61,18 +61,23 @@ var confusables = map[rune]rune{
 // into letter soup ("1080" -> "ioao", "1337" -> "ieet") that could drift onto
 // lexicon terms or wreck dedup fingerprints; letters-only obfuscation ("h4te",
 // "n0t") carries its own real letters and keeps folding.
-var leetFolds = map[byte]byte{
+var leetFolds = map[skelByte]skelByte{
 	'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's',
 }
 
+// skelByte is one byte of skeleton space: post-lowercase, post-NFKC material
+// the blocklist scanners walk. A named type, because "which alphabet a byte
+// belongs to" is exactly the confusion the skeleton exists to prevent.
+type skelByte byte
+
 const lowerDelta = 'a' - 'A'
 
-// asciiLower lowercases one ASCII byte, passing everything else through.
-func asciiLower(c byte) byte {
-	if 'A' <= c && c <= 'Z' {
-		return c + lowerDelta
+// lower lowercases an ascii-range skeleton byte, passing everything else.
+func (b skelByte) lower() skelByte {
+	if 'A' <= b && b <= 'Z' {
+		return b + lowerDelta
 	}
-	return c
+	return b
 }
 
 // isSkelSpace reports whether b is a whitespace byte that survives Normalize
