@@ -72,5 +72,10 @@ type Reply struct {
 	Entries  []CounterEntry `json:"entries,omitempty"`
 	Board    []CounterRank  `json:"board,omitempty"`
 	Found    bool           `json:"found,omitempty"`
-	Error    string         `json:"error,omitempty"`
+	// Spent reports the conditional outcome of balance.spend: the debit
+	// applied (true) or was refused for insufficient points (false, with
+	// Found carrying whether the viewer exists at all and Balance what they
+	// actually hold).
+	Spent bool   `json:"spent,omitempty"`
+	Error string `json:"error,omitempty"`
 }

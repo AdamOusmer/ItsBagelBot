@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { IconName } from './icons';
+import { GAME_MODULE_DEFS } from './catalog-games';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
@@ -528,6 +529,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // counter book; commands-only delegates retain picker access separately.
     replies: []
   },
+  ...GAME_MODULE_DEFS,
   {
     id: 'triggers',
     label: 'Trigger Words',

@@ -36,6 +36,10 @@ func All(d engine.Deps) []module.Module {
 		Automod(d),
 		ChannelPoints(d),
 		Loyalty(d),
+		// The wager games ride the loyalty economy; they register right after
+		// it and own no shared triggers with anything above them.
+		Gamble(d),
+		Duel(d),
 		Govee(d),
 		TimeOfDay(d),
 		Triggers(d),

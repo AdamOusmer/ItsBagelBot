@@ -84,6 +84,10 @@ type Deps struct {
 	// leaves the module's commands inert. Its deadline-key expiry auto-close
 	// rides the same keyspace notifications as Timers and LoyaltyTick.
 	Raffle RaffleStore
+	// Duel is the per-broadcaster wager duel (pot and challenge flavors)
+	// behind the duel module; its escrow rides Deps.Loyalty through a
+	// DuelWallet. nil leaves the module's commands inert.
+	Duel DuelStore
 	// Quotes is the channel-quotes store behind the quotes module. nil leaves
 	// the module's commands inert.
 	Quotes QuotesStore
@@ -277,6 +281,11 @@ type LoyaltyStore interface {
 	// BalanceAdjust writes a viewer's points by login (mod grants): absolute
 	// sets, otherwise value is a delta. found=false = login never seen here.
 	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
+	// BalanceSpend conditionally debits points by login (the wager games'
+	// escrow): the debit lands only when the viewer holds at least amount.
+	// found=false = login never seen here; spent=false with found=true =
+	// insufficient points (bal carries what they hold).
+	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	// CounterCreate/CounterSet/CounterDelete/CounterList are the authoritative
 	// management verbs behind !counter (and the future dashboard).
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
