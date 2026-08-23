@@ -48,7 +48,7 @@ func runGames(t *testing.T, m module.Module, c *module.Context, args string) []m
 func pinRoll(t *testing.T, roll int64) {
 	t.Helper()
 	old := engine.RollGamble
-	engine.RollGamble = func() int64 { return roll }
+	engine.RollGamble = func() (int64, error) { return roll, nil }
 	t.Cleanup(func() { engine.RollGamble = old })
 }
 
@@ -66,10 +66,11 @@ func TestGambleWinCreditsStake(t *testing.T) {
 	assert.Contains(t, out[0].Text, "won 300")
 	assert.Contains(t, out[0].Text, "1534", "the reply carries the post-wager standing")
 
+	// Escrow-first: the stake was taken, then the win paid it back doubled.
+	require.Len(t, fake.spends, 1)
+	assert.Equal(t, int64(300), fake.spends[0].amount)
 	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, int64(300), fake.adjusts[0].value)
-	assert.False(t, fake.adjusts[0].absolute)
-	assert.Empty(t, fake.spends, "a win never touches the conditional debit")
+	assert.Equal(t, int64(600), fake.adjusts[0].value, "a win returns the stake plus its match")
 }
 
 func TestGambleLossDebitsThroughSpend(t *testing.T) {
@@ -118,7 +119,7 @@ func TestGambleDerivedAndOverBalance(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "won 1000")
 	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, int64(1000), fake.adjusts[0].value)
+	assert.Equal(t, int64(2000), fake.adjusts[0].value, "the credit is stake plus match")
 
 	// An explicit number under a raised cap but over the standing refuses on
 	// funds rather than driving the balance negative.
@@ -147,6 +148,17 @@ func TestGamblePerUserCooldown(t *testing.T) {
 	cd.allow = append(cd.allow, true)
 	out = runGames(t, m, gamesCtx("dave", `{"cooldownSeconds":30}`), "10")
 	assert.NotContains(t, out[0].Text, "breather")
+}
+
+func TestGambleUnknownViewer(t *testing.T) {
+	pinRoll(t, 50)
+	fake := &fakeLoyalty{}
+	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
+
+	out := runGames(t, m, gamesCtx("ghost", ""), "50")
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "haven't seen")
+	assert.Empty(t, fake.adjusts, "an unseen viewer is refused, not broke-shamed")
 }
 
 func TestGambleCustomTemplates(t *testing.T) {

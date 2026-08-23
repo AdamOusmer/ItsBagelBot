@@ -131,12 +131,51 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return nil
 	}
 
-	roll := engine.RollGamble()
-	wager := wagerOutcome{roll: roll, bet: bet, balance: gc.balance}
+	// Escrow before the dice: the conditional debit IS the wager. A win pays
+	// the stake back plus its match on top; a loss keeps the debit — so no
+	// sequence of overlapping commands can pay out more than was staked.
+	balance, ok, err := gc.escrow(ctx, login, bet, emit)
+	if err != nil || !ok {
+		return err
+	}
+
+	roll, err := engine.RollGamble()
+	if err != nil {
+		gc.log.Warn("gamble: roll failed", gc.bid(), zap.Error(err))
+		return err
+	}
+	wager := wagerOutcome{roll: roll, bet: bet, balance: balance}
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
 		return gc.settleWin(ctx, login, wager, emit)
 	}
-	return gc.settleLoss(ctx, login, wager, emit)
+	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
+		tk("roll", strconv.FormatInt(roll, 10)),
+		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
+		tk("amount", strconv.FormatInt(bet, 10)),
+		tk("balance", strconv.FormatInt(balance, 10)))
+	return nil
+}
+
+// escrow takes the stake through the conditional debit. ok=false means the
+// refusal has been answered (unknown viewer or short balance); err is an
+// infra failure.
+func (gc gambleCmd) escrow(ctx context.Context, login string, bet int64, emit module.Emit) (balance int64, ok bool, err error) {
+	newBal, found, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
+	switch {
+	case err != nil:
+		gc.log.Warn("gamble: stake debit failed", gc.bid(), zap.Error(err))
+		return 0, false, err
+	case !found:
+		gc.reply(emit, "", "gamble.unknown")
+		return 0, false, nil
+	case !spent:
+		// A racing command drained the account between our read and now;
+		// the service's fresh reply names what they actually hold.
+		gc.reply(emit, "", "gamble.broke",
+			tk("balance", strconv.FormatInt(newBal.Points, 10)))
+		return 0, false, nil
+	}
+	return newBal.Points, true, nil
 }
 
 // wagerOutcome bundles the three numbers every settled-wager line carries:
@@ -195,8 +234,8 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 
 // settleWin credits the stake back plus its match and announces.
 func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
-	bet := wager.bet
-	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, bet, false)
+	// The stake is already escrowed: a win returns it with its match on top.
+	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, wager.bet*2, false)
 	if err != nil {
 		gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
 		return err
@@ -209,25 +248,6 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutc
 	}
 	wager.balance = newBal.Points
 	gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
-	return nil
-}
-
-// settleLoss rides the conditional debit: if a racing command drained the
-// account between our read and now, spent comes back false and chat gets the
-// honest "you can't cover that" instead of a phantom loss.
-func (gc gambleCmd) settleLoss(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
-	newBal, _, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, wager.bet)
-	if err != nil {
-		gc.log.Warn("gamble: loss debit failed", gc.bid(), zap.Error(err))
-		return err
-	}
-	if !spent {
-		gc.reply(emit, "", "gamble.broke",
-			tk("balance", strconv.FormatInt(newBal.Points, 10)))
-		return nil
-	}
-	wager.balance = newBal.Points
-	gc.announce(emit, gc.tmpl.LoseMessage, "gamble.lose", wager)
 	return nil
 }
 

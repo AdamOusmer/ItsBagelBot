@@ -44,12 +44,16 @@ func ClampGambleSettings(minBet, maxBet, winPercent, cooldownSeconds int64) Gamb
 		WinPercent:      gambleDefaultWinPercent,
 		CooldownSeconds: gambleDefaultCooldown,
 	}
+	// Configured limits land first; only their ordering is enforced after —
+	// clamping a high minBet down to the default max would silently allow
+	// wagers the channel forbade.
 	if minBet > 0 {
-		s.MinBet = min(minBet, s.MaxBet)
+		s.MinBet = minBet
 	}
 	if maxBet > 0 {
-		s.MaxBet = max(maxBet, s.MinBet)
+		s.MaxBet = maxBet
 	}
+	s.MaxBet = max(s.MaxBet, s.MinBet)
 	if winPercent > 0 {
 		s.WinPercent = min(max(winPercent, gambleMinWinPercent), gambleMaxWinPercent)
 	}
@@ -130,14 +134,15 @@ func ResolveGambleBet(arg string, balance, minBet, maxBet int64) (int64, GambleB
 
 // RollGamble draws the 1..100 chat-visible roll from crypto/rand. It is a
 // var so tests can pin the dice; production always reads the crypto-backed
-// implementation installed here. A CSPRNG failure is not survivable for a
-// fair game, matching the raffle pick's stance.
-var RollGamble = func() int64 {
+// implementation installed here. The error is returned rather than panicked:
+// a CSPRNG outage is an infra failure the caller answers like any other,
+// not a reason to take down the worker.
+var RollGamble = func() (int64, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(100))
 	if err != nil {
-		panic("gamble: crypto/rand unavailable: " + err.Error())
+		return 0, err
 	}
-	return n.Int64() + 1
+	return n.Int64() + 1, nil
 }
 
 // GambleWins reports whether a roll beats the house: the roll must land in
