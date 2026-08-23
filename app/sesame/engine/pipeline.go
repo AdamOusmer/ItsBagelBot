@@ -170,16 +170,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
-	// Every eligible chat line teaches the roster its speaker's identity (the
-	// folded duplicate cohort's senders too — a spam burst is exactly when
-	// mentions fly). One sharded map store per line; see chatterRoster.
-	if env.Type == chatType && env.ChatterUserID != "" && env.ChatterUserLogin != "" {
-		p.roster.Observe(broadcasterID, env.ChatterUserLogin, env.ChatterUserID, env.ChatterUserName)
-		for i := range env.Senders {
-			// A cohort sender carries no display name; the roster's stays as-is.
-			p.roster.Observe(broadcasterID, env.Senders[i].ChatterUserLogin, env.Senders[i].ChatterUserID, "")
-		}
-	}
+	p.roster.ObserveEnvelope(broadcasterID, env)
 
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {

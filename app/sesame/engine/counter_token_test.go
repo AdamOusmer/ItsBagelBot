@@ -32,8 +32,8 @@ type captureLoyalty struct {
 	bumps []captureBump
 }
 
-func (f *captureLoyalty) CounterBump(_ context.Context, _ uint64, name string, viewer Viewer, command string, _ int64) (int64, error) {
-	f.bumps = append(f.bumps, captureBump{name: name, viewer: viewer, command: command})
+func (f *captureLoyalty) CounterBump(_ context.Context, b CounterBump) (int64, error) {
+	f.bumps = append(f.bumps, captureBump{name: b.Name, viewer: b.Viewer, command: b.Command})
 	return 42, nil
 }
 
@@ -124,6 +124,20 @@ func TestCounterBumpScopesUnchangedByAddressing(t *testing.T) {
 	for _, b := range loyalty.bumps {
 		assert.Equal(t, "so", b.command)
 	}
+}
+
+// TestCounterBumpTabSeparatedMention proves the target word splits on any
+// whitespace: a tab after the mention cannot glue itself onto the login and
+// silently miss the roster.
+func TestCounterBumpTabSeparatedMention(t *testing.T) {
+	p, loyalty := counterPipeline(t, "{counter:target:shutups}")
+	p.roster.Observe(123, "bob", "7", "Bob")
+
+	got := collectDispatch(p, chatCtx("!so @bob\traid incoming", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "42", got[0].Text)
+	require.Len(t, loyalty.bumps, 1)
+	assert.Equal(t, uint64(7), loyalty.bumps[0].viewer.ID)
 }
 
 // TestCounterBumpTargetEmptyBaseStaysVisible proves the degenerate
