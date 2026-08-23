@@ -236,17 +236,35 @@ func TestDuelChallengeSelf(t *testing.T) {
 
 // --- accept ---
 
-func TestDuelAcceptWins(t *testing.T) {
-	f := &fakeDuel{acceptRes: engine.DuelAcceptResult{
-		Found: true, Accepted: true, Winner: "crust", Loser: "maya", Pot: 800, Stake: 400,
-	}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("crust", ""), "accept")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@crust defeats @maya")
-	assert.Contains(t, out[0].Text, "takes 800 points")
-	assert.Equal(t, "crust", f.acceptLogin)
+func TestDuelAcceptOutcomes(t *testing.T) {
+	cases := []struct {
+		name string
+		res  engine.DuelAcceptResult
+		want []string
+	}{
+		{
+			name: "clean win",
+			res:  engine.DuelAcceptResult{Found: true, Accepted: true, Winner: "crust", Loser: "maya", Pot: 800, Stake: 400},
+			want: []string{"@crust defeats @maya", "takes 800 points"},
+		},
+		{
+			name: "unpaid payout",
+			res:  engine.DuelAcceptResult{Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800},
+			want: []string{"@crust takes the 800 points", "payout is landing"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeDuel{acceptRes: tc.res}
+			m := Duel(duelDeps(f))
+			out := runGames(t, m, gamesCtx("crust", ""), "accept")
+			require.Len(t, out, 1)
+			assert.Equal(t, "crust", f.acceptLogin)
+			for _, want := range tc.want {
+				assert.Contains(t, out[0].Text, want)
+			}
+		})
+	}
 }
 
 func TestDuelAcceptRefusals(t *testing.T) {
