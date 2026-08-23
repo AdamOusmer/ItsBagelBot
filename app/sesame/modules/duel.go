@@ -251,7 +251,9 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 			tk("count", strconv.FormatInt(res.Entrants, 10)),
 			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Already:
-		dc.replyPool(emit, "duel.join.already", res.Entrants, res.Pot)
+		dc.reply(emit, "", "duel.join.already",
+			tk("count", strconv.FormatInt(res.Entrants, 10)),
+			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Unknown:
 		dc.reply(emit, "", "duel.join.unknown")
 	case res.Short:
@@ -260,13 +262,6 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 		dc.reply(emit, "", "duel.err")
 	}
 	return nil
-}
-
-// replyPool emits one of the pool-readout lines ({count} entrants, {pot}).
-func (dc duelCmd) replyPool(emit module.Emit, key replyKey, entrants, pot int64) {
-	dc.reply(emit, "", key,
-		tk("count", strconv.FormatInt(entrants, 10)),
-		tk("pot", strconv.FormatInt(pot, 10)))
 }
 
 // replyOpen maps the three outcomes every Open caller shares — started, slot
