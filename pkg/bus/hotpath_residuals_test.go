@@ -15,8 +15,14 @@ import (
 func identitySlot(t *testing.T, h nats.Header) string {
 	t.Helper()
 	slot, ok := h[messageIDHeader]
-	if !ok || len(slot) != 1 || cap(slot) != 1 {
-		t.Fatalf("identity slot not an envelope-owned one-element slice: %+v cap %d", slot, cap(slot))
+	if !ok {
+		t.Fatal("header has no identity slot")
+	}
+	if len(slot) != 1 {
+		t.Fatalf("identity slot holds %d values, want exactly one", len(slot))
+	}
+	if cap(slot) != 1 {
+		t.Fatalf("identity slot capacity %d, want the envelope-owned one-element slice", cap(slot))
 	}
 	return slot[0]
 }
@@ -84,8 +90,11 @@ func TestFleetMetadataIdentityOnlyReturnsNil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mixed headers rejected: %v", err)
 	}
-	if len(metadata) != 1 || metadata["Traceparent"] != "00-trace-span" {
-		t.Fatalf("mixed headers lost data: %v", metadata)
+	if len(metadata) != 1 {
+		t.Fatalf("mixed headers produced %d entries: %v", len(metadata), metadata)
+	}
+	if metadata["Traceparent"] != "00-trace-span" {
+		t.Fatalf("trace header lost: %v", metadata)
 	}
 
 	if _, err := fleetMetadata(nats.Header{"X-Dup": {"a", "b"}}); err == nil {
