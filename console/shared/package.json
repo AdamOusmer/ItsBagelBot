@@ -42,10 +42,11 @@
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
+    "@nats-io/jetstream": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",
     "lenis": "^1.3.18",
     "motion": "^12.0.0",
-    "nats": "^2.29.2",
     "oauth4webapi": "^3.8.7",
     "pino": "^9",
     "three": "^0.185.0"

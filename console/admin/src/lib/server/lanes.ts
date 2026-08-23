@@ -3,7 +3,7 @@
 
 import { jsm, js } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
-import type { KV } from 'nats';
+import { Kvm, type KV } from '@nats-io/kv';
 import { dev } from '$app/environment';
 
 // Keep this boot-safe. Importing access.ts here pulls in services.ts, creating
@@ -54,10 +54,10 @@ async function getKV(): Promise<KV> {
         num_replicas: NATS_REPLICAS
       });
     }
-    kvStore = await client.views.kv(LANE_BUCKET, { history: 1, replicas: NATS_REPLICAS });
+    kvStore = await new Kvm(client).create(LANE_BUCKET, { history: 1, replicas: NATS_REPLICAS });
   } catch (err: any) {
     if (err.code === '404' || err.message?.includes('not found')) {
-      kvStore = await client.views.kv(LANE_BUCKET, {
+      kvStore = await new Kvm(client).create(LANE_BUCKET, {
         history: 1,
         replicas: NATS_REPLICAS,
         description: 'admin lane display aliases'
