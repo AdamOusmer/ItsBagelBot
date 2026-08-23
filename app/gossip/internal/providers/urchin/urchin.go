@@ -53,11 +53,13 @@ const (
 
 // Config carries the provider's environment: the Coral base URL, the API key
 // every request authenticates with, and the key's request budget per 5-minute
-// window.
+// window. BatchWindow sizes the cross-channel batch_lookup window (zero takes
+// the default); it exists for tests, which shrink it to keep suites fast.
 type Config struct {
-	BaseURL   string
-	APIKey    string
-	RateLimit float64
+	BaseURL     string
+	APIKey      string
+	RateLimit   float64
+	BatchWindow time.Duration
 }
 
 // providerName is the subject token this provider answers under.
@@ -70,6 +72,7 @@ type api struct {
 	key     string
 	limiter *ratelimit.Limiter
 	buckets core.Buckets
+	tags    *tagsBatcher
 }
 
 // New builds the urchin provider: the three session-delta endpoints plus the
@@ -109,13 +112,19 @@ func newAPI(cfg Config, d provider.Deps) *api {
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 600
 	}
-	return &api{
+	window := cfg.BatchWindow
+	if window <= 0 {
+		window = batchWindowDefault
+	}
+	a := &api{
 		http:    core.NewHTTPClient(base, map[string]string{"X-API-Key": cfg.APIKey}, httpTimeout),
 		cache:   d.Cache,
 		key:     cfg.APIKey,
 		limiter: d.Limiter,
 		buckets: core.NewPacedBuckets("ratelimit:gossip:urchin", cfg.RateLimit, rateWindowSeconds, maxBurst),
 	}
+	a.tags = newTagsBatcher(a, window)
+	return a
 }
 
 func sessionErrReply(id, msg string) any {
@@ -239,13 +248,16 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 // echoes the canonical uuid, without needing the Player Data permission the
 // dedicated /v3/resolve endpoint requires).
 type tagsResponse struct {
-	UUID        string  `json:"uuid"`
-	DisplayName *string `json:"displayname"`
-	Tags        []struct {
-		TagType string `json:"tag_type"`
-		Reason  string `json:"reason"`
-		AddedOn int64  `json:"added_on"`
-	} `json:"tags"`
+	UUID        string      `json:"uuid"`
+	DisplayName *string     `json:"displayname"`
+	Tags        []playerTag `json:"tags"`
+}
+
+// playerTag is one blacklist tag as the individual tags endpoint reports it.
+type playerTag struct {
+	TagType string `json:"tag_type"`
+	Reason  string `json:"reason"`
+	AddedOn int64  `json:"added_on"`
 }
 
 func (p *api) fetchTags(ctx context.Context, acct account) (tagsResponse, error) {
@@ -255,15 +267,28 @@ func (p *api) fetchTags(ctx context.Context, acct account) (tagsResponse, error)
 
 // playerTags fetches the Coral tags response for acct behind a shared cache.
 // Both the tags command and the sniper endpoint's uuid resolution read through
-// it, so a player queried by either costs one /v3/player/tags call rather than
-// two, and a missing player negative-caches once and satisfies both. It spends
-// one rate-limit token only on a real upstream fetch (the enforce lives inside
-// the cache's fill, so a hit costs nothing).
+// it, so a player queried by either costs one lookup rather than two, and a
+// missing player negative-caches once and satisfies both. It spends one
+// rate-limit token only on a real upstream fetch (the enforce lives inside the
+// cache's fill, so a hit costs nothing).
+//
+// UUID-shaped accounts ride the cross-channel batcher (see batch.go): their
+// misses within one window collapse into a single POST /v3/players whose
+// answer hydrates every player's entry here, so the batch's OTHER players are
+// already warm for whoever asks next. Their cache key is the canonical
+// undashed-lowercase uuid, so dashed and mixed-case spellings of one player
+// share an entry. Username accounts keep the individual GET — the batch
+// endpoint does not resolve usernames (batch.go explains why) — and keep the
+// typed-as-lowered key they always had.
 func (p *api) playerTags(ctx context.Context, acct account) (tagsResponse, error) {
-	key := core.Key(providerName, "playertags", acct.cacheKey())
-	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, nil, func(ctx context.Context) (tagsResponse, error) {
-		return p.fetchTags(ctx, acct)
-	})
+	id := acct.cacheKey()
+	fetch := func(ctx context.Context) (tagsResponse, error) { return p.fetchTags(ctx, acct) }
+	if cuuid, ok := canonicalUUID(acct); ok {
+		id = cuuid
+		fetch = func(ctx context.Context) (tagsResponse, error) { return p.tags.await(ctx, cuuid) }
+	}
+	key := core.Key(providerName, "playertags", id)
+	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, nil, fetch)
 }
 
 // tagsFetch reads the shared tags cache and shapes the blacklist-tags reply.

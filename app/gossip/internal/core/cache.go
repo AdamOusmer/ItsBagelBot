@@ -312,6 +312,47 @@ func (f envelopeFlight[T]) refresh() {
 	}()
 }
 
+// StoreRequest bundles one ready-made answer for StoreCached. The store call
+// needs six facts and threading them positionally is exactly the unreadable
+// signature envelopeFlight's own bundling exists to avoid, so the batch paths
+// that hydrate many keys at once build one of these per key instead.
+type StoreRequest[T any] struct {
+	// Key is the canonical cache key the entry is written under.
+	Key string
+	// TTL is the fresh window; the entry is physically retained for twice it,
+	// the same fresh-plus-stale-tail split Cached stores.
+	TTL time.Duration
+	// NegativeTTL pins a friendly failure (a typed *UpstreamError carrying a
+	// 400 or 404) for.
+	NegativeTTL time.Duration
+	// Value is the success payload. Ignored when Err carries a failure.
+	Value T
+	// Err is the fetch outcome this entry stands for: nil stores Value, a
+	// friendly 400/404 stores the negative, anything else stores nothing —
+	// an infrastructure failure teaches nothing about the key, so it must not
+	// be remembered.
+	Err error
+}
+
+// StoreCached writes one entry in exactly the format Cached reads — value
+// envelope for 2*ttl (fresh window ttl + stale tail), typed negative for
+// negativeTTL, nothing at all for a non-friendly failure — WITHOUT running a
+// fetch. It is the hydration half of batch lookups: one upstream answer covers
+// many players, and each of them must land in the shared cache individually so
+// the next single-player query hits instead of refetching. A key that already
+// holds an entry is overwritten; every writer of these keys derives its value
+// from the same upstream, so last-write-wins cannot move data backwards.
+func StoreCached[T any](ctx context.Context, c *Cache, req StoreRequest[T]) {
+	f := envelopeFlight[T]{cache: c, key: req.Key, ttl: req.TTL, negativeTTL: req.NegativeTTL}
+	env, storeTTL, err := f.envelopeFor(req.Value, req.Err)
+	if err != nil {
+		return // infrastructure failure: nothing learnable, leave uncached to retry
+	}
+	if b, merr := codec.Marshal(env); merr == nil {
+		_ = c.store.Set(ctx, req.Key, b, storeTTL)
+	}
+}
+
 // GetJSON reads a raw (non-fetching) entry, for provider-owned state like the
 // mcsr stream-start snapshot.
 func (c *Cache) GetJSON(ctx context.Context, key string, out any) (bool, error) {
@@ -332,4 +373,11 @@ func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duratio
 		return err
 	}
 	return c.store.Set(ctx, key, b, ttl)
+}
+
+// DelJSON drops a raw entry — the write half of the GetJSON/SetJSON pair, for
+// provider-owned state that must not outlive its session (the stream-start
+// snapshots stream.offline clears).
+func (c *Cache) DelJSON(ctx context.Context, key string) error {
+	return c.store.Del(ctx, key)
 }
