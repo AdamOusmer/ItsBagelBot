@@ -42,11 +42,11 @@ type FeedBoardReply struct {
 	Entries []FeedBoardEntry `json:"entries,omitempty"`
 	// Total is the fleet-wide lifetime count (one bagel, every channel feeds
 	// it) — the same number a feeding returns, read without feeding anything.
-	Total  uint64 `json:"total"`
-	Ranked uint64 `json:"ranked"`
-	Channel uint64           `json:"channel,omitempty"`
-	Rank    uint64           `json:"rank,omitempty"`
-	Error   string           `json:"error,omitempty"`
+	Total   uint64 `json:"total"`
+	Ranked  uint64 `json:"ranked"`
+	Channel uint64 `json:"channel,omitempty"`
+	Rank    uint64 `json:"rank,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // FeedBoardEntry is one channel's place on the feed leaderboard.

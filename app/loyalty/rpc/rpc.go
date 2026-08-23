@@ -35,6 +35,7 @@ type loyaltyRPC struct {
 //	<prefix>.balance.get    {user_id, viewer_id}            -> {balance}
 //	<prefix>.balance.set    {user_id, viewer_login, value}  -> {balance, found}
 //	<prefix>.balance.add    {user_id, viewer_login, value}  -> {balance, found}
+//	<prefix>.balance.spend  {user_id, viewer_login, value}  -> {balance, found, spent}
 //	<prefix>.top.get        {user_id, limit}                -> {top}
 //	<prefix>.counter.get    {user_id, name[, viewer_id, command]} -> {counter, found}
 //	<prefix>.counter.create {user_id, name, scope}          -> {counter}
@@ -58,6 +59,7 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 		{"balance.get", l.handleBalanceGet},
 		{"balance.set", l.handleBalanceSet},
 		{"balance.add", l.handleBalanceAdd},
+		{"balance.spend", l.handleBalanceSpend},
 		{"top.get", l.handleTopGet},
 		{"counter.get", l.handleCounterGet},
 		{"counter.create", l.handleCounterCreate},
@@ -149,6 +151,25 @@ func (l *loyaltyRPC) handleBalanceSet(ctx context.Context, req loyaltyrpc.Reques
 
 func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	return l.adjustBalance(ctx, req, false)
+}
+
+// handleBalanceSpend backs the wager games (gamble stakes, duel escrow): the
+// debit applies only when the viewer holds enough points, and the reply's
+// Spent flag says which way it went. found=false still means the channel has
+// never accrued for that login.
+func (l *loyaltyRPC) handleBalanceSpend(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
+	}
+	row, found, spent, err := l.repo.BalanceSpend(ctx, userID, req.ViewerLogin, req.Value)
+	if err != nil {
+		return l.fail("loyalty balance.spend", err)
+	}
+	if !found {
+		return loyaltyrpc.Reply{Found: false}
+	}
+	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true, Spent: spent}
 }
 
 func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, absolute bool) loyaltyrpc.Reply {

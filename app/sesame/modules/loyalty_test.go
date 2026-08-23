@@ -40,11 +40,21 @@ type adjustCall struct {
 	absolute bool
 }
 
+type spendCall struct {
+	login  string
+	amount int64
+}
+
 // fakeLoyalty records calls and serves canned counters.
 type fakeLoyalty struct {
 	earns    []earnCall
 	bumps    []bumpCall
 	adjusts  []adjustCall
+	spends   []spendCall
+	spendBad bool // force the insufficient-points outcome on every spend
+	// balances threads one running total per login across the verbs, so a
+	// debit followed by a credit reads like the service's own ledger.
+	balances map[string]int64
 	bumpVal  int64
 	counters map[string]loyaltyrpc.Counter
 	deleted  []string
@@ -76,10 +86,43 @@ func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin str
 	if viewerLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, nil
 	}
+	bal := f.standing(viewerLogin)
 	if absolute {
-		return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: value}, true, nil
+		bal.Points = value
+	} else {
+		bal.Points += value
 	}
-	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234 + value}, true, nil
+	f.balances[viewerLogin] = bal.Points
+	return bal, true, nil
+}
+
+func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	f.spends = append(f.spends, spendCall{login: viewerLogin, amount: amount})
+	if viewerLogin == "ghost" {
+		return loyaltyrpc.Balance{}, false, false, nil
+	}
+	bal := f.standing(viewerLogin)
+	if f.spendBad || amount > bal.Points {
+		return bal, true, false, nil
+	}
+	bal.Points -= amount
+	f.balances[viewerLogin] = bal.Points
+	return bal, true, true, nil
+}
+
+// standing is the canned reply every balance verb serves; the games' tests
+// pin their arithmetic against the same 1234 every fresh viewer starts on,
+// threaded through one map so escrow-then-credit sequences add up.
+func (f *fakeLoyalty) standing(login string) loyaltyrpc.Balance {
+	if f.balances == nil {
+		f.balances = map[string]int64{}
+	}
+	points, seen := f.balances[login]
+	if !seen {
+		points = 1234
+		f.balances[login] = points
+	}
+	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: login, Points: points}
 }
 
 func (f *fakeLoyalty) CounterCreate(_ context.Context, _ uint64, name, scope string) (loyaltyrpc.Counter, error) {
@@ -268,7 +311,9 @@ func TestLoyaltyPointsModAdjust(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "add coolviewer -100", col.emit))
 	require.Len(t, fake.adjusts, 2)
 	assert.Equal(t, adjustCall{login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
-	assert.Contains(t, col.out[0].Text, "1134")
+	// The fake threads one running balance per login now (the wager games'
+	// escrow-then-credit sequences depend on it): 500 set, minus 100.
+	assert.Contains(t, col.out[0].Text, "400")
 
 	// Unknown target: no row to adjust, friendly reply.
 	col = collector{}

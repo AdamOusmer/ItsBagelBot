@@ -78,6 +78,7 @@ type engineRuntime struct {
 	tick    *engine.ValkeyLoyaltyClock
 	stats   *engine.LoyaltyReporter
 	raffle  *engine.ValkeyRaffleStore
+	duel    *engine.ValkeyDuelStore
 	seq     *engine.Sequencer
 }
 
@@ -106,6 +107,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Campaign:   engine.NewValkeyCampaign(in.vc, log),
 		Queue:      engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
 		Raffle:     rt.raffle,
+		Duel:       rt.duel,
 		Timers:     rt.timers,
 
 		Loyalty:     rt.loyalty,
@@ -219,6 +221,21 @@ func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
 	}, w.log)
 	go raffle.StartExpiryWatcher(w.ctx)
 	return raffle
+}
+
+// newDuel builds the Valkey-backed duel store — the wager games' escrow
+// ledger over the loyalty service — and starts its expiry watcher (pots draw
+// stake-weighted on deadline, unanswered challenges refund their opener).
+func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
+	duel := engine.NewValkeyDuelStore(w.in.vc, engine.DuelConfig{
+		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
+		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
+		Pub:                     w.in.pub,
+		Proj:                    proj,
+		Wallet:                  engine.NewLoyaltyWallet(loyalty),
+	}, w.log)
+	go duel.StartExpiryWatcher(w.ctx)
+	return duel
 }
 
 // newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty

@@ -407,10 +407,30 @@ func (s *ValkeyLoyaltyStore) BalanceAdjust(ctx context.Context, broadcasterID ui
 	if err != nil || !found {
 		return bal, found, err
 	}
-	if viewerID, perr := strconv.ParseUint(bal.ViewerID, 10, 64); perr == nil && viewerID != 0 {
-		_ = s.client.Do(ctx, s.client.B().Del().Key(balanceKey(broadcasterID, viewerID)).Build()).Error()
-	}
+	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
 	return bal, true, nil
+}
+
+// BalanceSpend passes a wager escrow through to the service's conditional
+// debit and drops the target's cached balance either way: a refused spend
+// still changes nothing, but the cached value may be stale-high, and dropping
+// it keeps the next check honest.
+func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	bal, found, spent, err := s.rpc.BalanceSpend(ctx, broadcasterID, viewerLogin, amount)
+	if err != nil || !found {
+		return bal, found, spent, err
+	}
+	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	return bal, true, spent, nil
+}
+
+// dropBalanceCache invalidates one viewer's cached balance reply after a
+// write; the id rides the service's reply, so an unparseable one just leaves
+// the short-TTL cache entry to age out.
+func (s *ValkeyLoyaltyStore) dropBalanceCache(ctx context.Context, broadcasterID uint64, viewerID string) {
+	if id, err := strconv.ParseUint(viewerID, 10, 64); err == nil && id != 0 {
+		_ = s.client.Do(ctx, s.client.B().Del().Key(balanceKey(broadcasterID, id)).Build()).Error()
+	}
 }
 
 // CounterCreate passes through to the service and refreshes the local view.
