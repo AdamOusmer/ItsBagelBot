@@ -1059,23 +1059,37 @@ function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
 
 // closesDelimited folds one depth-bearing character and reports whether it
 // just closed the wrapper.
-function closesDelimited(ch: string, openParen: boolean, depth: { paren: number; brace: number }): boolean {
-  switch (ch) {
-    case '(':
-      depth.paren++;
-      return false;
-    case ')':
-      depth.paren--;
-      return openParen && depth.paren === 0 && depth.brace <= 0;
-    case '{':
-      depth.brace++;
-      return false;
-    case '}':
-      depth.brace--;
-      return !openParen && depth.brace === 0 && depth.paren <= 0;
-    default:
-      return false;
+function closesDelimited(ch: string, openParen: boolean, depth: ScanDepth): boolean {
+  applyDepthStep(ch, depth);
+  return reachedOwnClose(ch, openParen, depth);
+}
+
+interface ScanDepth {
+  paren: number;
+  brace: number;
+}
+
+function applyDepthStep(ch: string, depth: ScanDepth): void {
+  if (ch === '(') {
+    depth.paren++;
+    return;
   }
+  if (ch === '{') {
+    depth.brace++;
+    return;
+  }
+  if (ch === ')') {
+    depth.paren--;
+    return;
+  }
+  if (ch === '}') depth.brace--;
+}
+
+// reachedOwnClose reports whether the character just closed the same family
+// the wrapper opened, with no opposite-family nesting left outstanding.
+function reachedOwnClose(ch: string, openParen: boolean, depth: ScanDepth): boolean {
+  if (openParen) return ch === ')' && depth.paren === 0 && depth.brace <= 0;
+  return ch === '}' && depth.brace === 0 && depth.paren <= 0;
 }
 
 // matchBrace finds the } closing the { at start (nested braces counted);
