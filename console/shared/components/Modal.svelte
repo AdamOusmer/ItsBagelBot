@@ -96,14 +96,14 @@
     position: absolute; inset: 0;
     padding: 0; border: 0; cursor: pointer;
     background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
   .modal-card {
     position: relative;
     background: var(--bb-bg-1, #111);
     border: 1px solid var(--glass-border);
     border-radius: 8px;
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     padding: 28px 28px 24px; max-width: 420px; width: 100%;
     max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;

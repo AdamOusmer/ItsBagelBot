@@ -68,7 +68,6 @@
     border-bottom: 1px solid var(--bb-border);
     z-index: 50;
     backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     background: rgba(10, 10, 10, 0.7);
   }
   .site-nav__inner {
