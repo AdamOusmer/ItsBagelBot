@@ -23,6 +23,45 @@ func shoutOf(upper, quiet int) string {
 	return strings.Repeat("AB", upper/2) + strings.Repeat("b", quiet)
 }
 
+// newEnforcingGate wires a gate whose fetched emote layer is loaded-empty:
+// enforcing posture, so a clean verdict can only come from another layer.
+func newEnforcingGate() *Gate {
+	g := New()
+	g.SetEmotes(NewEmoteSet(nil))
+	return g
+}
+
+// newLearnedVocabGate wires a gate with the enforcing fetched layer plus a
+// deterministic test vocab provider.
+func newLearnedVocabGate() (*Gate, *Vocab) {
+	g := newEnforcingGate()
+	v := newTestVocab()
+	g.SetExtraEmotes(v)
+	return g, v
+}
+
+// observeHypeAlternation feeds ch n alternating 0.50/0.80 caps lines:
+// mean 0.65 stddev 0.15 -> mean+2sigma ~0.95 tops the fleet ceiling.
+func observeHypeAlternation(b *Baseline, ch uint64, n int) {
+	for i := 0; i < n; i++ {
+		v := 0.5
+		if i%2 == 0 {
+			v = 0.8
+		}
+		b.Observe(ch, v, 0.1, 10)
+	}
+}
+
+// floodLearned sends token from vocabSenders distinct users enough times that
+// total uses clear vocabTau within one hour (no decay).
+func floodLearned(v *Vocab, ch uint64, token string) {
+	for s := 0; s < vocabSenders; s++ {
+		for u := 0; u < vocabTau/vocabSenders+1; u++ {
+			v.Observe(ch, fmt.Sprintf("user-%d", s), []string{token})
+		}
+	}
+}
+
 func TestBaselineColdFloorsCallerStaticThreshold(t *testing.T) {
 	b := newTestBaseline()
 	// Cold path must floor at the caller's static value exactly like the warm
@@ -40,8 +79,7 @@ func TestBaselineColdFloorsCallerStaticThreshold(t *testing.T) {
 }
 
 func TestHypeChannelCapsFlipsToCleanWhileColdChannelKeepsDeleting(t *testing.T) {
-	g := New()
-	g.SetEmotes(NewEmoteSet(nil)) // loaded-empty: enforcing posture, so the caps rescue stays off
+	g := newEnforcingGate()
 	b := newTestBaseline()
 	g.SetBaseline(b)
 
@@ -56,15 +94,8 @@ func TestHypeChannelCapsFlipsToCleanWhileColdChannelKeepsDeleting(t *testing.T) 
 		t.Fatalf("cold channel: got %s, want the same input deleted", v.Action)
 	}
 
-	// Sustained hype culture on channel 7: alternating 0.50/0.80 caps lines,
-	// mean 0.65 stddev 0.15 -> mean+2sigma ~0.95 tops the fleet ceiling.
-	for i := 0; i < 300; i++ {
-		v := 0.5
-		if i%2 == 0 {
-			v = 0.8
-		}
-		b.Observe(ch, v, 0.1, 10)
-	}
+	// Sustained hype culture on channel 7.
+	observeHypeAlternation(b, ch, 300)
 	if got := b.Adjust(ch, KindCaps, 0.7); got <= 0.72 {
 		t.Fatalf("warm hype threshold %v did not clear the 0.72 line", got)
 	}
@@ -79,10 +110,7 @@ func TestHypeChannelCapsFlipsToCleanWhileColdChannelKeepsDeleting(t *testing.T) 
 }
 
 func TestLearnedTokenShedsCapsEvidence(t *testing.T) {
-	g := New()
-	g.SetEmotes(NewEmoteSet(nil)) // loaded-empty: dominance rescue needs real membership
-	v := newTestVocab()
-	g.SetExtraEmotes(v)
+	g, v := newLearnedVocabGate()
 
 	const ch = uint64(1)
 	token := "BLESSUPCHATWOW"
@@ -112,10 +140,7 @@ func TestLearnedTokenShedsCapsEvidence(t *testing.T) {
 }
 
 func TestStrikePurgesLearnedTokenThenItReflags(t *testing.T) {
-	g := New()
-	g.SetEmotes(NewEmoteSet(nil))
-	v := newTestVocab()
-	g.SetExtraEmotes(v)
+	g, v := newLearnedVocabGate()
 
 	const ch = uint64(1)
 	token := "BLESSUPCHATWOW"
@@ -156,11 +181,7 @@ func TestPurgeIsScopedToStruckChannel(t *testing.T) {
 	const hit, clean = uint64(1), uint64(2)
 	token := "sharedtoken"
 	learnPattern(t, v, token) // learns on channel 1 only
-	for s := 0; s < vocabSenders; s++ {
-		for u := 0; u < vocabTau/vocabSenders+1; u++ {
-			v.Observe(clean, fmt.Sprintf("user-%d", s), []string{token})
-		}
-	}
+	floodLearned(v, clean, token)
 	if !v.Known(clean, token) {
 		t.Fatal("setup: channel 2 must know the token before the strike")
 	}
@@ -176,8 +197,7 @@ func TestPurgeIsScopedToStruckChannel(t *testing.T) {
 }
 
 func TestUnscopedLinesKeepLayersInert(t *testing.T) {
-	g := New()
-	g.SetEmotes(NewEmoteSet(nil)) // loaded-empty: enforcing posture
+	g := newEnforcingGate()
 	b := newTestBaseline()
 	v := newTestVocab()
 	g.SetBaseline(b)
@@ -187,11 +207,7 @@ func TestUnscopedLinesKeepLayersInert(t *testing.T) {
 	// leaves both stores empty and thresholds untouched, so legacy call sites
 	// and tests see byte-identical behavior.
 	line := shoutOf(18, 7)
-	for i := 0; i < 100; i++ {
-		if v := g.InspectWith(module.RoleEveryone, line, nil); v.Action != ActionDelete {
-			t.Fatalf("unscoped iteration %d: got %s, want static enforcement", i, v.Action)
-		}
-	}
+	assertStaticEnforcementHolds(t, g, line, 100)
 	if s := &b.shards[7&baselineShardMask]; len(s.m) != 0 {
 		t.Fatal("baseline recorded observations without a channel scope")
 	}
@@ -202,10 +218,26 @@ func TestUnscopedLinesKeepLayersInert(t *testing.T) {
 	// A per-channel stricter config also floors through the adapted threshold:
 	cfg := ParseConfig(codec.RawMessage(`{"level":"strict"}`))
 	warm := uint64(5)
-	for i := 0; i < 300; i++ {
-		b.Observe(warm, 0.4, 0.05, 8) // quiet culture: adaptation must not LOWER anything
-	}
+	observeQuietCulture(b, warm, 300)
 	if got := b.Adjust(warm, KindCaps, cfg.resolved().capsThresh); got < 0.7 {
 		t.Fatalf("adapted strict threshold %v dropped below the fleet ceiling", got)
+	}
+}
+
+// assertStaticEnforcementHolds judges line n unscoped times; every verdict must
+// be the static delete.
+func assertStaticEnforcementHolds(t *testing.T, g *Gate, line string, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		if v := g.InspectWith(module.RoleEveryone, line, nil); v.Action != ActionDelete {
+			t.Fatalf("unscoped iteration %d: got %s, want static enforcement", i, v.Action)
+		}
+	}
+}
+
+// observeQuietCulture feeds ch n quiet lines - adaptation must not LOWER anything.
+func observeQuietCulture(b *Baseline, ch uint64, n int) {
+	for i := 0; i < n; i++ {
+		b.Observe(ch, 0.4, 0.05, 8) // quiet culture: adaptation must not LOWER anything
 	}
 }

@@ -116,8 +116,17 @@ var flagRuleNames = [bktCount]string{
 
 // flagBucket maps a full verdict rule string onto its bucket: strip the known
 // escalation suffixes, then match the base exactly (floor/heuristic/block
-// term/council) or by lexicon category prefix. Unknown rules fold into other.
+// term/council) or by lexicon category prefix.
 func flagBucket(rule string) flagRuleBucket {
+	return baseRuleBucket(stripRuleSuffixes(rule))
+}
+
+// stripRuleSuffixes folds the known escalation suffixes off a verdict rule so
+// classification sees its base. The suffixes stack in any order and number
+// ("scam+campaign+repeat"), so the fold loops until neither matches; a verdict
+// carrying suffixes is classified by its base rule, since enumerating every
+// suffix combination would triple the bucket set for little audit value.
+func stripRuleSuffixes(rule string) string {
 	base := rule
 	for {
 		if s, ok := strings.CutSuffix(base, ruleSuffixRepeat); ok {
@@ -130,6 +139,14 @@ func flagBucket(rule string) flagRuleBucket {
 		}
 		break
 	}
+	return base
+}
+
+// baseRuleBucket resolves a suffix-free base rule onto its bucket: matched
+// exactly (floor categories, the heuristics, the block term verdict, the
+// council escalation and shield mode) or by lexicon category prefix. Unknown
+// rules fold into other.
+func baseRuleBucket(base string) flagRuleBucket {
 	switch {
 	case base == ruleIPLogger:
 		return bktIPLogger

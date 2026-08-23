@@ -33,14 +33,21 @@ func TestCleanPathInfraFloorHoldsShortLines(t *testing.T) {
 	}
 	for _, tt := range caught {
 		t.Run(tt.name, func(t *testing.T) {
-			v, sigs := g.Assess(module.RoleEveryone, tt.line, nil)
-			if v.Action != ActionTimeout || v.Rule != tt.rule || v.Seconds != 600 {
-				t.Fatalf("Assess(%q) = %+v, want timeout/600s rule=%s", tt.line, v, tt.rule)
-			}
-			if !sigs.Deep {
-				t.Fatalf("%q was actioned without taking the deep path", tt.line)
-			}
+			assertInfraTimeoutViaDeepPath(t, g, tt.line, tt.rule)
 		})
+	}
+}
+
+// assertInfraTimeoutViaDeepPath pins the timeout verdict AND that the line took
+// the deep path: a verdict without the trip would mean some other juror fired.
+func assertInfraTimeoutViaDeepPath(t *testing.T, g *Gate, line, rule string) {
+	t.Helper()
+	v, sigs := g.Assess(module.RoleEveryone, line, nil)
+	if v.Action != ActionTimeout || v.Rule != rule || v.Seconds != 600 {
+		t.Fatalf("Assess(%q) = %+v, want timeout/600s rule=%s", line, v, rule)
+	}
+	if !sigs.Deep {
+		t.Fatalf("%q was actioned without taking the deep path", line)
 	}
 }
 

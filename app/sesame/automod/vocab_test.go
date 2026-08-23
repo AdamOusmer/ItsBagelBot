@@ -103,9 +103,22 @@ func TestVocabPurgeTokensRemoves(t *testing.T) {
 
 func TestVocabMisraGriesWindowBounded(t *testing.T) {
 	v := newTestVocab()
-	// Interleave ~150 heavy-hitter uses with 3K one-off churn: every one-off
-	// insert decrements all bins once, so only genuinely frequent tokens
-	// survive (MG guarantee: anything above ~N/(K+1) frequency stays).
+	misraGriesChurnStorm(v)
+	topUpHeavyHitterSenders(v)
+	cv := v.shards[2&vocabShardMask].m[2]
+	if len(cv.bins) > vocabBins {
+		t.Fatalf("MG window exceeded K: %d bins", len(cv.bins))
+	}
+	if !v.Known(2, "heavyhitter") {
+		t.Fatal("a true heavy hitter was evicted by one-off churn")
+	}
+}
+
+// misraGriesChurnStorm interleaves ~40 heavy-hitter uses into 3K one-off churn
+// on channel 2: every one-off insert decrements all bins once, so only genuinely
+// frequent tokens survive (MG guarantee: anything above ~N/(K+1) frequency
+// stays).
+func misraGriesChurnStorm(v *Vocab) {
 	const churn = vocabBins * 3
 	for i := 0; i < churn; i++ {
 		v.Observe(2, fmt.Sprintf("u%d", i%vocabSenders), []string{fmt.Sprintf("tok%05d", i)})
@@ -113,17 +126,15 @@ func TestVocabMisraGriesWindowBounded(t *testing.T) {
 			v.Observe(2, "heavy0", []string{"heavyhitter"})
 		}
 	}
-	for s := 1; s < vocabSenders; s++ { // ...then top up senders + uses past tau x d
+}
+
+// topUpHeavyHitterSenders tops the heavy hitter up with the remaining senders
+// and uses past tau x d (misraGriesChurnStorm seeded "heavy0" only).
+func topUpHeavyHitterSenders(v *Vocab) {
+	for s := 1; s < vocabSenders; s++ {
 		for u := 0; u < vocabTau/vocabSenders+1; u++ {
 			v.Observe(2, fmt.Sprintf("heavy%d", s), []string{"heavyhitter"})
 		}
-	}
-	cv := v.shards[2&vocabShardMask].m[2]
-	if len(cv.bins) > vocabBins {
-		t.Fatalf("MG window exceeded K: %d bins", len(cv.bins))
-	}
-	if !v.Known(2, "heavyhitter") {
-		t.Fatal("a true heavy hitter was evicted by one-off churn")
 	}
 }
 

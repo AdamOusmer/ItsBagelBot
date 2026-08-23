@@ -165,33 +165,34 @@ func (b *Baseline) Observe(ch uint64, caps, symbol, tokens float64) {
 // until ~coldFloorN judged lines accumulate. Direction is raise-only by
 // construction: every branch bottoms out at a documented ceiling.
 func (b *Baseline) Adjust(ch uint64, kind StyleKind, ratio float64) float64 {
+	return b.floored(kind, b.rawThresh(ch, kind), ratio)
+}
+
+// rawThresh is the stats-lookup half of Adjust: kind's observed threshold for
+// channel ch under the shard lock - the ceiling until the channel is warm
+// (below coldFloorN observations the variance estimate is garbage), and
+// mean+zScore*stddev of the learned series afterwards.
+func (b *Baseline) rawThresh(ch uint64, kind StyleKind) float64 {
 	s := &b.shards[ch&baselineShardMask]
 	s.Lock()
+	defer s.Unlock()
 	cs := s.m[ch]
-	warm := cs != nil && cs.n >= coldFloorN
-	var t float64
-	switch kind {
-	case KindCaps:
-		if !warm {
-			t = b.ceilingOf(KindCaps)
-		} else {
-			t = cs.caps.thresh()
-		}
-	case KindSymbol:
-		if !warm {
-			t = b.ceilingOf(KindSymbol)
-		} else {
-			t = cs.sym.thresh()
-		}
-	default:
-		if !warm {
-			t = b.ceilingOf(kind)
-		} else {
-			t = cs.tok.thresh()
-		}
+	if cs == nil || cs.n < coldFloorN {
+		return b.ceilingOf(kind)
 	}
-	s.Unlock()
-	return b.floored(kind, t, ratio)
+	return kind.series(cs).thresh()
+}
+
+// series selects the EWMA Adjust consults for kind.
+func (k StyleKind) series(cs *chanStats) *metricEWMA {
+	switch k {
+	case KindCaps:
+		return &cs.caps
+	case KindSymbol:
+		return &cs.sym
+	default:
+		return &cs.tok
+	}
 }
 
 // floored applies BOTH raise-only floors in one place - the documented

@@ -151,24 +151,35 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config, opts ...A
 // lexicon categories gated by profile -> channel block-terms -> heuristics with
 // emote and allow-term suppression. In shadow mode the caller logs the verdict
 // and takes no action.
-func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...AssessOption) (Verdict, Signals) {
-	// Last non-zero option wins; reading fields keeps the variadic slice off
-	// the heap. Zero fields never clobber an earlier option's value, so call
-	// sites may pass the options in any order.
-	var msgCodes map[string]struct{}
-	var ch uint64
-	var sender string
+// assessScope is the resolved option set Assess acts on.
+type assessScope struct {
+	msgCodes map[string]struct{}
+	ch       uint64
+	sender   string
+}
+
+// applyOptions resolves the options last-non-zero-wins. Reading fields keeps
+// the variadic slice off the heap; zero fields never clobber an earlier
+// option's value, so call sites may pass the options in any order.
+func applyOptions(opts []AssessOption) assessScope {
+	var sc assessScope
 	for _, o := range opts {
 		if o.msgCodes != nil {
-			msgCodes = o.msgCodes
+			sc.msgCodes = o.msgCodes
 		}
 		if o.ch != 0 {
-			ch = o.ch
+			sc.ch = o.ch
 		}
 		if o.sender != "" {
-			sender = o.sender
+			sc.sender = o.sender
 		}
 	}
+	return sc
+}
+
+func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...AssessOption) (Verdict, Signals) {
+	sc := applyOptions(opts)
+
 	// Tier 0 trust gate: VIP, moderator, lead moderator and broadcaster exempt.
 	if role >= module.RoleVIP {
 		return Verdict{}, Signals{}
@@ -183,8 +194,8 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// Learned layers observe every judged line BEFORE any verdict resolves, so
 	// hype-channel chatter feeds the models regardless of outcome. Inert unless
 	// a provider was wired AND the caller scoped the line to a channel.
-	g.observeLearned(ch, sender, text, sig)
-	flags := g.resolveStyle(sig, sec, ch, text)
+	g.observeLearned(sc.ch, sc.sender, text, sig)
+	flags := g.resolveStyle(sig, sec, sc.ch, text)
 
 	if g.cleanPathBail(sig, flags, cfg, text) {
 		return Verdict{}, Signals{}
@@ -207,7 +218,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// Immovable floor, part 2: the hate lexicon acts under every profile and is
 	// never suppressed by an allow-term.
 	if cat == moderation.CatHate {
-		g.purgeLearned(ch, text)
+		g.purgeLearned(sc.ch, text)
 		return Verdict{Action: ActionTimeout, Seconds: 1800, Rule: "lex:hate:" + term}, out
 	}
 
@@ -216,16 +227,16 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	allowed := cfg.allows(skel)
 	if !allowed {
 		if v, ok := lexVerdict(cat, term, sec); ok {
-			g.purgeLearned(ch, text)
+			g.purgeLearned(sc.ch, text)
 			return v, out
 		}
 		if v, ok := cfg.blockTermVerdict(skel); ok {
-			g.purgeLearned(ch, text)
+			g.purgeLearned(sc.ch, text)
 			return v, out
 		}
 	}
 
-	return g.heuristicVerdict(sig, flags, allowed, text, msgCodes, ch), out
+	return g.heuristicVerdict(sig, flags, allowed, text, sc.msgCodes, sc.ch), out
 }
 
 // styleFlags are the per-line heuristic signals, resolved under the channel's
@@ -266,24 +277,50 @@ func (f styleFlags) onlySymbol() bool { return f.symbol && !f.zeroWidth && !f.re
 // Both branches run only after a flag already fired on the static view, so an
 // unwired gate pays nothing beyond the original comparison.
 func (g *Gate) resolveStyle(sig signals, sec sections, ch uint64, text string) styleFlags {
-	capsThresh, symRatio := sec.capsThresh, symbolRatioHi
-	if bl := g.baseline.Load(); bl != nil && ch != 0 {
-		capsThresh = bl.Adjust(ch, KindCaps, sec.capsThresh)
-		symRatio = bl.Adjust(ch, KindSymbol, symbolRatioHi)
+	capsThresh, symRatio := g.styleThresholds(ch, sec.capsThresh, symbolRatioHi)
+	flags := staticStyleFlags(sig, sec, capsThresh, symRatio)
+	if flags.caps || flags.symbol {
+		if adj, stripped := g.stripLearned(sig, text, ch); stripped {
+			flags.restripe(adj, sec, capsThresh, symRatio)
+		}
 	}
-	flags := styleFlags{
+	return flags
+}
+
+// styleThresholds raises the profile-resolved static values through the
+// channel's learned baseline (Baseline.Adjust bottoms out at them, so the move
+// is raise-only); a cold or unwired channel sees the static thresholds
+// verbatim.
+func (g *Gate) styleThresholds(ch uint64, capsThresh, symRatio float64) (float64, float64) {
+	if bl := g.baseline.Load(); bl != nil && ch != 0 {
+		capsThresh = bl.Adjust(ch, KindCaps, capsThresh)
+		symRatio = bl.Adjust(ch, KindSymbol, symRatio)
+	}
+	return capsThresh, symRatio
+}
+
+// staticStyleFlags resolves the per-line heuristic signals under the channel's
+// sections and the effective thresholds. Zero-width injection is an evasion
+// signal checked under every level; repeat/caps/symbol are the toggleable
+// style section.
+func staticStyleFlags(sig signals, sec sections, capsThresh, symRatio float64) styleFlags {
+	return styleFlags{
 		zeroWidth: sig.zeroWidth > 0,
 		repeat:    sec.style && sig.maxRepeat >= repeatRun,
 		caps:      sec.style && sig.runes >= capsMinLen && sig.capsRatio() >= capsThresh,
 		symbol:    sec.style && sig.symbols >= symbolMinCount && sig.symbolRatio() >= symRatio,
 	}
-	if flags.caps || flags.symbol {
-		if adj, ok := g.stripLearned(sig, text, ch); ok {
-			flags.caps = sec.style && adj.capsRatio() >= capsThresh
-			flags.symbol = sec.style && adj.symbols >= symbolMinCount && adj.symbolRatio() >= symRatio
-		}
-	}
-	return flags
+}
+
+// restripe re-runs the caps/symbol comparisons against adj - the signals minus
+// the evidence contributed by tokens Known to the channel's learned vocabulary
+// (learned.go). Applied only when the subtraction found learned tokens;
+// otherwise the static flags stand. Only style evidence yields: zeroWidth and
+// repeat-run are evasion signals computed once from the full line and never
+// suppressed.
+func (f *styleFlags) restripe(adj signals, sec sections, capsThresh, symRatio float64) {
+	f.caps = sec.style && adj.capsRatio() >= capsThresh
+	f.symbol = sec.style && adj.symbols >= symbolMinCount && adj.symbolRatio() >= symRatio
 }
 
 // cleanPathBail reports whether a line skips the deep path entirely: a short

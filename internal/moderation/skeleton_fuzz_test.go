@@ -10,14 +10,11 @@ import (
 	"unicode/utf8"
 )
 
-// FuzzNormalize pins the documented Normalize contract on arbitrary input:
-// lowercase output, no invisible/control/combining runes survive, the only
-// whitespace is a single collapsed ' ', and the transform is idempotent (the
-// skeleton of a skeleton is itself). Seeds cover the evasion shapes the
-// skeleton exists to fold: NFD/NFC mixes, ZWJ emoji families, Cyrillic
-// homoglyphs, RTL overrides, quorum-gated leet.
-func FuzzNormalize(f *testing.F) {
-	seeds := []string{
+// fuzzNormalizeSeeds covers the evasion shapes the skeleton exists to fold:
+// NFD/NFC mixes, ZWJ emoji families, Cyrillic homoglyphs, RTL overrides,
+// quorum-gated leet.
+func fuzzNormalizeSeeds() []string {
+	return []string{
 		"",
 		"hello world",
 		"GRABIFY.LINK/X",
@@ -37,37 +34,90 @@ func FuzzNormalize(f *testing.F) {
 		"\u0130\u00a0nbsp",             // dotted capital I, NBSP
 		"\ufb00 ligature \u2460\u2461", // ffi ligature, circled digits
 	}
-	for _, s := range seeds {
+}
+
+// FuzzNormalize pins the documented Normalize contract on arbitrary input:
+// lowercase output, no invisible/control/combining runes survive, the only
+// whitespace is a single collapsed ' ', and the transform is idempotent (the
+// skeleton of a skeleton is itself).
+func FuzzNormalize(f *testing.F) {
+	for _, s := range fuzzNormalizeSeeds() {
 		f.Add(s)
 	}
 	f.Add(string([]byte{0xff, 0xfe, 0xfd})) // invalid UTF-8 bytes
 
 	f.Fuzz(func(t *testing.T, text string) {
 		out := Normalize(nil, text)
-
-		if !utf8.Valid(out) {
-			t.Fatalf("Normalize(%q) emitted invalid UTF-8: %q", text, out)
-		}
-		for i := 0; i < len(out); i++ {
-			if out[i] >= 'A' && out[i] <= 'Z' {
-				t.Fatalf("Normalize(%q) = %q: uppercase survives", text, out)
-			}
-			if i > 0 && out[i] == ' ' && out[i-1] == ' ' {
-				t.Fatalf("Normalize(%q) = %q: whitespace run not collapsed", text, out)
-			}
-		}
-		for _, r := range string(out) {
-			if unicode.IsSpace(r) && r != ' ' {
-				t.Fatalf("Normalize(%q) = %q: non-space whitespace %U survives", text, out, r)
-			}
-			if r != ' ' && (isStrippable(r) || r < 0x20 || r == 0x7f) {
-				t.Fatalf("Normalize(%q) = %q: strippable rune %U survives", text, out, r)
-			}
-		}
-
-		again := Normalize(nil, string(out))
-		if !bytes.Equal(again, out) {
-			t.Fatalf("Normalize not idempotent: in=%q once=%q twice=%q", text, out, again)
-		}
+		assertValidLowerCollapsedUTF8(t, text, out)
+		assertNoStrippableSurvivors(t, text, out)
+		assertNormalizeIdempotent(t, text, out)
 	})
+}
+
+// assertValidLowerCollapsedUTF8 pins the byte-level shape: valid UTF-8, no
+// uppercase survivor, whitespace runs collapsed to single spaces.
+func assertValidLowerCollapsedUTF8(t *testing.T, text string, out []byte) {
+	t.Helper()
+	if !utf8.Valid(out) {
+		t.Fatalf("Normalize(%q) emitted invalid UTF-8: %q", text, out)
+	}
+	assertLowercased(t, text, out)
+	assertSingleSpaces(t, text, out)
+}
+
+// assertLowercased fails when any ASCII uppercase letter survives.
+func assertLowercased(t *testing.T, text string, out []byte) {
+	t.Helper()
+	for i := 0; i < len(out); i++ {
+		if out[i] >= 'A' && out[i] <= 'Z' {
+			t.Fatalf("Normalize(%q) = %q: uppercase survives", text, out)
+		}
+	}
+}
+
+// assertSingleSpaces fails when two space bytes sit adjacent.
+func assertSingleSpaces(t *testing.T, text string, out []byte) {
+	t.Helper()
+	for i := 1; i < len(out); i++ {
+		if out[i] == ' ' && out[i-1] == ' ' {
+			t.Fatalf("Normalize(%q) = %q: whitespace run not collapsed", text, out)
+		}
+	}
+}
+
+// assertNoStrippableSurvivors pins the rune-level shape: the only whitespace
+// left is ' ', and no invisible/control/combining rune survives.
+func assertNoStrippableSurvivors(t *testing.T, text string, out []byte) {
+	t.Helper()
+	assertOnlySpaceWhitespace(t, text, out)
+	assertNoControlsOrCombining(t, text, out)
+}
+
+// assertOnlySpaceWhitespace fails when any non-' '-space whitespace survives.
+func assertOnlySpaceWhitespace(t *testing.T, text string, out []byte) {
+	t.Helper()
+	for _, r := range string(out) {
+		if unicode.IsSpace(r) && r != ' ' {
+			t.Fatalf("Normalize(%q) = %q: non-space whitespace %U survives", text, out, r)
+		}
+	}
+}
+
+// assertNoControlsOrCombining fails when a strippable rune survives.
+func assertNoControlsOrCombining(t *testing.T, text string, out []byte) {
+	t.Helper()
+	for _, r := range string(out) {
+		if r != ' ' && (isStrippable(r) || r < 0x20 || r == 0x7f) {
+			t.Fatalf("Normalize(%q) = %q: strippable rune %U survives", text, out, r)
+		}
+	}
+}
+
+// assertNormalizeIdempotent pins the skeleton of a skeleton being itself.
+func assertNormalizeIdempotent(t *testing.T, text string, out []byte) {
+	t.Helper()
+	again := Normalize(nil, string(out))
+	if !bytes.Equal(again, out) {
+		t.Fatalf("Normalize not idempotent: in=%q once=%q twice=%q", text, out, again)
+	}
 }

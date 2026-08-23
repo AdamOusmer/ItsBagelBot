@@ -53,26 +53,30 @@ func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views
 		return false
 	}
 	amCfg := automodConfigFrom(views)
-	// The span-derived emote codes are built lazily off the envelope (nil fast
-	// path when it carried none) and handed to whichever gate runs, so the
-	// single-chatter and cohort paths see identical per-message knowledge.
-	// Adaptive off drops them at the door: WithMessageEmotes(nil) is verdict-
-	// equivalent to the pre-span gate, keeping the dark launch honest.
-	var msgEmotes map[string]struct{}
-	if p.adaptiveEnabled {
-		msgEmotes = mctx.EmoteCodes()
-	}
 	if len(mctx.Env.Senders) > 0 {
-		return p.gateCohort(ctx, &mctx.Env, amCfg, msgEmotes, emit)
+		return p.gateCohort(ctx, mctx, amCfg, emit)
 	}
-	return p.gateChat(ctx, mctx, amCfg, msgEmotes, emit)
+	return p.gateChat(ctx, mctx, amCfg, emit)
+}
+
+// adaptiveEmoteCodes resolves the span-derived emote codes the learned layers
+// key on, built lazily off the envelope (nil fast path when it carried none).
+// Both gates resolve through here, so the single-chatter and cohort paths see
+// identical per-message knowledge. Adaptive off drops them at the door:
+// WithMessageEmotes(nil) is verdict-equivalent to the pre-span gate, keeping
+// the dark launch honest.
+func (p *Pipeline) adaptiveEmoteCodes(mctx *module.Context) map[string]struct{} {
+	if !p.adaptiveEnabled {
+		return nil
+	}
+	return mctx.EmoteCodes()
 }
 
 // gateChat inspects one chatter's line. With enforcement on, a ban/timeout
 // verdict is emitted and command dispatch + handlers are skipped for this line;
 // a verdict we cannot yet enforce is logged. With enforcement off it is
 // shadow-logged only.
-func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *automod.Config, msgEmotes map[string]struct{}, emit module.Emit) bool {
+func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *automod.Config, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
 	}
@@ -81,7 +85,7 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 	v, sigs := p.automod.Assess(mctx.Chatter(), env.Text, amCfg,
 		automod.WithChannel(mctx.BroadcasterID),
 		automod.WithChatter(env.ChatterUserID),
-		automod.WithMessageEmotes(msgEmotes))
+		automod.WithMessageEmotes(p.adaptiveEmoteCodes(mctx)))
 	v = p.campaignVote(ctx, v, sigs, mctx.BroadcasterID, env)
 	if v.Action == automod.ActionNone {
 		return false
@@ -160,10 +164,12 @@ func (p *Pipeline) campaignVote(ctx context.Context, v automod.Verdict, sigs aut
 // bumping before the verdict scored every participant of even benign copypasta
 // folds (and of shadow-mode hits), arming punishments nobody had served. A
 // clean cohort trips nothing at all.
-func (p *Pipeline) gateCohort(ctx context.Context, env *lane.Envelope, amCfg *automod.Config, msgEmotes map[string]struct{}, emit module.Emit) bool {
+func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *automod.Config, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
 	}
+	env := &mctx.Env
+	msgEmotes := p.adaptiveEmoteCodes(mctx)
 
 	// Cohort senders are untrusted viewers: the squash folds only plain
 	// duplicate chat, so a trusted VIP/mod is judged on content here too.

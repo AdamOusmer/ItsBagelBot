@@ -91,21 +91,50 @@ func asciiTokenLetters(text string, tokStart, gatePos int) int {
 	return letters
 }
 
-// skelTokenLetters is asciiTokenLetters over the NFKC buffer, where runes are
-// multi-byte and lookalike LETTERS (Cyrillic а, Greek α) must count toward the
-// quorum so "grаb1fy"-style mixed evasion still folds. The gated rune at
-// gatePos is skipped, strippable runes are token-transparent (they vanish from
-// the skeleton without ending the token), and gated digits themselves never
-// count - "1080" stays "1080".
-//
-// Transparency must be checked BEFORE the IsSpace break (found by FuzzNormalize,
-// 2026-08-22): '\v'/'\f'/NEL are BOTH strippable controls and unicode.IsSpace,
-// and the main loop strips them - so "A\f0A"'s skeleton is "a0a", one token.
-// Counting the \f as a token end saw one letter and refused to fold the '0',
-// making pass one emit "a0a" whose own re-normalization folds to "aoa": the
-// skeleton was not idempotent and disagreed with itself between raw and
-// normalized forms. Breaking on a rune that will not exist in the skeleton is
-// always wrong; boundaries are exactly the runes that survive as separators.
+// quorumKind classifies one NFKC rune's contribution to the two-letter leet
+// quorum scan.
+type quorumKind uint8
+
+const (
+	quorumSkip  quorumKind = iota // vanishes or cannot vote: transparent inside the token
+	quorumEnd                     // separator that survives the skeleton: ends the token
+	quorumCount                   // folded latin letter: votes toward the quorum
+)
+
+// quorumKindOf folds r toward its skeleton form and reports how the quorum scan
+// treats it. Transparency must be checked BEFORE the IsSpace break (found by
+// FuzzNormalize, 2026-08-22): '\v'/'\f'/NEL are BOTH strippable controls and
+// unicode.IsSpace, and the main loop strips them - so "A\f0A"'s skeleton is
+// "a0a", one token. Counting the \f as a token end saw one letter and refused
+// to fold the '0', making pass one emit "a0a" whose own re-normalization folds
+// to "aoa": the skeleton was not idempotent and disagreed with itself between
+// raw and normalized forms. Breaking on a rune that will not exist in the
+// skeleton is always wrong; boundaries are exactly the runes that survive as
+// separators. Lookalike LETTERS (Cyrillic а, Greek α) vote toward the quorum so
+// "grаb1fy"-style mixed evasion still folds; leet digits never vote, not even
+// each other, so "1080" stays "1080".
+func quorumKindOf(r rune) quorumKind {
+	if isStrippable(r) {
+		return quorumSkip
+	}
+	if unicode.IsSpace(r) {
+		return quorumEnd
+	}
+	lr := unicode.ToLower(r)
+	if f, ok := confusables[lr]; ok && !isLeetFold(lr) {
+		lr = f
+	}
+	if lr >= 'a' && lr <= 'z' {
+		return quorumCount
+	}
+	return quorumSkip
+}
+
+// skelTokenLetters counts the quorum letters in the NFKC-buffer token starting
+// at tokStart, skipping the gated rune at gatePos itself (a digit never votes
+// toward its own quorum, so "1337" cannot vote itself into "leet"), stopping at
+// the cap of 2 or the first surviving separator. Runes are multi-byte; see
+// quorumKindOf for the classification rules.
 func skelTokenLetters(nf []byte, tokStart, gatePos int) int {
 	letters := 0
 	for j := tokStart; j < len(nf); {
@@ -115,24 +144,13 @@ func skelTokenLetters(nf []byte, tokStart, gatePos int) int {
 		}
 		r, size := utf8.DecodeRune(nf[j:])
 		j += size
-		if isStrippable(r) {
-			continue // vanishes from the skeleton: transparent inside the token
-		}
-		if unicode.IsSpace(r) {
-			break
-		}
-		lr := unicode.ToLower(r)
-		if f, ok := confusables[lr]; ok {
-			if !isLeetFold(lr) {
-				lr = f // lookalike letters count toward the quorum...
-			} else {
-				continue // ...leet digits do not, not even each other
-			}
-		}
-		if lr >= 'a' && lr <= 'z' {
+		switch quorumKindOf(r) {
+		case quorumEnd:
+			return letters
+		case quorumCount:
 			letters++
 			if letters >= 2 {
-				break
+				return letters // early exit bounds the scan; more letters change nothing
 			}
 		}
 	}
@@ -153,66 +171,115 @@ func skelTokenLetters(nf []byte, tokStart, gatePos int) int {
 // Pure-ascii input takes a byte-wise fast path that skips NFKC and rune
 // decoding entirely (NFKC is identity on ASCII; the only strippable ASCII
 // runes are C0 controls + DEL): an ordinary chat line normalizes alloc-free,
-// measured before/after in BenchmarkNormalize's comment.
+// measured before/after in BenchmarkNormalize's comment. The transform lives
+// in small staged helpers - isPlainASCII routes between normalizeASCII and
+// normalizeUnicode; foldASCIIByte/skelFoldRune carry the quorum-gated fold;
+// quorumKindOf classifies the leet-quorum scan's runes.
 func Normalize(dst []byte, text string) []byte {
 	dst = dst[:0]
+	if isPlainASCII(text) {
+		return normalizeASCII(dst, text)
+	}
+	return normalizeUnicode(dst, text)
+}
 
-	plain := true
+// isPlainASCII reports whether text can take the byte-wise fast path: every
+// byte is printable-or-space ascii, on which NFKC is identity and the only
+// strippable runes are C0 controls + DEL (both excluded here).
+func isPlainASCII(text string) bool {
 	for i := 0; i < len(text); i++ {
 		if c := text[i]; c >= utf8.RuneSelf || c < 0x20 || c == 0x7f {
-			plain = false
-			break
+			return false
 		}
 	}
-	if plain {
-		spaced := false
-		tokStart := 0
-		for i := 0; i < len(text); i++ {
-			c := text[i]
-			if c == ' ' {
-				if !spaced {
-					dst = append(dst, ' ')
-				}
-				spaced = true
-				tokStart = i + 1
-				continue
-			}
-			spaced = false
-			if 'A' <= c && c <= 'Z' {
-				c += 'a' - 'A'
-			}
-			if f, ok := confusables[rune(c)]; ok &&
-				(!isLeetFold(rune(c)) || asciiTokenLetters(text, tokStart, i) >= 2) {
-				c = byte(f)
-			}
-			dst = append(dst, c)
-		}
-		return dst
-	}
+	return true
+}
 
-	var buf [utf8.UTFMax]byte
-	// Sanitize invalid UTF-8 BEFORE NFKC (found by FuzzNormalize, 2026-08-22):
-	// AppendString has streaming semantics and passes a TRAILING incomplete
-	// sequence through raw on the assumption more input will complete it - a
-	// chat line cut mid-rune kept its tail byte unnormalized, so the skeleton
-	// disagreed with its own re-normalization (non-idempotent) and left
-	// compatibility letters like U+02B8 unfolded for the word-bounded scans.
-	// ToValidUTF8 substitutes FFFD exactly as DecodeRune already does for
-	// interior invalid bytes; valid input (the common case) pays one scan and
-	// zero allocations.
-	if !utf8.ValidString(text) {
-		text = toValidUTF8(text)
+// normalizeASCII is the fast path: byte-wise lowercase plus the quorum-gated
+// fold, whitespace runs collapsed to single spaces - no NFKC pass and no rune
+// decoding, so an ordinary chat line normalizes alloc-free, measured
+// before/after in BenchmarkNormalize's comment.
+func normalizeASCII(dst []byte, text string) []byte {
+	spaced := false
+	tokStart := 0
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		if c == ' ' {
+			if !spaced {
+				dst = append(dst, ' ')
+			}
+			spaced = true
+			tokStart = i + 1
+			continue
+		}
+		spaced = false
+		dst = append(dst, foldASCIIByte(text, tokStart, i, c))
 	}
-	nf := norm.NFKC.AppendString(nil, text)
+	return dst
+}
+
+// foldASCIIByte lowers one fast-path byte and applies the confusable fold:
+// lookalike letters fold unconditionally; leet digits/symbols fold only when
+// their containing whitespace-token carries >=2 real ascii letters.
+func foldASCIIByte(text string, tokStart, pos int, c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		c += 'a' - 'A'
+	}
+	if f, ok := confusables[rune(c)]; ok &&
+		(!isLeetFold(rune(c)) || asciiTokenLetters(text, tokStart, pos) >= 2) {
+		return byte(f)
+	}
+	return c
+}
+
+// skelKind routes one post-NFKC rune through the skeleton walk.
+type skelKind uint8
+
+const (
+	skelKeep  skelKind = iota // skeleton material: lowercase, fold, emit
+	skelStrip                 // strippable: vanishes without ending the token
+	skelSpace                 // surviving separator: collapse into a single ' '
+)
+
+// skelKindOf classifies r against the strip/space rules of the walk. Stripping
+// precedes the space test so strippable whitespace stays token-transparent.
+func skelKindOf(r rune) skelKind {
+	switch {
+	case isStrippable(r):
+		return skelStrip
+	case unicode.IsSpace(r):
+		return skelSpace
+	default:
+		return skelKeep
+	}
+}
+
+// skelFoldRune applies the confusable fold to one lowercased post-NFKC rune:
+// lookalike letters fold unconditionally; leet digits/symbols fold only when
+// their containing NFKC-buffer token clears the two-letter quorum.
+func skelFoldRune(nf []byte, tokStart, gatePos int, lr rune) rune {
+	if f, ok := confusables[lr]; ok &&
+		(!isLeetFold(lr) || skelTokenLetters(nf, tokStart, gatePos) >= 2) {
+		return f
+	}
+	return lr
+}
+
+// normalizeUnicode is the rune-aware path over sanitized input: NFKC
+// compatibility folding, strip invisible/control/combining runes, per-rune
+// confusable fold, collapse whitespace runs.
+func normalizeUnicode(dst []byte, text string) []byte {
+	nf := norm.NFKC.AppendString(nil, sanitizeUTF8(text))
+	var buf [utf8.UTFMax]byte
 	spaced := false
 	tokStart := 0
 	for i := 0; i < len(nf); {
 		r, size := utf8.DecodeRune(nf[i:])
 		i += size
-		switch {
-		case isStrippable(r):
+		switch skelKindOf(r) {
+		case skelStrip:
 			continue
-		case unicode.IsSpace(r):
+		case skelSpace:
 			if !spaced {
 				dst = append(dst, ' ')
 			}
@@ -221,21 +288,29 @@ func Normalize(dst []byte, text string) []byte {
 			continue
 		}
 		spaced = false
-		// Lowercase first, THEN fold: a single lowercase confusables entry then
-		// catches an uppercase cross-script lookalike too (uppercase Cyrillic 'А'
-		// lowercases to 'а' before the fold), closing an evasion gap.
+		// Lowercase first, THEN fold (skelFoldRune expects the lowered rune): a
+		// single lowercase confusables entry then catches an uppercase
+		// cross-script lookalike too (uppercase Cyrillic 'А' lowercases to 'а'
+		// before the fold), closing an evasion gap.
 		r = unicode.ToLower(r)
-		if f, ok := confusables[r]; ok &&
-			(!isLeetFold(r) || skelTokenLetters(nf, tokStart, i-size) >= 2) {
-			r = f
-		}
-		n := utf8.EncodeRune(buf[:], r)
+		n := utf8.EncodeRune(buf[:], skelFoldRune(nf, tokStart, i-size, r))
 		dst = append(dst, buf[:n]...)
 	}
 	return dst
 }
 
-// toValidUTF8 replaces every invalid byte run in s with U+FFFD. strings.
-// ToValidUTF8 does exactly this; the alias keeps the normalization story in
-// one file (and lets tests stub nothing).
-func toValidUTF8(s string) string { return strings.ToValidUTF8(s, string(rune(0xfffd))) }
+// sanitizeUTF8 replaces every invalid byte run in s with U+FFFD BEFORE NFKC
+// (found by FuzzNormalize, 2026-08-22): AppendString has streaming semantics
+// and passes a TRAILING incomplete sequence through raw on the assumption more
+// input will complete it - a chat line cut mid-rune kept its tail byte
+// unnormalized, so the skeleton disagreed with its own re-normalization
+// (non-idempotent) and left compatibility letters like U+02B8 unfolded for the
+// word-bounded scans. strings.ToValidUTF8 substitutes FFFD exactly as
+// DecodeRune already does for interior invalid bytes; valid input (the common
+// case) pays one scan and zero allocations.
+func sanitizeUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return strings.ToValidUTF8(s, string(rune(0xfffd)))
+}
