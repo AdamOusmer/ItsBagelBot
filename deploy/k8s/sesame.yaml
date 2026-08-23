@@ -151,6 +151,10 @@ spec:
               value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
               value: tls://nats.messaging:4222
+            - name: NATS_PUBLISH_WIRE
+              value: atomic
+            - name: NATS_ATOMIC_PUBLISH_BATCH_SIZE
+              value: "1000"
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -220,6 +224,12 @@ spec:
               value: "on"
             - name: NATS_CONSUME_MODE
               value: pull
+            - name: NATS_PULL_FETCH_LOOPS
+              value: "8"
+            - name: NATS_PULL_MAX_ACK_PENDING
+              value: "200000"
+            - name: NATS_PULL_FETCH_BATCH
+              value: "1000"
             # PARTITION FLAG. "on" reshapes the ingress lane catalog to the
             # two-stream partition (narrow TWITCH_INGRESS, create
             # TWITCH_INGRESS_STANDARD) on the next sesame reconcile. Ships off
