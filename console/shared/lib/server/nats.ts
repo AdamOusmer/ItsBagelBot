@@ -171,6 +171,18 @@ function tlsOptions(): ConnectionOptions['tls'] | undefined {
   return { ca: caPem };
 }
 
+// Role-scoped env lookup: the RPC tier reads its dedicated variable with the
+// shared one as fallback; every other tier reads only the shared variable.
+// The fallback chain is `||`, not `??`: a set-but-blank Doppler var must fall
+// through, or through `??` the caller authenticates with an empty string.
+function roleEnv(
+  isRpc: boolean,
+  rpcVar: string | undefined,
+  sharedVar: string | undefined
+): string | undefined {
+  return isRpc ? rpcVar || sharedVar : sharedVar;
+}
+
 function options(role: Role): ConnectionOptions {
   const isRpc = role === 'rpc';
   const opts: ConnectionOptions = {
@@ -192,12 +204,8 @@ function options(role: Role): ConnectionOptions {
     // a gateway "server connection error" the user has to refresh past.
     timeout: 3_000
   };
-  // `||` chains, not `??`: a blank RPC credential must fall back to the shared
-  // one instead of authenticating with an empty string.
-  const user = isRpc ? (process.env.NATS_RPC_USER || process.env.NATS_USER) : process.env.NATS_USER;
-  const pass = isRpc
-    ? (process.env.NATS_RPC_PASSWORD || process.env.NATS_PASSWORD)
-    : process.env.NATS_PASSWORD;
+  const user = roleEnv(isRpc, process.env.NATS_RPC_USER, process.env.NATS_USER);
+  const pass = roleEnv(isRpc, process.env.NATS_RPC_PASSWORD, process.env.NATS_PASSWORD);
   if (user) opts.user = user;
   if (pass) opts.pass = pass;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
