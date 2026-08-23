@@ -151,11 +151,15 @@ func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.D
 			BaseURL:   cfg.ClashRoyaleBaseURL,
 			APIKey:    cfg.ClashRoyaleAPIKey,
 			RateLimit: cfg.ClashRoyaleRateLimit,
+		}, d)
+	})
+}
+
 // appendValorant adds the Valorant provider behind its HenrikDev key, the same
 // credential gate as urchin/hypixel/clashroyale. The key gates everything:
-// unlike fortnite there is no keyless fallback mode — even the offer rotation
-// prices itself through HenrikDev (only its name/icon join rides the keyless
-// content CDN), so a missing key leaves every !val command dark.
+// unlike fortnite there is no keyless fallback mode — even the featured-bundle
+// viewer prices itself through HenrikDev (only its name/icon join rides the
+// keyless content CDN), so a missing key leaves every !val command dark.
 func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return appendIf(out, log, cfg.ValorantAPIKey == "", "valorant provider disabled: VALORANT_API_KEY not set (!val commands will not answer)", func() provider.Provider {
 		return valorant.New(valorant.Config{
