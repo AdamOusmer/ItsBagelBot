@@ -5,6 +5,7 @@ package bus
 
 import (
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -126,5 +127,7 @@ func confirmedBatch(n int) []publishRequest {
 // newTestBatchPublisher builds the connection-side state cohort resolution
 // touches, without a broker connection.
 func newTestBatchPublisher() *batchPublisher {
-	return &batchPublisher{log: zap.NewNop(), changed: make(chan struct{})}
+	publisher := &batchPublisher{log: zap.NewNop()}
+	publisher.signal = sync.NewCond(&publisher.stateMu)
+	return publisher
 }

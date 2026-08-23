@@ -19,8 +19,9 @@ import (
 // concurrentDurableSubscriber is the fleet-owned JetStream delivery adapter.
 // nats.go invokes one subscription callback serially, so the callback must not
 // wait for the handler's acknowledgement: doing so hard-caps every pod at one in-flight
-// event. This adapter hands the message to the weighted routine pool, returns
-// immediately, and reconciles Ack/Nack concurrently after the handler finishes.
+// event. This adapter hands the message through a bounded queue and a pump to
+// the weighted routine pool, returns immediately, and reconciles Ack/Nack
+// concurrently after the handler finishes.
 type concurrentDurableSubscriber struct {
 	nc       *nats.Conn
 	js       nats.JetStreamContext
@@ -42,9 +43,15 @@ type concurrentDurableSubscriber struct {
 	ackSync bool
 	log     *zap.Logger
 
+	// dropped counts deliveries shed when the explicit queue is full; see the
+	// overflow branch in deliveryCallback for why shedding beats blocking.
+	dropped atomic.Int64
+	// wheel drives the shared keep-alive passes; see keepAliveWheel.
+	wheel *keepAliveWheel
+
 	mu      sync.Mutex
 	closed  bool
-	subs    map[*nats.Subscription]*callbackGate
+	subs    map[*nats.Subscription]ownedSubscription
 	closeCh chan struct{}
 
 	registrations sync.WaitGroup
@@ -82,6 +89,42 @@ const (
 	// stays under laneAckWait so a failed confirmation still has room to
 	// NAK before the server redelivers on its own clock.
 	ackSyncTimeout = laneAckWait / 2
+
+	// durableQueueBytesBudget is how much payload the explicit-delivery queue
+	// may hold at once. It exists so the worst case is a stated number rather
+	// than something emergent: the queue decouples nats.go's serial delivery
+	// goroutine from a momentarily slow reader, and this constant is the ceiling
+	// on how much that decoupling can buffer before it starts shedding.
+	durableQueueBytesBudget = 8 << 20
+
+	// durableWireBytesFloor is the smallest lane delivery the queue depth is
+	// sized against. Live ingress runs measured ~865 B per event on the wire;
+	// rounding the average up to a flat 1 KiB deliberately rounds the derived
+	// depth DOWN in count while keeping the payload bound honest — the failure
+	// this budget guards against is unbounded heap under a stalled reader, never
+	// a shallow queue, and the overflow counter below makes any real shallowness
+	// loud instead of silent.
+	durableWireBytesFloor = 1024
+
+	// durableQueueDepth is how many deliveries the callback may hold for the
+	// pump, derived from the byte budget exactly the way flowQueueDepth is
+	// derived from the flow-control window (8 MiB / 1 KiB = 8192).
+	//
+	// Unlike the flow lane, this queue is deliberately sized UNDER the consumer's
+	// MaxAckPending (default 20000, raisable via NATS_LANE_MAX_ACK_PENDING) rather
+	// than above it. The flow lane had to clear its server's ramped byte window
+	// because a drop there loses a receipt permanently; here the brake really is
+	// the message count, and a shed delivery is one delayed event — the server
+	// redelivers it after laneAckWait (4s). Blocking, the alternative this queue
+	// replaced, was measured as strictly worse: parking nats.go's serial callback
+	// on `output <-` stalled every server push until MaxAckPending seats
+	// stranded, capping the lane near 2-3k msg/s. An unbounded queue was rejected
+	// for the opposite reason: it converts downstream stall into unbounded heap.
+	// Sitting under the brake means saturation sheds early and paces itself via
+	// AckWait instead of accumulating resident payload, and the throttled
+	// overflow counter (every 1000th drop logged, matching the flow overrun
+	// counter) is the signal that the derivation needs re-measuring.
+	durableQueueDepth = durableQueueBytesBudget / durableWireBytesFloor
 )
 
 // workQueueRetention reports whether a catalog stream deletes messages on
@@ -131,24 +174,44 @@ func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentD
 		nc: cfg.nc, js: cfg.js, stream: cfg.stream, consumer: cfg.consumer, group: cfg.group,
 		delay: cfg.delay, handlerDeadline: 30 * time.Second, progress: time.Second, log: cfg.log,
 		ackSync: workQueueRetention(cfg.stream),
-		subs:    make(map[*nats.Subscription]*callbackGate), closeCh: make(chan struct{}),
+		subs:    make(map[*nats.Subscription]ownedSubscription), closeCh: make(chan struct{}),
 	}
 	// Keep the WaitGroup positive until Close has unsubscribed every callback;
 	// this prevents an Add racing a Wait while a final delivery is arriving.
 	s.acks.Add(1)
+	// One wheel per subscriber, not one timer per message; see keepAliveWheel.
+	// It lives on closeCh, so both Close paths retire it and it stays running
+	// through the ack drain exactly as the per-message timers used to.
+	s.wheel = newKeepAliveWheel(wheelStepCount(s.handlerDeadline, s.progress), s.progress, s.closeCh)
 	return s
+}
+
+// wheelStepCount is how many progress intervals a watch may survive: the
+// per-message timers reported InProgress at fire k and surrendered once
+// k*progress reached handlerDeadline, so the step count is a ceiling division.
+// A degenerate interval collapses to a single step rather than panicking.
+func wheelStepCount(deadline, progress time.Duration) int {
+	if progress <= 0 || deadline <= 0 {
+		return 1
+	}
+	steps := (deadline + progress - 1) / progress
+	if steps < 1 {
+		return 1
+	}
+	return int(steps)
 }
 
 func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject string) (<-chan *Message, error) {
 	output := make(chan *Message)
 	callbacks := newCallbackGate()
+	pump := newSubscriptionPump()
 
 	if !s.beginRegistration() {
 		return nil, errors.New("bus: subscriber is closed")
 	}
 	defer s.registrations.Done()
 
-	callback := s.deliveryCallback(ctx, subject, output, callbacks)
+	callback := s.deliveryCallback(ctx, subject, callbacks, pump.queue)
 	sub, err := s.subscribe(subject, callback)
 	if err != nil {
 		return nil, err
@@ -157,25 +220,44 @@ func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject str
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		stopSubscription(sub, callbacks)
+		stopSubscription(sub, callbacks, pump)
 		return nil, errors.New("bus: subscriber closed during subscribe")
 	}
-	s.subs[sub] = callbacks
+	s.subs[sub] = ownedSubscription{sub: sub, callbacks: callbacks, pump: pump}
 	s.mu.Unlock()
 
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-s.closeCh:
-		}
-		stopSubscription(sub, callbacks)
-		s.mu.Lock()
-		delete(s.subs, sub)
-		s.mu.Unlock()
-		close(output)
-	}()
+	go s.watchBind(ctx, sub, callbacks, pump)
+	go s.runPump(ctx, output, callbacks, pump)
 
 	return output, nil
+}
+
+// watchBind retires the subscription when its binding context ends or the
+// subscriber closes, whichever comes first.
+func (s *concurrentDurableSubscriber) watchBind(ctx context.Context, sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
+	select {
+	case <-ctx.Done():
+	case <-s.closeCh:
+	}
+	stopSubscription(sub, callbacks, pump)
+	s.mu.Lock()
+	delete(s.subs, sub)
+	s.mu.Unlock()
+}
+
+// runPump drains the explicit delivery queue toward the lane channel until the
+// pump halts or a delivery fails, then abandons whatever remains queued.
+func (s *concurrentDurableSubscriber) runPump(ctx context.Context, output chan<- *Message, callbacks *callbackGate, pump *subscriptionPump) {
+	defer close(output)
+	for live := true; live; {
+		select {
+		case d := <-pump.queue:
+			live = s.deliver(ctx, output, callbacks, d)
+		case <-pump.stop:
+			live = false
+		}
+	}
+	s.abandon(pump.queue)
 }
 
 func (s *concurrentDurableSubscriber) beginRegistration() bool {
@@ -200,11 +282,40 @@ func (s *concurrentDurableSubscriber) subscribe(subject string, callback nats.Ms
 		nats.BindStream(s.stream), nats.DeliverNew(), nats.AckExplicit(), nats.ManualAck())
 }
 
+// pendingDelivery is one decoded delivery waiting in the explicit queue for
+// the pump to hand it toward the lane channel.
+type pendingDelivery struct {
+	msg   *Message
+	watch *resultWatch
+}
+
+// subscriptionPump owns one subscription's explicit queue and the signal that
+// retires it. halt is idempotent because both shutdown paths — context
+// cancellation via the subscription's own watcher and Close via stopCallbacks
+// — can reach it, potentially concurrently, and each must be able to fire it.
+type subscriptionPump struct {
+	queue chan pendingDelivery
+	stop  chan struct{}
+	once  sync.Once
+}
+
+func newSubscriptionPump() *subscriptionPump {
+	return &subscriptionPump{
+		queue: make(chan pendingDelivery, durableQueueDepth),
+		stop:  make(chan struct{}),
+	}
+}
+
+// halt releases the pump. It must run strictly after callbacks.stopAndWait:
+// only then is every callback gone, so the pump's final non-blocking drain can
+// unwind the remaining queue without racing an enqueuer.
+func (p *subscriptionPump) halt() { p.once.Do(func() { close(p.stop) }) }
+
 func (s *concurrentDurableSubscriber) deliveryCallback(
 	ctx context.Context,
 	subject string,
-	output chan<- *Message,
 	callbacks *callbackGate,
+	queue chan<- pendingDelivery,
 ) nats.MsgHandler {
 	return func(natsMsg *nats.Msg) {
 		if !callbacks.enter() {
@@ -224,41 +335,83 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 		// is silently dropped. This broker never fires AckWait redelivery
 		// while interest stays bound, so every dropped slot strands one
 		// MaxAckPending seat until max_age; that race is what capped the
-		// lane near 2-3k msg/s. The non-delivery arms unwind the watch
-		// themselves and resultWatch.finished makes double release a no-op.
+		// lane near 2-3k msg/s. This ordering survived a fixed critical bug
+		// and must not move relative to the visibility point: installing
+		// here, ahead of the enqueue, keeps the watch armed before the pump
+		// can ever make the message visible. The non-delivery arms unwind
+		// the watch themselves and resultWatch.finished makes double release
+		// a no-op.
+		//
+		// The handoff itself is the bounded queue, and the enqueue never
+		// blocks: a saturated downstream sheds one delivery instead of
+		// parking nats.go's serial callback and stalling every server push.
 		w := s.newResultWatch(natsMsg, msg)
-		if !s.handOff(ctx, output, callbacks, msg) {
+		select {
+		case queue <- pendingDelivery{msg: msg, watch: w}:
+		default:
+			// Shedding follows the flow-lane precedent: dropping costs one
+			// event, blocking costs the window. On this adapter the shed
+			// delivery comes back on AckWait (<= laneAckWait), so the cost is
+			// delay rather than loss. Throttled like the flow overrun counter
+			// — sustained overflow is exactly the case where a line per drop
+			// emits at lane rate; the counter still moves on every drop, so
+			// the magnitude is never lost, only the repetition.
 			w.unwind()
+			if dropped := s.dropped.Add(1); dropped == 1 || dropped%1_000 == 0 {
+				s.log.Warn("durable delivery queue overflowed; leaving the message to AckWait redelivery",
+					zap.String("subject", subject),
+					zap.Int64("dropped_total", dropped))
+			}
 		}
 	}
 }
 
-// newResultWatch arms one message's keep-alive timer and resolve hook and
-// counts it against the in-flight ack budget.
+// newResultWatch arms one message's keep-alive slot on the shared wheel and
+// counts it against the in-flight ack budget. The budget seat is taken before
+// the watch becomes observable: registering into the wheel is the earliest
+// point another goroutine — the wheel ticker — may release the seat, and the
+// Add above it in program order is what keeps the counter from going negative.
 func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
 	w := &resultWatch{s: s, natsMsg: natsMsg}
-	w.timer = time.AfterFunc(s.progress, w.keepAlive)
-	msg.setResolveHandler(w.resolve)
 	s.acks.Add(1)
+	msg.setResolveHandler(w.resolve)
+	s.wheel.register(w)
 	return w
 }
 
-// handOff blocks until the message lands on output or the lane shuts down
-// around it; it reports whether the handoff won.
-func (s *concurrentDurableSubscriber) handOff(
+// deliver hands one queued message to the lane channel with its verdict
+// already wired up. It reports whether the handoff won; a lost handoff
+// releases the watch here so shutdown never waits on an acknowledgement
+// nobody will make.
+func (s *concurrentDurableSubscriber) deliver(
 	ctx context.Context,
 	output chan<- *Message,
 	callbacks *callbackGate,
-	msg *Message,
+	d pendingDelivery,
 ) bool {
 	select {
-	case output <- msg:
+	case output <- d.msg:
 		return true
 	case <-ctx.Done():
 	case <-s.closeCh:
 	case <-callbacks.stopped():
 	}
+	d.watch.unwind()
 	return false
+}
+
+// abandon unwinds every delivery the queue still holds. It runs strictly after
+// callbacks.stopAndWait (via pumpDone), which guarantees no enqueuer remains,
+// so a plain non-blocking drain cannot miss an entry.
+func (s *concurrentDurableSubscriber) abandon(queue <-chan pendingDelivery) {
+	for {
+		select {
+		case d := <-queue:
+			d.watch.unwind()
+		default:
+			return
+		}
+	}
 }
 
 func newCallbackGate() *callbackGate {
@@ -289,9 +442,12 @@ func (g *callbackGate) stopAndWait() {
 	g.active.Wait()
 }
 
-func stopSubscription(sub *nats.Subscription, callbacks *callbackGate) {
+func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
 	_ = sub.Unsubscribe()
 	callbacks.stopAndWait()
+	// Every callback has exited, so nothing can enqueue past this point;
+	// releasing the pump here lets it unwind whatever the queue still holds.
+	pump.halt()
 }
 
 func (s *concurrentDurableSubscriber) terminateMalformed(msg *nats.Msg, subject string, decodeErr error) {
@@ -351,44 +507,41 @@ func jetStreamIdentity(domain, stream string, sequence uint64) string {
 	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
 }
 
-// watchResult reconciles one delivery without parking a goroutine on it.
+// resultWatch reconciles one delivery without parking a goroutine or a timer
+// on it.
 //
 // The resolve callback runs the acknowledgement on the worker goroutine that
-// finished the handler, and an AfterFunc keepalive covers the slow-handler
-// case: each fire reports InProgress (renewing the server's AckWait) until the
-// coarse handlerDeadline, after which ownership is deliberately given up to
-// AckWait redelivery. On the normal path the handler resolves inside one
-// progress interval, so the whole mechanism costs one timer registration and
-// one cancellation per message — no goroutine, no channel park. The finished
-// flag is the single arbiter between a late resolve and the deadline: whoever
-// swaps it first owns the acks slot, exactly one of them releases it.
-func (s *concurrentDurableSubscriber) watchResult(natsMsg *nats.Msg, msg *Message) {
-	w := &resultWatch{s: s, natsMsg: natsMsg}
-	w.timer = time.AfterFunc(s.progress, w.keepAlive)
-	msg.setResolveHandler(w.resolve)
-}
-
+// finished the handler, and the subscriber's shared keep-alive wheel covers
+// the slow-handler case: each pass reports InProgress (renewing the server's
+// AckWait) until the coarse handlerDeadline, after which ownership is
+// deliberately given up to AckWait redelivery. On the normal path the handler
+// resolves inside one progress interval, so the whole mechanism costs one
+// atomic store; the wheel sweeps the dead entry on its next pass — no timer
+// registration, no timer-heap traffic, no cancellation per message. The
+// finished flag is the single arbiter between a late resolve and the deadline:
+// whoever swaps it first owns the acks slot, exactly one of them releases it.
 type resultWatch struct {
 	s       *concurrentDurableSubscriber
 	natsMsg *nats.Msg
-	timer   *time.Timer
-	// elapsed is touched only inside keepAlive; AfterFunc serializes the
-	// callback with its own Reset, so it needs no lock.
-	elapsed  time.Duration
+	// armEpoch is written once under the wheel lock at registration and
+	// read-only afterwards; the wheel's lock provides the happens-before edge
+	// the walk relies on. Watch age is derived per pass from the wheel epoch,
+	// so unlike the per-message timers there is no mutable elapsed field to
+	// serialize.
+	armEpoch uint64
 	finished atomic.Bool
 }
 
-// unwind releases a watch whose message never reached a worker: stop the
-// keep-alive timer and give the ack seat straight back.
+// unwind releases a watch whose message never reached a worker: mark it
+// finished so the wheel's next pass skips it, and give the ack seat straight
+// back.
 func (w *resultWatch) unwind() {
-	w.timer.Stop()
 	if w.finished.CompareAndSwap(false, true) {
 		w.s.acks.Done()
 	}
 }
 
 func (w *resultWatch) resolve(acked bool) {
-	w.timer.Stop()
 	if !w.finished.CompareAndSwap(false, true) {
 		// The deadline already surrendered this delivery to AckWait; another
 		// ACK or NAK here would address a message the server may have
@@ -408,23 +561,127 @@ func (w *resultWatch) resolve(acked bool) {
 	w.s.nack(w.natsMsg)
 }
 
-func (w *resultWatch) keepAlive() {
-	if w.finished.Load() {
-		return
+// keepAliveWheel replaces the per-message time.AfterFunc the result watches
+// used to arm. Arming and stopping a timer per delivery pushed every message
+// through the runtime timer heap at lane rate for a mechanism that usually
+// does nothing: handlers resolve inside one progress interval, so nearly all
+// of that traffic was setup and teardown. The wheel arms nothing per message.
+// Watches join the bucket the next pass will walk, and ONE ticker goroutine
+// per subscriber walks one bucket per progress interval, reporting InProgress
+// for every unfinished watch and sweeping the ones a resolve or unwind has
+// marked finished — resolution never touches the bucket, the walk drops the
+// corpse, so the common path pays nothing beyond the atomic mark.
+//
+// The ring has wheelStepCount(handlerDeadline, progress) buckets, and watch
+// age is computed from wheel epochs rather than stored: at age >= steps the
+// watch surrenders the delivery to AckWait exactly where the per-message
+// timers gave up. Past the deadline no further progress is reported, because
+// the server may already have redelivered to another replica and renewing
+// would reclaim the ownership the deadline exists to give up.
+type keepAliveWheel struct {
+	interval time.Duration
+	steps    int
+
+	mu      sync.Mutex
+	buckets [][]*resultWatch
+	cursor  int
+	epoch   uint64
+
+	// done is the subscriber's closeCh: both Close paths close it exactly
+	// once, and keeping the wheel live through the ack drain preserves the old
+	// timers' behaviour of surrendering stuck deliveries while draining.
+	done <-chan struct{}
+}
+
+func newKeepAliveWheel(steps int, interval time.Duration, done <-chan struct{}) *keepAliveWheel {
+	if steps < 1 {
+		steps = 1
 	}
-	w.elapsed += w.s.progress
-	if w.elapsed >= w.s.handlerDeadline {
-		// The server's AckWait owns redelivery now. Do not emit another NAK
-		// after the deadline because it may already have redelivered to
-		// another replica, and reporting progress would renew the ownership
-		// the deadline exists to give up.
-		if w.finished.CompareAndSwap(false, true) {
-			w.s.acks.Done()
+	w := &keepAliveWheel{
+		interval: interval,
+		steps:    steps,
+		buckets:  make([][]*resultWatch, steps),
+		done:     done,
+	}
+	go w.spin()
+	return w
+}
+
+// register files a watch into the bucket the next pass walks. Its armEpoch is
+// the epoch the wheel has completed, so the first pass that sees it computes
+// age 1 and reports progress, matching the per-message timers' first fire one
+// full progress interval after arming.
+func (w *keepAliveWheel) register(watch *resultWatch) {
+	w.mu.Lock()
+	watch.armEpoch = w.epoch
+	w.buckets[w.cursor] = append(w.buckets[w.cursor], watch)
+	w.mu.Unlock()
+}
+
+func (w *keepAliveWheel) spin() {
+	ticker := time.NewTicker(w.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			w.advance()
+		case <-w.done:
+			return
 		}
+	}
+}
+
+// advance walks the bucket due this interval. The slice is detached under the
+// lock and processed outside it: reportProgress is network round-trip work and
+// must not serialize registrations happening mid-pass.
+func (w *keepAliveWheel) advance() {
+	w.mu.Lock()
+	due := w.buckets[w.cursor]
+	w.buckets[w.cursor] = nil
+	w.cursor = (w.cursor + 1) % len(w.buckets)
+	w.epoch++
+	e := w.epoch
+	next := w.buckets[w.cursor]
+	w.mu.Unlock()
+
+	var survivors []*resultWatch
+	for _, watch := range due {
+		if w.sweepDue(e, watch) {
+			survivors = append(survivors, watch)
+		}
+	}
+	w.refile(next, survivors)
+}
+
+// sweepDue reports one unfinished watch against its deadline. It returns false
+// when the watch leaves the wheel: resolved or unwound since it was filed
+// (lazy sweep), or past deadline, where it surrenders the delivery to AckWait.
+// That surrender's CAS is the same arbiter resolve() uses, so exactly one side
+// releases the acks seat.
+func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
+	if watch.finished.Load() {
+		return false
+	}
+	if epoch-watch.armEpoch < uint64(w.steps) {
+		watch.s.reportProgress(watch.natsMsg)
+		return true
+	}
+	if watch.finished.CompareAndSwap(false, true) {
+		watch.s.acks.Done()
+	}
+	return false
+}
+
+// refile returns survivors to the bucket the cursor points at: they are due
+// again next interval, and registrations landing mid-pass joined the same
+// slice under the same lock.
+func (w *keepAliveWheel) refile(base []*resultWatch, survivors []*resultWatch) {
+	if len(survivors) == 0 {
 		return
 	}
-	w.s.reportProgress(w.natsMsg)
-	w.timer.Reset(w.s.progress)
+	w.mu.Lock()
+	w.buckets[w.cursor] = append(base, survivors...)
+	w.mu.Unlock()
 }
 
 // ack applies the acknowledgement contract the stream's retention actually
@@ -516,6 +773,7 @@ func (s *concurrentDurableSubscriber) Close() error {
 type ownedSubscription struct {
 	sub       *nats.Subscription
 	callbacks *callbackGate
+	pump      *subscriptionPump
 }
 
 func (s *concurrentDurableSubscriber) beginClose() ([]ownedSubscription, bool) {
@@ -534,8 +792,8 @@ func (s *concurrentDurableSubscriber) beginClose() ([]ownedSubscription, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subs := make([]ownedSubscription, 0, len(s.subs))
-	for sub, callbacks := range s.subs {
-		subs = append(subs, ownedSubscription{sub: sub, callbacks: callbacks})
+	for _, owned := range s.subs {
+		subs = append(subs, owned)
 	}
 	return subs, true
 }
@@ -545,7 +803,7 @@ func (s *concurrentDurableSubscriber) stopCallbacks(subs []ownedSubscription) {
 		if err := owned.sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
 			s.log.Warn("durable subscription stop failed", zap.String("subject", owned.sub.Subject), zap.Error(err))
 		}
-		owned.callbacks.stopAndWait()
+		stopSubscription(owned.sub, owned.callbacks, owned.pump)
 	}
 }
 
