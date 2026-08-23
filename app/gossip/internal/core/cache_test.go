@@ -457,3 +457,55 @@ func TestCachedLegacyEntryWithoutStampRefreshes(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	assert.Equal(t, int32(1), fetches.Load())
 }
+
+// StoreCached must produce entries Cached serves as hits: a hydrated value
+// answers the next lookup with zero fetch work.
+func TestStoreCachedValueIsServedAsHit(t *testing.T) {
+	c := NewCache(newMemStore())
+	StoreCached(context.Background(), c, StoreRequest[payload]{
+		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
+		Value: payload{Name: "hydrated", N: 7},
+	})
+
+	v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
+		t.Error("a hydrated entry must be served without a fetch")
+		return payload{}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, payload{Name: "hydrated", N: 7}, v)
+}
+
+// A hydrated negative behaves exactly like a fetched one.
+func TestStoreCachedNegativeIsServedAsHit(t *testing.T) {
+	c := NewCache(newMemStore())
+	notFound := &UpstreamError{Status: 404, Message: "player not found"}
+	StoreCached(context.Background(), c, StoreRequest[payload]{
+		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
+		Err: notFound,
+	})
+
+	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
+		t.Error("a hydrated negative must be served without a fetch")
+		return payload{}, nil
+	})
+	assert.Equal(t, notFound, err)
+}
+
+// An infrastructure failure teaches nothing about the key, so nothing may be
+// stored for it — the next lookup must reach the fetch.
+func TestStoreCachedInfraFailureStoresNothing(t *testing.T) {
+	c := NewCache(newMemStore())
+	StoreCached(context.Background(), c, StoreRequest[payload]{
+		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
+		Err: errors.New("upstream exploded"),
+	})
+
+	var fetches atomic.Int32
+	v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
+		fetches.Add(1)
+		return payload{Name: "fetched"}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, payload{Name: "fetched"}, v)
+	assert.Equal(t, int32(1), fetches.Load(), "an infra failure must leave the key uncached")
+}
