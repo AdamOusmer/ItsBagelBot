@@ -177,7 +177,13 @@ func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin s
 		return nil, true, false, err
 	}
 	if n == 0 {
-		return row, true, false, nil // refused: the short balance is the answer
+		// Refused: another write moved the balance after our read, so the
+		// snapshot above is stale. Report what the row holds now.
+		fresh, ferr := r.client.Balance.Get(ctx, row.ID)
+		if ferr != nil {
+			return nil, true, false, ferr
+		}
+		return fresh, true, false, nil
 	}
 	spent, err := r.client.Balance.Get(ctx, row.ID)
 	if err != nil {

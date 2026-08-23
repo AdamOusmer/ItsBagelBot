@@ -202,6 +202,28 @@ func TestDuelChallengeSent(t *testing.T) {
 	assert.Equal(t, int64(400), f.openSpec.Stake)
 }
 
+func TestDuelChallengeEmptyTarget(t *testing.T) {
+	f := &fakeDuel{}
+	m := Duel(duelDeps(f))
+
+	out := runGames(t, m, gamesCtx("maya", ""), "@ 400")
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "!duel <amount>")
+	assert.Empty(t, f.openSpec.Kind, "a targetless challenge never reaches the store")
+}
+
+func TestDuelAcceptUnpaid(t *testing.T) {
+	f := &fakeDuel{acceptRes: engine.DuelAcceptResult{
+		Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800,
+	}}
+	m := Duel(duelDeps(f))
+
+	out := runGames(t, m, gamesCtx("crust", ""), "accept")
+	require.Len(t, out, 1)
+	assert.Contains(t, out[0].Text, "@crust takes the 800 points")
+	assert.Contains(t, out[0].Text, "payout is landing")
+}
+
 func TestDuelChallengeSelf(t *testing.T) {
 	f := &fakeDuel{}
 	m := Duel(duelDeps(f))

@@ -92,9 +92,14 @@ func newDuelCmd(d engine.Deps, c *module.Context, log *zap.Logger) (dc duelCmd, 
 		gameReplier: newGameReplier(c, raw.PointsName),
 		s:           d.Duel,
 		c:           c,
-		cfg:         duelClamps{MinStake: minOr(raw.MinStake, duelMinStakeFloor), MaxStake: maxOr(raw.MaxStake, raw.MinStake, duelDefaultMaxStake)},
-		t:           raw,
-		log:         log,
+		cfg: duelClamps{
+			MinStake: minOr(raw.MinStake, duelMinStakeFloor),
+			// The store refuses escrows above its ceiling, so a configured
+			// max beyond it would only turn every wager into an error.
+			MaxStake: min(maxOr(raw.MaxStake, raw.MinStake, duelDefaultMaxStake), engine.DuelMaxStake),
+		},
+		t:   raw,
+		log: log,
 	}
 	return dc, true
 }
@@ -305,6 +310,10 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 
 // challenge starts a direct duel: "!duel <user> <stake>".
 func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq, emit module.Emit) error {
+	if req.target == "" {
+		dc.reply(emit, "", "duel.usage")
+		return nil
+	}
 	if req.target == login {
 		dc.reply(emit, "", "duel.challenge.self")
 		return nil
@@ -343,6 +352,12 @@ func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) er
 		return err
 	}
 	switch {
+	case res.Accepted && res.Unpaid:
+		// Settled on paper, credit failed: name the winner and pot so chat
+		// knows the outcome while the payout lands.
+		dc.reply(emit, "", "duel.payout_pending",
+			tk("winner", res.Winner),
+			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Accepted:
 		dc.reply(emit, dc.t.WonMessage, "duel.won",
 			tk("winner", res.Winner),

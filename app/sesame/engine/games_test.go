@@ -28,6 +28,10 @@ func TestClampGambleSettings(t *testing.T) {
 	assert.Equal(t, int64(500), s.MinBet, "a high min raises the max with it")
 	assert.Equal(t, int64(500), s.MaxBet)
 	assert.Equal(t, int64(50), s.WinPercent, "non-positive chance means unset")
+
+	s = ClampGambleSettings(5000, 10000, 0, 0)
+	assert.Equal(t, int64(5000), s.MinBet, "configured limits are honored as-is")
+	assert.Equal(t, int64(10000), s.MaxBet)
 }
 
 // --- bet resolution ---
