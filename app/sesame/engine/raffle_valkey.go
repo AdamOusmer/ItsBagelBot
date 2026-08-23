@@ -197,8 +197,6 @@ type ValkeyRaffleStore struct {
 	client valkey.Client
 	cfg    RaffleConfig
 	log    *zap.Logger
-
-	rng func(total, n int) []int // partial Fisher-Yates over indices; swappable in tests
 }
 
 // NewValkeyRaffleStore builds the store on a primary-consistent view.
@@ -206,7 +204,7 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log, rng: rngPick}
+	return &ValkeyRaffleStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log}
 }
 
 // Pure, so the gate below stays a straight line; remindSecs is what the
@@ -468,7 +466,7 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 
 	now := time.Now().UnixMilli()
 	res := &RaffleResult{
-		Winners:  pickWinners(s.rng, read.Members, read.Count),
+		Winners:  pickWinners(read.Members, read.Count),
 		Entrants: int64(len(read.Members)),
 		Digest:   DigestPool(read.Members),
 		DrawnAt:  now,

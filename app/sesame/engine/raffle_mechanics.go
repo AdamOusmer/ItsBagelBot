@@ -43,9 +43,10 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 
 // pickWinners draws min(n, len(members)) distinct members uniformly at random;
 // fewer entrants than winners means everyone wins. n arrives from chat args or
-// stored JSON, so it is bounded here before any narrowing conversion — the
-// same ceiling Open clamps configured counts to.
-func pickWinners(rng func(total, n int) []int, members []string, n int64) []string {
+// stored JSON, so it is clamped to the winner ceiling first. The shuffle runs
+// entirely in int64 — indices come from big.Int draws, never narrowed through
+// int — so no platform-width conversion can silently truncate a count.
+func pickWinners(members []string, n int64) []string {
 	if n < 0 {
 		n = 0
 	}
@@ -55,32 +56,21 @@ func pickWinners(rng func(total, n int) []int, members []string, n int64) []stri
 	if n >= int64(len(members)) {
 		return members
 	}
-	pick := rng(len(members), int(n))
-	out := make([]string, len(pick))
-	for i, idx := range pick {
-		out[i] = members[idx]
-	}
-	return out
-}
 
-// rngPick returns n distinct indices uniform over [0,total) via partial
-// Fisher-Yates with crypto/rand. It lives on the store as an indirection so
-// tests can pin the pick while production draws stay cryptographically random.
-func rngPick(total, n int) []int {
-	idx := make([]int, total)
+	idx := make([]int64, len(members))
 	for i := range idx {
-		idx[i] = i
+		idx[i] = int64(i)
 	}
-	out := make([]int, 0, n)
-	for i := 0; i < n; i++ {
-		j, err := rand.Int(rand.Reader, big.NewInt(int64(total-i)))
+	out := make([]string, 0, n)
+	for i := int64(0); i < n; i++ {
+		j, err := rand.Int(rand.Reader, big.NewInt(int64(len(idx))-i))
 		if err != nil {
 			// CSPRNG unavailable is not survivable for a fair draw; fail loudly.
 			panic("raffle: crypto/rand unavailable: " + err.Error())
 		}
-		k := i + int(j.Int64())
+		k := i + j.Int64()
 		idx[i], idx[k] = idx[k], idx[i]
-		out = append(out, idx[i])
+		out = append(out, members[idx[i]])
 	}
 	return out
 }
@@ -97,15 +87,13 @@ func DigestPool(members []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// slice and ints cannot fail); kept named so the call site explains itself.
-// marshalJSON is json.Marshal ignoring the error for the one shape here (a
+// marshalJSON is codec.Marshal ignoring the error for the one shape here (a
 // slice and ints cannot fail); kept named so the call site explains itself.
 func marshalJSON(v any) string {
 	b, _ := codec.Marshal(v)
 	return string(b)
 }
 
-// stored as logins (the queue precedent), so a prefix is all it takes.
 // mentionList renders winner ids as chat mentions: "@a, @b". Winners are
 // stored as logins (the queue precedent), so a prefix is all it takes.
 func mentionList(winners []string) string {
@@ -116,7 +104,6 @@ func mentionList(winners []string) string {
 	return strings.Join(prefixed, ", ")
 }
 
-// pass through untouched.
 // expandTokens substitutes {token} placeholders with values; unknown tokens
 // pass through untouched.
 func expandTokens(tmpl string, kv ...string) string {
