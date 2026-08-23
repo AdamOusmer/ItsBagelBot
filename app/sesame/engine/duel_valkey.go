@@ -686,18 +686,18 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 		return res, nil
 	}
 
-	winner, loser, pot := s.settleChallenge(ctx, broadcasterID, st)
+	receipt := s.settleChallenge(ctx, broadcasterID, st)
 
 	res.Accepted = true
-	res.Winner, res.Loser, res.Pot, res.Stake = winner, loser, pot, st.OpenerStake
+	res.Winner, res.Loser, res.Pot, res.Stake = receipt.Winner, receipt.Loser, receipt.Pot, st.OpenerStake
 	return res, nil
 }
 
 // settleChallenge flips the coin, tears the duel down with its receipt and
 // pays the whole pot to the winner. Paying after the receipt lands leaves
 // auditable evidence of an unpaid pot should a crash strike between.
-func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) (winner, loser string, pot int64) {
-	winner, loser, pot = st.Challenged, st.Opener, st.OpenerStake*2
+func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) DuelReceipt {
+	winner, loser, pot := st.Challenged, st.Opener, st.OpenerStake*2
 	if FlipDuelCoin() {
 		winner, loser = st.Opener, st.Challenged
 	}
@@ -706,24 +706,22 @@ func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uin
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt)
-	s.payWinner(ctx, broadcasterID, winner, pot)
-	return winner, loser, pot
+	s.payWinner(ctx, broadcasterID, &receipt)
+	return receipt
+}
+
+// payWinner credits the pot recorded on a won receipt.
+func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) {
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, receipt.Winner, receipt.Pot); err != nil {
+		s.log.Warn("duel: winner credit failed", zap.Uint64("broadcaster_id", broadcasterID),
+			zap.String("winner", receipt.Winner), zap.Int64("pot", receipt.Pot), zap.Error(err))
+	}
 }
 
 // challengeAddressed reports whether st is a live challenge naming login as
 // its answering party — the one gate both accept and decline share.
 func challengeAddressed(st *DuelState, login string) bool {
 	return st.Kind == DuelChallenge && login == st.Challenged
-}
-
-// payWinner credits a resolved pot, logging loudly on failure: the receipt
-// outlives the credit, so the payment is reconstructible, but chat was told
-// a different story.
-func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, winner string, pot int64) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, winner, pot); err != nil {
-		s.log.Warn("duel: winner credit failed", zap.Uint64("broadcaster_id", broadcasterID),
-			zap.String("winner", winner), zap.Int64("pot", pot), zap.Error(err))
-	}
 }
 
 func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, login string) (DuelDeclineResult, error) {
@@ -749,7 +747,7 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt)
-	s.refund(ctx, broadcasterID, st.Opener, refund)
+	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: refund})
 
 	res.Declined = true
 	res.Opener = st.Opener
@@ -807,11 +805,15 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 // refundAll pays every escrowed entry back, counting only the refunds that
 // actually landed.
 func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, stakes map[string]int64) (refunded, total int64) {
+	entries := make([]DuelStake, 0, len(stakes))
 	for login, amount := range stakes {
-		total += amount
-		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, login, amount); err != nil {
+		entries = append(entries, DuelStake{Login: login, Stake: amount})
+	}
+	for _, entry := range SortDuelStakes(entries) {
+		total += entry.Stake
+		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry.Login, entry.Stake); err != nil {
 			s.log.Warn("duel: cancel refund failed", zap.Uint64("broadcaster_id", broadcasterID),
-				zap.String("login", login), zap.Int64("amount", amount), zap.Error(err))
+				zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 			continue
 		}
 		refunded++
@@ -819,11 +821,11 @@ func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, s
 	return refunded, total
 }
 
-// refund returns one party's points, logging loudly on failure.
-func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, login string, amount int64) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, login, amount); err != nil {
+// refund returns one escrowed entry to its owner, logging loudly on failure.
+func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, entry DuelStake) {
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry.Login, entry.Stake); err != nil {
 		s.log.Warn("duel: refund failed", zap.Uint64("broadcaster_id", broadcasterID),
-			zap.String("login", login), zap.Int64("amount", amount), zap.Error(err))
+			zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 	}
 }
 
@@ -1037,7 +1039,7 @@ func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, 
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt)
-	s.refund(ctx, broadcasterID, st.Opener, st.OpenerStake)
+	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
 	s.announce(ctx, broadcasterID, func(locale string) string {
 		return expandTokens(i18nT(locale, "duel.auto_noshow"),
 			"opener", st.Opener, "target", st.Challenged,
@@ -1050,7 +1052,7 @@ func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, 
 func (s *ValkeyDuelStore) refundOnly(ctx context.Context, broadcasterID uint64, st *DuelState, outcome DuelOutcome) {
 	receipt := DuelReceipt{Outcome: outcome, Pot: st.OpenerStake, ResolvedAt: time.Now().UnixMilli()}
 	s.teardown(ctx, broadcasterID, &receipt)
-	s.refund(ctx, broadcasterID, st.Opener, st.OpenerStake)
+	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
 }
 
 // teardownWithSnapshot is teardown for the auto-draw path, which renames the
