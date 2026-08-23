@@ -11,6 +11,11 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 )
 
+// replyKey names one localized line of the wager games. A named type over
+// the i18n key keeps the replier's callers from passing arbitrary strings
+// where only a known key (or a broadcaster override) belongs.
+type replyKey string
+
 // gameReplier is the shared voice of the wager games: every line is either
 // the broadcaster's customized template for that reply or the localized
 // default, expanded with per-line tokens plus the two constants ({user}, the
@@ -33,10 +38,10 @@ func newGameReplier(c *module.Context, pointsName string) gameReplier {
 // reply emits one chat line. override is the broadcaster's customized
 // template ("" for the fixed system lines); kv are {token},value pairs
 // (token names without braces).
-func (g gameReplier) reply(emit module.Emit, override, key string, kv ...string) {
+func (g gameReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
 	tmpl := override
 	if tmpl == "" {
-		tmpl = i18n.T(g.c.Locale, key)
+		tmpl = i18n.T(g.c.Locale, string(key))
 	}
 	text := module.ExpandString(tmpl, func(k string) (string, bool) {
 		for i := 0; i+1 < len(kv); i += 2 {

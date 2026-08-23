@@ -138,10 +138,10 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 	return gc.settleLoss(ctx, login, bet, roll, emit)
 }
 
-// refusal is one rejected wager: the i18n key to answer with and any bound
-// tokens it carries. Empty outcome means the bet stands.
+// refusal is one rejected wager: the line to answer with and any bound
+// tokens it carries. An empty key means the bet stands.
 type refusal struct {
-	key string
+	key replyKey
 	kv  []string
 }
 
@@ -221,7 +221,7 @@ func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int6
 
 // announce emits one settled-wager line; every outcome line carries the same
 // four tokens (the dice and the money), only the template differs.
-func (gc gambleCmd) announce(emit module.Emit, override, key string, roll, bet, balance int64) {
+func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, roll, bet, balance int64) {
 	gc.reply(emit, override, key,
 		"roll", strconv.FormatInt(roll, 10),
 		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
