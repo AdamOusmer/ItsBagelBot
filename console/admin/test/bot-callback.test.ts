@@ -11,7 +11,7 @@ const claims: { sub: string; aud: string; iss: string } = {
   iss: 'https://id.twitch.tv/oauth2'
 };
 const validateAuthorizationCode = mock(async () => ({
-  idToken: () => 'unused.test.token',
+  claims: () => ({ ...claims }),
   accessToken: () => 'access-token',
   refreshToken: () => 'refresh-token'
 }));
@@ -35,11 +35,6 @@ mock.module('$lib/server/oauth', () => ({
   botTwitch
 }));
 mock.module('$lib/server/services', () => ({ tokenSet }));
-mock.module('arctic', () => ({
-  decodeIdToken: () => claims,
-  generateState: () => 'generated-state',
-  OAuth2RequestError: class OAuth2RequestError extends Error {}
-}));
 mock.module('@sveltejs/kit', () => ({
   redirect: (status: number, location: string) => new TestRedirect(status, location)
 }));

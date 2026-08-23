@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { decodeIdToken, OAuth2RequestError } from 'arctic';
+import { ResponseBodyError } from '@bagel/shared/server/oauth';
 import { twitch } from '$lib/server/oauth';
 import { adminCheck } from '$lib/server/services';
 import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
@@ -21,10 +21,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   cookies.delete('oauth_nonce', { path: '/' });
 
   if (!code || !state || !stored || state !== stored) throw redirect(302, '/login?e=state');
+  // The shared client enforces the id_token nonce claim, so the cookie is
+  // mandatory: a flow that lost it fails closed instead of logging in without
+  // replay protection.
+  if (!storedNonce) throw redirect(302, '/login?e=state');
 
   try {
-    const tokens = await twitch().validateAuthorizationCode(code);
-    const claims = decodeIdToken(tokens.idToken()!) as {
+    const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
+    const claims = tokens.claims() as unknown as {
       sub: string;
       preferred_username: string;
       aud?: string | string[];
@@ -68,7 +72,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       maxAge: SESSION_TTL_SECONDS
     });
   } catch (e) {
-    if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');
+    if (e instanceof ResponseBodyError) throw redirect(302, '/login?e=oauth');
     throw e;
   }
 

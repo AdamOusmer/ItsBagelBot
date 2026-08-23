@@ -46,7 +46,7 @@ flowchart TB
 
 | Party | Relationship |
 |---|---|
-| **Broadcaster / chatter** | Drives the bot through Twitch chat and EventSub; configures it through the console (Twitch OAuth via arctic). |
+| **Broadcaster / chatter** | Drives the bot through Twitch chat and EventSub; configures it through the console (Twitch OAuth via oauth4webapi). |
 | **Operator** | Runs the bot. Reaches the admin console and `kubectl` over the Tailscale tailnet only; no public path. |
 | **Twitch** | Source of EventSub events (ingress) and target for chat sends + EventSub management (outgress), via the Helix API and the bot account token. |
 | **Tebex** | Monetization. Purchase records flow into the transactions service and promote a broadcaster's tier (paid). |
