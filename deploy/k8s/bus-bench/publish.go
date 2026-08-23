@@ -57,8 +57,8 @@ func runPublish(o publishOpts) error {
 	defer pub.Close()
 
 	ctx := context.Background()
-	var admitted, pErrs uint64
-	samples := collectFeedSamples(ctx, pub, o, deadline, &admitted, &pErrs)
+	run := &sampleRun{pub: pub, opts: o, deadline: deadline}
+	samples := run.drive(ctx)
 
 	flushCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	_ = pub.Flush(flushCtx)
@@ -67,10 +67,10 @@ func runPublish(o publishOpts) error {
 	elapsed := time.Since(windowStart)
 	sortAsc(samples)
 	emit(publishReport{
-		Admitted:    admitted,
-		Errors:      pErrs,
+		Admitted:    run.tally.admitted,
+		Errors:      run.tally.errors,
 		ElapsedS:    elapsed.Seconds(),
-		OfferedRate: float64(admitted) / elapsed.Seconds(),
+		OfferedRate: float64(run.tally.admitted) / elapsed.Seconds(),
 		CommitNs:    summarize(samples),
 	})
 	return nil
@@ -80,28 +80,6 @@ func runPublish(o publishOpts) error {
 // their merged commit-latency samples.
 
 // collectFeedSamples drives every feeder goroutine to its deadline and returns
-// their merged commit-latency samples.
-func collectFeedSamples(ctx context.Context, pub bus.Publisher, o publishOpts, deadline time.Time, admitted, pErrs *uint64) []int64 {
-	feeders := max(o.feeders, 1)
-	samplesCh := make(chan []int64, feeders)
-	var wg sync.WaitGroup
-	for f := range feeders {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			samplesCh <- runFeeder(bus.WithPublishPartition(ctx, strconv.Itoa(f)), pub, o, f, deadline, admitted, pErrs)
-		}()
-	}
-	wg.Wait()
-	close(samplesCh)
-	var samples []int64
-	for s := range samplesCh {
-		samples = append(samples, s...)
-	}
-	return samples
-}
-
-// feedPacer spaces a feeder's publishes so the pool offers rate/feeders msg/s
 // in aggregate; disabled when no rate was requested.
 
 // feedPacer spaces a feeder's publishes so the pool offers rate/feeders msg/s
@@ -131,35 +109,62 @@ func publishOne(ctx context.Context, pub bus.Publisher, subject, id string, body
 	return time.Since(t0), err
 }
 
-// runFeeder publishes under one partition until deadline. hashStreamRouter pins
-// one routing key to ONE pooled connection, so an unpartitioned feeder engages
-// exactly one worker of the pool and the other members never build a worker at
-// all. One feeder per pooled connection, each under its own publish partition,
-// is the minimum shape that exercises the whole publisher; ordering is
-// per-feeder, which is all the latency samples need.
+// sampleRun is one publish-mode measurement: the publisher under test, its
+// options and deadline, and the admission tally the feeder fleet fills in.
+type sampleRun struct {
+	pub      bus.Publisher
+	opts     publishOpts
+	deadline time.Time
+	tally    struct {
+		admitted uint64
+		errors   uint64
+	}
+}
 
-// runFeeder publishes under one partition until deadline. hashStreamRouter pins
-// one routing key to ONE pooled connection, so an unpartitioned feeder engages
-// exactly one worker of the pool and the other members never build a worker at
-// all. One feeder per pooled connection, each under its own publish partition,
-// is the minimum shape that exercises the whole publisher; ordering is
-// per-feeder, which is all the latency samples need.
-func runFeeder(ctx context.Context, pub bus.Publisher, o publishOpts, f int, deadline time.Time, admitted, pErrs *uint64) []int64 {
-	pacer := newFeedPacer(o.rate, max(o.feeders, 1))
+// drive launches one feeder per pooled connection — each under its own publish
+// partition — and returns their merged commit-latency samples.
+func (r *sampleRun) drive(ctx context.Context) []int64 {
+	feeders := max(r.opts.feeders, 1)
+	samplesCh := make(chan []int64, feeders)
+	var wg sync.WaitGroup
+	for f := range feeders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			samplesCh <- r.feeder(bus.WithPublishPartition(ctx, strconv.Itoa(f)), f)
+		}()
+	}
+	wg.Wait()
+	close(samplesCh)
+	var samples []int64
+	for s := range samplesCh {
+		samples = append(samples, s...)
+	}
+	return samples
+}
+
+// feeder publishes under one partition until the deadline. hashStreamRouter
+// pins one routing key to ONE pooled connection, so an unpartitioned feeder
+// engages exactly one worker of the pool and the other members never build a
+// worker at all. One feeder per pooled connection is the minimum shape that
+// exercises the whole publisher; ordering is per-feeder, which is all the
+// latency samples need.
+func (r *sampleRun) feeder(ctx context.Context, f int) []int64 {
+	pacer := newFeedPacer(r.opts.rate, max(r.opts.feeders, 1))
 	seq := uint64(f)
 	var samples []int64
-	for time.Now().Before(deadline) {
+	for time.Now().Before(r.deadline) {
 		pacer.wait()
-		seq += uint64(max(o.feeders, 1))
-		globalSeq := uint64(o.podIndex)<<48 | seq
-		body := buildPayload(globalSeq, unixNano(time.Now().UnixNano()), o.payloadSize)
-		confirmed := o.confirmEvery > 0 && seq%uint64(o.confirmEvery) == 0
-		id := fmt.Sprintf("bench-%d-%d", o.podIndex, seq)
-		elapsed, err := publishOne(ctx, pub, o.lane.subject, id, body, confirmed)
+		seq += uint64(max(r.opts.feeders, 1))
+		globalSeq := uint64(r.opts.podIndex)<<48 | seq
+		body := buildPayload(globalSeq, unixNano(time.Now().UnixNano()), r.opts.payloadSize)
+		confirmed := r.opts.confirmEvery > 0 && seq%uint64(r.opts.confirmEvery) == 0
+		id := fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq)
+		elapsed, err := publishOne(ctx, r.pub, r.opts.lane.subject, id, body, confirmed)
 		if err != nil {
-			atomic.AddUint64(pErrs, 1)
+			atomic.AddUint64(&r.tally.errors, 1)
 		} else {
-			atomic.AddUint64(admitted, 1)
+			atomic.AddUint64(&r.tally.admitted, 1)
 		}
 		if confirmed {
 			samples = append(samples, elapsed.Nanoseconds())
