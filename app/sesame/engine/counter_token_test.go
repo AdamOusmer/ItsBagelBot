@@ -73,7 +73,7 @@ func TestCounterTokenNamesTargetAddressing(t *testing.T) {
 // resolved from the roster of chatters this replica has seen speak.
 func TestCounterBumpKeysOnMentionedViewer(t *testing.T) {
 	p, loyalty := counterPipeline(t, "@{target} has been told {counter:target:shutups} times")
-	p.roster.Observe(123, "bob", "7", "Bob")
+	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7", name: "Bob"})
 
 	got := collectDispatch(p, chatCtx("!so @bob", ""))
 	require.Len(t, got, 1)
@@ -111,7 +111,7 @@ func TestCounterBumpUnresolvedTargetFallsBackToSender(t *testing.T) {
 // (which drives viewer+command buckets) rides along unchanged either way.
 func TestCounterBumpScopesUnchangedByAddressing(t *testing.T) {
 	p, loyalty := counterPipeline(t, "{user} {counter:hugs} / @{target} {counter:target:shutups}")
-	p.roster.Observe(123, "bob", "7", "")
+	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7"})
 
 	got := collectDispatch(p, chatCtx("!so @bob", ""))
 	require.Len(t, got, 1)
@@ -131,7 +131,7 @@ func TestCounterBumpScopesUnchangedByAddressing(t *testing.T) {
 // silently miss the roster.
 func TestCounterBumpTabSeparatedMention(t *testing.T) {
 	p, loyalty := counterPipeline(t, "{counter:target:shutups}")
-	p.roster.Observe(123, "bob", "7", "Bob")
+	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7", name: "Bob"})
 
 	got := collectDispatch(p, chatCtx("!so @bob\traid incoming", ""))
 	require.Len(t, got, 1)
