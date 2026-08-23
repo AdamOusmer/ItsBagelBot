@@ -155,28 +155,41 @@ func clashRun(d engine.Deps, cmd clashCommand) module.RunFunc {
 		tag := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		req := gossiprpc.Request{Account: tag, IsPremium: c.Regress.IsPremium()}
 		reply := cmd.newReply()
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "clashroyale", Endpoint: cmd.endpoint}, req, reply); err != nil {
-			if chatReplyError(c, emit, tag, err) {
-				return nil
-			}
-			return err
+		route := engine.GossipRoute{Provider: "clashroyale", Endpoint: cmd.endpoint}
+		if err := d.Gossip.Call(ctx, route, req, reply); err != nil {
+			return clashCallErr(c, emit, tag, err)
 		}
-		if cmd.special != nil {
-			if text, ok := cmd.special(reply); ok {
-				emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
-				return nil
-			}
-		}
-
-		msg := module.ExpandString(orDefault(cmd.message(cfg), cmd.fallback), func(key string) (string, bool) {
-			if field, ok := cmd.tokens[key]; ok {
-				return field(reply), true
-			}
-			return module.ParseDynamic(key)
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: clashRender(cmd, cfg, reply)})
 		return nil
 	}
+}
+
+// clashCallErr maps a gossip failure onto the command's outcome:
+// reply-level errors (player not found, ...) were answered in chat and count
+// as handled; infrastructure errors also chat a retry hint but propagate so
+// the caller still logs them.
+func clashCallErr(c *module.Context, emit module.Emit, tag string, err error) error {
+	if chatReplyError(c, emit, tag, err) {
+		return nil
+	}
+	return err
+}
+
+// clashRender picks the final chat line: a command's special-case override
+// when it fires (ranked's no-record answer), otherwise the configured
+// template expanded over the gossip reply.
+func clashRender(cmd clashCommand, cfg clashroyaleConfig, reply any) string {
+	if cmd.special != nil {
+		if text, ok := cmd.special(reply); ok {
+			return text
+		}
+	}
+	return module.ExpandString(orDefault(cmd.message(cfg), cmd.fallback), func(key string) (string, bool) {
+		if field, ok := cmd.tokens[key]; ok {
+			return field(reply), true
+		}
+		return module.ParseDynamic(key)
+	})
 }
 
 // clashDispatchRun routes !cr's first argument word onto the subcommand
