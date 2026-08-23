@@ -315,7 +315,11 @@ func resetWireHeader(h nats.Header) nats.Header {
 		}
 	}
 	id, ok := h[messageIDHeader]
-	if !ok || cap(id) == 0 {
+	if !ok || cap(id) != 1 {
+		// Anything not shaped like the envelope's own slot was grown by
+		// somebody else's append; replace it rather than inherit the capacity,
+		// so the slot's shape stays identical every cycle. The publish
+		// lifecycle never grows it, so this arm runs once per envelope.
 		id = make([]string, 1)
 	} else {
 		id = id[:1]

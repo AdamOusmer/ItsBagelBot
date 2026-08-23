@@ -54,7 +54,7 @@ func TestResetWireHeaderTruncatesForeignIdentitySlice(t *testing.T) {
 		"Other":         {"v"},
 	}
 	h = resetWireHeader(h)
-	slot := identitySlot(t, h)
+	identitySlot(t, h)
 	if _, ok := h["Other"]; ok {
 		t.Fatal("foreign key survived reset")
 	}
