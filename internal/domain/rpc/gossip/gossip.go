@@ -94,6 +94,20 @@ type Request struct {
 	// code. The upstream record-leaderboard has no such filter, so the
 	// provider drops it silently on that board rather than erroring.
 	Country string `json:"country,omitempty"`
+
+	// --- valorant (HenrikDev community API lookups) --------------------------
+
+	// Region is the Valorant shard a lookup targets: "na", "eu", "ap", "kr",
+	// "br" or "latam". Empty lets the provider detect it from the account
+	// itself through one extra cached account lookup, so callers that don't
+	// know their shard stay one upstream read behind explicit ones only on the
+	// first ask of the day. Zero on every non-valorant request.
+	Region string `json:"region,omitempty"`
+	// Platform selects which ladder split answers: "pc" (the provider's
+	// default when empty) or "console". Leaderboards and MMR are tracked as
+	// separate ladders per platform, so this folds into cache keys rather
+	// than being normalized away. Zero on every non-valorant request.
+	Platform string `json:"platform,omitempty"`
 }
 
 // Subject builds the NATS subject for one provider endpoint under prefix.

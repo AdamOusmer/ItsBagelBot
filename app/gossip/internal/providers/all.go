@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
 	"ItsBagelBot/app/gossip/internal/providers/paceman"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
+	"ItsBagelBot/app/gossip/internal/providers/valorant"
 
 	"go.uber.org/zap"
 )
@@ -36,6 +37,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendPaceman(out, cfg, d, log)
 	out = appendFortnite(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
+	out = appendValorant(out, cfg, d, log)
 	return out
 }
 
@@ -132,6 +134,23 @@ func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, l
 		return govee.New(govee.Config{
 			BaseURL:   cfg.GoveeBaseURL,
 			RateLimit: cfg.GoveeRateLimit,
+		}, d)
+	})
+}
+
+// appendValorant adds the Valorant provider behind its HenrikDev key, the same
+// credential gate as urchin/hypixel/clashroyale. The key gates everything:
+// unlike fortnite there is no keyless fallback mode — even the offer rotation
+// prices itself through HenrikDev (only its name/icon join rides the keyless
+// content CDN), so a missing key leaves every !val command dark.
+func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return appendIf(out, log, cfg.ValorantAPIKey == "", "valorant provider disabled: VALORANT_API_KEY not set (!val commands will not answer)", func() provider.Provider {
+		return valorant.New(valorant.Config{
+			BaseURL:          cfg.ValorantBaseURL,
+			ContentBaseURL:   cfg.ValorantContentBaseURL,
+			APIKey:           cfg.ValorantAPIKey,
+			RateLimit:        cfg.ValorantRateLimit,
+			ContentRateLimit: cfg.ValorantContentRateLimit,
 		}, d)
 	})
 }
