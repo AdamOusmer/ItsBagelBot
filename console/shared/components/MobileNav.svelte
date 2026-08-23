@@ -28,7 +28,6 @@
       background: rgba(10, 10, 10, 0.7);
       border-top: 1px solid var(--glass-border);
       backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
     }
     .mobile-nav form { flex: 1; display: flex; }
     .mobile-nav a, .mobile-nav button {
