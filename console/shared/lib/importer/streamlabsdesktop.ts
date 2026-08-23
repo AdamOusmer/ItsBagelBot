@@ -184,55 +184,68 @@ export async function parseStreamLabsDesktop(raw: Uint8Array): Promise<ParseResu
     );
   }
 
-  let db: Database;
+  const db = await openDatabase(raw);
   try {
-    const SQL = await getSqlJs();
-    db = new SQL.Database(raw);
-  } catch (err) {
-    throw new StreamLabsDesktopError(`streamlabsdesktop: opening database read-only: ${String(err)}`);
-  }
-
-  try {
-    let tables: Map<string, string>;
-    try {
-      tables = listTables(db);
-    } catch (err) {
-      throw new StreamLabsDesktopError(`streamlabsdesktop: reading schema: ${String(err)}`);
-    }
-
-    const manifest: ImportManifest = {};
-    const diags: ImportDiagnostic[] = [];
-
-    const cmdDiags: ImportDiagnostic[] = [];
-    manifest.commands = extractCommands(db, tables, cmdDiags);
-    if (!manifest.commands?.length) delete manifest.commands;
-
-    const tmrDiags: ImportDiagnostic[] = [];
-    manifest.timers = extractTimers(db, tables, tmrDiags);
-    if (!manifest.timers?.length) delete manifest.timers;
-
-    const qtDiags: ImportDiagnostic[] = [];
-    manifest.quotes = extractQuotes(db, tables, qtDiags);
-    if (!manifest.quotes?.length) delete manifest.quotes;
-
-    diags.push(...cmdDiags, ...tmrDiags, ...qtDiags);
-
-    for (const { label, candidates } of [
-      { label: 'commands', candidates: COMMAND_TABLE_CANDIDATES },
-      { label: 'timers', candidates: TIMER_TABLE_CANDIDATES },
-      { label: 'quotes', candidates: QUOTE_TABLE_CANDIDATES }
-    ]) {
-      if (findTable(tables, candidates) === '') {
-        diags.push(manifestWarn(`no "${label}" table found in Chatbot.db; that section was skipped`));
-      }
-    }
-    if (isEmptyStats(statsOf(manifest))) {
-      diags.push(manifestWarn('Chatbot.db contained no importable commands, timers or quotes'));
-    }
-    return { manifest, diagnostics: diags };
+    return parseDatabase(db);
   } finally {
     db.close();
   }
+}
+
+async function openDatabase(raw: Uint8Array): Promise<Database> {
+  try {
+    const SQL = await getSqlJs();
+    return new SQL.Database(raw);
+  } catch (err) {
+    throw new StreamLabsDesktopError(`streamlabsdesktop: opening database read-only: ${String(err)}`);
+  }
+}
+
+function readSchema(db: Database): Map<string, string> {
+  try {
+    return listTables(db);
+  } catch (err) {
+    throw new StreamLabsDesktopError(`streamlabsdesktop: reading schema: ${String(err)}`);
+  }
+}
+
+// parseDatabase walks the three feature tables; section diagnostics land
+// first, then one missing-table note per absent table, then the nothing-
+// importable note when the whole database came up empty.
+function parseDatabase(db: Database): ParseResult {
+  const tables = readSchema(db);
+  const diags: ImportDiagnostic[] = [];
+
+  const manifest: ImportManifest = {};
+  const commands = extractCommands(db, tables, diags);
+  if (commands.length) manifest.commands = commands;
+  const timers = extractTimers(db, tables, diags);
+  if (timers.length) manifest.timers = timers;
+  const quotes = extractQuotes(db, tables, diags);
+  if (quotes.length) manifest.quotes = quotes;
+
+  diags.push(...missingTableNotes(tables));
+  if (isEmptyStats(statsOf(manifest))) {
+    diags.push(manifestWarn('Chatbot.db contained no importable commands, timers or quotes'));
+  }
+  return { manifest, diagnostics: diags };
+}
+
+// missingTableNotes degrades each absent feature table to a manifest-level
+// note instead of failing the import.
+function missingTableNotes(tables: Map<string, string>): ImportDiagnostic[] {
+  const sections = [
+    ['commands', COMMAND_TABLE_CANDIDATES],
+    ['timers', TIMER_TABLE_CANDIDATES],
+    ['quotes', QUOTE_TABLE_CANDIDATES]
+  ] as const;
+  const notes: ImportDiagnostic[] = [];
+  for (const [label, candidates] of sections) {
+    if (findTable(tables, candidates) === '') {
+      notes.push(manifestWarn(`no "${label}" table found in Chatbot.db; that section was skipped`));
+    }
+  }
+  return notes;
 }
 
 // detectStreamLabsDesktop reports whether raw looks like a Chatbot.db: the
@@ -566,17 +579,16 @@ function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[n
 // interval of X minutes"), so minute-named columns multiply by 60 and only an
 // explicit seconds-named column passes through raw.
 function timerInterval(r: Row): { seconds: number; known: boolean } {
-  const [mins, hasMins] = r.first(TIMER_MINUTES_COLUMNS);
-  if (hasMins) {
-    const m = goAtoi(mins.trim());
-    if (m !== null && m > 0) return { seconds: m * 60, known: true };
-  }
-  const [secs, hasSecs] = r.first(TIMER_SECONDS_COLUMNS);
-  if (hasSecs) {
-    const s = goAtoi(secs.trim());
-    if (s !== null && s > 0) return { seconds: s, known: true };
-  }
+  const minutes = positiveInt(r.valueOf(TIMER_MINUTES_COLUMNS));
+  if (minutes !== null) return { seconds: minutes * 60, known: true };
+  const seconds = positiveInt(r.valueOf(TIMER_SECONDS_COLUMNS));
+  if (seconds !== null) return { seconds, known: true };
   return { seconds: 0, known: false };
+}
+
+function positiveInt(raw: string): number | null {
+  const n = goAtoi(raw.trim());
+  return n !== null && n > 0 ? n : null;
 }
 
 // extractQuotes reads saved quotes. ExtraQuotes (the separate user-repurposed

@@ -306,18 +306,19 @@ for (let i = 1; i <= 10; i++) KNOWN_TAGS.add(`urlfetch.json.${i}`);
 
 function randomNumberKey(ctx: TagContext): string {
   const { randomStart: s, randomEnd: e } = ctx;
-  // Integral + ordered + inside int64, else the source-defined {random}
-  // fallback. Beyond 2^53 float64 cannot represent every integer anyway, so
-  // the int64-exactness Go prints there is unreachable from JSON inputs.
-  if (
-    s === undefined || e === undefined ||
-    !Number.isInteger(s) || !Number.isInteger(e) ||
-    s > e ||
-    s < -(2 ** 63) || e > 2 ** 63 - 1
-  ) {
-    return '{random}';
-  }
+  if (!usableRandomRange(s, e)) return '{random}';
   return `{random:${s}-${e}}`;
+}
+
+// usableRandomRange demands integral, ordered bounds inside int64; anything
+// else takes the source-defined {random} fallback. Beyond 2^53 float64 cannot
+// represent every integer anyway, so the int64-exactness Go prints there is
+// unreachable from JSON inputs.
+function usableRandomRange(s: number | undefined, e: number | undefined): boolean {
+  if (s === undefined || e === undefined) return false;
+  if (!Number.isInteger(s) || !Number.isInteger(e)) return false;
+  if (s > e) return false;
+  return s >= -(2 ** 63) && e <= 2 ** 63 - 1;
 }
 
 function choiceKey(opts: TextOption[] | undefined): string {

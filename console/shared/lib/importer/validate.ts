@@ -300,57 +300,66 @@ export function warnDiag(itemIndex: number, code: string, message: string): Impo
 
 // commandNameProblem mirrors validate.CommandName's error strings: 1-64 bytes
 // of printable ASCII without spaces. Returns null when valid.
+const NAME_RULE = 'command name must be 1-64 printable ASCII characters without spaces';
+
 function commandNameProblem(name: string): string | null {
   const n = byteLen(name);
-  if (n === 0 || n > MAX_COMMAND_NAME_LEN)
-    return 'command name must be 1-64 printable ASCII characters without spaces';
+  if (n === 0 || n > MAX_COMMAND_NAME_LEN) return NAME_RULE;
+  return printableAscii(name) ? null : NAME_RULE;
+}
+
+// Printable ASCII without space blocks control characters, whitespace
+// tricks and invisible unicode in command lookups.
+function printableAscii(name: string): boolean {
   for (let i = 0; i < name.length; i++) {
     const c = name.charCodeAt(i);
-    // Printable ASCII without space: blocks control characters, whitespace
-    // tricks and invisible unicode in command lookups.
-    if (c <= 0x20 || c > 0x7e)
-      return 'command name must be 1-64 printable ASCII characters without spaces';
+    if (c <= 0x20 || c > 0x7e) return false;
   }
-  return null;
+  return true;
 }
 
 // commandAliasesProblem mirrors validate.CommandAliases: each alias a valid
 // command name, unique case-insensitively, at most 25.
+const ALIAS_RULE = 'aliases must each be a valid command name, unique, and at most 25 in total';
+
 function commandAliasesProblem(aliases: string[]): string | null {
-  if (aliases.length > MAX_COMMAND_ALIASES)
-    return 'aliases must each be a valid command name, unique, and at most 25 in total';
+  if (aliases.length > MAX_COMMAND_ALIASES) return ALIAS_RULE;
   const seen = new Set<string>();
   for (const alias of aliases) {
-    const problem = commandNameProblem(alias);
-    if (problem) return 'aliases must each be a valid command name, unique, and at most 25 in total';
-    const key = alias.toLowerCase();
-    if (seen.has(key)) return 'aliases must each be a valid command name, unique, and at most 25 in total';
-    seen.add(key);
+    if (aliasTaken(alias, seen)) return ALIAS_RULE;
+    seen.add(alias.toLowerCase());
   }
   return null;
 }
 
+function aliasTaken(alias: string, seen: Set<string>): boolean {
+  if (commandNameProblem(alias)) return true;
+  return seen.has(alias.toLowerCase());
+}
+
 // commandResponseProblem mirrors validate.CommandResponse: 1-5 lines, each
 // 1-500 bytes without control characters.
+const RESPONSE_RULE =
+  'command response must be 1-5 lines, each 1-500 characters without control characters';
+
 function commandResponseProblem(response: string): string | null {
-  if (byteLen(response) === 0) return 'command response must be 1-5 lines, each 1-500 characters without control characters';
+  if (byteLen(response) === 0) return RESPONSE_RULE;
   const lines = response.split('\n');
-  if (lines.length > MAX_RESPONSE_LINES)
-    return 'command response must be 1-5 lines, each 1-500 characters without control characters';
-  for (const line of lines) {
-    if (!validResponseLine(line))
-      return 'command response must be 1-5 lines, each 1-500 characters without control characters';
-  }
-  return null;
+  if (lines.length > MAX_RESPONSE_LINES) return RESPONSE_RULE;
+  return lines.every(validResponseLine) ? null : RESPONSE_RULE;
 }
 
 function validResponseLine(line: string): boolean {
   const n = byteLen(line);
   if (n === 0 || n > MAX_RESPONSE_LINE_BYTES) return false;
+  return !hasControlChars(line);
+}
+
+function hasControlChars(line: string): boolean {
   for (const ch of line) {
-    if ((ch.codePointAt(0) ?? 0) < 0x20) return false;
+    if ((ch.codePointAt(0) ?? 0) < 0x20) return true;
   }
-  return true;
+  return false;
 }
 
 // Validate walks a whole manifest and returns one diagnostic per problem,
