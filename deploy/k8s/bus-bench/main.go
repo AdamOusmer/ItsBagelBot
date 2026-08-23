@@ -133,44 +133,58 @@ func loadCA() (*x509.CertPool, error) {
 	return pool, nil
 }
 
-func mgmtConnect(url string) (*nats.Conn, jsapi.JetStream, error) {
-	opts := []nats.Option{
+func baseConnectOptions() []nats.Option {
+	return []nats.Option{
 		nats.UserInfo(os.Getenv("NATS_USER"), os.Getenv("NATS_PASSWORD")),
 		nats.Timeout(15 * time.Second),
 	}
+}
+
+// clientTLSConfig wraps a CA pool with the client key pair the hub's
+// verify:true listeners ask for. pkg/bus presents this pair on its own
+// connections (connect.go), and the management connection must answer the same
+// certificate request or the dial is refused.
+func clientTLSConfig(pool *x509.CertPool) *tls.Config {
+	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	certFile, keyFile := os.Getenv("NATS_CLIENT_CERT_FILE"), os.Getenv("NATS_CLIENT_KEY_FILE")
+	if certFile == "" || keyFile == "" {
+		return cfg
+	}
+	cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		cert, cerr := tls.LoadX509KeyPair(certFile, keyFile)
+		if cerr != nil {
+			return nil, fmt.Errorf("load nats client key pair: %w", cerr)
+		}
+		return &cert, nil
+	}
+	return cfg
+}
+
+// jetStreamFor opens the management JetStream view on nc. jsapi.NewWithDomain
+// refuses an empty domain; the fleet's JetStream plane lives in the "hub"
+// domain (pkg/bus JSDomain default), which a direct-to-hub dial must name.
+func jetStreamFor(nc *nats.Conn) (jsapi.JetStream, error) {
+	domain := os.Getenv("NATS_JS_DOMAIN")
+	if domain == "" {
+		domain = "hub"
+	}
+	return jsapi.NewWithDomain(nc, domain)
+}
+
+func mgmtConnect(url string) (*nats.Conn, jsapi.JetStream, error) {
+	opts := baseConnectOptions()
 	pool, err := loadCA()
 	if err != nil {
 		return nil, nil, err
 	}
 	if pool != nil {
-		cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-		certFile, keyFile := os.Getenv("NATS_CLIENT_CERT_FILE"), os.Getenv("NATS_CLIENT_KEY_FILE")
-		if certFile != "" && keyFile != "" {
-			// The hub's listeners are verify:true; pkg/bus presents this pair on
-			// its own connections (connect.go), and the management connection
-			// must answer the same certificate request or the dial is refused.
-			cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-				cert, cerr := tls.LoadX509KeyPair(certFile, keyFile)
-				if cerr != nil {
-					return nil, fmt.Errorf("load nats client key pair: %w", cerr)
-				}
-				return &cert, nil
-			}
-		}
-		opts = append(opts, nats.Secure(cfg))
+		opts = append(opts, nats.Secure(clientTLSConfig(pool)))
 	}
 	nc, err := nats.Connect(url, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
-	// jsapi.NewWithDomain refuses an empty domain; the fleet's JetStream
-	// plane lives in the "hub" domain (pkg/bus JSDomain default), which a
-	// direct-to-hub dial must name.
-	domain := os.Getenv("NATS_JS_DOMAIN")
-	if domain == "" {
-		domain = "hub"
-	}
-	js, err := jsapi.NewWithDomain(nc, domain)
+	js, err := jetStreamFor(nc)
 	if err != nil {
 		nc.Close()
 		return nil, nil, err
