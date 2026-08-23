@@ -45,9 +45,43 @@ func (g *Gate) observeLearned(ch uint64, sender, text string, sig signals) {
 
 // stripLearned reports whether any of text's whitespace tokens is LEARNED for
 // channel ch, and if so returns signals minus the style evidence those tokens
-// contributed. Only letters/upper/symbols are subtracted - exactly the inputs
-// of the caps and symbol comparisons - mirroring scan()'s classification per
-// rune. Deliberately NOT subtracted:
+// contributed (subtractTokenEvidence). Runs only after a flag already fired on
+// the full view.
+func (g *Gate) stripLearned(sig signals, text string, ch uint64) (signals, bool) {
+	if ch == 0 {
+		return sig, false
+	}
+	b := g.extra.Load()
+	if b == nil || b.set == nil {
+		return sig, false
+	}
+	runes := []rune(text)
+	out := sig
+	stripped := false
+	for i := 0; i < len(runes); {
+		end := tokenSpanEnd(runes, i)
+		if end > i && b.set.Known(ch, string(runes[i:end])) {
+			stripped = true
+			subtractTokenEvidence(&out, runes[i:end])
+		}
+		i = end + 1 // step over the separating space
+	}
+	return out, stripped
+}
+
+// tokenSpanEnd returns the index of the first whitespace rune at or after i -
+// the exclusive end of the whitespace-token starting there.
+func tokenSpanEnd(runes []rune, i int) int {
+	for i < len(runes) && !unicode.IsSpace(runes[i]) {
+		i++
+	}
+	return i
+}
+
+// subtractTokenEvidence removes one Known token's style evidence from out,
+// mirroring scan()'s classification per rune. Only letters/upper/symbols are
+// subtracted - exactly the inputs of the caps and symbol comparisons.
+// Deliberately NOT subtracted:
 //
 //   - zeroWidth and repeat runs: evasion signals, never communal style;
 //   - runes/spaces/emoji: they back emojiDominant's denominator and the caps
@@ -57,48 +91,24 @@ func (g *Gate) observeLearned(ch uint64, sender, text string, sig signals) {
 // Subtraction can only remove evidence for tokens that ARE known; an unknown
 // token's shouting keeps counting fully. Runs only after a flag already fired
 // on the full view, so the recompute can drop a flag but never mint one.
-func (g *Gate) stripLearned(sig signals, text string, ch uint64) (signals, bool) {
-	if ch == 0 {
-		return sig, false
-	}
-	b := g.extra.Load()
-	if b == nil || b.set == nil {
-		return sig, false
-	}
-	out := sig
-	stripped := false
-	runes := []rune(text)
-	for i := 0; i < len(runes); {
-		if unicode.IsSpace(runes[i]) {
-			i++
-			continue
-		}
-		start := i
-		for i < len(runes) && !unicode.IsSpace(runes[i]) {
-			i++
-		}
-		if b.set.Known(ch, string(runes[start:i])) {
-			stripped = true
-			for _, r := range runes[start:i] {
-				switch {
-				case unicode.IsLetter(r):
-					out.letters--
-					if unicode.IsUpper(r) {
-						out.upper--
-					}
-				case isEmojiRune(r):
-					if r != 0x200d { // ZWJ mints no symbol, mirroring scan()
-						out.symbols--
-					}
-				case moderation.IsInvisible(r):
-					// invisible runes are zeroWidth evidence: never stripped
-				case !unicode.IsDigit(r):
-					out.symbols--
-				}
+func subtractTokenEvidence(out *signals, token []rune) {
+	for _, r := range token {
+		switch {
+		case unicode.IsLetter(r):
+			out.letters--
+			if unicode.IsUpper(r) {
+				out.upper--
 			}
+		case isEmojiRune(r):
+			if r != 0x200d { // ZWJ mints no symbol, mirroring scan()
+				out.symbols--
+			}
+		case moderation.IsInvisible(r):
+			// invisible runes are zeroWidth evidence: never stripped
+		case !unicode.IsDigit(r):
+			out.symbols--
 		}
 	}
-	return out, stripped
 }
 
 // purgeLearned forgets every token of this message for channel ch - called

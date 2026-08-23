@@ -94,6 +94,78 @@ var scamPhrases = func() [][][]byte {
 // folded lookalike letters and qualified leet digits onto this alphabet.
 func isFloorTokenByte(b byte) bool { return 'a' <= b && b <= 'z' }
 
+func isFloorAlnumByte(b byte) bool {
+	return 'a' <= b && b <= 'z' || '0' <= b && b <= '9'
+}
+
+// floorView abstracts the ONE distinction between MatchFloor's authoritative
+// scan and MatchFloorPrescan's clean-path pre-scan: where the skeleton bytes
+// come from. The deep scan reads the real normalized buffer; the pre-scan reads
+// raw text through the virtual skeleton skelAt computes (lowercase,
+// quorum-gated leet fold, everything else verbatim). Every boundary rule below
+// is written ONCE against this view, so parity between the two scans is
+// structural rather than hand-synced - same patterns (already skeleton space),
+// same boundaries, same token rules. Generic over the concrete view type so
+// neither scan pays an interface box on a path pinned allocation-free by test.
+type floorView interface {
+	len() int
+	at(i int) byte
+	isToken(i int) bool
+	index(d []byte, from int) int // first occurrence of d at or after from, -1
+}
+
+// skelBuf adapts the deep scan's real normalized skeleton.
+type skelBuf []byte
+
+func (b skelBuf) len() int           { return len(b) }
+func (b skelBuf) at(i int) byte      { return b[i] }
+func (b skelBuf) isToken(i int) bool { return isFloorTokenByte(b[i]) }
+
+func (b skelBuf) index(d []byte, from int) int {
+	j := bytes.Index(b[from:], d)
+	if j < 0 {
+		return -1
+	}
+	return from + j
+}
+
+// skelVirtual adapts the pre-scan's virtual skeleton over raw text: every byte
+// is what Normalize's ascii fast path would emit there (skelAt), with
+// tokenStartOf supplying each byte's whitespace-token start for the quorum.
+type skelVirtual string
+
+func (t skelVirtual) len() int { return len(t) }
+
+func (t skelVirtual) at(i int) byte {
+	return skelAt(string(t), tokenStartOf(string(t), i), i)
+}
+
+func (t skelVirtual) isToken(i int) bool { return isFloorTokenByte(t.at(i)) }
+
+// index finds the next offset >= from where d occurs in the virtual skeleton:
+// first virtual byte as a cheap gate, then the full comparison.
+func (t skelVirtual) index(d []byte, from int) int {
+	for i := from; i+len(d) <= len(t); i++ {
+		if t.at(i) != d[0] {
+			continue
+		}
+		if t.eqAt(i, d) {
+			return i
+		}
+	}
+	return -1
+}
+
+// eqAt reports whether pattern d occurs in the virtual skeleton at offset i.
+func (t skelVirtual) eqAt(i int, d []byte) bool {
+	for k, pb := range d {
+		if t.at(i+k) != pb {
+			return false
+		}
+	}
+	return true
+}
+
 // MatchFloor reports whether a normalized skeleton carries the chat-floor
 // infrastructure blocklists, without allocating (the automod deep path runs it
 // on every flagged message). Matching is deliberately word-bounded rather than
@@ -118,27 +190,27 @@ func MatchFloor(skel []byte) (FloorKind, string) {
 	if len(skel) == 0 {
 		return FloorNone, ""
 	}
-	if di := matchDomain(skel); di >= 0 {
+	b := skelBuf(skel)
+	if di := matchDomain(b); di >= 0 {
 		return FloorIPLogger, IPLoggerDomains[di]
 	}
-	if si := matchScam(skel); si >= 0 {
+	if si := matchScam(b); si >= 0 {
 		return FloorScam, ScamTerms[si]
 	}
 	return FloorNone, ""
 }
 
 // matchDomain returns the index of the first IP-logger domain occurring at
-// host-label boundaries in skel, or -1. Zero allocations: bytes.Index scans,
+// host-label boundaries in v, or -1. Zero allocations: the view's index scans,
 // boundaries inspect neighbors in place.
-func matchDomain(skel []byte) int {
+func matchDomain[V floorView](v V) int {
 	for di, d := range ipLoggerPatterns {
 		for i := 0; ; {
-			j := bytes.Index(skel[i:], d)
-			if j < 0 {
+			s := v.index(d, i)
+			if s < 0 {
 				break
 			}
-			s := i + j
-			if domainBounded(skel, s, s+len(d)) {
+			if domainBounded(v, s, s+len(d)) {
 				return di
 			}
 			i = s + 1 // overlapping occurrences cannot matter, but stay correct
@@ -152,34 +224,23 @@ func matchDomain(skel []byte) int {
 // longer word ("notgrabify.link" left, "grabify.links" right) and is either a
 // different host or benign prose - both released on purpose; every separator
 // neighbor (space, dot, slash, colon, quotes, brackets) keeps the hit so
-// quoted or listed domains still match.
-func domainBounded(skel []byte, s, e int) bool {
-	if s > 0 && isFloorAlnumByte(skel[s-1]) {
+// quoted or listed domains still match. Judged on view bytes, so the virtual
+// skeleton's folded form decides the pre-scan's neighbors exactly as the real
+// buffer decides the deep scan's.
+func domainBounded[V floorView](v V, s, e int) bool {
+	if s > 0 && isFloorAlnumByte(v.at(s-1)) {
 		return false
 	}
-	return e == len(skel) || !isFloorAlnumByte(skel[e])
+	return e == v.len() || !isFloorAlnumByte(v.at(e))
 }
 
-func isFloorAlnumByte(b byte) bool {
-	return 'a' <= b && b <= 'z' || '0' <= b && b <= '9'
-}
-
-// matchScam returns the index of the first ScamTerms phrase present in skel as
-// an adjacent token sequence, or -1. One pass, manual token walking, zero
+// matchScam returns the index of the first ScamTerms phrase present in v as an
+// adjacent token sequence, or -1. One pass, manual token walking, zero
 // allocations.
-func matchScam(skel []byte) int {
-	n := len(skel)
-	for i := 0; i < n; {
-		if !isFloorTokenByte(skel[i]) {
-			i++
-			continue
-		}
-		start := i
-		for i < n && isFloorTokenByte(skel[i]) {
-			i++
-		}
+func matchScam[V floorView](v V) int {
+	for start, end, ok := nextFloorToken(v, 0); ok; start, end, ok = nextFloorToken(v, end) {
 		for pi := range scamPhrases {
-			if phraseAt(skel, start, i, scamPhrases[pi]) {
+			if phraseAt(v, start, end, scamPhrases[pi]) {
 				return pi
 			}
 		}
@@ -187,40 +248,55 @@ func matchScam(skel []byte) int {
 	return -1
 }
 
+// nextFloorToken advances from past any separator run and returns the bounds
+// of the next [a-z]-token, ok=false when the view ends first. This is THE
+// shared token-boundary matcher: both the authoritative scan's phrase walk and
+// the pre-scan's consume tokens through it (matchScam here, phraseAt below),
+// so word-bounded semantics are one definition instead of two hand-synced
+// copies that can drift.
+func nextFloorToken[V floorView](v V, from int) (start, end int, ok bool) {
+	i := from
+	n := v.len()
+	for i < n && !v.isToken(i) {
+		i++
+	}
+	if i >= n {
+		return 0, 0, false
+	}
+	start = i
+	for i < n && v.isToken(i) {
+		i++
+	}
+	return start, i, true
+}
+
 // phraseAt reports whether the phrase words match tokens starting at
 // [start,end) and continuing across any separator run (space, punctuation).
-func phraseAt(skel []byte, start, end int, words [][]byte) bool {
-	i := end
+func phraseAt[V floorView](v V, start, end int, words [][]byte) bool {
 	for wi, w := range words {
 		if wi > 0 {
-			start = nextToken(skel, &i)
-			if start < 0 {
+			var ok bool
+			start, end, ok = nextFloorToken(v, end)
+			if !ok {
 				return false
 			}
-			end = i
 		}
-		if end-start != len(w) || string(skel[start:end]) != string(w) {
+		if end-start != len(w) || !eqRun(v, start, w) {
 			return false
 		}
 	}
 	return true
 }
 
-// nextToken advances *i past the separator run following the previous token
-// and reports the start of the next token, or -1 when the skeleton ends first.
-func nextToken(skel []byte, i *int) int {
-	n := len(skel)
-	for *i < n && !isFloorTokenByte(skel[*i]) {
-		*i++
+// eqRun compares w against the view bytes at [pos,pos+len(w)) - literal buffer
+// bytes for the deep scan, virtualized skeleton bytes for the pre-scan.
+func eqRun[V floorView](v V, pos int, w []byte) bool {
+	for k, wb := range w {
+		if v.at(pos+k) != wb {
+			return false
+		}
 	}
-	if *i >= n {
-		return -1
-	}
-	start := *i
-	for *i < n && isFloorTokenByte(skel[*i]) {
-		*i++
-	}
-	return start
+	return true
 }
 
 // ---- clean-path pre-scan ---------------------------------------------------
@@ -231,7 +307,7 @@ func nextToken(skel []byte, i *int) int {
 // bailed clean and skipped the immovable floor entirely. The pre-scan re-runs
 // MatchFloor's exact semantics over a VIRTUAL skeleton: skelAt computes the
 // byte Normalize would produce at each ascii position (lowercase; quorum-gated
-// leet fold), and the walkers mirror matchDomain/matchScam over those bytes.
+// leet fold), and the shared generic walkers run unchanged over those bytes.
 // Parity with the deep scan is therefore structural, not incidental - same
 // patterns (already skeleton-space), same boundaries, same token rules.
 //
@@ -257,10 +333,11 @@ func nextToken(skel []byte, i *int) int {
 // skeleton and let MatchFloor decide authoritatively, so an over-route costs
 // one deep trip on a short line and can never mint a verdict by itself.
 func MatchFloorPrescan(text string) (FloorKind, string) {
-	if di := matchDomainFolded(text); di >= 0 {
+	t := skelVirtual(text)
+	if di := matchDomain(t); di >= 0 {
 		return FloorIPLogger, IPLoggerDomains[di]
 	}
-	if si := matchScamFolded(text); si >= 0 {
+	if si := matchScam(t); si >= 0 {
 		return FloorScam, ScamTerms[si]
 	}
 	return FloorNone, ""
@@ -300,117 +377,10 @@ func isSkelSpace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\n' || b == '\v' || b == '\f' || b == '\r'
 }
 
-// matchDomainFolded mirrors matchDomain over the virtual skeleton: first
-// pattern byte as a cheap gate, full literal-in-skeleton comparison, then
-// host-label boundary checks on the virtualized neighbors.
-func matchDomainFolded(text string) int {
-	for di, d := range ipLoggerPatterns {
-		for i := 0; i+len(d) <= len(text); i++ {
-			if skelAt(text, tokenStartOf(text, i), i) != d[0] {
-				continue
-			}
-			if !eqAtVirtualSkel(text, i, d) {
-				continue
-			}
-			if domainBoundedFolded(text, i, i+len(d)) {
-				return di
-			}
-		}
-	}
-	return -1
-}
-
-// eqAtVirtualSkel reports whether the pattern occurs in text at offset s when
-// read through the virtual skeleton.
-func eqAtVirtualSkel(text string, s int, d []byte) bool {
-	tokStart := tokenStartOf(text, s)
-	for k, pb := range d {
-		if skelAt(text, tokStart, s+k) != pb {
-			return false
-		}
-	}
-	return true
-}
-
-// domainBoundedFolded mirrors domainBounded: alphanumeric neighbors - judged
-// on the virtual skeleton, where uppercase and quorum-folding leet digits have
-// already become letters - glue the occurrence into a longer word and release
-// it; separator neighbors keep the hit.
-func domainBoundedFolded(text string, s, e int) bool {
-	if s > 0 && isFloorAlnumFolded(text, s-1) {
-		return false
-	}
-	return e == len(text) || !isFloorAlnumFolded(text, e)
-}
-
-func isFloorAlnumFolded(text string, pos int) bool {
-	b := skelAt(text, tokenStartOf(text, pos), pos)
-	return isFloorAlnumByte(b)
-}
-
-// matchScamFolded mirrors matchScam over the virtual skeleton: tokens are
-// maximal [a-z] runs after folding, phrases must appear as adjacent whole
-// tokens across any separator run.
-func matchScamFolded(text string) int {
-	n := len(text)
-	for i := 0; i < n; {
-		if !isFloorTokenFolded(text, i) {
-			i++
-			continue
-		}
-		start := i
-		for i < n && isFloorTokenFolded(text, i) {
-			i++
-		}
-		for pi := range scamPhrases {
-			if phraseAtFolded(text, start, i, scamPhrases[pi]) {
-				return pi
-			}
-		}
-	}
-	return -1
-}
-
-func isFloorTokenFolded(text string, pos int) bool {
-	return isFloorTokenByte(skelAt(text, tokenStartOf(text, pos), pos))
-}
-
-// phraseAtFolded mirrors phraseAt: the words must match whole tokens starting
-// at [start,end) and continuing across any separator run.
-func phraseAtFolded(text string, start, end int, words [][]byte) bool {
-	i := end
-	for wi, w := range words {
-		if wi > 0 {
-			start = nextTokenFolded(text, &i)
-			if start < 0 {
-				return false
-			}
-			end = i
-		}
-		if end-start != len(w) || !eqAtVirtualSkel(text, start, w) {
-			return false
-		}
-	}
-	return true
-}
-
-// nextTokenFolded advances *i past the separator run following the previous
-// token and reports the start of the next token, or -1 when the virtual
-// skeleton ends first.
-func nextTokenFolded(text string, i *int) int {
-	n := len(text)
-	for *i < n && !isFloorTokenFolded(text, *i) {
-		*i++
-	}
-	if *i >= n {
-		return -1
-	}
-	start := *i
-	for *i < n && isFloorTokenFolded(text, *i) {
-		*i++
-	}
-	return start
-}
+// The pre-scan's walkers ARE the deep scan's walkers (matchDomain, matchScam,
+// nextFloorToken, phraseAt) instantiated over skelVirtual instead of skelBuf -
+// the duplication this file used to carry as a hand-synced *Folded mirror of
+// every helper is gone by construction.
 
 // Terms returns the raw terms loaded for a category (rule reporting, tests).
 func (l *Lexicon) Terms(c Category) []string {
@@ -444,7 +414,7 @@ func CheckFloor(text string) (string, bool) {
 		return "", false
 	}
 
-	if di := matchDomain(skel); di >= 0 {
+	if di := matchDomain(skelBuf(skel)); di >= 0 {
 		return IPLoggerDomains[di], true
 	}
 

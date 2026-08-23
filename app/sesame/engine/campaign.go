@@ -77,8 +77,15 @@ func simBands(h uint64) (uint64, uint64) {
 	return h >> 32, h & 0xffffffff
 }
 
+// campaignInputUsable reports whether an observation carries everything the
+// juror keys on: a tenant to scope the bands under, a template hash to band,
+// and a sender to attribute. Anything missing cannot join or form a quorum.
+func campaignInputUsable(broadcasterID, simhash uint64, senderID string) bool {
+	return broadcasterID != 0 && simhash != 0 && senderID != ""
+}
+
 func (c *ValkeyCampaign) Observe(ctx context.Context, broadcasterID uint64, simhash uint64, senderID string) int {
-	if broadcasterID == 0 || simhash == 0 || senderID == "" {
+	if !campaignInputUsable(broadcasterID, simhash, senderID) {
 		return 0
 	}
 	b1, b2 := simBands(simhash)
@@ -110,8 +117,16 @@ func (c *ValkeyCampaign) Observe(ctx context.Context, broadcasterID uint64, simh
 	// unchanged campaignWindow TTL, so there is no cleanup pass.
 	c.noteWriteErrors(resps[:4])
 
+	return c.bandQuorum(resps[4:])
+}
+
+// bandQuorum classifies the two PFCOUNT replies and returns the larger
+// distinct-sender count. Fail-open like every juror read: a failed reply is
+// debug-logged and that band skipped, so the caller proceeds on whichever band
+// answered — read errors never change the returned count.
+func (c *ValkeyCampaign) bandQuorum(resps []valkey.ValkeyResult) int {
 	max := 0
-	for _, r := range resps[4:] {
+	for _, r := range resps {
 		n, err := r.AsInt64()
 		if err != nil {
 			c.log.Debug("campaign pfcount failed", zap.Error(err))

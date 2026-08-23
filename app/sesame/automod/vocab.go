@@ -112,39 +112,66 @@ func (v *Vocab) Observe(channel uint64, senderID string, tokens []string) {
 	hour := v.now() / 3600
 	s := &v.shards[channel&vocabShardMask]
 	s.Lock()
-	cv := s.m[channel]
-	if cv == nil {
-		evictStalestHalf(s.m, func(cv *chanVocab) int64 { return cv.lastSeen })
-		cv = &chanVocab{bins: make(map[string]*tokenStat)}
-		s.m[channel] = cv
-	}
+	cv := vocabChannel(s.m, channel)
 	cv.lastSeen = v.now()
 	for _, tok := range tokens {
-		tok = strings.ToLower(tok)
-		if tok == "" {
-			continue
-		}
-		ts := cv.bins[tok]
-		if ts == nil {
-			if len(cv.bins) >= vocabBins && !mgMakeRoom(cv.bins, hour) {
-				continue // every surviving bin holds >1 use; drop the token rather than grow
-			}
-			ts = &tokenStat{count: 1, lastTouch: hour}
-			cv.bins[tok] = ts
-			if senderID != "" {
-				ts.senders = map[string]struct{}{senderID: {}}
-			}
-			continue
-		}
-		ts.count = ts.aged(hour) + 1
-		if senderID != "" && len(ts.senders) < vocabSenders {
-			if ts.senders == nil {
-				ts.senders = make(map[string]struct{})
-			}
-			ts.senders[senderID] = struct{}{}
-		}
+		recordToken(cv, hour, senderID, strings.ToLower(tok))
 	}
 	s.Unlock()
+}
+
+// vocabChannel loads channel's row, evicting the shard's stalest half when a
+// new row lands in a full map (vocabChanCap backstop).
+func vocabChannel(m map[uint64]*chanVocab, channel uint64) *chanVocab {
+	if cv := m[channel]; cv != nil {
+		return cv
+	}
+	evictStalestHalf(m, func(cv *chanVocab) int64 { return cv.lastSeen })
+	cv := &chanVocab{bins: make(map[string]*tokenStat)}
+	m[channel] = cv
+	return cv
+}
+
+// recordToken folds one lowercased token use into the channel's window:
+// existing bins age-decay then increment and grow their sender set; new bins
+// enter through Misra-Gries admission.
+func recordToken(cv *chanVocab, hour int64, senderID, tok string) {
+	if tok == "" {
+		return
+	}
+	ts := cv.bins[tok]
+	if ts == nil {
+		admitNewBin(cv.bins, hour, senderID, tok)
+		return
+	}
+	ts.count = ts.aged(hour) + 1
+	promoteSender(ts, senderID)
+}
+
+// admitNewBin installs a fresh bin at count 1 - or drops the token instead when
+// the window is full and mgMakeRoom cannot free a bin (every surviving bin
+// holds more than one use; growing would break Misra-Gries bounds).
+func admitNewBin(bins map[string]*tokenStat, hour int64, senderID, tok string) {
+	if len(bins) >= vocabBins && !mgMakeRoom(bins, hour) {
+		return
+	}
+	ts := &tokenStat{count: 1, lastTouch: hour}
+	bins[tok] = ts
+	promoteSender(ts, senderID)
+}
+
+// promoteSender records sender among the token's distinct voices until the set
+// holds vocabSenders of them. Senders past the cap keep counting toward tau but
+// stop being recorded; an empty senderID (or a cohort fold without one) mints
+// no diversity on its own.
+func promoteSender(ts *tokenStat, senderID string) {
+	if senderID == "" || len(ts.senders) >= vocabSenders {
+		return
+	}
+	if ts.senders == nil {
+		ts.senders = make(map[string]struct{})
+	}
+	ts.senders[senderID] = struct{}{}
 }
 
 // Known reports whether token is a LEARNED member of channel ch's vocabulary:

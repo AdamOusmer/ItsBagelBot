@@ -168,10 +168,24 @@ func (g *Gate) emoteDominant(text string, msgCodes map[string]struct{}, ch uint6
 	total, known := 0, 0
 	for _, tok := range strings.Fields(text) {
 		total++
-		if _, ok := msgCodes[strings.ToLower(tok)]; ok ||
-			fetched.Has(tok) || g.extraKnows(ch, tok) {
+		if tokenIsKnownEmote(msgCodes, fetched, g, ch, tok) {
 			known++
 		}
 	}
 	return total > 0 && float64(known) >= emoteMajority*float64(total)
+}
+
+// tokenIsKnownEmote resolves one whitespace token against the membership
+// layers in precedence order - (a) message spans, (b) the fetched set, (c) the
+// learned provider scoped to ch. First hit wins, so a span-covered native
+// emote never depends on any fetch having succeeded.
+func tokenIsKnownEmote(msgCodes map[string]struct{}, fetched *EmoteSet, g *Gate, ch uint64, tok string) bool {
+	return spanHasCode(msgCodes, tok) || fetched.Has(tok) || g.extraKnows(ch, tok)
+}
+
+// spanHasCode reports membership among the message's span-derived codes, whose
+// keys arrive lowercased (module.Context.EmoteCodes contract).
+func spanHasCode(msgCodes map[string]struct{}, tok string) bool {
+	_, ok := msgCodes[strings.ToLower(tok)]
+	return ok
 }

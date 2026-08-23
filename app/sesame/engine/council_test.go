@@ -271,38 +271,63 @@ type dumbValkeyServer struct{}
 
 func newFakeValkey(tb testing.TB) *recordingValkey {
 	tb.Helper()
+	ln := listenLoopback(tb)
+	go serveHandshakeRefusals(ln)
+	real := dialRecordingClient(tb, ln.Addr().String())
+	return &recordingValkey{Client: real}
+}
+
+// listenLoopback opens a TCP listener on a random loopback port, closed with
+// the test.
+func listenLoopback(tb testing.TB) net.Listener {
+	tb.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(tb, err)
 	tb.Cleanup(func() { ln.Close() })
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			go func(c net.Conn) {
-				defer c.Close()
-				r := bufio.NewReader(c)
-				for {
-					if _, err := readRespCommand(r); err != nil {
-						return
-					}
-					if _, err := c.Write([]byte("-ERR unknown command 'HELLO'\r\n")); err != nil {
-						return
-					}
-				}
-			}(conn)
+	return ln
+}
+
+// serveHandshakeRefusals accepts client connections until the listener closes,
+// refusing every incoming command.
+func serveHandshakeRefusals(ln net.Listener) {
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
 		}
-	}()
+		go refuseHandshake(conn)
+	}
+}
+
+// refuseHandshake drains one connection's commands, answering each with the
+// canned error until the peer or the test goes away.
+func refuseHandshake(c net.Conn) {
+	defer c.Close()
+	r := bufio.NewReader(c)
+	for {
+		if _, err := parseRespCommand(r); err != nil {
+			return
+		}
+		if _, err := c.Write([]byte("-ERR unknown command 'HELLO'\r\n")); err != nil {
+			return
+		}
+	}
+}
+
+// dialRecordingClient builds the real valkey client against addr — and with it
+// the B() command builder no library-internal constructor exposes — closing it
+// with the test.
+func dialRecordingClient(tb testing.TB, addr string) valkey.Client {
+	tb.Helper()
 	real, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress:       []string{ln.Addr().String()},
+		InitAddress:       []string{addr},
 		AlwaysRESP2:       true,
 		DisableCache:      true,
 		ForceSingleClient: true,
 	})
 	require.NoError(tb, err)
 	tb.Cleanup(real.Close)
-	return &recordingValkey{Client: real}
+	return real
 }
 
 // recordingValkey captures every DoMulti command and replays scripted replies
@@ -343,19 +368,33 @@ func (f *recordingValkey) captured() [][]string {
 	return append([][]string(nil), f.cmds...)
 }
 
-// readRespCommand consumes one RESP array-of-bulk-strings command.
-func readRespCommand(r *bufio.Reader) ([]string, error) {
+// respCommand is one parsed client command: the words read off the wire. An
+// array-of-bulk-strings frame yields one word per bulk string, a bare inline
+// line folds into a single verbatim word (delimiter included), and a blank
+// separator line parses to an empty command with no error.
+type respCommand struct {
+	args []string
+}
+
+// parseRespCommand consumes one RESP client command off r.
+func parseRespCommand(r *bufio.Reader) (respCommand, error) {
 	line, err := r.ReadString('\n')
 	if err != nil {
-		return nil, err
+		return respCommand{}, err
 	}
-	if line[0] != '*' {
-		if strings.TrimSpace(line) == "" {
-			return nil, nil
-		}
-		return []string{line}, nil
+	if line[0] == '*' {
+		args, err := parseRespArray(r, line)
+		return respCommand{args: args}, err
 	}
-	n, err := strconv.Atoi(strings.TrimSpace(line[1:]))
+	if strings.TrimSpace(line) == "" {
+		return respCommand{}, nil
+	}
+	return respCommand{args: []string{line}}, nil
+}
+
+// parseRespArray reads the n bulk strings announced by an '*n' header line.
+func parseRespArray(r *bufio.Reader, header string) ([]string, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(header[1:]))
 	if err != nil {
 		return nil, err
 	}
