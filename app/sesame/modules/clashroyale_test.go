@@ -139,10 +139,9 @@ func TestCrDispatch(t *testing.T) {
 			require.NoError(t, clashCmd(t, gw, "cr").Run(context.Background(), urchinCtx(`{"account":"#P2LQ0GR"}`), tc.args, col.emit))
 			require.Len(t, col.out, 1)
 			assert.Equal(t, tc.endpoint, gw.lastCall(t).endpoint)
-			// A bare subcommand still targets the linked tag.
-			if tc.args == "decks" || tc.args == "ranked" || tc.args == "road" {
-				assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
-			}
+			// Every case targets the same player: arg-bearing cases type the
+			// linked tag itself and bare subcommands fall back to it.
+			assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
 		})
 	}
 }
