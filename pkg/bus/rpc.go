@@ -43,7 +43,10 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.request.encode", operation: "request", destination: subject,
 	})
-	body, err := codec.Marshal(request)
+	// FastMarshal over codec.Marshal: escaping and key order are byte-level
+	// only and every consumer of internal fleet RPC parses JSON with Go or TS,
+	// so the sorted-key/escaped-HTML guarantees buy nothing on this path.
+	body, err := codec.FastMarshal(request)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s marshal request: %w", subject, err)
@@ -71,7 +74,7 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 		name: "rpc.response.decode", operation: "request", destination: subject,
 	})
 	var reply T
-	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
+	if err := codec.FastUnmarshal(msg.Data, &reply); err != nil {
 		endMessagingSegment(decodeSegment, err)
 		return zero, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
@@ -125,7 +128,9 @@ func QueueSubscribeJSON[Req any, Resp any](
 		// required fields on the zero-value request.
 		if len(msg.Data) > 0 {
 			decodeSegment := txn.StartSegment("rpc.decode")
-			if err := codec.Unmarshal(msg.Data, &req); err != nil {
+			// FastUnmarshal leaves strings aliasing msg.Data, which stays alive
+			// for the whole inline handler — no copy needed.
+			if err := codec.FastUnmarshal(msg.Data, &req); err != nil {
 				decodeSegment.AddAttribute(resultAttribute, "invalid")
 				decodeSegment.End()
 				txn.NoticeError(err)
@@ -167,7 +172,10 @@ func QueueSubscribeJSON[Req any, Resp any](
 func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {
 	elapsed := time.Since(start)
 	encodeSegment := txn.StartSegment("rpc.reply.encode")
-	body, err := marshalResponse(reply)
+	// FastMarshal rather than marshalResponse: same byte-level-only argument as
+	// RequestJSON's request encode, and rpcErrorMessage's probe below still hits
+	// because a struct/map "error" field serializes as `"error":` either way.
+	body, err := codec.FastMarshal(reply)
 	encodeSegment.AddAttribute(resultAttribute, messagingResult(err))
 	encodeSegment.End()
 	if err != nil {
