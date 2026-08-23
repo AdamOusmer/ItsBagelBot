@@ -26,6 +26,7 @@ func All(d engine.Deps) []module.Module {
 		Mcsr(d),
 		Fortnite(d),
 		ClashRoyale(d),
+		Valorant(d),
 		// Raffle before Queue: both declare !join, and the registry's first-wins
 		// de-dup gives the earlier module the standalone spelling. A channel
 		// running both features joins raffles with !join and reaches the queue

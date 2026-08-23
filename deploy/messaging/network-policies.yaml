@@ -72,6 +72,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
+        # WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
+        # from cilium_host misclassified as the "world" identity instead of "host".
+        # This ipBlock allows "world" (0.0.0.0/0) but excludes the cluster's pod CIDR,
+        # securely allowing kubelet probes while keeping pod-to-pod monitor access blocked.
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16
       ports:
         - port: 8222
         - port: 8223
