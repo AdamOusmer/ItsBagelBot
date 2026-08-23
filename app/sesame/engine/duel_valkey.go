@@ -609,7 +609,7 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 		return res, err
 	}
 	res.Found = true
-	if st.Kind != DuelChallenge || login != st.Challenged {
+	if live, addressed := challengeAddressed(st, login); !live || !addressed {
 		res.WrongUser = true
 		return res, nil
 	}
@@ -626,24 +626,34 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 		return res, nil
 	}
 
-	winner, loser := st.Challenged, st.Opener
+	winner, loser, pot := s.settleChallenge(ctx, broadcasterID, st)
+
+	res.Accepted = true
+	res.Winner, res.Loser, res.Pot, res.Stake = winner, loser, pot, st.OpenerStake
+	return res, nil
+}
+
+// settleChallenge flips the coin, tears the duel down with its receipt and
+// pays the whole pot to the winner. Paying after the receipt lands leaves
+// auditable evidence of an unpaid pot should a crash strike between.
+func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) (winner, loser string, pot int64) {
+	winner, loser, pot = st.Challenged, st.Opener, st.OpenerStake*2
 	if FlipDuelCoin() {
 		winner, loser = st.Opener, st.Challenged
 	}
-	pot := st.OpenerStake * 2
 	receipt := DuelReceipt{
 		Outcome: DuelWon, Winner: winner, Loser: loser, Pot: pot,
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt)
-
-	// Pay after the receipt lands: a crash between leaves auditable evidence
-	// of an unpaid pot instead of a paid pot nobody can prove.
 	s.payWinner(ctx, broadcasterID, winner, pot)
+	return winner, loser, pot
+}
 
-	res.Accepted = true
-	res.Winner, res.Loser, res.Pot, res.Stake = winner, loser, pot, st.OpenerStake
-	return res, nil
+// challengeAddressed reports whether st is a live challenge naming login as
+// its answering party — the one gate both accept and decline share.
+func challengeAddressed(st *DuelState, login string) (live, addressed bool) {
+	return st.Kind == DuelChallenge, st.Kind == DuelChallenge && login == st.Challenged
 }
 
 // payWinner credits a resolved pot, logging loudly on failure: the receipt
@@ -668,7 +678,7 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 		return res, err
 	}
 	res.Found = true
-	if st.Kind != DuelChallenge || login != st.Challenged {
+	if live, addressed := challengeAddressed(st, login); !live || !addressed {
 		res.WrongUser = true
 		return res, nil
 	}

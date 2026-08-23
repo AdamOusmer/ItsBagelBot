@@ -112,18 +112,15 @@ func ResolveGambleBet(arg string, balance, minBet, maxBet int64) (int64, GambleB
 	}
 	bet := stake.amount
 	if stake.derived {
+		// A derived stake asks for "as much as the house allows": it is
+		// silently capped at maxBet instead of refused — refusing "!gamble
+		// all" because the standing exceeds the cap would read as a bug.
 		bet = min(bet, maxBet)
 	}
-	return boundGambleBet(bet, balance, minBet, maxBet, stake.derived)
-}
-
-// boundGambleBet applies the three refusals a parsed wager can trip; derived
-// stakes already capped at maxBet, so the over-cap refusal is theirs alone.
-func boundGambleBet(bet, balance, minBet, maxBet int64, derived bool) (int64, GambleBetOutcome) {
 	switch {
 	case bet < minBet:
 		return 0, BetBelowMin
-	case !derived && bet > maxBet:
+	case !stake.derived && bet > maxBet:
 		return 0, BetAboveMax
 	case bet > balance:
 		return 0, BetOverBalance

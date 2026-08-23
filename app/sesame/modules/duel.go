@@ -223,6 +223,20 @@ func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit
 		dc.reply(emit, "", "duel.challenge.pending")
 	case res.Busy:
 		dc.reply(emit, "", "duel.busy")
+	case !res.Open:
+		// Nothing was running when we asked: open instead. A race loser here
+		// just re-runs into the open path's own busy report.
+		return dc.openPot(ctx, login, stake, emit)
+	default:
+		return dc.replyJoin(res, stake, emit)
+	}
+	return nil
+}
+
+// replyJoin answers a resolved join attempt against the running pot: in,
+// already seated, or refused on funds/identity.
+func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.Emit) error {
+	switch {
 	case res.Joined:
 		dc.reply(emit, dc.t.JoinMessage, "duel.joined",
 			"stake", strconv.FormatInt(stake, 10),
@@ -234,10 +248,6 @@ func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit
 		dc.reply(emit, "", "duel.join.unknown")
 	case res.Short:
 		dc.reply(emit, "", "duel.join.short")
-	case !res.Open:
-		// Nothing was running when we asked: open instead. A race loser here
-		// just re-runs into the open path's own busy report.
-		return dc.openPot(ctx, login, stake, emit)
 	default:
 		dc.reply(emit, "", "duel.err")
 	}
