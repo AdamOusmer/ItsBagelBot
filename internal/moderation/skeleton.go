@@ -94,7 +94,7 @@ func asciiLower(c byte) byte {
 // unicode path buffers each token as lowercased, already-unconditionally-
 // folded UTF-8 and runs the SAME byte-level routine on those bytes before
 // appending - so there is exactly one quorum counter (tokenQuorum) and one
-// gated fold (foldToken). Both paths process each whitespace-delimited TOKEN
+// gated fold (tokenMark.fold). Both paths process each whitespace-delimited TOKEN
 // as a unit (count the quorum once, then fold), never re-walking a token per
 // foldable rune; writeSkelRune stages the unicode walk's runes;
 // skelKindOf classifies them.
@@ -133,7 +133,7 @@ func isSkelSpace(b byte) bool {
 
 // normalizeASCII is the fast path: raw bytes land on dst while the scan walks
 // a token, and each finished whitespace-delimited token is then folded IN
-// PLACE on dst by the shared foldToken core - one forward quorum count, one
+// PLACE on dst by the shared tokenMark fold core - one forward quorum count, one
 // forward fold, no re-walk per foldable rune and no scratch buffer beyond
 // caller-owned dst itself, so an ordinary chat line normalizes alloc-free
 // (measured in BenchmarkNormalize's comment). Splits on every isSkelSpace byte
@@ -142,40 +142,48 @@ func isSkelSpace(b byte) bool {
 // to project its virtual skeleton, keeping both scans' token semantics one
 // definition.
 func normalizeASCII(dst []byte, text string) []byte {
-	spaced := false
-	mark := 0 // dst offset where the in-flight token began
+	tok := tokenMark{}
 	for i := 0; i < len(text); i++ {
 		c := text[i]
 		if isSkelSpace(c) {
-			dst = foldToken(dst, mark)
-			if !spaced {
+			dst = tok.fold(dst)
+			if !tok.spaced {
 				dst = append(dst, ' ')
 			}
-			spaced = true
-			mark = len(dst)
+			tok.restart(len(dst))
 			continue
 		}
-		spaced = false
+		tok.spaced = false
 		dst = append(dst, c)
 	}
-	return foldToken(dst, mark)
+	return tok.fold(dst)
 }
 
-// foldToken is THE token folding core both Normalize paths run: it lowers and
-// confusable-folds the raw token bytes dst[mark:] in place. Lookalike letters
-// fold unconditionally; leet digits/symbols fold only when tokenQuorum held
-// for the finished token. A digit never counts toward its own quorum because
-// it can never vote at all, so "1337" cannot vote itself into "leet". The
-// fast path folds tokens where they landed on dst; the unicode path folds its
-// lowercased scratch buffer through this same routine (flushUnicodeToken),
-// which is what keeps the two paths' token semantics one definition.
-func foldToken(dst []byte, mark int) []byte {
-	tok := dst[mark:]
+// tokenMark is the in-flight token inside a skeleton buffer: the concept
+// "(offset awaiting its fold, whitespace-collapse state)" as one named value.
+// fold is THE token folding core both Normalize paths run: it lowers and
+// confusable-folds dst[at:] in place. Lookalike letters fold unconditionally;
+// leet digits/symbols fold only when tokenQuorum held for the finished token.
+// A digit never counts toward its own quorum because it can never vote at
+// all, so "1337" cannot vote itself into "leet".
+type tokenMark struct {
+	at     int
+	spaced bool
+}
+
+func (t *tokenMark) restart(at int) { t.at = at; t.spaced = true }
+
+func (t *tokenMark) fold(dst []byte) []byte {
+	foldTokenBytes(dst[t.at:])
+	return dst
+}
+
+// foldTokenBytes lowers and confusable-folds one finished token in place.
+func foldTokenBytes(tok []byte) {
 	leet := tokenQuorum(tok)
 	for i, c := range tok {
 		tok[i] = foldByte(c, leet)
 	}
-	return dst
 }
 
 // foldByte lowercases one skeleton byte and applies its confusable fold.
@@ -249,7 +257,7 @@ func skelKindOf(r rune) skelKind {
 // token buffer as UTF-8: lookalike LETTERS fold unconditionally here - their
 // single-byte latin fold is what votes toward the shared tokenQuorum and what
 // a quorum-less token must still emit - while leet digits/symbols land raw
-// and wait for the quorum-gated fold in the shared foldToken core. Lowercase
+// and wait for the quorum-gated fold in the shared tokenMark fold core. Lowercase
 // first, THEN stage (and fold): a single lowercase confusables entry catches
 // an uppercase cross-script lookalike too (uppercase Cyrillic 'А' lowercases
 // to 'а' before the fold), closing an evasion gap.
@@ -273,9 +281,9 @@ func writeSkelRune(tok []byte, lr rune) []byte {
 var tokenBuf = sync.Pool{New: func() any { b := make([]byte, 0, 64); return &b }}
 
 // flushUnicodeToken runs the buffered token through the SAME byte-level
-// foldToken core the fast path uses and appends it to dst, emptying the
+// tokenMark fold core the fast path uses and appends it to dst, emptying the
 // buffer. The buffer already holds lowercased, unconditionally-folded UTF-8
-// (writeSkelRune), so foldToken's only remaining work here is the quorum-
+// (writeSkelRune), so folding's only remaining work here is the quorum-
 // gated leet fold; multi-byte runes pass its byte loop untouched because no
 // confusables key falls in a UTF-8 continuation or lead-byte position.
 func flushUnicodeToken(dst []byte, tbp *[]byte) []byte {
@@ -283,7 +291,8 @@ func flushUnicodeToken(dst []byte, tbp *[]byte) []byte {
 	if len(tok) == 0 {
 		return dst
 	}
-	dst = append(dst, foldToken(tok, 0)...)
+	foldTokenBytes(tok)
+	dst = append(dst, tok...)
 	*tbp = tok[:0]
 	return dst
 }
