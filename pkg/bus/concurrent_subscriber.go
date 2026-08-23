@@ -91,8 +91,7 @@ const (
 func workQueueRetention(stream string) bool {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, DataStreams...)
-	specs = append(specs, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, DiscordOutgressStream)
+	specs = append(specs, OutgressStream, OutgressSystemStream)
 
 	for _, spec := range specs {
 		if spec.Name == stream {

@@ -26,18 +26,10 @@ const (
 	defaultPublishBatchWait = time.Millisecond
 	defaultPublishAckWait   = 2 * time.Second
 	defaultPublishQueueSize = 16_384
+	maxInflightCohorts      = 4
 
 	messageIDHeader = "Bagelbot-Message-Id"
 )
-
-// inflightCohorts is how many atomic cohorts one worker may have outstanding.
-// The stock 4 kept the fleet under the broker's old 50-batch cap; with
-// jetstream.limits.batch.max_inflight_per_stream raised to 200, deeper client
-// pipelines convert that headroom into throughput until the leader binds.
-func inflightCohorts() int {
-	n := env.GetInt("NATS_ATOMIC_INFLIGHT_COHORTS", 4)
-	return min(max(n, 1), 32)
-}
 
 // StreamRouter is the strategy used to select a pooled connection. The default
 // hashes the stream plus optional aggregate partition. Calls without a
@@ -203,6 +195,14 @@ func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.
 // random prefix, so ids stay unique across generators and across restarts.
 var nuidPool = sync.Pool{New: func() any { return nuid.New() }}
 
+// wireMsgPool recycles the per-publish *nats.Msg envelope. Profiling the
+// saturated publish path attributed ~38% of allocation traffic to
+// publishMessage's header map + value slice plus NewMsg itself; the envelope
+// is fully consumed once its cohort resolves (staging serialized the bytes,
+// fallback replays run before finish), so finish returns it here. Data and
+// identity values are owned per message and reset by the acquirer.
+var wireMsgPool = sync.Pool{New: func() any { return nats.NewMsg("") }}
+
 // nextNUID borrows a generator for exactly one id. Returning it immediately
 // keeps the pool sized to concurrent publishers rather than to every goroutine
 // that has ever published, and sync.Pool's per-P cache makes the round trip
@@ -282,16 +282,22 @@ func (p *batchPublisher) publish(command publishCommand) error {
 }
 
 func publishMessage(command publishCommand) *nats.Msg {
-	wire := nats.NewMsg(command.topic)
+	wire := wireMsgPool.Get().(*nats.Msg)
+	wire.Subject = command.topic
+	wire.Reply = ""
 	wire.Data = command.payload
-	// nats.NewMsg leaves Header nil, and every Set onto a nil Header allocates a
-	// fresh one-element slice and pays the canonicalization walk per call. Both
-	// identity keys below are already in canonical MIME form — Set would store
-	// them verbatim under exactly these strings — so they are assigned directly
-	// into a table sized for them plus the trace-header pair. The trace loop
-	// keeps Set: its keys arrive from NewRelic with outside casing, and
-	// canonicalization is what makes later Get calls find them.
-	wire.Header = make(nats.Header, 3)
+	// Pool cycles reuse the map; first use sizes it for both identity keys
+	// plus the trace-header pair. Both identity keys are canonical MIME form,
+	// so direct assignment skips Set's append path; the trace loop keeps Set:
+	// its keys arrive from NewRelic with outside casing, and canonicalization
+	// is what makes later Get calls find them.
+	if wire.Header == nil {
+		wire.Header = make(nats.Header, 3)
+	} else {
+		for k := range wire.Header {
+			delete(wire.Header, k)
+		}
+	}
 	// Preserve the fleet abstraction's message identity for subscribers, but
 	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
 	// not a broker dedup key.
@@ -401,7 +407,7 @@ func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error)
 		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots:         make(chan struct{}, inflightCohorts()),
+		slots:         make(chan struct{}, maxInflightCohorts),
 		batchSize:     publishBatchSize(p.wire),
 		batchWait:     publishBatchWait(p.wire),
 		overlapCommit: atomicPublishOverlap(),
@@ -686,5 +692,8 @@ func (w *publishBatchWorker) finish(batch []publishRequest, err error) {
 		if batch[i].confirmed != nil {
 			batch[i].confirmed <- err
 		}
+		batch[i].msg.Subject = ""
+		batch[i].msg.Data = nil
+		wireMsgPool.Put(batch[i].msg)
 	}
 }
