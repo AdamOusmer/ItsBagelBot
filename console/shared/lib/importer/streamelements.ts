@@ -103,26 +103,43 @@ export async function fetchStreamElements(
       'streamelements: credential does not look like a StreamElements JWT (expected eyX.yyy.zzz from "Show secrets")'
     );
 
-  const base = opts.baseUrl || DEFAULT_API_BASE;
-  const me = await getJSON<Record<string, unknown>>(base, token, '/kappa/v2/channels/me', opts);
+  const client: KappaClient = { base: opts.baseUrl || DEFAULT_API_BASE, token, opts };
+  const me = await kappaGet<Record<string, unknown>>(client, '/kappa/v2/channels/me');
   const id = typeof me._id === 'string' ? me._id : '';
   if (!id)
     throw new StreamElementsError(
       'streamelements: /channels/me returned no _id; the token is not a channel secret JWT'
     );
 
-  const cmds = await getJSON<unknown[]>(base, token, `/kappa/v2/bot/commands/${id}`, opts);
-  const timers = await getJSON<unknown[]>(base, token, `/kappa/v2/bot/timers/${id}`, opts);
+  const cmds = await kappaGet<unknown[]>(client, `/kappa/v2/bot/commands/${id}`);
+  const timers = await kappaGet<unknown[]>(client, `/kappa/v2/bot/timers/${id}`);
   return { commands: cmds, timers };
 }
 
-async function getJSON<T>(base: string, token: string, path: string, opts: FetchOptions): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
+// KappaClient binds the channel JWT to the API root for the three sequenced
+// reads fetchStreamElements performs.
+interface KappaClient {
+  base: string;
+  token: string;
+  opts: FetchOptions;
+}
+
+// KappaRequest names one resolved kappa v2 GET: endpoint URL, channel JWT and
+// the path (kept alongside for error prose).
+interface KappaRequest {
+  url: string;
+  token: string;
+  path: string;
+}
+
+async function kappaGet<T>(client: KappaClient, path: string): Promise<T> {
+  const timeoutMs = client.opts.timeoutMs ?? FETCH_TIMEOUT_MS;
   // AbortController bounds the call the way Go's http.Client.Timeout did.
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    return await requestJSON<T>(base + path, token, path, abort.signal);
+    const req: KappaRequest = { url: client.base + path, token: client.token, path };
+    return await requestJSON<T>(req, abort.signal);
   } catch (err) {
     if (err instanceof StreamElementsError) throw err;
     const reason =
@@ -133,20 +150,20 @@ async function getJSON<T>(base: string, token: string, path: string, opts: Fetch
   }
 }
 
-async function requestJSON<T>(url: string, token: string, path: string, signal: AbortSignal): Promise<T> {
-  const res = await fetch(url, {
+async function requestJSON<T>(req: KappaRequest, signal: AbortSignal): Promise<T> {
+  const res = await fetch(req.url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${req.token}`, Accept: 'application/json' },
     signal
   });
   // Cap how much of a hostile reply is buffered before decoding.
-  const text = await readCapped(res, MAX_RESPONSE_BODY, path);
+  const text = await readCapped(res, MAX_RESPONSE_BODY, req.path);
   if (res.status !== 200)
-    throw new StreamElementsError(`${path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
+    throw new StreamElementsError(`${req.path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
   try {
     return JSON.parse(text) as T;
   } catch (err) {
-    throw new StreamElementsError(`${path}: decoding response: ${(err as Error).message}`);
+    throw new StreamElementsError(`${req.path}: decoding response: ${(err as Error).message}`);
   }
 }
 
@@ -618,10 +635,11 @@ function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SePars
   const { text, perm } = lossyNotes(c, name, online, sink);
   const { lines, diags: respDiags } = canonicalizeResponse(text, sink.idx);
 
-  commands.push(assembleCommand(c, name, online, perm, lines, sink));
+  const draft: CommandDraft = { c, name, online, perm, lines };
+  commands.push(assembleCommand(draft, sink));
   state.diags.push(...respDiags);
-  emptyResponseErrors(lines, c, name, sink.idx, state.diags);
-  keywordsToTriggers(c.keywords, c.reply, name, state);
+  emptyResponseErrors(draft, sink);
+  keywordsToTriggers(draft, state);
 }
 
 // lossyNotes emits, in pinned order (the golden fixtures pin diagnostic
@@ -690,21 +708,26 @@ function accessLevelNote(c: BotCommand, name: string, sink: NoteSink): ReturnTyp
   return mapped;
 }
 
+// CommandDraft carries one decoded command through assembly and the empty-
+// response check: the source entry, its normalized name, window flags,
+// resolved tier and canonicalized response lines.
+interface CommandDraft {
+  c: BotCommand;
+  name: string;
+  online: boolean;
+  perm: AccessTier;
+  lines: string[];
+}
+
 // assembleCommand builds the manifest entry with omitempty parity: absent or
 // empty values are omitted so a serialized manifest stays identical to what
 // the importer service emitted.
-function assembleCommand(
-  c: BotCommand,
-  name: string,
-  online: boolean,
-  perm: string,
-  lines: string[],
-  sink: NoteSink
-): ManifestCommand {
+function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
+  const { c, name, online, perm, lines } = draft;
   const cmd: ManifestCommand = { name, responses: lines };
   const aliases = collectAliases(c, name, sink);
   if (aliases.length > 0) cmd.aliases = aliases;
-  cmd.permission = perm as ManifestCommand['permission'];
+  cmd.permission = perm;
   if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
   if (online && !flag(c.enabledOffline)) cmd.online_only = true;
   if (sink.notes.length > 0) cmd.warnings = sink.notes;
@@ -731,21 +754,30 @@ function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
 }
 
 // emptyResponseErrors marks commands whose canonicalization left nothing, so
-// commit skips rather than writes an empty command.
-function emptyResponseErrors(lines: string[], c: BotCommand, name: string, idx: number, diags: ImportDiagnostic[]): void {
-  if (lines.length > 0) return;
-  if (c.reply.trim() !== '') {
+// commit skips rather than writes an empty command. sink.idx is the slot the
+// command was just pushed into.
+function emptyResponseErrors(draft: CommandDraft, sink: NoteSink): void {
+  if (draft.lines.length > 0) return;
+  if (draft.c.reply.trim() !== '') {
     // Canonicalization dropped everything (blank lines only after variable
     // removal).
-    diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no usable response after translation`));
+    sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no usable response after translation`));
   } else {
-    diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no response`));
+    sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no response`));
   }
 }
 
-function keywordsToTriggers(keywords: string[], reply: string, commandName: string, state: SeParseState): void {
-  for (const kw of keywords) {
-    appendKeywordTrigger(kw, reply, commandName, state);
+// KeywordExpansion bundles one command's trigger-expansion inputs: the raw
+// response to re-translate per keyword and the name diagnostics should name.
+interface KeywordExpansion {
+  reply: string;
+  commandName: string;
+}
+
+function keywordsToTriggers(draft: CommandDraft, state: SeParseState): void {
+  const expansion: KeywordExpansion = { reply: draft.c.reply, commandName: draft.name };
+  for (const kw of draft.c.keywords) {
+    appendKeywordTrigger(kw, expansion, state);
   }
   if (state.manifest.triggers?.length === 0) delete state.manifest.triggers;
 }
@@ -754,13 +786,13 @@ function keywordsToTriggers(keywords: string[], reply: string, commandName: stri
 // same translated response, flattened to a single line: commit stores triggers
 // as "phrase => response" textarea rows, so embedded newlines would corrupt
 // the rules blob.
-function appendKeywordTrigger(kw: string, reply: string, commandName: string, state: SeParseState): void {
+function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: SeParseState): void {
   const phrase = kw.trim();
   if (phrase === '') return;
 
   const triggers = (state.manifest.triggers ??= []);
   const idx = triggers.length;
-  const { text, warns } = translateVariables(reply);
+  const { text, warns } = translateVariables(expansion.reply);
   for (const tok of warns) {
     state.diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
       `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
@@ -770,24 +802,41 @@ function appendKeywordTrigger(kw: string, reply: string, commandName: string, st
   // CanonicalizeResponse attributes its findings with command_-prefixed
   // codes; these items are triggers, so the codes are re-prefixed to keep
   // FailedItems dropping the right collection.
-  retitleResponseCodes(respDiags, SE_CODE.triggerResponseTruncated, SE_CODE.triggerResponseLineDropped);
+  retitleResponseCodes(respDiags, TRIGGER_RETITLE);
   state.diags.push(...respDiags);
 
   const response = lines.join(' ');
   if (response === '') {
     state.diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
-      `keyword ${q(kw)} on command ${q(commandName)} has no usable phrase/response pair; skipped`));
+      `keyword ${q(kw)} on command ${q(expansion.commandName)} has no usable phrase/response pair; skipped`));
     return;
   }
   triggers.push({ phrase, response });
 }
 
+// RetitleMap pairs the canonicalization codes with their retitled counterparts
+// for one item kind.
+interface RetitleMap {
+  truncated: string;
+  lineDropped: string;
+}
+
+const TRIGGER_RETITLE: RetitleMap = {
+  truncated: SE_CODE.triggerResponseTruncated,
+  lineDropped: SE_CODE.triggerResponseLineDropped
+};
+
+const TIMER_RETITLE: RetitleMap = {
+  truncated: SE_CODE.timerMessageTruncated,
+  lineDropped: SE_CODE.timerLineDropped
+};
+
 // retitleResponseCodes re-prefixes canonicalization findings from their
 // command_ codes onto the caller's item kind.
-function retitleResponseCodes(diags: ImportDiagnostic[], truncatedCode: string, lineDroppedCode: string): void {
+function retitleResponseCodes(diags: ImportDiagnostic[], map: RetitleMap): void {
   for (const d of diags) {
-    if (d.code === CODE.responseTruncated) d.code = truncatedCode;
-    else if (d.code === CODE.responseLineDropped) d.code = lineDroppedCode;
+    if (d.code === CODE.responseTruncated) d.code = map.truncated;
+    else if (d.code === CODE.responseLineDropped) d.code = map.lineDropped;
   }
 }
 
@@ -854,7 +903,7 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   }
 
   const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-  retitleResponseCodes(respDiags, SE_CODE.timerMessageTruncated, SE_CODE.timerLineDropped);
+  retitleResponseCodes(respDiags, TIMER_RETITLE);
   diags.push(...respDiags);
 
   // omitempty parity: online_only false is omitted.
@@ -986,7 +1035,7 @@ function findNext(s: string, from: number): { start: number; end: number } | nul
       // while the inner leaf can land cleanly right now. This is what turns
       // SE's documented nesting "$(weather ${1:})" into "$(weather {args})"
       // instead of stranding the argument untranslated inside a dead wrapper.
-      if (!hasNestedExplicit(s, i + 2, end - 1)) return { start: i, end };
+      if (!hasNestedExplicit({ s, from: i + 2, until: end - 1 })) return { start: i, end };
       i += 2; // descend past the wrapper's opener; its closer stays literal
       continue;
     }
@@ -1033,13 +1082,20 @@ function legacyBraceEnd(s: string, i: number): number {
   return -1;
 }
 
-// hasNestedExplicit reports whether s[from:until] opens another $( or ${
+// TokenWindow scopes a scan to a character range of the surrounding string.
+interface TokenWindow {
+  s: string;
+  from: number;
+  until: number;
+}
+
+// hasNestedExplicit reports whether the window opens another $( or ${
 // token, i.e. whether the enclosing token is a composite. The lookahead never
 // crosses until: an end index inside s implies j + 1 stays inside s too, so
 // opensFamily's own length guard is equivalent to the original bound here.
-function hasNestedExplicit(s: string, from: number, until: number): boolean {
-  for (let j = from; j < until - 1; j++) {
-    if (opensFamily(s, j) !== '') return true;
+function hasNestedExplicit(w: TokenWindow): boolean {
+  for (let j = w.from; j < w.until - 1; j++) {
+    if (opensFamily(w.s, j) !== '') return true;
   }
   return false;
 }
@@ -1191,9 +1247,17 @@ function classifyToken(tok: string): TokenOutcome {
 }
 
 function readToken(tok: string): TokenView | null {
-  if (isDelimitedToken(tok)) return tokenOf(tok, tok.slice(2, -1), true);
-  if (isBareBraceToken(tok)) return tokenOf(tok, tok.slice(1, -1), false);
+  if (isDelimitedToken(tok)) return tokenOf({ tok, inner: tok.slice(2, -1), delimited: true });
+  if (isBareBraceToken(tok)) return tokenOf({ tok, inner: tok.slice(1, -1), delimited: false });
   return null;
+}
+
+// RawToken is a scanner hit before head/rest resolution: the full token text,
+// its unwrapped body and which delimiter family wrapped it.
+interface RawToken {
+  tok: string;
+  inner: string;
+  delimited: boolean;
 }
 
 function isDelimitedToken(tok: string): boolean {
@@ -1207,9 +1271,9 @@ function isBareBraceToken(tok: string): boolean {
   return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
 }
 
-function tokenOf(tok: string, inner: string, delimited: boolean): TokenView {
-  const [head, restRaw] = splitHead(inner.trim());
-  return { tok, head, restRaw, rest: asciiLower(restRaw), delimited };
+function tokenOf(raw: RawToken): TokenView {
+  const [head, restRaw] = splitHead(raw.inner.trim());
+  return { tok: raw.tok, head, restRaw, rest: asciiLower(restRaw), delimited: raw.delimited };
 }
 
 const ok = (repl: string): TokenOutcome => ({ repl, warned: false });
@@ -1226,10 +1290,17 @@ function unmapped(v: TokenView): TokenOutcome {
   return { repl: v.tok, warned: v.head === 'count' || v.head === 'getcount' };
 }
 
+// BakedIdentitySpec names the identity mapping one table row carries: the
+// canonical replacement and the dot-subfield suffixes that resolve to it.
+interface BakedIdentitySpec {
+  repl: string;
+  suffixes: string[];
+}
+
 // bakedIdentity maps one identity family: bare or dot-subfield suffixes land
 // on a single canonical key, anything else falls back to unmapped.
-function bakedIdentity(repl: string, ...suffixes: string[]): (v: TokenView) => TokenOutcome {
-  return (v) => (v.rest === '' || suffixes.includes(v.rest) ? ok(repl) : unmapped(v));
+function bakedIdentity(spec: BakedIdentitySpec): (v: TokenView) => TokenOutcome {
+  return (v) => (v.rest === '' || spec.suffixes.includes(v.rest) ? ok(spec.repl) : unmapped(v));
 }
 
 // headless separates explicit headless tokens ($(:3)-style ranges and other
@@ -1267,12 +1338,12 @@ function chooseParam(v: TokenView): TokenOutcome {
 // is a row here, not a branch in the scanner.
 const TOKEN_RULES: Record<string, (v: TokenView) => TokenOutcome> = {
   '': headless,
-  user: bakedIdentity('{user}', '.name'),
-  sender: bakedIdentity('{sender}', '.name'),
-  source: bakedIdentity('{sender}', '.name'),
+  user: bakedIdentity({ repl: '{user}', suffixes: ['.name'] }),
+  sender: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
+  source: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
   touser: touserParam,
-  target: bakedIdentity('{touser}', '.user', '.name'),
-  channel: bakedIdentity('{channel}', '.alias', '.display_name'),
+  target: bakedIdentity({ repl: '{touser}', suffixes: ['.user', '.name'] }),
+  channel: bakedIdentity({ repl: '{channel}', suffixes: ['.alias', '.display_name'] }),
   '1': argsRange,
   getcount: getCounterParam,
   // Mutating upstream (increments and returns); our {counter:*} substitution
