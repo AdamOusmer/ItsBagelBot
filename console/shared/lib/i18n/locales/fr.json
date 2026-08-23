@@ -984,5 +984,29 @@
       "step2": "Choisissez « Sur l’écran d’accueil ».",
       "close": "Fermer"
     }
+  },
+  "leaderboard": {
+    "title": "Classement de {channel}",
+    "metaDescription": "Les viewers les plus fid\u00e8les de {channel} sur ItsBagelBot \u2014 points gagn\u00e9s et temps de visionnage, en direct.",
+    "eyebrow": "Mur des l\u00e9gendes",
+    "headlinePrefix": "le classement de",
+    "tagline": "Tous les points gagn\u00e9s par la communaut\u00e9 de {channel} en regardant les lives, souscrivant, offrant des subs et cheerant \u2014 au m\u00eame endroit.",
+    "visitChannel": "Voir la page de la cha\u00eene",
+    "podiumLabel": "Top trois des viewers",
+    "boardLabel": "Classement complet",
+    "boardTitle": "Classement",
+    "boardNote": "Class\u00e9 aux points gagn\u00e9s dans le chat de {channel}.",
+    "colRank": "Rang",
+    "colViewer": "Viewer",
+    "colWatched": "Visionn\u00e9",
+    "colPoints": "Points",
+    "watchUnit": "h",
+    "anonymousViewer": "viewer myst\u00e8re",
+    "soloNote": "Le podium est seul pour l'instant \u2014 il manque une deuxi\u00e8me place.",
+    "rankedNote": "Le top {count} des habitu\u00e9s de {channel}",
+    "emptyTitle": "Aucune l\u00e9gende pour l'instant",
+    "emptyBody": "Ce tableau se remplit pendant que la communaut\u00e9 de {channel} regarde les lives, souscrit, offre et cheere. Rejoins le live et prends la t\u00eate !",
+    "degraded": "Le classement en direct est momentan\u00e9ment indisponible. Il se rattrapera tout seul.",
+    "earnNote": "Gagn\u00e9 en regardant les lives \u00b7 souscriptions \u00b7 cadeaux \u00b7 cheers"
   }
 }
