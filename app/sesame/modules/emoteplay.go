@@ -131,66 +131,57 @@ func emotePlayAnnounce(c *module.Context, emit module.Emit, emote string, res en
 	}
 }
 
-// emoteShape reports whether text is exactly one token repeated (width >= 1),
-// ASCII-whitespace separated, and returns the token and its count. It scans
-// bytes with no allocation: this runs on EVERY chat line, so it must stay
+// tokenWalker walks text one whitespace-delimited token at a time, returning ""
+// once exhausted. Byte-index arithmetic keeps the walk allocation-free: this is
+// the hot path behind every chat line the module screens, so it must stay
 // cheaper than the valkey call it gates.
+type tokenWalker struct {
+	text string
+	i    int
+}
+
+func (w *tokenWalker) next() string {
+	start := skipSpaces(w.text, w.i)
+	end := skipNonSpaces(w.text, start)
+	w.i = end
+	return w.text[start:end]
+}
+
+// emoteShape reports whether text is exactly one token repeated (width >= 1),
+// ASCII-whitespace separated, and returns the token and its count.
 //
 // Deliberate limits, chosen for the hot path:
-//   - ASCII whitespace only. Twitch chat separates tokens with plain spaces in
-//     practice; exotic U+00A0-style separators just fail the shape check and
-//     cost nothing, which beats paying rune-decoding on every line to handle
-//     them.
 //   - Case-sensitive comparison. Kappa and kappa render different emotes, and
 //     mixing them mid-pyramid should break the shape, not blend it.
 //   - Lines wider than maxPyramidWidth are rejected here (not by the store), so
 //     copypasta walls never produce a valkey call at all.
 func emoteShape(text string) (token string, width int, ok bool) {
-	token, i := firstToken(text)
+	w := tokenWalker{text: text}
+	token = w.next()
 	if token == "" {
 		return "", 0, false
 	}
-	width, ok = countRepeatedToken(text, i, token)
-	if !ok || !emoteTokenish(token) {
-		return "", 0, false
-	}
-	return token, width, true
-}
-
-// firstToken returns the leading whitespace-delimited token of text plus the
-// offset just past it ("" when text is blank).
-func firstToken(text string) (string, int) {
-	start := skipSpaces(text, 0)
-	end := skipNonSpaces(text, start)
-	if start == end {
-		return "", end
-	}
-	return text[start:end], end
-}
-
-// countRepeatedToken walks the tokens after offset i and returns how many
-// times in total (first occurrence included) token occurs, ok=false the moment
-// any token differs or the pyramid-width cap is exceeded.
-func countRepeatedToken(text string, i int, token string) (width int, ok bool) {
-	width = 1
-	for width <= maxPyramidWidth {
-		i = skipSpaces(text, i)
-		if i >= len(text) {
-			return width, true
+	for width = 1; width <= maxPyramidWidth; width++ {
+		switch next := w.next(); {
+		case next == "":
+			if !emoteTokenish(token) {
+				return "", 0, false
+			}
+			return token, width, true
+		case next != token:
+			return "", 0, false
 		}
-		next := skipNonSpaces(text, i)
-		if text[i:next] != token {
-			return 0, false
-		}
-		i = next
-		width++
 	}
-	return 0, false
+	return "", 0, false
 }
 
 // skipSpaces advances past ASCII whitespace; skipNonSpaces past everything
-// else. The pair is the whole tokenizer: byte-index arithmetic keeps the scan
-// allocation-free on the hot path.
+// else. The pair is the whole tokenizer.
+//
+// Deliberate limits: ASCII whitespace only. Twitch chat separates tokens with
+// plain spaces in practice; exotic U+00A0-style separators just fail the shape
+// check and cost nothing, which beats paying rune-decoding on every line to
+// handle them.
 func skipSpaces(text string, i int) int {
 	for i < len(text) && isASCIISpace(text[i]) {
 		i++
