@@ -28,8 +28,7 @@ func TestLiveUpstream(t *testing.T) {
 	if os.Getenv("VALORANT_LIVE") != "1" || os.Getenv("VALORANT_API_KEY") == "" {
 		t.Skip("live probe: needs VALORANT_LIVE=1 and a real VALORANT_API_KEY")
 	}
-	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	p := New(Config{}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 	ctx := context.Background()
 
 	board := decodeReply[leaderboardReply](t, endpoint(t, p, "leaderboard")(ctx,
@@ -63,10 +62,8 @@ func TestLiveUpstream(t *testing.T) {
 	shop := decodeReply[shopReply](t, endpoint(t, p, "shop")(ctx, gossiprpc.Request{}))
 	assert.Empty(t, shop.Error)
 	if shop.Count > 0 {
-		fmt.Printf("shop: bundle=%q (%.1f%% off) price=%d vp items=%d first=%q expires_in=%.1fd\n",
-			shop.Bundle, shop.DiscountPct, shop.Price, shop.Count, shop.Items[0].Name,
-			float64(shop.ExpiresSeconds)/86400)
+		fmt.Printf("shop: %d items, first=%q price=%d tier=%q\n", shop.Count, shop.Items[0].Name, shop.Items[0].Price, shop.Items[0].Tier)
 	} else {
-		fmt.Println("shop: no featured bundle payload")
+		fmt.Println("shop: empty rotation")
 	}
 }

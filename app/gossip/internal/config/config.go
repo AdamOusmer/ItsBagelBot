@@ -80,8 +80,8 @@ type Config struct {
 	FortniteSeasonStart    int64
 
 	// Valorant provider (rank/MMR, recent matches, leaderboards, account
-	// lookups, featured-bundle viewer) riding the community HenrikDev API. Key
-	// empty = provider disabled. The bundle viewer additionally reads Riot's
+	// lookups, daily offer rotation) riding the community HenrikDev API. Key
+	// empty = provider disabled. The offer rotation additionally reads Riot's
 	// keyless content CDN (valorant-api.com) to turn item UUIDs into names,
 	// icons and rarity colours — a second host with its own budget because it
 	// meters per source IP while HenrikDev meters per key.

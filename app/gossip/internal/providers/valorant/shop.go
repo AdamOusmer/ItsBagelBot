@@ -1,25 +1,21 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// This file is the featured-bundle viewer: HenrikDev carries Riot's own store
-// payload (prices, discounts, per-item breakdown, remaining rotation time),
-// and Riot's content CDN names it. The two upstreams are joined here rather
-// than at the caller because the join is what makes the endpoint useful — a
-// bundle of bare UUIDs is a shop nobody can read.
+// This file is the daily offer rotation: HenrikDev prices item UUIDs, Riot's
+// content CDN names them. The two upstreams are joined here rather than at the
+// caller because the join is what makes the endpoint useful — a rotation of
+// bare UUIDs is a shop nobody can read.
 //
-// Why bundles and not the daily skin rotation: HenrikDev's global
-// store-offers endpoint returns 404 code 46 ("Riot has removed this
-// implementation") at every version — Riot killed the public rotation feed,
-// and the per-player views (personal store, night market) need viewer
-// credentials HenrikDev bans products for collecting. The featured bundle is
-// what survives globally, and it is the piece players actually ask bots to
-// announce anyway.
+// What is intentionally absent: personal shops and night markets need the
+// viewer's own Riot credentials, which HenrikDev bans products for collecting
+// (see the package comment). Bundles are also out: store-featured carries its
+// own bundle metadata and deserves its own endpoint when someone wants it,
+// not a half-join bolted onto this one.
 
 package valorant
 
 import (
 	"context"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -31,70 +27,57 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Bundle items are joined by catalogue membership alone, not by an item-type
-// allowlist: the live store payload types its five skin entries with a
-// per-level UUID (e7c63390...) that matches nothing in the offers feed this
-// file originally targeted — whose EquippableSkin id (e5c1dd93...) died along
-// with that endpoint. Only weapon-skin level UUIDs exist in the weapons-skins
-// catalogue, so "resolves" and "is a skin" are the same test; buddies, cards
-// and sprays fall out on their own without us hardcoding another generation
-// of Riot's type constants.
+// These two UUIDs are schema-level constants of the game's economy model, not
+// data that rotates: every skin offer prices itself in VP under the first and
+// identifies its reward kind under the second. They have been stable since
+// open beta (they are how SkinPeek, ValoDex and every community shop tracker
+// decode the same payload), so hardcoding them trades one config knob nobody
+// would ever set correctly for constants nothing has ever shaken.
+const (
+	valorantPointsTypeID = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741"
+	skinItemTypeID       = "e5c1dd93-8875-4a96-8f30-6a9b17da1ce4"
+)
 
-// featuredWire is HenrikDev's /valorant/v1/store-featured. Only the headline
-// bundle is decoded: Bundles[] repeats the same shape for sub-bundles and
-// BundleRemainingDurationInSeconds duplicates the per-bundle countdown.
-type featuredWire struct {
+// The shop flips over at 20:00 America/Los_Angeles — 03:00 UTC during PDT.
+// Winter PST pushes that to 04:00 UTC, so the day after the clocks change the
+// window runs an hour long and stale-while-revalidate covers the gap: the
+// half-window sizing in the flow means the last pre-flip build expires right
+// on 03:00, and the first read past it refreshes against the same deadline
+// instead of serving yesterday's rotation from the physical tail. Computing
+// "next 20:00 Pacific" exactly needs a location database on every pod for a
+// boundary that self-heals anyway; 03:00 fixed is the deliberate trade.
+func nextShopRotation(now time.Time) time.Time {
+	today := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, time.UTC)
+	if !now.Before(today) {
+		return today.Add(24 * time.Hour)
+	}
+	return today
+}
+
+// offersWire is the priced half of the join. Cost keys currency type UUIDs to
+// amounts; Rewards carries what the offer actually grants, filtered down to
+// skins below so agent-contract points and radianite never masquerade as shop
+// rows.
+type offersWire struct {
 	Data struct {
-		FeaturedBundle struct {
-			Bundle featuredBundle `json:"Bundle"`
-		} `json:"FeaturedBundle"`
+		Offers []offerEntry `json:"Offers"`
 	} `json:"data"`
 }
 
-type featuredBundle struct {
-	ID          string `json:"ID"`
-	DataAssetID string `json:"DataAssetID"`
-	// Whole-bundle discount as a fraction (0.451 = 45.1% off).
-	TotalDiscountPercent float64 `json:"TotalDiscountPercent"`
-	// Riot's own countdown to when this bundle leaves the store.
-	DurationRemainingInSeconds float64        `json:"DurationRemainingInSeconds"`
-	Items                      []featuredItem `json:"Items"`
+type offerEntry struct {
+	OfferID string           `json:"OfferID"`
+	Cost    map[string]int64 `json:"Cost"`
+	Rewards []offerReward    `json:"Rewards"`
 }
 
-// Prices arrive as JSON floats even when whole ("DiscountedPrice":0.0), so
-// they decode as float64 and are truncated only at the reply boundary. A
-// plain int64 field hard-fails the entire store decode on the first
-// fractional zero (observed live), not merely loses precision.
-type featuredItem struct {
-	Item struct {
-		ItemTypeID string  `json:"ItemTypeID"`
-		ItemID     string  `json:"ItemID"`
-		Amount     float64 `json:"Amount"`
-	} `json:"Item"`
-	BasePrice       float64 `json:"BasePrice"`
-	DiscountPercent float64 `json:"DiscountPercent"`
-	DiscountedPrice float64 `json:"DiscountedPrice"`
+type offerReward struct {
+	ItemID     string `json:"ItemID"`
+	ItemTypeID string `json:"ItemTypeID"`
 }
 
-// bundleMetaWire is the content CDN's catalogue entry for one bundle, keyed by
-// the DataAssetID the store payload carries.
-type bundleMetaWire struct {
-	Data struct {
-		UUID        string `json:"uuid"`
-		DisplayName string `json:"displayName"`
-		// SubText is the edition suffix ("2.0", "Collection") rendered under
-		// the name in-game.
-		SubText     string `json:"displayNameSubText"`
-		Description string `json:"description"`
-		DisplayIcon string `json:"displayIcon"`
-	} `json:"data"`
-}
-
-// skinsWire is the catalogue half of the item join. One payload lists every
-// skin ever shipped (a few MB); it changes only at patches, so it is cached
-// under one key all pods share for a full day rather than refetched per
-// request. Bundle items reference skin LEVEL uuids, not the parent skin uuid,
-// so every level uuid indexes back to its skin too.
+// skinsWire is the catalogue half. One payload lists every skin ever shipped
+// (a few MB); it changes only at patches, so it is cached under one key all
+// pods share for a full day rather than refetched per request.
 type skinsWire struct {
 	Data []skinAsset `json:"data"`
 }
@@ -104,9 +87,6 @@ type skinAsset struct {
 	DisplayName     string `json:"displayName"`
 	DisplayIcon     string `json:"displayIcon"`
 	ContentTierUUID string `json:"contentTierUuid"`
-	Levels          []struct {
-		UUID string `json:"uuid"`
-	} `json:"levels"`
 }
 
 // tiersWire maps content tier UUIDs to their display names and rarity colours.
@@ -120,11 +100,10 @@ type tierAsset struct {
 	BackgroundColor string `json:"backgroundColor"`
 }
 
-// skinTTL bounds all three catalogue entries. Patches land roughly
-// fortnightly; 24 hours means a patch day serves old names for at most a day
-// — visible as a renamed skin keeping its old label, never as a missing or
-// wrong-priced item, because prices come fresh from the store payload every
-// window.
+// skinTTL bounds both catalogue entries. Patches land roughly fortnightly;
+// 24 hours means a patch day serves old names for at most a day — visible as
+// a renamed skin keeping its old label, never as a missing or wrong-priced
+// item, because prices come fresh from the offers leg every window.
 const skinTTL = 24 * time.Hour
 
 func (p *api) skinCatalogue(ctx context.Context) (map[string]skinAsset, error) {
@@ -134,12 +113,9 @@ func (p *api) skinCatalogue(ctx context.Context) (map[string]skinAsset, error) {
 		if err := p.content.GetJSON(ctx, "/v1/weapons/skins", nil, &wire); err != nil {
 			return nil, err
 		}
-		catalogue := make(map[string]skinAsset, len(wire.Data)*4)
+		catalogue := make(map[string]skinAsset, len(wire.Data))
 		for _, asset := range wire.Data {
 			catalogue[asset.UUID] = asset
-			for _, level := range asset.Levels {
-				catalogue[level.UUID] = asset
-			}
 		}
 		return catalogue, nil
 	})
@@ -160,31 +136,9 @@ func (p *api) contentTiers(ctx context.Context) (map[string]tierAsset, error) {
 	})
 }
 
-// bundleMeta resolves one bundle's display identity. Cached under its data
-// asset UUID: the same bundle reappears on re-rerun rotations, so repeat
-// features cost nothing after the first.
-func (p *api) bundleMeta(ctx context.Context, dataAssetID string) (bundleMetaWire, error) {
-	key := core.Key(providerName, "bundle", dataAssetID)
-	return core.Cached(ctx, p.cache, key, skinTTL, negativeTTL, nil, func(ctx context.Context) (bundleMetaWire, error) {
-		var meta bundleMetaWire
-		if err := p.content.GetJSON(ctx, "/v1/bundles/"+url.PathEscape(dataAssetID), nil, &meta); err != nil {
-			return bundleMetaWire{}, err
-		}
-		if strings.TrimSpace(meta.Data.DisplayName) == "" {
-			// A catalogue miss here means the bundle predates or postdates the
-			// cached weapons/skins-style index; without this guard the reply
-			// would carry an empty name and look broken rather than unknown.
-			return bundleMetaWire{}, &core.UpstreamError{Status: 404, Message: "bundle not found in catalogue"}
-		}
-		return meta, nil
-	})
-}
-
-// shopItem is one weapon skin inside the featured bundle, ready for
-// rendering. Color is the rarity's background hex straight from the content
-// tiers, so the module can colour-code without owning a rarity table. Price
-// is what the bundle charges for it today — the discounted price when one
-// applies, the base price otherwise.
+// shopItem is one rotated skin ready for rendering. Color is the rarity's
+// background hex ("#0f1923"-style) straight from the content tiers, so the
+// module can colour-code without owning a rarity table.
 type shopItem struct {
 	Name  string `json:"name"`
 	Price int64  `json:"price"`
@@ -193,48 +147,30 @@ type shopItem struct {
 	Icon  string `json:"icon,omitempty"`
 }
 
-// shopReply is the answer to valorant.shop: the current featured bundle.
-// ExpiresSeconds is Riot's own countdown to the next rotation, so a template
-// can print an exact deadline instead of a guess. Price sums the listed skin
-// items' effective prices — the bundle may also carry cards, sprays or VP,
-// which render nowhere but are included in Riot's own checkout total.
+// shopReply is the answer to valorant.shop: today's global skin rotation.
+// ResetUnix is the instant the rotation turns over, so a template can print a
+// countdown. Empty is true on the rare days Riot rotates nothing — a normal
+// answer, not an error.
 type shopReply struct {
-	Bundle         string     `json:"bundle"`
-	Subtitle       string     `json:"subtitle,omitempty"`
-	Description    string     `json:"description,omitempty"`
-	Icon           string     `json:"icon,omitempty"`
-	DiscountPct    float64    `json:"discount_pct,omitempty"`
-	Price          int64      `json:"price"`
-	ExpiresSeconds int64      `json:"expires_in_seconds"`
-	Items          []shopItem `json:"items"`
-	Count          int        `json:"count"`
-	Error          string     `json:"error,omitempty"`
+	ResetUnix int64      `json:"reset_unix"`
+	Items     []shopItem `json:"items"`
+	Count     int        `json:"count"`
+	Empty     bool       `json:"empty"`
+	Error     string     `json:"error,omitempty"`
 }
 
-// shopFetch joins three legs concurrently: the priced store payload from
-// HenrikDev, plus the skin catalogue and rarity tiers from the content CDN.
-// Each leg is independently cached (the catalogues for a day), so steady state
-// costs exactly one Henrik call per window and zero content calls.
-//
-// Caching is a fixed six hours rather than a deadline pinned to the bundle's
-// remaining seconds: the flow sizes windows before fetching, so the upstream
-// countdown cannot inform them — and it does not need to, because the reply
-// echoes ExpiresSeconds for exact rendering while six hours keeps any served
-// copy within a rounding error of Riot's own schedule.
+// shopFetch joins three legs concurrently: prices from HenrikDev, the skin
+// catalogue and rarity tiers from the content CDN. Each leg is independently
+// cached (the catalogues for a day), so steady state costs exactly one Henrik
+// call per rotation window and zero content calls.
 func (p *api) shopFetch(ctx context.Context, _ gossiprpc.Request, _ provider.ID) (any, error) {
-	var wire featuredWire
-	var meta bundleMetaWire
+	var wire offersWire
 	var catalogue map[string]skinAsset
 	var tiers map[string]tierAsset
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		if err := p.http.GetJSON(groupCtx, "/valorant/v1/store-featured", nil, &wire); err != nil {
-			return err
-		}
-		var err error
-		meta, err = p.bundleMeta(groupCtx, wire.Data.FeaturedBundle.Bundle.DataAssetID)
-		return err
+		return p.http.GetJSON(groupCtx, "/valorant/v1/store-offers", nil, &wire)
 	})
 	group.Go(func() error {
 		var err error
@@ -250,39 +186,46 @@ func (p *api) shopFetch(ctx context.Context, _ gossiprpc.Request, _ provider.ID)
 		return nil, err
 	}
 
-	bundle := wire.Data.FeaturedBundle.Bundle
-	items := make([]shopItem, 0, len(bundle.Items))
-	var price int64
-	for _, entry := range bundle.Items {
-		skin, ok := catalogue[entry.Item.ItemID]
-		// Unknown skins are skipped rather than rendered as blank rows: a
-		// catalogue lagging a patch shows a smaller list with an honest Count,
-		// never "Unknown item — 1800VP" five times.
-		if !ok {
+	items := make([]shopItem, 0, len(wire.Data.Offers))
+	for _, offer := range wire.Data.Offers {
+		if !isSkinOffer(offer) {
 			continue
 		}
-		effective := entry.BasePrice
-		if entry.DiscountedPrice > 0 {
-			effective = entry.DiscountedPrice
+		price := offer.Cost[valorantPointsTypeID]
+		skin, ok := catalogue[offer.OfferID]
+		// Unknown skins are skipped rather than rendered as blank rows. The
+		// catalogue lags a new act's items by at most a patch cycle; a rowless
+		// shop that day reads as "smaller rotation", which is true-ish, while
+		// "Unknown item — 1800VP" five times reads as breakage.
+		if !ok || price <= 0 {
+			continue
 		}
-		item := shopItem{Name: skin.DisplayName, Price: int64(effective), Icon: skin.DisplayIcon}
+		item := shopItem{Name: skin.DisplayName, Price: price, Icon: skin.DisplayIcon}
 		if tier, ok := tiers[skin.ContentTierUUID]; ok {
 			item.Tier = tier.DisplayName
 			item.Color = tier.BackgroundColor
 		}
 		items = append(items, item)
-		price += int64(effective)
 	}
+	// Priciest first: the rotation is read top-down as "what's worth looking
+	// at", and Ultra editions bury cheap accessories when left in upstream
+	// offer order.
 	sort.SliceStable(items, func(i, j int) bool { return items[i].Price > items[j].Price })
 	return shopReply{
-		Bundle:         meta.Data.DisplayName,
-		Subtitle:       meta.Data.SubText,
-		Description:    meta.Data.Description,
-		Icon:           meta.Data.DisplayIcon,
-		DiscountPct:    bundle.TotalDiscountPercent * 100,
-		Price:          price,
-		ExpiresSeconds: int64(bundle.DurationRemainingInSeconds),
-		Items:          items,
-		Count:          len(items),
+		ResetUnix: nextShopRotation(time.Now()).Unix(),
+		Items:     items,
+		Count:     len(items),
+		Empty:     len(items) == 0,
 	}, nil
+}
+
+// isSkinOffer filters to single-skin direct purchases. Bundle offers carry the
+// same shape with a bundle-level reward set; they are excluded here because
+// their OfferID is not in the weapons-skins catalogue and their pricing model
+// (bundle discount over sum-of-parts) is its own feature.
+func isSkinOffer(offer offerEntry) bool {
+	if len(offer.Rewards) != 1 {
+		return false
+	}
+	return strings.EqualFold(offer.Rewards[0].ItemTypeID, skinItemTypeID)
 }

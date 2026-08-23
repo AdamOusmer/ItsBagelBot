@@ -117,12 +117,10 @@ const mmrBody = `{
       "tier":{"id":23,"name":"Immortal 1"},
       "leaderboard_placement":{"rank":812,"updated_at":"2026-08-22T00:00:00Z"}
     },
-    "peak":{
-      "season":{"id":"ab57","short":"S25"},
-      "ranking_schema":"Competitive",
-      "tier":{"id":21,"name":"Ascendant 2"},
-      "rr":80
-    }
+    "peak":[
+      {"season":{"id":"ab57","short":"S25"},"ranking_schema":"Competitive","tier":{"id":21,"name":"Ascendant 2"},"rr":80},
+      {"season":{"id":"cd68","short":"S26"},"ranking_schema":"Competitive","tier":{"id":23,"name":"Immortal 1"},"rr":10}
+    ]
   }
 }`
 
@@ -164,7 +162,7 @@ func TestRankFetchesMMRWithPlainAuthorizationHeader(t *testing.T) {
 	assert.Equal(t, -12, reply.LastChange)
 	assert.Equal(t, 812, reply.Placement)
 	assert.False(t, reply.Unranked)
-	assert.Equal(t, "Ascendant 2", reply.PeakTier, "the single peak object reads directly")
+	assert.Equal(t, "Immortal 1", reply.PeakTier, "peak picks highest tier id, not newest season")
 	assert.Equal(t, "val-key", gotAuth)
 }
 
@@ -223,7 +221,7 @@ func TestRankNegativeCacheStopsRepeatUpstreamHits(t *testing.T) {
 }
 
 func TestUnrankedZeroesEloButKeepsRRShape(t *testing.T) {
-	unrankedBody := `{"status":200,"data":{"current":{"elo":0,"rr":0,"last_change":0,"tier":{"id":0,"name":"UNRANKED"},"leaderboard_placement":{"rank":0}},"peak":{"tier":{"id":0,"name":"UNRANKED"},"rr":0}}}`
+	unrankedBody := `{"status":200,"data":{"current":{"elo":0,"rr":0,"last_change":0,"tier":{"id":0,"name":"UNRANKED"},"leaderboard_placement":{"rank":0}},"peak":[]}}`
 	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, unrankedBody)
 	})

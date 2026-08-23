@@ -4,14 +4,13 @@
 // Package valorant exposes Riot's Valorant through the community HenrikDev API
 // (api.henrikdev.xyz), joined where it matters with Riot's public content CDN
 // (valorant-api.com). It answers rank/MMR, recent competitive matches,
-// regional leaderboards, account lookups and the current featured bundle.
+// regional leaderboards, account lookups and the daily offer rotation.
 //
-// Three deliberate gaps: the personal store and the night market have no
-// endpoint here because both are per-account views Riot only exposes behind a
-// user's own credentials, and HenrikDev explicitly bans products that collect
-// those. The daily skin rotation is gone for good — Riot removed the global
-// offers feed this provider would have needed (see shop.go) — so the closest
-// surviving global surface, the featured bundle, is what ships.
+// Two deliberate gaps: the personal store and the night market have no
+// endpoint here. Both are per-account views Riot only exposes behind a user's
+// own credentials (cookies or RSO), and HenrikDev explicitly bans products
+// that collect those credentials — so this provider serves only the global
+// offer rotation, which is key-authed and safe to share.
 //
 // The upstream meters per API key over a rolling minute and its v4 match
 // endpoints additionally bill background Riot fetches against the caller, so
@@ -64,15 +63,6 @@ const (
 	// absorbs the boundary.
 	boardTTL = 30 * time.Minute
 
-	// The featured bundle turns over on Riot's staggered store schedule with
-	// no published UTC boundary, and its payload carries an exact remaining-
-	// seconds countdown that renders fresher than any window we could derive.
-	// Six hours keeps a served copy within a rounding error of that schedule
-	// at ~4 upstream reads per day. The old offers feed had a hard 03:00 UTC
-	// boundary worth pinning CachedUntil to; Riot removed it entirely (see
-	// shop.go), so the deadline machinery has nothing real to pin to here.
-	bundleTTL = 6 * time.Hour
-
 	negativeTTL = 5 * time.Minute
 
 	httpTimeout    = 10 * time.Second
@@ -90,7 +80,7 @@ const (
 
 // Config carries both upstream hosts and their per-minute budgets. APIKey must
 // be non-empty; providers.All skips this provider otherwise. The content CDN
-// needs no credential of its own — it exists to turn the store payload's item
+// needs no credential of its own — it exists to turn the offer rotation's item
 // UUIDs into names, icons and rarity colours.
 type Config struct {
 	BaseURL          string
@@ -118,8 +108,8 @@ type api struct {
 }
 
 // New builds the Valorant provider: four keyed byte-flow views over HenrikDev
-// plus the featured-bundle viewer, which joins HenrikDev's store payload
-// against the content CDN's catalogue.
+// plus the daily offer rotation, which joins HenrikDev's prices against the
+// content CDN's catalogue under one deadline window.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	p := newAPI(cfg, d)
 	b := provider.NewProvider(providerName, d)
@@ -157,8 +147,8 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		Fetch(p.boardFetch)
 
 	b.Endpoint("shop").Timeout(handlerTimeout).
-		Cached(bundleTTL, negativeTTL).
-		ID(provider.StaticID("featured")).
+		CachedUntil(nextShopRotation, negativeTTL).
+		ID(provider.StaticID("offers")).
 		Reply(func(_, msg string) any { return shopReply{Error: msg} }).
 		Budget(p.shopBudget).
 		Fallback("shop lookup failed").
@@ -410,17 +400,15 @@ func scoped(req gossiprpc.Request) (id riotIDValue, region, platform string) {
 
 // --- rank -------------------------------------------------------------------
 
-// mmrWire covers HenrikDev MMR v3. Peak arrives here as ONE object — the
-// account's highest recorded seasonal standing — though the published OpenAPI
-// spec documents an array; the live payload wins (verified against a Radiant
-// account, where an array-typed decode failed and cost every rank lookup).
+// mmrWire covers HenrikDev MMR v3. Peak arrives as one entry per season with
+// that season's ranking schema; only tier id/name and RR matter here.
 type mmrWire struct {
 	Data mmrData `json:"data"`
 }
 
 type mmrData struct {
 	Current currentMMR `json:"current"`
-	Peak    peakMMR    `json:"peak"`
+	Peak    []peakMMR  `json:"peak"`
 }
 
 type currentMMR struct {
@@ -493,14 +481,21 @@ func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.
 	return reply, nil
 }
 
-// peakTier reads the account's all-time peak standing. Tier id 0 (unplaced in
-// any recorded season) renders as empty rather than the upstream's placeholder
-// name, so templates can omit the line entirely.
-func peakTier(peak peakMMR) string {
-	if peak.Tier.ID == 0 {
-		return ""
+// peakTier picks the highest seasonal peak. Tier ids are global across acts
+// (3 = Iron 1 up to 27 = Radiant), so max-by-id is max-by-rank; RR breaks ties
+// within a tier because a peak at 150 RR outranks a peak at 10.
+func peakTier(peaks []peakMMR) string {
+	best := -1
+	rr := -1
+	name := ""
+	for _, peak := range peaks {
+		if peak.Tier.ID > best || (peak.Tier.ID == best && peak.RR > rr) {
+			best = peak.Tier.ID
+			rr = peak.RR
+			name = peak.Tier.Name
+		}
 	}
-	return peak.Tier.Name
+	return name
 }
 
 // --- matches ----------------------------------------------------------------
