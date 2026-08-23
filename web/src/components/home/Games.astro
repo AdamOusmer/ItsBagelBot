@@ -4,8 +4,8 @@
 
 /**
  * Games — game integrations bento grid.
- * Shows Minecraft (Hypixel Bedwars + MCSR Ranked), Fortnite, and a
- * call-to-action for requesting more games.
+ * Shows Minecraft (Hypixel Bedwars + MCSR Ranked), Fortnite, Valorant,
+ * Clash Royale, and a call-to-action for requesting more games.
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
@@ -93,8 +93,40 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
             <p class="games__desc">{t('games.fnDesc')}</p>
         </Card>
 
+        <!-- Valorant -->
+        <Card class="games__card" data-reveal style="--reveal-i: 2">
+            <div class="games__demo games__demo--val" aria-hidden="true">
+                <span class="games-val__line">!valrank Frosty#EUW1</span>
+                <div class="games-val__stats">
+                    <span class="games-val__stat"><b>Tier</b> Immortal 2</span>
+                    <span class="games-val__stat"><b>RR</b> 67</span>
+                    <span class="games-val__stat"><b>Peak</b> Immortal 1</span>
+                </div>
+            </div>
+            <h3 class="games__title">
+                {t('games.valTitle')}
+            </h3>
+            <p class="games__desc">{t('games.valDesc')}</p>
+        </Card>
+
+        <!-- Clash Royale -->
+        <Card class="games__card" data-reveal style="--reveal-i: 3">
+            <div class="games__demo games__demo--cr" aria-hidden="true">
+                <span class="games-cr__line">!cr #P2LQ0GR</span>
+                <div class="games-cr__stats">
+                    <span class="games-cr__stat"><b>Level</b> 62</span>
+                    <span class="games-cr__stat"><b>W/L</b> 600/300</span>
+                    <span class="games-cr__stat"><b>WR</b> 60%</span>
+                </div>
+            </div>
+            <h3 class="games__title">
+                {t('games.crTitle')}
+            </h3>
+            <p class="games__desc">{t('games.crDesc')}</p>
+        </Card>
+
         <!-- Request more games -->
-        <Card class="games__card games__card--req" data-reveal style="--reveal-i: 2">
+        <Card class="games__card games__card--req" data-reveal style="--reveal-i: 4">
             <div class="games__demo games__demo--req" aria-hidden="true">
                 <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new" target="_blank" rel="noopener noreferrer" class="games-req__btn">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -133,6 +165,9 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
 
     @media (min-width: 720px) {
         .games__grid { grid-template-columns: repeat(3, 1fr); }
+        /* Five cards on a three-column grid: the request tile stretches over
+           the two columns the second row leaves free. */
+        .games__card--req { grid-column: span 2; }
     }
 
     .games__title {
@@ -281,6 +316,39 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         font-size: 0.7rem;
     }
 
+    /* ── Valorant & Clash Royale (typed command + stat chips) ── */
+
+    .games-val__line,
+    .games-cr__line {
+        color: var(--tan-light, #e0c49a);
+        font-weight: 500;
+        width: max-content;
+        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .games-val__stats,
+    .games-cr__stats {
+        display: flex;
+        gap: 12px;
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    .games-val__stat b,
+    .games-cr__stat b {
+        color: var(--muted, #888077);
+        font-weight: 400;
+        margin-right: 4px;
+    }
+
+    .games-val__line { animation: gamesTypeVal 12s steps(20) infinite; }
+    .games-cr__line { animation: gamesTypeCr 12s steps(12) infinite; }
+    .games-val__stats { animation: gamesFadeVal 12s ease-in-out infinite; }
+    .games-cr__stats { animation: gamesFadeCr 12s ease-in-out infinite; }
+
     /* ── Request ── */
 
     .games__demo--req {
@@ -343,6 +411,33 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         50% { transform: translateY(-1.5px); }
     }
 
+    /* Valorant: "!valrank Frosty#EUW1" types out over the first fifth of the
+       12s cycle, holds most of it, then resets. */
+    @keyframes gamesTypeVal {
+        0%, 4% { width: 0; opacity: 1; }
+        20%, 88% { width: 20ch; opacity: 1; }
+        94%, 100% { width: 20ch; opacity: 0; }
+    }
+
+    @keyframes gamesFadeVal {
+        0%, 24% { opacity: 0; transform: translateY(4px); }
+        32%, 84% { opacity: 1; transform: none; }
+        92%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
+    /* Clash Royale: same cadence as the Valorant tile for "!cr #P2LQ0GR". */
+    @keyframes gamesTypeCr {
+        0%, 4% { width: 0; opacity: 1; }
+        16%, 88% { width: 12ch; opacity: 1; }
+        94%, 100% { width: 12ch; opacity: 0; }
+    }
+
+    @keyframes gamesFadeCr {
+        0%, 22% { opacity: 0; transform: translateY(4px); }
+        30%, 84% { opacity: 1; transform: none; }
+        92%, 100% { opacity: 0; transform: translateY(4px); }
+    }
+
     /* ── Legal ── */
 
     .games__legal {
@@ -384,6 +479,19 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         /* Static fallback shows the Bedwars half only. */
         .games-mc__group--mcsr { display: none; }
         .games-fn__scar { animation: none; }
+        .games-val__line,
+        .games-cr__line {
+            animation: none;
+            border-right: none;
+        }
+        .games-val__line { width: 20ch; opacity: 1; }
+        .games-cr__line { width: 12ch; opacity: 1; }
+        .games-val__stats,
+        .games-cr__stats {
+            animation: none;
+            opacity: 1;
+            transform: none;
+        }
     }
 
     @media (max-width: 640px) {
