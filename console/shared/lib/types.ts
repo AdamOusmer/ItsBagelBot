@@ -3,6 +3,7 @@
 
 import type { IconName } from './icons';
 import { GAME_MODULE_DEFS } from './catalog-games';
+import { VALORANT_MODULE_DEF } from './catalog-valorant';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
@@ -1327,6 +1328,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       }
     ]
   },
+  VALORANT_MODULE_DEF,
   {
     id: 'queue',
     label: 'Play Queue',
