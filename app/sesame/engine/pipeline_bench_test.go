@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
@@ -35,11 +36,46 @@ func silentCore() module.Module {
 	return b.Build()
 }
 
+// gatedSilent is a name-gated (KindOptIn) chat handler that emits nothing. It
+// forces NeedsModuleViews(chatType) — the production shape once automod is
+// wired — so every line pays the projection read plus a ModuleView-map build.
+func gatedSilent() module.Module {
+	b := module.NewModule("gated", module.KindOptIn)
+	b.On(chatType, func(context.Context, *module.Context, module.Emit) error { return nil })
+	return b.Build()
+}
+
+// benchViewsReader carries the minimum row set of a real broadcaster: the
+// automod toggle plus the gated module's own enable row.
+func benchViewsReader() fakeReader {
+	return fakeReader{modules: []projection.ModuleView{
+		{Name: automodModuleName, IsEnabled: true},
+		{Name: "gated", IsEnabled: true},
+	}}
+}
+
 // BenchmarkProcessNoOutput is the true hot path: a plain chat line that matches a
 // core handler which emits nothing. Everything per-message (envelope, context) is
 // pooled, so the only remaining allocations are the JSON decoder's internals.
 func BenchmarkProcessNoOutput(b *testing.B) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, silentCore())
+	msg := bus.NewMessage("uuid", benchChatBody())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := p.Process(msg); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkProcessNoOutputWithViews is the automod-wired shape of the hot path:
+// same silent chat line, but NeedsModuleViews(chat) is true so Process fetches
+// rows and builds the ModuleView map. It measures the pooled-map reuse; before
+// pooling this rebuilt a fresh map on every line.
+func BenchmarkProcessNoOutputWithViews(b *testing.B) {
+	p := newPipelineWith(&fakePublisher{}, benchViewsReader(), gatedSilent())
 	msg := bus.NewMessage("uuid", benchChatBody())
 
 	b.ReportAllocs()
@@ -82,5 +118,22 @@ func TestProcessNoOutputAllocCeiling(t *testing.T) {
 
 	if avg > allocCeiling {
 		t.Fatalf("no-output hot path allocates %.1f allocs/op, ceiling %.0f: pooling likely regressed", avg, allocCeiling)
+	}
+}
+
+// TestProcessWithViewsAllocCeiling guards the automod-wired shape of the hot
+// path: the ModuleView map must come from the pool (cleared on release), so
+// only the projection read's own rows may allocate above the decoder floor.
+// A jump means the map is being rebuilt per line or retained past its message.
+func TestProcessWithViewsAllocCeiling(t *testing.T) {
+	p := newPipelineWith(&fakePublisher{}, benchViewsReader(), gatedSilent())
+	msg := bus.NewMessage("uuid", benchChatBody())
+
+	avg := testing.AllocsPerRun(500, func() {
+		_ = p.Process(msg)
+	})
+
+	if avg > allocViewsCeiling {
+		t.Fatalf("views-path no-output hot path allocates %.1f allocs/op, ceiling %.0f: view-map pooling likely regressed", avg, allocViewsCeiling)
 	}
 }

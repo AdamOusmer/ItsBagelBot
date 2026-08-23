@@ -1,0 +1,2 @@
+go test fuzz v1
+string("grаb1fy.link h4t3 x")

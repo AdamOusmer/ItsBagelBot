@@ -5,6 +5,7 @@ package engine
 
 import (
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // bumpCall is one recorded CounterBumper call. broadcasterID is 0 for the
@@ -285,4 +288,217 @@ func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 	assert.Error(t, p.Process(chatMsg(t, "standard", "hi")))
 	assert.Equal(t, int64(1), p.stats.events.Load())
 	assert.Equal(t, int64(1), p.stats.messages.Load())
+}
+
+// ---- automod detection flags -----------------------------------------------
+
+// Every verdict rule the automod emits must land on its named bucket, with
+// escalation suffixes folded onto the base rule.
+func TestFlagBucketClassification(t *testing.T) {
+	tests := []struct {
+		rule string
+		want string
+	}{
+		{"ip_logger", "ip_logger"},
+		{"scam", "scam"},
+		{"heuristic", "heuristic"},
+		{"block_term", "block_term"},
+		{"council:campaign", "council_campaign"},
+		{"shield_mode", "shield_mode"},
+		{"lex:hate:slur", "lex_hate"},
+		{"lex:harassment:kys", "lex_harassment"},
+		{"lex:sexual:x", "lex_sexual"},
+		{"lex:profanity:x", "lex_profanity"},
+		// Suffix folding: campaign/reputation escalation appends to base rules.
+		{"scam+repeat", "scam"},
+		{"heuristic+campaign", "heuristic"},
+		{"lex:harassment:x+repeat", "lex_harassment"},
+		{"scam+campaign+repeat", "scam"},
+		{"council:campaign+repeat", "council_campaign"},
+		// Anything unrecognized folds into other rather than growing the set.
+		{"mystery:rule:x", "other"},
+	}
+	for _, tc := range tests {
+		assert.Equalf(t, tc.want, flagRuleNames[flagBucket(tc.rule)], "rule %q", tc.rule)
+	}
+}
+
+type flagOp struct {
+	broadcasterID uint64
+	rule          string
+	enforced      bool
+}
+
+func TestFlagVerdictCountersAccuracy(t *testing.T) {
+	tests := []struct {
+		name         string
+		ops          []flagOp
+		wantTotal    int64
+		wantEnforced int64
+		wantRules    map[string]int64 // bucket name -> delta
+		wantChan     map[uint64][2]int64
+	}{
+		{
+			name: "mixed enforced and shadow across channels",
+			ops: []flagOp{
+				{123, "scam", true},
+				{123, "heuristic", false},
+				{0, "council:campaign", true}, // unreadable channel: fleet only
+				{456, "lex:harassment:kys+repeat", true},
+			},
+			wantTotal:    4,
+			wantEnforced: 3,
+			wantRules:    map[string]int64{"scam": 1, "heuristic": 1, "council_campaign": 1, "lex_harassment": 1},
+			wantChan:     map[uint64][2]int64{123: {2, 1}, 456: {1, 1}},
+		},
+		{
+			name: "unknown rules collapse into other",
+			ops: []flagOp{
+				{123, "mystery:rule", true},
+				{123, "weirder", false},
+			},
+			wantTotal:    2,
+			wantEnforced: 1,
+			wantRules:    map[string]int64{"other": 2},
+			wantChan:     map[uint64][2]int64{123: {2, 1}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newBotStats(&fakeBumper{})
+			t.Cleanup(s.Close)
+
+			for _, op := range tc.ops {
+				s.flag(op.broadcasterID, op.rule, op.enforced)
+			}
+
+			assert.Equal(t, tc.wantTotal, s.flagsTotal.Load())
+			assert.Equal(t, tc.wantEnforced, s.flagsEnforced.Load())
+			for i, name := range flagRuleNames {
+				assert.Equalf(t, tc.wantRules[name], s.flagsByRule[i].Load(), "bucket %s", name)
+			}
+
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			require.Len(t, s.channels, len(tc.wantChan))
+			for id, want := range tc.wantChan {
+				tally := s.channels[id]
+				require.NotNil(t, tally)
+				assert.Equalf(t, want[0], tally.flags, "channel %d flags", id)
+				assert.Equalf(t, want[1], tally.enforced, "channel %d enforced", id)
+			}
+		})
+	}
+}
+
+// The bucket set is closed over the known rules plus other, and stays inside
+// the documented slot bound; a flood of unknown rule strings cannot grow it.
+func TestFlagBucketsRespectSlotCap(t *testing.T) {
+	assert.LessOrEqual(t, int(bktCount), flagRuleSlotCap)
+
+	s := newBotStats(&fakeBumper{})
+	t.Cleanup(s.Close)
+
+	for i := 0; i < flagRuleSlotCap*10; i++ {
+		s.flag(123, "unknown:"+strconv.Itoa(i), true)
+	}
+	assert.Equal(t, int64(flagRuleSlotCap*10), s.flagsByRule[bktOther].Load(), "all fold into other")
+	assert.Equal(t, int64(flagRuleSlotCap*10), s.flagsTotal.Load())
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := bktOther + 1; i < flagRuleSlotCap; i++ {
+		assert.Zero(t, s.flagsByRule[i].Load())
+	}
+}
+
+// A channel turned away by the full map is dropped from the per-channel flag
+// split too, not smuggled in through the verdict path.
+func TestFlagChannelCapDropsNewChannels(t *testing.T) {
+	s := newBotStats(&fakeBumper{})
+	t.Cleanup(s.Close)
+
+	for id := uint64(1); id <= channelStatsMaxKeys; id++ {
+		s.count(id, false)
+	}
+	s.flag(channelStatsMaxKeys+1, "scam", true)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	assert.Len(t, s.channels, channelStatsMaxKeys)
+	assert.NotContains(t, s.channels, uint64(channelStatsMaxKeys+1))
+}
+
+// The fleet flush surfaces the flag window as log fields only — no loyalty
+// counter rows — so the bumper still sees exactly the two traffic counters.
+func TestFlagFlushLogsFleetFieldsNotCounters(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	bumper := &fakeBumper{}
+	s := newBotStats(bumper, zap.New(core))
+
+	s.flag(123, "scam", true)
+	s.flag(123, "heuristic", false)
+	s.flag(456, "scam+campaign+repeat", false)
+	s.Close()
+
+	var line *observer.LoggedEntry
+	for i := range logs.All() {
+		if logs.All()[i].Message == "automod detection flags" {
+			line = &logs.All()[i]
+		}
+	}
+	require.NotNil(t, line)
+	if line == nil {
+		return
+	}
+	assert.Equal(t, zapcore.DebugLevel, line.Level)
+	assert.Equal(t, map[string]any{
+		"flags_total":         int64(3),
+		"flags_enforced":      int64(1),
+		"flag_rule_scam":      int64(2),
+		"flag_rule_heuristic": int64(1),
+	}, line.ContextMap())
+
+	for _, c := range bumper.calls() {
+		assert.Contains(t, []string{counterEventsProcessed, counterMessagesProcessed}, c.name,
+			"flag counters must not become loyalty bumps")
+	}
+}
+
+// An empty window logs nothing at all.
+func TestFlagFlushSkipsIdleWindow(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	s := newBotStats(&fakeBumper{}, zap.New(core))
+	s.Close()
+	assert.Empty(t, logs.All())
+}
+
+// The per-channel flush lists every channel that saw verdicts, with its own
+// total/enforced split; unflagged channels stay off the line.
+func TestFlagFlushLogsChannelFields(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	s := newBotStats(&fakeBumper{}, zap.New(core))
+
+	s.count(999, true) // traffic without verdicts: never listed
+	s.flag(123, "scam", true)
+	s.flag(123, "heuristic", false)
+	s.flag(456, "lex:sexual:x", false)
+	s.Close()
+
+	var line *observer.LoggedEntry
+	for i := range logs.All() {
+		if logs.All()[i].Message == "automod detection flags by channel" {
+			line = &logs.All()[i]
+		}
+	}
+	require.NotNil(t, line)
+	raw, ok := line.ContextMap()["channels"].([]any)
+	require.True(t, ok, "channels must be an array field")
+	got := map[uint64][2]int64{}
+	for _, e := range raw {
+		m := e.(map[string]any)
+		id := m["broadcaster_id"].(uint64)
+		got[id] = [2]int64{m["flags_total"].(int64), m["flags_enforced"].(int64)}
+	}
+	assert.Equal(t, map[uint64][2]int64{123: {2, 1}, 456: {1, 0}}, got)
 }
