@@ -25,7 +25,7 @@ import {
   parseQuoteDate,
   parseStreamLabsDesktop,
   translateVariables
-} from './streamlabsdesktop';
+} from './streamlabs-desktop';
 import { validateManifest } from './validate';
 
 const here = dirname(import.meta.path);
