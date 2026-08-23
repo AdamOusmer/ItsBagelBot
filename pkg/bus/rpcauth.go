@@ -118,14 +118,27 @@ func SignRequest(msg *nats.Msg) {
 	msg.Header.Set(HeaderRPCCaller, rpcIdentity.name)
 	msg.Header.Set(HeaderRPCTime, strconv.FormatInt(now, 10))
 	msg.Header.Set(HeaderRPCNonce, hex.EncodeToString(nonce))
-	msg.Header.Set(HeaderRPCSignature, requestSignature(rpcIdentity.key, rpcIdentity.name, msg.Subject, now, nonce, msg.Data))
+	msg.Header.Set(HeaderRPCSignature, requestSignature(rpcIdentity.key, signatureMaterial{
+		caller: rpcIdentity.name, subject: msg.Subject, nowMillis: now, nonce: nonce, body: msg.Data,
+	}))
 }
 
-func requestSignature(key []byte, caller, subject string, nowMillis int64, nonce, body []byte) string {
-	bodyHash := sha256.Sum256(body)
+// signatureMaterial is everything a request signature binds: caller, subject,
+// timestamp, nonce and body, so signatures cannot be replayed across subjects
+// or bodies.
+type signatureMaterial struct {
+	caller    string
+	subject   string
+	nowMillis int64
+	nonce     []byte
+	body      []byte
+}
+
+func requestSignature(key []byte, m signatureMaterial) string {
+	bodyHash := sha256.Sum256(m.body)
 	mac := hmac.New(sha256.New, key)
 	fmt.Fprintf(mac, "%s\n%s\n%s\n%d\n%s\n%s",
-		signatureVersion, caller, subject, nowMillis, hex.EncodeToString(nonce), hex.EncodeToString(bodyHash[:]))
+		signatureVersion, m.caller, m.subject, m.nowMillis, hex.EncodeToString(m.nonce), hex.EncodeToString(bodyHash[:]))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -230,7 +243,9 @@ func VerifySignedCaller(ctx context.Context, msg *nats.Msg, keys map[string][]by
 	if staleSince(auth.ts, maxSkew) {
 		return ctx, "", fmt.Errorf("stale signature")
 	}
-	expected := requestSignature(auth.key, auth.caller, msg.Subject, auth.ts, auth.nonce, msg.Data)
+	expected := requestSignature(auth.key, signatureMaterial{
+		caller: auth.caller, subject: msg.Subject, nowMillis: auth.ts, nonce: auth.nonce, body: msg.Data,
+	})
 	if !hmac.Equal([]byte(expected), []byte(msg.Header.Get(HeaderRPCSignature))) {
 		return ctx, "", fmt.Errorf("signature mismatch")
 	}

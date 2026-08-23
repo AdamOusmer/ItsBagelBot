@@ -12,15 +12,24 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// signedMsgAs boots this process's signer as caller and returns a signed
-// message for subject carrying data. The signer is reset when the test ends.
-func signedMsgAs(t *testing.T, caller, secret, subject, data string) *nats.Msg {
+// signedRequest names one outbound signed request: who signs it, with what
+// secret, to which subject, carrying which payload.
+type signedRequest struct {
+	caller  string
+	secret  string
+	subject string
+	payload string
+}
+
+// signedMsgAs boots this process's signer as the request's caller and returns
+// the signed message. The signer is reset when the test ends.
+func signedMsgAs(t *testing.T, req signedRequest) *nats.Msg {
 	t.Helper()
-	InitRPCCaller(caller, []byte(secret))
+	InitRPCCaller(req.caller, []byte(req.secret))
 	t.Cleanup(func() { InitRPCCaller("", nil) })
 
-	msg := nats.NewMsg(subject)
-	msg.Data = []byte(data)
+	msg := nats.NewMsg(req.subject)
+	msg.Data = []byte(req.payload)
 	SignRequest(msg)
 	return msg
 }
@@ -36,7 +45,7 @@ func consoleWebKeys(secret string) map[string][]byte {
 }
 
 func TestSignAndVerifyCallerRoundTrip(t *testing.T) {
-	msg := signedMsgAs(t, CallerConsoleWeb, "web-secret", "bagel.rpc.delegation.create", `{"owner_user_id":"123"}`)
+	msg := signedMsgAs(t, signedRequest{caller: CallerConsoleWeb, secret: "web-secret", subject: "bagel.rpc.delegation.create", payload: `{"owner_user_id":"123"}`})
 
 	ctx, caller, err := VerifySignedCaller(context.Background(), msg, consoleWebKeys("web-secret"), DefaultCallerSkew)
 	if err != nil {
@@ -48,7 +57,7 @@ func TestSignAndVerifyCallerRoundTrip(t *testing.T) {
 }
 
 func TestVerifyRejectsTamperedBody(t *testing.T) {
-	msg := signedMsgAs(t, CallerConsoleWeb, "web-secret", "bagel.rpc.delegation.create", `{"owner_user_id":"123"}`)
+	msg := signedMsgAs(t, signedRequest{caller: CallerConsoleWeb, secret: "web-secret", subject: "bagel.rpc.delegation.create", payload: `{"owner_user_id":"123"}`})
 	msg.Data = []byte(`{"owner_user_id":"999"}`)
 
 	if err := verifyWithKeys(msg, consoleWebKeys("web-secret")); err == nil {
@@ -57,7 +66,7 @@ func TestVerifyRejectsTamperedBody(t *testing.T) {
 }
 
 func TestVerifyRejectsUnknownCaller(t *testing.T) {
-	msg := signedMsgAs(t, CallerSesame, "sesame-secret", "bagel.rpc.internal.tokens.get", `{}`)
+	msg := signedMsgAs(t, signedRequest{caller: CallerSesame, secret: "sesame-secret", subject: "bagel.rpc.internal.tokens.get"})
 
 	// Verifier only knows console-web: sesame's valid signature must not pass.
 	if err := verifyWithKeys(msg, consoleWebKeys("x")); err == nil {
@@ -66,7 +75,7 @@ func TestVerifyRejectsUnknownCaller(t *testing.T) {
 }
 
 func TestVerifyRejectsStaleSignature(t *testing.T) {
-	msg := signedMsgAs(t, CallerConsoleWeb, "web-secret", "subj", `{}`)
+	msg := signedMsgAs(t, signedRequest{caller: CallerConsoleWeb, secret: "web-secret", subject: "subj"})
 	msg.Header.Set(HeaderRPCTime, "1000") // 1970
 
 	if err := verifyWithKeys(msg, consoleWebKeys("web-secret")); err == nil {
@@ -75,8 +84,8 @@ func TestVerifyRejectsStaleSignature(t *testing.T) {
 }
 
 func TestVerifyRejectsReplayedSignature(t *testing.T) {
-	first := signedMsgAs(t, CallerConsoleWeb, "web-secret", "subj", `{}`)
-	second := signedMsgAs(t, CallerConsoleWeb, "web-secret", "subj", `{}`)
+	first := signedMsgAs(t, signedRequest{caller: CallerConsoleWeb, secret: "web-secret", subject: "subj"})
+	second := signedMsgAs(t, signedRequest{caller: CallerConsoleWeb, secret: "web-secret", subject: "subj"})
 	// Force identical nonce so the second delivery replays the first signature.
 	second.Header.Set(HeaderRPCNonce, first.Header.Get(HeaderRPCNonce))
 	second.Header.Set(HeaderRPCTime, first.Header.Get(HeaderRPCTime))

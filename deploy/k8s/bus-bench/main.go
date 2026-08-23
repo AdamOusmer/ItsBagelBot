@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -105,7 +105,7 @@ func main() {
 }
 
 func emit(report any) {
-	b, merr := json.Marshal(report)
+	b, merr := codec.Marshal(report)
 	if merr != nil {
 		fmt.Fprintln(os.Stderr, "bus-bench: marshal report:", merr)
 		os.Exit(1)
@@ -234,6 +234,42 @@ func durableFor(group, subject string) string {
 	return group + "_" + strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(subject)
 }
 
+// deleteBenchConsumer removes the bench durable, tolerating its absence.
+func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, durable string) (bool, error) {
+	err := js.DeleteConsumer(ctx, streamName, durable)
+	if errors.Is(err, jsapi.ErrConsumerNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// revertStreamMaxBytes restores the bench stream's original MaxBytes cap,
+// tolerating a stream that setup never created.
+func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName string, original int64) (bool, error) {
+	if original <= 0 {
+		return false, nil
+	}
+	st, serr := js.Stream(ctx, streamName)
+	if errors.Is(serr, jsapi.ErrStreamNotFound) {
+		return false, nil
+	}
+	if serr != nil {
+		return false, serr
+	}
+	cfg := st.CachedInfo().Config
+	if cfg.MaxBytes == original {
+		return false, nil
+	}
+	cfg.MaxBytes = original
+	if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
+		return false, uerr
+	}
+	return true, nil
+}
+
 func runCleanup(url, streamName, subject, group string, originalMaxBytes int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -243,33 +279,25 @@ func runCleanup(url, streamName, subject, group string, originalMaxBytes int64) 
 	}
 	defer nc.Close()
 
-	report := map[string]any{"deleted_consumer": false, "reverted_max_bytes": false}
 	durable := durableFor(group, subject)
 
-	if derr := js.DeleteConsumer(ctx, streamName, durable); derr == nil {
-		report["deleted_consumer"] = true
-	} else if !errors.Is(derr, jsapi.ErrConsumerNotFound) {
-		return derr
+	report := map[string]any{"deleted_consumer": false, "reverted_max_bytes": false}
+	deleted, err := deleteBenchConsumer(ctx, js, streamName, durable)
+	if err != nil {
+		return err
 	}
+	report["deleted_consumer"] = deleted
 	report["consumer"] = durable
 
-	if originalMaxBytes > 0 {
-		st, serr := js.Stream(ctx, streamName)
-		if serr != nil && !errors.Is(serr, jsapi.ErrStreamNotFound) {
-			return serr
-		}
-		if serr == nil {
-			cfg := st.CachedInfo().Config
-			if cfg.MaxBytes != originalMaxBytes {
-				cfg.MaxBytes = originalMaxBytes
-				if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
-					return uerr
-				}
-				report["reverted_max_bytes"] = true
-				report["max_bytes"] = originalMaxBytes
-			}
-		}
+	reverted, err := revertStreamMaxBytes(ctx, js, streamName, originalMaxBytes)
+	if err != nil {
+		return err
 	}
+	report["reverted_max_bytes"] = reverted
+	if reverted {
+		report["max_bytes"] = originalMaxBytes
+	}
+
 	emit(report)
 	return nil
 }
