@@ -140,7 +140,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 		_, _ = w.Write([]byte(playerBody))
 	}))
 
-	stats := decodeReply[statsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: " #p2lq0gr "}))
+	stats := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: " #p2lq0gr "}))
 	require.Empty(t, stats.Error)
 	assert.Equal(t, "Bagel", stats.Player)
 	assert.Equal(t, "#P2LQ0GR", stats.Tag)
@@ -150,7 +150,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Equal(t, "Bakery", stats.Clan.Name)
 	assert.Equal(t, "Knight", stats.FavouriteCard.Name)
 
-	decks := decodeReply[decksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	decks := decodeReply[gossiprpc.ClashRoyaleDecksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
 	require.Empty(t, decks.Error)
 	require.Len(t, decks.CurrentDeck, 8)
 	assert.Equal(t, "Knight", decks.CurrentDeck[0].Name)
@@ -158,7 +158,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Len(t, decks.SupportCards, 1)
 	assert.InDelta(t, 3.75, decks.AverageElixir, 1e-9)
 
-	ranked := decodeReply[rankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "#P2LQ0GR"}))
+	ranked := decodeReply[gossiprpc.ClashRoyaleRankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "#P2LQ0GR"}))
 	require.Empty(t, ranked.Error)
 	assert.False(t, ranked.Unranked)
 	assert.Equal(t, 10, ranked.Current.LeagueNumber)
@@ -166,7 +166,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Equal(t, 321, ranked.Current.Rank)
 	assert.Equal(t, 42, ranked.Best.Rank)
 
-	road := decodeReply[trophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	road := decodeReply[gossiprpc.ClashRoyaleTrophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
 	require.Empty(t, road.Error)
 	assert.Equal(t, 9123, road.Trophies)
 	assert.Equal(t, 9345, road.BestTrophies)
@@ -187,7 +187,7 @@ func TestRankedFallsBackToLeagueStatistics(t *testing.T) {
 		}`))
 	}))
 
-	reply := decodeReply[rankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	reply := decodeReply[gossiprpc.ClashRoyaleRankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
 	require.Empty(t, reply.Error)
 	assert.False(t, reply.Unranked)
 	assert.Equal(t, "2026-07", reply.Current.SeasonID)
@@ -201,10 +201,10 @@ func TestMissingAndInvalidTagsDoNotCallUpstream(t *testing.T) {
 		t.Fatal("no upstream request expected")
 	}))
 
-	missing := decodeReply[statsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{}))
+	missing := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{}))
 	assert.Equal(t, "missing account", missing.Error)
 
-	invalid := decodeReply[decksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "#ABC123"}))
+	invalid := decodeReply[gossiprpc.ClashRoyaleDecksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "#ABC123"}))
 	assert.Equal(t, "invalid player tag", invalid.Error)
 }
 
@@ -222,9 +222,9 @@ func TestNotFoundIsFriendlyAndNegativeCachedAcrossEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"reason":"notFound"}`))
 	}))
 
-	stats := decodeReply[statsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	stats := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
 	assert.Equal(t, "player not found", stats.Error)
-	road := decodeReply[trophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	road := decodeReply[gossiprpc.ClashRoyaleTrophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
 	assert.Equal(t, "player not found", road.Error)
 	assert.Equal(t, 1, hits)
 }

@@ -508,3 +508,117 @@ type McsrWeeklyRaceReply struct {
 	Empty      bool   `json:"empty"`
 	Error      string `json:"error,omitempty"`
 }
+
+// --- clashroyale (Supercell Clash Royale via RoyaleAPI's proxy) --------------
+//
+// All four endpoints derive from the same GET /players/{tag} profile, so their
+// replies are projections of one cached payload; nested shapes below mirror the
+// upstream's own JSON keys where a chat template wants them verbatim.
+
+// ClashRoyaleArena is the arena a player currently sits in.
+type ClashRoyaleArena struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// ClashRoyaleClan is the clan a player belongs to; zero-valued when clanless.
+type ClashRoyaleClan struct {
+	Tag     string `json:"tag"`
+	Name    string `json:"name"`
+	BadgeID int64  `json:"badgeId,omitempty"`
+}
+
+// ClashRoyaleCard is one card as it appears in a deck or favourite slot: the
+// bot-needed subset of the upstream card object, icon URLs included.
+type ClashRoyaleCardIconURLs struct {
+	Medium    string `json:"medium,omitempty"`
+	Evolution string `json:"evolutionMedium,omitempty"`
+}
+
+type ClashRoyaleCard struct {
+	ID                int64                   `json:"id"`
+	Name              string                  `json:"name"`
+	Level             int                     `json:"level,omitempty"`
+	MaxLevel          int                     `json:"maxLevel,omitempty"`
+	EvolutionLevel    int                     `json:"evolutionLevel,omitempty"`
+	MaxEvolutionLevel int                     `json:"maxEvolutionLevel,omitempty"`
+	ElixirCost        int                     `json:"elixirCost,omitempty"`
+	Rarity            string                  `json:"rarity,omitempty"`
+	IconURLs          ClashRoyaleCardIconURLs `json:"iconUrls,omitempty"`
+}
+
+// ClashRoyaleRankedResult covers both Path of Legends results and the legacy
+// league season records. Fields absent in one representation remain
+// zero-valued.
+type ClashRoyaleRankedResult struct {
+	SeasonID     string `json:"id,omitempty"`
+	LeagueNumber int    `json:"leagueNumber,omitempty"`
+	Trophies     int    `json:"trophies,omitempty"`
+	BestTrophies int    `json:"bestTrophies,omitempty"`
+	Rank         int    `json:"rank,omitempty"`
+}
+
+// ClashRoyaleStatsReply is the answer to clashroyale.stats (sesame's !crstats):
+// a player's lifetime profile. Draws is derived (battles minus wins and
+// losses) and WinRate is a percentage over battles.
+type ClashRoyaleStatsReply struct {
+	Player                string          `json:"player"`
+	Tag                   string          `json:"tag"`
+	KingLevel             int             `json:"king_level"`
+	ExperiencePoints      int64           `json:"experience_points"`
+	StarPoints            int64           `json:"star_points"`
+	Wins                  int             `json:"wins"`
+	Losses                int             `json:"losses"`
+	Draws                 int             `json:"draws"`
+	Battles               int             `json:"battles"`
+	WinRate               float64         `json:"win_rate"`
+	ThreeCrownWins        int             `json:"three_crown_wins"`
+	ChallengeCardsWon     int             `json:"challenge_cards_won"`
+	ChallengeMaxWins      int             `json:"challenge_max_wins"`
+	TournamentCardsWon    int             `json:"tournament_cards_won"`
+	TournamentBattleCount int             `json:"tournament_battle_count"`
+	Donations             int             `json:"donations"`
+	DonationsReceived     int             `json:"donations_received"`
+	TotalDonations        int             `json:"total_donations"`
+	Clan                  ClashRoyaleClan `json:"clan"`
+	FavouriteCard         ClashRoyaleCard `json:"favourite_card"`
+	Error                 string          `json:"error,omitempty"`
+}
+
+// ClashRoyaleDecksReply is the answer to clashroyale.decks (sesame's !crdecks):
+// the player's current battle deck and tower troop, with the elixir average
+// precomputed to two decimals.
+type ClashRoyaleDecksReply struct {
+	Player        string            `json:"player"`
+	Tag           string            `json:"tag"`
+	CurrentDeck   []ClashRoyaleCard `json:"current_deck"`
+	SupportCards  []ClashRoyaleCard `json:"support_cards"`
+	AverageElixir float64           `json:"average_elixir"`
+	Error         string            `json:"error,omitempty"`
+}
+
+// ClashRoyaleRankedReply is the answer to clashroyale.ranked (sesame's
+// !crranked): the player's Path of Legends standing, falling back to the
+// legacy league seasons for players without PoL records. Unranked is true when
+// neither source has a current result.
+type ClashRoyaleRankedReply struct {
+	Player   string                  `json:"player"`
+	Tag      string                  `json:"tag"`
+	Current  ClashRoyaleRankedResult `json:"current"`
+	Previous ClashRoyaleRankedResult `json:"previous"`
+	Best     ClashRoyaleRankedResult `json:"best"`
+	Unranked bool                    `json:"unranked"`
+	Error    string                  `json:"error,omitempty"`
+}
+
+// ClashRoyaleTrophyRoadReply is the answer to clashroyale.trophy_road
+// (sesame's !crtrophy): the player's trophy-road standing — current and best
+// trophies plus the arena they sit in.
+type ClashRoyaleTrophyRoadReply struct {
+	Player       string           `json:"player"`
+	Tag          string           `json:"tag"`
+	Trophies     int              `json:"trophies"`
+	BestTrophies int              `json:"best_trophies"`
+	Arena        ClashRoyaleArena `json:"arena"`
+	Error        string           `json:"error,omitempty"`
+}

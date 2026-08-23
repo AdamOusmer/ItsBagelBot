@@ -9,6 +9,7 @@ package providers
 import (
 	"ItsBagelBot/app/gossip/internal/config"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providers/clashroyale"
 	"ItsBagelBot/app/gossip/internal/providers/fortnite"
 	"ItsBagelBot/app/gossip/internal/providers/govee"
 	"ItsBagelBot/app/gossip/internal/providers/hypixel"
@@ -36,6 +37,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendPaceman(out, cfg, d, log)
 	out = appendFortnite(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
+	out = appendClashRoyale(out, cfg, d, log)
 	return out
 }
 
@@ -132,6 +134,21 @@ func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, l
 		return govee.New(govee.Config{
 			BaseURL:   cfg.GoveeBaseURL,
 			RateLimit: cfg.GoveeRateLimit,
+		}, d)
+	})
+}
+
+// appendClashRoyale adds the Clash Royale provider behind its RoyaleAPI proxy
+// token, the same credential gate as urchin/hypixel. The key itself is created
+// on developer.clashroyale.com (Supercell) with RoyaleAPI's proxy egress IP
+// 45.79.218.79 whitelisted on it; the proxy then forwards Bearer-keyed calls
+// to api.clashroyale.com. A key in Doppler lights all four !cr commands.
+func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return appendIf(out, log, cfg.ClashRoyaleAPIKey == "", "clashroyale provider disabled: CLASHROYALE_API_KEY not set (!cr commands will not answer)", func() provider.Provider {
+		return clashroyale.New(clashroyale.Config{
+			BaseURL:   cfg.ClashRoyaleBaseURL,
+			APIKey:    cfg.ClashRoyaleAPIKey,
+			RateLimit: cfg.ClashRoyaleRateLimit,
 		}, d)
 	})
 }
