@@ -116,72 +116,80 @@ func Valorant(d engine.Deps) module.Module {
 		return valEmptyShopText, true
 	}
 
-	rankRun := valRun(d, valCommand{
-		endpoint: "rank",
-		enabled:  func(c valorantConfig) string { return c.RankEnabled },
-		message:  func(c valorantConfig) string { return c.RankMessage },
-		fallback: defaultValRankTemplate,
-		newReply: func() any { return &gossiprpc.ValorantRankReply{} },
-		tokens:   valRankTokens(),
-		special:  rankSpecial,
-	})
-	matchRun := valRun(d, valCommand{
-		endpoint: "matches",
-		enabled:  func(c valorantConfig) string { return c.MatchEnabled },
-		message:  func(c valorantConfig) string { return c.MatchMessage },
-		fallback: defaultValMatchesTemplate,
-		newReply: func() any { return &gossiprpc.ValorantMatchesReply{} },
-		tokens:   valMatchTokens(),
-		special:  matchSpecial,
-	})
-	acctRun := valRun(d, valCommand{
-		endpoint: "account",
-		enabled:  func(c valorantConfig) string { return c.AcctEnabled },
-		message:  func(c valorantConfig) string { return c.AcctMessage },
-		fallback: defaultValAccountTemplate,
-		newReply: func() any { return &gossiprpc.ValorantAccountReply{} },
-		tokens:   valAccountTokens(),
-	})
-	boardRun := valRun(d, valCommand{
-		endpoint: "leaderboard",
-		enabled:  func(c valorantConfig) string { return c.BoardEnabled },
-		message:  func(c valorantConfig) string { return c.BoardMessage },
-		fallback: defaultValBoardTemplate,
-		newReply: func() any { return &gossiprpc.ValorantLeaderboardReply{} },
-		tokens:   valBoardTokens(),
-		special:  boardSpecial,
-		// A bare "!vallb" is a regional top-N ask, not a lookup of the
-		// broadcaster's own standing: falling back to their Twitch login
-		// (never a syntactically valid Riot ID) would only produce
-		// "invalid riot id" instead of the board they asked for.
-		noBroadcasterFallback: true,
-	})
-	shopRun := valRun(d, valCommand{
-		endpoint: "shop",
-		enabled:  func(c valorantConfig) string { return c.ShopEnabled },
-		message:  func(c valorantConfig) string { return c.ShopMessage },
-		fallback: defaultValShopTemplate,
-		newReply: func() any { return &gossiprpc.ValorantShopReply{} },
-		tokens:   valShopTokens(),
-		special:  shopSpecial,
-		// The rotation is global: no account scopes it, so none is resolved.
-		accountless: true,
-	})
+	runs := valRuns{
+		rank: valRun(d, valCommand{
+			endpoint: "rank",
+			enabled:  func(c valorantConfig) string { return c.RankEnabled },
+			message:  func(c valorantConfig) string { return c.RankMessage },
+			fallback: defaultValRankTemplate,
+			newReply: func() any { return &gossiprpc.ValorantRankReply{} },
+			tokens:   valRankTokens(),
+			special:  rankSpecial,
+		}),
+		matches: valRun(d, valCommand{
+			endpoint: "matches",
+			enabled:  func(c valorantConfig) string { return c.MatchEnabled },
+			message:  func(c valorantConfig) string { return c.MatchMessage },
+			fallback: defaultValMatchesTemplate,
+			newReply: func() any { return &gossiprpc.ValorantMatchesReply{} },
+			tokens:   valMatchTokens(),
+			special:  matchSpecial,
+		}),
+		account: valRun(d, valCommand{
+			endpoint: "account",
+			enabled:  func(c valorantConfig) string { return c.AcctEnabled },
+			message:  func(c valorantConfig) string { return c.AcctMessage },
+			fallback: defaultValAccountTemplate,
+			newReply: func() any { return &gossiprpc.ValorantAccountReply{} },
+			tokens:   valAccountTokens(),
+		}),
+		board: valRun(d, valCommand{
+			endpoint: "leaderboard",
+			enabled:  func(c valorantConfig) string { return c.BoardEnabled },
+			message:  func(c valorantConfig) string { return c.BoardMessage },
+			fallback: defaultValBoardTemplate,
+			newReply: func() any { return &gossiprpc.ValorantLeaderboardReply{} },
+			tokens:   valBoardTokens(),
+			special:  boardSpecial,
+			// A bare "!vallb" is a regional top-N ask, not a lookup of the
+			// broadcaster's own standing: falling back to their Twitch login
+			// (never a syntactically valid Riot ID) would only produce
+			// "invalid riot id" instead of the board they asked for.
+			noBroadcasterFallback: true,
+		}),
+		shop: valRun(d, valCommand{
+			endpoint: "shop",
+			enabled:  func(c valorantConfig) string { return c.ShopEnabled },
+			message:  func(c valorantConfig) string { return c.ShopMessage },
+			fallback: defaultValShopTemplate,
+			newReply: func() any { return &gossiprpc.ValorantShopReply{} },
+			tokens:   valShopTokens(),
+			special:  shopSpecial,
+			// The rotation is global: no account scopes it, so none is resolved.
+			accountless: true,
+		}),
+	}
 
 	m := module.NewModule(valModuleName, module.KindOptIn)
 	m.Command("val").Everyone().Cooldown(valCooldown).
-		Run(valDispatchRun(rankRun, matchRun, acctRun, boardRun, shopRun))
+		Run(valDispatchRun(runs))
 	m.Command("valrank").Everyone().Cooldown(valCooldown).
-		Run(rankRun)
+		Run(runs.rank)
 	m.Command("valmatches").Everyone().Cooldown(valCooldown).Aliases("valhistory").
-		Run(matchRun)
+		Run(runs.matches)
 	m.Command("valaccount").Everyone().Cooldown(valCooldown).Aliases("valwho").
-		Run(acctRun)
+		Run(runs.account)
 	m.Command("vallb").Everyone().Cooldown(valCooldown).Aliases("valleaderboard").
-		Run(boardRun)
+		Run(runs.board)
 	m.Command("valshop").Everyone().Cooldown(valCooldown).Aliases("valrotation").
-		Run(shopRun)
+		Run(runs.shop)
 	return m.Build()
+}
+
+// valRuns bundles the five subcommand runners so the root dispatcher takes one
+// argument instead of a positional list that grows with every new view.
+type valRuns struct {
+	rank, matches, account, board, shop module.RunFunc
 }
 
 // valCommand names one command's wiring: the gossip endpoint it queries,
@@ -202,10 +210,9 @@ type valCommand struct {
 	accountless           bool
 }
 
-// valRun builds one command runner: peel the scoping args, resolve the target
-// id, call the endpoint, expand the template over the reply. Tokens are
-// declared against `any` so one runner serves five reply types; each palette
-// casts back.
+// valRun builds one command runner: scope the request, call the endpoint,
+// expand the template over the reply. Tokens are declared against `any` so
+// one runner serves five reply types; each palette casts back.
 func valRun(d engine.Deps, cmd valCommand) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		var cfg valorantConfig
@@ -214,46 +221,17 @@ func valRun(d engine.Deps, cmd valCommand) module.RunFunc {
 			return nil
 		}
 
-		req := gossiprpc.Request{IsPremium: c.Regress.IsPremium()}
-		if !cmd.accountless {
-			argAccount, argRegion, argPlatform := parseValArgs(args)
-			if argRegion != "" {
-				req.Region = argRegion
-			} else {
-				req.Region = cfg.Region
-			}
-			if argPlatform != "" {
-				req.Platform = argPlatform
-			} else {
-				req.Platform = cfg.Platform
-			}
-			if cmd.noBroadcasterFallback {
-				req.Account = argAccount
-				if req.Account == "" {
-					req.Account = cfg.Account
-				}
-			} else {
-				req.Account = resolveAccount(accountSources{Arg: argAccount, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-			}
-		}
-
+		req := valRequest(cmd, cfg, c, args)
 		reply := cmd.newReply()
-		subject := req.Account
-		if cmd.accountless {
-			// The rotation has no target player, so errors name the feature.
-			subject = "daily rotation"
-		}
 		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "valorant", Endpoint: cmd.endpoint}, req, reply); err != nil {
-			if chatReplyError(c, emit, subject, err) {
+			if chatReplyError(c, emit, valSubject(cmd, req), err) {
 				return nil
 			}
 			return err
 		}
-		if cmd.special != nil {
-			if text, ok := cmd.special(reply); ok {
-				emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
-				return nil
-			}
+		if text, ok := valSpecial(cmd.special, reply); ok {
+			emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
+			return nil
 		}
 
 		msg := module.ExpandString(orDefault(cmd.message(cfg), cmd.fallback), func(key string) (string, bool) {
@@ -267,26 +245,74 @@ func valRun(d engine.Deps, cmd valCommand) module.RunFunc {
 	}
 }
 
+// valRequest scopes one lookup: shard and ladder words peel off the typed args
+// first and dashboard config fills whatever remains; the target account then
+// resolves through the shared fallback chain — unless the command opts out,
+// because a board ask without an id is a regional top-N (the login fallback
+// would only mint "invalid riot id") and the shop has no target at all.
+func valRequest(cmd valCommand, cfg valorantConfig, c *module.Context, args string) gossiprpc.Request {
+	req := gossiprpc.Request{IsPremium: c.Regress.IsPremium()}
+	if cmd.accountless {
+		return req
+	}
+	argAccount, argRegion, argPlatform := parseValArgs(args)
+	req.Region, req.Platform = argRegion, argPlatform
+	if req.Region == "" {
+		req.Region = cfg.Region
+	}
+	if req.Platform == "" {
+		req.Platform = cfg.Platform
+	}
+
+	switch {
+	case cmd.noBroadcasterFallback:
+		req.Account = argAccount
+		if req.Account == "" {
+			req.Account = cfg.Account
+		}
+	default:
+		req.Account = resolveAccount(accountSources{Arg: argAccount, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+	}
+	return req
+}
+
+// valSubject names what a failure chats about: the rotation has no target
+// player, so its errors name the feature instead of an account.
+func valSubject(cmd valCommand, req gossiprpc.Request) string {
+	if cmd.accountless {
+		return "daily rotation"
+	}
+	return req.Account
+}
+
+// valSpecial applies a command's empty-state override, if one is wired.
+func valSpecial(special func(any) (string, bool), reply any) (string, bool) {
+	if special == nil {
+		return "", false
+	}
+	return special(reply)
+}
+
 // valDispatchRun routes !val's first argument word onto the subcommand
 // runners: "matches"/"account"/"lb"/"shop" select one explicitly, and anything
 // else — nothing, or a Riot ID — is a rank lookup, so "!val Frosty#EUW1" reads
 // naturally.
-func valDispatchRun(rankRun, matchRun, acctRun, boardRun, shopRun module.RunFunc) module.RunFunc {
+func valDispatchRun(runs valRuns) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		sub, rest, _ := strings.Cut(strings.TrimSpace(args), " ")
 		switch strings.ToLower(sub) {
 		case "match", "matches", "history":
-			return matchRun(ctx, c, rest, emit)
+			return runs.matches(ctx, c, rest, emit)
 		case "account", "who":
-			return acctRun(ctx, c, rest, emit)
+			return runs.account(ctx, c, rest, emit)
 		case "lb", "leaderboard", "top":
-			return boardRun(ctx, c, rest, emit)
+			return runs.board(ctx, c, rest, emit)
 		case "shop", "rotation":
-			return shopRun(ctx, c, rest, emit)
+			return runs.shop(ctx, c, rest, emit)
 		case "rank", "standing":
-			return rankRun(ctx, c, rest, emit)
+			return runs.rank(ctx, c, rest, emit)
 		default:
-			return rankRun(ctx, c, args, emit)
+			return runs.rank(ctx, c, args, emit)
 		}
 	}
 }
