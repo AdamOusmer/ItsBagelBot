@@ -58,10 +58,10 @@ type api struct {
 func New(cfg Config, d provider.Deps) provider.Provider {
 	p := newAPI(cfg, d)
 	b := provider.NewProvider(providerName, d)
-	p.view(b, "stats", func(tag, msg string) any { return statsReply{Tag: tag, Error: msg} }, shapeStats)
-	p.view(b, "decks", func(tag, msg string) any { return decksReply{Tag: tag, Error: msg} }, shapeDecks)
-	p.view(b, "ranked", func(tag, msg string) any { return rankedReply{Tag: tag, Error: msg} }, shapeRanked)
-	p.view(b, "trophy_road", func(tag, msg string) any { return trophyRoadReply{Tag: tag, Error: msg} }, shapeTrophyRoad)
+	p.view(b, "stats", func(tag, msg string) any { return gossiprpc.ClashRoyaleStatsReply{Tag: tag, Error: msg} }, shapeStats)
+	p.view(b, "decks", func(tag, msg string) any { return gossiprpc.ClashRoyaleDecksReply{Tag: tag, Error: msg} }, shapeDecks)
+	p.view(b, "ranked", func(tag, msg string) any { return gossiprpc.ClashRoyaleRankedReply{Tag: tag, Error: msg} }, shapeRanked)
+	p.view(b, "trophy_road", func(tag, msg string) any { return gossiprpc.ClashRoyaleTrophyRoadReply{Tag: tag, Error: msg} }, shapeTrophyRoad)
 	return b.Build()
 }
 
@@ -159,133 +159,44 @@ func (t playerTag) String() string   { return "#" + string(t) }
 func (t playerTag) cacheKey() string { return strings.ToLower(string(t)) }
 
 // playerProfile is the current official player payload subset used by all
-// four views. Unknown upstream additions are ignored by encoding/json.
+// four views. Unknown upstream additions are ignored by encoding/json. Nested
+// values reuse the shared reply shapes: their JSON keys mirror the upstream's
+// own, so the profile decodes straight into them and shaping is projection
+// only.
 type playerProfile struct {
-	Tag                       string       `json:"tag"`
-	Name                      string       `json:"name"`
-	ExpLevel                  int          `json:"expLevel"`
-	ExpPoints                 int64        `json:"expPoints"`
-	StarPoints                int64        `json:"starPoints"`
-	Trophies                  int          `json:"trophies"`
-	BestTrophies              int          `json:"bestTrophies"`
-	Wins                      int          `json:"wins"`
-	Losses                    int          `json:"losses"`
-	BattleCount               int          `json:"battleCount"`
-	ThreeCrownWins            int          `json:"threeCrownWins"`
-	ChallengeCardsWon         int          `json:"challengeCardsWon"`
-	ChallengeMaxWins          int          `json:"challengeMaxWins"`
-	TournamentCardsWon        int          `json:"tournamentCardsWon"`
-	TournamentBattleCount     int          `json:"tournamentBattleCount"`
-	Donations                 int          `json:"donations"`
-	DonationsReceived         int          `json:"donationsReceived"`
-	TotalDonations            int          `json:"totalDonations"`
-	Arena                     arena        `json:"arena"`
-	Clan                      clan         `json:"clan"`
-	CurrentFavouriteCard      card         `json:"currentFavouriteCard"`
-	CurrentDeck               []card       `json:"currentDeck"`
-	CurrentDeckSupportCards   []card       `json:"currentDeckSupportCards"`
-	LeagueStatistics          leagueStats  `json:"leagueStatistics"`
-	CurrentPathOfLegendResult rankedResult `json:"currentPathOfLegendSeasonResult"`
-	LastPathOfLegendResult    rankedResult `json:"lastPathOfLegendSeasonResult"`
-	BestPathOfLegendResult    rankedResult `json:"bestPathOfLegendSeasonResult"`
-}
-
-type arena struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-type clan struct {
-	Tag     string `json:"tag"`
-	Name    string `json:"name"`
-	BadgeID int64  `json:"badgeId,omitempty"`
-}
-
-type iconURLs struct {
-	Medium    string `json:"medium,omitempty"`
-	Evolution string `json:"evolutionMedium,omitempty"`
-}
-
-type card struct {
-	ID                int64    `json:"id"`
-	Name              string   `json:"name"`
-	Level             int      `json:"level,omitempty"`
-	MaxLevel          int      `json:"maxLevel,omitempty"`
-	EvolutionLevel    int      `json:"evolutionLevel,omitempty"`
-	MaxEvolutionLevel int      `json:"maxEvolutionLevel,omitempty"`
-	ElixirCost        int      `json:"elixirCost,omitempty"`
-	Rarity            string   `json:"rarity,omitempty"`
-	IconURLs          iconURLs `json:"iconUrls,omitempty"`
-}
-
-// rankedResult covers both Path of Legends results and the legacy league
-// season records. Fields absent in one representation remain zero-valued.
-type rankedResult struct {
-	SeasonID     string `json:"id,omitempty"`
-	LeagueNumber int    `json:"leagueNumber,omitempty"`
-	Trophies     int    `json:"trophies,omitempty"`
-	BestTrophies int    `json:"bestTrophies,omitempty"`
-	Rank         int    `json:"rank,omitempty"`
+	Tag                       string                            `json:"tag"`
+	Name                      string                            `json:"name"`
+	ExpLevel                  int                               `json:"expLevel"`
+	ExpPoints                 int64                             `json:"expPoints"`
+	StarPoints                int64                             `json:"starPoints"`
+	Trophies                  int                               `json:"trophies"`
+	BestTrophies              int                               `json:"bestTrophies"`
+	Wins                      int                               `json:"wins"`
+	Losses                    int                               `json:"losses"`
+	BattleCount               int                               `json:"battleCount"`
+	ThreeCrownWins            int                               `json:"threeCrownWins"`
+	ChallengeCardsWon         int                               `json:"challengeCardsWon"`
+	ChallengeMaxWins          int                               `json:"challengeMaxWins"`
+	TournamentCardsWon        int                               `json:"tournamentCardsWon"`
+	TournamentBattleCount     int                               `json:"tournamentBattleCount"`
+	Donations                 int                               `json:"donations"`
+	DonationsReceived         int                               `json:"donationsReceived"`
+	TotalDonations            int                               `json:"totalDonations"`
+	Arena                     gossiprpc.ClashRoyaleArena        `json:"arena"`
+	Clan                      gossiprpc.ClashRoyaleClan         `json:"clan"`
+	CurrentFavouriteCard      gossiprpc.ClashRoyaleCard         `json:"currentFavouriteCard"`
+	CurrentDeck               []gossiprpc.ClashRoyaleCard       `json:"currentDeck"`
+	CurrentDeckSupportCards   []gossiprpc.ClashRoyaleCard       `json:"currentDeckSupportCards"`
+	LeagueStatistics          leagueStats                       `json:"leagueStatistics"`
+	CurrentPathOfLegendResult gossiprpc.ClashRoyaleRankedResult `json:"currentPathOfLegendSeasonResult"`
+	LastPathOfLegendResult    gossiprpc.ClashRoyaleRankedResult `json:"lastPathOfLegendSeasonResult"`
+	BestPathOfLegendResult    gossiprpc.ClashRoyaleRankedResult `json:"bestPathOfLegendSeasonResult"`
 }
 
 type leagueStats struct {
-	Current  rankedResult `json:"currentSeason"`
-	Previous rankedResult `json:"previousSeason"`
-	Best     rankedResult `json:"bestSeason"`
-}
-
-// Public endpoint replies live in the provider package intentionally: this
-// change adds only the gossip integration and no sesame-facing feature.
-type statsReply struct {
-	Player                string  `json:"player"`
-	Tag                   string  `json:"tag"`
-	KingLevel             int     `json:"king_level"`
-	ExperiencePoints      int64   `json:"experience_points"`
-	StarPoints            int64   `json:"star_points"`
-	Wins                  int     `json:"wins"`
-	Losses                int     `json:"losses"`
-	Draws                 int     `json:"draws"`
-	Battles               int     `json:"battles"`
-	WinRate               float64 `json:"win_rate"`
-	ThreeCrownWins        int     `json:"three_crown_wins"`
-	ChallengeCardsWon     int     `json:"challenge_cards_won"`
-	ChallengeMaxWins      int     `json:"challenge_max_wins"`
-	TournamentCardsWon    int     `json:"tournament_cards_won"`
-	TournamentBattleCount int     `json:"tournament_battle_count"`
-	Donations             int     `json:"donations"`
-	DonationsReceived     int     `json:"donations_received"`
-	TotalDonations        int     `json:"total_donations"`
-	Clan                  clan    `json:"clan"`
-	FavouriteCard         card    `json:"favourite_card"`
-	Error                 string  `json:"error,omitempty"`
-}
-
-type decksReply struct {
-	Player        string  `json:"player"`
-	Tag           string  `json:"tag"`
-	CurrentDeck   []card  `json:"current_deck"`
-	SupportCards  []card  `json:"support_cards"`
-	AverageElixir float64 `json:"average_elixir"`
-	Error         string  `json:"error,omitempty"`
-}
-
-type rankedReply struct {
-	Player   string       `json:"player"`
-	Tag      string       `json:"tag"`
-	Current  rankedResult `json:"current"`
-	Previous rankedResult `json:"previous"`
-	Best     rankedResult `json:"best"`
-	Unranked bool         `json:"unranked"`
-	Error    string       `json:"error,omitempty"`
-}
-
-type trophyRoadReply struct {
-	Player       string `json:"player"`
-	Tag          string `json:"tag"`
-	Trophies     int    `json:"trophies"`
-	BestTrophies int    `json:"best_trophies"`
-	Arena        arena  `json:"arena"`
-	Error        string `json:"error,omitempty"`
+	Current  gossiprpc.ClashRoyaleRankedResult `json:"currentSeason"`
+	Previous gossiprpc.ClashRoyaleRankedResult `json:"previousSeason"`
+	Best     gossiprpc.ClashRoyaleRankedResult `json:"bestSeason"`
 }
 
 func (p *api) profile(ctx context.Context, tag playerTag) (playerProfile, error) {
@@ -312,7 +223,7 @@ func shapeStats(profile playerProfile) any {
 	if profile.BattleCount > 0 {
 		winRate = float64(profile.Wins) * 100 / float64(profile.BattleCount)
 	}
-	return statsReply{
+	return gossiprpc.ClashRoyaleStatsReply{
 		Player: profile.Name, Tag: profile.Tag, KingLevel: profile.ExpLevel,
 		ExperiencePoints: profile.ExpPoints, StarPoints: profile.StarPoints,
 		Wins: profile.Wins, Losses: profile.Losses, Draws: draws,
@@ -335,17 +246,17 @@ func shapeDecks(profile playerProfile) any {
 	if len(profile.CurrentDeck) > 0 {
 		average = math.Round((float64(total)/float64(len(profile.CurrentDeck)))*100) / 100
 	}
-	return decksReply{
+	return gossiprpc.ClashRoyaleDecksReply{
 		Player: profile.Name, Tag: profile.Tag, CurrentDeck: profile.CurrentDeck,
 		SupportCards: profile.CurrentDeckSupportCards, AverageElixir: average,
 	}
 }
 
-func hasRankedResult(r rankedResult) bool {
+func hasRankedResult(r gossiprpc.ClashRoyaleRankedResult) bool {
 	return r.SeasonID != "" || r.LeagueNumber != 0 || r.Trophies != 0 || r.BestTrophies != 0 || r.Rank != 0
 }
 
-func preferRanked(primary, fallback rankedResult) rankedResult {
+func preferRanked(primary, fallback gossiprpc.ClashRoyaleRankedResult) gossiprpc.ClashRoyaleRankedResult {
 	if hasRankedResult(primary) {
 		return primary
 	}
@@ -356,14 +267,14 @@ func shapeRanked(profile playerProfile) any {
 	current := preferRanked(profile.CurrentPathOfLegendResult, profile.LeagueStatistics.Current)
 	previous := preferRanked(profile.LastPathOfLegendResult, profile.LeagueStatistics.Previous)
 	best := preferRanked(profile.BestPathOfLegendResult, profile.LeagueStatistics.Best)
-	return rankedReply{
+	return gossiprpc.ClashRoyaleRankedReply{
 		Player: profile.Name, Tag: profile.Tag, Current: current, Previous: previous, Best: best,
 		Unranked: !hasRankedResult(current),
 	}
 }
 
 func shapeTrophyRoad(profile playerProfile) any {
-	return trophyRoadReply{
+	return gossiprpc.ClashRoyaleTrophyRoadReply{
 		Player: profile.Name, Tag: profile.Tag, Trophies: profile.Trophies,
 		BestTrophies: profile.BestTrophies, Arena: profile.Arena,
 	}
