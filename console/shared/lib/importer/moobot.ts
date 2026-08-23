@@ -207,45 +207,11 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
   const seen = new Set<string>();
   const labels: string[] = [];
   for (const id of ids) {
-    let label = USERGROUP_LABELS[id];
-    if (label === undefined) {
-      diags.push({
-        severity: 'warn',
-        item_index: itemIndex,
-        code: CODE.permissionUnmapped,
-        message: `unknown user group id ${id} treated as everyone`
-      });
-      label = 'everyone';
-    }
-    // id 0 ("normal users") feeds the shared table as everyone; id 2
-    // (editors) narrows to moderators — Moobot editors outrank mods there,
-    // but our ladder has no editor tier and widening would invent trust
-    // (same decision record as moobot.go).
-    let feed = label;
-    if (id === 0) feed = 'everyone';
-    if (id === 2) feed = 'moderators';
-    labels.push(label);
-    const { perm, recognized } = mapPermission(feed);
-    if (!recognized) {
-      diags.push({
-        severity: 'warn',
-        item_index: itemIndex,
-        code: CODE.permissionUnmapped,
-        message: `permission group ${q(label)} is not recognized; defaulted to everyone`
-      });
-    }
-    if (id === 3) {
-      // Regulars widens to everyone: we have no regular tier (CONTRACT §7).
-      diags.push({
-        severity: 'warn',
-        item_index: itemIndex,
-        code: 'command_permission_widened',
-        message: 'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'
-      });
-    }
-    if (!seen.has(perm)) {
-      seen.add(perm);
-      distinct.push(perm);
+    const resolved = resolveOneGroup(id, itemIndex, diags);
+    labels.push(resolved.label);
+    if (!seen.has(resolved.perm)) {
+      seen.add(resolved.perm);
+      distinct.push(resolved.perm);
     }
   }
   const perm = widestTier(distinct);
@@ -258,6 +224,45 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
     });
   }
   return { perm, diags };
+}
+
+// resolveOneGroup maps one builtin usergroup id to its tier, emitting that
+// id's diagnostics in order: unknown id, unrecognized feed, widened regulars.
+function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[]): { perm: string; label: string } {
+  let label = USERGROUP_LABELS[id];
+  if (label === undefined) {
+    diags.push({
+      severity: 'warn',
+      item_index: itemIndex,
+      code: CODE.permissionUnmapped,
+      message: `unknown user group id ${id} treated as everyone`
+    });
+    label = 'everyone';
+  }
+  // id 0 ("normal users") feeds the shared table as everyone; id 2
+  // (editors) narrows to moderators — Moobot editors outrank mods there,
+  // but our ladder has no editor tier and widening would invent trust
+  // (same decision record as moobot.go).
+  const feed = id === 0 ? 'everyone' : id === 2 ? 'moderators' : label;
+  const { perm, recognized } = mapPermission(feed);
+  if (!recognized) {
+    diags.push({
+      severity: 'warn',
+      item_index: itemIndex,
+      code: CODE.permissionUnmapped,
+      message: `permission group ${q(label)} is not recognized; defaulted to everyone`
+    });
+  }
+  if (id === 3) {
+    // Regulars widens to everyone: we have no regular tier (CONTRACT §7).
+    diags.push({
+      severity: 'warn',
+      item_index: itemIndex,
+      code: 'command_permission_widened',
+      message: 'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'
+    });
+  }
+  return { perm, label };
 }
 
 // --- tag translation (ported from tags.go) ----------------------------------
@@ -323,37 +328,28 @@ function choiceKey(opts: TextOption[] | undefined): string {
   return '{choice:' + opts.map((o) => o.text).join(',') + '}';
 }
 
+// TAG_RENDERERS renders one insertable tag to its canonical replacement.
+// Adding a tag later is a row here, not a branch in the translator.
+const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
+  username: () => '{user}',
+  'twitch.mentioned': () => '{target}',
+  args: () => '{args}',
+  // Moobot's argument #1 falls back to the invoker's username when
+  // absent — exactly the duality of our {target}. Arguments #2..#5 have
+  // no clean equivalent ({args} would repeat the whole tail), so only #1
+  // maps (decision record kept from tags.go).
+  '1': () => '{target}',
+  'random.number': randomNumberKey,
+  // Moobot counters are per-command; ours are named channel-scope values,
+  // keyed by the command's normalized name.
+  counter: (ctx) => `{counter:${ctx.name}}`,
+  'channel.name': () => '{channel}'
+};
+for (let i = 1; i <= 3; i++) TAG_RENDERERS[`random.text.${i}`] = (ctx) => choiceKey(ctx.randomTexts[i - 1]);
+
 function replaceTag(tag: string, ctx: TagContext): string {
-  switch (tag) {
-    case 'username':
-      return '{user}';
-    case 'twitch.mentioned':
-      return '{target}';
-    case 'args':
-      return '{args}';
-    case '1':
-      // Moobot's argument #1 falls back to the invoker's username when
-      // absent — exactly the duality of our {target}. Arguments #2..#5 have
-      // no clean equivalent ({args} would repeat the whole tail), so only #1
-      // maps (decision record kept from tags.go).
-      return '{target}';
-    case 'random.number':
-      return randomNumberKey(ctx);
-    case 'random.text.1':
-    case 'random.text.2':
-    case 'random.text.3': {
-      const n = Number(tag.slice(-1));
-      return choiceKey(ctx.randomTexts[n - 1]);
-    }
-    case 'counter':
-      // Moobot counters are per-command; ours are named channel-scope values,
-      // keyed by the command's normalized name.
-      return `{counter:${ctx.name}}`;
-    case 'channel.name':
-      return '{channel}';
-    default:
-      return '';
-  }
+  const render = TAG_RENDERERS[tag];
+  return render ? render(ctx) : '';
 }
 
 interface TagResult {
@@ -369,28 +365,30 @@ function translateTags(text: string, ctx: TagContext): TagResult {
   let last = 0;
   for (const m of text.matchAll(TAG_PATTERN)) {
     const start = m.index ?? 0;
-    const end = start + m[0].length;
-    const tag = m[1];
     out += text.slice(last, start);
-    last = end;
-    const replacement = replaceTag(tag, ctx);
-    if (replacement !== '') {
-      out += replacement;
-      if (tag === 'counter') res.counterUsed = true;
-    } else {
-      // Known-but-unmappable: keep literal + one diagnostic per distinct tag.
-      // Unknown bracketed text: keep byte-for-byte, silent (it is
-      // indistinguishable from prose until Moobot defines it).
-      out += m[0];
-      if (KNOWN_TAGS.has(tag) && !seen.has(tag)) {
-        seen.add(tag);
-        res.unmapped.push(tag);
-      }
-    }
+    last = start + m[0].length;
+    out += renderTag(m[0], m[1], ctx, res, seen);
   }
   out += text.slice(last);
   res.text = out;
   return res;
+}
+
+// renderTag contributes one tag's output: its replacement when mapped,
+// otherwise the literal bracketed text plus a first-of-kind warning for
+// catalog entries we cannot express (unknown bracketed words stay silent —
+// they are indistinguishable from prose until Moobot defines them).
+function renderTag(raw: string, tag: string, ctx: TagContext, res: TagResult, seen: Set<string>): string {
+  const replacement = replaceTag(tag, ctx);
+  if (replacement !== '') {
+    if (tag === 'counter') res.counterUsed = true;
+    return replacement;
+  }
+  if (KNOWN_TAGS.has(tag) && !seen.has(tag)) {
+    seen.add(tag);
+    res.unmapped.push(tag);
+  }
+  return raw;
 }
 
 // --- raw shape --------------------------------------------------------------
@@ -749,38 +747,45 @@ function applyAliases(
 ): void {
   const byName = new Map<string, ManifestCommand>(commands.map((c) => [c.name, c]));
   for (const a of aliases) {
-    const target = byName.get(normalizeName(asStr(a.id)));
-    if (asStr(a.type) !== 'custom' || !target) {
-      diags.push({
-        severity: 'warn',
-        item_index: -1,
-        code: 'command_alias_unresolved',
-        message: `alias ${q(asStr(a.alias))} targets ${asStr(a.type)} command ${q(asStr(a.id))}, which is not part of this export; skipped`
-      });
-      continue;
-    }
-    const alias = normalizeName(asStr(a.alias));
-    if (alias === '') {
-      diags.push({
-        severity: 'warn',
-        item_index: -1,
-        code: CODE.aliasInvalid,
-        message: `alias of ${q(target.name)} is empty after normalization; skipped`
-      });
-      continue;
-    }
-    if (alias === target.name) continue;
-    if (target.aliases?.includes(alias)) continue;
-    (target.aliases ??= []).push(alias);
-    const args = a.arguments;
-    if (typeof args === 'string' && args !== '') {
-      diags.push({
-        severity: 'warn',
-        item_index: -1,
-        code: 'command_alias_arguments',
-        message: `alias ${q(asStr(a.alias))} appends fixed arguments ${q(args)}, which have no equivalent; dropped`
-      });
-    }
+    attachAlias(a, byName, diags);
+  }
+}
+
+function attachAlias(a: RawAlias, byName: Map<string, ManifestCommand>, diags: ImportDiagnostic[]): void {
+  const target = byName.get(normalizeName(asStr(a.id)));
+  if (asStr(a.type) !== 'custom' || !target) {
+    diags.push({
+      severity: 'warn',
+      item_index: -1,
+      code: 'command_alias_unresolved',
+      message: `alias ${q(asStr(a.alias))} targets ${asStr(a.type)} command ${q(asStr(a.id))}, which is not part of this export; skipped`
+    });
+    return;
+  }
+  const alias = normalizeName(asStr(a.alias));
+  if (alias === '') {
+    diags.push({
+      severity: 'warn',
+      item_index: -1,
+      code: CODE.aliasInvalid,
+      message: `alias of ${q(target.name)} is empty after normalization; skipped`
+    });
+    return;
+  }
+  if (alias === target.name || target.aliases?.includes(alias)) return;
+  (target.aliases ??= []).push(alias);
+  noteAliasArguments(a, diags);
+}
+
+function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
+  const args = a.arguments;
+  if (typeof args === 'string' && args !== '') {
+    diags.push({
+      severity: 'warn',
+      item_index: -1,
+      code: 'command_alias_arguments',
+      message: `alias ${q(asStr(a.alias))} appends fixed arguments ${q(args)}, which have no equivalent; dropped`
+    });
   }
 }
 
