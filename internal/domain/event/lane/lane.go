@@ -10,6 +10,7 @@ package lane
 import (
 	"ItsBagelBot/pkg/codec"
 	"strconv"
+	"time"
 )
 
 // Badge is one Twitch chat badge as carried on a channel.chat.message event.
@@ -87,6 +88,14 @@ type Envelope struct {
 
 	MsgID   string `json:"msg_id,omitempty"`
 	ShardID int    `json:"shard_id,omitempty"`
+
+	// ReceivedAt is ingress's EventSub notification receipt time (Twitch's
+	// message_timestamp, RFC 3339), published on every lane body (see
+	// app/ingress/lib/ingress/pipeline.ex). It is the only ordering signal
+	// stream.online / stream.offline carry: the consumer pool gives no
+	// cross-message ordering, so lifecycle writers compare EventVersion
+	// instead of trusting arrival order. Absent on older envelopes.
+	ReceivedAt string `json:"received_at,omitempty"`
 }
 
 // BroadcasterName is the broadcaster's Twitch display name for chat-facing text,
@@ -106,6 +115,22 @@ func (e Envelope) ChatterName() string {
 		return e.ChatterUserName
 	}
 	return e.ChatterUserLogin
+}
+
+// EventVersion returns the event's ordering version: the ReceivedAt instant as
+// unix milliseconds. Zero when the envelope predates the field or carries an
+// unparseable timestamp — callers must treat 0 as "no ordering claim" and fall
+// back to their own clock rather than letting a timestamp-less event win a
+// comparison against a stamped one.
+func (e Envelope) EventVersion() int64 {
+	if e.ReceivedAt == "" {
+		return 0
+	}
+	t, err := time.Parse(time.RFC3339, e.ReceivedAt)
+	if err != nil {
+		return 0
+	}
+	return t.UnixMilli()
 }
 
 // BroadcasterID returns the broadcaster the event belongs to as a uint64. For

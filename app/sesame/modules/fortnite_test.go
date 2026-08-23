@@ -311,3 +311,46 @@ func TestFormatShopEntriesBudget(t *testing.T) {
 	assert.True(t, strings.HasPrefix(got, huge.Name))
 	assert.Contains(t, got, "+1 more")
 }
+
+// stream.offline clears the channel's stream-start baseline so a rapid
+// stop/restart cycle (#561) cannot diff the next stream against this one's
+// snapshot. The call is fire-and-forget through the lifecycle sequencer.
+func TestFnStreamOfflineClearsBaseline(t *testing.T) {
+	done := make(chan struct{})
+	gw := &fakeGossip{
+		replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}},
+		done:    done,
+	}
+	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]
+	require.NotNil(t, h, "fortnite must handle stream.offline")
+
+	var col collector
+	cfg := `{"sessionEnabled":true,"account":"Ninja","accountType":"epic"}`
+	require.NoError(t, h(context.Background(), fortniteOnlineCtx(cfg), col.emit))
+	assert.Empty(t, col.out, "offline handler must not chat")
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream.offline never called gossip")
+	}
+	call := gw.lastCall(t)
+	assert.Equal(t, "fortnite", call.provider)
+	assert.Equal(t, "session_end", call.endpoint)
+	assert.Equal(t, "2", call.req.ChannelID)
+	assert.Empty(t, call.req.Account, "the clear is channel-scoped, not account-scoped")
+}
+
+// With the session command toggled off there is no baseline to clear (the
+// online snapshot never ran), so stream.offline must not call gossip at all.
+func TestFnStreamOfflineSkipsWhenSessionOff(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}}}
+	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]
+	require.NotNil(t, h)
+
+	var col collector
+	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","sessionEnabled":"off"}`), col.emit))
+	gw.mu.Lock()
+	assert.Empty(t, gw.calls)
+	gw.mu.Unlock()
+}

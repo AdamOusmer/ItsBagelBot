@@ -111,6 +111,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("user").Timeout(handlerTimeout).Handle(p.user)
 	b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
 	b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
+	b.Endpoint("session_end").Timeout(handlerTimeout).Handle(p.sessionEnd)
 	b.Endpoint("last_match").Timeout(handlerTimeout).Handle(p.lastMatch)
 	b.Endpoint("versus").Timeout(handlerTimeout).Handle(p.versus)
 	b.Endpoint("leaderboard").Timeout(handlerTimeout).Handle(p.leaderboard)
@@ -311,6 +312,22 @@ func (p *api) writeSnapshot(ctx context.Context, channelID, account string, user
 		Played:   user.Played,
 		AtUnix:   time.Now().Unix(),
 	}, snapshotTTL)
+}
+
+// sessionEnd drops the channel's stream-start snapshot when the stream ends.
+// The snapshot TTL would eventually reclaim it, but a rapid stop/restart cycle
+// that raced its handlers (#561) left the old baseline diffing against the new
+// stream; clearing here makes "this stream" start clean on the next go-live
+// even when the online snapshot lost that race. Pure store delete: no upstream
+// call, no rate-limit spent. Reuses McsrSnapshotReply as the ack shape.
+func (p *api) sessionEnd(ctx context.Context, req gossiprpc.Request) any {
+	if req.ChannelID == "" {
+		return gossiprpc.McsrSnapshotReply{Error: "missing channel"}
+	}
+	if err := p.cache.DelJSON(ctx, snapshotKey(req.ChannelID)); err != nil {
+		return gossiprpc.McsrSnapshotReply{Error: "snapshot delete failed"}
+	}
+	return gossiprpc.McsrSnapshotReply{}
 }
 
 // session answers the delta since the channel's stream-start snapshot. Without

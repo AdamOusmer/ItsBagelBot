@@ -24,9 +24,9 @@ type fakeLive struct {
 	err  error
 }
 
-func (f *fakeLive) IsLive(context.Context, uint64) (bool, error) { return f.live, f.err }
-func (f *fakeLive) SetLive(context.Context, uint64) error        { return nil }
-func (f *fakeLive) ClearLive(context.Context, uint64) error      { return nil }
+func (f *fakeLive) IsLive(context.Context, uint64) (bool, error)           { return f.live, f.err }
+func (f *fakeLive) SetLive(context.Context, uint64, int64) (bool, error)   { return true, nil }
+func (f *fakeLive) ClearLive(context.Context, uint64, int64) (bool, error) { return true, nil }
 
 type fakeGreet struct {
 	first   bool

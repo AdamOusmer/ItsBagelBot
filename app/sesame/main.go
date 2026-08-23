@@ -123,7 +123,7 @@ func main() {
 	}
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
-		stats: loyaltyReporter, raffle: raffle,
+		stats: loyaltyReporter, raffle: raffle, seq: engine.NewSequencer(),
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(ctx, guard, cfg, log)
