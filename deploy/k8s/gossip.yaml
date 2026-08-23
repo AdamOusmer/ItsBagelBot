@@ -17,6 +17,12 @@
 # (an api-fortnite.com key) additionally lights !fnstats. The "season" stats
 # window auto-resolves the season start from the stats upstream hourly;
 # FORTNITE_SEASON_START_UNIX optionally overrides it manually.
+# clashroyale (!cr / !crstats / !crdecks / !crranked / !crroad) needs a
+# Supercell key from developer.clashroyale.com with RoyaleAPI's proxy egress
+# IP 45.79.218.79 whitelisted on the key; set CLASHROYALE_API_KEY in Doppler
+# and calls ride proxy.royaleapi.dev. Without it the provider skips at boot
+# and the !cr commands time out at the caller like any disabled provider.
+# Lower CLASHROYALE_RATE_LIMIT from its default for a fresh key.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
