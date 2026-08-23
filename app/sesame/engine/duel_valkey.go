@@ -117,14 +117,14 @@ type DuelReceipt struct {
 // without importing the loyalty surface directly; sesame wires
 // NewLoyaltyWallet over engine.LoyaltyStore, tests wire fakes.
 type DuelWallet interface {
-	// Debit takes amount points from login's balance, refusing (spent=false)
+	// Debit takes an entry's stake from their balance, refusing (spent=false)
 	// when they hold less. found=false means the channel never accrued for
 	// them — they cannot play yet.
-	Debit(ctx context.Context, broadcasterID uint64, login string, amount int64) (found, spent bool, err error)
-	// Credit returns amount points to login (refunds and payouts). A credit
-	// failing is logged loudly by the store: the receipt outlives it, so the
-	// payment is reconstructible, but chat was told a different story.
-	Credit(ctx context.Context, broadcasterID uint64, login string, amount int64) error
+	Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (found, spent bool, err error)
+	// Credit returns an entry's points to them (refunds and payouts). A
+	// credit failing is logged loudly by the store: the receipt outlives it,
+	// so the payment is reconstructible, but chat was told a different story.
+	Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error
 }
 
 // LoyaltyWallet adapts the loyalty surface to DuelWallet. The debit rides
@@ -137,23 +137,23 @@ type LoyaltyWallet struct {
 // NewLoyaltyWallet builds the production wallet over the shared loyalty store.
 func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWallet{loyalty: loyalty} }
 
-func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, login string, amount int64) (bool, bool, error) {
-	_, found, spent, err := w.loyalty.BalanceSpend(ctx, broadcasterID, login, amount)
+func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
+	_, found, spent, err := w.loyalty.BalanceSpend(ctx, broadcasterID, entry.Login, entry.Stake)
 	return found, spent, err
 }
 
-func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, login string, amount int64) error {
-	if amount <= 0 {
+func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
+	if entry.Stake <= 0 {
 		return nil
 	}
-	bal, found, err := w.loyalty.BalanceAdjust(ctx, broadcasterID, login, amount, false)
+	bal, found, err := w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
 	if err != nil {
 		return err
 	}
 	if !found {
 		// Unreachable for anyone who was debited moments earlier, but a
 		// silent no-op here would eat a payout — make it visible.
-		return fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", login, bal)
+		return fmt.Errorf("duel: credit target %q unseen by loyalty (bal %+v)", entry.Login, bal)
 	}
 	return nil
 }
@@ -426,7 +426,7 @@ func (s *ValkeyDuelStore) install(ctx context.Context, broadcasterID uint64, spe
 		Challenged: spec.Challenged, OpenedAt: time.Now().UnixMilli(),
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, spec.Opener, spec.Stake)
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, DuelStake{Login: spec.Opener, Stake: spec.Stake})
 	switch {
 	case err != nil:
 		s.releaseSlot(ctx, broadcasterID)
@@ -482,7 +482,8 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 // slot, drop any partial ledger. Best effort — a leaked deadline key only
 // blocks duels until its own expiry.
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, state.Opener, state.OpenerStake); err != nil {
+	entry := DuelStake{Login: state.Opener, Stake: state.OpenerStake}
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 		s.log.Warn("duel: open rollback refund failed", zap.Uint64("broadcaster_id", broadcasterID),
 			zap.String("login", state.Opener), zap.Int64("amount", state.OpenerStake), zap.Error(err))
 	}
@@ -536,7 +537,7 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, ent
 		return s.joinTotals(ctx, broadcasterID, res)
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, entry.Login, entry.Stake)
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, entry)
 	switch {
 	case err != nil:
 		s.unclaimSeat(ctx, broadcasterID, entry.Login)
@@ -664,7 +665,7 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 		return res, nil
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, login, st.OpenerStake)
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, DuelStake{Login: login, Stake: st.OpenerStake})
 	switch {
 	case err != nil:
 		return res, err
@@ -702,7 +703,8 @@ func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uin
 
 // payWinner credits the pot recorded on a won receipt.
 func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, receipt.Winner, receipt.Pot); err != nil {
+	entry := DuelStake{Login: receipt.Winner, Stake: receipt.Pot}
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 		s.log.Warn("duel: winner credit failed", zap.Uint64("broadcaster_id", broadcasterID),
 			zap.String("winner", receipt.Winner), zap.Int64("pot", receipt.Pot), zap.Error(err))
 	}
@@ -797,7 +799,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, entries []DuelStake) (refunded, total int64) {
 	for _, entry := range SortDuelStakes(entries) {
 		total += entry.Stake
-		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry.Login, entry.Stake); err != nil {
+		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 			s.log.Warn("duel: cancel refund failed", zap.Uint64("broadcaster_id", broadcasterID),
 				zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 			continue
@@ -809,7 +811,7 @@ func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, e
 
 // refund returns one escrowed entry to its owner, logging loudly on failure.
 func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, entry DuelStake) {
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry.Login, entry.Stake); err != nil {
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 		s.log.Warn("duel: refund failed", zap.Uint64("broadcaster_id", broadcasterID),
 			zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 	}
@@ -993,7 +995,7 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 		Digest: DigestDuelPool(sorted), SnapKey: snap,
 		ResolvedAt: time.Now().UnixMilli(),
 	}
-	s.teardownWithSnapshot(ctx, broadcasterID, &receipt, snap)
+	s.teardownWithSnapshot(ctx, broadcasterID, &receipt)
 
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, winner, total); err != nil {
 		s.log.Warn("duel: pot payout failed", zap.Uint64("broadcaster_id", broadcasterID),
@@ -1030,8 +1032,9 @@ func (s *ValkeyDuelStore) refundOnly(ctx context.Context, broadcasterID uint64, 
 
 // teardownWithSnapshot is teardown for the auto-draw path, which renames the
 // ledger aside itself (before crediting) so the snapshot binds to the exact
-// pool the pick ran over.
-func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt, snap string) {
+// pool the pick ran over. The snapshot key rides the receipt.
+func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) {
+	snap := receipt.SnapKey
 	ttl := int64(duelReceiptTTL.Seconds())
 	blob, err := codec.Marshal(receipt)
 	if err != nil {
