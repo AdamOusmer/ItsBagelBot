@@ -163,14 +163,16 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 
 // onStreamTick builds the stream.online/offline handlers: the watch tick
 // follows the stream lifecycle, mirroring the timers module. Fire-and-forget
-// on a Background-derived context, like the live module's writes.
+// on a Background-derived context, like the live module's writes, and run
+// through d.Seq like them so an offline's Disarm cannot race past an online's
+// Arm on this replica (#561).
 func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 	return func(_ context.Context, c *module.Context, _ module.Emit) error {
 		if d.LoyaltyTick == nil {
 			return nil
 		}
 		id := c.BroadcasterID
-		go func() {
+		seqOrGo(d.Seq, id, d.Log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), loyaltyTickTimeout)
 			defer cancel()
 			if arm {
@@ -178,7 +180,7 @@ func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 			} else {
 				d.LoyaltyTick.Disarm(wctx, id)
 			}
-		}()
+		})
 		return nil
 	}
 }

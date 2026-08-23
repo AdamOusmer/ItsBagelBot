@@ -78,6 +78,7 @@ type engineRuntime struct {
 	tick    *engine.ValkeyLoyaltyClock
 	stats   *engine.LoyaltyReporter
 	raffle  *engine.ValkeyRaffleStore
+	seq     *engine.Sequencer
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -114,6 +115,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
 		Dedup: newDedup(w),
+
+		Seq: rt.seq,
 
 		PublicBaseURL: cfg.PublicBaseURL,
 	}

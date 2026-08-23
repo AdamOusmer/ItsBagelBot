@@ -642,7 +642,7 @@ func TestKeyedServesAllEndpoints(t *testing.T) {
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
 	}
-	assert.ElementsMatch(t, []string{"shop", "stats", "session_start", "session"}, names)
+	assert.ElementsMatch(t, []string{"shop", "stats", "session_start", "session", "session_end"}, names)
 }
 
 func TestOddRateLimitDoesNotPanic(t *testing.T) {
