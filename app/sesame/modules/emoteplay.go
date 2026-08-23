@@ -139,6 +139,20 @@ func emotePlayAnnounce(c *module.Context, emit module.Emit, emote string, res en
 //   - Lines wider than maxPyramidWidth are rejected here (not by the store), so
 //     copypasta walls never produce a valkey call at all.
 func emoteShape(text string) (token string, width int, ok bool) {
+	token, i := firstToken(text)
+	if token == "" {
+		return "", 0, false
+	}
+	width, ok = countRepeatedToken(text, i, token)
+	if !ok || !emoteTokenish(token) {
+		return "", 0, false
+	}
+	return token, width, true
+}
+
+// firstToken returns the leading whitespace-delimited token of text plus the
+// offset just past it ("" when text is blank).
+func firstToken(text string) (string, int) {
 	i, n := 0, len(text)
 	for i < n && isASCIISpace(text[i]) {
 		i++
@@ -147,10 +161,14 @@ func emoteShape(text string) (token string, width int, ok bool) {
 	for i < n && !isASCIISpace(text[i]) {
 		i++
 	}
-	token = text[start:i]
-	if token == "" {
-		return "", 0, false
-	}
+	return text[start:i], i
+}
+
+// countRepeatedToken walks the tokens after offset i and returns how many
+// times in total (first occurrence included) token occurs, ok=false the moment
+// any token differs or the pyramid-width cap is exceeded.
+func countRepeatedToken(text string, i int, token string) (width int, ok bool) {
+	n := len(text)
 	width = 1
 	for i < n {
 		for i < n && isASCIISpace(text[i]) {
@@ -164,17 +182,14 @@ func emoteShape(text string) (token string, width int, ok bool) {
 			i++
 		}
 		if i-j != len(token) || text[j:i] != token {
-			return "", 0, false
+			return 0, false
 		}
 		width++
 		if width > maxPyramidWidth {
-			return "", 0, false
+			return 0, false
 		}
 	}
-	if !emoteTokenish(token) {
-		return "", 0, false
-	}
-	return token, width, true
+	return width, true
 }
 
 // emoteTokenish requires at least one letter or digit, so punctuation spam
