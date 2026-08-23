@@ -166,11 +166,13 @@ func newAPI(cfg Config, d provider.Deps) *api {
 	if content == "" {
 		content = defaultContentBaseURL
 	}
-	// HenrikDev's enhanced tier allows 90 requests/min for public bots; the
-	// default stays under it so a burst never trips the upstream's own limiter
-	// (a 429 there costs more than a local deny — it poisons the cache fill).
+	// HenrikDev's Basic tier allows 30 requests/min and that is what the
+	// fleet runs; the default sits AT the ceiling so bursts deny locally
+	// instead of tripping the upstream limiter (a 429 there costs more than a
+	// local deny — it poisons the cache fill). An Enhanced key (90/min) must
+	// raise VALORANT_RATE_LIMIT to match, or the paid headroom is wasted.
 	if cfg.RateLimit <= 0 {
-		cfg.RateLimit = 80
+		cfg.RateLimit = 30
 	}
 	// valorant-api.com publishes no hard limit; 60/min is conservative for a
 	// payload this size, and the skins catalogue caches for a day anyway.
