@@ -106,9 +106,10 @@ const fastSessionMax = 65_536
 // The blast radius is not symmetric either. On the single wire an ambiguous
 // outcome costs one message; on the atomic wire it costs the whole cohort, up to
 // defaultAtomicPublishBatchSize. And atomic cohorts draw on the same per-stream
-// budget of 50 concurrently-open batches that the Elixir ingress fleet already
-// sizes itself against, so a Go publisher going atomic on a stream ingress is
-// also batching is a capacity change, not just a latency one.
+// budget of 200 concurrently-open batches — live since the 2026-08-22 roll,
+// raised from 50 — that the Elixir ingress fleet already sizes itself against,
+// so a Go publisher going atomic on a stream ingress is a capacity change, not
+// just a latency one.
 //
 // Turning it on is therefore a deliberate, per-service manifest edit that redoes
 // that arithmetic — not a default. An unrecognised value picks the smallest blast
