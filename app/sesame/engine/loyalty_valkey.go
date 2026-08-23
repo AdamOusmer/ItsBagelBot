@@ -223,12 +223,13 @@ func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, 
 // increment continues the stored count instead of restarting at zero. Bot
 // scope rides broadcasterID 0 (the reserved bot namespace) and is reachable
 // only from admin/system callers — template and chat paths never pass 0.
-func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64) (int64, error) {
-	name = NormalizeCounterName(name)
-	if name == "" || delta == 0 {
+func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (int64, error) {
+	name := NormalizeCounterName(b.Name)
+	if name == "" || b.Delta == 0 {
 		return 0, nil
 	}
-	scope, viewerID, command := bumpTarget(s.scope(ctx, broadcasterID, name), viewer.ID, NormalizeCounterName(command))
+	scope, viewerID, command := bumpTarget(s.scope(ctx, b.BroadcasterID, name), b.Viewer.ID, NormalizeCounterName(b.Command))
+	viewer := b.Viewer
 	if viewerID == 0 {
 		// The bump fell back to a non-viewer bucket; a stray identity must
 		// not ride a key it does not belong to.
@@ -239,21 +240,21 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, broadcasterID uint
 	var value int64
 	var err error
 	if rowScoped(scope) {
-		value, err = s.bumpChannel(ctx, broadcasterID, name, delta)
+		value, err = s.bumpChannel(ctx, b.BroadcasterID, name, b.Delta)
 	} else {
-		value, err = s.bumpEntry(ctx, broadcasterID, name, entryField(scope, viewerID, command), viewerID, command, delta)
+		value, err = s.bumpEntry(ctx, b.BroadcasterID, name, entryField(scope, viewerID, command), viewerID, command, b.Delta)
 	}
 	if err != nil {
 		return 0, err
 	}
 
 	s.reporter.Bump(CounterBumpTarget{
-		BroadcasterID: broadcasterID,
+		BroadcasterID: b.BroadcasterID,
 		Name:          name,
 		Scope:         scope,
 		Viewer:        viewer,
 		Command:       command,
-	}, delta)
+	}, b.Delta)
 	return value, nil
 }
 

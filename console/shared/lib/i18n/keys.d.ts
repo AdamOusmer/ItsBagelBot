@@ -339,6 +339,7 @@ export type KnownMessageKey =
   | 'counters.pickerEmpty'
   | 'counters.pickerExisting'
   | 'counters.pickerNew'
+  | 'counters.pickerTarget'
   | 'counters.pickerTitle'
   | 'counters.remove'
   | 'counters.rename'

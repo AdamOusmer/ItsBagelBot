@@ -22,6 +22,10 @@
   let counters = $state<CounterRef[]>([]);
   let newName = $state('');
   let newScope = $state<CounterScope>('channel');
+  // When set, inserted tokens take the {counter:target:<name>} spelling: the
+  // bump keys on the viewer the command mentions instead of the sender
+  // (issue #479). The counter's scope still decides the bucket shape.
+  let countTarget = $state(false);
   let creating = $state(false);
   let err = $state('');
 
@@ -54,7 +58,7 @@
   }
 
   function pick(name: string) {
-    onInsert(`{counter:${name}}`);
+    onInsert(countTarget ? `{counter:target:${name}}` : `{counter:${name}}`);
     open = false;
   }
 
@@ -102,6 +106,14 @@
 
   {#if open}
     <div class="panel" role="dialog" aria-label={t('counters.pickerTitle')}>
+      <label class="target" title={countTarget ? '{counter:target:' + (newName || 'name') + '}' : '{counter:' + (newName || 'name') + '}'}>
+        <input type="checkbox" bind:checked={countTarget} />
+        <span>{t('counters.pickerTarget')}</span>
+      </label>
+      {#if countTarget}
+        <code class="preview">{'{counter:target:'}{newName || 'name'}{'}'}</code>
+      {/if}
+
       <p class="panel-title">{t('counters.pickerExisting')}</p>
       {#if loading}
         <p class="mut" role="status">{t('common.loading')}</p>
@@ -177,6 +189,7 @@
     border-radius: 10px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   }
+  :global(:root[data-theme="light"]) .panel { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
 
   .panel-title {
     margin: 0;
@@ -204,11 +217,36 @@
     cursor: pointer;
     text-align: left;
   }
-  .opt:hover { background: rgba(255, 255, 255, 0.05); }
+  .opt:hover { background: var(--glass-fill-2); }
   .opt-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
   .opt-tag { font-family: var(--bb-font-body); font-size: 10.5px; color: var(--bb-muted); white-space: nowrap; }
 
-  .err { font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
+  .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
+
+  /* First row of the panel: who the counter counts against. */
+  .target {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 6px 8px;
+    font-family: var(--bb-font-body);
+    font-size: 11.5px;
+    color: var(--bb-tan-light);
+    background: rgba(201, 168, 124, 0.06);
+    border: 1px solid rgba(201, 168, 124, 0.22);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .target input { margin-top: 1px; accent-color: var(--bb-green-glow, #52b788); }
+  .target:hover { background: rgba(201, 168, 124, 0.12); color: var(--bb-white); }
+  .preview {
+    margin: -2px 0 2px;
+    padding-left: 24px;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    color: var(--bb-green-glow, #52b788);
+    opacity: 0.85;
+  }
 
   .create {
     font-family: var(--bb-font-body);

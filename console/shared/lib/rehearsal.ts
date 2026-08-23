@@ -217,11 +217,15 @@ function replyResolver(samples: Samples, dynamic: boolean): Resolve {
 
 /** {counter:<name>} bumps and renders the counter. The name normalizes like
  * NormalizeCounterName (trim, drop one leading '!', trim, lower-case).
- * Bot-scope counters (bot:…) are admin-only and an empty name never resolves,
- * so both stay literal, exactly like the engine. */
+ * A {counter:target:<name>} spelling keys the bump on the mentioned viewer
+ * instead of the sender (issue #479); it rehearses the same way once the
+ * addressing prefix comes off. Bot-scope counters (bot:…) are admin-only and
+ * an empty name never resolves, so both stay literal, exactly like the engine. */
 function counterSample(token: Token): string | null {
   const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
-  if (name === '' || name.startsWith('bot:')) return null;
+  if (name === '') return null;
+  const base = name.startsWith('target:') ? name.slice('target:'.length) : name;
+  if (base === '' || base.startsWith('bot:')) return null;
   return COUNTER_SAMPLE;
 }
 
