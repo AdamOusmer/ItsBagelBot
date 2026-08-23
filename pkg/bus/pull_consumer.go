@@ -623,6 +623,7 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	s.inflight.Add(1)
 	delivery.msg.setResolveHandler(func(acked bool) {
 		defer s.inflight.Done()
+		defer pullEnvelopePool.Put(delivery.wire)
 		if !acked {
 			s.scheduleRetry(delivery)
 		}
@@ -651,6 +652,30 @@ func (s *pullSubscriber) decode(wire jsapi.Msg) (pullDelivery, bool) {
 	return pullDelivery{wire: core, msg: msg}, true
 }
 
+// pullEnvelopePool recycles the per-delivery *nats.Msg envelope that
+// pullWireMessage rebuilds for the shared decode and retry helpers. The
+// envelope never outlives its Message's resolution: messageFromNATS copies the
+// identity and metadata out and leaves only a Data alias on the delivered
+// Message (owned by the fetch batch, untouched here), and the resolve handler —
+// which fires exactly once, after the handler finishes — is the last reader
+// before Put returns it. Data is deliberately not cleared on Put: the acquirer
+// overwrites every field, and the old buffer may still be aliased by a delivered
+// Message's payload.
+var pullEnvelopePool = sync.Pool{New: func() any { return new(nats.Msg) }}
+
+// resetPullHeader prepares a pooled envelope's header map for reuse: nil gets
+// an initial map sized for the identity key plus typical application headers;
+// otherwise every prior key is dropped. Returns the map to write into.
+func resetPullHeader(h nats.Header) nats.Header {
+	if h == nil {
+		return make(nats.Header, 2)
+	}
+	for k := range h {
+		delete(h, k)
+	}
+	return h
+}
+
 // pullWireMessage rebuilds the core message the shared decode and retry helpers
 // speak.
 //
@@ -661,19 +686,20 @@ func (s *pullSubscriber) decode(wire jsapi.Msg) (pullDelivery, bool) {
 // (which carries no publisher-set id) would mint a fresh NUID per delivery, and
 // a retry hop would land under an id no dedup guard could match to the original.
 func pullWireMessage(wire jsapi.Msg) *nats.Msg {
-	core := &nats.Msg{
-		Subject: wire.Subject(),
-		Reply:   wire.Reply(),
-		Header:  wire.Headers(),
-		Data:    wire.Data(),
+	core := pullEnvelopePool.Get().(*nats.Msg)
+	core.Subject = wire.Subject()
+	core.Reply = wire.Reply()
+	core.Data = wire.Data()
+	core.Header = resetPullHeader(core.Header)
+	for key, values := range wire.Headers() {
+		core.Header[key] = values
 	}
 	metadata, err := wire.Metadata()
 	if err != nil || metadata.Sequence.Stream == 0 {
 		return core
 	}
-	if core.Header == nil {
-		core.Header = nats.Header{}
-	}
+	// Stamped after reset so a recycled envelope cannot carry a prior
+	// delivery's identity forward.
 	if core.Header.Get(MessageIDHeader) == "" {
 		core.Header.Set(MessageIDHeader,
 			jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream))
