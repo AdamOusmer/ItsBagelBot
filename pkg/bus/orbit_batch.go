@@ -372,7 +372,11 @@ func (w *publishBatchWorker) atomicPublisher() (atomicCohortPublisher, error) {
 	}
 	publisher, err := jetstreamext.NewBatchPublisher(
 		w.owner.modern,
-		jetstreamext.BatchFlowControl{AckFirst: true, AckTimeout: defaultPublishAckWait},
+		// AckFirst costs a synchronous request-reply per cohort before staging;
+		// its necessity (typed rejection proof enabling safe replay) trades
+		// against confirmed-publish latency under load — measured decomposition
+		// lives with the bench. NATS_ATOMIC_ACK_FIRST tunes it.
+		jetstreamext.BatchFlowControl{AckFirst: env.GetBool("NATS_ATOMIC_ACK_FIRST", true), AckTimeout: defaultPublishAckWait},
 	)
 	if err != nil {
 		return nil, err
