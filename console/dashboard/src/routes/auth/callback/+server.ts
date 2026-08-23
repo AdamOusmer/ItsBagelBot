@@ -217,30 +217,49 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
   }
 }
 
+// callbackGate validates the provider callback against the HttpOnly state /
+// nonce cookies and returns either the exchange inputs or the /login error
+// slug. Keeping both guards here means GET itself spends a single branch.
+function callbackGate(
+  code: string | null,
+  state: string | null,
+  storedState: string | undefined,
+  storedNonce: string | undefined
+): { ok: true; code: string; storedNonce: string } | { ok: false; slug: string } {
+  if (!validOAuthState(code, state, storedState)) return { ok: false, slug: 'state' };
+  // The shared client enforces the id_token nonce claim, so the cookie is now
+  // mandatory: a flow that lost it fails closed here instead of logging in
+  // without replay protection.
+  if (!storedNonce) return { ok: false, slug: 'state' };
+  return { ok: true, code, storedNonce };
+}
+
+// runLogin performs the exchange and maps OAuth-level failures onto
+// /login?e=oauth; any other error is a real server failure and propagates.
+async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+  try {
+    await completeLogin(cookies, url, code, storedNonce);
+  } catch (e) {
+    if (!(e instanceof ResponseBodyError)) throw e;
+    throw redirect(302, '/login?e=oauth');
+  }
+}
+
 export const GET: RequestHandler = async ({ url, cookies }) => {
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
-  const stored = cookies.get('oauth_state');
-  const storedNonce = cookies.get('oauth_nonce');
-  // Deep link stored by /auth/login (e.g. /billing?subscribe=1 from the
-  // pricing page). Re-validated here: the cookie is client-writable.
   const next = safeNextPath(cookies.get('login_next'));
+  const gate = callbackGate(
+    url.searchParams.get('code'),
+    url.searchParams.get('state'),
+    cookies.get('oauth_state'),
+    cookies.get('oauth_nonce')
+  );
   cookies.delete('oauth_state', { path: '/' });
   cookies.delete('oauth_nonce', { path: '/' });
   cookies.delete('login_next', { path: '/' });
 
-  if (!validOAuthState(code, state, stored)) throw redirect(302, '/login?e=state');
-  // The shared client enforces the id_token nonce claim, so the cookie is now
-  // mandatory: a flow that lost it fails closed here instead of logging in
-  // without replay protection.
-  if (!storedNonce) throw redirect(302, '/login?e=state');
+  if (!gate.ok) throw redirect(302, `/login?e=${gate.slug}`);
 
-  try {
-    await completeLogin(cookies, url, code, storedNonce);
-  } catch (e) {
-    if (e instanceof ResponseBodyError) throw redirect(302, '/login?e=oauth');
-    throw e;
-  }
+  await runLogin(cookies, url, gate.code, gate.storedNonce);
 
   // Owner session minted: honor the stored deep link (delegate sessions
   // redirect inside completeLogin and never reach this).
