@@ -435,20 +435,7 @@ export function parseStreamElements(raw: Uint8Array | string): {
   manifest: ImportManifest;
   diagnostics: ImportDiagnostic[];
 } {
-  const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-  let doc: unknown;
-  try {
-    doc = JSON.parse(text);
-  } catch (err) {
-    throw new Error(`streamelements: payload is not a commands/timers envelope: ${(err as Error).message}`);
-  }
-  if (doc === null || typeof doc !== 'object' || Array.isArray(doc))
-    throw new Error('streamelements: payload is not a commands/timers envelope: JSON must be an object');
-  const env = doc as Record<string, unknown>;
-  if (env.commands !== undefined && !Array.isArray(env.commands))
-    throw new Error('streamelements: payload is not a commands/timers envelope: commands must be an array');
-  if (env.timers !== undefined && !Array.isArray(env.timers))
-    throw new Error('streamelements: payload is not a commands/timers envelope: timers must be an array');
+  const env = decodeSeEnvelope(raw);
 
   const manifest: ImportManifest = {};
   const diags: ImportDiagnostic[] = [];
@@ -456,14 +443,50 @@ export function parseStreamElements(raw: Uint8Array | string): {
   // Empty collections are deleted so the serialized shape mirrors the Go
   // struct's omitempty tags exactly.
   manifest.commands = [];
-  parseCommands(env.commands ?? [], manifest.commands, manifest, diags);
-  if (manifest.commands.length === 0) delete manifest.commands;
+  parseCommands((env.commands as unknown[] | undefined) ?? [], manifest.commands, manifest, diags);
+  omitIfEmpty(manifest, 'commands');
 
   manifest.timers = [];
-  parseTimers(env.timers ?? [], manifest.timers, diags);
-  if (manifest.timers.length === 0) delete manifest.timers;
+  parseTimers((env.timers as unknown[] | undefined) ?? [], manifest.timers, diags);
+  omitIfEmpty(manifest, 'timers');
 
   return { manifest, diagnostics: diags };
+}
+
+function omitIfEmpty(m: ImportManifest, key: 'commands' | 'timers'): void {
+  if ((m[key]?.length ?? 0) === 0) delete m[key];
+}
+
+// decodeSeEnvelope validates the fetched JSON's outer shape against the
+// kappa v2 envelope, mirroring the Go decoder's error prose.
+function decodeSeEnvelope(raw: Uint8Array | string): Record<string, unknown> {
+  const doc = parseEnvelopeJson(decodeText(raw));
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) throw notEnvelope('JSON must be an object');
+  const env = doc as Record<string, unknown>;
+  requireArrayField(env, 'commands');
+  requireArrayField(env, 'timers');
+  return env;
+}
+
+function decodeText(raw: Uint8Array | string): string {
+  return typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+}
+
+function parseEnvelopeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`streamelements: payload is not a commands/timers envelope: ${(err as Error).message}`);
+  }
+}
+
+function notEnvelope(reason: string): Error {
+  return new Error(`streamelements: payload is not a commands/timers envelope: ${reason}`);
+}
+
+function requireArrayField(env: Record<string, unknown>, field: string): void {
+  const value = env[field];
+  if (value !== undefined && !Array.isArray(value)) throw notEnvelope(`${field} must be an array`);
 }
 
 // NoteSink accumulates the per-item warn diagnostics that also surface on the
@@ -1009,13 +1032,15 @@ function closesDelimited(ch: string, openParen: boolean, depth: { paren: number;
 function matchBrace(s: string, start: number): number {
   let depth = 0;
   for (let j = start; j < s.length; j++) {
-    if (s[j] === '{') depth++;
-    else if (s[j] === '}') {
-      depth--;
-      if (depth === 0) return j + 1;
-    }
+    depth += braceStep(s[j]);
+    if (depth === 0) return j + 1;
   }
   return -1;
+}
+
+function braceStep(ch: string): number {
+  if (ch === '{') return 1;
+  return ch === '}' ? -1 : 0;
 }
 
 // legacyCandidate reports whether a bare-brace body names a variable family we
