@@ -86,7 +86,13 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		automod.WithChannel(mctx.BroadcasterID),
 		automod.WithChatter(env.ChatterUserID),
 		automod.WithMessageEmotes(p.adaptiveEmoteCodes(mctx)))
-	v = p.campaignVote(ctx, v, sigs, mctx.BroadcasterID, env)
+	v = p.campaignVote(ctx, voteInput{
+		verdict:     v,
+		simhash:     sigs.SimHash,
+		linkish:     sigs.Linkish,
+		broadcaster: mctx.BroadcasterID,
+		sender:      env.ChatterUserID,
+	})
 	if v.Action == automod.ActionNone {
 		return false
 	}
@@ -126,33 +132,49 @@ func shadowText(actioned bool, text string) zap.Field {
 	return zap.String("text", text)
 }
 
+// voteInput carries one campaign-juror consultation: the verdict so far this
+// pass, the line's template fingerprint and link shape from the assess pass,
+// and the tenant/sender pair that scopes and deduplicates the quorum count.
+// One struct instead of five positional arguments keeps the call site
+// self-describing — broadcaster and sender are easy to swap when read apart
+// from their names.
+type voteInput struct {
+	verdict     automod.Verdict
+	simhash     uint64
+	linkish     bool
+	broadcaster uint64
+	sender      string
+}
+
 // campaignVote consults the campaign juror (the council's cross-sender vote):
 // the valkey distinct-sender count for this line's template, when the line is
 // either already content-flagged at delete level or an unflagged link carrier.
-// broadcasterID scopes the count to this one channel — a quorum is senders
+// The broadcaster scopes the count to this one channel — a quorum is senders
 // within a tenant, never across the fleet. Corroboration escalates a delete to
 // a timeout; on its own it only adds the mildest action (delete), never a
 // punishment - abstain in favor of the user. Observe is HLL-idempotent per sender.
-func (p *Pipeline) campaignVote(ctx context.Context, v automod.Verdict, sigs automod.Signals, broadcasterID uint64, env *lane.Envelope) automod.Verdict {
-	if p.campaign == nil || sigs.SimHash == 0 {
-		return v
+func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) automod.Verdict {
+	if p.campaign == nil || in.simhash == 0 {
+		return in.verdict
 	}
-	if !sigs.Linkish && v.Action != automod.ActionDelete {
-		return v
+	if !in.linkish && in.verdict.Action != automod.ActionDelete {
+		return in.verdict
 	}
-	if p.campaign.Observe(ctx, broadcasterID, sigs.SimHash, env.ChatterUserID) < campaignThreshold {
-		return v
+	if p.campaign.Observe(ctx, in.broadcaster, in.simhash, in.sender) < campaignThreshold {
+		return in.verdict
 	}
 
-	switch v.Action {
+	switch in.verdict.Action {
 	case automod.ActionNone:
 		return automod.Verdict{Action: automod.ActionDelete, Rule: "council:campaign"}
 	case automod.ActionDelete:
+		v := in.verdict
 		v.Action = automod.ActionTimeout
 		v.Seconds = 600
 		v.Rule += "+campaign"
+		return v
 	}
-	return v
+	return in.verdict
 }
 
 // gateCohort handles a folded duplicate cohort: plain chat the ingress squash

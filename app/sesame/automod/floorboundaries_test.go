@@ -40,8 +40,14 @@ func assertInfraFloorCaughtShapes(t *testing.T, g *Gate) {
 	for _, tt := range caught {
 		t.Run(tt.name, func(t *testing.T) {
 			v := g.Inspect(module.RoleEveryone, tt.line)
-			if v.Action != ActionTimeout || v.Rule != tt.rule || v.Seconds != 600 {
-				t.Fatalf("Inspect(%q) = %+v, want timeout/600s rule=%s", tt.line, v, tt.rule)
+			if v.Action != ActionTimeout {
+				t.Fatalf("Inspect(%q) = %s/%s, want a timeout", tt.line, v.Action, v.Rule)
+			}
+			if v.Rule != tt.rule {
+				t.Fatalf("Inspect(%q) ruled %s, want %s", tt.line, v.Rule, tt.rule)
+			}
+			if v.Seconds != 600 {
+				t.Fatalf("Inspect(%q) timed out for %ds, want 600s", tt.line, v.Seconds)
 			}
 		})
 	}

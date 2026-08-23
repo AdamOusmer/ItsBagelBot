@@ -107,8 +107,14 @@ func assertOnlySpaceWhitespace(t *testing.T, text string, out []byte) {
 func assertNoControlsOrCombining(t *testing.T, text string, out []byte) {
 	t.Helper()
 	for _, r := range string(out) {
-		if r != ' ' && (isStrippable(r) || r < 0x20 || r == 0x7f) {
+		if r == ' ' {
+			continue
+		}
+		if isStrippable(r) {
 			t.Fatalf("Normalize(%q) = %q: strippable rune %U survives", text, out, r)
+		}
+		if r < 0x20 || r == 0x7f {
+			t.Fatalf("Normalize(%q) = %q: control rune %U survives", text, out, r)
 		}
 	}
 }

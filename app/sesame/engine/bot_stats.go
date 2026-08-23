@@ -142,35 +142,46 @@ func stripRuleSuffixes(rule string) string {
 	return base
 }
 
-// baseRuleBucket resolves a suffix-free base rule onto its bucket: matched
-// exactly (floor categories, the heuristics, the block term verdict, the
-// council escalation and shield mode) or by lexicon category prefix. Unknown
-// rules fold into other.
+// baseRuleBuckets resolves the exact-match base rules onto their buckets,
+// built once at package init. The lexicon categories are absent on purpose:
+// their verdict strings carry a term suffix ("lex:hate:slur"), so they match
+// by prefix in baseRuleBucket's fallback, not by whole-string equality.
+var baseRuleBuckets = map[string]flagRuleBucket{
+	ruleIPLogger:   bktIPLogger,
+	ruleScam:       bktScam,
+	ruleHeuristic:  bktHeuristic,
+	ruleBlockTerm:  bktBlockTerm,
+	ruleCouncil:    bktCouncil,
+	ruleShieldMode: bktShieldMode,
+}
+
+// lexBaseRules pairs the lexicon category prefixes with their buckets, in the
+// flagRuleBucket order the log fields expect. A linear scan over four
+// disjoint, non-overlapping prefixes is cheaper to keep correct than a second
+// map keyed on truncated strings.
+var lexBaseRules = [...]struct {
+	prefix string
+	bucket flagRuleBucket
+}{
+	{ruleLexHate, bktLexHate},
+	{ruleLexHarassment, bktLexHarassment},
+	{ruleLexSexual, bktLexSexual},
+	{ruleLexProfanity, bktLexProfanity},
+}
+
+// baseRuleBucket resolves a suffix-free base rule onto its bucket: an exact
+// hit against the floor/heuristic/block-term/council/shield set, else a
+// lexicon category prefix, else other.
 func baseRuleBucket(base string) flagRuleBucket {
-	switch {
-	case base == ruleIPLogger:
-		return bktIPLogger
-	case base == ruleScam:
-		return bktScam
-	case base == ruleHeuristic:
-		return bktHeuristic
-	case base == ruleBlockTerm:
-		return bktBlockTerm
-	case base == ruleCouncil:
-		return bktCouncil
-	case base == ruleShieldMode:
-		return bktShieldMode
-	case strings.HasPrefix(base, ruleLexHate):
-		return bktLexHate
-	case strings.HasPrefix(base, ruleLexHarassment):
-		return bktLexHarassment
-	case strings.HasPrefix(base, ruleLexSexual):
-		return bktLexSexual
-	case strings.HasPrefix(base, ruleLexProfanity):
-		return bktLexProfanity
-	default:
-		return bktOther
+	if bkt, ok := baseRuleBuckets[base]; ok {
+		return bkt
 	}
+	for _, lx := range lexBaseRules {
+		if strings.HasPrefix(base, lx.prefix) {
+			return lx.bucket
+		}
+	}
+	return bktOther
 }
 
 // Log field names for the detection-flag flushes. Flags surface only as log
