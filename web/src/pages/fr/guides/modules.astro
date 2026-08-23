@@ -12,7 +12,7 @@ const sections = [
     { id: 'how', heading: 'Comment fonctionnent les modules', note: 'Un interrupteur par fonction. Cliquez la tuile pour que ses messages sonnent comme vous.' },
     { id: 'welcome', heading: 'Accueillir le monde', note: "Alertes, shoutouts de raid, mots déclencheurs et l'heure chez vous." },
     { id: 'economy', heading: 'Points, récompenses et minuteries', note: 'Des points de fidélité pour la présence, des récompenses de points de chaîne qui agissent, et des messages planifiés.' },
-    { id: 'together', heading: 'Jouer ensemble', note: "Une file d'attente équitable et un recueil des meilleures citations du chat." },
+    { id: 'together', heading: 'Jouer ensemble', note: "Une loterie sans contestation possible, une file d'attente équitable et un recueil des meilleures citations du chat." },
     { id: 'games', heading: 'Stats de jeu dans le chat', note: 'Hypixel Bedwars, MCSR Ranked et Fortnite, à une commande de distance.' },
     { id: 'safety', heading: 'Modération et commandes intégrées', note: "Les quatre niveaux d'AutoMod, et les trois commandes livrées avec le bot." },
 ];
@@ -20,7 +20,7 @@ const sections = [
 
 <Layout
     title="Le manuel des modules — Guides ItsBagelBot"
-    description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, file d'attente, citations, stats de jeu et AutoMod."
+    description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, loteries, file d'attente, citations, stats de jeu et AutoMod."
     ogType="article"
 >
     <PageHero
@@ -167,6 +167,30 @@ const sections = [
         </Fragment>
 
         <Fragment slot="together">
+            <h3>Loterie</h3>
+            <p>
+                Un tirage au sort minuté, impossible à contester. Les spectateurs participent une
+                seule fois avec <code>!join</code> ; le bot fait le compte à rebours à voix haute à
+                l'intervalle que vous choisissez, puis tire lui-même les gagnants à la fin du délai
+                — uniformément au hasard, une participation par spectateur, avec un reçu
+                vérifiable. Les gagnants confirment avec <code>!claim</code>. Vous et vos modérateurs
+                lancez avec <code>!raffle open</code>, clôturez en avance avec
+                <code>!raffle draw</code>, ou annulez avec <code>!raffle cancel</code>.
+            </p>
+            <ChatMock
+                title="#votre_chaine"
+                caption="Ouverte, rappelée, tirée, confirmée."
+                lines={[
+                    { who: 'mod', name: 'mod_sam', text: '!raffle open 10' },
+                    { who: 'bot', text: 'La loterie est LANCÉE ! Tapez !join pour participer — tirage dans 10 min !' },
+                    { who: 'bot', text: 'Rappel loterie : ~5 min restantes ! 14 inscrits — tapez !join ! Les gagnants doivent taper !claim.' },
+                    { who: 'viewer', name: 'maya_live', text: '!join' },
+                    { who: 'bot', text: "@maya_live c'est bon, tu participes ! 15 inscrits pour l'instant. Bonne chance !" },
+                    { who: 'bot', text: '@crustycrumbs, @maya_live — félicitations ! Vous avez gagné la loterie (2 gagnant(s) parmi 15) ! Tapez !claim dans les 15 min pour confirmer votre lot !' },
+                    { who: 'viewer', name: 'maya_live', text: '!claim' },
+                    { who: 'bot', text: '@maya_live ton lot est confirmé — profite bien !' },
+                ]}
+            />
             <h3>File d'attente</h3>
             <p>
                 «Je peux jouer?» devient libre-service. Les spectateurs entrent dans la file avec
@@ -200,7 +224,7 @@ const sections = [
 
         <Fragment slot="games">
             <p>
-                Trois intégrations mettent les stats de jeu dans le chat pour que personne ne quitte le
+                Quatre intégrations mettent les stats de jeu dans le chat pour que personne ne quitte le
                 stream. Liez votre compte une fois sur la page du module; chaque réponse est un modèle
                 réécrivable avec des variables propres au jeu.
             </p>
@@ -222,6 +246,11 @@ const sections = [
                             <td>Stats Fortnite</td>
                             <td><code>!fn</code> <code>!fn season</code> <code>!fn session</code> <code>!fn store</code></td>
                             <td>Stats à vie, de saison et du stream (victoires, K/D, taux de victoire), plus la boutique du jour.</td>
+                        </tr>
+                        <tr>
+                            <td>Stats Clash Royale</td>
+                            <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
+                            <td>Profil à vie (niveau, victoires/défaites, taux de victoire), le deck actuel avec son élixir moyen, le classement Path of Legends et le record trophée — par tag de joueur.</td>
                         </tr>
                     </tbody>
                 </table>

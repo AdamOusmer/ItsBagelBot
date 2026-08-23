@@ -107,6 +107,64 @@ func TestBoolNilAlwaysPasses(t *testing.T) {
 	}
 }
 
+// fakeConn records whether the probe spent a round trip, so the fast-path
+// (cached state already false) is distinguishable from the heartbeat itself.
+type fakeConn struct {
+	connected bool
+	flushErr  error
+	flushed   bool
+}
+
+func (f *fakeConn) IsConnected() bool { return f.connected }
+
+func (f *fakeConn) FlushTimeout(time.Duration) error {
+	f.flushed = true
+	return f.flushErr
+}
+
+func TestNATSHeartbeat(t *testing.T) {
+	cases := []struct {
+		name      string
+		conn      *fakeConn
+		ctx       context.Context
+		wantErr   bool
+		wantFlush bool
+	}{
+		{"disconnected fails without a round trip",
+			&fakeConn{connected: false}, context.Background(), true, false},
+		{"connected passes the round trip",
+			&fakeConn{connected: true}, context.Background(), false, true},
+		{"failed pong fails the check",
+			&fakeConn{connected: true, flushErr: errors.New("i/o timeout")}, context.Background(), true, true},
+		{"expired deadline fails before flushing",
+			&fakeConn{connected: true}, expiredCtx(), true, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := NATS("nats", tc.conn).Probe(tc.ctx)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("probe err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.conn.flushed != tc.wantFlush {
+				t.Fatalf("flushed = %v, want %v", tc.conn.flushed, tc.wantFlush)
+			}
+		})
+	}
+}
+
+func TestNATSNilConnAlwaysPasses(t *testing.T) {
+	if err := NATS("x", nil).Probe(context.Background()); err != nil {
+		t.Fatalf("nil conn: %v", err)
+	}
+}
+
+func expiredCtx() context.Context {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	cancel()
+	return ctx
+}
+
 func TestProbeSeesDeadline(t *testing.T) {
 	s := NewSet("svc", Check{Name: "slow", Probe: func(ctx context.Context) error {
 		if _, ok := ctx.Deadline(); !ok {

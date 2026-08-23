@@ -36,6 +36,11 @@ import (
 
 const serviceName = "users"
 
+// shutdownFlushBudget bounds the final write-behind drain on SIGTERM: long
+// enough for a healthy flush window plus its event publishes, short enough
+// that a rolling restart is not slowed by a database that stopped answering.
+const shutdownFlushBudget = 10 * time.Second
+
 // fatalIf aborts startup on err: the users service cannot run degraded without
 // any of its core dependencies, so a failed step must crash the pod.
 func fatalIf(log *zap.Logger, err error, msg string) {
@@ -64,8 +69,14 @@ func main() {
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 
-	repo := repository.NewUsers(client, packer, pub)
-	defer repo.Close()
+	repo := repository.NewUsers(client, packer, pub, nrApp, log)
+	defer func() {
+		// Bounded so a shutdown cannot hang on the final preference drain;
+		// the batcher's own flush deadline caps each window inside it.
+		flushCtx, cancel := context.WithTimeout(context.Background(), shutdownFlushBudget)
+		defer cancel()
+		repo.Close(flushCtx)
+	}()
 
 	closeConsumers := startConsumers(ctx, natsURL, repo, log)
 	defer closeConsumers()
@@ -86,7 +97,7 @@ func main() {
 	// means the pool went cold and is paying the ~18ms handshake instead
 	// of reusing a conn.
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.Bool("nats", nc.IsConnected),
+		health.NATS("nats", nc),
 		health.Degrades(db.HealthCheck("mysql", dbPool)))
 	subjects.logReady(log)
 

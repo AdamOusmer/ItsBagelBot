@@ -53,9 +53,14 @@ so a stale flight cannot repopulate the cache after the fact.
 **Write-behind batching for settings (`pkg/batch`).** Module and command writes go through a coalescing batcher:
 writes to the same key within a flush window (2 seconds, or 256 pending keys, whichever comes first) collapse into
 the latest value, and the whole window lands in a single database transaction. A failed flush is retried on the next
-window without clobbering newer writes. Five clicks on the same toggle cost one row write. The trade-off is stated
-on the type itself: a value sits in memory for at most the flush interval before it is persisted, so only state that
-a user can re-submit goes through it. Transactions, tier changes, and tokens write through immediately.
+window without clobbering newer writes, and every flush runs under a hard deadline so a database that accepts
+connections but never answers cannot pin the batcher's goroutine while writes keep accumulating. Five clicks on the
+same toggle cost one row write. The users service routes the same class of re-submittable preference state through
+it (active toggle, locale, custom cursor, onboarded, creator code), merging all of one user's pending fields into a
+single row update and announcing each changed user once per window. The trade-off is stated on the type itself: a
+value sits in memory for at most the flush interval before it is persisted, so only state that a user can re-submit
+goes through it. Transactions, tier changes, bans, and tokens write through immediately; tier changes because money,
+bans because they are moderation enforcement actions whose effect must not wait on a flush window.
 
 **Event-carried invalidation over the native NATS bus (`pkg/bus`).** Events publish only after the database commit and carry
 the full new state, so consumers update themselves from the event alone and never read another service's schema.

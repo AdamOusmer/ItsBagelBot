@@ -18,19 +18,24 @@ import { adminL1CacheCapacity } from './config-sanity';
 // SvelteKit's dynamic-env proxy at module-eval time during server.init()
 // deadlocks the handler import (unsettled top-level await -> exit 13). In
 // adapter-node process.env carries the same values.
+//
+// Env fallbacks use `||`, not `??` (same rule as dashboard/services.ts SUB): a
+// set-but-blank Doppler var through `??` collapses every subject here to a
+// leading-dot fragment and turns RPCs into silent timeouts. All defaults are
+// non-empty strings, so `||` discards nothing legitimate.
 const SUB = {
-  shards: process.env.NATS_ADMIN_SUBJECT ?? 'twitch.ingress.admin.shards.get',
-  scale: process.env.NATS_SHARD_SCALE_SUBJECT ?? 'twitch.ingress.admin.shards.scale',
-  autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT ?? 'twitch.ingress.admin.shards.autoscale',
-  status: process.env.NATS_STATUS_SUBJECT_PREFIX ?? 'twitch.ingress.status',
-  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user',
-  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.auth',
-  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
-  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.admin.notifications',
-  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
-  health: process.env.NATS_RPC_HEALTH_PREFIX ?? 'bagel.rpc.health'
+  shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
+  scale: process.env.NATS_SHARD_SCALE_SUBJECT || 'twitch.ingress.admin.shards.scale',
+  autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT || 'twitch.ingress.admin.shards.autoscale',
+  status: process.env.NATS_STATUS_SUBJECT_PREFIX || 'twitch.ingress.status',
+  user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX || 'bagel.rpc.admin.user',
+  auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX || 'bagel.rpc.admin.user.auth',
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'bagel.rpc.admin.user.audit',
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
+  notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
+  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health'
 };
 
 export const STATUS_PREFIX = SUB.status;

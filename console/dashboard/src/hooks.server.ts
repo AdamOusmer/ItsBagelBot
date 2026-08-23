@@ -113,6 +113,59 @@ function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof
   });
 }
 
+// Anonymous renders of the public surfaces are identical for every visitor,
+// so they can be served straight from Cloudflare's edge instead of crossing
+// cloudflared -> traefik -> pod on every view (crawlers and drive-by traffic
+// are exactly the load that never needs to reach the cluster). [edgeTtlSec,
+// swrSec] keyed by route id; /login is near-static, /stats is a live snapshot
+// kept tight because its numbers are the point, channel pages change only
+// when a streamer edits settings.
+const EDGE_CACHE: Record<string, readonly [number, number]> = {
+  '/login': [600, 86_400],
+  '/(public)/stats': [30, 300],
+  '/(public)/[user]': [60, 300],
+  '/user/[channel]': [60, 300]
+};
+
+// Returns the Cache-Control that replaces harden()'s blanket HTML no-store
+// when this request provably produced the shared default render, else null.
+//
+// The gates exist because Cloudflare's cache key ignores cookies and
+// Accept-Language: anything request-specific must be excluded at origin
+// rather than varied at the edge.
+//   * anonymous only — an authed render must never be replayed to another
+//     user; guard.ts has already settled locals.session above.
+//   * locale 'en' only — detectLocale falls back to Accept-Language, so
+//     otherwise the first visitor's language would win the cache entry for
+//     every subsequent visitor for the whole TTL.
+//   * no ?lang param — it pins the locale cookie, and Set-Cookie responses
+//     must never be shared from a CDN.
+//   * cursor cookie not '0' — the opt-out flips markup server-side; any other
+//     value renders byte-identical to no cookie.
+//
+// max-age=0 keeps browsers revalidating each navigation (kit ETag -> cheap
+// 304) while the edge serves HITs for s-maxage; stale-while-revalidate lets
+// Cloudflare serve its stale copy during background revalidation, so TTL
+// expiry never stampedes origin. Edge hits bypass traefik and the pods
+// entirely, which also means they bypass the per-IP rate limits — intended:
+// abuse of these paths is absorbed by Cloudflare before it reaches us.
+//
+// CSP nonces: SvelteKit mints one per request into both the header and the
+// inline scripts, so a cached page replays a single nonce on every hit; on
+// these public pages anyone can read the nonce by fetching the URL, so
+// sharing it costs nothing. Authenticated pages keep harden()'s no-store.
+function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Response): string | null {
+  const ttl = EDGE_CACHE[event.route.id ?? ''];
+  if (!ttl) return null;
+  if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return null;
+  if (res.status !== 200 || !res.headers.get('content-type')?.includes('text/html')) return null;
+  if (event.locals.session) return null;
+  if (event.locals.locale !== 'en') return null;
+  if (event.url.searchParams.has('lang')) return null;
+  if (event.cookies.get(CURSOR_COOKIE) === '0') return null;
+  return `public, max-age=0, s-maxage=${ttl[0]}, stale-while-revalidate=${ttl[1]}`;
+}
+
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
@@ -160,6 +213,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   });
 
   harden(res, PERMISSIONS_POLICY);
+  const cacheControl = edgeCacheControl(event, res);
+  if (cacheControl) res.headers.set('Cache-Control', cacheControl);
   return res;
 };
 

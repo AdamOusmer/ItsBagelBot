@@ -162,9 +162,9 @@ const (
 	//	than a slow one, so the ceiling stops where the budget stops.
 	//
 	// Pools are per subscription, so the process-wide worst case is this ceiling
-	// times the number of subjects. gossip registers fifteen: urchin 5, fortnite
-	// 4, mcsr 3, govee 2, hypixel 1 (clashroyale is written but not returned by
-	// providers.All, so it subscribes nothing). All fifteen saturated with
+	// times the number of subjects. gossip registers nineteen: urchin 5,
+	// fortnite 4, clashroyale 4, mcsr 3, govee 2, hypixel 1. All nineteen
+	// saturated with
 	// pathological 4MiB bodies is past the limit and is NOT defended by this
 	// ceiling; it is defended by the shape of the workload (chat commands, one or
 	// two hot endpoints at a time), by the per-upstream buckets, and by the fact

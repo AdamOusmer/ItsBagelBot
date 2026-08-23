@@ -1233,6 +1233,88 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     ]
   },
   {
+    // All four !cr views ride gossip's one shared Clash Royale profile cache,
+    // so their token palettes below mirror app/sesame/modules/clashroyale.go.
+    id: 'clashroyale',
+    label: 'Clash Royale Stats',
+    tagline: 'Clash Royale profiles, decks and Path of Legends standing in chat.',
+    description:
+      'One command, four looks: !cr shows a player\'s lifetime profile (level, win/loss record, win rate, three-crown wins, clan); !cr decks lists their current battle deck with the average elixir cost; !cr ranked shows their Path of Legends standing (falling back to legacy league seasons for older accounts); !cr road shows their trophy-road record and arena. The squashed forms !crstats, !crdecks, !crranked and !crroad work too. Link your player tag below — Clash Royale has no name lookup, so a tag like #P2LQ0GR is required. Viewers can also name any tag, e.g. "!cr #P2LQ0GR".',
+    icon: 'gamepad',
+    category: 'Games',
+    defaultEnabled: false,
+    replies: [
+      {
+        key: 'stats',
+        label: '!cr',
+        tagline: 'Lifetime profile — !cr, !cr stats or !crstats.',
+        event: '!cr',
+        command: 'cr',
+        enableKey: 'statsEnabled',
+        messageKey: 'statsMessage',
+        defaultMessage: '{player} · level {level} · {wins}W/{losses}L · {winrate}% WR · {crowns} three-crowns · {clan}',
+        tokens: ['player', 'tag', 'level', 'wins', 'losses', 'draws', 'battles', 'winrate', 'crowns', 'challengemax', 'donations', 'totaldonations', 'clan', 'favcard'],
+        previewSamples: {
+          player: 'Bagel', tag: '#P2LQ0GR', level: '62', wins: '600', losses: '300', draws: '100',
+          battles: '1000', winrate: '60', crowns: '120', challengemax: '12', donations: '50',
+          totaldonations: '10000', clan: 'Bakery', favcard: 'Knight'
+        }
+      },
+      {
+        key: 'decks',
+        label: '!cr decks',
+        tagline: "The current battle deck with its average elixir (also !crdecks).",
+        event: '!cr decks',
+        command: 'cr decks',
+        enableKey: 'decksEnabled',
+        messageKey: 'decksMessage',
+        defaultMessage: "{player}'s deck ({count}/8): {cards} · avg elixir {elixir}",
+        tokens: ['player', 'tag', 'cards', 'support', 'elixir', 'count'],
+        previewSamples: {
+          player: 'Bagel', tag: '#P2LQ0GR',
+          cards: 'Knight, Archers, Goblins, Giant, P.E.K.K.A, Minions, Fireball, Cannon',
+          support: 'Tower Troop', elixir: '3.75', count: '8'
+        }
+      },
+      {
+        key: 'ranked',
+        label: '!cr ranked',
+        tagline: 'Path of Legends standing (also !crranked); legacy league seasons fill in for older records.',
+        event: '!cr ranked',
+        command: 'cr ranked',
+        enableKey: 'rankedEnabled',
+        messageKey: 'rankedMessage',
+        defaultMessage: '{player} Path of Legends: league {league} · {trophies} trophies · rank #{rank} · best {besttrophies}',
+        tokens: ['player', 'tag', 'league', 'trophies', 'rank', 'prevleague', 'prevtrophies', 'bestleague', 'besttrophies', 'bestrank'],
+        previewSamples: {
+          player: 'Bagel', tag: '#P2LQ0GR', league: '10', trophies: '2100', rank: '321',
+          prevleague: '10', prevtrophies: '2050', bestleague: '10', besttrophies: '2400', bestrank: '42'
+        }
+      },
+      {
+        key: 'road',
+        label: '!cr road',
+        tagline: 'Trophy-road record and arena (also !crroad).',
+        event: '!cr road',
+        command: 'cr road',
+        enableKey: 'roadEnabled',
+        messageKey: 'roadMessage',
+        defaultMessage: '{player}: {trophies} trophies · best {besttrophies} · {arena}',
+        tokens: ['player', 'tag', 'trophies', 'besttrophies', 'arena'],
+        previewSamples: { player: 'Bagel', tag: '#P2LQ0GR', trophies: '9123', besttrophies: '9345', arena: 'Legendary Arena' }
+      }
+    ],
+    settings: [
+      {
+        key: 'account',
+        label: 'Linked player tag',
+        type: 'text',
+        placeholder: '#P2LQ0GR',
+        help: 'Default player for every command. Clash Royale has no name lookup, so this must be a player tag; leave blank only if you always type one.'
+      }
+    ]
+  },
+  {
     id: 'queue',
     label: 'Play Queue',
     tagline: 'Let viewers line up to play with you, first come first served.',
@@ -1322,6 +1404,99 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       { trigger: '!queue next', summary: 'Pull up the next player and announce them.', perm: 'mod' },
       { trigger: '!queue remove <user>', summary: 'Take someone out of the line.', perm: 'mod' },
       { trigger: '!queue clear', summary: 'Empty the line.', perm: 'mod' }
+    ]
+  },
+  {
+    id: 'raffle',
+    label: 'Raffle',
+    tagline: 'Timed random draws your chat enters with !join.',
+    description:
+      'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically — winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
+    icon: 'gem',
+    category: 'Community',
+    defaultEnabled: false,
+    // The viewer-facing conversational replies are customizable per broadcaster
+    // and each rehearses as its command (a viewer types the trigger, the bot
+    // answers) with this reply's own sample values. The status readout, mod
+    // confirmations and claim outcomes beyond the first stay fixed system text
+    // (see app/sesame/modules/raffle.go); so do the engine-posted auto-close
+    // and reminder announcements.
+    replies: [
+      {
+        key: 'joined',
+        label: 'Entry confirmation',
+        tagline: 'When a viewer joins the raffle.',
+        event: '!join',
+        command: 'join',
+        messageKey: 'joinMessage',
+        defaultMessage: "@{user} you're in! {count} entered so far. Good luck!",
+        tokens: ['user', 'count'],
+        previewSamples: { user: 'sesame_sam', count: '12' }
+      },
+      {
+        key: 'already',
+        label: 'Already entered',
+        tagline: 'When a viewer who is already in types !join again.',
+        event: '!join',
+        command: 'join',
+        messageKey: 'alreadyMessage',
+        defaultMessage: '@{user} you are already in this raffle ({count} entered).',
+        tokens: ['user', 'count'],
+        previewSamples: { user: 'sesame_sam', count: '13' }
+      },
+      {
+        key: 'noRaffle',
+        label: 'No raffle running',
+        tagline: "When someone joins while no raffle is open.",
+        event: '!join',
+        command: 'join',
+        messageKey: 'noRaffleMessage',
+        defaultMessage: '@{user} no raffle is running right now.',
+        tokens: ['user'],
+        previewSamples: { user: 'sesame_sam' }
+      },
+      {
+        key: 'opened',
+        label: 'Raffle opened',
+        tagline: 'When a raffle starts and entries open.',
+        event: '!raffle open',
+        command: 'raffle open',
+        messageKey: 'openedMessage',
+        defaultMessage: 'Raffle is LIVE! Type !join to enter — drawing in {mins} min!',
+        tokens: ['mins'],
+        previewSamples: { mins: '10' }
+      },
+      {
+        key: 'won',
+        label: 'Winners announced',
+        tagline: 'When a draw names its winners (manual or timed).',
+        event: '!raffle draw',
+        command: 'raffle draw',
+        messageKey: 'wonMessage',
+        defaultMessage:
+          '{targets} — congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
+        tokens: ['targets', 'count', 'entrants', 'claim'],
+        previewSamples: { targets: '@maya_live, @crustycrumbs', count: '2', entrants: '18', claim: '15' }
+      },
+      {
+        key: 'claimOk',
+        label: 'Prize confirmed',
+        tagline: 'When a winner confirms with !claim.',
+        event: '!claim',
+        command: 'claim',
+        messageKey: 'claimOkMessage',
+        defaultMessage: '@{user} your prize is confirmed — enjoy!',
+        tokens: ['user'],
+        previewSamples: { user: 'maya_live' }
+      }
+    ],
+    commands: [
+      { trigger: '!winner', summary: "Recall the last draw's winners and how many confirmed." },
+      { trigger: '!raffle', summary: 'Show whether a raffle is running, entries and time left.' },
+      { trigger: '!raffle open [minutes] [winners] [remind]', summary: 'Start a raffle (defaults 10 min, 1 winner, reminders every 5 min; remind 0 turns reminders off).', perm: 'mod' },
+      { trigger: '!raffle draw [winners]', summary: 'Close now and announce the winners.', perm: 'mod' },
+      { trigger: '!raffle close', summary: 'Same as draw with the configured winner count.', perm: 'mod' },
+      { trigger: '!raffle cancel', summary: 'Tear down without drawing.', perm: 'mod' }
     ]
   },
   {

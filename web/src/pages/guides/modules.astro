@@ -12,7 +12,7 @@ const sections = [
     { id: 'how', heading: 'How modules work', note: 'One switch per feature. Click the tile to make its messages sound like you.' },
     { id: 'welcome', heading: 'Welcoming people', note: 'Alerts, raid shoutouts, trigger words, and the time where you live.' },
     { id: 'economy', heading: 'Points, rewards & timers', note: 'Loyalty points for watching, channel-point rewards that do things, and scheduled messages.' },
-    { id: 'together', heading: 'Playing together', note: "A fair play queue and a quote book for chat's greatest hits." },
+    { id: 'together', heading: 'Playing together', note: "A raffle chat can't argue with, a fair play queue and a quote book for chat's greatest hits." },
     { id: 'games', heading: 'Game stats in chat', note: 'Hypixel Bedwars, MCSR Ranked and Fortnite, one command away.' },
     { id: 'safety', heading: 'Moderation & built-ins', note: "AutoMod's four levels, and the three commands that come with the bot." },
 ];
@@ -20,7 +20,7 @@ const sections = [
 
 <Layout
     title="The modules handbook — ItsBagelBot Guides"
-    description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, play queue, quotes, game stats and AutoMod."
+    description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, raffles, play queue, quotes, game stats and AutoMod."
     ogType="article"
 >
     <PageHero
@@ -160,6 +160,29 @@ const sections = [
         </Fragment>
 
         <Fragment slot="together">
+            <h3>Raffle</h3>
+            <p>
+                A timed draw chat can't argue with. Viewers enter once with <code>!join</code>; the
+                bot counts down out loud on a reminder cadence you set, then draws the winners
+                itself when time runs out — uniformly at random, one entry per viewer, with a
+                verifiable receipt kept. Winners confirm with <code>!claim</code>. You and your
+                mods start one with <code>!raffle open</code>, close early with
+                <code>!raffle draw</code>, or abort with <code>!raffle cancel</code>.
+            </p>
+            <ChatMock
+                title="#your_channel"
+                caption="Opened, reminded, drawn, confirmed."
+                lines={[
+                    { who: 'mod', name: 'mod_sam', text: '!raffle open 10' },
+                    { who: 'bot', text: 'Raffle is LIVE! Type !join to enter — drawing in 10 min!' },
+                    { who: 'bot', text: 'Raffle reminder: ~5 min left! 14 entered so far — type !join! Winners must !claim.' },
+                    { who: 'viewer', name: 'maya_live', text: '!join' },
+                    { who: 'bot', text: "@maya_live you're in! 15 entered so far. Good luck!" },
+                    { who: 'bot', text: '@crustycrumbs, @maya_live — congratulations! You won the raffle (2 winner(s) from 15)! Type !claim within 15 min to confirm your prize!' },
+                    { who: 'viewer', name: 'maya_live', text: '!claim' },
+                    { who: 'bot', text: '@maya_live your prize is confirmed — enjoy!' },
+                ]}
+            />
             <h3>Play Queue</h3>
             <p>
                 "Can I play?" becomes self-service. Viewers join the line with <code>!join</code>,
@@ -191,7 +214,7 @@ const sections = [
 
         <Fragment slot="games">
             <p>
-                Three integrations put game stats in chat so nobody alt-tabs. Link your account once on
+                Four integrations put game stats in chat so nobody alt-tabs. Link your account once on
                 the module's page; every reply is a rewritable template with game-specific variables.
             </p>
             <div class="gtable-wrap">
@@ -212,6 +235,11 @@ const sections = [
                             <td>Fortnite Stats</td>
                             <td><code>!fn</code> <code>!fn season</code> <code>!fn session</code> <code>!fn store</code></td>
                             <td>Lifetime, season and this-stream stats (wins, K/D, win rate), plus today's item shop.</td>
+                        </tr>
+                        <tr>
+                            <td>Clash Royale Stats</td>
+                            <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
+                            <td>Lifetime profile (level, win/loss, win rate), the current battle deck with its average elixir, Path of Legends standing, and trophy-road record — by player tag.</td>
                         </tr>
                     </tbody>
                 </table>

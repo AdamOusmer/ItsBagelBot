@@ -17,9 +17,14 @@ import (
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -51,24 +56,42 @@ type UserView struct {
 	Onboarded                 bool       `json:"onboarded"`
 }
 
-// Users persists the user records and their OAuth tokens. Status reads are
-// served from the in-process cache with stampede protection; status writes
-// are billing-relevant, so they hit the database directly and are announced
-// on the bus right after the commit.
+// Users persists the user records and their OAuth tokens. Reads are served
+// from the in-process cache with stampede protection. Writes split by the
+// ADR-0008 durability classes: preference state (active, locale, cursor,
+// onboarded, creator code) goes through the write-behind batcher — a user
+// flipping the same switch five times costs one row write, and a burst lands
+// as one transaction, so setters report "accepted", not "persisted"; errors
+// surface at flush and are requeued or dropped there. Money (status tier),
+// moderation (banned) and tokens write through immediately.
 type Users struct {
-	client *ent.Client
-	views  *cache.Cache[UserView]
-	packer domaincrypto.Packer
-	pub    bus.Publisher
+	client  *ent.Client
+	views   *cache.Cache[UserView]
+	packer  domaincrypto.Packer
+	pub     bus.Publisher
+	batcher *batch.Batcher[prefKey, prefWrite]
+	app     *newrelic.Application
+	log     *zap.Logger
 }
 
-func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher) *Users {
-	return &Users{
+func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Users {
+
+	if log == nil {
+		log = zap.NewNop()
+	}
+
+	r := &Users{
 		client: client,
 		views:  cache.New[UserView](userCacheCapacity, userCacheTTL),
 		packer: packer,
 		pub:    pub,
+		app:    app,
+		log:    log,
 	}
+
+	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)
+
+	return r
 }
 
 // Register creates the user on first sight and refreshes the username on
@@ -190,7 +213,8 @@ func (r *Users) IDByUsername(ctx context.Context, username string) (uint64, erro
 
 // updateAndPublish validates the id, applies a single-field update inside the
 // write-through exec, and announces the change so the projector folds it into
-// the Valkey user projection. It backs the SetX write-through mutators.
+// the Valkey user projection. It backs only the mutators that must never sit
+// in a write-behind buffer: SetStatus (money) and SetBanned (moderation).
 func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent.UserUpdateOne)) error {
 	if err := validate.UserID(id); err != nil {
 		return err
@@ -224,19 +248,16 @@ func normalizeCreatorCode(raw string) (*string, error) {
 }
 
 // SetCreatorCode stores or clears the user's public creator code. An empty
-// value clears the nullable column.
+// value clears the nullable column. Validation runs synchronously so bad
+// input still errors at the call site; persistence is write-behind (accepted,
+// not persisted) and the change event rides the flush after the commit.
 func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error {
 	code, err := normalizeCreatorCode(raw)
 	if err != nil {
 		return err
 	}
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) {
-		if code == nil {
-			u.ClearCreatorCode()
-		} else {
-			u.SetCreatorCode(*code)
-		}
-	})
+	r.queuePref(id, prefCreatorCode, prefWrite{code: code})
+	return nil
 }
 
 // SetStatus moves the user between the free, paid and vip tiers. This is on
@@ -251,50 +272,46 @@ func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) er
 // SetActive flips whether the bot serves this broadcaster. The dashboard
 // toggle drives it: inactive users project to standard tier and the ingress
 // drops their traffic, so flipping it off silences the channel even before
-// the EventSub subscriptions are gone.
+// the EventSub subscriptions are gone. It is user-re-submittable dashboard
+// state, so it goes through the write-behind batcher like every other
+// preference; enforcement converges within one flush window.
 func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetIsActive(active) })
+	r.queuePref(id, prefActive, prefWrite{flag: active})
+	return nil
 }
 
 // SetLocale stores the user's console UI language and announces the change so
 // the projector folds the new locale into the Valkey user projection (the
 // worker reads it there to answer system commands in the user's language). The
 // console's own locale cache is dropped separately via the RPC handler's
-// invalidation ping.
+// invalidation ping. Write-behind, like the other preferences.
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLocale(locale) })
+	r.queuePref(id, prefLocale, prefWrite{str: locale})
+	return nil
 }
 
 // SetCustomCursor stores whether the console shows the animated custom cursor.
-// Console-only UI state, but it rides the same write-through + publish path as
-// the other preferences so the in-process view cache stays consistent.
+// Console-only UI state riding the same write-behind path as the other
+// preferences.
 func (r *Users) SetCustomCursor(ctx context.Context, id uint64, on bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCustomCursor(on) })
+	r.queuePref(id, prefCursor, prefWrite{flag: on})
+	return nil
 }
 
 // SetBanned blocks or unblocks the user from the service. A banned user is
 // dropped at the ingress, so their traffic never reaches a worker even if the
-// channel is otherwise active.
+// channel is otherwise active. This is a moderation enforcement action with
+// low write volume, so it writes through immediately instead of risking a
+// flush window on the enforcement path.
 func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) })
 }
 
 // SetOnboarded marks the user as having finished the onboarding flow.
+// Write-behind: the flag is re-derivable from the console session, and losing
+// the last window on a process death costs at most a repeated onboarding tour.
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
-	_, err := r.client.User.UpdateOneID(id).
-		SetOnboarded(onboarded).
-		Save(ctx)
-
-	if ent.IsNotFound(err) {
-		return fmt.Errorf("user not found")
-	}
-	if err != nil {
-		return err
-	}
-
-	if err := r.publishChanged(ctx, id); err != nil {
-		r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
-	}
+	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
 	return nil
 }
 
@@ -318,8 +335,10 @@ func (r *Users) Invalidate(id uint64) {
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 }
 
-// Close releases the cache's background resources.
-func (r *Users) Close() {
+// Close drains pending preference writes and releases the cache's background
+// resources.
+func (r *Users) Close(ctx context.Context) {
+	r.batcher.Close(ctx)
 	r.views.Close()
 }
 
