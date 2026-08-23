@@ -226,34 +226,38 @@ func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject str
 	s.subs[sub] = ownedSubscription{sub: sub, callbacks: callbacks, pump: pump}
 	s.mu.Unlock()
 
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-s.closeCh:
-		}
-		stopSubscription(sub, callbacks, pump)
-		s.mu.Lock()
-		delete(s.subs, sub)
-		s.mu.Unlock()
-	}()
-
-	go func() {
-		defer close(output)
-		for {
-			select {
-			case d := <-pump.queue:
-				if !s.deliver(ctx, output, callbacks, d) {
-					s.abandon(pump.queue)
-					return
-				}
-			case <-pump.stop:
-				s.abandon(pump.queue)
-				return
-			}
-		}
-	}()
+	go s.watchBind(ctx, sub, callbacks, pump)
+	go s.runPump(ctx, output, callbacks, pump)
 
 	return output, nil
+}
+
+// watchBind retires the subscription when its binding context ends or the
+// subscriber closes, whichever comes first.
+func (s *concurrentDurableSubscriber) watchBind(ctx context.Context, sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
+	select {
+	case <-ctx.Done():
+	case <-s.closeCh:
+	}
+	stopSubscription(sub, callbacks, pump)
+	s.mu.Lock()
+	delete(s.subs, sub)
+	s.mu.Unlock()
+}
+
+// runPump drains the explicit delivery queue toward the lane channel until the
+// pump halts or a delivery fails, then abandons whatever remains queued.
+func (s *concurrentDurableSubscriber) runPump(ctx context.Context, output chan<- *Message, callbacks *callbackGate, pump *subscriptionPump) {
+	defer close(output)
+	for live := true; live; {
+		select {
+		case d := <-pump.queue:
+			live = s.deliver(ctx, output, callbacks, d)
+		case <-pump.stop:
+			live = false
+		}
+	}
+	s.abandon(pump.queue)
 }
 
 func (s *concurrentDurableSubscriber) beginRegistration() bool {
@@ -642,29 +646,42 @@ func (w *keepAliveWheel) advance() {
 
 	var survivors []*resultWatch
 	for _, watch := range due {
-		if watch.finished.Load() {
-			continue // resolved or unwound since it was filed: lazy sweep
+		if w.sweepDue(e, watch) {
+			survivors = append(survivors, watch)
 		}
-		if e-watch.armEpoch >= uint64(w.steps) {
-			// Deadline reached: give the delivery back to AckWait. The CAS is
-			// the same arbiter resolve() uses, so exactly one side releases
-			// the acks seat.
-			if watch.finished.CompareAndSwap(false, true) {
-				watch.s.acks.Done()
-			}
-			continue
-		}
+	}
+	w.refile(next, survivors)
+}
+
+// sweepDue reports one unfinished watch against its deadline. It returns false
+// when the watch leaves the wheel: resolved or unwound since it was filed
+// (lazy sweep), or past deadline, where it surrenders the delivery to AckWait.
+// That surrender's CAS is the same arbiter resolve() uses, so exactly one side
+// releases the acks seat.
+func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
+	if watch.finished.Load() {
+		return false
+	}
+	if epoch-watch.armEpoch < uint64(w.steps) {
 		watch.s.reportProgress(watch.natsMsg)
-		survivors = append(survivors, watch)
+		return true
 	}
-	if len(survivors) > 0 {
-		w.mu.Lock()
-		// Survivors are due again next interval, which is the bucket the
-		// cursor points at now; registrations landing mid-pass joined the
-		// same slice under the same lock.
-		w.buckets[w.cursor] = append(next, survivors...)
-		w.mu.Unlock()
+	if watch.finished.CompareAndSwap(false, true) {
+		watch.s.acks.Done()
 	}
+	return false
+}
+
+// refile returns survivors to the bucket the cursor points at: they are due
+// again next interval, and registrations landing mid-pass joined the same
+// slice under the same lock.
+func (w *keepAliveWheel) refile(base []*resultWatch, survivors []*resultWatch) {
+	if len(survivors) == 0 {
+		return
+	}
+	w.mu.Lock()
+	w.buckets[w.cursor] = append(base, survivors...)
+	w.mu.Unlock()
 }
 
 // ack applies the acknowledgement contract the stream's retention actually
