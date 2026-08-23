@@ -118,7 +118,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 
 	bet, refused := gc.refuse(arg)
 	if refused.key != "" {
-		gc.reply(emit, "", refused.key, refused.kv...)
+		gc.reply(emit, "", refused.key, refused.tokens...)
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return err
 	}
 	if !allowed {
-		gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
+		gc.reply(emit, "", "gamble.cool", tk("secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10)))
 		return nil
 	}
 
@@ -141,8 +141,8 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 // refusal is one rejected wager: the line to answer with and any bound
 // tokens it carries. An empty key means the bet stands.
 type refusal struct {
-	key replyKey
-	kv  []string
+	key    replyKey
+	tokens []token
 }
 
 // refuse maps the parsed wager against the channel's limits and the
@@ -155,17 +155,17 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	case engine.BetEmpty, engine.BetInvalid:
 		return 0, refusal{key: "gamble.usage"}
 	case engine.BetBelowMin:
-		return 0, refusal{key: "gamble.min", kv: boundKV("min", gc.cfg.MinBet)}
+		return 0, refusal{key: "gamble.min", tokens: boundKV("min", gc.cfg.MinBet)}
 	case engine.BetAboveMax:
-		return 0, refusal{key: "gamble.max", kv: boundKV("max", gc.cfg.MaxBet)}
+		return 0, refusal{key: "gamble.max", tokens: boundKV("max", gc.cfg.MaxBet)}
 	default: // BetOverBalance
-		return 0, refusal{key: "gamble.broke", kv: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
+		return 0, refusal{key: "gamble.broke", tokens: []token{tk("balance", strconv.FormatInt(gc.balance, 10))}}
 	}
 }
 
 // boundKV renders a limit line's token pair.
-func boundKV(name string, limit int64) []string {
-	return []string{name, strconv.FormatInt(limit, 10)}
+func boundKV(name string, limit int64) []token {
+	return []token{tk(name, strconv.FormatInt(limit, 10))}
 }
 
 // claimCooldown takes the chatter's per-user window once the wager itself is
@@ -212,7 +212,7 @@ func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int6
 	}
 	if !spent {
 		gc.reply(emit, "", "gamble.broke",
-			"balance", strconv.FormatInt(newBal.Points, 10))
+			tk("balance", strconv.FormatInt(newBal.Points, 10)))
 		return nil
 	}
 	gc.announce(emit, gc.tmpl.LoseMessage, "gamble.lose", roll, bet, newBal.Points)
@@ -223,10 +223,10 @@ func (gc gambleCmd) settleLoss(ctx context.Context, login string, bet, roll int6
 // four tokens (the dice and the money), only the template differs.
 func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, roll, bet, balance int64) {
 	gc.reply(emit, override, key,
-		"roll", strconv.FormatInt(roll, 10),
-		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
-		"amount", strconv.FormatInt(bet, 10),
-		"balance", strconv.FormatInt(balance, 10))
+		tk("roll", strconv.FormatInt(roll, 10)),
+		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
+		tk("amount", strconv.FormatInt(bet, 10)),
+		tk("balance", strconv.FormatInt(balance, 10)))
 }
 
 // viewerID parses the chatter's Twitch id for balance reads; chat events

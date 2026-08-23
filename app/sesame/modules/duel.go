@@ -188,19 +188,19 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 		dc.reply(emit, "", "duel.status.none")
 		return nil
 	}
-	kv := []string{
-		"opener", st.Opener,
-		"target", st.Challenged,
-		"stake", strconv.FormatInt(st.Stake, 10),
-		"pot", strconv.FormatInt(st.Pot, 10),
-		"count", strconv.FormatInt(st.Entrants, 10),
-		"secs", strconv.FormatInt(st.SecondsLeft, 10),
+	tokens := []token{
+		tk("opener", st.Opener),
+		tk("target", st.Challenged),
+		tk("stake", strconv.FormatInt(st.Stake, 10)),
+		tk("pot", strconv.FormatInt(st.Pot, 10)),
+		tk("count", strconv.FormatInt(st.Entrants, 10)),
+		tk("secs", strconv.FormatInt(st.SecondsLeft, 10)),
 	}
 	key := replyKey("duel.status.pot")
 	if st.Kind == engine.DuelChallenge {
 		key = "duel.status.challenge"
 	}
-	dc.reply(emit, "", key, kv...)
+	dc.reply(emit, "", key, tokens...)
 	return nil
 }
 
@@ -239,9 +239,9 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 	switch {
 	case res.Joined:
 		dc.reply(emit, dc.t.JoinMessage, "duel.joined",
-			"stake", strconv.FormatInt(stake, 10),
-			"count", strconv.FormatInt(res.Entrants, 10),
-			"pot", strconv.FormatInt(res.Pot, 10))
+			tk("stake", strconv.FormatInt(stake, 10)),
+			tk("count", strconv.FormatInt(res.Entrants, 10)),
+			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Already:
 		dc.replyPool(emit, "duel.join.already", res.Entrants, res.Pot)
 	case res.Unknown:
@@ -257,8 +257,8 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 // replyPool emits one of the pool-readout lines ({count} entrants, {pot}).
 func (dc duelCmd) replyPool(emit module.Emit, key replyKey, entrants, pot int64) {
 	dc.reply(emit, "", key,
-		"count", strconv.FormatInt(entrants, 10),
-		"pot", strconv.FormatInt(pot, 10))
+		tk("count", strconv.FormatInt(entrants, 10)),
+		tk("pot", strconv.FormatInt(pot, 10)))
 }
 
 // replyOpen maps the three outcomes every Open caller shares — started, slot
@@ -294,8 +294,8 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.OpenedMessage, "duel.opened",
-			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.PotSeconds, engine.DuelDefaultPotSeconds), 10),
-			"stake", strconv.FormatInt(stake, 10))
+			tk("secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.PotSeconds, engine.DuelDefaultPotSeconds), 10)),
+			tk("stake", strconv.FormatInt(stake, 10)))
 	})
 	return nil
 }
@@ -324,10 +324,10 @@ func (dc duelCmd) challenge(ctx context.Context, login, target, stakeArg string,
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.ChallengeMessage, "duel.challenge.sent",
-			"target", target,
-			"stake", strconv.FormatInt(stake, 10),
-			"pot", strconv.FormatInt(stake*2, 10),
-			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10))
+			tk("target", target),
+			tk("stake", strconv.FormatInt(stake, 10)),
+			tk("pot", strconv.FormatInt(stake*2, 10)),
+			tk("secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10)))
 	})
 	return nil
 }
@@ -342,9 +342,9 @@ func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) er
 	switch {
 	case res.Accepted:
 		dc.reply(emit, dc.t.WonMessage, "duel.won",
-			"winner", res.Winner,
-			"loser", res.Loser,
-			"pot", strconv.FormatInt(res.Pot, 10))
+			tk("winner", res.Winner),
+			tk("loser", res.Loser),
+			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Found && res.WrongUser:
 		dc.reply(emit, "", "duel.accept.notYou")
 	case res.Short:
@@ -369,8 +369,8 @@ func (dc duelCmd) decline(ctx context.Context, login string, emit module.Emit) e
 	switch {
 	case res.Declined:
 		dc.reply(emit, "", "duel.decline.ok",
-			"opener", res.Opener,
-			"refund", strconv.FormatInt(res.Refund, 10))
+			tk("opener", res.Opener),
+			tk("refund", strconv.FormatInt(res.Refund, 10)))
 	case res.Found && res.WrongUser:
 		dc.reply(emit, "", "duel.accept.notYou")
 	case res.Busy:
@@ -393,8 +393,8 @@ func (dc duelCmd) cancel(ctx context.Context, login string, emit module.Emit) er
 	switch {
 	case res.Cancelled:
 		dc.reply(emit, "", "duel.cancel.ok",
-			"refunds", strconv.FormatInt(res.Refunded, 10),
-			"total", strconv.FormatInt(res.Total, 10))
+			tk("refunds", strconv.FormatInt(res.Refunded, 10)),
+			tk("total", strconv.FormatInt(res.Total, 10)))
 	case res.Found && !res.Allowed:
 		dc.reply(emit, "", "duel.cancel.denied")
 	case res.Busy:
@@ -435,9 +435,9 @@ func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal) {
 	key := replyKey(refused)
 	switch refused {
 	case refMinStake:
-		dc.reply(emit, "", key, "min", strconv.FormatInt(dc.cfg.MinStake, 10))
+		dc.reply(emit, "", key, tk("min", strconv.FormatInt(dc.cfg.MinStake, 10)))
 	case refMaxStake:
-		dc.reply(emit, "", key, "max", strconv.FormatInt(dc.cfg.MaxStake, 10))
+		dc.reply(emit, "", key, tk("max", strconv.FormatInt(dc.cfg.MaxStake, 10)))
 	default:
 		dc.reply(emit, "", key)
 	}
