@@ -156,9 +156,9 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 // carries what they actually hold). amount must be positive: a zero or
 // negative "spend" is a caller bug, not a refund path.
 func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
-	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
-	if login == "" || amount <= 0 {
-		return nil, false, false, fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
+	login, err := normalizeSpendTarget(viewerLogin, amount)
+	if err != nil {
+		return nil, false, false, err
 	}
 	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
@@ -190,6 +190,16 @@ func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin s
 		return nil, true, true, err
 	}
 	return spent, true, true, nil
+}
+
+// normalizeSpendTarget validates a spend request and returns the lower-cased
+// login the ledger addresses.
+func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
+	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	if login == "" || amount <= 0 {
+		return "", fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
+	}
+	return login, nil
 }
 
 // clampLimit bounds a caller-provided page size, defaulting a missing one.
