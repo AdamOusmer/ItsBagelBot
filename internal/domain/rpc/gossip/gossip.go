@@ -636,3 +636,112 @@ type ClashRoyaleTrophyRoadReply struct {
 	Arena        ClashRoyaleArena `json:"arena"`
 	Error        string           `json:"error,omitempty"`
 }
+
+// --- valorant (HenrikDev community API lookups) -----------------------------
+
+// ValorantRankReply is the answer to valorant.rank (sesame's !valrank): the
+// account's current competitive standing. LastChange is the RR delta of the
+// most recent competitive game (negative on a loss); Placement is the current
+// act leaderboard position, 0 when unplaced. Unranked is true for accounts
+// without a act placement — Elo is zeroed alongside it so templates never
+// print "-23 elo, Unranked".
+type ValorantRankReply struct {
+	Player     string `json:"player"`
+	Region     string `json:"region"`
+	Tier       string `json:"tier"`
+	Elo        int    `json:"elo"`
+	RR         int    `json:"rr"`
+	LastChange int    `json:"last_change"`
+	PeakTier   string `json:"peak_tier"`
+	Placement  int    `json:"placement"`
+	Unranked   bool   `json:"unranked"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ValorantMatchEntry summarizes one completed competitive game for a chat
+// line. ACS is precomputed upstream (score over team rounds, one decimal) and
+// AgoSeconds lets a template say how old the game is.
+type ValorantMatchEntry struct {
+	Map        string  `json:"map"`
+	Agent      string  `json:"agent"`
+	Result     string  `json:"result"` // "win" | "loss" | "draw"
+	Kills      int     `json:"kills"`
+	Deaths     int     `json:"deaths"`
+	Assists    int     `json:"assists"`
+	ACS        float64 `json:"acs"`
+	AgoSeconds int64   `json:"ago_seconds"`
+}
+
+// ValorantMatchesReply is the answer to valorant.matches (sesame's
+// !valmatches): the last few completed competitive games, newest first.
+// Incomplete games are skipped rather than shown as ghost rows. Empty is true
+// when the account simply has no ranked games in the retained window — a
+// normal answer, not an error.
+type ValorantMatchesReply struct {
+	Player  string               `json:"player"`
+	Region  string               `json:"region"`
+	Matches []ValorantMatchEntry `json:"matches"`
+	Empty   bool                 `json:"empty"`
+	Error   string               `json:"error,omitempty"`
+}
+
+// ValorantAccountReply is the answer to valorant.account (sesame's
+// !valaccount): who a Riot ID resolves to, plus the level/card/title flex. It
+// doubles as the cheapest correctness probe for a caller unsure of spelling or
+// region.
+type ValorantAccountReply struct {
+	Player       string `json:"player"`
+	Puuid        string `json:"puuid,omitempty"`
+	Region       string `json:"region,omitempty"`
+	AccountLevel int    `json:"account_level,omitempty"`
+	Card         string `json:"card,omitempty"`
+	Title        string `json:"title,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// ValorantLeaderboardEntry is one ranked row of a regional board. Tier stays
+// the numeric competitive tier id (3 = Iron 1 up to 27 = Radiant) rather than a
+// spelled-out name, matching what every tracker renders from.
+type ValorantLeaderboardEntry struct {
+	Rank   int    `json:"rank"`
+	Player string `json:"player"`
+	Tier   int    `json:"tier"`
+	RR     int    `json:"rr"`
+	Wins   int    `json:"wins"`
+}
+
+// ValorantLeaderboardReply is the answer to valorant.leaderboard (sesame's
+// !vallb): the top slice of one regional board. Board echoes
+// "<region>/<platform>" so a template can say which board it printed; Player
+// echoes the account scoping it when one was given ("" for a bare top-N ask).
+type ValorantLeaderboardReply struct {
+	Player  string                     `json:"player,omitempty"`
+	Board   string                     `json:"board,omitempty"`
+	Entries []ValorantLeaderboardEntry `json:"entries"`
+	Empty   bool                       `json:"empty"`
+	Error   string                     `json:"error,omitempty"`
+}
+
+// ValorantShopItem is one rotated skin ready for rendering. Color is the
+// rarity's background hex straight from Riot's content CDN, so a renderer can
+// colour-code without owning a rarity table.
+type ValorantShopItem struct {
+	Name  string `json:"name"`
+	Price int64  `json:"price"`
+	Tier  string `json:"tier,omitempty"`
+	Color string `json:"color,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+// ValorantShopReply is the answer to valorant.shop (sesame's !valshop):
+// today's global skin rotation, priciest first. ResetUnix is the instant the
+// rotation turns over (03:00 UTC), so a template can print a countdown. Empty
+// is true on the rare days Riot rotates nothing — a normal answer, not an
+// error.
+type ValorantShopReply struct {
+	ResetUnix int64              `json:"reset_unix"`
+	Items     []ValorantShopItem `json:"items"`
+	Count     int                `json:"count"`
+	Empty     bool               `json:"empty"`
+	Error     string             `json:"error,omitempty"`
+}
