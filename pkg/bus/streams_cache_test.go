@@ -48,9 +48,13 @@ func TestStreamForTopicCacheFollowsThePartitionFlip(t *testing.T) {
 func requireExactRefusal(t *testing.T, subject, wantName string, wantErr error) {
 	t.Helper()
 	gotName, gotErr := streamForTopic(subject)
-	if gotName != wantName || gotErr == nil || gotErr.Error() != wantErr.Error() {
-		t.Fatalf("streamForTopic(%q) = %q, %v; want the resolver's exact refusal %q, %v",
-			subject, gotName, gotErr, wantName, wantErr)
+	switch {
+	case gotName != wantName:
+		t.Fatalf("streamForTopic(%q) = %q, want name %q (err %v)", subject, gotName, wantName, gotErr)
+	case gotErr == nil:
+		t.Fatalf("streamForTopic(%q) = %q, nil error; want the resolver's refusal %v", subject, gotName, wantErr)
+	case gotErr.Error() != wantErr.Error():
+		t.Fatalf("streamForTopic(%q) refused with %q; want the resolver's exact text %q", subject, gotErr, wantErr)
 	}
 }
 
