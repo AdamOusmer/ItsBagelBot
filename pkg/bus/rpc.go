@@ -55,7 +55,6 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	requestMsg := nats.NewMsg(subject)
 	requestMsg.Data = body
 	insertTraceHeaders(ctx, requestMsg)
-	SignRequest(requestMsg)
 
 	segment := startMessagingSegment(ctx, messagingSpan{
 		name: "nats.request", operation: "request", destination: subject,
