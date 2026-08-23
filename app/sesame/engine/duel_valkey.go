@@ -997,7 +997,7 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	}
 	s.teardownWithSnapshot(ctx, broadcasterID, &receipt)
 
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, winner, total); err != nil {
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, DuelStake{Login: winner, Stake: total}); err != nil {
 		s.log.Warn("duel: pot payout failed", zap.Uint64("broadcaster_id", broadcasterID),
 			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
 	}
