@@ -39,5 +39,6 @@ func All(d engine.Deps) []module.Module {
 		Govee(d),
 		TimeOfDay(d),
 		Triggers(d),
+		EmotePlay(d),
 	}
 }

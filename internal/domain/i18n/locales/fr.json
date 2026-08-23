@@ -10,6 +10,8 @@
   "cmd.link": "@{user} parcourez les commandes de {channel} ici : {url}",
   "cmd.modified": "@{user} la commande {command} a été modifiée",
   "cmd.removed": "@{user} la commande {command} a été supprimée",
+  "emoteplay.pyramid": "{user} vient de finir la pyramide {emote} ! ({height} de haut)",
+  "emoteplay.streak": "Série {emote} ×{count} !",
   "external.retry": "recherche en cours, réessayez dans un instant",
   "feed.board": "Classement bagel : {places}. {standing}",
   "feed.board.empty": "Personne n'a encore nourri le bagel. Dites « feed the bagel » et prenez la première place.",
