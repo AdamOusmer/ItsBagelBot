@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
 	"ItsBagelBot/app/gossip/internal/providers/paceman"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
+	"ItsBagelBot/app/gossip/internal/providers/valorant"
 
 	"go.uber.org/zap"
 )
@@ -38,67 +39,62 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendFortnite(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
 	out = appendClashRoyale(out, cfg, d, log)
+	out = appendValorant(out, cfg, d, log)
 	return out
 }
 
-// appendIf is the shape every appendX helper below shares: gate on a
-// condition, log why and leave out unchanged when it skips, otherwise build
-// the provider and append it. Factoring this once means adding a provider
-// with the same "one credential/flag gates it" shape is writing a gate
-// condition, a skip reason and a constructor closure — not a fifth copy of
-// this whole sequence (the duplication CodeScene flagged once appendPaceman
-// made the third near-identical copy).
-func appendIf(out []provider.Provider, log *zap.Logger, skip bool, skipReason string, build func() provider.Provider) []provider.Provider {
-	if skip {
+// gated registers one provider behind its single disable condition: when the
+// gate trips, log why and leave out unchanged (a skipped provider's subjects
+// simply time out at the caller, the same failure mode as the upstream being
+// down); otherwise run the constructor lazily and append it. Factoring this
+// once means adding a provider with the same "one credential/flag gates it"
+// shape is writing a flag expression, a skip reason and an env-to-Config
+// mapping below — not a seventh copy of the whole sequence (the duplication
+// CodeScene flagged once appendPaceman made the third near-identical copy of
+// what began as an inline if/warn/append in every helper).
+func gated[T any](out []provider.Provider, log *zap.Logger, disabled bool, skipReason string, build func(T, provider.Deps) provider.Provider, cfg T, d provider.Deps) []provider.Provider {
+	if disabled {
 		log.Warn(skipReason)
 		return out
 	}
-	return append(out, build())
+	return append(out, build(cfg, d))
 }
 
 func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, cfg.UrchinAPIKey == "", "urchin provider disabled: URCHIN_API_KEY not set", func() provider.Provider {
-		return urchin.New(urchin.Config{
-			BaseURL:   cfg.UrchinBaseURL,
-			APIKey:    cfg.UrchinAPIKey,
-			RateLimit: cfg.UrchinRateLimit,
-		}, d)
-	})
+	return gated(out, log, cfg.UrchinAPIKey == "", "urchin provider disabled: URCHIN_API_KEY not set", urchin.New, urchin.Config{
+		BaseURL:   cfg.UrchinBaseURL,
+		APIKey:    cfg.UrchinAPIKey,
+		RateLimit: cfg.UrchinRateLimit,
+	}, d)
 }
 
 func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, cfg.HypixelAPIKey == "", "hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)", func() provider.Provider {
-		return hypixel.New(hypixel.Config{
-			BaseURL:         cfg.HypixelBaseURL,
-			MojangBaseURL:   cfg.MojangBaseURL,
-			APIKey:          cfg.HypixelAPIKey,
-			RateLimit:       cfg.HypixelRateLimit,
-			MojangRateLimit: cfg.MojangRateLimit,
-		}, d)
-	})
+	return gated(out, log, cfg.HypixelAPIKey == "", "hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)", hypixel.New, hypixel.Config{
+		BaseURL:         cfg.HypixelBaseURL,
+		MojangBaseURL:   cfg.MojangBaseURL,
+		APIKey:          cfg.HypixelAPIKey,
+		RateLimit:       cfg.HypixelRateLimit,
+		MojangRateLimit: cfg.MojangRateLimit,
+	}, d)
 }
 
 func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, !cfg.McsrEnabled, "mcsr provider disabled: MCSR_ENABLED=false", func() provider.Provider {
-		return mcsr.New(mcsr.Config{
-			BaseURL:   cfg.McsrBaseURL,
-			APIKey:    cfg.McsrAPIKey,
-			RateLimit: cfg.McsrRateLimit,
-		}, d)
-	})
+	return gated(out, log, !cfg.McsrEnabled, "mcsr provider disabled: MCSR_ENABLED=false", mcsr.New, mcsr.Config{
+		BaseURL:   cfg.McsrBaseURL,
+		APIKey:    cfg.McsrAPIKey,
+		RateLimit: cfg.McsrRateLimit,
+	}, d)
 }
 
 // appendPaceman adds the paceman provider. Its public API needs no key, so
-// unlike appendUrchin/appendHypixel there is no credential to gate on — the
+// unlike the credential-gated providers there is nothing to gate on — the
 // only switch is the operator-controlled PacemanEnabled kill switch.
 func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, !cfg.PacemanEnabled, "paceman provider disabled: PACEMAN_ENABLED=false", func() provider.Provider {
-		return paceman.New(paceman.Config{
-			BaseURL:     cfg.PacemanBaseURL,
-			UserBaseURL: cfg.PacemanUserBaseURL,
-			RateLimit:   cfg.PacemanRateLimit,
-		}, d)
-	})
+	return gated(out, log, !cfg.PacemanEnabled, "paceman provider disabled: PACEMAN_ENABLED=false", paceman.New, paceman.Config{
+		BaseURL:     cfg.PacemanBaseURL,
+		UserBaseURL: cfg.PacemanUserBaseURL,
+		RateLimit:   cfg.PacemanRateLimit,
+	}, d)
 }
 
 // appendFortnite adds the fortnite provider behind the FORTNITE_ENABLED flag
@@ -130,12 +126,10 @@ func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps
 // them; without it (the modules internal key RPC unwired) there is nothing to
 // authenticate with, so it is skipped like any credential-less provider.
 func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, d.GoveeKeys == nil, "govee provider disabled: no key resolver (modules govee RPC unwired)", func() provider.Provider {
-		return govee.New(govee.Config{
-			BaseURL:   cfg.GoveeBaseURL,
-			RateLimit: cfg.GoveeRateLimit,
-		}, d)
-	})
+	return gated(out, log, d.GoveeKeys == nil, "govee provider disabled: no key resolver (modules govee RPC unwired)", govee.New, govee.Config{
+		BaseURL:   cfg.GoveeBaseURL,
+		RateLimit: cfg.GoveeRateLimit,
+	}, d)
 }
 
 // appendClashRoyale adds the Clash Royale provider behind its RoyaleAPI proxy
@@ -144,11 +138,24 @@ func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, l
 // 45.79.218.79 whitelisted on it; the proxy then forwards Bearer-keyed calls
 // to api.clashroyale.com. A key in Doppler lights all four !cr commands.
 func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return appendIf(out, log, cfg.ClashRoyaleAPIKey == "", "clashroyale provider disabled: CLASHROYALE_API_KEY not set (!cr commands will not answer)", func() provider.Provider {
-		return clashroyale.New(clashroyale.Config{
-			BaseURL:   cfg.ClashRoyaleBaseURL,
-			APIKey:    cfg.ClashRoyaleAPIKey,
-			RateLimit: cfg.ClashRoyaleRateLimit,
-		}, d)
-	})
+	return gated(out, log, cfg.ClashRoyaleAPIKey == "", "clashroyale provider disabled: CLASHROYALE_API_KEY not set (!cr commands will not answer)", clashroyale.New, clashroyale.Config{
+		BaseURL:   cfg.ClashRoyaleBaseURL,
+		APIKey:    cfg.ClashRoyaleAPIKey,
+		RateLimit: cfg.ClashRoyaleRateLimit,
+	}, d)
+}
+
+// appendValorant adds the Valorant provider behind its HenrikDev key, the same
+// credential gate as urchin/hypixel/clashroyale. The key gates everything:
+// unlike fortnite there is no keyless fallback mode — even the featured-bundle
+// viewer prices itself through HenrikDev (only its name/icon join rides the
+// keyless content CDN), so a missing key leaves every !val command dark.
+func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, cfg.ValorantAPIKey == "", "valorant provider disabled: VALORANT_API_KEY not set (!val commands will not answer)", valorant.New, valorant.Config{
+		BaseURL:          cfg.ValorantBaseURL,
+		ContentBaseURL:   cfg.ValorantContentBaseURL,
+		APIKey:           cfg.ValorantAPIKey,
+		RateLimit:        cfg.ValorantRateLimit,
+		ContentRateLimit: cfg.ValorantContentRateLimit,
+	}, d)
 }

@@ -79,6 +79,18 @@ type Config struct {
 	FortniteStatsRateLimit float64
 	FortniteSeasonStart    int64
 
+	// Valorant provider (rank/MMR, recent matches, leaderboards, account
+	// lookups, featured-bundle viewer) riding the community HenrikDev API. Key
+	// empty = provider disabled. The bundle viewer additionally reads Riot's
+	// keyless content CDN (valorant-api.com) to turn item UUIDs into names,
+	// icons and rarity colours — a second host with its own budget because it
+	// meters per source IP while HenrikDev meters per key.
+	ValorantBaseURL          string
+	ValorantContentBaseURL   string
+	ValorantAPIKey           string
+	ValorantRateLimit        float64
+	ValorantContentRateLimit float64
+
 	// Govee smart-light provider. It holds no service key (each broadcaster
 	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
 	// is that internal RPC's subject prefix; empty disables the provider.
@@ -158,6 +170,20 @@ func Load() *Config {
 		// day; the default leaves headroom.
 		FortniteStatsRateLimit: env.GetFloat("FORTNITE_STATS_RATE_LIMIT", 9000.0),
 		FortniteSeasonStart:    int64(env.GetInt("FORTNITE_SEASON_START_UNIX", 0)),
+
+		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
+		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),
+		ValorantAPIKey:         env.Get("VALORANT_API_KEY", ""),
+		// The fleet runs HenrikDev's instant Basic tier: 30 requests/min. The
+		// default sits AT the ceiling because every gossip pod shares one key,
+		// and the local bucket denying at 30 is strictly cheaper than the
+		// upstream's own 429 poisoning any cache fill in flight. Upgrading the
+		// Doppler key to Enhanced (90/min) MUST be paired with raising this to
+		// ~80, or a third of the paid allowance goes unused.
+		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 30.0),
+		// valorant-api.com publishes no hard per-client limit; 60/min is
+		// conservative for a multi-MB skins payload that caches for a day.
+		ValorantContentRateLimit: env.GetFloat("VALORANT_CONTENT_RATE_LIMIT", 60.0),
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
