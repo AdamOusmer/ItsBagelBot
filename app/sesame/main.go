@@ -132,7 +132,7 @@ func main() {
 	}
 
 	health.Serve(cfg.ListenAddr, serviceName,
-		health.Bool("nats", nc.IsConnected),
+		health.NATS("nats", nc),
 		health.Bool("bus_subscriber", func() bool { return bus.SubscriberHealthy(sub) }),
 	)
 	logReady(cfg, deps.Special.Len(), log)
