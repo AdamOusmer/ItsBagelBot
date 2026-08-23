@@ -12,8 +12,10 @@ let dialing: Promise<NatsConnection> | null = null;
 
 // The status stream lives on the hub (like the shared client's bus role);
 // NATS_URL is the local-dev fallback only.
+// `||` chains, not `??` (same blank-as-absent rule as the SUB maps): a
+// set-but-blank var must fall through, or servers: '' dials nothing forever.
 function url(): string {
-  return process.env.NATS_HUB_URL ?? process.env.NATS_URL ?? 'nats://127.0.0.1:4222';
+  return process.env.NATS_HUB_URL || process.env.NATS_URL || 'nats://127.0.0.1:4222';
 }
 
 async function get(): Promise<NatsConnection> {
@@ -21,7 +23,7 @@ async function get(): Promise<NatsConnection> {
   if (dialing) return dialing;
   const opts: ConnectionOptions = {
     servers: url(),
-    name: (process.env.NATS_CLIENT_NAME ?? 'console') + '-feed',
+    name: (process.env.NATS_CLIENT_NAME || 'console') + '-feed',
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
     pingInterval: 20_000,

@@ -84,8 +84,10 @@ export function enableLeafFailback(nc: NatsConnection): void {
   const intervalMs = positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000);
   const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
   const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
+  // `||` not `??`: a set-but-blank URL must fall through to the default, or
+  // the failback probe would fetch('') forever and never fire.
   const healthURL =
-    process.env.NATS_LOCAL_LEAF_HEALTH_URL ?? 'http://nats-leaf-local:8222/healthz';
+    process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'http://nats-leaf-local:8222/healthz';
   let consecutive = 0;
   let running = false;
 
@@ -134,7 +136,9 @@ export function enableLeafFailback(nc: NatsConnection): void {
 }
 
 function fallbackServer(override: string | undefined): string {
-  return override ?? `nats://${process.env.NATS_HOST ?? '127.0.0.1'}:${process.env.NATS_PORT ?? '4222'}`;
+  // `||` not `??`: a blank override/host must fall through to the default —
+  // through `??` a blank NATS_HOST builds 'nats://:4222' and every dial fails.
+  return override || `nats://${process.env.NATS_HOST || '127.0.0.1'}:${process.env.NATS_PORT || '4222'}`;
 }
 
 // Ordered RPC pool. Legacy NATS_LEAF_URL values are intentionally ignored so
@@ -144,7 +148,7 @@ function rpcServerList(override: string | undefined): string[] {
 }
 
 function busServerList(override: string | undefined): string[] {
-  return [process.env.NATS_HUB_URL ?? fallbackServer(override)];
+  return [process.env.NATS_HUB_URL || fallbackServer(override)];
 }
 
 // Verify the NATS server's TLS cert against the fleet CA (NATS_CA_PEM, the
@@ -175,7 +179,7 @@ function options(role: Role): ConnectionOptions {
       : busServerList(process.env.NATS_URL),
     // RPC stays on the leaf tier; the Service handles cross-node leaf failover.
     noRandomize: true,
-    name: `${process.env.NATS_CLIENT_NAME ?? 'console'}-${role}`,
+    name: `${process.env.NATS_CLIENT_NAME || 'console'}-${role}`,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
     // Broker auth/config and Doppler-driven app restarts can briefly land out
@@ -188,9 +192,11 @@ function options(role: Role): ConnectionOptions {
     // a gateway "server connection error" the user has to refresh past.
     timeout: 3_000
   };
-  const user = isRpc ? (process.env.NATS_RPC_USER ?? process.env.NATS_USER) : process.env.NATS_USER;
+  // `||` chains, not `??`: a blank RPC credential must fall back to the shared
+  // one instead of authenticating with an empty string.
+  const user = isRpc ? (process.env.NATS_RPC_USER || process.env.NATS_USER) : process.env.NATS_USER;
   const pass = isRpc
-    ? (process.env.NATS_RPC_PASSWORD ?? process.env.NATS_PASSWORD)
+    ? (process.env.NATS_RPC_PASSWORD || process.env.NATS_PASSWORD)
     : process.env.NATS_PASSWORD;
   if (user) opts.user = user;
   if (pass) opts.pass = pass;

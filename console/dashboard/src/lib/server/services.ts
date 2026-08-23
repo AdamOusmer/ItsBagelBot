@@ -20,24 +20,31 @@ import { dashboardL1CacheCapacity } from './config-sanity';
 // SvelteKit's dynamic-env proxy at module-eval time during server.init()
 // deadlocks the handler import (unsettled top-level await -> exit 13). In
 // adapter-node process.env carries the same values.
+//
+// Every env fallback below is `||`, never `??`: Doppler has shipped set-but-
+// blank vars before, and `??` passes one straight through, collapsing every
+// subject built from it to a leading-dot fragment ('.modules.get') that no
+// responder answers — a silent RPC timeout, not a config error. The identical
+// pattern once delivered a blank Valkey master name and took writes down; that
+// fix was also `||`. All defaults here are non-empty strings, so there is no
+// legitimate falsy value `||` could discard.
 export const SUB = {
-  broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT ?? 'bagel.rpc.broadcaster.status.get',
-  dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard',
-  commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX ?? 'bagel.rpc.commands',
-  modules: process.env.NATS_MODULES_SUBJECT_PREFIX ?? 'bagel.rpc.modules',
-  projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.projector.dashboard',
-  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT ?? 'twitch.outgress.system',
-  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX ?? 'bagel.rpc.outgress',
-  // Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX fallback
-  // (the old account/user no longer exist). `||` so a blank Doppler value falls
-  // through to the default instead of resolving to an empty subject prefix.
+  broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT || 'bagel.rpc.broadcaster.status.get',
+  dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.dashboard',
+  commands: process.env.NATS_COMMANDS_SUBJECT_PREFIX || 'bagel.rpc.commands',
+  modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'bagel.rpc.modules',
+  projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.projector.dashboard',
+  outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
+  outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
+  // Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
+  // fallback (the old account/user no longer exist).
   gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'bagel.rpc.gossip',
-  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX ?? 'bagel.rpc.loyalty',
-  goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX ?? 'bagel.rpc.modules.govee',
-  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX ?? 'bagel.rpc.admin.user.audit',
-  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX ?? 'bagel.rpc.delegation',
-  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX ?? 'bagel.rpc.notifications',
-  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX ?? 'bagel.rpc.transactions'
+  loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
+  goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX || 'bagel.rpc.modules.govee',
+  audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'bagel.rpc.admin.user.audit',
+  delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX || 'bagel.rpc.delegation',
+  notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.notifications',
+  transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX || 'bagel.rpc.transactions'
 };
 
 function userPrefixes(id: string): string[] {
