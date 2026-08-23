@@ -26,10 +26,18 @@ const (
 	defaultPublishBatchWait = time.Millisecond
 	defaultPublishAckWait   = 2 * time.Second
 	defaultPublishQueueSize = 16_384
-	maxInflightCohorts      = 4
 
 	messageIDHeader = "Bagelbot-Message-Id"
 )
+
+// inflightCohorts is how many atomic cohorts one worker may have outstanding.
+// The stock 4 kept the fleet under the broker's old 50-batch cap; with
+// jetstream.limits.batch.max_inflight_per_stream raised to 200, deeper client
+// pipelines convert that headroom into throughput until the leader binds.
+func inflightCohorts() int {
+	n := env.GetInt("NATS_ATOMIC_INFLIGHT_COHORTS", 4)
+	return min(max(n, 1), 32)
+}
 
 // StreamRouter is the strategy used to select a pooled connection. The default
 // hashes the stream plus optional aggregate partition. Calls without a
@@ -288,11 +296,6 @@ func publishMessage(command publishCommand) *nats.Msg {
 	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
 	// not a broker dedup key.
 	wire.Header[messageIDHeader] = []string{command.msgID}
-	// Dual-write the former adapter's identity header for one rolling-release
-	// window. Old consumers only understand this header, and an empty UUID is
-	// unsafe for outgress's distributed lease owner. This is application
-	// identity—not Nats-Msg-Id—and therefore does not enable broker deduplication.
-	wire.Header[legacyMessageIDHeader] = []string{command.msgID}
 	if txn := newrelic.FromContext(command.ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
@@ -398,7 +401,7 @@ func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error)
 		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots:         make(chan struct{}, maxInflightCohorts),
+		slots:         make(chan struct{}, inflightCohorts()),
 		batchSize:     publishBatchSize(p.wire),
 		batchWait:     publishBatchWait(p.wire),
 		overlapCommit: atomicPublishOverlap(),
