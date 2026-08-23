@@ -43,7 +43,11 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.request.encode", operation: "request", destination: subject,
 	})
-	body, err := codec.Marshal(request)
+	// FastMarshal drops std's HTML escaping and sorted keys. RPC request
+	// bodies are produced and decoded inside the fleet — the same trade
+	// PublishJSON already accepts on the publish path — and no RPC contract
+	// pins byte-for-byte output, so per-call escaping guarantees buy nothing.
+	body, err := codec.FastMarshal(request)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
 		return zero, fmt.Errorf("rpc %s marshal request: %w", subject, err)
