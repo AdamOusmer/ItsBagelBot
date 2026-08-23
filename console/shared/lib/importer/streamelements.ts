@@ -122,20 +122,7 @@ async function getJSON<T>(base: string, token: string, path: string, opts: Fetch
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    const res = await fetch(base + path, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      signal: abort.signal
-    });
-    // Cap how much of a hostile reply is buffered before decoding.
-    const text = await readCapped(res, MAX_RESPONSE_BODY, path);
-    if (res.status !== 200)
-      throw new StreamElementsError(`${path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
-    try {
-      return JSON.parse(text) as T;
-    } catch (err) {
-      throw new StreamElementsError(`${path}: decoding response: ${(err as Error).message}`);
-    }
+    return await requestJSON<T>(base + path, token, path, abort.signal);
   } catch (err) {
     if (err instanceof StreamElementsError) throw err;
     const reason =
@@ -146,6 +133,23 @@ async function getJSON<T>(base: string, token: string, path: string, opts: Fetch
   }
 }
 
+async function requestJSON<T>(url: string, token: string, path: string, signal: AbortSignal): Promise<T> {
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    signal
+  });
+  // Cap how much of a hostile reply is buffered before decoding.
+  const text = await readCapped(res, MAX_RESPONSE_BODY, path);
+  if (res.status !== 200)
+    throw new StreamElementsError(`${path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new StreamElementsError(`${path}: decoding response: ${(err as Error).message}`);
+  }
+}
+
 // readCapped reads the body but refuses to buffer more than cap bytes — the
 // port of Go's io.LimitReader + oversize rejection. A hostile server streaming
 // forever must not balloon the dashboard pod's memory.
@@ -153,29 +157,41 @@ async function readCapped(res: Response, cap: number, path: string): Promise<str
   try {
     const reader = res.body?.getReader();
     if (!reader) return await res.text();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > cap) {
-        await reader.cancel();
-        throw new StreamElementsError(`${path}: reading response: body exceeds ${cap} bytes`);
-      }
-      chunks.push(value);
-    }
-    const merged = new Uint8Array(total);
-    let at = 0;
-    for (const c of chunks) {
-      merged.set(c, at);
-      at += c.byteLength;
-    }
-    return new TextDecoder().decode(merged);
+    return await decodeCappedChunks(reader, cap, path);
   } catch (err) {
     if (err instanceof StreamElementsError) throw err;
     throw new StreamElementsError(`${path}: reading response: ${String(err)}`);
   }
+}
+
+async function decodeCappedChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  cap: number,
+  path: string
+): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      throw new StreamElementsError(`${path}: reading response: body exceeds ${cap} bytes`);
+    }
+    chunks.push(value);
+  }
+  return joinChunks(chunks, total);
+}
+
+function joinChunks(chunks: Uint8Array[], total: number): string {
+  const merged = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    merged.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(merged);
 }
 
 // authHint appends remediation only where the cause is almost certainly the
