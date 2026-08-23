@@ -31,7 +31,7 @@ the source of truth.
 | **modules** | `app/modules/` | Go | Feature modules per broadcaster; emits `data.modules.changed` |
 | **transactions** | `app/transactions/` | Go | Tebex purchase records; consumes `data.transactions.recorded` |
 | **admin** (legacy) | `app/admin/` | Go + templ | Read-only operator window over NATS (shard fleet, users); being superseded by the console |
-| **console** | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) and `admin` (operator) apps; arctic OAuth; talks to services only over NATS RPC |
+| **console** | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) and `admin` (operator) apps; oauth4webapi OAuth; talks to services only over NATS RPC |
 
 ## Data plane
 

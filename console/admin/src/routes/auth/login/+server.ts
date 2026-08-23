@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { generateState } from 'arctic';
+import { generateState } from '@bagel/shared/server/oauth';
 import { randomBytes } from 'node:crypto';
 import { twitch, scopes } from '$lib/server/oauth';
 

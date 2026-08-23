@@ -197,6 +197,7 @@ func (p *api) build() provider.Provider {
 			Fetch(p.statsFetch)
 		b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
 		b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
+		b.Endpoint("session_end").Timeout(handlerTimeout).Handle(p.sessionEnd)
 	}
 	return b.Build()
 }
@@ -650,6 +651,22 @@ func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.FortniteSnapshotReply{Player: stats.Player, Error: "snapshot store failed"}
 	}
 	return gossiprpc.FortniteSnapshotReply{Player: stats.Player}
+}
+
+// sessionEnd drops the channel's stream-start snapshot when the stream ends.
+// The snapshot TTL would eventually reclaim it, but a rapid stop/restart cycle
+// that raced its handlers (#561) left the old baseline diffing against the new
+// stream; clearing here makes "this stream" start clean on the next go-live
+// even when the online snapshot lost that race. Pure store delete: no upstream
+// call, no budget spent. Reuses FortniteSnapshotReply as the ack shape.
+func (p *api) sessionEnd(ctx context.Context, req gossiprpc.Request) any {
+	if req.ChannelID == "" {
+		return gossiprpc.FortniteSnapshotReply{Error: "missing channel"}
+	}
+	if err := p.cache.DelJSON(ctx, snapshotKey(req.ChannelID)); err != nil {
+		return gossiprpc.FortniteSnapshotReply{Error: "snapshot delete failed"}
+	}
+	return gossiprpc.FortniteSnapshotReply{}
 }
 
 // loadSnapshot reads the channel's stream-start snapshot, reporting ok only

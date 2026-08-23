@@ -3,13 +3,13 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { decodeIdToken, OAuth2RequestError } from 'arctic';
+import { ResponseBodyError } from '@bagel/shared/server/oauth';
 import { botTwitch, botClientId } from '$lib/server/oauth';
 import { tokenSet } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
 type BotIdentity = {
-  idToken: string;
+  claims: { sub: string; aud?: string | string[]; iss?: string };
   configuredId: string;
 };
 
@@ -20,11 +20,7 @@ function configuredBotId(): string {
 }
 
 function assertBotIdentity(identity: BotIdentity): void {
-  const claims = decodeIdToken(identity.idToken) as {
-    sub: string;
-    aud?: string | string[];
-    iss?: string;
-  };
+  const claims = identity.claims;
   const clientId = botClientId();
   const intendedAudience = Array.isArray(claims.aud)
     ? claims.aud.includes(clientId)
@@ -56,11 +52,11 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   try {
     const tokens = await botTwitch(url.origin).validateAuthorizationCode(code);
-    assertBotIdentity({ idToken: tokens.idToken()!, configuredId: botId });
+    assertBotIdentity({ claims: tokens.claims(), configuredId: botId });
 
     await tokenSet(botId, tokens.accessToken(), tokens.refreshToken());
   } catch (e) {
-    if (e instanceof OAuth2RequestError) throw redirect(302, '/auth/bot/done?e=oauth');
+    if (e instanceof ResponseBodyError) throw redirect(302, '/auth/bot/done?e=oauth');
     throw e;
   }
 

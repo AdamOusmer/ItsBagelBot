@@ -13,10 +13,11 @@ import (
 )
 
 // fleetStreamSpecs returns the whole catalog: the reconciled data streams plus
-// the two outgress streams their owners reconcile separately.
+// the outgress-owned streams their owners reconcile separately.
 func fleetStreamSpecs() []StreamSpec {
 	specs := append([]StreamSpec{}, DataStreams...)
-	return append(specs, OutgressStream, OutgressSystemStream)
+	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream,
+		DiscordOutgressStream)
 }
 
 // ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
@@ -182,6 +183,38 @@ func TestOutgressStreamHasSingleReconciler(t *testing.T) {
 	for _, spec := range DataStreams {
 		if spec.Name == OutgressStream.Name {
 			t.Fatal("outgress stream must be reconciled only by outgress")
+		}
+	}
+}
+
+func TestYouTubeStreamsResolveToTheirSpecs(t *testing.T) {
+	for subject, want := range map[string]string{
+		"youtube.outgress.premium":         YouTubeOutgressStream.Name,
+		"youtube.outgress.standard":        YouTubeOutgressStream.Name,
+		"youtube.ingress.event.stream":     YouTubeIngressStream.Name,
+		"youtube.ingress.event.premium":    YouTubeIngressStream.Name,
+		"youtube.ingress.event.standard":   YouTubeIngressStream.Name,
+		"youtube.ingress.status.chat.up":   YouTubeIngressStream.Name,
+		"youtube.ingress.status.chat.down": YouTubeIngressStream.Name,
+	} {
+		got, err := streamForTopic(subject)
+		if err != nil {
+			t.Fatalf("streamForTopic(%q): %v", subject, err)
+		}
+		if got != want {
+			t.Fatalf("stream for %q = %q, want %q", subject, got, want)
+		}
+	}
+}
+
+func TestDiscordOutgressStreamResolvesItsLanes(t *testing.T) {
+	for _, subject := range []string{"discord.outgress.premium", "discord.outgress.standard"} {
+		got, err := streamForTopic(subject)
+		if err != nil {
+			t.Fatalf("streamForTopic(%q): %v", subject, err)
+		}
+		if got != DiscordOutgressStream.Name {
+			t.Fatalf("stream for %q = %q, want %q", subject, got, DiscordOutgressStream.Name)
 		}
 	}
 }
@@ -355,6 +388,9 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 		TwitchIngressStandardStream.Name: true,
 		TwitchIngressRetryStream.Name:    true,
 		OutgressStream.Name:              true,
+		YouTubeOutgressStream.Name:       true,
+		YouTubeIngressStream.Name:        true,
+		DiscordOutgressStream.Name:       true,
 	}
 	for _, spec := range fleetStreamSpecs() {
 		want := jsapi.FileStorage

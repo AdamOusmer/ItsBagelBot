@@ -245,21 +245,73 @@ defmodule Ingress.Pipeline do
   end
 
   defp chat_message(lane, event, text, meta, hot) do
-    {:publish, Map.fetch!(hot.lane_subjects, lane),
-     %{
-       type: "channel.chat.message",
-       lane: lane,
-       broadcaster_user_id: event["broadcaster_user_id"],
-       broadcaster_user_login: event["broadcaster_user_login"],
-       broadcaster_user_name: event["broadcaster_user_name"],
-       chatter_user_id: event["chatter_user_id"],
-       chatter_user_login: event["chatter_user_login"],
-       chatter_user_name: event["chatter_user_name"],
-       text: text,
-       badges: event["badges"],
-       msg_id: meta.msg_id,
-       shard_id: meta.shard_id,
-       ts: meta.ts
-     }}
+    subject = Map.fetch!(hot.lane_subjects, lane)
+
+    message = %{
+      type: "channel.chat.message",
+      lane: lane,
+      broadcaster_user_id: event["broadcaster_user_id"],
+      broadcaster_user_login: event["broadcaster_user_login"],
+      broadcaster_user_name: event["broadcaster_user_name"],
+      chatter_user_id: event["chatter_user_id"],
+      chatter_user_login: event["chatter_user_login"],
+      chatter_user_name: event["chatter_user_name"],
+      text: text,
+      badges: event["badges"],
+      msg_id: meta.msg_id,
+      shard_id: meta.shard_id,
+      ts: meta.ts
+    }
+
+    case emote_spans(event) do
+      [] -> {:publish, subject, message}
+      spans -> {:publish, subject, Map.put(message, :emotes, spans)}
+    end
   end
+
+  # Twitch's native per-message emote signals, which the flat text projection
+  # above used to drop. Cheermotes are identified by their prefix; the worker
+  # reads the bits/tier from the covered text itself.
+  @emote_fragment_types ["emote", "cheermote"]
+
+  @doc """
+  Extracts emote spans from a `channel.chat.message` event's
+  `message.fragments`: one `%{id: id | prefix, begin: offset, end: offset}`
+  per emote/cheermote fragment, in message order. Offsets are Unicode
+  codepoint positions into `message.text` — `begin` points at the fragment's
+  first codepoint and `end` is exclusive. Returns [] when there are none.
+  """
+  @spec emote_spans(map()) :: [
+          %{id: String.t() | nil, begin: non_neg_integer(), end: non_neg_integer()}
+        ]
+  def emote_spans(%{"message" => %{"fragments" => fragments}}) when is_list(fragments) do
+    {spans, _offset} =
+      Enum.flat_map_reduce(fragments, 0, fn fragment, offset ->
+        width = codepoint_width(fragment["text"])
+
+        spans =
+          if fragment["type"] in @emote_fragment_types do
+            [%{id: fragment_id(fragment), begin: offset, end: offset + width}]
+          else
+            []
+          end
+
+        {spans, offset + width}
+      end)
+
+    spans
+  end
+
+  def emote_spans(_event), do: []
+
+  # Twitch measures emote offsets in codepoints. String.length/1 counts
+  # graphemes instead, so every span after a flag or ZWJ emoji would drift
+  # below its true position, while byte_size over-counts all non-ASCII text;
+  # both were wrong against the IRC-style indices Twitch itself emits.
+  defp codepoint_width(text) when is_binary(text), do: text |> String.to_charlist() |> length()
+  defp codepoint_width(_text), do: 0
+
+  defp fragment_id(%{"emote" => %{"id" => id}}) when is_binary(id), do: id
+  defp fragment_id(%{"cheermote" => %{"prefix" => prefix}}) when is_binary(prefix), do: prefix
+  defp fragment_id(_fragment), do: nil
 end

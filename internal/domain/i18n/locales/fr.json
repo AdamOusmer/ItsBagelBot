@@ -37,6 +37,8 @@
   "duel.status.pot": "Duel à cagnotte : {count} inscrits, {pot} {points} en jeu — tirage dans ~{secs}s. Tape !duel <montant> pour rejoindre !",
   "duel.usage": "Utilisation : !duel \u003cmontant\u003e — !duel \u003cutilisateur\u003e \u003cmontant\u003e — !duel accept|decline|cancel",
   "duel.won": "Les lames retombent — @{winner} bat @{loser} et rafle {pot} {points} !",
+  "emoteplay.pyramid": "{user} vient de finir la pyramide {emote} ! ({height} de haut)",
+  "emoteplay.streak": "Série {emote} ×{count} !",
   "external.retry": "recherche en cours, réessayez dans un instant",
   "feed.board": "Classement bagel : {places}. {standing}",
   "feed.board.empty": "Personne n'a encore nourri le bagel. Dites « feed the bagel » et prenez la première place.",

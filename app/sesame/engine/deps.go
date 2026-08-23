@@ -112,10 +112,22 @@ type Deps struct {
 	// default. nil degrades gracefully: facts go random, the feed count is
 	// omitted and the mood re-rolls per message.
 	Personality PersonalityStore
+	// EmotePlay is the per-channel emote pyramid + streak tracker behind the
+	// emoteplay module; ValkeyEmotePlay is the default. nil leaves the module
+	// silent (it never emits without a store).
+	EmotePlay EmotePlayStore
 	// Dedup guards the non-idempotent effect sites against a redelivered or
 	// schedule-retried event applying them twice. nil (the kill switch) fails
 	// open everywhere: effects run, nothing is deduped.
 	Dedup *EventDedup
+	// Seq serializes per-broadcaster the background work the stream-lifecycle
+	// handlers enqueue (live key writes, greet resets, timer/loyalty tick
+	// arm-disarm, gossip session snapshots): tasks run in arrival order, one
+	// fully complete before the next starts, so an offline handler's disarm can
+	// no longer race the online handler's arm on this replica (#561). It is the
+	// intra-replica half of the fix — the versioned LiveStore writes are the
+	// cross-replica half. nil leaves every handler plain fire-and-forget.
+	Seq *Sequencer
 }
 
 // FeedCounts is one feeding's fleet-wide readout: how often the bagel has been
@@ -183,6 +195,13 @@ type FeedTotalPersister interface {
 	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
 }
 
+// EmotePlayStore advances a channel's emote chains by one candidate line. See
+// ValkeyEmotePlay (emoteplay_valkey.go) for the transition rules and the
+// race-safety reasoning; callers only feed lines and read back milestones.
+type EmotePlayStore interface {
+	Bump(ctx context.Context, u EmotePlayUpdate) (EmotePlayResult, error)
+}
+
 // IsLiveChecker is the read-only slice of the live store: just "is this
 // broadcaster live?". The command gate's live-only check and the bagel greeter
 // depend on this narrow interface (ISP) rather than the full LiveStore.
@@ -193,10 +212,17 @@ type IsLiveChecker interface {
 // LiveStore answers and maintains a broadcaster's live state. Reads are served
 // from a cache fronting Valkey with a projector RPC fallback; writes flow from
 // the stream events the worker consumes.
+// The writes are versioned (#561): version is the event's ordering claim (the
+// envelope's EventVersion, unix millis). A write whose version is older than
+// what is already applied is skipped rather than overwriting — a rapid
+// stream.online/offline pair processed by different consumer goroutines must
+// not let the online land last and resurrect the key. applied reports whether
+// this call won; callers skip their follow-up effects when it did not, so a
+// superseded online never re-arms timers an offline just disarmed.
 type LiveStore interface {
 	IsLiveChecker
-	SetLive(ctx context.Context, broadcasterID uint64) error
-	ClearLive(ctx context.Context, broadcasterID uint64) error
+	SetLive(ctx context.Context, broadcasterID uint64, version int64) (applied bool, err error)
+	ClearLive(ctx context.Context, broadcasterID uint64, version int64) (applied bool, err error)
 }
 
 // GreetStore tracks which special users have already been greeted in the current

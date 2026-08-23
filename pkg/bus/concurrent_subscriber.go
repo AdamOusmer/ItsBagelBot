@@ -218,15 +218,47 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 			return
 		}
 		msg.SetContext(ctx)
-		select {
-		case output <- msg:
-			s.acks.Add(1)
-			s.watchResult(natsMsg, msg)
-		case <-ctx.Done():
-		case <-s.closeCh:
-		case <-callbacks.stopped():
+		// The result watch MUST be installed before the handoff. A fast
+		// worker resolves the instant the send completes, and a handler
+		// installed after that winning transition is never called — the ack
+		// is silently dropped. This broker never fires AckWait redelivery
+		// while interest stays bound, so every dropped slot strands one
+		// MaxAckPending seat until max_age; that race is what capped the
+		// lane near 2-3k msg/s. The non-delivery arms unwind the watch
+		// themselves and resultWatch.finished makes double release a no-op.
+		w := s.newResultWatch(natsMsg, msg)
+		if !s.handOff(ctx, output, callbacks, msg) {
+			w.unwind()
 		}
 	}
+}
+
+// newResultWatch arms one message's keep-alive timer and resolve hook and
+// counts it against the in-flight ack budget.
+func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
+	w := &resultWatch{s: s, natsMsg: natsMsg}
+	w.timer = time.AfterFunc(s.progress, w.keepAlive)
+	msg.setResolveHandler(w.resolve)
+	s.acks.Add(1)
+	return w
+}
+
+// handOff blocks until the message lands on output or the lane shuts down
+// around it; it reports whether the handoff won.
+func (s *concurrentDurableSubscriber) handOff(
+	ctx context.Context,
+	output chan<- *Message,
+	callbacks *callbackGate,
+	msg *Message,
+) bool {
+	select {
+	case output <- msg:
+		return true
+	case <-ctx.Done():
+	case <-s.closeCh:
+	case <-callbacks.stopped():
+	}
+	return false
 }
 
 func newCallbackGate() *callbackGate {
@@ -285,7 +317,7 @@ func fleetMetadata(headers nats.Header) (Metadata, error) {
 	metadata := make(Metadata, len(headers))
 	for key, values := range headers {
 		switch key {
-		case MessageIDHeader, legacyMessageIDHeader,
+		case MessageIDHeader,
 			nats.MsgIdHdr, nats.ExpectedLastMsgIdHdr, nats.ExpectedStreamHdr,
 			nats.ExpectedLastSubjSeqHdr, nats.ExpectedLastSeqHdr:
 			continue
@@ -300,9 +332,6 @@ func fleetMetadata(headers nats.Header) (Metadata, error) {
 
 func messageIdentity(wire *nats.Msg) string {
 	if id := wire.Header.Get(MessageIDHeader); id != "" {
-		return id
-	}
-	if id := wire.Header.Get(legacyMessageIDHeader); id != "" {
 		return id
 	}
 	if metadata, err := wire.Metadata(); err == nil && metadata.Sequence.Stream > 0 {
@@ -347,6 +376,15 @@ type resultWatch struct {
 	// callback with its own Reset, so it needs no lock.
 	elapsed  time.Duration
 	finished atomic.Bool
+}
+
+// unwind releases a watch whose message never reached a worker: stop the
+// keep-alive timer and give the ack seat straight back.
+func (w *resultWatch) unwind() {
+	w.timer.Stop()
+	if w.finished.CompareAndSwap(false, true) {
+		w.s.acks.Done()
+	}
 }
 
 func (w *resultWatch) resolve(acked bool) {

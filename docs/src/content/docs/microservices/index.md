@@ -15,8 +15,9 @@ for events, request-reply for RPC. No service reads another service's database.
 | Service | Repo path | Language | Owns / does | Exposes |
 |---|---|---|---|---|
 | [Twitch Ingress](/microservices/twitch-ingress/) | `app/ingress/` | Elixir (OTP 27+) | EventSub Conduit + WebSocket shards; per-shard supervision; tenant OAuth; filter-and-normalize events | `twitch.ingress.event.*`, `twitch.ingress.status.*`, `twitch.ingress.admin.shards.get` |
+| [YouTube Ingress](/microservices/youtube-ingress/) | `app/yt-ingress/` | Elixir (OTP 27+) | Per-channel `liveChatMessages.streamList` gRPC streams; broadcast discovery watcher; token leasing over RPC; normalize events | `youtube.ingress.event.*`, `youtube.ingress.status.*`, `youtube.ingress.admin.chats.get` |
 | [Sesame](/microservices/sesame/) | `app/sesame/` | Go | Core engine and command processor; consumes ingress events, runs module handlers and commands, routes to outgress | consumes `twitch.ingress.event.*`; publishes to `twitch.outgress.*` |
-| [Outgress](/microservices/outgress/) | `app/outgress/` | Go | Sends to Twitch; per-broadcaster rate limit (Valkey); channel registry; app/user token lifecycle; kill switch | consumes `twitch.outgress.*`; serves `bagel.rpc.outgress.*` |
+| [Outgress](/microservices/outgress/) | `app/outgress/` | Go | Sends to Twitch and YouTube Live Chat; per-broadcaster rate limit + daily quota budget (Valkey); channel registry; token lifecycle; kill switch | consumes `twitch.outgress.*`, `youtube.outgress.*`; serves `bagel.rpc.outgress.*` |
 | [Projector](/microservices/projector/) | `app/projector/` | Go | Builds the Valkey settings projection on stream-online; serves broadcaster tier lookups | `bagel.rpc.broadcaster.status.get` |
 | [Users](/microservices/users/) | `app/users/` | Go | User accounts, status (free/paid/vip), active toggle, Twitch OAuth tokens | `bagel.rpc.dashboard.*`, `bagel.rpc.admin.user.*`, `bagel.rpc.internal.projection.users.get`, `bagel.rpc.internal.tokens.*`; emits `data.users.*` |
 | [Commands](/microservices/commands/) | `app/commands/` | Go | Custom chat commands | `bagel.rpc.commands.*`, `bagel.rpc.internal.projection.commands.get`; emits `data.commands.changed` |
@@ -24,7 +25,7 @@ for events, request-reply for RPC. No service reads another service's database.
 | [Notifications](/microservices/notifications/) | `app/notifications/` | Go | Dashboard notifications, admin announcements, and TTL cleanup | `bagel.rpc.notifications.*`, `bagel.rpc.admin.notifications.*` |
 | [Transactions](/microservices/transactions/) | `app/transactions/` | Go | Tebex purchase records | consumes `data.transactions.recorded` |
 | [Admin](/microservices/admin/) (legacy) | `app/admin/` | Go + templ | Read-only operator window over NATS (shard fleet, users) | Operators only, over the tailnet |
-| [Console](/microservices/console/) | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) + `admin` (operator); arctic OAuth | HTTPS via cloudflared / tailnet; talks to services only over NATS RPC |
+| [Console](/microservices/console/) | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) + `admin` (operator); oauth4webapi OAuth | HTTPS via cloudflared / tailnet; talks to services only over NATS RPC |
 | [Web](/microservices/web/) | `web/` | Astro | Public marketing site and documentation | Public HTTPS |
 
 See [System state](/reference/system-overview/) for the data plane, the bus, and
@@ -60,5 +61,5 @@ and a `bagel.cache.invalidate.broadcaster` publish reconverges cached readers.
 - **Mesh**: Linkerd native-sidecar provides mTLS between meshed services. The
   legacy admin tool is intentionally **not** meshed and is reachable only over
   Tailscale, with tailnet ACLs as its access control (see [Networking](/infrastructure/networking/)).
-- **OAuth**: the console authenticates end users with arctic (Twitch OAuth);
+- **OAuth**: the console authenticates end users with oauth4webapi (Twitch OAuth);
   broadcaster grants are persisted by the users service via `grant_save`.
