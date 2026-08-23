@@ -8,16 +8,19 @@ import "testing"
 // Bench corpus mirrors real chat: a short ascii line, a leet-heavy line, and
 // a non-ascii (Cyrillic-evasion) line that must take the NFKC path.
 //
-// Measured (Apple M1 Pro, go1.26.6), before -> after the pure-ascii fast path
-// plus leet-fold quorum:
+// Measured (Apple M1 Pro, go1.26.6), before -> after the token-as-a-unit fold
+// redesign (2026-08-23, round-2 code-health: the per-gated-rune token re-walk
+// and its backward tokStart bookkeeping were deleted outright):
 //
-//	ascii    1117-1204 ns/op  120 B/op  4 allocs  ->  332-346 ns/op   0 B/op  0 allocs
-//	leet     1056-1173 ns/op  120 B/op  4 allocs  ->  296-298 ns/op   0 B/op  0 allocs
-//	nonascii  950- 965 ns/op  120 B/op  4 allocs  -> 1074-1079 ns/op 120 B/op 4 allocs
+//	ascii    332-346 ns/op   0 B/op  0 allocs  ->  404-443 ns/op   0 B/op  0 allocs
+//	leet     296-298 ns/op   0 B/op  0 allocs  ->  344-377 ns/op   0 B/op  0 allocs
+//	nonascii 1074-1079 ns/op 120 B/op 4 allocs -> 1346-1416 ns/op 120 B/op 4 allocs
 //
-// The non-ascii path keeps its NFKC allocation (unavoidable - that is the
-// normalization) and pays ~12% for the two-letter quorum lookaheads around
-// gated digits; ascii chat lines went alloc-free.
+// The pure-ascii fast path keeps its zero-alloc pin (folding happens IN PLACE
+// on caller-owned dst); the non-ascii path keeps its NFKC allocation
+// (unavoidable - that is the normalization) and pays ~25% for the pooled rune
+// buffer plus its flush pass - deep-path-only cost, accepted to make counting
+// and folding single linear passes per token.
 var benchLines = []struct {
 	name string
 	text string

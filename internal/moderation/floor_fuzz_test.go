@@ -81,9 +81,13 @@ func assertOwnListTerm(t *testing.T, skel []byte, kind FloorKind, term string) {
 // belongs to neither floor list.
 func assertPrescanTermOwned(t *testing.T, text, pterm string) {
 	t.Helper()
-	if pterm != "" && !containsTerm(IPLoggerDomains, pterm) && !containsTerm(ScamTerms, pterm) {
-		t.Fatalf("MatchFloorPrescan(%q) returned foreign term %q", text, pterm)
+	if pterm == "" {
+		return
 	}
+	if containsTerm(IPLoggerDomains, pterm) || containsTerm(ScamTerms, pterm) {
+		return
+	}
+	t.Fatalf("MatchFloorPrescan(%q) returned foreign term %q", text, pterm)
 }
 
 // assertBenignCorpusClean re-runs the audited benign shapes through both paths

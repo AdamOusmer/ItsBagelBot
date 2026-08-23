@@ -168,19 +168,31 @@ func (g *Gate) emoteDominant(text string, msgCodes map[string]struct{}, ch uint6
 	total, known := 0, 0
 	for _, tok := range strings.Fields(text) {
 		total++
-		if tokenIsKnownEmote(msgCodes, fetched, g, ch, tok) {
+		if g.tokenIsKnownEmote(emoteLookup{msgCodes: msgCodes, fetched: fetched, ch: ch, token: tok}) {
 			known++
 		}
 	}
 	return total > 0 && float64(known) >= emoteMajority*float64(total)
 }
 
+// emoteLookup bundles one token's membership-resolution inputs. The free
+// function used to take them as five loose parameters (map, set, gate, channel,
+// token) - an argument list that read as four unrelated types glued together;
+// as a method on *Gate with one struct value, the layers stay named at every
+// call site.
+type emoteLookup struct {
+	msgCodes map[string]struct{} // span-derived codes from this message, lowercased keys
+	fetched  *EmoteSet           // third-party global set, exact-case; nil-safe
+	ch       uint64              // channel scope for the learned layer
+	token    string              // the whitespace token being resolved
+}
+
 // tokenIsKnownEmote resolves one whitespace token against the membership
 // layers in precedence order - (a) message spans, (b) the fetched set, (c) the
 // learned provider scoped to ch. First hit wins, so a span-covered native
 // emote never depends on any fetch having succeeded.
-func tokenIsKnownEmote(msgCodes map[string]struct{}, fetched *EmoteSet, g *Gate, ch uint64, tok string) bool {
-	return spanHasCode(msgCodes, tok) || fetched.Has(tok) || g.extraKnows(ch, tok)
+func (g *Gate) tokenIsKnownEmote(lk emoteLookup) bool {
+	return spanHasCode(lk.msgCodes, lk.token) || lk.fetched.Has(lk.token) || g.extraKnows(lk.ch, lk.token)
 }
 
 // spanHasCode reports membership among the message's span-derived codes, whose

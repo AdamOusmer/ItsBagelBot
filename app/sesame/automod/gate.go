@@ -399,9 +399,26 @@ func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Ca
 }
 
 // heuristicVerdict resolves the style flags once every list-based juror has
-// passed. Two rescues, each requiring the flagged shape to have exactly ONE
-// explanation, and each suppressing toward ActionNone - the lexicon, floor and
-// block-term jurors above already returned:
+// passed: the two single-explanation rescues (evaluateRescues) may suppress a
+// flagged line toward ActionNone, an allow-term suppresses every heuristic,
+// and anything still standing deletes.
+func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, text string, msgCodes map[string]struct{}, ch uint64) Verdict {
+	if !flags.any() {
+		return Verdict{}
+	}
+	if g.evaluateRescues(sig, flags, text, msgCodes, ch) {
+		return Verdict{}
+	}
+	if allowed {
+		return Verdict{}
+	}
+	return Verdict{Action: ActionDelete, Rule: "heuristic"}
+}
+
+// evaluateRescues decides whether a flagged line suppresses toward ActionNone
+// under one of two rescues, each requiring the flagged shape to have exactly
+// ONE explanation - the lexicon, floor and block-term jurors above already
+// returned:
 //
 //   - caps-only: "KEKW KEKW LUL" is communal emote spam when the tokens are
 //     known emotes across the layered lookup (see emoteDominant). Availability,
@@ -422,30 +439,17 @@ func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Ca
 //     symbol spam because pictographs count as symbols; when emoji carry at
 //     least half the non-space runes the line is hype, not abuse.
 //
-// Zero-width, repeat, and multi-flag shapes are never suppressed. An
-// allow-term suppresses every heuristic.
-func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, text string, msgCodes map[string]struct{}, ch uint64) Verdict {
-	if !flags.any() {
-		return Verdict{}
-	}
+// Zero-width, repeat, and multi-flag shapes are never suppressed.
+func (g *Gate) evaluateRescues(sig signals, flags styleFlags, text string, msgCodes map[string]struct{}, ch uint64) bool {
 	if flags.onlyCaps() {
 		// Span presence makes availability true; dominance then decides. No
 		// spans -> fetched-layer semantics verbatim.
-		if len(msgCodes) > 0 {
-			if g.emoteDominant(text, msgCodes, ch) {
-				return Verdict{}
-			}
-		} else if g.emotesUnavailable() || g.emoteDominant(text, nil, ch) {
-			return Verdict{}
+		if g.emoteDominant(text, msgCodes, ch) {
+			return true
 		}
+		return len(msgCodes) == 0 && g.emotesUnavailable()
 	}
-	if flags.onlySymbol() && sig.emojiDominant() {
-		return Verdict{}
-	}
-	if allowed {
-		return Verdict{}
-	}
-	return Verdict{Action: ActionDelete, Rule: "heuristic"}
+	return flags.onlySymbol() && sig.emojiDominant()
 }
 
 // blockTermVerdict scans the channel's own block-terms (skeleton space); a hit

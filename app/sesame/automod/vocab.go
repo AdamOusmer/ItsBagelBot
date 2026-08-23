@@ -115,7 +115,7 @@ func (v *Vocab) Observe(channel uint64, senderID string, tokens []string) {
 	cv := vocabChannel(s.m, channel)
 	cv.lastSeen = v.now()
 	for _, tok := range tokens {
-		recordToken(cv, hour, senderID, strings.ToLower(tok))
+		recordToken(cv, hour, tokenObs{lower: strings.ToLower(tok), sender: senderID})
 	}
 	s.Unlock()
 }
@@ -132,32 +132,42 @@ func vocabChannel(m map[uint64]*chanVocab, channel uint64) *chanVocab {
 	return cv
 }
 
+// tokenObs carries one observed token use from the gate into the recording
+// path. The internal hops used to pass (senderID, token) as loose string
+// pairs through recordToken/admitNewBin, reading like a second public
+// signature; the struct groups them without touching the public API
+// (engine calls Observe/Known/PurgeTokens verbatim).
+type tokenObs struct {
+	lower  string // the token, lowercased at the Observe boundary
+	sender string // attributed sender; "" = cohort fold, mints no diversity
+}
+
 // recordToken folds one lowercased token use into the channel's window:
 // existing bins age-decay then increment and grow their sender set; new bins
 // enter through Misra-Gries admission.
-func recordToken(cv *chanVocab, hour int64, senderID, tok string) {
-	if tok == "" {
+func recordToken(cv *chanVocab, hour int64, obs tokenObs) {
+	if obs.lower == "" {
 		return
 	}
-	ts := cv.bins[tok]
+	ts := cv.bins[obs.lower]
 	if ts == nil {
-		admitNewBin(cv.bins, hour, senderID, tok)
+		admitNewBin(cv.bins, hour, obs)
 		return
 	}
 	ts.count = ts.aged(hour) + 1
-	promoteSender(ts, senderID)
+	promoteSender(ts, obs.sender)
 }
 
 // admitNewBin installs a fresh bin at count 1 - or drops the token instead when
 // the window is full and mgMakeRoom cannot free a bin (every surviving bin
 // holds more than one use; growing would break Misra-Gries bounds).
-func admitNewBin(bins map[string]*tokenStat, hour int64, senderID, tok string) {
+func admitNewBin(bins map[string]*tokenStat, hour int64, obs tokenObs) {
 	if len(bins) >= vocabBins && !mgMakeRoom(bins, hour) {
 		return
 	}
 	ts := &tokenStat{count: 1, lastTouch: hour}
-	bins[tok] = ts
-	promoteSender(ts, senderID)
+	bins[obs.lower] = ts
+	promoteSender(ts, obs.sender)
 }
 
 // promoteSender records sender among the token's distinct voices until the set
@@ -227,30 +237,38 @@ func (t *tokenStat) aged(nowHour int64) float64 {
 // than one use, meaning there is genuinely no room. Iteration order does not
 // affect the outcome: each bin's update is independent.
 func mgMakeRoom(bins map[string]*tokenStat, hour int64) bool {
-	var dead []string
-	sweep := func() {
-		for _, tok := range dead {
-			delete(bins, tok)
-		}
-		dead = dead[:0]
-	}
-	for tok, ts := range bins {
-		if ts.aged(hour) < vocabMinCount {
-			dead = append(dead, tok)
-		}
-	}
-	sweep()
+	mgEvictAged(bins, hour)
 	if len(bins) < vocabBins {
 		return true
 	}
-	for tok, ts := range bins {
+	for _, ts := range bins {
 		ts.count--
-		if ts.count < vocabMinCount {
-			dead = append(dead, tok)
+	}
+	mgEvictDead(bins)
+	return len(bins) < vocabBins
+}
+
+// mgEvictAged lazy-decays every bin and deletes it in the same pass when its
+// count fell under vocabMinCount (an hour of silence halves a count of 2 into
+// oblivion). Deleting while ranging a map is well-defined: dropped keys may
+// merely be skipped later in the same walk, and each bin's update is
+// independent of its neighbors.
+func mgEvictAged(bins map[string]*tokenStat, hour int64) {
+	for tok, ts := range bins {
+		if ts.aged(hour) < vocabMinCount {
+			delete(bins, tok)
 		}
 	}
-	sweep()
-	return len(bins) < vocabBins
+}
+
+// mgEvictDead drops bins already decremented under vocabMinCount by the
+// Misra-Gries subtract-1 pass.
+func mgEvictDead(bins map[string]*tokenStat) {
+	for tok, ts := range bins {
+		if ts.count < vocabMinCount {
+			delete(bins, tok)
+		}
+	}
 }
 
 // Memory bound, worst case per channel: vocabBins × (tokenStat struct 24B +

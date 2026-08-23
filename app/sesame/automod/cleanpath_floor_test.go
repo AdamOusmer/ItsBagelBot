@@ -43,8 +43,14 @@ func TestCleanPathInfraFloorHoldsShortLines(t *testing.T) {
 func assertInfraTimeoutViaDeepPath(t *testing.T, g *Gate, line, rule string) {
 	t.Helper()
 	v, sigs := g.Assess(module.RoleEveryone, line, nil)
-	if v.Action != ActionTimeout || v.Rule != rule || v.Seconds != 600 {
-		t.Fatalf("Assess(%q) = %+v, want timeout/600s rule=%s", line, v, rule)
+	if v.Action != ActionTimeout {
+		t.Fatalf("Assess(%q) = %s/%s, want a timeout", line, v.Action, v.Rule)
+	}
+	if v.Rule != rule {
+		t.Fatalf("Assess(%q) ruled %s, want %s", line, v.Rule, rule)
+	}
+	if v.Seconds != 600 {
+		t.Fatalf("Assess(%q) timed out for %ds, want 600s", line, v.Seconds)
 	}
 	if !sigs.Deep {
 		t.Fatalf("%q was actioned without taking the deep path", line)
