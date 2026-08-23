@@ -281,34 +281,45 @@ func (p *batchPublisher) publish(command publishCommand) error {
 	return awaitPublishConfirmation(command.ctx, request)
 }
 
-func publishMessage(command publishCommand) *nats.Msg {
-	wire := wireMsgPool.Get().(*nats.Msg)
-	wire.Subject = command.topic
-	wire.Reply = ""
-	wire.Data = command.payload
-	// Pool cycles reuse the map; first use sizes it for both identity keys
-	// plus the trace-header pair. Both identity keys are canonical MIME form,
-	// so direct assignment skips Set's append path; the trace loop keeps Set:
-	// its keys arrive from NewRelic with outside casing, and canonicalization
-	// is what makes later Get calls find them.
-	if wire.Header == nil {
-		wire.Header = make(nats.Header, 3)
-	} else {
-		for k := range wire.Header {
-			delete(wire.Header, k)
-		}
+// resetWireHeader prepares a pooled envelope's header map for reuse: nil gets
+// an initial map sized for both identity keys plus the trace-header pair;
+// otherwise every prior key is dropped. Returns the map to write into.
+func resetWireHeader(h nats.Header) nats.Header {
+	if h == nil {
+		return make(nats.Header, 3)
 	}
-	// Preserve the fleet abstraction's message identity for subscribers, but
-	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
-	// not a broker dedup key.
-	wire.Header[messageIDHeader] = []string{command.msgID}
-	if txn := newrelic.FromContext(command.ctx); txn != nil {
+	for k := range h {
+		delete(h, k)
+	}
+	return h
+}
+
+// attachTraceHeaders copies NewRelic's distributed-trace headers onto the
+// wire. Both identity keys are canonical MIME form, so identity assignment in
+// publishMessage skips Set's append path; this loop keeps Set: its keys arrive
+// from NewRelic with outside casing, and canonicalization is what makes later
+// Get calls find them.
+func attachTraceHeaders(wire *nats.Msg, ctx context.Context) {
+	if txn := newrelic.FromContext(ctx); txn != nil {
 		headers := http.Header{}
 		txn.InsertDistributedTraceHeaders(headers)
 		for key := range headers {
 			wire.Header.Set(key, headers.Get(key))
 		}
 	}
+}
+
+func publishMessage(command publishCommand) *nats.Msg {
+	wire := wireMsgPool.Get().(*nats.Msg)
+	wire.Subject = command.topic
+	wire.Reply = ""
+	wire.Data = command.payload
+	wire.Header = resetWireHeader(wire.Header)
+	// Preserve the fleet abstraction's message identity for subscribers, but
+	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
+	// not a broker dedup key.
+	wire.Header[messageIDHeader] = []string{command.msgID}
+	attachTraceHeaders(wire, command.ctx)
 	return wire
 }
 
@@ -550,30 +561,46 @@ func (w *publishBatchWorker) collectBatch(first publishRequest) ([]publishReques
 	batch := make([]publishRequest, 1, w.batchSize)
 	batch[0] = first
 	if w.batchWait <= 0 {
-		for len(batch) < w.batchSize {
-			select {
-			case request := <-w.requests:
-				batch = append(batch, request)
-			default:
-				return batch, true
-			}
-		}
-		return batch, true
+		return w.drainReady(batch), true
 	}
-	// One timer serves every timed cohort of this worker. Reset at the top of
-	// each window relies on Go 1.23 timer semantics (this module declares go
-	// 1.26.5; the same precedent is documented at rpc_pool.go): a tick this loop
-	// has already received cannot recur, so the common expiry needs no drain.
-	// A cohort that fills before the deadline leaves the timer armed for the
-	// next Reset, which re-arms it in place. The one race left — a tick landing
-	// in the channel as the cohort completes on another case — can only cut the
-	// next collection window short, and cohorts already end early whenever
-	// batchSize lands first, so no message is lost or reordered by it.
+	w.armWindowTimer()
+	return w.collectTimed(batch)
+}
+
+// drainReady fills batch from whatever is already queued, without waiting.
+func (w *publishBatchWorker) drainReady(batch []publishRequest) []publishRequest {
+	for len(batch) < w.batchSize {
+		select {
+		case request := <-w.requests:
+			batch = append(batch, request)
+		default:
+			return batch
+		}
+	}
+	return batch
+}
+
+// armWindowTimer arms the worker's single reused collection timer. Reset at the
+// top of each window relies on Go 1.23 timer semantics (this module declares go
+// 1.26.5; the same precedent is documented at rpc_pool.go): a tick this loop
+// has already received cannot recur, so the common expiry needs no drain.
+// A cohort that fills before the deadline leaves the timer armed for the
+// next Reset, which re-arms it in place. The one race left — a tick landing
+// in the channel as the cohort completes on another case — can only cut the
+// next collection window short, and cohorts already end early whenever
+// batchSize lands first, so no message is lost or reordered by it.
+func (w *publishBatchWorker) armWindowTimer() {
 	if w.timer == nil {
 		w.timer = time.NewTimer(w.batchWait)
 	} else {
 		w.timer.Reset(w.batchWait)
 	}
+}
+
+// collectTimed fills batch until full, the window expires or the worker stops;
+// stop fails the partial cohort because its messages were admitted but will
+// never be staged.
+func (w *publishBatchWorker) collectTimed(batch []publishRequest) ([]publishRequest, bool) {
 	for len(batch) < w.batchSize {
 		select {
 		case request := <-w.requests:

@@ -341,14 +341,21 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// laneModeFor is the scope guard for receipt-level acknowledgement. Only the
-// perishable hot ingress lanes qualify for either receipt-level mode; every
-// control lane, status subject and work-queue stream keeps explicit acks, and
-// the refusal is logged so an operator who set the mode can see which lanes it
-// actually reached.
+// laneQualifiesForReceiptAcks reports whether the lane's traffic contract fits
+// receipt-level acknowledgement: only the perishable hot ingress lanes and the
+// canary mirror qualify; every control lane, status subject and work-queue
+// stream keeps explicit acks.
+func laneQualifiesForReceiptAcks(target subscriptionTarget) bool {
+	return isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic)
+}
+
+// laneModeFor is the scope guard for receipt-level acknowledgement. The refusal
+// is logged so an operator who set the mode can see which lanes it actually
+// reached.
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
 	mode := consumeMode()
-	if mode == laneModeExplicit || isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic) {
+	declined := mode != laneModeExplicit && !laneQualifiesForReceiptAcks(target)
+	if !declined {
 		return mode
 	}
 	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",
