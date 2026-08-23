@@ -58,7 +58,15 @@ export function botScopes(): string[] {
     // lists the channels where the bot is a moderator. Without this scope the
     // bot token 401s ("Missing scope: user:read:moderated_channels"). The bot
     // must RE-AUTH through the admin bot flow to receive this newly-added scope.
-    'user:read:moderated_channels'
+    'user:read:moderated_channels',
+    // Required by the automod EventSub upgrades (app/outgress/internal/twitch/
+    // eventsub.go optional list): channel.suspicious_user.message carries
+    // Twitch's own ban-evader/suspicion flags per chat message, and
+    // automod.message.hold v2 carries AutoMod category+level verdicts. Both
+    // subscribe with the BOT as moderator_user_id, so these are bot-account
+    // scopes. The bot must RE-AUTH through the admin bot flow to receive them.
+    'moderator:read:suspicious_users',
+    'moderator:manage:automod'
   ];
 }
 

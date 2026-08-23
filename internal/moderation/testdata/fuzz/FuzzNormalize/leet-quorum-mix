@@ -1,0 +1,2 @@
+go test fuzz v1
+string("h4te s3xual n0t 1080 1337")

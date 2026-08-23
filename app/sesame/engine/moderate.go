@@ -53,39 +53,55 @@ func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views
 		return false
 	}
 	amCfg := automodConfigFrom(views)
-	if len(mctx.Env.Senders) > 0 {
-		return p.gateCohort(ctx, &mctx.Env, amCfg, emit)
+	// The span-derived emote codes are built lazily off the envelope (nil fast
+	// path when it carried none) and handed to whichever gate runs, so the
+	// single-chatter and cohort paths see identical per-message knowledge.
+	// Adaptive off drops them at the door: WithMessageEmotes(nil) is verdict-
+	// equivalent to the pre-span gate, keeping the dark launch honest.
+	var msgEmotes map[string]struct{}
+	if p.adaptiveEnabled {
+		msgEmotes = mctx.EmoteCodes()
 	}
-	return p.gateChat(ctx, mctx, amCfg, emit)
+	if len(mctx.Env.Senders) > 0 {
+		return p.gateCohort(ctx, &mctx.Env, amCfg, msgEmotes, emit)
+	}
+	return p.gateChat(ctx, mctx, amCfg, msgEmotes, emit)
 }
 
 // gateChat inspects one chatter's line. With enforcement on, a ban/timeout
 // verdict is emitted and command dispatch + handlers are skipped for this line;
 // a verdict we cannot yet enforce is logged. With enforcement off it is
 // shadow-logged only.
-func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *automod.Config, emit module.Emit) bool {
+func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *automod.Config, msgEmotes map[string]struct{}, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
 	}
 	env := &mctx.Env
 
-	v, sigs := p.automod.Assess(mctx.Chatter(), env.Text, amCfg)
-	v = p.campaignVote(ctx, v, sigs, env)
+	v, sigs := p.automod.Assess(mctx.Chatter(), env.Text, amCfg,
+		automod.WithChannel(mctx.BroadcasterID),
+		automod.WithChatter(env.ChatterUserID),
+		automod.WithMessageEmotes(msgEmotes))
+	v = p.campaignVote(ctx, v, sigs, mctx.BroadcasterID, env)
 	if v.Action == automod.ActionNone {
 		return false
 	}
 
-	// Reputation juror: repeat offenders climb the ladder (warn -> timeout ->
-	// ban), then this hit is recorded against the chatter.
-	if p.reputation != nil {
-		v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
-		p.reputation.Bump(ctx, env.ChatterUserID)
-	}
-
 	actioned := false
 	if p.automodEnforce {
+		// Reputation juror: repeat offenders climb the ladder (warn -> timeout
+		// -> ban). Both the ladder lookup and the strike write ride behind the
+		// enforcement switch: strikes used to be recorded before this check,
+		// so shadow-mode verdicts accrued them, and arming enforcement later
+		// inherited escalated punishments from history that was never
+		// actioned. Shadow keeps logging verdicts; it no longer scores them.
+		if p.reputation != nil {
+			v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
+			p.reputation.Bump(ctx, env.ChatterUserID)
+		}
 		actioned = p.emitAutomod(v, env, emit)
 	}
+	p.stats.flag(mctx.BroadcasterID, v.Rule, actioned)
 	p.log.Info("automod verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -109,17 +125,18 @@ func shadowText(actioned bool, text string) zap.Field {
 // campaignVote consults the campaign juror (the council's cross-sender vote):
 // the valkey distinct-sender count for this line's template, when the line is
 // either already content-flagged at delete level or an unflagged link carrier.
-// Corroboration escalates a delete to a timeout; on its own it only adds the
-// mildest action (delete), never a punishment - abstain in favor of the user.
-// Observe is HLL-idempotent per sender.
-func (p *Pipeline) campaignVote(ctx context.Context, v automod.Verdict, sigs automod.Signals, env *lane.Envelope) automod.Verdict {
+// broadcasterID scopes the count to this one channel — a quorum is senders
+// within a tenant, never across the fleet. Corroboration escalates a delete to
+// a timeout; on its own it only adds the mildest action (delete), never a
+// punishment - abstain in favor of the user. Observe is HLL-idempotent per sender.
+func (p *Pipeline) campaignVote(ctx context.Context, v automod.Verdict, sigs automod.Signals, broadcasterID uint64, env *lane.Envelope) automod.Verdict {
 	if p.campaign == nil || sigs.SimHash == 0 {
 		return v
 	}
 	if !sigs.Linkish && v.Action != automod.ActionDelete {
 		return v
 	}
-	if p.campaign.Observe(ctx, sigs.SimHash, env.ChatterUserID) < campaignThreshold {
+	if p.campaign.Observe(ctx, broadcasterID, sigs.SimHash, env.ChatterUserID) < campaignThreshold {
 		return v
 	}
 
@@ -135,35 +152,52 @@ func (p *Pipeline) campaignVote(ctx context.Context, v automod.Verdict, sigs aut
 }
 
 // gateCohort handles a folded duplicate cohort: plain chat the ingress squash
-// collapsed identical lines from many chatters into env.Senders. Fan reputation
-// out over every sender so a coordinated duplicate flood builds each
-// participant's score, then inspect the shared text once: a hostile cohort (a
-// slur/scam/IP-logger line posted in unison) is a raid. A large one escalates
-// to channel-level Shield Mode instead of banning account by account; a small
-// one is banned directly. A clean cohort (hype copypasta) trips nothing and
-// only builds reputation.
-func (p *Pipeline) gateCohort(ctx context.Context, env *lane.Envelope, amCfg *automod.Config, emit module.Emit) bool {
-	if p.reputation != nil {
-		for i := range env.Senders {
-			p.reputation.Bump(ctx, env.Senders[i].ChatterUserID)
-		}
-	}
+// collapsed identical lines from many chatters into env.Senders. A hostile
+// cohort (a slur/scam/IP-logger line posted in unison) is a raid: strikes fan
+// out over every sender, a large raid escalates to one channel-level Shield
+// Mode call rather than banning account by account, and a small one is banned
+// directly. Strikes only land when the fold is hostile AND enforcement is on —
+// bumping before the verdict scored every participant of even benign copypasta
+// folds (and of shadow-mode hits), arming punishments nobody had served. A
+// clean cohort trips nothing at all.
+func (p *Pipeline) gateCohort(ctx context.Context, env *lane.Envelope, amCfg *automod.Config, msgEmotes map[string]struct{}, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
 	}
 
 	// Cohort senders are untrusted viewers: the squash folds only plain
 	// duplicate chat, so a trusted VIP/mod is judged on content here too.
-	v := p.automod.InspectWith(module.RoleEveryone, env.Text, amCfg)
+	// The squashed base event carries the identical emotes array as any chat
+	// line (lane.EmoteSpan), so the cohort is judged with the same span
+	// knowledge - a folded "LUL LUL LUL LUL" raid of duplicates is emote spam,
+	// not caps abuse, exactly like its unfolded twin. The fold is scoped to its
+	// channel for the learned layers and attributed to its first sender: each
+	// fold counts once toward tau, and over hours distinct folds bring distinct
+	// first senders, so genuine communal usage still accrues sender diversity
+	// without N-folding one line's counters.
+	broadcasterID, _ := env.BroadcasterID()
+	sender := ""
+	if len(env.Senders) > 0 {
+		sender = env.Senders[0].ChatterUserID
+	}
+	v := p.automod.InspectWith(module.RoleEveryone, env.Text, amCfg,
+		automod.WithChannel(broadcasterID),
+		automod.WithChatter(sender),
+		automod.WithMessageEmotes(msgEmotes))
 	if v.Action == automod.ActionNone {
 		return false
 	}
 
-	broadcasterID, _ := env.BroadcasterID()
 	actioned := false
 	if p.automodEnforce {
+		if p.reputation != nil {
+			for i := range env.Senders {
+				p.reputation.Bump(ctx, env.Senders[i].ChatterUserID)
+			}
+		}
 		actioned = p.emitCohort(v, broadcasterID, env, emit)
 	}
+	p.stats.flag(broadcasterID, v.Rule, actioned)
 	p.log.Info("automod cohort verdict",
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
@@ -276,6 +310,10 @@ func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane
 	acted := false
 	if p.shieldEscalates(v, broadcasterID, env) {
 		p.emitShield(env.BroadcasterUserID, emit)
+		// The channel-level activation is counted as its own detection event
+		// (always enforced: this branch only runs under automodEnforce), so
+		// per-rule audit shows raids separately from the per-line verdicts.
+		p.stats.flag(broadcasterID, ruleShieldMode, true)
 		p.log.Warn("automod shield mode",
 			zap.Uint64("broadcaster_id", broadcasterID),
 			zap.Int("cohort", len(env.Senders)),

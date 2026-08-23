@@ -93,6 +93,14 @@ type Config struct {
 	// suppression. On by default; the endpoints are small, public and unauthenticated.
 	EmotesEnabled bool
 
+	// AdaptiveEnabled arms the learned false-positive layers: the per-channel
+	// style baselines (caps/symbol thresholds adapt to a channel's house style)
+	// and the learned community vocabulary (high-consensus tokens shed style
+	// evidence and join the emote rescue), plus per-message emote spans from
+	// ingress. Dark launch: off keeps verdicts byte-identical to the pre-learned
+	// gate so the layers soak in shadow logs before anyone trusts them.
+	AdaptiveEnabled bool
+
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
@@ -189,9 +197,10 @@ func Load() *Config {
 
 		BotUserID: env.Get("TWITCH_BOT_USER_ID", ""),
 
-		AutomodEnforce: env.Get("SESAME_AUTOMOD_ENFORCE", "false") == "true",
-		ShieldEnabled:  env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
-		EmotesEnabled:  env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
+		AutomodEnforce:  env.Get("SESAME_AUTOMOD_ENFORCE", "false") == "true",
+		ShieldEnabled:   env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
+		EmotesEnabled:   env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
+		AdaptiveEnabled: env.Get("SESAME_AUTOMOD_ADAPTIVE", "false") == "true",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 

@@ -34,6 +34,21 @@ type Sender struct {
 	Badges           []Badge `json:"badges,omitempty"`
 }
 
+// EmoteSpan is one emote occurrence inside a chat message's Text. Ingress
+// copies it off the EventSub channel.chat.message emotes array onto every chat
+// envelope (and onto a squashed cohort's base event, identically). Begin/End
+// are rune indexes into the RAW Text - End exclusive - so consumers slice
+// runes, not bytes; ID is Twitch's own emote id, opaque here. The array covers
+// NATIVE Twitch emotes and cheermotes only: third-party (BTTV/FFZ/7TV) codes
+// have no EventSub entry and arrive as plain text, which is why the automod
+// still fetches those separately. Absent when the line carries no emotes;
+// unknown fields are ignored on both sides, so older/newer peers interoperate.
+type EmoteSpan struct {
+	ID    string `json:"id"`
+	Begin int    `json:"begin"`
+	End   int    `json:"end"`
+}
+
 // Envelope is the wire contract published by ingress. Consumers read exactly the
 // fields ingress writes. Every event carries its Twitch EventSub `type` and the
 // `lane` it was routed on; the rest depends on the type:
@@ -51,14 +66,15 @@ type Envelope struct {
 	// (API calls, lookups, cooldown keys), the *UserName is what the viewer set as
 	// their display name and is what chat-facing text should show. See
 	// BroadcasterName / ChatterName.
-	BroadcasterUserID    string  `json:"broadcaster_user_id,omitempty"`
-	BroadcasterUserLogin string  `json:"broadcaster_user_login,omitempty"`
-	BroadcasterUserName  string  `json:"broadcaster_user_name,omitempty"`
-	ChatterUserID        string  `json:"chatter_user_id,omitempty"`
-	ChatterUserLogin     string  `json:"chatter_user_login,omitempty"`
-	ChatterUserName      string  `json:"chatter_user_name,omitempty"`
-	Text                 string  `json:"text,omitempty"`
-	Badges               []Badge `json:"badges,omitempty"`
+	BroadcasterUserID    string      `json:"broadcaster_user_id,omitempty"`
+	BroadcasterUserLogin string      `json:"broadcaster_user_login,omitempty"`
+	BroadcasterUserName  string      `json:"broadcaster_user_name,omitempty"`
+	ChatterUserID        string      `json:"chatter_user_id,omitempty"`
+	ChatterUserLogin     string      `json:"chatter_user_login,omitempty"`
+	ChatterUserName      string      `json:"chatter_user_name,omitempty"`
+	Text                 string      `json:"text,omitempty"`
+	Badges               []Badge     `json:"badges,omitempty"`
+	Emotes               []EmoteSpan `json:"emotes,omitempty"`
 
 	// Senders is set only on a folded duplicate cohort: the identical non-command
 	// lines the ingress squash collapsed into this one channel.chat.message. When
