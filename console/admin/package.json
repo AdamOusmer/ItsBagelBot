@@ -12,8 +12,9 @@
   },
   "dependencies": {
     "@bagel/shared": "workspace:*",
+    "@nats-io/kv": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
     "nanoid": "^5.1.14",
-    "nats": "^2.29.2",
     "newrelic": "^12.11.0",
     "pino": "^9"
   },
