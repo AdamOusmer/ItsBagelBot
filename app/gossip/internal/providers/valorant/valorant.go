@@ -235,17 +235,20 @@ type riotIDValue struct {
 
 func parseRiotID(account string) (riotIDValue, string) {
 	raw := strings.TrimSpace(account)
-	name, tag, ok := strings.Cut(raw, "#")
-	if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(tag) == "" {
-		return riotIDValue{}, "invalid riot id (want name#tag)"
-	}
-	// Bounds mirror Riot's own limits (16-char name, 3-5 char tag) with slack;
-	// anything past these cannot exist, so it is rejected before spending a
-	// cache slot or an upstream call on it.
-	if len(name) > 32 || len(tag) > 8 {
+	name, tag, found := strings.Cut(raw, "#")
+	name, tag = strings.TrimSpace(name), strings.TrimSpace(tag)
+	if !wellFormedRiotID(name, tag, found) {
 		return riotIDValue{}, "invalid riot id (want name#tag)"
 	}
 	return riotIDValue{name: name, tag: strings.ToUpper(tag)}, ""
+}
+
+// wellFormedRiotID carries every fault condition a split Riot ID can have so
+// parseRiotID spends one branch on them. The bounds mirror Riot's own limits
+// (16-char name, 3-5 char tag) with slack; anything past these cannot exist,
+// so it is rejected before spending a cache slot or an upstream call on it.
+func wellFormedRiotID(name, tag string, found bool) bool {
+	return found && name != "" && tag != "" && len(name) <= 32 && len(tag) <= 8
 }
 
 func (r riotIDValue) String() string { return r.name + "#" + r.tag }
