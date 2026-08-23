@@ -81,26 +81,52 @@ func main() {
 	)
 	flag.Parse()
 
+	// benchLane names the NATS resources one bench run drives: where to dial,
+	// which stream and subject carry the traffic, and which consumer group
+	// binds it. Every mode addresses the same lane, so they travel together.
+	lane := benchLane{url: *url, stream: *stream, subject: *subject, group: *group}
+
 	var err error
 	switch *mode {
 	case "setup":
-		err = runSetup(*url, *stream, *maxBytes)
+		err = runSetup(lane, *maxBytes)
 	case "publish":
 		err = runPublish(publishOpts{
-			url: *url, subject: *subject, duration: *duration, startAt: *startAt,
+			lane: lane, duration: *duration, startAt: unixNano(*startAt),
 			payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate,
 			podIndex: *podIndex, feeders: *feeders,
 		})
 	case "consume":
-		err = runConsume(*url, *subject, *group, *duration, *startAt, *payloadSize)
+		err = runConsume(lane, *duration, unixNano(*startAt), *payloadSize)
 	case "cleanup":
-		err = runCleanup(*url, *stream, *subject, *group, *origMaxBytes)
+		err = runCleanup(lane, *origMaxBytes)
 	default:
 		err = errors.New("-mode must be setup|publish|consume|cleanup")
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bus-bench:", err)
 		os.Exit(1)
+	}
+}
+
+type benchLane struct {
+	url     string
+	stream  string
+	subject string
+	group   string
+}
+
+// unixNano is a wall-clock instant in nanoseconds since the epoch, the form
+// the bench's payloads and measurement windows carry.
+type unixNano int64
+
+// wait blocks until the instant arrives; a zero or past instant is immediate.
+func (t unixNano) wait() {
+	if t <= 0 {
+		return
+	}
+	if d := time.Until(time.Unix(0, int64(t))); d > 0 {
+		time.Sleep(d)
 	}
 }
 
@@ -210,19 +236,19 @@ func benchStreamConfig(name string, maxBytes int64) jsapi.StreamConfig {
 	}
 }
 
-func runSetup(url, streamName string, maxBytes int64) error {
+func runSetup(lane benchLane, maxBytes int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	nc, js, err := mgmtConnect(url)
+	nc, js, err := mgmtConnect(lane.url)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	st, err := js.Stream(ctx, streamName)
+	st, err := js.Stream(ctx, lane.stream)
 	switch {
 	case errors.Is(err, jsapi.ErrStreamNotFound):
-		if _, cerr := js.CreateStream(ctx, benchStreamConfig(streamName, maxBytes)); cerr != nil {
+		if _, cerr := js.CreateStream(ctx, benchStreamConfig(lane.stream, maxBytes)); cerr != nil {
 			return cerr
 		}
 		emit(map[string]any{"created": true})
@@ -244,8 +270,8 @@ func runSetup(url, streamName string, maxBytes int64) error {
 	return nil
 }
 
-func durableFor(group, subject string) string {
-	return group + "_" + strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(subject)
+func durableFor(lane benchLane) string {
+	return lane.group + "_" + strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(lane.subject)
 }
 
 // deleteBenchConsumer removes the bench durable, tolerating its absence.
@@ -284,26 +310,26 @@ func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName st
 	return true, nil
 }
 
-func runCleanup(url, streamName, subject, group string, originalMaxBytes int64) error {
+func runCleanup(lane benchLane, originalMaxBytes int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	nc, js, err := mgmtConnect(url)
+	nc, js, err := mgmtConnect(lane.url)
 	if err != nil {
 		return err
 	}
 	defer nc.Close()
 
-	durable := durableFor(group, subject)
+	durable := durableFor(lane)
 
 	report := map[string]any{"deleted_consumer": false, "reverted_max_bytes": false}
-	deleted, err := deleteBenchConsumer(ctx, js, streamName, durable)
+	deleted, err := deleteBenchConsumer(ctx, js, lane.stream, durable)
 	if err != nil {
 		return err
 	}
 	report["deleted_consumer"] = deleted
 	report["consumer"] = durable
 
-	reverted, err := revertStreamMaxBytes(ctx, js, streamName, originalMaxBytes)
+	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, originalMaxBytes)
 	if err != nil {
 		return err
 	}
@@ -316,26 +342,17 @@ func runCleanup(url, streamName, subject, group string, originalMaxBytes int64) 
 	return nil
 }
 
-func buildPayload(seq uint64, sentUnixNano int64, size int) []byte {
+func buildPayload(seq uint64, sent unixNano, size int) []byte {
 	if size < 16 {
 		size = 16
 	}
 	buf := make([]byte, size)
 	binary.BigEndian.PutUint64(buf[0:8], seq)
-	binary.BigEndian.PutUint64(buf[8:16], uint64(sentUnixNano))
+	binary.BigEndian.PutUint64(buf[8:16], uint64(sent))
 	for i := 16; i < size; i++ {
 		buf[i] = byte(seq>>uint(i%7)) ^ byte(i)
 	}
 	return buf
-}
-
-func waitUntil(unixNano int64) {
-	if unixNano <= 0 {
-		return
-	}
-	if d := time.Until(time.Unix(0, unixNano)); d > 0 {
-		time.Sleep(d)
-	}
 }
 
 func summarize(sorted []int64) latencyStats {
@@ -376,10 +393,9 @@ func sortAsc(v []int64) {
 // publishOpts bundles one publish-mode invocation. Every flag feeds the same
 // run, so they travel as a struct rather than as a nine-argument signature.
 type publishOpts struct {
-	url          string
-	subject      string
+	lane         benchLane
 	duration     time.Duration
-	startAt      int64
+	startAt      unixNano
 	payloadSize  int
 	confirmEvery int
 	rate         int
@@ -388,11 +404,11 @@ type publishOpts struct {
 }
 
 func runPublish(o publishOpts) error {
-	waitUntil(o.startAt)
+	o.startAt.wait()
 	windowStart := time.Now()
 	deadline := windowStart.Add(o.duration)
 
-	pub, err := bus.NewPublisher(o.url, zap.NewNop())
+	pub, err := bus.NewPublisher(o.lane.url, zap.NewNop())
 	if err != nil {
 		return err
 	}
@@ -491,10 +507,10 @@ func runFeeder(ctx context.Context, pub bus.Publisher, o publishOpts, f int, dea
 		pacer.wait()
 		seq += uint64(max(o.feeders, 1))
 		globalSeq := uint64(o.podIndex)<<48 | seq
-		body := buildPayload(globalSeq, time.Now().UnixNano(), o.payloadSize)
+		body := buildPayload(globalSeq, unixNano(time.Now().UnixNano()), o.payloadSize)
 		confirmed := o.confirmEvery > 0 && seq%uint64(o.confirmEvery) == 0
 		id := fmt.Sprintf("bench-%d-%d", o.podIndex, seq)
-		elapsed, err := publishOne(ctx, pub, o.subject, id, body, confirmed)
+		elapsed, err := publishOne(ctx, pub, o.lane.subject, id, body, confirmed)
 		if err != nil {
 			atomic.AddUint64(pErrs, 1)
 		} else {
@@ -508,8 +524,8 @@ func runFeeder(ctx context.Context, pub bus.Publisher, o publishOpts, f int, dea
 }
 
 type collector struct {
-	winStart int64
-	winEnd   int64
+	winStart unixNano
+	winEnd   unixNano
 
 	lat      []int64
 	latIdx   atomic.Int64
@@ -523,12 +539,12 @@ type collector struct {
 
 // measuring reports whether deliveries arriving at now count toward this
 // run's measurement window.
-func (c *collector) measuring(now int64) bool {
+func (c *collector) measuring(now unixNano) bool {
 	return now >= c.winStart && now < c.winEnd
 }
 
 func (c *collector) handle(msg *bus.Message) error {
-	now := time.Now().UnixNano()
+	now := unixNano(time.Now().UnixNano())
 	defer msg.Ack()
 
 	p := msg.Payload
@@ -536,9 +552,9 @@ func (c *collector) handle(msg *bus.Message) error {
 		return nil
 	}
 	seq := binary.BigEndian.Uint64(p[0:8])
-	sentNs := int64(binary.BigEndian.Uint64(p[8:16]))
+	sentNs := unixNano(binary.BigEndian.Uint64(p[8:16]))
 	if i := c.latIdx.Add(1); i <= int64(len(c.lat)) {
-		c.lat[i-1] = now - sentNs
+		c.lat[i-1] = int64(now - sentNs)
 	}
 	c.consumed.Add(1)
 	c.noteSeq(seq)
@@ -558,16 +574,16 @@ func (c *collector) noteSeq(seq uint64) {
 	c.seen[seq] = struct{}{}
 }
 
-func runConsume(url, subject, group string, duration time.Duration, startAt int64, payloadSize int) error {
+func runConsume(lane benchLane, duration time.Duration, startAt unixNano, payloadSize int) error {
 	if startAt == 0 {
-		startAt = time.Now().UnixNano()
+		startAt = unixNano(time.Now().UnixNano())
 	}
-	winStart, winEnd := startAt, startAt+duration.Nanoseconds()
+	winStart, winEnd := startAt, startAt+unixNano(duration.Nanoseconds())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sub, err := bus.NewSubscriber(url, group, zap.NewNop())
+	sub, err := bus.NewSubscriber(lane.url, lane.group, zap.NewNop())
 	if err != nil {
 		return err
 	}
@@ -585,15 +601,15 @@ func runConsume(url, subject, group string, duration time.Duration, startAt int6
 	// path whose acknowledgements race the weighted pool's.
 	w, err := bus.ConsumeWeighted(ctx, nil, []bus.WeightedLane{{
 		Sub:     sub,
-		Subject: subject,
+		Subject: lane.subject,
 		Handle:  c.handle,
 	}}, bus.ScalePolicy{MinRoutines: 256, MaxRoutines: 512}, zap.NewNop())
 	if err != nil {
 		return err
 	}
 
-	waitUntil(winStart)
-	waitUntil(winEnd)
+	winStart.wait()
+	winEnd.wait()
 
 	cancel()
 	drainCtx, drainCancel := context.WithTimeout(context.Background(), 5*time.Second)
