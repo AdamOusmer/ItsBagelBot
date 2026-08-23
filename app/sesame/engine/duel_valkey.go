@@ -524,15 +524,15 @@ func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, login 
 		res.ChallengePending = true
 		return res, nil
 	}
-	return s.joinPot(ctx, broadcasterID, login, stake, res)
+	return s.joinPot(ctx, broadcasterID, DuelStake{Login: login, Stake: stake}, res)
 }
 
 // joinPot runs the money path of a pot join under the caller's section lock:
 // claim the ledger seat before debiting so a duplicate join loses the race
 // for the field and never moves points twice; any refusal undoes the seat so
 // the ledger stays exactly the set of escrowed stakes.
-func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, login string, stake int64, res DuelJoinResult) (DuelJoinResult, error) {
-	added, err := s.claimSeat(ctx, broadcasterID, login, stake)
+func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, entry DuelStake, res DuelJoinResult) (DuelJoinResult, error) {
+	added, err := s.claimSeat(ctx, broadcasterID, entry)
 	if err != nil {
 		return res, err
 	}
@@ -541,17 +541,17 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, log
 		return s.joinTotals(ctx, broadcasterID, res)
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, login, stake)
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, entry.Login, entry.Stake)
 	switch {
 	case err != nil:
-		s.unclaimSeat(ctx, broadcasterID, login)
+		s.unclaimSeat(ctx, broadcasterID, entry.Login)
 		return res, err
 	case !found:
-		s.unclaimSeat(ctx, broadcasterID, login)
+		s.unclaimSeat(ctx, broadcasterID, entry.Login)
 		res.Unknown = true
 		return s.joinTotals(ctx, broadcasterID, res)
 	case !spent:
-		s.unclaimSeat(ctx, broadcasterID, login)
+		s.unclaimSeat(ctx, broadcasterID, entry.Login)
 		res.Short = true
 		return s.joinTotals(ctx, broadcasterID, res)
 	}
@@ -565,12 +565,12 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, log
 	return s.joinTotals(ctx, broadcasterID, res)
 }
 
-// claimSeat reserves login's ledger slot for its stake; false means the seat
-// was already taken.
-func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, login string, stake int64) (bool, error) {
+// claimSeat reserves an entry's ledger seat; false means the seat was
+// already taken.
+func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, error) {
 	added, err := s.client.Do(ctx, s.client.B().Hsetnx().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).
-		Field(login).Value(strconv.FormatInt(stake, 10)).Build()).AsInt64()
+		Field(entry.Login).Value(strconv.FormatInt(entry.Stake, 10)).Build()).AsInt64()
 	return added > 0, err
 }
 
@@ -583,28 +583,35 @@ func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64,
 	}
 }
 
+// poolSummary is one read of the escrow ledger: how many seats are taken
+// and what the pot has grown to.
+type poolSummary struct {
+	entrants int64
+	pot      int64
+}
+
 // joinTotals fills the post-join pool readout shared by every outcome.
 func (s *ValkeyDuelStore) joinTotals(ctx context.Context, broadcasterID uint64, res DuelJoinResult) (DuelJoinResult, error) {
-	n, pot, err := s.readLedger(ctx, broadcasterID)
+	pool, err := s.readLedger(ctx, broadcasterID)
 	if err != nil {
 		return res, err
 	}
-	res.Entrants = n
-	res.Pot = pot
+	res.Entrants = pool.entrants
+	res.Pot = pool.pot
 	return res, nil
 }
 
 // readLedger sums the escrow ledger: count and total in one pass.
-func (s *ValkeyDuelStore) readLedger(ctx context.Context, broadcasterID uint64) (int64, int64, error) {
+func (s *ValkeyDuelStore) readLedger(ctx context.Context, broadcasterID uint64) (poolSummary, error) {
 	vals, err := s.client.Do(ctx, s.client.B().Hvals().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrSlice()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			return 0, 0, nil
+			return poolSummary{}, nil
 		}
-		return 0, 0, err
+		return poolSummary{}, err
 	}
-	return int64(len(vals)), sumStakes(vals), nil
+	return poolSummary{entrants: int64(len(vals)), pot: sumStakes(vals)}, nil
 }
 
 // sumStakes totals the readable stakes; an unreadable entry is skipped
@@ -771,11 +778,11 @@ func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLo
 		return res, nil
 	}
 
-	stakes := s.escrowedStakes(ctx, broadcasterID, st)
-	refunded, total := s.refundAll(ctx, broadcasterID, stakes)
+	entries := s.escrowedStakes(ctx, broadcasterID, st)
+	refunded, total := s.refundAll(ctx, broadcasterID, entries)
 
 	receipt := DuelReceipt{
-		Outcome: DuelCanceled, Stakes: stakes, Pot: total,
+		Outcome: DuelCanceled, Stakes: ledgerMap(entries), Pot: total,
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt)
@@ -786,29 +793,25 @@ func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLo
 	return res, nil
 }
 
-// escrowedStakes collects what the duel owes back: for a challenge that is
-// the opener's stake alone (the ledger is empty), for a pot every escrowed
-// entry read fresh under the caller's section lock.
-func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint64, st *DuelState) map[string]int64 {
-	stakes := map[string]int64{st.Opener: st.OpenerStake}
+// escrowedStakes collects what the duel owes back, canonically ordered: for
+// a challenge that is the opener's stake alone (the ledger is empty), for a
+// pot every escrowed entry read fresh under the caller's section lock.
+func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint64, st *DuelState) []DuelStake {
+	fallback := []DuelStake{{Login: st.Opener, Stake: st.OpenerStake}}
 	if st.Kind != DuelPot {
-		return stakes
+		return fallback
 	}
 	m, err := s.client.Do(ctx, s.client.B().Hgetall().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrMap()
 	if readable(err, m) {
-		return stakes
+		return fallback
 	}
-	return ledgerMap(parseDuelLedger(m))
+	return parseDuelLedger(m)
 }
 
 // refundAll pays every escrowed entry back, counting only the refunds that
 // actually landed.
-func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, stakes map[string]int64) (refunded, total int64) {
-	entries := make([]DuelStake, 0, len(stakes))
-	for login, amount := range stakes {
-		entries = append(entries, DuelStake{Login: login, Stake: amount})
-	}
+func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, entries []DuelStake) (refunded, total int64) {
 	for _, entry := range SortDuelStakes(entries) {
 		total += entry.Stake
 		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry.Login, entry.Stake); err != nil {
@@ -861,12 +864,12 @@ func (s *ValkeyDuelStore) Status(ctx context.Context, broadcasterID uint64) (Due
 		st.Pot = state.OpenerStake
 		return st, nil
 	}
-	n, pot, err := s.readLedger(ctx, broadcasterID)
+	pool, err := s.readLedger(ctx, broadcasterID)
 	if err != nil {
 		return st, err
 	}
-	st.Entrants = n
-	st.Pot = pot
+	st.Entrants = pool.entrants
+	st.Pot = pool.pot
 	return st, nil
 }
 
