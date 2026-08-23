@@ -86,37 +86,46 @@ type valorantConfig struct {
 // "!val eu Frosty#EUW1" and "!val lb console ap" read naturally. Every
 // account answer rides gossip's cache keyed on id+region+platform, and a
 // region-less lookup auto-detects the shard once per day fleet-wide.
-func Valorant(d engine.Deps) module.Module {
-	rankSpecial := func(reply any) (string, bool) {
-		r, ok := reply.(*gossiprpc.ValorantRankReply)
-		if !ok || !r.Unranked {
-			return "", false
-		}
-		return r.Player + " " + valUnrankedText, true
+// The four empty-state overrides. Each replaces its command's template
+// entirely when the reply carries no renderable content, because every
+// numeric token would print zero.
+func valRankSpecial(reply any) (string, bool) {
+	r, ok := reply.(*gossiprpc.ValorantRankReply)
+	if !ok || !r.Unranked {
+		return "", false
 	}
-	matchSpecial := func(reply any) (string, bool) {
-		r, ok := reply.(*gossiprpc.ValorantMatchesReply)
-		if !ok || !r.Empty {
-			return "", false
-		}
-		return r.Player + " " + valNoMatchesText, true
-	}
-	boardSpecial := func(reply any) (string, bool) {
-		r, ok := reply.(*gossiprpc.ValorantLeaderboardReply)
-		if !ok || !r.Empty {
-			return "", false
-		}
-		return r.Board + " " + valEmptyBoardText, true
-	}
-	shopSpecial := func(reply any) (string, bool) {
-		r, ok := reply.(*gossiprpc.ValorantShopReply)
-		if !ok || !r.Empty {
-			return "", false
-		}
-		return valEmptyShopText, true
-	}
+	return r.Player + " " + valUnrankedText, true
+}
 
-	runs := valRuns{
+func valMatchSpecial(reply any) (string, bool) {
+	r, ok := reply.(*gossiprpc.ValorantMatchesReply)
+	if !ok || !r.Empty {
+		return "", false
+	}
+	return r.Player + " " + valNoMatchesText, true
+}
+
+func valBoardSpecial(reply any) (string, bool) {
+	r, ok := reply.(*gossiprpc.ValorantLeaderboardReply)
+	if !ok || !r.Empty {
+		return "", false
+	}
+	return r.Board + " " + valEmptyBoardText, true
+}
+
+func valShopSpecial(reply any) (string, bool) {
+	r, ok := reply.(*gossiprpc.ValorantShopReply)
+	if !ok || !r.Empty {
+		return "", false
+	}
+	return valEmptyShopText, true
+}
+
+// newValRuns wires the five subcommand runners: each names its gossip
+// endpoint, where its toggle and template live in the config blob, and which
+// empty-state override applies.
+func newValRuns(d engine.Deps) valRuns {
+	return valRuns{
 		rank: valRun(d, valCommand{
 			endpoint: "rank",
 			enabled:  func(c valorantConfig) string { return c.RankEnabled },
@@ -124,7 +133,7 @@ func Valorant(d engine.Deps) module.Module {
 			fallback: defaultValRankTemplate,
 			newReply: func() any { return &gossiprpc.ValorantRankReply{} },
 			tokens:   valRankTokens(),
-			special:  rankSpecial,
+			special:  valRankSpecial,
 		}),
 		matches: valRun(d, valCommand{
 			endpoint: "matches",
@@ -133,7 +142,7 @@ func Valorant(d engine.Deps) module.Module {
 			fallback: defaultValMatchesTemplate,
 			newReply: func() any { return &gossiprpc.ValorantMatchesReply{} },
 			tokens:   valMatchTokens(),
-			special:  matchSpecial,
+			special:  valMatchSpecial,
 		}),
 		account: valRun(d, valCommand{
 			endpoint: "account",
@@ -150,7 +159,7 @@ func Valorant(d engine.Deps) module.Module {
 			fallback: defaultValBoardTemplate,
 			newReply: func() any { return &gossiprpc.ValorantLeaderboardReply{} },
 			tokens:   valBoardTokens(),
-			special:  boardSpecial,
+			special:  valBoardSpecial,
 			// A bare "!vallb" is a regional top-N ask, not a lookup of the
 			// broadcaster's own standing: falling back to their Twitch login
 			// (never a syntactically valid Riot ID) would only produce
@@ -164,11 +173,15 @@ func Valorant(d engine.Deps) module.Module {
 			fallback: defaultValShopTemplate,
 			newReply: func() any { return &gossiprpc.ValorantShopReply{} },
 			tokens:   valShopTokens(),
-			special:  shopSpecial,
+			special:  valShopSpecial,
 			// The rotation is global: no account scopes it, so none is resolved.
 			accountless: true,
 		}),
 	}
+}
+
+func Valorant(d engine.Deps) module.Module {
+	runs := newValRuns(d)
 
 	m := module.NewModule(valModuleName, module.KindOptIn)
 	m.Command("val").Everyone().Cooldown(valCooldown).
