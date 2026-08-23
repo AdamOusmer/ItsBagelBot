@@ -77,6 +77,7 @@ type engineRuntime struct {
 	loyalty engine.LoyaltyStore
 	tick    *engine.ValkeyLoyaltyClock
 	stats   *engine.LoyaltyReporter
+	raffle  *engine.ValkeyRaffleStore
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -95,7 +96,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Pub:        in.pub,
 		Commands:   engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
 		Quotes:     engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
-		Gossip:    engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix),
+		Gossip:     engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix),
 		Followage:  engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge: engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
 		Log:        log,
@@ -103,6 +104,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Reputation: engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
 		Campaign:   engine.NewValkeyCampaign(in.vc, log),
 		Queue:      engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
+		Raffle:     rt.raffle,
 		Timers:     rt.timers,
 
 		Loyalty:     rt.loyalty,
@@ -197,6 +199,21 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 	go timers.StartRearmWatcher(w.ctx)
 	go timers.StartReconciler(w.ctx)
 	return timers
+}
+
+// newRaffle builds the Valkey-backed raffle store — one deadline-keyed raffle
+// per broadcaster whose key expiry IS the auto-close (the timers idiom), with
+// the draw announced on the broadcaster's lane like a timer firing — and
+// starts its expiry watcher.
+func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
+	raffle := engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{
+		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
+		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
+		Pub:                     w.in.pub,
+		Proj:                    proj,
+	}, w.log)
+	go raffle.StartExpiryWatcher(w.ctx)
+	return raffle
 }
 
 // newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty
