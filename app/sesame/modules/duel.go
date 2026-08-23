@@ -196,7 +196,7 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 		"count", strconv.FormatInt(st.Entrants, 10),
 		"secs", strconv.FormatInt(st.SecondsLeft, 10),
 	}
-	key := "duel.status.pot"
+	key := replyKey("duel.status.pot")
 	if st.Kind == engine.DuelChallenge {
 		key = "duel.status.challenge"
 	}
@@ -209,7 +209,7 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit) error {
 	stake, refused := dc.resolveStake(raw)
 	if refused != "" {
-		dc.replyRefusal(emit, refused)
+		dc.refuseReply(emit, refused)
 		return nil
 	}
 
@@ -255,7 +255,7 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 }
 
 // replyPool emits one of the pool-readout lines ({count} entrants, {pot}).
-func (dc duelCmd) replyPool(emit module.Emit, key string, entrants, pot int64) {
+func (dc duelCmd) replyPool(emit module.Emit, key replyKey, entrants, pot int64) {
 	dc.reply(emit, "", key,
 		"count", strconv.FormatInt(entrants, 10),
 		"pot", strconv.FormatInt(pot, 10))
@@ -308,7 +308,7 @@ func (dc duelCmd) challenge(ctx context.Context, login, target, stakeArg string,
 	}
 	stake, refused := dc.resolveStake(stakeArg)
 	if refused != "" {
-		dc.replyRefusal(emit, refused)
+		dc.refuseReply(emit, refused)
 		return nil
 	}
 	res, err := dc.s.Open(ctx, dc.c.BroadcasterID, engine.DuelOpenSpec{
@@ -405,31 +405,41 @@ func (dc duelCmd) cancel(ctx context.Context, login string, emit module.Emit) er
 	return nil
 }
 
-// resolveStake parses and bounds one stake argument, returning the i18n key
-// of the refusal ("" when the stake stands).
-func (dc duelCmd) resolveStake(raw string) (int64, string) {
+// stakeRefusal names why a stake was refused; empty means it stands.
+type stakeRefusal replyKey
+
+const (
+	refUsage    stakeRefusal = "duel.usage"
+	refMinStake stakeRefusal = "duel.stake.min"
+	refMaxStake stakeRefusal = "duel.stake.max"
+)
+
+// resolveStake parses and bounds one stake argument against the channel's
+// limits.
+func (dc duelCmd) resolveStake(raw string) (int64, stakeRefusal) {
 	n, err := strconv.ParseInt(strings.TrimPrefix(raw, "@"), 10, 64)
 	if err != nil || n <= 0 {
-		return 0, "duel.usage"
+		return 0, refUsage
 	}
 	switch {
 	case n < dc.cfg.MinStake:
-		return 0, "duel.stake.min"
+		return 0, refMinStake
 	case n > dc.cfg.MaxStake:
-		return 0, "duel.stake.max"
+		return 0, refMaxStake
 	}
 	return n, ""
 }
 
-// replyRefusal emits a stake refusal, carrying the bound it tripped.
-func (dc duelCmd) replyRefusal(emit module.Emit, refused string) {
+// reply emits a stake refusal, carrying the bound it tripped.
+func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal) {
+	key := replyKey(refused)
 	switch refused {
-	case "duel.stake.min":
-		dc.reply(emit, "", refused, "min", strconv.FormatInt(dc.cfg.MinStake, 10))
-	case "duel.stake.max":
-		dc.reply(emit, "", refused, "max", strconv.FormatInt(dc.cfg.MaxStake, 10))
+	case refMinStake:
+		dc.reply(emit, "", key, "min", strconv.FormatInt(dc.cfg.MinStake, 10))
+	case refMaxStake:
+		dc.reply(emit, "", key, "max", strconv.FormatInt(dc.cfg.MaxStake, 10))
 	default:
-		dc.reply(emit, "", refused)
+		dc.reply(emit, "", key)
 	}
 }
 

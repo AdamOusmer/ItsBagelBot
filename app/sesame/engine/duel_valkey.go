@@ -449,15 +449,12 @@ func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, login 
 		return res, fmt.Errorf("duel: join stake invalid (%d)", stake)
 	}
 
-	st, busy, err := s.beginResolution(ctx, broadcasterID)
+	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
 		res.Busy = true
 		return res, nil
 	}
 	defer s.releaseSection(ctx, broadcasterID)
-	if err != nil {
-		return res, err
-	}
 	if st == nil {
 		return res, nil // nothing running (or resolving right now)
 	}
@@ -568,48 +565,52 @@ func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, l
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).Field(login).Build()).AsInt64()
 }
 
-// loadState reads and decodes the live duel record under the caller's lock.
-func (s *ValkeyDuelStore) loadState(ctx context.Context, broadcasterID uint64) (*DuelState, error) {
+// stateOf reads and decodes the live duel record under the caller's lock.
+// nil means nothing runs — including an unreadable record, which logs and
+// reads as closed rather than surfacing a garbage duel (the state key's own
+// safety TTL retires it soon enough).
+func (s *ValkeyDuelStore) stateOf(ctx context.Context, broadcasterID uint64) *DuelState {
 	raw, err := s.client.Do(ctx, s.client.B().Get().
 		Key(duelKey(duelStatePrefix, broadcasterID)).Build()).ToString()
 	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return nil, nil
+		if !valkey.IsValkeyNil(err) {
+			s.log.Warn("duel: state read failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		}
-		return nil, err
+		return nil
 	}
 	st := DuelState{}
 	if codec.UnmarshalFromString(raw, &st) != nil {
-		return nil, fmt.Errorf("duel: unreadable state")
+		s.log.Warn("duel: unreadable state", zap.Uint64("broadcaster_id", broadcasterID))
+		return nil
 	}
-	return &st, nil
+	return &st
 }
 
 // beginResolution takes the channel's resolution section and loads the live
 // duel under it. busy=true means another money path holds the lock (no lock
 // was taken); otherwise the caller owns the section and must releaseSection
-// when done — double releases are harmless DELs.
-func (s *ValkeyDuelStore) beginResolution(ctx context.Context, broadcasterID uint64) (*DuelState, bool, error) {
+// when done — double releases are harmless DELs. A nil state with busy=false
+// means nothing runs.
+func (s *ValkeyDuelStore) beginResolution(ctx context.Context, broadcasterID uint64) (*DuelState, bool) {
 	if !s.holdSection(ctx, broadcasterID) {
-		return nil, true, nil
+		return nil, true
 	}
-	st, err := s.loadState(ctx, broadcasterID)
-	return st, false, err
+	return s.stateOf(ctx, broadcasterID), false
 }
 
 func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, login string) (DuelAcceptResult, error) {
 	res := DuelAcceptResult{}
-	st, busy, err := s.beginResolution(ctx, broadcasterID)
+	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
 		res.Busy = true
 		return res, nil
 	}
 	defer s.releaseSection(ctx, broadcasterID)
-	if err != nil || st == nil {
-		return res, err
+	if st == nil {
+		return res, nil
 	}
 	res.Found = true
-	if live, addressed := challengeAddressed(st, login); !live || !addressed {
+	if !challengeAddressed(st, login) {
 		res.WrongUser = true
 		return res, nil
 	}
@@ -652,8 +653,8 @@ func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uin
 
 // challengeAddressed reports whether st is a live challenge naming login as
 // its answering party — the one gate both accept and decline share.
-func challengeAddressed(st *DuelState, login string) (live, addressed bool) {
-	return st.Kind == DuelChallenge, st.Kind == DuelChallenge && login == st.Challenged
+func challengeAddressed(st *DuelState, login string) bool {
+	return st.Kind == DuelChallenge && login == st.Challenged
 }
 
 // payWinner credits a resolved pot, logging loudly on failure: the receipt
@@ -668,17 +669,17 @@ func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, w
 
 func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, login string) (DuelDeclineResult, error) {
 	res := DuelDeclineResult{}
-	st, busy, err := s.beginResolution(ctx, broadcasterID)
+	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
 		res.Busy = true
 		return res, nil
 	}
 	defer s.releaseSection(ctx, broadcasterID)
-	if err != nil || st == nil {
-		return res, err
+	if st == nil {
+		return res, nil
 	}
 	res.Found = true
-	if live, addressed := challengeAddressed(st, login); !live || !addressed {
+	if !challengeAddressed(st, login) {
 		res.WrongUser = true
 		return res, nil
 	}
@@ -699,14 +700,14 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 
 func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLogin string, moderator bool) (DuelCancelResult, error) {
 	res := DuelCancelResult{}
-	st, busy, err := s.beginResolution(ctx, broadcasterID)
+	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
 		res.Busy = true
 		return res, nil
 	}
 	defer s.releaseSection(ctx, broadcasterID)
-	if err != nil || st == nil {
-		return res, err
+	if st == nil {
+		return res, nil
 	}
 	res.Found = true
 	if !moderator && byLogin != st.Opener {
@@ -904,11 +905,7 @@ func (s *ValkeyDuelStore) autoResolve(ctx context.Context, broadcasterID uint64)
 	}
 	defer s.releaseSection(dctx, broadcasterID)
 
-	st, err := s.loadState(dctx, broadcasterID)
-	if err != nil {
-		s.log.Warn("duel: auto-resolve state read failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
+	st := s.stateOf(dctx, broadcasterID)
 	if st == nil {
 		return // a manual resolve beat the expiry and tore the duel down
 	}
