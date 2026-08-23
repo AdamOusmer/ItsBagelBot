@@ -181,7 +181,7 @@ func main() {
 	// went cold and is paying the ~18ms handshake instead of reusing a
 	// conn.
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.Bool("nats", nc.IsConnected),
+		health.NATS("nats", nc),
 		health.Degrades(db.HealthCheck("mysql", driver.DB())))
 
 	log.Info("loyalty service ready",
