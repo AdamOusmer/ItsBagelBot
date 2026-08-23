@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch OAuth via arctic (the maintained, well-known OAuth2 client used with
-// Lucia). One Twitch client built from env. Helix user fetch lives here too so
-// the callback route stays thin.
-import { Twitch } from 'arctic';
+// Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
+// which replaced the deprecated arctic package. One Twitch client built from
+// env. Helix user fetch lives here too so the callback route stays thin.
+import { Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
