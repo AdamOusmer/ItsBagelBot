@@ -22,6 +22,10 @@ import type {
   ImportManifest,
   ImportStats,
   ManifestCommand,
+  ManifestCounter,
+  ManifestQuote,
+  ManifestTimer,
+  ManifestTrigger,
   Perm
 } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
@@ -356,102 +360,162 @@ export function validateManifest(m: ImportManifest | null | undefined): ImportDi
   if (isEmptyStats(stats(m)) && !m.automod)
     diags.push(warnDiag(-1, CODE.manifestEmpty, 'manifest carries no items'));
 
-  (m.commands ?? []).forEach((c, i) => {
-    if (i >= MAX_IMPORT_COMMANDS) {
-      diags.push(errDiag(i, CODE.commandTooMany, `only the first ${MAX_IMPORT_COMMANDS} commands are imported`));
-      return;
-    }
-    const name = normalizeName(c.name);
-    const nameProblem = commandNameProblem(name);
-    if (nameProblem) diags.push(errDiag(i, CODE.nameInvalid, `command name ${q(c.name)}: ${nameProblem}`));
-    if (c.aliases?.length) {
-      const normalized = c.aliases.map(normalizeName);
-      const aliasProblem = commandAliasesProblem(normalized);
-      if (aliasProblem) diags.push(errDiag(i, CODE.aliasInvalid, `aliases for ${q(name)}: ${aliasProblem}`));
-    }
-    if (!c.responses?.length) {
-      diags.push(errDiag(i, CODE.responseInvalid, 'command has no response'));
-    } else {
-      const joined = c.responses.join('\n');
-      const respProblem = commandResponseProblem(joined);
-      if (respProblem) diags.push(errDiag(i, CODE.responseInvalid, `response for ${q(name)}: ${respProblem}`));
-    }
-    if (c.permission && !PERM_TIERS.includes(c.permission)) {
-      diags.push(
-        errDiag(
-          i,
-          CODE.permissionUnmapped,
-          `permission ${q(c.permission)} is not one of everyone/sub/vip/mod/lead_mod/broadcaster`
-        )
-      );
-    }
-    if ((c.cooldown_seconds ?? 0) > MAX_COOLDOWN_SECONDS) {
-      diags.push(
-        warnDiag(i, CODE.cooldownClamped, `cooldown ${c.cooldown_seconds}s clamped to ${MAX_COOLDOWN_SECONDS}s at commit`)
-      );
-    }
-  });
+  for (const walk of KIND_WALKERS) diags.push(...walk(m));
 
-  (m.timers ?? []).forEach((t, i) => {
-    if (i >= MAX_IMPORT_TIMERS) {
-      diags.push(errDiag(i, CODE.timerTooMany, `only the first ${MAX_IMPORT_TIMERS} timers are imported`));
-      return;
-    }
-    if (t.message.trim() === '') diags.push(errDiag(i, CODE.timerMessageEmpty, 'timer has no message'));
-    if (t.interval_seconds < MIN_TIMER_INTERVAL_SECONDS) {
-      diags.push(
-        warnDiag(
-          i,
-          CODE.intervalClamped,
-          `interval ${t.interval_seconds}s clamped to ${MIN_TIMER_INTERVAL_SECONDS}s at commit (engine floor)`
-        )
-      );
-    }
-  });
-
-  (m.triggers ?? []).forEach((tr, i) => {
-    if (i >= MAX_IMPORT_TRIGGERS) {
-      diags.push(errDiag(i, CODE.triggerTooMany, `only the first ${MAX_IMPORT_TRIGGERS} triggers are imported`));
-      return;
-    }
-    if (tr.phrase.trim() === '' || tr.response.trim() === '') {
-      diags.push(errDiag(i, CODE.triggerInvalid, `trigger needs both a phrase and a response; got phrase=${q(tr.phrase)}`));
-    }
-  });
-
-  (m.quotes ?? []).forEach((qt, i) => {
-    if (i >= MAX_IMPORT_QUOTES) {
-      diags.push(errDiag(i, CODE.quoteTooMany, `only the first ${MAX_IMPORT_QUOTES} quotes are imported`));
-      return;
-    }
-    const text = qt.text.trim();
-    if (text === '' || byteLen(text) > MAX_QUOTE_TEXT_LEN) {
-      diags.push(errDiag(i, CODE.quoteTextInvalid, `quote text must be 1-${MAX_QUOTE_TEXT_LEN} bytes`));
-    }
-    if (qt.created_at && !isRFC3339(qt.created_at)) {
-      diags.push(errDiag(i, CODE.quoteDateInvalid, 'created_at must be RFC 3339 (e.g. 2026-01-31T12:00:00Z)'));
-    }
-  });
-
-  (m.counters ?? []).forEach((c, i) => {
-    if (i >= MAX_IMPORT_COUNTERS) {
-      diags.push(errDiag(i, CODE.counterTooMany, `only the first ${MAX_IMPORT_COUNTERS} counters are imported`));
-      return;
-    }
-    const name = normalizeName(c.name);
-    if (name === '' || byteLen(name) > MAX_COUNTER_NAME_LEN) {
-      diags.push(errDiag(i, CODE.counterNameInvalid, `counter name must be 1-${MAX_COUNTER_NAME_LEN} characters`));
-    }
-  });
-
-  if (m.automod) {
-    if ((m.automod.block?.length ?? 0) > MAX_AUTOMOD_TERMS || (m.automod.allow?.length ?? 0) > MAX_AUTOMOD_TERMS) {
-      diags.push(
-        warnDiag(-1, CODE.automodTermsTooMany, `automod term lists truncated to ${MAX_AUTOMOD_TERMS} entries per list at commit`)
-      );
-    }
-  }
+  if (m.automod) diags.push(...automodDiags(m.automod));
   return diags;
+}
+
+// CollectionKind is one manifest collection's validation rule: an accessor,
+// its cap and the pure item validator producing that collection's diagnostics.
+interface CollectionKind<T> {
+  noun: string;
+  cap: number;
+  overflowCode: string;
+  items: (m: ImportManifest) => T[];
+  validateItem: (item: T, index: number) => ImportDiagnostic[];
+}
+
+// walkKind binds a kind into the walker table below. Overflow keeps the
+// item's slot but skips its checks, exactly like the previous ladders.
+function walkKind<T>(kind: CollectionKind<T>): (m: ImportManifest) => ImportDiagnostic[] {
+  return (m) =>
+    kind.items(m).flatMap((item, i) =>
+      i >= kind.cap ? [errDiag(i, kind.overflowCode, `only the first ${kind.cap} ${kind.noun} are imported`)] : kind.validateItem(item, i)
+    );
+}
+
+const KIND_WALKERS: ((m: ImportManifest) => ImportDiagnostic[])[] = [
+  walkKind({
+    noun: 'commands',
+    cap: MAX_IMPORT_COMMANDS,
+    overflowCode: CODE.commandTooMany,
+    items: (m) => m.commands ?? [],
+    validateItem: validateCommandItem
+  }),
+  walkKind({
+    noun: 'timers',
+    cap: MAX_IMPORT_TIMERS,
+    overflowCode: CODE.timerTooMany,
+    items: (m) => m.timers ?? [],
+    validateItem: validateTimerItem
+  }),
+  walkKind({
+    noun: 'triggers',
+    cap: MAX_IMPORT_TRIGGERS,
+    overflowCode: CODE.triggerTooMany,
+    items: (m) => m.triggers ?? [],
+    validateItem: validateTriggerItem
+  }),
+  walkKind({
+    noun: 'quotes',
+    cap: MAX_IMPORT_QUOTES,
+    overflowCode: CODE.quoteTooMany,
+    items: (m) => m.quotes ?? [],
+    validateItem: validateQuoteItem
+  }),
+  walkKind({
+    noun: 'counters',
+    cap: MAX_IMPORT_COUNTERS,
+    overflowCode: CODE.counterTooMany,
+    items: (m) => m.counters ?? [],
+    validateItem: validateCounterItem
+  })
+];
+
+function automodDiags(terms: NonNullable<ImportManifest['automod']>): ImportDiagnostic[] {
+  if ((terms.block?.length ?? 0) <= MAX_AUTOMOD_TERMS && (terms.allow?.length ?? 0) <= MAX_AUTOMOD_TERMS) return [];
+  return [
+    warnDiag(-1, CODE.automodTermsTooMany, `automod term lists truncated to ${MAX_AUTOMOD_TERMS} entries per list at commit`)
+  ];
+}
+
+// --- item validators (one per manifest collection, all pure) -----------------
+
+function validateCommandItem(c: ManifestCommand, index: number): ImportDiagnostic[] {
+  const name = normalizeName(c.name);
+  return [
+    ...commandNameDiags(c, name, index),
+    ...commandAliasDiags(c, name, index),
+    ...commandResponseDiags(c, name, index),
+    ...commandTierDiags(c, index)
+  ];
+}
+
+function commandNameDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
+  const problem = commandNameProblem(name);
+  return problem ? [errDiag(index, CODE.nameInvalid, `command name ${q(c.name)}: ${problem}`)] : [];
+}
+
+function commandAliasDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
+  if (!c.aliases?.length) return [];
+  const problem = commandAliasesProblem(c.aliases.map(normalizeName));
+  return problem ? [errDiag(index, CODE.aliasInvalid, `aliases for ${q(name)}: ${problem}`)] : [];
+}
+
+function commandResponseDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
+  if (!c.responses?.length) return [errDiag(index, CODE.responseInvalid, 'command has no response')];
+  const problem = commandResponseProblem(c.responses.join('\n'));
+  return problem ? [errDiag(index, CODE.responseInvalid, `response for ${q(name)}: ${problem}`)] : [];
+}
+
+function commandTierDiags(c: ManifestCommand, index: number): ImportDiagnostic[] {
+  const out: ImportDiagnostic[] = [];
+  if (c.permission && !PERM_TIERS.includes(c.permission)) {
+    out.push(
+      errDiag(
+        index,
+        CODE.permissionUnmapped,
+        `permission ${q(c.permission)} is not one of everyone/sub/vip/mod/lead_mod/broadcaster`
+      )
+    );
+  }
+  if ((c.cooldown_seconds ?? 0) > MAX_COOLDOWN_SECONDS) {
+    out.push(
+      warnDiag(index, CODE.cooldownClamped, `cooldown ${c.cooldown_seconds}s clamped to ${MAX_COOLDOWN_SECONDS}s at commit`)
+    );
+  }
+  return out;
+}
+
+function validateTimerItem(t: ManifestTimer, index: number): ImportDiagnostic[] {
+  const out: ImportDiagnostic[] = [];
+  if (t.message.trim() === '') out.push(errDiag(index, CODE.timerMessageEmpty, 'timer has no message'));
+  if (t.interval_seconds < MIN_TIMER_INTERVAL_SECONDS) {
+    out.push(
+      warnDiag(
+        index,
+        CODE.intervalClamped,
+        `interval ${t.interval_seconds}s clamped to ${MIN_TIMER_INTERVAL_SECONDS}s at commit (engine floor)`
+      )
+    );
+  }
+  return out;
+}
+
+function validateTriggerItem(tr: ManifestTrigger, index: number): ImportDiagnostic[] {
+  if (tr.phrase.trim() !== '' && tr.response.trim() !== '') return [];
+  return [
+    errDiag(index, CODE.triggerInvalid, `trigger needs both a phrase and a response; got phrase=${q(tr.phrase)}`)
+  ];
+}
+
+function validateQuoteItem(qt: ManifestQuote, index: number): ImportDiagnostic[] {
+  const out: ImportDiagnostic[] = [];
+  const text = qt.text.trim();
+  if (text === '' || byteLen(text) > MAX_QUOTE_TEXT_LEN) {
+    out.push(errDiag(index, CODE.quoteTextInvalid, `quote text must be 1-${MAX_QUOTE_TEXT_LEN} bytes`));
+  }
+  if (qt.created_at && !isRFC3339(qt.created_at)) {
+    out.push(errDiag(index, CODE.quoteDateInvalid, 'created_at must be RFC 3339 (e.g. 2026-01-31T12:00:00Z)'));
+  }
+  return out;
+}
+
+function validateCounterItem(c: ManifestCounter, index: number): ImportDiagnostic[] {
+  const name = normalizeName(c.name);
+  if (name !== '' && byteLen(name) <= MAX_COUNTER_NAME_LEN) return [];
+  return [errDiag(index, CODE.counterNameInvalid, `counter name must be 1-${MAX_COUNTER_NAME_LEN} characters`)];
 }
 
 // isRFC3339 mirrors Go time.Parse(time.RFC3339, s): strict calendar shape with

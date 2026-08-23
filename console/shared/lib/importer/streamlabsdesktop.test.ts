@@ -70,14 +70,23 @@ const SCHEMA = [
 	)`
 ];
 
-function buildFixtureDB(spec: Spec): Uint8Array {
+// openFixtureDB creates the schema minus any dropped tables; one builder per
+// table fills it.
+function openFixtureDB(spec: Spec) {
   const db = new SQL.Database();
   for (const stmt of SCHEMA) {
     const table = stmt.slice('CREATE TABLE '.length).split(' ')[0];
     if (spec.dropTables?.includes(table)) continue;
     db.run(stmt);
   }
-  for (const c of spec.commands ?? []) {
+  return db;
+}
+
+// buildCommandsTable inserts one row per command, omitting each optional
+// column whose value is unset ('-' on perm omits the Permission column
+// entirely).
+function buildCommandsTable(db: ReturnType<typeof SQL.Database>, commands: CmdRow[]): void {
+  for (const c of commands) {
     const cols = ['Name', 'Response'];
     const args: unknown[] = [c.name, c.response];
     if (c.perm && c.perm !== '-') {
@@ -101,10 +110,23 @@ function buildFixtureDB(spec: Spec): Uint8Array {
       args
     );
   }
-  (spec.timers ?? []).forEach((msg, i) => db.run(`INSERT INTO Timers (Id, Message) VALUES (?, ?)`, [i, msg]));
-  (spec.quotes ?? []).forEach((qt, i) =>
+}
+
+function buildTimersTable(db: ReturnType<typeof SQL.Database>, timers: string[]): void {
+  timers.forEach((msg, i) => db.run(`INSERT INTO Timers (Id, Message) VALUES (?, ?)`, [i, msg]));
+}
+
+function buildQuotesTable(db: ReturnType<typeof SQL.Database>, quotes: [string, string][]): void {
+  quotes.forEach((qt, i) =>
     db.run(`INSERT INTO Quotes (Id, Quote, Game, Date) VALUES (?, ?, ?, ?)`, [i, qt[0], 'Some Game', qt[1]])
   );
+}
+
+function buildFixtureDB(spec: Spec): Uint8Array {
+  const db = openFixtureDB(spec);
+  buildCommandsTable(db, spec.commands ?? []);
+  buildTimersTable(db, spec.timers ?? []);
+  buildQuotesTable(db, spec.quotes ?? []);
   return db.export();
 }
 

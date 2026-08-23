@@ -49,6 +49,8 @@ import type {
   ImportManifest,
   ImportSource,
   ImportStats,
+  ManifestCommand,
+  ManifestTrigger,
   PreviewResponse,
   TimerDef
 } from '@bagel/shared';
@@ -200,8 +202,29 @@ async function commandNames(userId: string): Promise<string[]> {
   return names;
 }
 
+// CommitContext groups what every commit leg reads and mutates, replacing the
+// six-argument signatures the legs used to carry: identity (uid), the request
+// shape (manifest/overwrite), the skip sets from collision lookup, the shared
+// diagnostic stream and the applied tally.
+interface CommitContext {
+  uid: string;
+  manifest: ImportManifest;
+  overwrite: boolean;
+  failed: FailedItems;
+  skipCommands: Set<string>;
+  skipCounters: Set<string>;
+  collisions: CommitResponse['skipped'];
+  diags: ImportDiagnostic[];
+  applied: ImportStats;
+  // modules is null when the read failed; timers/triggers/automod then stay
+  // unimported while quotes and counters proceed.
+  modules: Awaited<ReturnType<typeof listModules>> | null;
+}
+
 // commitImport applies a (client-filtered) manifest through the owning
-// services' existing write paths.
+// services' existing write paths. The legs run in a fixed order — command
+// upserts, module-blob timers/triggers, quote rows, automod terms, counter
+// create/set — mirroring the old service's fan-out sequence.
 //
 // Decision record — audit trail (2026-08-23): the standalone service wrote an
 // import_audits row and returned its id; commit now emits ONE structured pino
@@ -211,127 +234,177 @@ async function commandNames(userId: string): Promise<string[]> {
 // dashboard's audit-ish trail gets. Consequence: CommitResponse.audit_id is no
 // longer set, so the done screen drops the "recorded as #N" line.
 export async function commitImport(s: Session, req: ImportCommitRequest): Promise<CommitResponse> {
-  const uid = s.user_id;
   const manifest = req.manifest ?? {};
-
   const diags = validateManifest(manifest);
   const failed = new FailedItems(diags);
 
+  const collisions = await resolveCollisions(s.user_id, !!req.overwrite, manifest, diags);
+  const ctx: CommitContext = {
+    uid: s.user_id,
+    manifest,
+    overwrite: !!req.overwrite,
+    failed,
+    skipCommands: collisionNames(collisions, 'command'),
+    skipCounters: collisionNames(collisions, 'counter'),
+    collisions,
+    diags,
+    applied: emptyStats(),
+    modules: null
+  };
+
+  await commitCommands(ctx);
+  ctx.modules = await loadModules(ctx);
+  await commitTimersAndTriggers(ctx);
+  await commitQuotes(ctx);
+  await commitAutomodTerms(ctx);
+  await commitCounters(ctx);
+
+  // Cache drop so the dashboard reflects the import without waiting out a TTL
+  // (commands upserts and modules blob patches both project into cached lists).
+  invalidate(`commands:${ctx.uid}`, `modules:${ctx.uid}`);
+  logCommit(req.source || 'unknown', ctx);
+  return { applied: ctx.applied, skipped: ctx.collisions, diagnostics: ctx.diags };
+}
+
+// resolveCollisions looks up the channel's live command names for the skip
+// sets. A lookup failure degrades to a warn (fail open): commit re-checks at
+// write time anyway, so a projector blip must not block an import.
+async function resolveCollisions(
+  uid: string,
+  overwrite: boolean,
+  manifest: ImportManifest,
+  diags: ImportDiagnostic[]
+): Promise<CommitResponse['skipped']> {
   let existingNames: string[] | null = null;
   try {
     existingNames = await commandNames(uid);
   } catch (err) {
     diags.push({ severity: 'warn', item_index: -1, code: CODE.collisionLookupFailed, message: String(err) });
   }
-  const collisions = !req.overwrite && existingNames ? findCollisions(existingNames, manifest) : [];
-  const skipCommands = new Set(collisions.filter((c) => c.kind === 'command').map((c) => c.name));
-  const skipCounters = new Set(collisions.filter((c) => c.kind === 'counter').map((c) => c.name));
+  return existingNames && !overwrite ? findCollisions(existingNames, manifest) : [];
+}
 
-  const applied = emptyStats();
+function collisionNames(collisions: CommitResponse['skipped'], kind: string): Set<string> {
+  return new Set((collisions ?? []).filter((c) => c.kind === kind).map((c) => c.name));
+}
 
-  // --- commands: sequential chunks of COMMIT_COMMAND_BATCH upserts ---------
-  const targets = (manifest.commands ?? [])
-    .map((cmd, idx) => ({ cmd, idx }))
-    .filter(({ cmd, idx }) => !failed.has('commands', idx) && !skipCommands.has(normalizeName(cmd.name)));
-  for (let start = 0; start < targets.length; start += COMMIT_COMMAND_BATCH) {
-    const chunk = targets.slice(start, start + COMMIT_COMMAND_BATCH);
-    for (const { cmd, idx } of chunk) {
-      try {
-        await upsertCommand(uid, {
-          name: normalizeName(cmd.name),
-          aliases: (cmd.aliases ?? []).map(normalizeName),
-          response: (cmd.responses ?? []).join('\n'),
-          isActive: true,
-          streamOnlineOnly: !!cmd.online_only,
-          perm: cmd.permission ?? 'everyone',
-          cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),
-          allowedUserId: ''
-        });
-        applied.commands++;
-      } catch (err) {
-        diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
-      }
-    }
-  }
-
-  // --- timers/triggers/automod: merge into module blobs --------------------
-  // A read failure blocks exactly those three collections — they still count
-  // as attempted (partial/failed audit semantics) while quotes and counters
-  // stay alive.
-  let modules: Awaited<ReturnType<typeof listModules>> | null = null;
+// loadModules reads the channel's module blobs; a read failure blocks exactly
+// timers/triggers/automod — those collections still count as attempted
+// (partial/failed audit semantics) while quotes and counters stay alive.
+async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeof listModules>> | null> {
   try {
-    modules = await listModules(uid);
+    return await listModules(ctx.uid);
   } catch (err) {
-    diags.push(
+    ctx.diags.push(
       errorDiag(-1, CODE.moduleReadFailed, `modules unavailable (${String(err)}); timers, triggers and automod terms not imported`)
     );
+    return null;
   }
-  const blobOf = (name: string): Record<string, unknown> =>
-    (modules?.find((m) => m.name === name)?.configs as Record<string, unknown> | undefined) ?? {};
+}
 
-  const timerTargets = eligibleIndexes(failed, 'timers', manifest.timers?.length ?? 0);
-  if (timerTargets.length > 0 && modules) {
-    applyTimers(uid, blobOf('timers'), manifest, timerTargets, diags, applied);
+// moduleBlob exposes one module's stored configs for client-side merging.
+function moduleBlob(ctx: CommitContext, name: string): Record<string, unknown> {
+  return (ctx.modules?.find((m) => m.name === name)?.configs as Record<string, unknown> | undefined) ?? {};
+}
+
+// commitCommands upserts the eligible commands in sequential chunks of
+// COMMIT_COMMAND_BATCH: within a chunk requests stay sequential (the commands
+// upsert path is write-behind already, so parallelizing buys queue contention,
+// not latency), while chunking lets a huge import checkpoint instead of
+// monopolizing this request.
+async function commitCommands(ctx: CommitContext): Promise<void> {
+  const targets = (ctx.manifest.commands ?? [])
+    .map((cmd, idx) => ({ cmd, idx }))
+    .filter(({ cmd, idx }) => !ctx.failed.has('commands', idx) && !ctx.skipCommands.has(normalizeName(cmd.name)));
+  for (let start = 0; start < targets.length; start += COMMIT_COMMAND_BATCH) {
+    for (const { cmd, idx } of targets.slice(start, start + COMMIT_COMMAND_BATCH)) {
+      await upsertOneCommand(ctx, idx, cmd);
+    }
   }
+}
 
-  const triggerTargets = eligibleIndexes(failed, 'triggers', manifest.triggers?.length ?? 0);
-  if (triggerTargets.length > 0 && modules) {
-    await applyTriggers(uid, blobOf('triggers'), manifest, triggerTargets, diags, applied);
+async function upsertOneCommand(ctx: CommitContext, idx: number, cmd: ManifestCommand): Promise<void> {
+  try {
+    await upsertCommand(ctx.uid, {
+      name: normalizeName(cmd.name),
+      aliases: (cmd.aliases ?? []).map(normalizeName),
+      response: (cmd.responses ?? []).join('\n'),
+      isActive: true,
+      streamOnlineOnly: !!cmd.online_only,
+      perm: cmd.permission ?? 'everyone',
+      cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),
+      allowedUserId: ''
+    });
+    ctx.applied.commands++;
+  } catch (err) {
+    ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
   }
+}
 
-  // --- quotes ---------------------------------------------------------------
-  for (const idx of eligibleIndexes(failed, 'quotes', manifest.quotes?.length ?? 0)) {
-    const q = manifest.quotes![idx];
+// commitTimersAndTriggers merges both collections into their module blobs;
+// each applies only when it has eligible targets and the module read survived.
+async function commitTimersAndTriggers(ctx: CommitContext): Promise<void> {
+  if (!ctx.modules) return;
+  await applyTimers(ctx, moduleBlob(ctx, 'timers'));
+  await applyTriggers(ctx, moduleBlob(ctx, 'triggers'));
+}
+
+// commitQuotes writes quote rows one by one; a failed row is reported and the
+// rest proceed.
+async function commitQuotes(ctx: CommitContext): Promise<void> {
+  for (const idx of eligibleIndexes(ctx.failed, 'quotes', ctx.manifest.quotes?.length ?? 0)) {
+    const q = ctx.manifest.quotes![idx];
     try {
-      await addQuote(uid, {
+      await addQuote(ctx.uid, {
         text: q.text.trim(),
         addedBy: (q.added_by ?? '').slice(0, MAX_QUOTE_ADDED_BY_LEN),
         createdAt: q.created_at ?? ''
       });
-      applied.quotes++;
+      ctx.applied.quotes++;
     } catch (err) {
-      diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
+      ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
     }
   }
+}
 
-  // --- automod terms ---------------------------------------------------------
-  if (manifest.automod && modules) {
-    await applyAutomodTerms(uid, blobOf('automod'), manifest.automod, diags);
-  }
+// commitAutomodTerms patches the automod term lists when the manifest carries
+// any and the module read survived.
+async function commitAutomodTerms(ctx: CommitContext): Promise<void> {
+  if (!ctx.manifest.automod || !ctx.modules) return;
+  await applyAutomodTerms(ctx, moduleBlob(ctx, 'automod'));
+}
 
-  // --- counters ----------------------------------------------------------------
-  for (const idx of eligibleIndexes(failed, 'counters', manifest.counters?.length ?? 0)) {
-    const c = manifest.counters![idx];
+// commitCounters creates then sets each eligible counter; colliding names are
+// skipped unless the import overwrites.
+async function commitCounters(ctx: CommitContext): Promise<void> {
+  for (const idx of eligibleIndexes(ctx.failed, 'counters', ctx.manifest.counters?.length ?? 0)) {
+    const c = ctx.manifest.counters![idx];
     const name = normalizeName(c.name);
-    if (!req.overwrite && skipCounters.has(name)) continue;
+    if (!ctx.overwrite && ctx.skipCounters.has(name)) continue;
     try {
-      await createCounter(uid, name, 'channel');
-      await setCounter(uid, name, c.value);
-      applied.counters++;
+      await createCounter(ctx.uid, name, 'channel');
+      await setCounter(ctx.uid, name, c.value);
+      ctx.applied.counters++;
     } catch (err) {
-      diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
+      ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
     }
   }
+}
 
-  // Cache drop so the dashboard reflects the import without waiting out a TTL
-  // (commands upserts and modules blob patches both project into cached lists).
-  invalidate(`commands:${uid}`, `modules:${uid}`);
-
-  // The audit row's replacement: one structured line per commit.
+// logCommit is the audit row's replacement: one structured line per commit.
+function logCommit(source: string, ctx: CommitContext): void {
   logger.info(
     {
       event: 'config_import_commit',
-      user_id: uid,
-      source: req.source || 'unknown',
-      overwrite: !!req.overwrite,
-      applied,
-      skipped: collisions.map((c) => `${c.kind}:${c.name}`),
-      diagnostics: diags.length
+      user_id: ctx.uid,
+      source,
+      overwrite: ctx.overwrite,
+      applied: ctx.applied,
+      skipped: (ctx.collisions ?? []).map((c) => `${c.kind}:${c.name}`),
+      diagnostics: ctx.diags.length
     },
     'config import committed'
   );
-
-  return { applied, skipped: collisions, diagnostics: diags };
 }
 
 // eligibleIndexes returns the valid indexes of one collection that carry no
@@ -350,28 +423,24 @@ function eligibleIndexes(failed: FailedItems, collection: string, length: number
 // top-level keys wholesale, so appending server-side is impossible and the
 // pre-read is what makes this non-destructive. One patch lands all timers, so
 // they count together.
-async function applyTimers(
-  uid: string,
-  blob: Record<string, unknown>,
-  manifest: ImportManifest,
-  targets: number[],
-  diags: ImportDiagnostic[],
-  applied: ImportStats
-): Promise<void> {
+async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
+  const targets = eligibleIndexes(ctx.failed, 'timers', ctx.manifest.timers?.length ?? 0);
+  if (targets.length === 0) return;
+
   const existing = Array.isArray(blob.timers) ? (blob.timers as TimerDef[]) : [];
   const merged = [...existing];
   for (const idx of targets) {
-    const t = manifest.timers![idx];
+    const t = ctx.manifest.timers![idx];
     let interval = t.interval_seconds;
     if (interval < MIN_TIMER_INTERVAL_SECONDS) {
       interval = MIN_TIMER_INTERVAL_SECONDS;
-      diags.push(
+      ctx.diags.push(
         warnDiag(idx, CODE.intervalClamped, `interval ${t.interval_seconds}s clamped to ${MIN_TIMER_INTERVAL_SECONDS}s (engine floor)`)
       );
     }
     if (interval > MAX_TIMER_INTERVAL_SECONDS) {
       interval = MAX_TIMER_INTERVAL_SECONDS;
-      diags.push(warnDiag(idx, CODE.intervalClamped, `interval ${t.interval_seconds}s clamped to ${MAX_TIMER_INTERVAL_SECONDS}s`));
+      ctx.diags.push(warnDiag(idx, CODE.intervalClamped, `interval ${t.interval_seconds}s clamped to ${MAX_TIMER_INTERVAL_SECONDS}s`));
     }
     merged.push({
       id: randomUUID(),
@@ -383,10 +452,10 @@ async function applyTimers(
     } satisfies TimerDef);
   }
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: uid, name: 'timers', is_enabled: true, configs: { timers: merged } });
-    applied.timers += targets.length;
+    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'timers', is_enabled: true, configs: { timers: merged } });
+    ctx.applied.timers += targets.length;
   } catch (err) {
-    diags.push(errorDiag(-1, CODE.writeFailed, `module timers patch failed: ${String(err)}`));
+    ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module timers patch failed: ${String(err)}`));
   }
 }
 
@@ -395,14 +464,10 @@ async function applyTimers(
 // plain lines take the default word-match mode). Items that cannot be
 // expressed single-line are dropped here with error diagnostics rather than
 // written corrupt.
-async function applyTriggers(
-  uid: string,
-  blob: Record<string, unknown>,
-  manifest: ImportManifest,
-  targets: number[],
-  diags: ImportDiagnostic[],
-  applied: ImportStats
-): Promise<void> {
+async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
+  const targets = eligibleIndexes(ctx.failed, 'triggers', ctx.manifest.triggers?.length ?? 0);
+  if (targets.length === 0) return;
+
   const existingRules = typeof blob.rules === 'string' ? blob.rules : '';
   const lines = existingRules
     .trim()
@@ -410,31 +475,34 @@ async function applyTriggers(
     .filter((l) => l.trim() !== '');
   let landed = 0;
   for (const idx of targets) {
-    const tr = manifest.triggers![idx];
-    const phrase = tr.phrase.trim();
-    const response = tr.response.trim();
-    if (phrase.includes('\n') || response.includes('\n')) {
-      diags.push(errorDiag(idx, CODE.triggerInvalid, 'phrase and response must be single-line'));
+    const tr = ctx.manifest.triggers![idx];
+    const problem = triggerLineProblem(tr);
+    if (problem) {
+      ctx.diags.push(errorDiag(idx, CODE.triggerInvalid, problem));
       continue;
     }
-    if (phrase.startsWith('#')) {
-      diags.push(errorDiag(idx, CODE.triggerInvalid, "phrase must not start with '#' (comment marker)"));
-      continue;
-    }
-    if (phrase.includes('=>')) {
-      diags.push(errorDiag(idx, CODE.triggerInvalid, 'phrase must not contain "=>" (rule separator)'));
-      continue;
-    }
-    lines.push(`${phrase} => ${response}`);
+    lines.push(`${tr.phrase.trim()} => ${tr.response.trim()}`);
     landed++;
   }
   if (landed === 0) return;
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: uid, name: 'triggers', is_enabled: true, configs: { rules: lines.join('\n') } });
-    applied.triggers += landed;
+    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'triggers', is_enabled: true, configs: { rules: lines.join('\n') } });
+    ctx.applied.triggers += landed;
   } catch (err) {
-    diags.push(errorDiag(-1, CODE.writeFailed, `module triggers patch failed: ${String(err)}`));
+    ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module triggers patch failed: ${String(err)}`));
   }
+}
+
+// triggerLineProblem names why a trigger cannot ride the rules textarea's
+// line grammar, or null when it can. The three refusals mirror sesame's own
+// parser: newlines split rules, '#' opens a comment, '=>' is the separator.
+function triggerLineProblem(tr: ManifestTrigger): string | null {
+  const phrase = tr.phrase.trim();
+  const response = tr.response.trim();
+  if (phrase.includes('\n') || response.includes('\n')) return 'phrase and response must be single-line';
+  if (phrase.startsWith('#')) return "phrase must not start with '#' (comment marker)";
+  if (phrase.includes('=>')) return 'phrase must not contain "=>" (rule separator)';
+  return null;
 }
 
 // applyAutomodTerms merges the imported term lists into the automod module's
@@ -442,12 +510,8 @@ async function applyTriggers(
 // term keys are patched, so the module's level/per-reply toggles survive. The
 // automod module has no bucket in ImportStats: its outcome shows through
 // diagnostics alone — silence means merged.
-async function applyAutomodTerms(
-  uid: string,
-  blob: Record<string, unknown>,
-  terms: NonNullable<ImportManifest['automod']>,
-  diags: ImportDiagnostic[]
-): Promise<void> {
+async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
+  const terms = ctx.manifest.automod!;
   const partial: Record<string, string> = {};
   for (const [key, imported] of [
     ['block_terms', terms.block ?? []],
@@ -455,12 +519,12 @@ async function applyAutomodTerms(
   ] as const) {
     const merged = mergeTermList(typeof blob[key] === 'string' ? (blob[key] as string) : '', imported);
     partial[key] = merged.value;
-    diags.push(...merged.diags);
+    ctx.diags.push(...merged.diags);
   }
   try {
-    await rpc(`${SUB.modules}.patch`, { user_id: uid, name: 'automod', is_enabled: true, configs: partial });
+    await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: 'automod', is_enabled: true, configs: partial });
   } catch (err) {
-    diags.push(errorDiag(-1, CODE.writeFailed, `module automod patch failed: ${String(err)}`));
+    ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module automod patch failed: ${String(err)}`));
   }
 }
 
