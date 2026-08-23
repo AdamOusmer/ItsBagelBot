@@ -114,6 +114,7 @@ func Fortnite(d engine.Deps) module.Module {
 	// spending the tight daily stats budget for a command the broadcaster
 	// turned off.
 	m.On("stream.online", fortniteSnapshotOnline(d))
+	m.On("stream.offline", fortniteSessionOffline(d))
 	return m.Build()
 }
 
@@ -138,7 +139,7 @@ func fortniteSnapshotOnline(d engine.Deps) module.EventHandler {
 		}
 		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		go func() {
+		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), fortniteSnapshotTimeout)
 			defer cancel()
 			req := gossiprpc.Request{Account: account, AccountType: cfg.AccountType, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
@@ -150,7 +151,43 @@ func fortniteSnapshotOnline(d engine.Deps) module.EventHandler {
 			}
 			log.Debug("fortnite: stream-start snapshot stored",
 				zap.String("channel_id", channelID), zap.String("player", reply.Player))
-		}()
+		})
+		return nil
+	}
+}
+
+// fortniteSessionOffline clears the channel's session baseline when the stream
+// ends, so a rapid stop/restart cycle (#561) cannot leave !fn session diffing
+// the new stream against the old one's snapshot. Sequenced behind the online
+// snapshot like every other lifecycle effect; only fires when the online
+// snapshot was enabled (the baseline it clears exists then). Gossip
+// deployments without the provider answer no-responder — an expected miss,
+// hence Debug.
+func fortniteSessionOffline(d engine.Deps) module.EventHandler {
+	log := d.Log
+	if log == nil {
+		log = zap.NewNop()
+	}
+	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+		if d.Gossip == nil {
+			return nil
+		}
+		var cfg fortniteConfig
+		_ = c.Decode(&cfg)
+		if !alertOn(cfg.SessionEnabled) {
+			return nil
+		}
+		channelID := strconv.FormatUint(c.BroadcasterID, 10)
+		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
+			wctx, cancel := context.WithTimeout(context.Background(), fortniteSnapshotTimeout)
+			defer cancel()
+			var reply gossiprpc.FortniteSnapshotReply
+			err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session_end"}, gossiprpc.Request{ChannelID: channelID}, &reply)
+			if err != nil {
+				log.Debug("fortnite: stream-end snapshot clear failed",
+					zap.String("channel_id", channelID), zap.Error(err))
+			}
+		})
 		return nil
 	}
 }
