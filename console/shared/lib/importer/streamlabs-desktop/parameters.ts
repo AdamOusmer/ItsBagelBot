@@ -236,14 +236,14 @@ export function translateVariables(text: string, cmdName: string): TranslationRe
       i++;
       continue;
     }
-    const [name, next] = scanIdent(text, i + 1);
-    if (name === '') {
+    const cursor = scanIdent(text, i + 1);
+    if (cursor.name === '') {
       s.out += ch; // "$" with no identifier: literal dollar sign
       i++;
       continue;
     }
     s.pos = i;
-    i = dispatchParam(s, name, next);
+    i = dispatchParam(s, cursor);
   }
 
   // Arg-slot rule: a lone $arg1/$num1 IS "everything after the command" and
@@ -269,7 +269,7 @@ export function translateVariables(text: string, cmdName: string): TranslationRe
 // first, then PARAM_HANDLERS, then the predicate families (numbered arg slots,
 // external calls), finally the unknown fallback. Adding a parameter later is a
 // row in one of those tables, not a branch here.
-type ParamHandler = (s: ScanState, name: string, next: number) => number;
+type ParamHandler = (s: ScanState, cursor: ParamCursor) => number;
 
 const PARAM_HANDLERS: Record<string, ParamHandler> = {
   count: countParam,
@@ -278,20 +278,21 @@ const PARAM_HANDLERS: Record<string, ParamHandler> = {
   desc: descParam
 };
 
-function dispatchParam(s: ScanState, name: string, next: number): number {
-  const simple = SIMPLE_PARAMS[name];
+function dispatchParam(s: ScanState, cursor: ParamCursor): number {
+  const simple = SIMPLE_PARAMS[cursor.name];
   if (simple !== undefined) {
     s.out += simple;
-    return next;
+    return cursor.next;
   }
-  const handler = PARAM_HANDLERS[name];
-  if (handler) return handler(s, name, next);
-  if (isArgsSlot(name)) return argsSlotParam(s, name, next);
-  if (EXTERNAL_PARAMS.has(name)) return externalParam(s, name, next);
-  return unknownParam(s, name, next);
+  const handler = PARAM_HANDLERS[cursor.name];
+  if (handler) return handler(s, cursor);
+  if (isArgsSlot(cursor.name)) return argsSlotParam(s, cursor);
+  if (EXTERNAL_PARAMS.has(cursor.name)) return externalParam(s, cursor);
+  return unknownParam(s, cursor);
 }
 
-function countParam(s: ScanState, _name: string, next: number): number {
+function countParam(s: ScanState, cursor: ParamCursor): number {
+  const { next } = cursor;
   if (s.cmdName !== '') {
     s.out += `{counter:${normalizeName(s.cmdName)}}`;
     return next;
@@ -305,7 +306,8 @@ function countParam(s: ScanState, _name: string, next: number): number {
   return next;
 }
 
-function checkCountParam(s: ScanState, _name: string, next: number): number {
+function checkCountParam(s: ScanState, cursor: ParamCursor): number {
+  const { next } = cursor;
   const arg = parenArg(s.text, next);
   if (arg === null || arg.trim() === '') {
     s.out += '$checkcount';
@@ -316,7 +318,8 @@ function checkCountParam(s: ScanState, _name: string, next: number): number {
   return skipParens(s.text, next);
 }
 
-function randnumParam(s: ScanState, _name: string, next: number): number {
+function randnumParam(s: ScanState, cursor: ParamCursor): number {
+  const { next } = cursor;
   const endSpan = skipParensSpan(s.text, next);
   if (endSpan === null) {
     s.out += '$randnum';
@@ -337,14 +340,16 @@ function randnumParam(s: ScanState, _name: string, next: number): number {
   return endSpan;
 }
 
-function argsSlotParam(s: ScanState, name: string, next: number): number {
+function argsSlotParam(s: ScanState, cursor: ParamCursor): number {
+  const { name, next } = cursor;
   const n = argsSlotIndex(name);
   if (n > s.argMax) s.argMax = n;
   s.out += `$${name}`; // provisionally literal; resolved by the arg-slot rule
   return next;
 }
 
-function externalParam(s: ScanState, name: string, next: number): number {
+function externalParam(s: ScanState, cursor: ParamCursor): number {
+  const { name, next } = cursor;
   s.res.external = true;
   s.out += `$${name}`;
   const endSpan = skipParensSpan(s.text, next);
@@ -353,7 +358,8 @@ function externalParam(s: ScanState, name: string, next: number): number {
   return endSpan;
 }
 
-function descParam(s: ScanState, _name: string, next: number): number {
+function descParam(s: ScanState, cursor: ParamCursor): number {
+  const { next } = cursor;
   // $desc(...) is a first-line metadata directive ("sync custom description to
   // the web" per SLCB docs), not response content; keeping it would post the
   // instruction into chat. Stripped when it opens the first line, kept literal
@@ -376,7 +382,8 @@ function swallowDirectiveBreak(text: string, at: number): number {
   return at;
 }
 
-function unknownParam(s: ScanState, name: string, next: number): number {
+function unknownParam(s: ScanState, cursor: ParamCursor): number {
+  const { name, next } = cursor;
   const endSpan = skipParensSpan(s.text, next);
   s.out += `$${name}`;
   if (endSpan !== null) s.out += s.text.slice(next, endSpan);
@@ -388,12 +395,19 @@ function unknownParam(s: ScanState, name: string, next: number): number {
 // and the index just past it. Identifiers begin with a letter or underscore —
 // chat text like "$5" or "100$" must stay literal dollars, so a leading digit
 // terminates the scan immediately.
-function scanIdent(text: string, start: number): [name: string, next: number] {
+// ParamCursor is a scanned $parameter: its identifier and the index just past
+// it. Named because it threads through every handler below.
+interface ParamCursor {
+  name: string;
+  next: number;
+}
+
+function scanIdent(text: string, start: number): ParamCursor {
   let i = start;
-  if (i >= text.length) return ['', start];
+  if (i >= text.length) return { name: '', next: start };
   const c = text[i];
   const isLead = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
-  if (!isLead) return ['', start];
+  if (!isLead) return { name: '', next: start };
   while (i < text.length) {
     const ch = text[i];
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_') {
@@ -402,7 +416,7 @@ function scanIdent(text: string, start: number): [name: string, next: number] {
     }
     break;
   }
-  return [text.slice(start, i), i];
+  return { name: text.slice(start, i), next: i };
 }
 
 // parenArg returns the content of the (...) following pos, or null.
@@ -447,7 +461,7 @@ function skipParens(text: string, pos: number): number {
 function randnumTarget(span: string): string | null {
   const parts = span.replace(/^\(/, '').replace(/\)$/, '').split(',');
   if (parts.length === 1) return singleBoundRange(parts[0]);
-  if (parts.length === 2) return boundedRange(parts[0], parts[1]);
+  if (parts.length === 2) return boundedRange(parts as [string, string]);
   return null;
 }
 
@@ -456,9 +470,9 @@ function singleBoundRange(rawMax: string): string | null {
   return max === null ? null : `{random:1-${max}}`;
 }
 
-function boundedRange(rawA: string, rawB: string): string | null {
-  const a = goAtoi(rawA.trim());
-  const b = goAtoi(rawB.trim());
+function boundedRange(parts: [string, string]): string | null {
+  const a = goAtoi(parts[0].trim());
+  const b = goAtoi(parts[1].trim());
   if (a === null || b === null) return null;
   return `{random:${Math.min(a, b)}-${Math.max(a, b)}}`;
 }

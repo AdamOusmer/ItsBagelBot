@@ -385,9 +385,23 @@ function daysInMonth(y: number, mo: number): number {
   return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
 }
 
-function mkDate(y: number, mo: number, d: number, h = 0, mi = 0, s = 0): DateUTC | null {
-  if (!validCalendarDay(y, mo, d) || !validTimeOfDay(h, mi, s)) return null;
-  return new DateUTC(y, mo, d, h, mi, s);
+// CalendarStamp is a raw date/time tuple as captured by one of the layout
+// regexes; time fields default to midnight when a layout omits them.
+interface CalendarStamp {
+  y: number;
+  mo: number;
+  d: number;
+  h?: number;
+  mi?: number;
+  s?: number;
+}
+
+function mkDate(stamp: CalendarStamp): DateUTC | null {
+  const h = stamp.h ?? 0;
+  const mi = stamp.mi ?? 0;
+  const s = stamp.s ?? 0;
+  if (!validCalendarDay(stamp.y, stamp.mo, stamp.d) || !validTimeOfDay(h, mi, s)) return null;
+  return new DateUTC(stamp.y, stamp.mo, stamp.d, h, mi, s);
 }
 
 function validCalendarDay(y: number, mo: number, d: number): boolean {
@@ -404,7 +418,7 @@ function validTimeOfDay(h: number, mi: number, s: number): boolean {
 function parseRFC3339(s: string): DateUTC | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:[Zz]|([+-]\d{2}):(\d{2}))$/.exec(s);
   if (!m) return null;
-  const base = mkDate(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
+  const base = mkDate({ y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5], s: +m[6] });
   if (!base) return null;
   if (!m[8]) return base;
   const sign = m[8][0] === '-' ? -1 : 1;
@@ -423,18 +437,18 @@ function exact(re: RegExp, shape: 'YMDHMS' | 'MDYHM' | 'MDYHM12' | 'MDY'): (s: s
     if (!m) return null;
     switch (shape) {
       case 'YMDHMS':
-        return mkDate(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
+        return mkDate({ y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5], s: +m[6] });
       case 'MDYHM':
-        return mkDate(+m[3], +m[1], +m[2], +m[4], +m[5]);
+        return mkDate({ y: +m[3], mo: +m[1], d: +m[2], h: +m[4], mi: +m[5] });
       case 'MDY': {
-        return mkDate(+m[3], +m[1], +m[2]);
+        return mkDate({ y: +m[3], mo: +m[1], d: +m[2] });
       }
       case 'MDYHM12': {
         let h = +m[4];
         if (h < 1 || h > 12) return null; // a 12-hour clock never shows 0 or 13+
         if (m[6] === 'PM') h = h === 12 ? 12 : h + 12;
         else h = h === 12 ? 0 : h;
-        return mkDate(+m[3], +m[1], +m[2], h, +m[5]);
+        return mkDate({ y: +m[3], mo: +m[1], d: +m[2], h, mi: +m[5] });
       }
     }
   };
