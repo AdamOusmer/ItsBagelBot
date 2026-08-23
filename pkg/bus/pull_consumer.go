@@ -49,6 +49,15 @@ const (
 	// dispatched, and MaxAckPending must stay comfortably above twice this.
 	defaultPullFetchBatch = 1000
 
+	// defaultPullFetchLoops is how many continuous-pull iterators one pod runs
+	// against the ONE shared durable. A server distributes batches across every
+	// open iterator context on a durable, so N loops give a pod N concurrent
+	// batches in flight — drain parallelism scales with the knob without
+	// multiplying consumers or deliveries. The ceiling it spends is fleet-wide
+	// in-flight (MaxAckPending must exceed pods x loops x batch); the 50k
+	// default dwarfs any sane loops x batch product.
+	defaultPullFetchLoops = 1
+
 	// defaultPullFetchMaxWait bounds an unfilled batch. It is the lane's idle
 	// latency floor and the loop's own spin rate, so it is short enough that a
 	// trickling lane is not held for a fill that is not coming.
@@ -163,6 +172,10 @@ func pullMaxAckPending() int {
 
 func pullFetchBatch() int {
 	return positiveInt(env.GetInt("NATS_PULL_FETCH_BATCH", defaultPullFetchBatch), defaultPullFetchBatch)
+}
+
+func pullFetchLoops() int {
+	return positiveInt(env.GetInt("NATS_PULL_FETCH_LOOPS", defaultPullFetchLoops), defaultPullFetchLoops)
 }
 
 // pullReplicas exists as a knob only so a single-node broker (local runs, the
@@ -360,10 +373,11 @@ type pullDelivery struct {
 	msg  *Message
 }
 
-// pullSubscriber is the shared-durable delivery adapter. One fetch loop per pod
-// feeds one lane channel; every consumer unit in the process reads that channel,
-// so the pod keeps exactly one binding however far the routine autoscaler grows,
-// and the fleet keeps exactly one consumer however far the pod autoscaler grows.
+// pullSubscriber is the shared-durable delivery adapter. NATS_PULL_FETCH_LOOPS
+// fetch loops per pod feed one lane channel; every consumer unit in the process
+// reads that channel, so the pod keeps exactly one binding however far the
+// routine autoscaler grows, and the fleet keeps exactly one consumer however far
+// the pod autoscaler grows.
 //
 // There is no receipt queue here, unlike the flow adapter. Nothing is being
 // pushed: the loop asks for the next batch only once it has handed the previous
@@ -371,8 +385,9 @@ type pullDelivery struct {
 // rather than a queue this process has to size against a flow-control window.
 type pullSubscriber struct {
 	nc *nats.Conn
-	// consumer is read and replaced only by the pump goroutine, which is why
-	// rebuildConsumer needs no lock to swap it.
+	// consumer is read by every fetch loop and replaced only inside
+	// rebuildConsumer, which consumerMu both locks and serializes — with more
+	// than one loop, any pump may be the one to notice the durable is gone.
 	consumer jsapi.Consumer
 	// desired is the shape rebuildConsumer re-provisions, kept so a rebuild can
 	// never drift from the binding this loop was started with.
@@ -387,6 +402,7 @@ type pullSubscriber struct {
 	log     *zap.Logger
 
 	batch    int
+	loops    int
 	maxWait  time.Duration
 	ackEvery time.Duration
 
@@ -403,10 +419,14 @@ type pullSubscriber struct {
 	errSince atomic.Int64
 
 	// ackMu guards the newest delivery the floor has not yet covered. Both the
-	// fetch loop and the ack timer publish the floor, and two acks racing would
+	// fetch loops and the ack timer publish the floor, and two acks racing would
 	// otherwise be free to move it backwards.
 	ackMu   sync.Mutex
 	pending jsapi.Msg
+
+	// consumerMu guards consumer across the fetch loops and serializes their
+	// rebuild attempts.
+	consumerMu sync.Mutex
 
 	output  chan *Message
 	closeCh chan struct{}
@@ -452,12 +472,16 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 		log = zap.NewNop()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	loops, batch := pullFetchLoops(), pullFetchBatch()
 	s := &pullSubscriber{
 		nc: nc, consumer: consumer, desired: pullConsumerConfig(cfg.subject, name),
 		stream: cfg.stream, subject: cfg.subject,
 		name: name, log: log,
-		batch: pullFetchBatch(), maxWait: pullFetchMaxWait(), ackEvery: pullAckEvery(),
-		output:  make(chan *Message),
+		batch: batch, loops: loops, maxWait: pullFetchMaxWait(), ackEvery: pullAckEvery(),
+		// One slot per batch every loop can hold at once: a full channel is
+		// backpressure onto the server's pending set, never a dropped refill
+		// and never a serialization point between the loops.
+		output:  make(chan *Message, loops*batch),
 		closeCh: make(chan struct{}),
 		ctx:     ctx,
 		cancel:  cancel,
@@ -466,9 +490,15 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 	return s
 }
 
+// start runs the floor-ack timer plus one pump per configured fetch loop. The
+// pumps share the single jsapi.Consumer: each opens its own continuous iterator
+// and the server hands each context its own batch off the same pending set, so
+// the loops never double-deliver to this pod.
 func (s *pullSubscriber) start() {
-	s.workers.Add(2)
-	go s.pump()
+	s.workers.Add(s.loops + 1)
+	for range s.loops {
+		go s.pump()
+	}
 	go s.advanceFloorPeriodically()
 }
 
@@ -500,7 +530,7 @@ func (s *pullSubscriber) pump() {
 // timer in advanceFloorPeriodically for a buffer that is only partially handed
 // out.
 func (s *pullSubscriber) pumpIterator() bool {
-	iter, err := s.consumer.Messages(jsapi.PullMaxMessages(s.batch))
+	iter, err := s.boundConsumer().Messages(jsapi.PullMaxMessages(s.batch))
 	if err != nil {
 		return s.noteFetchError(err)
 	}
@@ -512,7 +542,6 @@ func (s *pullSubscriber) pumpIterator() bool {
 	// while idle; otherwise errSince ages past laneUnhealthyAfter and the pod
 	// reports itself unready until traffic happens to return.
 	s.noteFetchProgress()
-	sinceFloor := 0
 	for {
 		wire, err := iter.Next()
 		if err != nil {
@@ -535,16 +564,30 @@ func (s *pullSubscriber) pumpIterator() bool {
 		if !s.deliver(wire) {
 			return false
 		}
-		if sinceFloor++; sinceFloor >= s.batch {
-			s.advanceFloor()
-			sinceFloor = 0
-		}
+		// Floor advancement is deliberately timer-driven ONLY. Every advance is
+		// a consumer-group RAFT proposal serialized against fetch serving on the
+		// leader; measured on the canary lane, per-batch triggering capped
+		// aggregate drain near 55-60k msg/s while a never-ack control ran 82k.
+		// AckWait (30s) dwarfs the worst-case coverage delay of the 250ms
+		// advanceFloorPeriodically cadence, so batching receipts into the timer
+		// trades nothing but a bounded ack-floor lag.
 	}
+}
+
+// boundConsumer snapshots the consumer handle a new iterator will open. A pump
+// keeps the handle it opened even if a concurrent rebuild swaps the binding —
+// the stale handle fails on its own terms and that pump's next fetch error
+// rebuilds again.
+func (s *pullSubscriber) boundConsumer() jsapi.Consumer {
+	s.consumerMu.Lock()
+	defer s.consumerMu.Unlock()
+	return s.consumer
 }
 
 // stopIteratorOnClose unparks a blocked Next the moment the binding closes.
 // The returned release tears the watcher down when the iterator ends first;
-// stopping twice is safe.
+// stopping twice is safe. Every iterator gets its own watcher, so N pumps each
+// own their iterator and its release outright.
 func (s *pullSubscriber) stopIteratorOnClose(iter jsapi.MessagesContext) func() {
 	done := make(chan struct{})
 	go func() {
@@ -631,7 +674,7 @@ func pullWireMessage(wire jsapi.Msg) *nats.Msg {
 	if core.Header == nil {
 		core.Header = nats.Header{}
 	}
-	if core.Header.Get(MessageIDHeader) == "" && core.Header.Get(legacyMessageIDHeader) == "" {
+	if core.Header.Get(MessageIDHeader) == "" {
 		core.Header.Set(MessageIDHeader,
 			jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream))
 	}
@@ -648,8 +691,19 @@ func (s *pullSubscriber) laneContext() context.Context {
 }
 
 // noteReceipt records the newest delivery the floor ack has not yet covered.
-// Ordering inside a batch is the server's, so the last one recorded is the
-// highest one received.
+// Ordering inside one loop's batch is the server's, so within a single loop the
+// last receipt recorded names the highest sequence that loop received.
+//
+// Across loops the last writer can name a LOWER sequence than a receipt another
+// loop recorded but has not published yet. That cannot move the floor
+// backwards: an AckAll ack is cumulative and the server's ack floor is
+// monotonic, so publishing a sequence at or below an already-published floor is
+// a no-op. What interleaving costs is coverage delay — the masked window above
+// the lower sequence stays unacked until some later fresh batch, whose stream
+// sequences all exceed anything this durable has delivered so far, publishes a
+// receipt over it (the periodic timer alone cannot: it re-publishes the same
+// masked pending). Worst case is redelivery of the masked window after AckWait,
+// which the idempotency contract on this lane already tolerates.
 func (s *pullSubscriber) noteReceipt(wire jsapi.Msg) {
 	s.ackMu.Lock()
 	defer s.ackMu.Unlock()
@@ -770,14 +824,17 @@ func consumerGone(err error) bool {
 // pod asking a name that no longer resolved, five times a second, until someone
 // restarted the deployment by hand. This is that missing half.
 //
-// It runs on the pump goroutine, the only reader of s.consumer, so the swap
-// needs no lock. A failed rebuild is simply left to the next fetch error: the
-// pump loop already is the retry.
+// It runs on whichever fetch loop hit the error; consumerMu serializes the
+// rebinds and the swap itself now that more than one loop can notice the loss
+// at once. A second loop's rebuild against the fresh durable converges to a
+// no-op update, so the serialization costs a wasted round trip, not churn.
 func (s *pullSubscriber) rebuildConsumer() {
 	// The old consumer's receipt can never be acked against a new one, and
 	// holding it would spend the next floor ack on a guaranteed failure.
 	s.takePending()
 
+	s.consumerMu.Lock()
+	defer s.consumerMu.Unlock()
 	consumer, err := s.rebind()
 	if err != nil {
 		s.log.Warn("lane consumer rebuild failed",
@@ -839,7 +896,7 @@ func (s *pullSubscriber) shutdown() error {
 	drained := waitGroupBefore(&s.inflight, deadline.C)
 
 	err := s.flushAndClose(drained)
-	// The fetch loop is the only sender and has exited with the workers.
+	// The fetch loops are the only senders and have exited with the workers.
 	close(s.output)
 	return err
 }

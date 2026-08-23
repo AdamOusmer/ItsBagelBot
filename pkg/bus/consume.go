@@ -6,6 +6,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"ItsBagelBot/pkg/monitor"
@@ -68,6 +69,25 @@ type consumeLane struct {
 }
 
 func newConsumeLane(app *newrelic.Application, subject string, handle func(*Message) error, log *zap.Logger) consumeLane {
+	// A panic on a delivery goroutine kills the whole process; one persisted
+	// bad input used to crash-loop entire pods until rows were purged by hand.
+	// Converting the panic to an error feeds the normal nack → redelivery →
+	// TERM discipline instead, so a deterministic poison message dead-letters
+	// rather than taking every other channel down with it.
+	if handle != nil && log != nil {
+		base := handle
+		lg := log
+		handle = func(msg *Message) (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					lg.Error("consume handler panic recovered",
+						zap.String("subject", subject), zap.Any("panic", r))
+					err = fmt.Errorf("handler panic: %v", r)
+				}
+			}()
+			return base(msg)
+		}
+	}
 	return consumeLane{
 		app:     app,
 		txnName: "consume " + normalizedDestination(subject),

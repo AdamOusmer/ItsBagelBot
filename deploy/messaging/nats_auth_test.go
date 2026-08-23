@@ -165,9 +165,11 @@ var flowControlStreams = map[string][]string{
 // push consumers is authority for a call that service never makes, and NOT
 // granting it to one that pulls is a silent zero-delivery lane rather than a
 // visible error. Only the hot ingress lanes qualify for receipt-level
-// consumption (pkg/bus isHotIngressLane), and sesame is their only consumer.
+// consumption (pkg/bus isHotIngressLane), and sesame is their only consumer;
+// worker_bus additionally fetches from TWITCH_INGRESS_RETRY, whose dead-letter
+// replay lane is drained with the same shared-durable pull mechanism.
 var pullFetchStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 }
 
 type streamGrants struct {

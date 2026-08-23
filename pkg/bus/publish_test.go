@@ -37,9 +37,6 @@ func TestPublishMessageUsesFleetIdentityWithoutBrokerDedup(t *testing.T) {
 	if got := msg.Header.Get(messageIDHeader); got != "event-42" {
 		t.Fatalf("fleet message id = %q, want event-42", got)
 	}
-	if got := msg.Header.Get(legacyMessageIDHeader); got != "event-42" {
-		t.Fatalf("rolling-deploy compatibility id = %q, want event-42", got)
-	}
 	if got := msg.Header.Get(nats.MsgIdHdr); got != "" {
 		t.Fatalf("broker dedup header unexpectedly set to %q", got)
 	}

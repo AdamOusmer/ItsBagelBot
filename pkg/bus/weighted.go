@@ -616,8 +616,34 @@ func (w *workerPool) liveWorkers() int {
 // most capacity minus the slots reserved for the other lanes, so each reserved
 // lane always keeps its share.
 type routinePool struct {
-	mu           sync.Mutex
-	cond         *sync.Cond
+	mu sync.Mutex
+
+	// conds is one condition variable per lane, all sharing mu, and waiters
+	// counts the goroutines parked (or committed to parking) on each. The
+	// original shape was a single pool-wide cond Broadcast on every release, so
+	// at dispatch-heavy rates every completed message woke ALL parked readers
+	// across ALL lanes just to have them re-check a false predicate and
+	// re-sleep — an O(waiters) thundering herd on mu exactly at the rates the
+	// gate exists to serve. release replaces that Broadcast with a two-arm
+	// rule that provably wakes the same set Broadcast would have, no more and
+	// no less: a waiter on lane L proceeds iff inflight < capacity &&
+	// laneInflight[L] < laneLimit(L), and a release(X) decrements only total
+	// inflight and laneInflight[X]. A waiter on Y != X can therefore become
+	// runnable through the total decrease alone, which matters only when
+	// inflight >= capacity before the release — the saturated arm broadcasts to
+	// every lane because a globally freed slot can unblock any of them. On the
+	// unsaturated arm nothing changed for Y != X (their counters and limits are
+	// untouched), so only lane X's own freed slot can matter and one Signal
+	// suffices. There is no lost-wakeup window between a waiter's predicate
+	// check and its entry into Wait: both happen while holding mu, and every
+	// state change that can make the predicate true happens under mu too, so a
+	// signal emitted by release/setCapacity/close is always observed by an
+	// already-parked waiter or superseded by a later check that sees the new
+	// state. Capacity changes re-evaluate every lane's limit, so setCapacity
+	// and close keep waking everyone.
+	conds   []*sync.Cond
+	waiters []int
+
 	capacity     int
 	totalReserve int
 	inflight     int
@@ -636,8 +662,11 @@ func newRoutinePool(laneReserve []int, capacity int) *routinePool {
 		totalReserve: total,
 		laneInflight: make([]int, len(laneReserve)),
 		laneReserve:  laneReserve,
+		waiters:      make([]int, len(laneReserve)),
 	}
-	p.cond = sync.NewCond(&p.mu)
+	for range laneReserve {
+		p.conds = append(p.conds, sync.NewCond(&p.mu))
+	}
 	return p
 }
 
@@ -669,9 +698,11 @@ func ceilDiv(a, b int) int {
 func (p *routinePool) acquire(lane int) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.waiters[lane]++
 	for !p.closed && (p.inflight >= p.capacity || p.laneInflight[lane] >= p.laneLimit(lane)) {
-		p.cond.Wait()
+		p.conds[lane].Wait()
 	}
+	p.waiters[lane]--
 	if p.closed {
 		return false
 	}
@@ -682,10 +713,17 @@ func (p *routinePool) acquire(lane int) bool {
 
 func (p *routinePool) release(lane int) {
 	p.mu.Lock()
+	saturated := p.inflight >= p.capacity
 	p.inflight--
 	p.laneInflight[lane]--
+	if saturated {
+		for _, c := range p.conds {
+			c.Broadcast()
+		}
+	} else if p.waiters[lane] > 0 {
+		p.conds[lane].Signal()
+	}
 	p.mu.Unlock()
-	p.cond.Broadcast()
 }
 
 // setCapacity resizes the gate. Callers on the scaling path must go through
@@ -694,8 +732,10 @@ func (p *routinePool) release(lane int) {
 func (p *routinePool) setCapacity(n int) {
 	p.mu.Lock()
 	p.capacity = n
+	for _, c := range p.conds {
+		c.Broadcast()
+	}
 	p.mu.Unlock()
-	p.cond.Broadcast()
 }
 
 func (p *routinePool) stats() (inflight, capacity int) {
@@ -707,6 +747,8 @@ func (p *routinePool) stats() (inflight, capacity int) {
 func (p *routinePool) close() {
 	p.mu.Lock()
 	p.closed = true
+	for _, c := range p.conds {
+		c.Broadcast()
+	}
 	p.mu.Unlock()
-	p.cond.Broadcast()
 }
