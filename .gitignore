@@ -8,27 +8,20 @@
 *.dll
 *.so
 *.dylib
-
 # Test binary, built with `go test -c`
 *.test
-
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
-
 # Dependency directories (remove the comment below to include it)
 # vendor/
-
 # Go workspace file
 go.work
 go.work.sum
-
 # env file
 .env
-
 # Logs and local diagnostics
 *.log
 /.expert/
-
 # Root-only scratch programs and one-off operational experiments
 /sim*.go
 /test_*.go
@@ -40,53 +33,41 @@ go.work.sum
 /fix-kubelet.yaml
 /patch.yaml
 /test-*.yaml
-
 # Console one-off diagnostics; maintained tests use *.test.ts
 /console/test-*.ts
 /console/admin/test-*.ts
-
-
 .idea/
-
 # macOS
 .DS_Store
-
 # Certificates and keys
 *.pem
 *.key
 *.p12
 *.pfx
 *.keystore
-
 # Compiled binaries (root level)
 /broadcaster-data
-
 # Elixir build artifacts
 _build/
 deps/
 *.ez
-
 # Kubernetes deployments are fully tracked and Flux-managed. No plaintext
 # secrets live here: every credential comes from a Doppler-managed Secret
 # referenced by name, and the nats *.conf files carry only $ENV placeholders
 # that nats-server expands from the nats-auth-env secret at runtime.
 deploy_backup/
-
 # macOS Finder cruft
 .DS_Store
-
 # Exclude scratch, claude, and tar files
 .claude/
 scratch/
 *.tar
 *.tar.gz
-
 # Local build artifacts and dev tooling (never committed)
 bustest
 *_bin
 **/tmp/
 .air.toml
-
 # Root scratch / experiments (not part of any service build)
 /check.go
 /scratch.go
@@ -102,8 +83,8 @@ bustest
 /test-env.yaml
 __pycache__/
 *.py[cod]
-
 # Rendered from inventory.cluster.ini.example via render-inventory.sh.
 # Contains node addresses; this repo is public, so it must never be committed.
 deploy/ansible/inventory.cluster.ini
-bus-bench/bus-bench
+/bus-bench
+deploy/k8s/bus-bench/bus-bench
