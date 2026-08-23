@@ -97,14 +97,23 @@ func newFeedPacer(rate, feeders int) feedPacer {
 	return feedPacer{on: true, slot: time.Now(), stride: time.Second * time.Duration(feeders) / time.Duration(rate)}
 }
 
-// publishOne sends one message, confirmed (commit latency sampled) or raw.
-func publishOne(ctx context.Context, pub bus.Publisher, subject, id string, body []byte, confirmed bool) (time.Duration, error) {
+// benchMessage is one message the rig sends: where, with what identity and
+// payload, and whether its commit latency is sampled.
+type benchMessage struct {
+	subject   string
+	id        string
+	body      []byte
+	confirmed bool
+}
+
+// sendOne puts one message on the wire and reports how long the call took.
+func (r *sampleRun) sendOne(ctx context.Context, m benchMessage) (time.Duration, error) {
 	t0 := time.Now()
 	var err error
-	if confirmed {
-		err = bus.PublishConfirmed(ctx, pub, bus.Publication{Subject: subject, ID: id, Payload: body})
+	if m.confirmed {
+		err = bus.PublishConfirmed(ctx, r.pub, bus.Publication{Subject: m.subject, ID: m.id, Payload: m.body})
 	} else {
-		err = bus.PublishRaw(ctx, pub, subject, body)
+		err = bus.PublishRaw(ctx, r.pub, m.subject, m.body)
 	}
 	return time.Since(t0), err
 }
@@ -158,15 +167,19 @@ func (r *sampleRun) feeder(ctx context.Context, f int) []int64 {
 		seq += uint64(max(r.opts.feeders, 1))
 		globalSeq := uint64(r.opts.podIndex)<<48 | seq
 		body := buildPayload(globalSeq, unixNano(time.Now().UnixNano()), r.opts.payloadSize)
-		confirmed := r.opts.confirmEvery > 0 && seq%uint64(r.opts.confirmEvery) == 0
-		id := fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq)
-		elapsed, err := publishOne(ctx, r.pub, r.opts.lane.subject, id, body, confirmed)
+		msg := benchMessage{
+			subject:   r.opts.lane.subject,
+			id:        fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq),
+			body:      body,
+			confirmed: r.opts.confirmEvery > 0 && seq%uint64(r.opts.confirmEvery) == 0,
+		}
+		elapsed, err := r.sendOne(ctx, msg)
 		if err != nil {
 			atomic.AddUint64(&r.tally.errors, 1)
 		} else {
 			atomic.AddUint64(&r.tally.admitted, 1)
 		}
-		if confirmed {
+		if msg.confirmed {
 			samples = append(samples, elapsed.Nanoseconds())
 		}
 	}
