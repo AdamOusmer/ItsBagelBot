@@ -94,17 +94,20 @@ defmodule Ingress.Config.Publish do
   #
   #     1000 cohorts/s × commit-ack latency
   #
-  # so 8 covers an 8 ms commit ack at the full flush rate. The number is chosen
-  # by the FLEET budget rather than by that latency, because the broker caps
-  # concurrently-open atomic batches at 50 PER STREAM
-  # (streamDefaultMaxAtomicBatchInflightPerStream):
+  # so 8 covers an 8 ms commit ack at the full flush rate. The number was
+  # historically chosen by the FLEET budget against the broker's stock cap of
+  # 50 concurrently-open atomic batches per stream (3 replicas x 2 schedulers
+  # x 8 = 48). On 2026-08-22 the hub raised that ceiling to 200
+  # (jetstream.limits.batch.max_inflight_per_stream, shipped with a forced
+  # quorum roll — see nats-server.conf), so the fleet arithmetic below has 4x
+  # headroom; the Go publisher pool now tunes the same axis via
+  # NATS_ATOMIC_INFLIGHT_COHORTS.
   #
-  #     3 replicas (deploy/k8s/twitch-ingress.yaml)
-  #       × 2 schedulers (`+S 2:2`)
-  #       × 8 = 48 concurrently open batches, against 50.
-  #
-  # That arithmetic is now conservative rather than exact, and deliberately left
-  # alone. Cohorts are staged per subject, so a shard's 8 slots are shared across
+  # The default still ships at 8: cohorts are staged per subject, so a shard's
+  # slots are shared across the lane streams instead of all landing on one, and
+  # raising it is an operator decision measured against Nats/PublishBatchBypassed
+  # (local window filled) and Nats/PublishBatchFallback (fleet overran the cap).
+  # Cohorts staged per subject means a shard's slots are shared across
   # the lane streams (premium and the stream lane on TWITCH_INGRESS, standard on
   # TWITCH_INGRESS_STANDARD) instead of all landing on one. 48 is the ceiling for
   # the SUM, so no single stream can reach it; sizing to the sum keeps the number
