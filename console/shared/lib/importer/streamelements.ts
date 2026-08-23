@@ -206,7 +206,7 @@ function snippet(body: string): string {
 // pair string command+reply with a numeric accessLevel; SE timers uniquely
 // carry the chatLines/online window fields.
 export function detectStreamElements(raw: Uint8Array | string): boolean {
-  const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+  const text = decodeText(raw);
   if (text.trim().length === 0) return false;
   let doc: unknown;
   try {
@@ -214,15 +214,26 @@ export function detectStreamElements(raw: Uint8Array | string): boolean {
   } catch {
     return false;
   }
-  if (doc === null || typeof doc !== 'object') return false;
-  const env = doc as Record<string, unknown>;
-  const commands = env.commands;
-  const timers = env.timers;
-  if (commands !== undefined && !Array.isArray(commands)) return false;
-  if (timers !== undefined && !Array.isArray(timers)) return false;
-  for (const c of commands ?? []) if (looksLikeCommand(c)) return true;
-  for (const t of timers ?? []) if (looksLikeTimer(t)) return true;
-  return false;
+  const env = envelopeCollections(doc);
+  if (!env) return false;
+  if (env.commands.some(looksLikeCommand)) return true;
+  return env.timers.some(looksLikeTimer);
+}
+
+// envelopeCollections accepts the {commands,timers} envelope: missing keys
+// read as empty lists, present-yet-non-array values refuse detection.
+function envelopeCollections(doc: unknown): { commands: unknown[]; timers: unknown[] } | null {
+  if (doc === null || typeof doc !== 'object') return null;
+  const source = doc as Record<string, unknown>;
+  const commands = arrayField(source.commands);
+  const timers = arrayField(source.timers);
+  if (commands === null || timers === null) return null;
+  return { commands, timers };
+}
+
+function arrayField(value: unknown): unknown[] | null {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : null;
 }
 
 // looksLikeCommand checks one envelope entry against the BotCommand schema's
@@ -437,20 +448,19 @@ export function parseStreamElements(raw: Uint8Array | string): {
 } {
   const env = decodeSeEnvelope(raw);
 
-  const manifest: ImportManifest = {};
-  const diags: ImportDiagnostic[] = [];
+  const state: SeParseState = { manifest: {}, diags: [] };
 
   // Empty collections are deleted so the serialized shape mirrors the Go
   // struct's omitempty tags exactly.
-  manifest.commands = [];
-  parseCommands((env.commands as unknown[] | undefined) ?? [], manifest.commands, manifest, diags);
-  omitIfEmpty(manifest, 'commands');
+  state.manifest.commands = [];
+  parseCommands((env.commands as unknown[] | undefined) ?? [], state);
+  omitIfEmpty(state.manifest, 'commands');
 
-  manifest.timers = [];
-  parseTimers((env.timers as unknown[] | undefined) ?? [], manifest.timers, diags);
-  omitIfEmpty(manifest, 'timers');
+  state.manifest.timers = [];
+  parseTimers((env.timers as unknown[] | undefined) ?? [], state);
+  omitIfEmpty(state.manifest, 'timers');
 
-  return { manifest, diagnostics: diags };
+  return { manifest: state.manifest, diagnostics: state.diags };
 }
 
 function omitIfEmpty(m: ImportManifest, key: 'commands' | 'timers'): void {
@@ -503,16 +513,24 @@ function addNote(sink: NoteSink, code: string, message: string): void {
   sink.notes.push(message);
 }
 
-function parseCommands(entries: unknown[], commands: ManifestCommand[], m: ImportManifest, diags: ImportDiagnostic[]): void {
+// SeParseState threads one envelope's manifest and diagnostic stream through
+// the per-entry parsers.
+interface SeParseState {
+  manifest: ImportManifest;
+  diags: ImportDiagnostic[];
+}
+
+function parseCommands(entries: unknown[], state: SeParseState): void {
+  const commands = state.manifest.commands!;
   for (const entry of entries) {
-    const c = decodeCommandOrSkip(entry, diags);
+    const c = decodeCommandOrSkip(entry, state.diags);
     if (!c) continue;
     const problem = commandExclusion(c);
     if (problem) {
-      diags.push(problem);
+      state.diags.push(problem);
       continue;
     }
-    appendCommand(c, commands, m, diags);
+    appendCommand(c, commands, state);
   }
 }
 
@@ -548,18 +566,18 @@ function commandExclusion(c: BotCommand): ImportDiagnostic | null {
   return null;
 }
 
-function appendCommand(c: BotCommand, commands: ManifestCommand[], m: ImportManifest, diags: ImportDiagnostic[]): void {
+function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SeParseState): void {
   const name = normalizeName(c.command);
-  const sink: NoteSink = { idx: commands.length, diags, notes: [] };
+  const sink: NoteSink = { idx: commands.length, diags: state.diags, notes: [] };
   const online = flag(c.enabledOnline);
 
   const { text, perm } = lossyNotes(c, name, online, sink);
   const { lines, diags: respDiags } = canonicalizeResponse(text, sink.idx);
 
   commands.push(assembleCommand(c, name, online, perm, lines, sink));
-  diags.push(...respDiags);
-  emptyResponseErrors(lines, c, name, sink.idx, diags);
-  keywordsToTriggers(c.keywords, c.reply, name, m, diags);
+  state.diags.push(...respDiags);
+  emptyResponseErrors(lines, c, name, sink.idx, state.diags);
+  keywordsToTriggers(c.keywords, c.reply, name, state);
 }
 
 // lossyNotes emits, in pinned order (the golden fixtures pin diagnostic
@@ -681,26 +699,26 @@ function emptyResponseErrors(lines: string[], c: BotCommand, name: string, idx: 
   }
 }
 
-function keywordsToTriggers(keywords: string[], reply: string, commandName: string, m: ImportManifest, diags: ImportDiagnostic[]): void {
+function keywordsToTriggers(keywords: string[], reply: string, commandName: string, state: SeParseState): void {
   for (const kw of keywords) {
-    appendKeywordTrigger(kw, reply, commandName, m, diags);
+    appendKeywordTrigger(kw, reply, commandName, state);
   }
-  if (m.triggers?.length === 0) delete m.triggers;
+  if (state.manifest.triggers?.length === 0) delete state.manifest.triggers;
 }
 
 // appendKeywordTrigger expands one keyword into a phrase trigger carrying the
 // same translated response, flattened to a single line: commit stores triggers
 // as "phrase => response" textarea rows, so embedded newlines would corrupt
 // the rules blob.
-function appendKeywordTrigger(kw: string, reply: string, commandName: string, m: ImportManifest, diags: ImportDiagnostic[]): void {
+function appendKeywordTrigger(kw: string, reply: string, commandName: string, state: SeParseState): void {
   const phrase = kw.trim();
   if (phrase === '') return;
 
-  m.triggers ??= [];
-  const idx = m.triggers.length;
+  const triggers = (state.manifest.triggers ??= []);
+  const idx = triggers.length;
   const { text, warns } = translateVariables(reply);
   for (const tok of warns) {
-    diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
+    state.diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
       `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
   }
 
@@ -709,15 +727,15 @@ function appendKeywordTrigger(kw: string, reply: string, commandName: string, m:
   // codes; these items are triggers, so the codes are re-prefixed to keep
   // FailedItems dropping the right collection.
   retitleResponseCodes(respDiags, SE_CODE.triggerResponseTruncated, SE_CODE.triggerResponseLineDropped);
-  diags.push(...respDiags);
+  state.diags.push(...respDiags);
 
   const response = lines.join(' ');
   if (response === '') {
-    diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
+    state.diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
       `keyword ${q(kw)} on command ${q(commandName)} has no usable phrase/response pair; skipped`));
     return;
   }
-  m.triggers.push({ phrase, response });
+  triggers.push({ phrase, response });
 }
 
 // retitleResponseCodes re-prefixes canonicalization findings from their
@@ -729,17 +747,18 @@ function retitleResponseCodes(diags: ImportDiagnostic[], truncatedCode: string, 
   }
 }
 
-function parseTimers(entries: unknown[], timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
+function parseTimers(entries: unknown[], state: SeParseState): void {
+  const timers = state.manifest.timers!;
   for (const entry of entries) {
-    const t = decodeTimerOrSkip(entry, diags);
+    const t = decodeTimerOrSkip(entry, state.diags);
     if (!t) continue;
     const label = timerLabel(t);
     const problem = timerExclusion(t, label);
     if (problem) {
-      diags.push(problem);
+      state.diags.push(problem);
       continue;
     }
-    appendTimer(t, label, timers, diags);
+    appendTimer(t, label, timers, state.diags);
   }
 }
 

@@ -542,9 +542,16 @@ export function isRFC3339(s: string): boolean {
 }
 
 function validCalendarDay(y: number, mo: number, d: number): boolean {
-  if (mo < 1 || mo > 12 || d < 1) return false;
+  if (d < 1) return false;
+  const days = monthLength(y, mo);
+  if (days === null) return false;
+  return d <= days;
+}
+
+function monthLength(y: number, mo: number): number | null {
+  if (mo < 1 || mo > 12) return null;
   const daysInMonth = [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return d <= daysInMonth[mo - 1];
+  return daysInMonth[mo - 1];
 }
 
 function isLeapYear(y: number): boolean {
