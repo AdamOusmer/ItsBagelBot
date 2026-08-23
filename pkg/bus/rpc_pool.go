@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 // RPCPool moves a core-NATS RPC handler off the subscription's delivery
@@ -342,11 +343,20 @@ func (p *RPCPool) dropWorker() {
 	p.live--
 }
 
-// handle runs one job. A panic in a handler still takes the process down exactly
-// as it did when the handler ran on the subscription goroutine; recovering here
-// would leave the requester waiting on a reply nobody is going to send.
+// handle runs one job. Recovery used to be skipped because it would leave the
+// requester waiting on a reply nobody was going to send; the answer is to send
+// that reply from the recovery path. Without this, one persisted bad handler
+// input (sesame's {random} int64 overflow) crash-looped whole pods fleet-wide
+// until someone purged database rows by hand.
 func (p *RPCPool) handle(job rpcJob) {
 	defer p.complete()
+	defer func() {
+		if r := recover(); r != nil {
+			zap.L().Error("rpc handler panic recovered",
+				zap.Any("panic", r), zap.String("subject", job.msg.Subject))
+			_ = sendResponse(job.msg, []byte(`{"error":"internal error"}`))
+		}
+	}()
 	job.handler(job.msg)
 }
 

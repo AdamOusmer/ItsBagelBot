@@ -91,7 +91,8 @@ const (
 func workQueueRetention(stream string) bool {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, DataStreams...)
-	specs = append(specs, OutgressStream, OutgressSystemStream)
+	specs = append(specs, OutgressStream, OutgressSystemStream,
+		YouTubeOutgressStream, DiscordOutgressStream)
 
 	for _, spec := range specs {
 		if spec.Name == stream {
@@ -303,7 +304,7 @@ func fleetMetadata(headers nats.Header) (Metadata, error) {
 	metadata := make(Metadata, len(headers))
 	for key, values := range headers {
 		switch key {
-		case MessageIDHeader, legacyMessageIDHeader,
+		case MessageIDHeader,
 			nats.MsgIdHdr, nats.ExpectedLastMsgIdHdr, nats.ExpectedStreamHdr,
 			nats.ExpectedLastSubjSeqHdr, nats.ExpectedLastSeqHdr:
 			continue
@@ -318,9 +319,6 @@ func fleetMetadata(headers nats.Header) (Metadata, error) {
 
 func messageIdentity(wire *nats.Msg) string {
 	if id := wire.Header.Get(MessageIDHeader); id != "" {
-		return id
-	}
-	if id := wire.Header.Get(legacyMessageIDHeader); id != "" {
 		return id
 	}
 	if metadata, err := wire.Metadata(); err == nil && metadata.Sequence.Stream > 0 {
