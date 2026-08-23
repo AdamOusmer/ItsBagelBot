@@ -146,6 +146,46 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	})
 }
 
+// BalanceSpend conditionally debits amount points from a viewer, addressed by
+// login (chat wagers know the target's login, not their id). The guard lives
+// in the UPDATE's WHERE clause — points >= amount — not in a prior read, so a
+// concurrent second spend racing the same row can never drive points
+// negative: whichever UPDATE lands second no longer matches and is refused.
+// spent=false with found=false means the channel never accrued for that
+// login; spent=false with found=true means insufficient points (Balance then
+// carries what they actually hold). amount must be positive: a zero or
+// negative "spend" is a caller bug, not a refund path.
+func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
+	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	if login == "" || amount <= 0 {
+		return nil, false, false, fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
+	}
+	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
+			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
+			First(ctx)
+	})
+	if err != nil || !found {
+		return nil, false, found, err
+	}
+	n, err := r.client.Balance.Update().
+		Where(balance.IDEQ(row.ID), balance.PointsGTE(amount)).
+		AddPoints(-amount).
+		Save(ctx)
+	if err != nil {
+		return nil, true, false, err
+	}
+	if n == 0 {
+		return row, true, false, nil // refused: the short balance is the answer
+	}
+	spent, err := r.client.Balance.Get(ctx, row.ID)
+	if err != nil {
+		return nil, true, true, err
+	}
+	return spent, true, true, nil
+}
+
 // clampLimit bounds a caller-provided page size, defaulting a missing one.
 func clampLimit(limit int) int {
 	if limit <= 0 {

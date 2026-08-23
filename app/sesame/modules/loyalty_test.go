@@ -40,11 +40,18 @@ type adjustCall struct {
 	absolute bool
 }
 
+type spendCall struct {
+	login  string
+	amount int64
+}
+
 // fakeLoyalty records calls and serves canned counters.
 type fakeLoyalty struct {
 	earns    []earnCall
 	bumps    []bumpCall
 	adjusts  []adjustCall
+	spends   []spendCall
+	spendBad bool // force the insufficient-points outcome on every spend
 	bumpVal  int64
 	counters map[string]loyaltyrpc.Counter
 	deleted  []string
@@ -80,6 +87,17 @@ func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin str
 		return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: value}, true, nil
 	}
 	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234 + value}, true, nil
+}
+
+func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	f.spends = append(f.spends, spendCall{login: viewerLogin, amount: amount})
+	if viewerLogin == "ghost" {
+		return loyaltyrpc.Balance{}, false, false, nil
+	}
+	if f.spendBad || amount > 1234 {
+		return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234}, true, false, nil
+	}
+	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: viewerLogin, Points: 1234 - amount}, true, true, nil
 }
 
 func (f *fakeLoyalty) CounterCreate(_ context.Context, _ uint64, name, scope string) (loyaltyrpc.Counter, error) {

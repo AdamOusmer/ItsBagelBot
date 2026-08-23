@@ -94,6 +94,22 @@ func (l *LoyaltyRPC) BalanceAdjust(ctx context.Context, broadcasterID uint64, vi
 	return *reply.Balance, true, nil
 }
 
+// BalanceSpend conditionally debits amount points by login: the service
+// applies the debit only when the viewer holds at least amount, so spent=true
+// is the authoritative "stake taken" signal the wager games escrow on.
+// found=false means never seen here; found=true with spent=false means
+// insufficient points (bal carries what they hold).
+func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error) {
+	reply, err := l.call(ctx, "balance.spend", loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerLogin: viewerLogin, Value: amount})
+	if err != nil {
+		return loyaltyrpc.Balance{}, false, false, err
+	}
+	if !reply.Found || reply.Balance == nil {
+		return loyaltyrpc.Balance{}, false, false, nil
+	}
+	return *reply.Balance, true, reply.Spent, nil
+}
+
 // CounterGet resolves one counter; found=false means it does not exist. With a
 // non-zero viewerID the returned Value is that viewer's (for the entry-scoped
 // counters, with command selecting a viewer+command counter's bucket).
