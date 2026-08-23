@@ -4,11 +4,13 @@
 // Secrets console backend: per-service database credentials plus Doppler
 // service-token minting, on least-privileged Doppler access.
 //
-// Token model (least privilege):
-//   DOPPLER_TOKEN_<SERVICE>   — per-service Doppler token scoped to that one
-//                               project (users/commands/…). Preferred.
-//   DOPPLER_MANAGEMENT_TOKEN  — legacy broad token, used only as a fallback
-//                               and flagged as over-privileged in the UI.
+// Token model (least privilege): every service must resolve its own
+// DOPPLER_TOKEN_<SERVICE>, scoped to that one project (users/commands/…).
+// There is deliberately NO broad-token fallback — DOPPLER_MANAGEMENT_TOKEN /
+// generic DOPPLER_TOKEN used to be consulted when a scoped token was missing,
+// which turned any console-admin compromise into read access to all five DB
+// projects plus token minting (red-team finding F-secrets). Missing now means
+// missing: the UI reports it instead of silently escalating privilege.
 // Minted service tokens are always read-only and scoped to a single config —
 // the narrowest credential Doppler can issue.
 import { env } from '$env/dynamic/private';
@@ -44,19 +46,13 @@ export function serviceOf(raw: string): SecretServiceId | null {
 
 // ── Doppler token resolution ─────────────────────────────────────────────────
 
-export type TokenSource = 'scoped' | 'legacy' | 'missing';
-
-function legacyToken(): string {
-  return (env.DOPPLER_MANAGEMENT_TOKEN ?? env.DOPPLER_TOKEN ?? '').trim();
-}
+export type TokenSource = 'scoped' | 'missing';
 
 // tokenFor picks the narrowest credential available for a service and reports
 // which tier it came from, so the UI can tell the truth about privilege.
 export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
   const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase()}`] ?? '').trim();
   if (scoped) return { token: scoped, source: 'scoped' };
-  const legacy = legacyToken();
-  if (legacy) return { token: legacy, source: 'legacy' };
   return { token: '', source: 'missing' };
 }
 
@@ -92,40 +88,15 @@ function dopplerBody(svc: ServiceDef, extra: Record<string, unknown>): RequestIn
 // ── Scope report ─────────────────────────────────────────────────────────────
 
 export interface ScopeReport {
-  // Which tier each service resolves to.
+  // Which tier each service resolves to ('scoped' or 'missing').
   sources: Record<SecretServiceId, TokenSource>;
-  // True when at least one service still falls back to the broad legacy token.
-  legacyInUse: boolean;
-  // Projects visible to the legacy token beyond the five service projects —
-  // concrete evidence of over-privilege ([] when unknown or clean).
-  legacyExcessProjects: string[];
-}
-
-async function visibleProjects(token: string): Promise<string[] | null> {
-  try {
-    const res = await dopplerFetch({ token, path: '/v3/projects?per_page=100' });
-    const body = (await res.json()) as { projects?: { slug?: string; name?: string }[] };
-    return (body.projects ?? []).map((p) => p.slug ?? p.name ?? '').filter(Boolean);
-  } catch {
-    // A properly scoped token often cannot list projects at all; that is not
-    // an error worth surfacing, just an unknown.
-    return null;
-  }
 }
 
 export async function scopeReport(): Promise<ScopeReport> {
   const sources = Object.fromEntries(
     serviceIds().map((id) => [id, tokenFor(services[id]).source])
   ) as Record<SecretServiceId, TokenSource>;
-
-  const legacyInUse = Object.values(sources).includes('legacy');
-  let legacyExcessProjects: string[] = [];
-  if (legacyInUse) {
-    const allowed = new Set(serviceIds().map((id) => services[id].project));
-    const visible = await visibleProjects(legacyToken());
-    legacyExcessProjects = (visible ?? []).filter((p) => !allowed.has(p));
-  }
-  return { sources, legacyInUse, legacyExcessProjects };
+  return { sources };
 }
 
 // ── Config secrets (DB credential status) ────────────────────────────────────

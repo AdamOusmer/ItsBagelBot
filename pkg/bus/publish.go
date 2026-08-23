@@ -33,12 +33,15 @@ func publishPartition(ctx context.Context) string {
 // identity, trace propagation, pooling, batching, PubAcks and reconnect
 // behavior. Fleet publishing deliberately does not use broker deduplication.
 //
-// Delivery is at-least-once. The default Fast-Ingest wire stores each message
-// on arrival rather than on commit and the broker never rolls a session back,
-// so a caller that retries a reported failure can store a message twice. The
-// publisher narrows that window as far as the wire allows — it reports the
-// prefix the broker acknowledged as delivered and fails only the rest — but it
-// cannot close it.
+// Delivery is at-least-once on every wire. The default wire is wireSingle;
+// NATS_PUBLISH_WIRE opts a service into atomic or fast per deployment (PR #637
+// rolls atomic out service by service that way). Fast-Ingest exists for
+// arrival-time persistence, not rate: there the broker stores each message on
+// arrival rather than on commit and never rolls a session back, so a caller
+// that retries a reported failure can store a message twice. The publisher
+// narrows that window as far as the wire allows — it reports the prefix the
+// broker acknowledged as delivered and fails only the rest — but it cannot
+// close it.
 type Publisher interface {
 	// PublishOwned admits payload to the background publisher and takes ownership
 	// of its backing bytes on success. Prefer PublishJSON or PublishRaw at call

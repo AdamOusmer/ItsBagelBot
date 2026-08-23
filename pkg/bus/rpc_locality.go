@@ -58,10 +58,14 @@ func RequestWithContext(ctx context.Context, nc *nats.Conn, subject string, data
 // does not retry timeouts or connection errors because the request may already
 // have executed and replaying a mutation could apply it twice.
 func RequestMsgWithContext(ctx context.Context, nc *nats.Conn, msg *nats.Msg) (*nats.Msg, error) {
+	// One envelope for every attempt, with Data and Header aliased from msg:
+	// nc.request consumes Subject/Header/Data synchronously inside each publish
+	// (nothing is retained across calls), so reassigning only routed.Subject per
+	// attempt is safe and spares both a Msg allocation per attempt and any
+	// mutation of the caller's msg.
+	routed := &nats.Msg{Header: msg.Header, Data: msg.Data}
 	return requestLocalFirst(rpcRequestSubjects(rpcSubject(msg.Subject)), func(routedSubject string) (*nats.Msg, error) {
-		routed := nats.NewMsg(routedSubject)
-		routed.Data = msg.Data
-		routed.Header = msg.Header
+		routed.Subject = routedSubject
 		return nc.RequestMsgWithContext(ctx, routed)
 	})
 }

@@ -79,9 +79,10 @@ const (
 	laneModeExplicit laneConsumeMode = "explicit"
 )
 
-// consumeMode resolves the configured contract. The default is deliberately
-// unchanged: flow is what production runs, and this knob exists to A/B pull
-// against it rather than to switch the fleet over.
+// consumeMode resolves the configured contract. Production ships explicit
+// today — consumeMode resolves there while NATS_CONSUME_FLOW stays off in the
+// deployed manifests — and PR #637 flips sesame to pull as its receipt-level
+// mode when it rolls. Flow remains selectable per deployment.
 //
 // NATS_CONSUME_FLOW=off predates NATS_CONSUME_MODE and still wins outright,
 // because it is set in deployed manifests as the kill switch back to explicit
@@ -89,7 +90,7 @@ const (
 // that a second variable exists. An unrecognised mode falls back to pull for
 // the same reason: a typo must not silently change the lane's shape.
 //
-// Pull is the default receipt-level shape. The flow consumer fans out per
+// Pull is the receipt-level shape PR #637 ships sesame onto. The flow consumer fans out per
 // consumer name, so every pod added by the autoscaler receives a full copy of
 // the lane and multiplies the broker's delivery egress; the shared-durable pull
 // consumer divides the lane instead (live-measured 2026-08-15: two pull
