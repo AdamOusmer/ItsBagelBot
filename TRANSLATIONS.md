@@ -13,6 +13,7 @@ Every user-facing string lives in plain data files: JSON for interface text and 
 | Dashboard + admin console | `console/shared/lib/i18n/locales/<code>.json` | Nested JSON tree, leaves are strings or arrays of strings |
 | Marketing site | `web/src/i18n/locales/<code>.json` | Flat JSON with dotted keys |
 | Legal pages (terms, privacy, creator terms) | `web/src/content/legal/<doc>/<code>/` | `meta.json` + one Markdown file per section |
+| Changelog (`/changelog`) | `web/src/content/changelog/*.json` | One JSON file per release; `title` / `description` are a string or `{ "en": "...", "<code>": "..." }` |
 | Guides (`/guides/*`) | not yet data-driven | Still duplicated `.astro` pages per locale; ask a developer |
 
 English (`en`) is the source of truth everywhere. A key missing from your language falls back to English at runtime, so a partial translation is safe to ship: builds never fail on missing translations, only on invalid files.
@@ -49,6 +50,12 @@ Locale codes are lowercase base tags (`es`, `pt-br`), maximum 8 characters.
 - Translate the frontmatter `heading` and `plain` (the plain-words summary) and the body below the `---` line.
 - Basic Markdown only: paragraphs, bold, links, lists. The few inline HTML links (like the Tebex link) can stay as they are.
 - `meta.json` holds the page title, description, and the "updated" label.
+
+## Rules for changelog JSON
+
+- One file per GitHub release: `web/src/content/changelog/<version>.json`. Name it after the git tag (`v1.0.0-beta.json`).
+- Required fields: `tag` (`alpha`, `beta`, `prerelease`, or `release`), `version` (the git tag shown on the page), `date` (ISO, used for sort and display), `title`, `description`, `github` (the GitHub release URL).
+- `title` and `description` are either a plain English string or a locale map with `en` required. Add your language as another key (`"fr": "..."`). Missing locales fall back to English; do not rename keys.
 
 ## What happens when something is missing or broken
 

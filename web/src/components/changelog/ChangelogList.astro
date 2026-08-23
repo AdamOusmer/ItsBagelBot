@@ -1,0 +1,252 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Changelog timeline. Newest bake first. Each JSON entry from the `changelog`
+ * collection becomes a card: stylized tag, version (filename), date, title,
+ * description, and a link to the GitHub release.
+ */
+import type { CollectionEntry } from 'astro:content';
+import ReleaseTag from './ReleaseTag.astro';
+import TextLink from '../ui/TextLink.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+interface Props {
+    entries: CollectionEntry<'changelog'>[];
+}
+
+const { entries } = Astro.props;
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+type Localized = string | { en: string; [locale: string]: string };
+
+function pick(value: Localized, locale: string): string {
+    if (typeof value === 'string') return value;
+    return value[locale] ?? value.en;
+}
+
+const dateFmt = new Intl.DateTimeFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+});
+
+const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
+    alpha: t('changelog.tag.alpha'),
+    beta: t('changelog.tag.beta'),
+    prerelease: t('changelog.tag.prerelease'),
+    release: t('changelog.tag.release'),
+};
+---
+
+<section class="clog" aria-label={t('changelog.eyebrow')}>
+    {entries.length === 0 ? (
+        <p class="clog__empty">{t('changelog.empty')}</p>
+    ) : (
+        <ol class="clog__list">
+            {entries.map((entry, i) => {
+                const { tag, version, title, description, github, date } = entry.data;
+                return (
+                    <li class="clog__item" data-reveal style={`--reveal-i: ${i + 1}`}>
+                        <div class="clog__when">
+                            <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+                        </div>
+                        <article class="clog__card">
+                            <header class="clog__meta">
+                                <ReleaseTag tag={tag} label={tagLabel[tag]} />
+                                <span class="clog__ver">{version}</span>
+                            </header>
+                            <h2 class="clog__title">{pick(title, lang)}</h2>
+                            <p class="clog__desc">{pick(description, lang)}</p>
+                            <TextLink
+                                href={github}
+                                label={t('changelog.releaseLink')}
+                                external
+                            />
+                        </article>
+                    </li>
+                );
+            })}
+        </ol>
+    )}
+</section>
+
+<style>
+    .clog {
+        width: min(760px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 0 0 110px;
+        max-width: none;
+    }
+
+    .clog__empty {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 1.05rem;
+        color: var(--muted, #888077);
+        text-align: center;
+        margin: 0;
+        padding: 48px 0 80px;
+    }
+
+    .clog__list {
+        position: relative;
+        display: grid;
+        gap: 28px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    /* Vertical ember rail behind the cards. */
+    .clog__list::before {
+        content: "";
+        position: absolute;
+        left: 11px;
+        top: 8px;
+        bottom: 8px;
+        width: 1px;
+        background: linear-gradient(
+            180deg,
+            rgba(201, 168, 124, 0.55),
+            rgba(82, 183, 136, 0.35) 55%,
+            transparent
+        );
+        pointer-events: none;
+    }
+
+    .clog__item {
+        position: relative;
+        display: grid;
+        gap: 12px;
+        padding-left: 40px;
+    }
+
+    .clog__item::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 22px;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--black, #0a0a0a);
+        border: 1.5px solid var(--tan, #c9a87c);
+        box-shadow: 0 0 10px rgba(201, 168, 124, 0.35);
+        z-index: 1;
+    }
+
+    .clog__when time {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .clog__card {
+        position: relative;
+        display: grid;
+        gap: 14px;
+        justify-items: start;
+        padding: clamp(22px, 3vw, 30px);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        background: rgba(17, 17, 16, 0.88);
+        overflow: hidden;
+        transition:
+            border-color 220ms ease,
+            transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .clog__card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+            420px 180px at 8% 0%,
+            rgba(201, 168, 124, 0.08),
+            transparent 70%
+        );
+        opacity: 0;
+        transition: opacity 260ms ease;
+        pointer-events: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .clog__item:hover .clog__card {
+            border-color: rgba(201, 168, 124, 0.4);
+            transform: translateY(-3px);
+        }
+
+        .clog__item:hover .clog__card::before { opacity: 1; }
+
+        .clog__item:hover::before {
+            background: var(--tan, #c9a87c);
+            box-shadow: 0 0 14px rgba(201, 168, 124, 0.6);
+        }
+    }
+
+    .clog__meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+    }
+
+    .clog__ver {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(201, 168, 124, 0.07);
+        border: 1px solid rgba(201, 168, 124, 0.14);
+        border-radius: 6px;
+        padding: 3px 8px;
+    }
+
+    .clog__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        color: var(--white, #f0ece4);
+        margin: 0;
+    }
+
+    .clog__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 1rem;
+        line-height: 1.7;
+        color: #a39c92;
+        margin: 0;
+        max-width: 62ch;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .clog__card { transition: none; }
+    }
+
+    @media (max-width: 640px) {
+        .clog {
+            width: calc(100% - 32px);
+            padding-bottom: 80px;
+        }
+
+        .clog__list::before { left: 7px; }
+
+        .clog__item {
+            padding-left: 28px;
+            gap: 8px;
+        }
+
+        .clog__item::before {
+            left: 2px;
+            width: 10px;
+            height: 10px;
+            top: 18px;
+        }
+    }
+</style>

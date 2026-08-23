@@ -1,0 +1,14 @@
+{
+  "tag": "alpha",
+  "version": "v0.1.0-alpha",
+  "date": "2026-06-01",
+  "title": {
+    "en": "Alpha Release",
+    "fr": "Version alpha"
+  },
+  "description": {
+    "en": "The first public bake. June 2026 — the bot leaves the kitchen, still flour-dusted, and starts answering in chat.",
+    "fr": "La première fournée publique. Juin 2026 — le bot quitte la cuisine, encore fariné, et commence à répondre dans le chat."
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.0-alpha"
+}
