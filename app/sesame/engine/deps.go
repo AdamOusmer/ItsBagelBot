@@ -108,6 +108,10 @@ type Deps struct {
 	// default. nil degrades gracefully: facts go random, the feed count is
 	// omitted and the mood re-rolls per message.
 	Personality PersonalityStore
+	// EmotePlay is the per-channel emote pyramid + streak tracker behind the
+	// emoteplay module; ValkeyEmotePlay is the default. nil leaves the module
+	// silent (it never emits without a store).
+	EmotePlay EmotePlayStore
 	// Dedup guards the non-idempotent effect sites against a redelivered or
 	// schedule-retried event applying them twice. nil (the kill switch) fails
 	// open everywhere: effects run, nothing is deduped.
@@ -185,6 +189,13 @@ type FeedTotalPersister interface {
 	FeedBump(ctx context.Context, broadcasterID uint64, name string) (FeedTotals, error)
 	// FeedBoard reads the leaderboard and the named channel's standing.
 	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
+}
+
+// EmotePlayStore advances a channel's emote chains by one candidate line. See
+// ValkeyEmotePlay (emoteplay_valkey.go) for the transition rules and the
+// race-safety reasoning; callers only feed lines and read back milestones.
+type EmotePlayStore interface {
+	Bump(ctx context.Context, u EmotePlayUpdate) (EmotePlayResult, error)
 }
 
 // IsLiveChecker is the read-only slice of the live store: just "is this
