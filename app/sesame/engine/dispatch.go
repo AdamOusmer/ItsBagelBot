@@ -97,7 +97,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// each with its own slash-verb translation. A line left with no payload (an
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
-	counters := p.bumpCounterTokens(ctx, c, cc.Name, cc.Response)
+	counters := p.bumpCounterTokens(ctx, c, cc.Name, args, cc.Response)
 	emitted, err := p.emitResponse(c, cc.Response, args, counters, emit)
 	if err != nil {
 		return err
@@ -136,8 +136,7 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, counte
 	sender := c.Env.ChatterName()
 	touser := sender
 	if args != "" {
-		firstWord, _, _ := strings.Cut(args, " ")
-		touser = strings.TrimPrefix(firstWord, "@")
+		touser = strings.TrimPrefix(firstArg(args), "@")
 	}
 
 	// Enforce the user-controlled variables: strip a leading slash run so a
@@ -228,13 +227,17 @@ func (p *Pipeline) emitCommand(o *module.Output, emit module.Emit) bool {
 // bumpCounterTokens resolves a response's {counter:<name>} tokens: each
 // distinct counter is bumped by one — against the channel value, the sender,
 // or the (sender, command) bucket, per the counter's own scope — and its new
-// value is returned for expansion. command is the canonical name of the
-// custom command being run, which keys a viewer+command counter's bucket. nil
-// when the response references no counter or no loyalty store is wired —
-// expandCommand then leaves the token visible, matching every other unknown
-// token. A bump failure renders the counter without a value rather than
-// blocking the reply.
-func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, command, response string) map[string]string {
+// value is returned for expansion. A {counter:target:<name>} token instead
+// keys the bump on the viewer the command mentions ({touser}), resolved
+// through the chatter roster; an unresolvable mention falls back to the
+// sender, mirroring how {touser} itself defaults to the sender. The counter's
+// scope semantics are unchanged by addressing: only whose identity rides the
+// bump moves (issue #479). command is the canonical name of the custom command
+// being run, which keys a viewer+command counter's bucket. nil when the
+// response references no counter or no loyalty store is wired — expandCommand
+// then leaves the token visible, matching every other unknown token. A bump
+// failure renders the counter without a value rather than blocking the reply.
+func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, command, args, response string) map[string]string {
 	if p.loyalty == nil || !strings.Contains(response, "{"+counterTokenPrefix) {
 		return nil
 	}
@@ -242,18 +245,33 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 	if len(names) == 0 {
 		return nil
 	}
-	viewerID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
-	viewer := Viewer{ID: viewerID, Login: c.Env.ChatterUserLogin, Name: c.Env.ChatterUserName}
+	senderID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+	sender := Viewer{ID: senderID, Login: c.Env.ChatterUserLogin, Name: c.Env.ChatterUserName}
+	var touser string
 	counters := make(map[string]string, len(names))
 	for _, name := range names {
-		if strings.HasPrefix(name, botCounterTokenPrefix) {
+		viewer := sender
+		base := name
+		if stripped, addressed := strings.CutPrefix(name, targetCounterTokenPrefix); addressed {
+			base = stripped
+			if base == "" {
+				continue // "{counter:target:}": nothing to bump, token stays visible
+			}
+			if touser == "" {
+				touser = strings.ToLower(strings.TrimPrefix(firstArg(args), "@"))
+			}
+			if v, found := p.roster.Resolve(c.BroadcasterID, touser); found {
+				viewer = v
+			}
+		}
+		if strings.HasPrefix(base, botCounterTokenPrefix) {
 			continue // bot counters are admin-only; the token stays visible
 		}
-		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, name, viewer, command, 1)
+		value, err := p.loyalty.CounterBump(ctx, c.BroadcasterID, base, viewer, command, 1)
 		if err != nil {
 			p.log.Warn("counter token bump failed",
 				zap.Uint64("broadcaster_id", c.BroadcasterID),
-				zap.String("counter", name),
+				zap.String("counter", base),
 				zap.Error(err),
 			)
 			continue
@@ -261,6 +279,13 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		counters[name] = strconv.FormatInt(value, 10)
 	}
 	return counters
+}
+
+// firstArg returns the first whitespace-delimited word of a command's
+// arguments — the same word emitResponse renders as {touser}.
+func firstArg(args string) string {
+	word, _, _ := strings.Cut(args, " ")
+	return word
 }
 
 // gateRule is the set of checks one command is gated by, so the gate takes a
