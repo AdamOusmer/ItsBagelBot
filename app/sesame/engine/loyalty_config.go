@@ -46,13 +46,22 @@ type LoyaltyModuleConfig struct {
 	WatchPointsPerTick int64 `json:"watchPointsPerTick"`
 }
 
-// rate applies the zero-default / negative-off convention.
+// maxRate caps any configured points rate. Downstream math multiplies rates
+// by per-event quantities (bits per cheer, months per sub); a broadcaster-set
+// config near MaxInt64 wraps that product negative — self-inflicted negative
+// balances, but still an int64 overflow class we can delete outright. 1e9
+// points per event is past any sane economy.
+const maxRate = int64(1_000_000_000)
+
+// rate applies the zero-default / negative-off convention, plus the ceiling.
 func rate(v, def int64) int64 {
 	switch {
 	case v == 0:
 		return def
 	case v < 0:
 		return 0
+	case v > maxRate:
+		return maxRate
 	default:
 		return v
 	}
