@@ -79,6 +79,18 @@ type Config struct {
 	FortniteStatsRateLimit float64
 	FortniteSeasonStart    int64
 
+	// Valorant provider (rank/MMR, recent matches, leaderboards, account
+	// lookups, daily offer rotation) riding the community HenrikDev API. Key
+	// empty = provider disabled. The offer rotation additionally reads Riot's
+	// keyless content CDN (valorant-api.com) to turn item UUIDs into names,
+	// icons and rarity colours — a second host with its own budget because it
+	// meters per source IP while HenrikDev meters per key.
+	ValorantBaseURL          string
+	ValorantContentBaseURL   string
+	ValorantAPIKey           string
+	ValorantRateLimit        float64
+	ValorantContentRateLimit float64
+
 	// Govee smart-light provider. It holds no service key (each broadcaster
 	// brings their own, fetched from the modules service). GoveeKeySubjectPrefix
 	// is that internal RPC's subject prefix; empty disables the provider.
@@ -158,6 +170,19 @@ func Load() *Config {
 		// day; the default leaves headroom.
 		FortniteStatsRateLimit: env.GetFloat("FORTNITE_STATS_RATE_LIMIT", 9000.0),
 		FortniteSeasonStart:    int64(env.GetInt("FORTNITE_SEASON_START_UNIX", 0)),
+
+		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
+		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),
+		ValorantAPIKey:         env.Get("VALORANT_API_KEY", ""),
+		// HenrikDev's enhanced tier allows 90 requests/min for public bots
+		// (basic is 30); the default sits under the enhanced ceiling so bursts
+		// deny locally instead of tripping the upstream limiter, which also
+		// poisons any cache fill in flight. A basic-tier key MUST set
+		// VALORANT_RATE_LIMIT=30 or it will 429 constantly.
+		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 80.0),
+		// valorant-api.com publishes no hard per-client limit; 60/min is
+		// conservative for a multi-MB skins payload that caches for a day.
+		ValorantContentRateLimit: env.GetFloat("VALORANT_CONTENT_RATE_LIMIT", 60.0),
 
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
