@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
-import { decodeIdToken, OAuth2RequestError } from 'arctic';
+import { ResponseBodyError } from '@bagel/shared/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
@@ -45,9 +45,9 @@ function isBotAccount(sub: string): boolean {
 }
 
 // nonceMismatch is the replay / token-swap guard: the stored nonce must equal
-// the claim. arctic's Twitch.createAuthorizationURL does not accept a nonce
-// param, so the login route appended it manually and we verify it here. A
-// missing stored nonce skips the check.
+// the claim. The shared Twitch client's createAuthorizationURL does not accept
+// a nonce param, so the login route appended it manually and we verify it here.
+// A missing stored nonce skips the check.
 function nonceMismatch(claims: IdTokenClaims, storedNonce: string | undefined): boolean {
   return !!storedNonce && claims.nonce !== storedNonce;
 }
@@ -230,11 +230,15 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   cookies.delete('login_next', { path: '/' });
 
   if (!validOAuthState(code, state, stored)) throw redirect(302, '/login?e=state');
+  // The shared client enforces the id_token nonce claim, so the cookie is now
+  // mandatory: a flow that lost it fails closed here instead of logging in
+  // without replay protection.
+  if (!storedNonce) throw redirect(302, '/login?e=state');
 
   try {
     await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
-    if (e instanceof OAuth2RequestError) throw redirect(302, '/login?e=oauth');
+    if (e instanceof ResponseBodyError) throw redirect(302, '/login?e=oauth');
     throw e;
   }
 
@@ -246,9 +250,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 // completeLogin exchanges the code, verifies the id_token, and mints the owner
 // session (or hands off to the delegation accept flow, which redirects
 // itself).
-async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string | undefined): Promise<void> {
-  const tokens = await twitch().validateAuthorizationCode(code);
-  const claims = decodeIdToken(tokens.idToken()!) as IdTokenClaims;
+async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+  const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
+  const claims = tokens.claims() as unknown as IdTokenClaims;
   verifyClaims(claims, storedNonce);
 
   const identity: Identity = {
