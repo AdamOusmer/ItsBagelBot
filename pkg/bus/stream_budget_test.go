@@ -31,7 +31,7 @@ func TestMemoryStreamsFitTheHubMemoryBudget(t *testing.T) {
 	// partition pays, and this test is where it has to stay affordable.
 	const (
 		maxMem          = 4 << 30   // jetstream.max_mem
-		podMemoryLimit  = 5 << 30   // nats container limits.memory
+		podMemoryLimit  = 8 << 30   // nats container limits.memory, 8Gi live since the 2026-08-23 roll (was 5Gi); GOMEMLIMIT=6656MiB sits inside it
 		bufferedPerNode = 128 << 20 // jetstream.max_buffered_size, per stream
 		runtimeReserve  = 1 << 30   // Go heap, connection buffers, dedup ids
 	)

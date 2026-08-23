@@ -114,9 +114,9 @@ defmodule Ingress.Config.Publish do
   # safe no matter how the lanes are partitioned or how the traffic splits
   # between them.
   #
-  # 50 is what the hub actually runs: deploy/k8s/nats-server.conf ships no
-  # `limits { batch { … } }` block on purpose, because JetStreamLimits is not
-  # hot-reloadable and one such key would wedge every later SIGHUP.
+  # 200 is what the hub actually runs: deploy/messaging/nats-server.conf has
+  # shipped `limits { batch { max_inflight_per_stream: 200 } }` live since the
+  # forced quorum roll of 2026-08-22.
   #
   # Sizing past it does not buy the extra window. An over-cap open is answered
   # with a definite 10210/429 — nothing was stored — so the cohort re-drives per
