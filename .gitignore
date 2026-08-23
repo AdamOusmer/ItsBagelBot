@@ -106,4 +106,4 @@ __pycache__/
 # Rendered from inventory.cluster.ini.example via render-inventory.sh.
 # Contains node addresses; this repo is public, so it must never be committed.
 deploy/ansible/inventory.cluster.ini
-/bus-bench
+bus-bench/bus-bench
