@@ -102,7 +102,7 @@ func main() {
 	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
 		Health: health.NewSet(serviceName,
-			health.Bool("nats", nc.IsConnected),
+			health.NATS("nats", nc),
 			health.Degrades(db.HealthCheck("mysql", driver.DB()))),
 		NotifyGift:   notifier.Notify,
 		ApplyBilling: billing.Apply,
