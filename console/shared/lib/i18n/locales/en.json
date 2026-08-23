@@ -618,6 +618,7 @@
     "pickerEmpty": "No counters yet. Create one below.",
     "pickerNew": "New counter",
     "pickerCreate": "Create and insert",
+    "pickerTarget": "Count against the mentioned viewer (@target) instead of the sender",
     "setValue": "Set value",
     "set": "Set",
     "reset": "Reset",

@@ -78,6 +78,12 @@ describe('rehearseCommand', () => {
     expect(textOf(line.segments)).toBe('42 {counter:bot:feeds} {counter:}');
   });
 
+  test('target-addressed counters rehearse like the engine (issue #479)', () => {
+    const [line] = rehearseCommand('{counter:target:shutups} {counter:target:} {counter:target:bot:x}');
+    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'unknown', 'plain', 'unknown']);
+    expect(textOf(line.segments)).toBe('42 {counter:target:} {counter:target:bot:x}');
+  });
+
   test('caps at 5 messages, one per line, like emitResponse', () => {
     expect(rehearseCommand('a\nb\nc\nd\ne\nf')).toHaveLength(5);
   });
