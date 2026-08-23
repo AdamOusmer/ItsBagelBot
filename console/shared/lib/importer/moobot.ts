@@ -601,8 +601,8 @@ export function parseMoobot(bytes: Uint8Array): {
 
   for (const sec of sections) SECTION_PARSERS[asStr(sec.type)]?.(sec, state);
 
-  applyAliases(state.stagedAliases, state.commands, state.diags);
-  applyTimers(state.stagedTimers, state.texts, state.timers, state.diags);
+  applyAliases(state);
+  applyTimers(state);
 
   const manifest: ImportManifest = {};
   if (state.commands.length) manifest.commands = state.commands;
@@ -741,14 +741,10 @@ function optionsOf(v: unknown): TextOption[] | undefined {
 
 // applyAliases attaches alias names onto their target custom commands; all
 // alias diagnostics are manifest-level (-1), matching moobot.go.
-function applyAliases(
-  aliases: RawAlias[],
-  commands: ManifestCommand[],
-  diags: ImportDiagnostic[]
-): void {
-  const byName = new Map<string, ManifestCommand>(commands.map((c) => [c.name, c]));
-  for (const a of aliases) {
-    attachAlias(a, byName, diags);
+function applyAliases(state: ParseState): void {
+  const byName = new Map<string, ManifestCommand>(state.commands.map((c) => [c.name, c]));
+  for (const a of state.stagedAliases) {
+    attachAlias(a, byName, state.diags);
   }
 }
 
@@ -793,13 +789,8 @@ function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
 // applyTimers expands each Moobot timer into one ManifestTimer per referenced
 // command present in the export; a disabled timer is dropped outright (nothing
 // user-authored is lost — entries synthesize from referenced commands).
-function applyTimers(
-  staged: RawTimer[],
-  texts: Map<string, string>,
-  timers: ManifestTimer[],
-  diags: ImportDiagnostic[]
-): void {
-  for (const t of staged) expandTimer(t, texts, timers, diags);
+function applyTimers(state: ParseState): void {
+  for (const t of state.stagedTimers) expandTimer(t, state.texts, state.timers, state.diags);
 }
 
 function expandTimer(t: RawTimer, texts: Map<string, string>, timers: ManifestTimer[], diags: ImportDiagnostic[]): void {

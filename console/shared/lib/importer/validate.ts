@@ -216,18 +216,18 @@ export function mapPermission(raw: string): { perm: Perm; recognized: boolean } 
 // Stats tallies one manifest by collection. It counts what the manifest holds,
 // regardless of validity — preview renders this number, commit computes its own
 // applied tally from what actually wrote.
+const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes', 'counters'];
+
 export function stats(m: ImportManifest | null | undefined): ImportStats {
-  return {
-    commands: m?.commands?.length ?? 0,
-    timers: m?.timers?.length ?? 0,
-    triggers: m?.triggers?.length ?? 0,
-    quotes: m?.quotes?.length ?? 0,
-    counters: m?.counters?.length ?? 0
-  };
+  const out = {} as ImportStats;
+  for (const key of STAT_KEYS) {
+    out[key] = m?.[key]?.length ?? 0;
+  }
+  return out;
 }
 
 export function isEmptyStats(s: ImportStats): boolean {
-  return s.commands === 0 && s.timers === 0 && s.triggers === 0 && s.quotes === 0 && s.counters === 0;
+  return STAT_KEYS.every((key) => s[key] === 0);
 }
 
 // FindCollisions returns the manifest items whose normalized name (or alias)

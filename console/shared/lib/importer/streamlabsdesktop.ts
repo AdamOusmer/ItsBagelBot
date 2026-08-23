@@ -707,9 +707,16 @@ function daysInMonth(y: number, mo: number): number {
 }
 
 function mkDate(y: number, mo: number, d: number, h = 0, mi = 0, s = 0): DateUTC | null {
-  if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(y, mo)) return null;
-  if (h > 23 || mi > 59 || s > 59) return null;
+  if (!validCalendarDay(y, mo, d) || !validTimeOfDay(h, mi, s)) return null;
   return new DateUTC(y, mo, d, h, mi, s);
+}
+
+function validCalendarDay(y: number, mo: number, d: number): boolean {
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth(y, mo);
+}
+
+function validTimeOfDay(h: number, mi: number, s: number): boolean {
+  return h <= 23 && mi <= 59 && s <= 59;
 }
 
 // parseRFC3339 accepts exactly RFC 3339 (fractional seconds optional; Z or a
@@ -1159,16 +1166,22 @@ function parenArg(text: string, pos: number): string | null {
 // group starting at pos ('('), handling nesting; quotes inside are treated as
 // plain characters, which matches how SLCB's own parameters nest.
 function skipParensSpan(text: string, pos: number): number | null {
-  if (pos >= text.length || text[pos] !== '(') return null;
+  if (!opensGroup(text, pos)) return null;
   let depth = 0;
   for (let i = pos; i < text.length; i++) {
-    if (text[i] === '(') depth++;
-    else if (text[i] === ')') {
-      depth--;
-      if (depth === 0) return i + 1;
-    }
+    depth += parenStep(text[i]);
+    if (depth === 0) return i + 1;
   }
   return null;
+}
+
+function opensGroup(text: string, pos: number): boolean {
+  return pos < text.length && text[pos] === '(';
+}
+
+function parenStep(ch: string): number {
+  if (ch === '(') return 1;
+  return ch === ')' ? -1 : 0;
 }
 
 // skipParens returns the index just past the group at pos.

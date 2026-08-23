@@ -376,7 +376,7 @@ async function commitTimersAndTriggers(ctx: CommitContext): Promise<void> {
 // commitQuotes writes quote rows one by one; a failed row is reported and the
 // rest proceed.
 async function commitQuotes(ctx: CommitContext): Promise<void> {
-  for (const idx of eligibleIndexes(ctx.failed, 'quotes', ctx.manifest.quotes?.length ?? 0)) {
+  for (const idx of eligibleIndexes(ctx, 'quotes')) {
     const q = ctx.manifest.quotes![idx];
     try {
       await addQuote(ctx.uid, {
@@ -401,7 +401,7 @@ async function commitAutomodTerms(ctx: CommitContext): Promise<void> {
 // commitCounters creates then sets each eligible counter; colliding names are
 // skipped unless the import overwrites.
 async function commitCounters(ctx: CommitContext): Promise<void> {
-  for (const idx of eligibleIndexes(ctx.failed, 'counters', ctx.manifest.counters?.length ?? 0)) {
+  for (const idx of eligibleIndexes(ctx, 'counters')) {
     const c = ctx.manifest.counters![idx];
     const name = normalizeName(c.name);
     if (!ctx.overwrite && ctx.skipCounters.has(name)) continue;
@@ -431,13 +431,17 @@ function logCommit(source: string, ctx: CommitContext): void {
   );
 }
 
+// ManifestCollection names one manifest array the commit legs walk.
+type ManifestCollection = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
+
 // eligibleIndexes returns the valid indexes of one collection that carry no
 // error-severity diagnostic — the shared filter every collection's loop walks
 // so validation-doomed items never reach a write path.
-function eligibleIndexes(failed: FailedItems, collection: string, length: number): number[] {
+function eligibleIndexes(ctx: CommitContext, collection: ManifestCollection): number[] {
+  const items = ctx.manifest[collection] ?? [];
   const out: number[] = [];
-  for (let i = 0; i < length; i++) {
-    if (!failed.has(collection, i)) out.push(i);
+  for (let i = 0; i < items.length; i++) {
+    if (!ctx.failed.has(collection, i)) out.push(i);
   }
   return out;
 }
@@ -448,7 +452,7 @@ function eligibleIndexes(failed: FailedItems, collection: string, length: number
 // pre-read is what makes this non-destructive. One patch lands all timers, so
 // they count together.
 async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
-  const targets = eligibleIndexes(ctx.failed, 'timers', ctx.manifest.timers?.length ?? 0);
+  const targets = eligibleIndexes(ctx, 'timers');
   if (targets.length === 0) return;
 
   const existing = Array.isArray(blob.timers) ? (blob.timers as TimerDef[]) : [];
@@ -489,7 +493,7 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
 // expressed single-line are dropped here with error diagnostics rather than
 // written corrupt.
 async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
-  const targets = eligibleIndexes(ctx.failed, 'triggers', ctx.manifest.triggers?.length ?? 0);
+  const targets = eligibleIndexes(ctx, 'triggers');
   if (targets.length === 0) return;
 
   const existingRules = typeof blob.rules === 'string' ? blob.rules : '';
