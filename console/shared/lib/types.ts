@@ -1787,3 +1787,25 @@ export interface LoyaltyStanding {
   points: number;
   watchSeconds: number;
 }
+
+// --- Config importer -------------------------------------------------------
+// The canonical import shapes live in lib/importer/types.ts since the
+// standalone importer service was folded into the dashboard (2026-08-23) and
+// that module became their single source of truth. Re-exported here so every
+// existing '@bagel/shared' import keeps resolving unchanged.
+export type {
+  AutomodTerms,
+  CollisionRef,
+  ImportDiagnostic,
+  ImportManifest,
+  ImportSource,
+  ImportStats,
+  ManifestCommand,
+  ManifestCounter,
+  ManifestQuote,
+  ManifestTimer,
+  ManifestTrigger,
+  PreviewResponse,
+  CommitResponse
+} from './importer/types';
+export { IMPORT_SOURCES, IMPORT_ITEM_CAPS } from './importer/types';
