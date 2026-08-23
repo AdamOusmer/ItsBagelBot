@@ -890,22 +890,61 @@ export function translateVariables(inText: string): { text: string; warns: strin
 // "$(weather ${1:})" into "$(weather {args})" instead of stranding the
 // argument untranslated inside a dead wrapper.
 function findNext(s: string, from: number): { start: number; end: number } | null {
-  for (let i = from; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch === 0x24 /* $ */ && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{')) {
-      const end = matchDelimited(s, i);
-      if (end !== -1) {
-        if (!hasNestedExplicit(s, i + 2, end - 1)) return { start: i, end };
-        i++; // descend past the wrapper's opener; its closer stays literal
-      } else {
-        i++; // malformed explicit token: step past '$' and keep scanning
-      }
-    } else if (ch === 0x7b /* { */) {
-      const end = matchBrace(s, i);
-      if (end !== -1 && legacyCandidate(s.slice(i + 1, end - 1))) return { start: i, end };
+  let i = from;
+  while (i < s.length) {
+    const end = delimitedEnd(s, i);
+    if (end !== undefined) {
+      // A delimited token whose body nests another explicit token is skipped
+      // in favour of its interior: the composite has no mapping of its own
+      // (it is warned as-is next pass, once its interior reads translated),
+      // while the inner leaf can land cleanly right now. This is what turns
+      // SE's documented nesting "$(weather ${1:})" into "$(weather {args})"
+      // instead of stranding the argument untranslated inside a dead wrapper.
+      if (!hasNestedExplicit(s, i + 2, end - 1)) return { start: i, end };
+      i += 2; // descend past the wrapper's opener; its closer stays literal
+      continue;
     }
+    if (malformedDelimited(s, i)) {
+      i += 2; // malformed explicit token: step past '$' and keep scanning
+      continue;
+    }
+    const braceEnd = legacyBraceEnd(s, i);
+    if (braceEnd !== -1) return { start: i, end: braceEnd };
+    i++;
   }
   return null;
+}
+
+function isDollar(charCode: number): boolean {
+  return charCode === 0x24; /* $ */
+}
+
+// opensDelimited reports whether i opens a $( or ${ token.
+function opensDelimited(s: string, i: number): boolean {
+  return isDollar(s.charCodeAt(i)) && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{');
+}
+
+// delimitedEnd returns the exclusive end of the balanced $(/${ token opening
+// at i, or undefined when i does not open one or it never closes.
+function delimitedEnd(s: string, i: number): number | undefined {
+  if (!opensDelimited(s, i)) return undefined;
+  const end = matchDelimited(s, i);
+  return end === -1 ? undefined : end;
+}
+
+// malformedDelimited reports whether i opens an unbalanced $(/${ wrapper,
+// which the scan must step past instead of matching.
+function malformedDelimited(s: string, i: number): boolean {
+  return opensDelimited(s, i) && delimitedEnd(s, i) === undefined;
+}
+
+// legacyBraceEnd returns the end of a bare-brace token starting at i whose
+// head names a recognized legacy family, else -1.
+function legacyBraceEnd(s: string, i: number): number {
+  if (s[i] !== '{') return -1;
+  const end = matchBrace(s, i);
+  if (end !== -1 && legacyCandidate(s.slice(i + 1, end - 1))) return end;
+  return -1;
 }
 
 // hasNestedExplicit reports whether s[from:until] opens another $( or ${
@@ -922,39 +961,47 @@ function hasNestedExplicit(s: string, from: number, until: number): boolean {
 // end the outer scan early. Returns -1 when unbalanced (token left literal).
 function matchDelimited(s: string, start: number): number {
   const openParen = s[start + 1] === '(';
-  let paren = 0;
-  let brace = 0;
+  const depth = { paren: 0, brace: 0 };
   for (let j = start; j < s.length; j++) {
-    if (s[j] === '$' && j + 1 < s.length) {
-      if (s[j + 1] === '(') {
-        paren++;
-        j++;
-        continue;
-      }
-      if (s[j + 1] === '{') {
-        brace++;
-        j++;
-        continue;
-      }
+    const family = opensFamily(s, j);
+    if (family !== '') {
+      depth[family]++;
+      j++;
+      continue;
     }
-    switch (s[j]) {
-      case '(':
-        paren++;
-        break;
-      case ')':
-        paren--;
-        if (openParen && paren === 0 && brace <= 0) return j + 1;
-        break;
-      case '{':
-        brace++;
-        break;
-      case '}':
-        brace--;
-        if (!openParen && brace === 0 && paren <= 0) return j + 1;
-        break;
-    }
+    if (closesDelimited(s[j], openParen, depth)) return j + 1;
   }
   return -1;
+}
+
+// opensFamily reports the delimiter family a "$(" / "${" pair at i opens,
+// or '' when neither.
+function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
+  if (!isDollar(s.charCodeAt(i)) || i + 1 >= s.length) return '';
+  if (s[i + 1] === '(') return 'paren';
+  if (s[i + 1] === '{') return 'brace';
+  return '';
+}
+
+// closesDelimited folds one depth-bearing character and reports whether it
+// just closed the wrapper.
+function closesDelimited(ch: string, openParen: boolean, depth: { paren: number; brace: number }): boolean {
+  switch (ch) {
+    case '(':
+      depth.paren++;
+      return false;
+    case ')':
+      depth.paren--;
+      return openParen && depth.paren === 0 && depth.brace <= 0;
+    case '{':
+      depth.brace++;
+      return false;
+    case '}':
+      depth.brace--;
+      return !openParen && depth.brace === 0 && depth.paren <= 0;
+    default:
+      return false;
+  }
 }
 
 // matchBrace finds the } closing the { at start (nested braces counted);
@@ -1195,50 +1242,74 @@ function pickKey(items: string[] | null): string | null {
 
 // pickItems splits a random.pick argument list honoring quotes: items may be
 // wrapped in '…', "…" or `…` to carry spaces, and both space- and comma-
-// separated lists are accepted (SE's two documented forms). Any item that
-// itself contains a comma after quote-stripping fails, because our {choice:…}
-// grammar splits on every comma and cannot represent the difference — leaving
-// the token literal beats corrupting the list.
+// separated lists are accepted (SE's two documented forms). Returns null when
+// the list cannot survive our {choice:…} comma-splitting grammar — leaving
+// the token literal beats corrupting it.
 function pickItems(spec: string): string[] | null {
-  spec = spec.trim();
-  if (spec === '') return null;
+  const raw = splitPickList(spec);
+  if (raw === null) return null;
+  return sanitizePickItems(raw);
+}
 
-  const raw: string[] = [];
-  let cur = '';
-  const flush = (): void => {
-    const t = cur.trim();
-    if (t !== '') raw.push(t);
-    cur = '';
-  };
-  let quote = '\0';
-  for (let i = 0; i < spec.length; i++) {
-    const c = spec[i];
-    if (quote !== '\0') {
-      if (c === quote) quote = '\0';
-      else cur += c;
-    } else if (c === "'" || c === '"' || c === '`') {
-      quote = c;
-    } else if (c === ' ' || c === '\t' || c === ',') {
-      flush();
-    } else {
-      cur += c;
-    }
+interface PickScan {
+  raw: string[];
+  cur: string;
+  quote: string;
+}
+
+// splitPickList tokenizes on spaces, tabs and commas outside quotes; an
+// unterminated quote fails the whole list.
+function splitPickList(spec: string): string[] | null {
+  const scan: PickScan = { raw: [], cur: '', quote: '\0' };
+  for (const c of spec.trim()) scanPickChar(scan, c);
+  if (scan.quote !== '\0') return null;
+  flushPick(scan);
+  return scan.raw;
+}
+
+function scanPickChar(scan: PickScan, c: string): void {
+  if (scan.quote !== '\0') {
+    if (c === scan.quote) scan.quote = '\0';
+    else scan.cur += c;
+    return;
   }
-  if (quote !== '\0') return null; // unterminated quote
-  flush();
+  if (isQuoteMark(c)) {
+    scan.quote = c;
+    return;
+  }
+  if (c === ' ' || c === '\t' || c === ',') {
+    flushPick(scan);
+    return;
+  }
+  scan.cur += c;
+}
 
+function isQuoteMark(c: string): boolean {
+  return c === "'" || c === '"' || c === '`';
+}
+
+function flushPick(scan: PickScan): void {
+  const t = scan.cur.trim();
+  if (t !== '') scan.raw.push(t);
+  scan.cur = '';
+}
+
+// sanitizePickItems strips wrapping quotes and rejects empty entries and any
+// item that itself contains a comma after quote-stripping.
+function sanitizePickItems(raw: string[]): string[] | null {
   const items: string[] = [];
   for (const r of raw) {
-    let t = r.trim();
-    if (t.length >= 2 && (t[0] === "'" || t[0] === '"' || t[0] === '`') && t[t.length - 1] === t[0]) {
-      t = t.slice(1, -1).trim();
-    }
+    const t = unwrapQuotes(r.trim());
     if (t === '') continue;
-    if (t.includes(',')) return null; // cannot survive our comma-splitting grammar
+    if (t.includes(',')) return null;
     items.push(t);
   }
-  if (items.length === 0) return null;
-  return items;
+  return items.length > 0 ? items : null;
+}
+
+function unwrapQuotes(t: string): string {
+  const quoted = t.length >= 2 && isQuoteMark(t[0]) && t[t.length - 1] === t[0];
+  return quoted ? t.slice(1, -1).trim() : t;
 }
 
 // rangeKey formats a parsed random range canonically.
