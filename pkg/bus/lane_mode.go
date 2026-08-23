@@ -44,6 +44,20 @@ func isHotIngressLane(stream, subject string) bool {
 // subscribing it in the same change. A default of "on" would do the first two
 // and not the third: failures would be scheduled onto a lane nobody reads and
 // silently expire.
+// IsCanaryLane admits one dedicated subject namespace of the retry stream into
+// the configured receipt-level mode while NATS_CONSUME_CANARY=on. It exists so
+// the shared-durable pull path can be load-validated against live broker
+// capacity without widening the production lanes' acknowledgement contracts:
+// nothing publishes or subscribes twitch.ingress.retry.canary.> except the
+// bench rig, and the default "off" makes this line inert everywhere.
+func IsCanaryLane(stream, subject string) bool {
+	if env.Get("NATS_CONSUME_CANARY", "off") != "on" {
+		return false
+	}
+	return stream == TwitchIngressRetryStream.Name &&
+		strings.HasPrefix(subject, "twitch.ingress.retry.canary.")
+}
+
 func FlowConsumeEnabled() bool {
 	return env.Get("NATS_CONSUME_FLOW", "off") == "on"
 }
