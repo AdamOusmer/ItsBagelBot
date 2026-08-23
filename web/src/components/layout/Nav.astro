@@ -305,8 +305,12 @@ const isActive = (href: string) =>
         padding-inline: max(24px, 4vw, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         border-bottom: var(--border) 1px solid;
         z-index: 50;
+        /* Standard property only, never hand-write -webkit-backdrop-filter:
+           Chrome 151 dropped the alias, and the minifier dedupes the pair to
+           whichever is last, which shipped prefixed-only CSS and killed the
+           blur in every Chromium browser. Lightning CSS re-adds the prefix
+           itself when build targets need it. */
         backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
         background: rgba(10, 10, 10, 0.7);
     }
 
