@@ -80,6 +80,16 @@ function q(s: string): string {
   return JSON.stringify(s);
 }
 
+// warnDiag/errDiag are the shared diagnostic factories; every finding in this
+// parser flows through one of them so the shape lives in exactly one place.
+function warnDiag(item_index: number, code: string, message: string): ImportDiagnostic {
+  return { severity: 'warn', item_index, code, message };
+}
+
+function errDiag(item_index: number, code: string, message: string): ImportDiagnostic {
+  return { severity: 'error', item_index, code, message };
+}
+
 // --- canonicalization primitives (ported from app/importer/mapping) ---------
 
 // NormalizeName: trim, strip ONE leading "!", trim, lowercase — identical to
@@ -119,24 +129,16 @@ function canonicalizeResponse(raw: string, itemIndex: number): {
     if (line === '') continue;
     if (byteLen(line) > MAX_RESPONSE_LINE_BYTES) {
       const cut = truncateLineBytes(line, MAX_RESPONSE_LINE_BYTES);
-      diags.push({
-        severity: 'warn',
-        item_index: itemIndex,
-        code: CODE.responseTruncated,
-        message: `response line cut from ${byteLen(line)} to ${byteLen(cut)} bytes (Twitch per-message limit)`
-      });
+      diags.push(warnDiag(itemIndex, CODE.responseTruncated,
+        `response line cut from ${byteLen(line)} to ${byteLen(cut)} bytes (Twitch per-message limit)`));
       line = cut;
     }
     lines.push(line);
   }
   if (lines.length > MAX_RESPONSE_LINES) {
     const extra = lines.length - MAX_RESPONSE_LINES;
-    diags.push({
-      severity: 'warn',
-      item_index: itemIndex,
-      code: CODE.responseLineDropped,
-      message: `${extra} response line(s) dropped past the ${MAX_RESPONSE_LINES}-line limit`
-    });
+    diags.push(warnDiag(itemIndex, CODE.responseLineDropped,
+      `${extra} response line(s) dropped past the ${MAX_RESPONSE_LINES}-line limit`));
     lines.length = MAX_RESPONSE_LINES;
   }
   return { lines, diags };
@@ -216,12 +218,8 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
   }
   const perm = widestTier(distinct);
   if (distinct.length > 1) {
-    diags.push({
-      severity: 'warn',
-      item_index: itemIndex,
-      code: 'command_permission_collapsed',
-      message: `allowed groups [${labels.join(', ')}] collapse to the widest tier ${q(perm)}; the narrower restrictions are lost`
-    });
+    diags.push(warnDiag(itemIndex, 'command_permission_collapsed',
+      `allowed groups [${labels.join(', ')}] collapse to the widest tier ${q(perm)}; the narrower restrictions are lost`));
   }
   return { perm, diags };
 }
@@ -231,12 +229,7 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
 function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[]): { perm: string; label: string } {
   let label = USERGROUP_LABELS[id];
   if (label === undefined) {
-    diags.push({
-      severity: 'warn',
-      item_index: itemIndex,
-      code: CODE.permissionUnmapped,
-      message: `unknown user group id ${id} treated as everyone`
-    });
+    diags.push(warnDiag(itemIndex, CODE.permissionUnmapped, `unknown user group id ${id} treated as everyone`));
     label = 'everyone';
   }
   // id 0 ("normal users") feeds the shared table as everyone; id 2
@@ -246,21 +239,12 @@ function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[
   const feed = id === 0 ? 'everyone' : id === 2 ? 'moderators' : label;
   const { perm, recognized } = mapPermission(feed);
   if (!recognized) {
-    diags.push({
-      severity: 'warn',
-      item_index: itemIndex,
-      code: CODE.permissionUnmapped,
-      message: `permission group ${q(label)} is not recognized; defaulted to everyone`
-    });
+    diags.push(warnDiag(itemIndex, CODE.permissionUnmapped, `permission group ${q(label)} is not recognized; defaulted to everyone`));
   }
   if (id === 3) {
     // Regulars widens to everyone: we have no regular tier (CONTRACT §7).
-    diags.push({
-      severity: 'warn',
-      item_index: itemIndex,
-      code: 'command_permission_widened',
-      message: 'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'
-    });
+    diags.push(warnDiag(itemIndex, 'command_permission_widened',
+      'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'));
   }
   return { perm, label };
 }
@@ -498,12 +482,8 @@ export function detectMoobot(bytes: Uint8Array): boolean {
 }
 
 function sectionDiag(secType: string, err: unknown): ImportDiagnostic {
-  return {
-    severity: 'warn',
-    item_index: -1,
-    code: CODE.moduleReadFailed,
-    message: `section ${q(secType)} could not be decoded (${(err as Error)?.message ?? String(err)}); skipped`
-  };
+  return warnDiag(-1, CODE.moduleReadFailed,
+    `section ${q(secType)} could not be decoded (${(err as Error)?.message ?? String(err)}); skipped`);
 }
 
 // ParseState threads one export's accumulators through the per-section
@@ -563,21 +543,13 @@ function timerSection(items: Record<string, unknown>[], _sec: RawSection, state:
 
 function permissionGroupSection(items: Record<string, unknown>[], _sec: RawSection, state: ParseState): void {
   const names = items.map((g) => asStr(g.name)).filter((n) => n !== '');
-  state.diags.push({
-    severity: 'warn',
-    item_index: -1,
-    code: 'permission_groups_skipped',
-    message: `${names.length} custom permission group(s) [${names.join(', ')}] gate dashboard access there and have no equivalent; skipped`
-  });
+  state.diags.push(warnDiag(-1, 'permission_groups_skipped',
+    `${names.length} custom permission group(s) [${names.join(', ')}] gate dashboard access there and have no equivalent; skipped`));
 }
 
 function responseOverrideSection(_items: Record<string, unknown>[], sec: RawSection, state: ParseState): void {
-  state.diags.push({
-    severity: 'warn',
-    item_index: -1,
-    code: 'response_overrides_skipped',
-    message: `${(sec.data as unknown[]).length} customized built-in response template(s) have no importable target; skipped`
-  });
+  state.diags.push(warnDiag(-1, 'response_overrides_skipped',
+    `${(sec.data as unknown[]).length} customized built-in response template(s) have no importable target; skipped`));
 }
 
 // parseMoobot translates one export file into a manifest plus diagnostics,
@@ -622,12 +594,8 @@ function commandsSection(items: Record<string, unknown>[], _sec: RawSection, sta
 function parseCommandItem(item: RawCommand, pos: number, state: ParseState): void {
   const name = normalizeName(asStr(item.identifier));
   if (name === '') {
-    state.diags.push({
-      severity: 'error',
-      item_index: -1,
-      code: CODE.nameInvalid,
-      message: `commands_custom entry ${pos} has an empty name; skipped`
-    });
+    state.diags.push(errDiag(-1, CODE.nameInvalid,
+      `commands_custom entry ${pos} has an empty name; skipped`));
     return;
   }
 
@@ -643,12 +611,8 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   const ctx: TagContext = commandTagContext(item, name);
   const tr = translateTags(asStr(item.text), ctx);
   for (const tok of tr.unmapped) {
-    state.diags.push({
-      severity: 'warn',
-      item_index: idx,
-      code: CODE.variableUnmapped,
-      message: `response uses <${tok}>, which has no equivalent; left as literal text`
-    });
+    state.diags.push(warnDiag(idx, CODE.variableUnmapped,
+      `response uses <${tok}>, which has no equivalent; left as literal text`));
   }
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
@@ -659,12 +623,8 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   if (item.enabled === false) {
     // Kept with an error rather than dropped: preview shows exactly
     // why it cannot land while commit skips it.
-    state.diags.push({
-      severity: 'error',
-      item_index: idx,
-      code: 'command_disabled',
-      message: 'command is disabled in Moobot; importing would enable it, so commit will skip it'
-    });
+    state.diags.push(errDiag(idx, 'command_disabled',
+      'command is disabled in Moobot; importing would enable it, so commit will skip it'));
   }
 
   state.commands.push(cmd);
@@ -699,23 +659,15 @@ function applyCounterValue(
   state: ParseState
 ): void {
   if (counterUsed && asNum(item.counter) === undefined) {
-    state.diags.push({
-      severity: 'warn',
-      item_index: idx,
-      code: 'counter_value_absent',
-      message: `<counter> imported as {counter:${name}}; it starts at 0 because the export carries no counter value`
-    });
+    state.diags.push(warnDiag(idx, 'counter_value_absent',
+      `<counter> imported as {counter:${name}}; it starts at 0 because the export carries no counter value`));
   }
   const counter = asNum(item.counter);
   if (counter === undefined) return;
   const value = Math.trunc(counter);
   if (counter !== value) {
-    state.diags.push({
-      severity: 'warn',
-      item_index: idx,
-      code: 'counter_value_fractional',
-      message: `counter value ${counter} floored to ${value} (counters are whole numbers here)`
-    });
+    state.diags.push(warnDiag(idx, 'counter_value_fractional',
+      `counter value ${counter} floored to ${value} (counters are whole numbers here)`));
   }
   state.counters.push({ name, value });
 }
@@ -751,22 +703,14 @@ function applyAliases(state: ParseState): void {
 function attachAlias(a: RawAlias, byName: Map<string, ManifestCommand>, diags: ImportDiagnostic[]): void {
   const target = byName.get(normalizeName(asStr(a.id)));
   if (asStr(a.type) !== 'custom' || !target) {
-    diags.push({
-      severity: 'warn',
-      item_index: -1,
-      code: 'command_alias_unresolved',
-      message: `alias ${q(asStr(a.alias))} targets ${asStr(a.type)} command ${q(asStr(a.id))}, which is not part of this export; skipped`
-    });
+    diags.push(warnDiag(-1, 'command_alias_unresolved',
+      `alias ${q(asStr(a.alias))} targets ${asStr(a.type)} command ${q(asStr(a.id))}, which is not part of this export; skipped`));
     return;
   }
   const alias = normalizeName(asStr(a.alias));
   if (alias === '') {
-    diags.push({
-      severity: 'warn',
-      item_index: -1,
-      code: CODE.aliasInvalid,
-      message: `alias of ${q(target.name)} is empty after normalization; skipped`
-    });
+    diags.push(warnDiag(-1, CODE.aliasInvalid,
+      `alias of ${q(target.name)} is empty after normalization; skipped`));
     return;
   }
   if (alias === target.name || target.aliases?.includes(alias)) return;
@@ -777,12 +721,8 @@ function attachAlias(a: RawAlias, byName: Map<string, ManifestCommand>, diags: I
 function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
   const args = a.arguments;
   if (typeof args === 'string' && args !== '') {
-    diags.push({
-      severity: 'warn',
-      item_index: -1,
-      code: 'command_alias_arguments',
-      message: `alias ${q(asStr(a.alias))} appends fixed arguments ${q(args)}, which have no equivalent; dropped`
-    });
+    diags.push(warnDiag(-1, 'command_alias_arguments',
+      `alias ${q(asStr(a.alias))} appends fixed arguments ${q(args)}, which have no equivalent; dropped`));
   }
 }
 
@@ -797,12 +737,8 @@ function expandTimer(t: RawTimer, state: ParseState): void {
   let desc = asStr(t.description);
   if (desc === '') desc = '<unnamed>';
   if (t.enabled === false) {
-    state.diags.push({
-      severity: 'error',
-      item_index: -1,
-      code: 'timer_disabled',
-      message: `timer ${q(desc)} is disabled in Moobot; importing would enable it, so it is skipped`
-    });
+    state.diags.push(errDiag(-1, 'timer_disabled',
+      `timer ${q(desc)} is disabled in Moobot; importing would enable it, so it is skipped`));
     return;
   }
 
@@ -817,31 +753,19 @@ function expandTimer(t: RawTimer, state: ParseState): void {
 function expandTimerCommands(t: RawTimer, desc: string, interval: number, state: ParseState): void {
   const idents = strList(t.commands);
   if (idents.length === 0) {
-    state.diags.push({
-      severity: 'error',
-      item_index: -1,
-      code: CODE.timerMessageEmpty,
-      message: `timer ${q(desc)} lists no commands; skipped`
-    });
+    state.diags.push(errDiag(-1, CODE.timerMessageEmpty,
+      `timer ${q(desc)} lists no commands; skipped`));
     return;
   }
 
   const firstIdx = state.timers.length;
   const resolution = resolveTimerCommands(idents, interval, state.texts, state.timers, state.diags);
   if (!resolution.resolved) {
-    state.diags.push({
-      severity: 'error',
-      item_index: -1,
-      code: CODE.timerMessageEmpty,
-      message: `timer ${q(desc)} references commands missing from this export (${resolution.unresolved.join(', ')}); skipped`
-    });
+    state.diags.push(errDiag(-1, CODE.timerMessageEmpty,
+      `timer ${q(desc)} references commands missing from this export (${resolution.unresolved.join(', ')}); skipped`));
   } else if (resolution.unresolved.length > 0) {
-    state.diags.push({
-      severity: 'warn',
-      item_index: firstIdx,
-      code: 'timer_command_unresolved',
-      message: `timer ${q(desc)} also references commands missing from this export (${resolution.unresolved.join(', ')})`
-    });
+    state.diags.push(warnDiag(firstIdx, 'timer_command_unresolved',
+      `timer ${q(desc)} also references commands missing from this export (${resolution.unresolved.join(', ')})`));
   }
 }
 
