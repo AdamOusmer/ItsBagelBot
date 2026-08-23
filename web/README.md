@@ -3,7 +3,7 @@
 # ItsBagelBot marketing site
 
 Static Astro site for [itsbagelbot.com](https://itsbagelbot.com): landing page,
-pricing, guides, command builder, and legal pages, in English and French
+pricing, guides, changelog, command builder, and legal pages, in English and French
 (`/fr/` routes).
 
 ## Structure
@@ -14,9 +14,10 @@ web/
 ├── src/
 │   ├── assets/      # build-time assets
 │   ├── components/  # Astro components
+│   ├── content/     # legal pages + changelog JSON collection
 │   ├── i18n/        # EN/FR catalogs
 │   ├── layouts/     # Layout.astro (head, CSP, icons, LOCALIZED sets)
-│   ├── pages/       # index, pricing, guides, command-builder, legal, fr/
+│   ├── pages/       # index, pricing, guides, changelog, command-builder, legal, fr/
 │   ├── script/      # client scripts
 │   └── styles/      # global styles
 └── tests/           # Playwright tests
