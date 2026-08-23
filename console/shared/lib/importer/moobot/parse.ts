@@ -3,10 +3,7 @@
 
 // Envelope decoding, section parsers and the command/timer/alias expansion
 // pipeline — the port of moobot.go. Tag translation lives in ./tags.
-
-// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-// Proprietary. No license granted. See LICENSE.md.
-
+//
 // Browser-side parser for Moobot settings exports (Tools -> Import & Export ->
 // "Export this dashboard to a file"), ported one-for-one from
 // app/importer/source/moobot (moobot.go + tags.go) plus the mapping rules that
@@ -42,7 +39,6 @@ import type {
 import { translateTags } from './tags';
 import type { TagContext, TextOption } from './tags';
 
-// Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
 // Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
 // Every code this parser emits is a row here, so call sites never repeat raw
 // strings (the golden fixtures compare them verbatim).
@@ -179,7 +175,11 @@ const PERM_RANK = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 // The five builtin Moobot usergroup ids, confirmed from their command-edit
 // modal; custom groups never appear in trigger_usergroups. Same table as
 // moobot.go usergroupLabels.
-const USERGROUP_LABELS: Record<number, string> = {
+// The five builtin Moobot usergroup ids; unknown ids are hostile-input
+// tolerance and degrade through the Partial lookup below.
+type MoobotUsergroup = 0 | 1 | 2 | 3 | 4;
+
+const USERGROUP_LABELS: Partial<Record<MoobotUsergroup, string>> = {
   0: 'normal users',
   1: 'moderators',
   2: 'editors',
@@ -250,7 +250,7 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
 // resolveOneGroup maps one builtin usergroup id to its tier, emitting that
 // id's diagnostics in order: unknown id, unrecognized feed, widened regulars.
 function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[]): { perm: string; label: string } {
-  let label = USERGROUP_LABELS[id];
+  let label = USERGROUP_LABELS[id as MoobotUsergroup];
   if (label === undefined) {
     diags.push(warnDiag(itemIndex, CODE.permissionUnmapped, `unknown user group id ${id} treated as everyone`));
     label = 'everyone';
@@ -515,7 +515,7 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   if (lines.length) cmd.responses = lines;
   state.diags.push(...respDiags);
 
-  applyCounterValue(item, name, idx, tr.counterUsed, state);
+  applyCounterValue(item, name, tr.counterUsed, state);
 
   if (item.enabled === false) {
     // Kept with an error rather than dropped: preview shows exactly
@@ -548,13 +548,10 @@ function commandTagContext(item: RawCommand, name: string): TagContext {
   };
 }
 
-function applyCounterValue(
-  item: RawCommand,
-  name: string,
-  idx: number,
-  counterUsed: boolean,
-  state: ParseState
-): void {
+// applyCounterValue records a command's counter start value. idx is derived
+// from the command pass — it equals the slot this command is about to take.
+function applyCounterValue(item: RawCommand, name: string, counterUsed: boolean, state: ParseState): void {
+  const idx = state.commands.length;
   if (counterUsed && asNum(item.counter) === undefined) {
     state.diags.push(warnDiag(idx, CODE.counterValueAbsent,
       `<counter> imported as {counter:${name}}; it starts at 0 because the export carries no counter value`));
@@ -630,6 +627,20 @@ function applyTimers(state: ParseState): void {
   for (const t of state.stagedTimers) expandTimer(t, state);
 }
 
+// SECONDS_PER_MINUTE converts Moobot's minute-based timer.time column.
+// Decision record (ported from moobot.go): Moobot stores intervals in MINUTES
+// while the manifest carries seconds; the dashboard enforces >=1 minute, so a
+// missing or nonsense time falls back to one minute rather than earning a
+// clamp warning.
+const SECONDS_PER_MINUTE = 60;
+
+const MOOBOT_FALLBACK_INTERVAL_SECONDS = SECONDS_PER_MINUTE;
+
+function timerIntervalSeconds(t: RawTimer): number {
+  const time = asNum(t.time);
+  return time !== undefined && time > 0 ? Math.trunc(time * SECONDS_PER_MINUTE) : MOOBOT_FALLBACK_INTERVAL_SECONDS;
+}
+
 function expandTimer(t: RawTimer, state: ParseState): void {
   let desc = asStr(t.description);
   if (desc === '') desc = '<unnamed>';
@@ -639,15 +650,18 @@ function expandTimer(t: RawTimer, state: ParseState): void {
     return;
   }
 
-  // Minutes -> seconds; the dashboard enforces >=1 minute, so a missing or
-  // nonsense time falls back to 60s rather than earning a clamp warning.
-  const time = asNum(t.time);
-  const interval = time !== undefined && time > 0 ? Math.trunc(time * 60) : 60;
-
-  expandTimerCommands(t, desc, interval, state);
+  expandTimerCommands(t, { desc, interval: timerIntervalSeconds(t) }, state);
 }
 
-function expandTimerCommands(t: RawTimer, desc: string, interval: number, state: ParseState): void {
+// TimerPlan is one enabled timer's resolved identity and cadence before its
+// referenced commands are expanded.
+interface TimerPlan {
+  desc: string;
+  interval: number;
+}
+
+function expandTimerCommands(t: RawTimer, plan: TimerPlan, state: ParseState): void {
+  const { desc, interval } = plan;
   const idents = strList(t.commands);
   if (idents.length === 0) {
     state.diags.push(errDiag(-1, CODE.timerMessageEmpty,
@@ -656,7 +670,7 @@ function expandTimerCommands(t: RawTimer, desc: string, interval: number, state:
   }
 
   const firstIdx = state.timers.length;
-  const resolution = resolveTimerCommands(idents, interval, state.texts, state.timers, state.diags);
+  const resolution = resolveTimerCommands(idents, plan, state);
   if (!resolution.resolved) {
     state.diags.push(errDiag(-1, CODE.timerMessageEmpty,
       `timer ${q(desc)} references commands missing from this export (${resolution.unresolved.join(', ')}); skipped`));
@@ -668,12 +682,12 @@ function expandTimerCommands(t: RawTimer, desc: string, interval: number, state:
 
 // resolveTimerCommands appends one timer entry per distinct identifier that
 // resolves against the command pass's translated texts.
+// resolveTimerCommands appends one timer entry per distinct identifier that
+// resolves against the command pass's translated texts.
 function resolveTimerCommands(
   idents: string[],
-  interval: number,
-  texts: Map<string, string>,
-  timers: ManifestTimer[],
-  diags: ImportDiagnostic[]
+  plan: TimerPlan,
+  state: ParseState
 ): { resolved: boolean; unresolved: string[] } {
   const unresolved: string[] = [];
   let resolved = false;
@@ -682,17 +696,17 @@ function resolveTimerCommands(
     const name = normalizeName(ident);
     if (seen.has(name)) continue;
     seen.add(name);
-    const text = texts.get(name);
+    const text = state.texts.get(name);
     if (text === undefined || text.trim() === '') {
       unresolved.push(ident);
       continue;
     }
-    const idx = timers.length;
+    const idx = state.timers.length;
     const { lines, diags: msgDiags } = canonicalizeResponse(text, idx);
-    diags.push(...msgDiags);
-    timers.push({
+    state.diags.push(...msgDiags);
+    state.timers.push({
       message: lines.join('\n'),
-      interval_seconds: interval,
+      interval_seconds: plan.interval,
       online_only: true
     });
     resolved = true;
