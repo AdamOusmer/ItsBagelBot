@@ -109,3 +109,42 @@ func DigestDuelPool(sorted []DuelStake) string {
 
 // duelKey builds one broadcaster-scoped key from a prefix.
 func duelKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
+
+// parseDuelLedger converts a raw hash read into canonical stakes, dropping
+// unreadable or non-positive entries rather than poisoning the pool.
+func parseDuelLedger(m map[string]string) []DuelStake {
+	entries := make([]DuelStake, 0, len(m))
+	for login, v := range m {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if validStake(n, err) {
+			entries = append(entries, DuelStake{Login: login, Stake: n})
+		}
+	}
+	return SortDuelStakes(entries)
+}
+
+// validStake accepts exactly the ledger entries worth counting.
+func validStake(n int64, err error) bool {
+	return err == nil && n > 0
+}
+
+// sumStakes totals the readable stakes; an unreadable entry is skipped
+// rather than poisoning the pot.
+func sumStakes(vals []string) int64 {
+	var total int64
+	for _, v := range vals {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			total += n
+		}
+	}
+	return total
+}
+
+// ledgerMap renders canonical entries back to the receipt's stakes form.
+func ledgerMap(sorted []DuelStake) map[string]int64 {
+	m := make(map[string]int64, len(sorted))
+	for _, e := range sorted {
+		m[e.Login] = e.Stake
+	}
+	return m
+}
