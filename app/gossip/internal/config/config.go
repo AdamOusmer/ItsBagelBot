@@ -98,6 +98,18 @@ type Config struct {
 	GoveeRateLimit        float64
 	GoveeKeySubjectPrefix string
 
+	// Clash Royale provider (!cr / !crstats / !crdecks / !crranked /
+	// !crtrophy): the official Supercell player API through RoyaleAPI's
+	// supported proxy. APIKey is a standard Supercell key created on
+	// developer.clashroyale.com whose allowed-IP list names RoyaleAPI's proxy
+	// egress 45.79.218.79 (not ours) so calls may forward through
+	// proxy.royaleapi.dev; empty = provider disabled. Neither Supercell nor
+	// the proxy publishes a hard per-key rate number, so the budget assumes a
+	// trusted key and CLASHROYALE_RATE_LIMIT must be lowered for a fresh one.
+	ClashRoyaleBaseURL   string
+	ClashRoyaleAPIKey    string
+	ClashRoyaleRateLimit float64
+
 	ListenAddr string
 }
 
@@ -162,12 +174,13 @@ func Load() *Config {
 		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
 		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),
 		ValorantAPIKey:         env.Get("VALORANT_API_KEY", ""),
-		// HenrikDev's enhanced tier allows 90 requests/min for public bots
-		// (basic is 30); the default sits under the enhanced ceiling so bursts
-		// deny locally instead of tripping the upstream limiter, which also
-		// poisons any cache fill in flight. A basic-tier key MUST set
-		// VALORANT_RATE_LIMIT=30 or it will 429 constantly.
-		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 80.0),
+		// The fleet runs HenrikDev's instant Basic tier: 30 requests/min. The
+		// default sits AT the ceiling because every gossip pod shares one key,
+		// and the local bucket denying at 30 is strictly cheaper than the
+		// upstream's own 429 poisoning any cache fill in flight. Upgrading the
+		// Doppler key to Enhanced (90/min) MUST be paired with raising this to
+		// ~80, or a third of the paid allowance goes unused.
+		ValorantRateLimit: env.GetFloat("VALORANT_RATE_LIMIT", 30.0),
 		// valorant-api.com publishes no hard per-client limit; 60/min is
 		// conservative for a multi-MB skins payload that caches for a day.
 		ValorantContentRateLimit: env.GetFloat("VALORANT_CONTENT_RATE_LIMIT", 60.0),
@@ -175,6 +188,10 @@ func Load() *Config {
 		GoveeBaseURL:          env.Get("GOVEE_BASE_URL", "https://openapi.api.govee.com"),
 		GoveeRateLimit:        env.GetFloat("GOVEE_RATE_LIMIT", 8.0),
 		GoveeKeySubjectPrefix: env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key"),
+
+		ClashRoyaleBaseURL:   env.Get("CLASHROYALE_BASE_URL", "https://proxy.royaleapi.dev/v1"),
+		ClashRoyaleAPIKey:    env.Get("CLASHROYALE_API_KEY", ""),
+		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}
