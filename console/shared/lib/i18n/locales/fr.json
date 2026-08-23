@@ -617,6 +617,7 @@
     "pickerEmpty": "Aucun compteur pour le moment. Créez-en un ci-dessous.",
     "pickerNew": "Nouveau compteur",
     "pickerCreate": "Créer et insérer",
+    "pickerTarget": "Incrémenter le compteur du spectateur mentionné (@cible) plutôt que celui de l'auteur",
     "setValue": "Définir la valeur",
     "set": "Définir",
     "reset": "Réinitialiser",

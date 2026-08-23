@@ -35,6 +35,15 @@ const counterTokenPrefix = "counter:"
 // content may resolve it.
 const botCounterTokenPrefix = "bot:"
 
+// targetCounterTokenPrefix marks a target-addressed counter reference inside a
+// counter token ({counter:target:shutups}): the bump keys on the viewer the
+// command mentions ({touser}) instead of the sender, so "!shutup @bob" counts
+// against bob. The counter's own scope still decides the bucket shape — the
+// addressing only changes whose viewer identity rides the bump (issue #479).
+// Like "bot:", the "target:" spelling inside a counter name is reserved by the
+// worker's token grammar.
+const targetCounterTokenPrefix = "target:"
+
 // expandCommand expands a custom-command response, supporting the {user},
 // {sender}, {args} and {touser} tokens. It is expand specialized for the command
 // path. {target} is the dashboard-facing name for {touser}; both are kept as

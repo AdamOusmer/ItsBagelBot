@@ -73,6 +73,10 @@ type Pipeline struct {
 	loyalty  LoyaltyStore
 	dedup    *EventDedup
 	stats    *botStats
+	// roster remembers who this replica has seen speak, so a target-addressed
+	// counter token ({counter:target:...}) can key its bump on the mentioned
+	// viewer. Pure in-process memory; see chatterRoster.
+	roster *chatterRoster
 
 	botID            string
 	outgressPremium  string
@@ -111,6 +115,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		campaign:         d.Campaign,
 		shieldEnabled:    cfg.ShieldEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
+		roster:           newChatterRoster(),
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
@@ -164,6 +169,8 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		return nil
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
+
+	p.roster.ObserveEnvelope(broadcasterID, env)
 
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {

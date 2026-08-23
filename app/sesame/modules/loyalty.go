@@ -376,7 +376,13 @@ func (lc loyaltyCmd) counterAdd(ctx context.Context, rest []string) error {
 	}
 	viewerID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
 	viewer := engine.Viewer{ID: viewerID, Login: lc.c.Env.ChatterUserLogin, Name: lc.c.Env.ChatterUserName}
-	value, err := lc.d.Loyalty.CounterBump(ctx, lc.c.BroadcasterID, rest[0], viewer, command, delta)
+	value, err := lc.d.Loyalty.CounterBump(ctx, engine.CounterBump{
+		BroadcasterID: lc.c.BroadcasterID,
+		Name:          rest[0],
+		Viewer:        viewer,
+		Command:       command,
+		Delta:         delta,
+	})
 	if err != nil {
 		return lc.fail("add", err)
 	}

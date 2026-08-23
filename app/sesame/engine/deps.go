@@ -219,6 +219,18 @@ type Viewer struct {
 	Name  string
 }
 
+// CounterBump is one counter increment request: which broadcaster's counter
+// (name), against whose identity (viewer — zero rides the shared value),
+// keyed by which source (the command trigger or reward title; only the scopes
+// that bucket per source use it), and by how much.
+type CounterBump struct {
+	BroadcasterID uint64
+	Name          string
+	Viewer        Viewer
+	Command       string
+	Delta         int64
+}
+
 // LoyaltyStore is the loyalty surface modules and the pipeline depend on:
 // point accrual (fire-and-forget through the worker-side reporter), counter
 // bumps/reads over the Valkey live view, cached balance peeks and the
@@ -226,12 +238,11 @@ type Viewer struct {
 type LoyaltyStore interface {
 	// Earn records one viewer's point/watch accrual; batched and loss-tolerant.
 	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
-	// CounterBump increments a counter by delta and returns the new value.
-	// viewer is the acting chatter and command the triggering source's name
-	// (a command's canonical trigger, or a channel-point reward's title); each
-	// is used only when the counter's scope needs it (viewer, or
-	// viewer+command — the three modes, all per channel).
-	CounterBump(ctx context.Context, broadcasterID uint64, name string, viewer Viewer, command string, delta int64) (int64, error)
+	// CounterBump increments a counter and returns the new value. Which fields
+	// of the request matter is decided by the counter's own scope: viewer
+	// identity keys the per-viewer buckets, command names the per-source
+	// bucket, channel scope ignores both.
+	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	// CounterPeek reads a counter without bumping it; found=false means it
 	// does not exist.
 	CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error)
