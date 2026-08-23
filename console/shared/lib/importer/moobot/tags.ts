@@ -103,32 +103,47 @@ interface TagResult {
 export function translateTags(text: string, ctx: TagContext): TagResult {
   const res: TagResult = { text: '', unmapped: [], counterUsed: false };
   const seen = new Set<string>();
+  const render: TagRender = { ctx, res, seen };
   let out = '';
   let last = 0;
   for (const m of text.matchAll(TAG_PATTERN)) {
     const start = m.index ?? 0;
     out += text.slice(last, start);
     last = start + m[0].length;
-    out += renderTag(m[0], m[1], ctx, res, seen);
+    out += renderTag(render, m[0], m[1]);
   }
   out += text.slice(last);
   res.text = out;
   return res;
 }
 
+// TagRender bundles what one tag replacement may touch: the command context,
+// the accumulating result and the once-per-tag bookkeeping. Grouped so the
+// renderer takes a single value instead of parallel arguments.
+interface TagRender {
+  ctx: TagContext;
+  res: TagResult;
+  seen: Set<string>;
+}
+
 // renderTag contributes one tag's output: its replacement when mapped,
 // otherwise the literal bracketed text plus a first-of-kind warning for
 // catalog entries we cannot express (unknown bracketed words stay silent —
 // they are indistinguishable from prose until Moobot defines them).
-function renderTag(raw: string, tag: string, ctx: TagContext, res: TagResult, seen: Set<string>): string {
-  const replacement = replaceTag(tag, ctx);
+function renderTag(render: TagRender, raw: string, tag: string): string {
+  const replacement = replaceTag(tag, render.ctx);
   if (replacement !== '') {
-    if (tag === 'counter') res.counterUsed = true;
+    if (tag === 'counter') render.res.counterUsed = true;
     return replacement;
   }
-  if (KNOWN_TAGS.has(tag) && !seen.has(tag)) {
-    seen.add(tag);
-    res.unmapped.push(tag);
-  }
+  noteUnmappedTag(render, tag);
   return raw;
+}
+
+// noteUnmappedTag records a first-of-kind warning for a known-but-unmappable
+// catalog tag.
+function noteUnmappedTag(render: TagRender, tag: string): void {
+  if (!KNOWN_TAGS.has(tag) || render.seen.has(tag)) return;
+  render.seen.add(tag);
+  render.res.unmapped.push(tag);
 }
