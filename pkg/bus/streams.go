@@ -596,7 +596,8 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
-	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream)
+	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
+		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {
