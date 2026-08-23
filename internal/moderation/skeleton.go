@@ -107,11 +107,18 @@ func Normalize(dst []byte, text string) []byte {
 // strippable runes are C0 controls + DEL (both excluded here).
 func isPlainASCII(text string) bool {
 	for i := 0; i < len(text); i++ {
-		if c := text[i]; c >= utf8.RuneSelf || c < 0x20 || c == 0x7f {
+		if !printableASCII(text[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+// printableASCII reports whether b survives Normalize's fast path unchanged:
+// any non-ASCII byte routes to the unicode scanner, controls and DEL are
+// stripped there.
+func printableASCII(b byte) bool {
+	return b < utf8.RuneSelf && b >= 0x20 && b != 0x7f
 }
 
 // isSkelSpace reports whether b is a whitespace byte that survives Normalize

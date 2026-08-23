@@ -254,7 +254,17 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 		}
 	}
 
-	return g.heuristicVerdict(sig, flags, allowed, text, sc), out
+	return g.heuristicVerdict(styleAttempt{sig: sig, flags: flags, allowed: allowed, text: text}, sc), out
+}
+
+// styleAttempt is the style-juror's full view of one line: the resolved flags,
+// the signals they came from, whether a channel allow-term already forgives
+// the line, and the raw text the rescues re-read.
+type styleAttempt struct {
+	sig     signals
+	flags   styleFlags
+	allowed bool
+	text    string
 }
 
 // styleFlags are the per-line heuristic signals, resolved under the channel's
@@ -421,14 +431,14 @@ func (g *Gate) lexiconScan(sig signals, text string, skel []byte) (moderation.Ca
 // passed: the two single-explanation rescues (evaluateRescues) may suppress a
 // flagged line toward ActionNone, an allow-term suppresses every heuristic,
 // and anything still standing deletes.
-func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, text string, sc assessScope) Verdict {
-	if !flags.any() {
+func (g *Gate) heuristicVerdict(attempt styleAttempt, sc assessScope) Verdict {
+	if !attempt.flags.any() {
 		return Verdict{}
 	}
-	if g.evaluateRescues(sig, flags, text, sc) {
+	if g.evaluateRescues(attempt, sc) {
 		return Verdict{}
 	}
-	if allowed {
+	if attempt.allowed {
 		return Verdict{}
 	}
 	return Verdict{Action: ActionDelete, Rule: "heuristic"}
@@ -459,16 +469,16 @@ func (g *Gate) heuristicVerdict(sig signals, flags styleFlags, allowed bool, tex
 //     least half the non-space runes the line is hype, not abuse.
 //
 // Zero-width, repeat, and multi-flag shapes are never suppressed.
-func (g *Gate) evaluateRescues(sig signals, flags styleFlags, text string, sc assessScope) bool {
-	if flags.onlyCaps() {
+func (g *Gate) evaluateRescues(attempt styleAttempt, sc assessScope) bool {
+	if attempt.flags.onlyCaps() {
 		// Span presence makes availability true; dominance then decides. No
 		// spans -> fetched-layer semantics verbatim.
-		if g.emoteDominant(text, sc.msgCodes, uint64(sc.ch)) {
+		if g.emoteDominant(attempt.text, sc.msgCodes, uint64(sc.ch)) {
 			return true
 		}
 		return len(sc.msgCodes) == 0 && g.emotesUnavailable()
 	}
-	return flags.onlySymbol() && sig.emojiDominant()
+	return attempt.flags.onlySymbol() && attempt.sig.emojiDominant()
 }
 
 // blockTermVerdict scans the channel's own block-terms (skeleton space); a hit
