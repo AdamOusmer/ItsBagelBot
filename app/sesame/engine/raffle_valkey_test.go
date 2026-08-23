@@ -39,26 +39,36 @@ func TestDigestPoolBindsToTheExactPool(t *testing.T) {
 	assert.NotEqual(t, d, DigestPool([]string{"alice", "bob"}))
 }
 
-func TestRngPickDistinctInRange(t *testing.T) {
+func TestPickWinnersDistinctInRange(t *testing.T) {
+	pool := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
 	for range 200 {
-		pick := rngPick(10, 4)
+		pick := pickWinners(pool, 4)
 		require.Len(t, pick, 4)
-		seen := map[int]bool{}
-		for _, idx := range pick {
-			assert.GreaterOrEqual(t, idx, 0)
-			assert.Less(t, idx, 10)
-			assert.False(t, seen[idx], "pick returned a duplicate index")
-			seen[idx] = true
+		seen := map[string]bool{}
+		for _, w := range pick {
+			assert.False(t, seen[w], "pick returned a duplicate winner")
+			seen[w] = true
 		}
 	}
 }
 
-func TestRngPickSingleCoversWholeRange(t *testing.T) {
-	hits := map[int]bool{}
+func TestPickWinnersSingleCoversWholePool(t *testing.T) {
+	pool := []string{"a", "b", "c"}
+	hits := map[string]bool{}
 	for range 500 {
-		hits[rngPick(3, 1)[0]] = true
+		hits[pickWinners(pool, 1)[0]] = true
 	}
 	assert.Len(t, hits, 3, "a single-winner draw should reach every entrant over time")
+}
+
+func TestPickWinnersOversizedAskClampsToCeiling(t *testing.T) {
+	pool := []string{"a", "b", "c", "d", "e"}
+	// An absurd ask from chat args or corrupt state must not panic or narrow
+	// through int: it is clamped to the ceiling, and a pool under the ceiling
+	// means everyone wins.
+	pick := pickWinners(pool, 1<<40)
+	assert.ElementsMatch(t, pool, pick)
+	assert.Empty(t, pickWinners(pool, -5))
 }
 
 // onExpired rides the shared expired-keys firehose; everything that is not a
