@@ -1034,10 +1034,12 @@ function legacyBraceEnd(s: string, i: number): number {
 }
 
 // hasNestedExplicit reports whether s[from:until] opens another $( or ${
-// token, i.e. whether the enclosing token is a composite.
+// token, i.e. whether the enclosing token is a composite. The lookahead never
+// crosses until: an end index inside s implies j + 1 stays inside s too, so
+// opensFamily's own length guard is equivalent to the original bound here.
 function hasNestedExplicit(s: string, from: number, until: number): boolean {
   for (let j = from; j < until - 1; j++) {
-    if (s[j] === '$' && j + 1 < until && (s[j + 1] === '(' || s[j + 1] === '{')) return true;
+    if (opensFamily(s, j) !== '') return true;
   }
   return false;
 }
