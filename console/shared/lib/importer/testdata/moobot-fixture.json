@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "type": "settings",
+  "settings": [
+    {
+      "type": "commands_custom",
+      "data": [
+        {
+          "identifier": "discord",
+          "text": "Join the community at https://discord.gg/example - see you there!",
+          "cooldown": 10,
+          "trigger_usergroups": [
+            0
+          ]
+        },
+        {
+          "identifier": "lurk",
+          "text": "Thanks for lurking <username>, enjoy the stream!",
+          "cooldown": 5
+        },
+        {
+          "identifier": "love",
+          "text": "<username> x <twitch.mentioned> = <random.number>% compatible!",
+          "cooldown": 5,
+          "trigger_usergroups": [
+            4
+          ],
+          "random_number_range_start": 1,
+          "random_number_range_end": 100
+        },
+        {
+          "identifier": "8ball",
+          "text": "The ball says: <random.text.1>",
+          "trigger_usergroups": [
+            0
+          ],
+          "random_text_1": [
+            {
+              "text": "absolutely yes."
+            },
+            {
+              "text": "no chance."
+            },
+            {
+              "text": "ask again later."
+            }
+          ]
+        },
+        {
+          "identifier": "deaths",
+          "text": "Death counter: <counter>",
+          "cooldown": 15,
+          "trigger_usergroups": [
+            0
+          ],
+          "counter": 87
+        },
+        {
+          "identifier": "so",
+          "text": "Go follow <twitch.mentioned> - they were last seen playing <twitch.game>!",
+          "trigger_usergroups": [
+            1
+          ]
+        },
+        {
+          "identifier": "multi",
+          "text": "<args> | second arg: <2> | set by <by>",
+          "trigger_usergroups": [
+            4,
+            2
+          ]
+        },
+        {
+          "identifier": "offline",
+          "text": "The stream is offline right now, check the schedule!",
+          "enabled": false,
+          "trigger_usergroups": [
+            0
+          ]
+        },
+        {
+          "identifier": "rules",
+          "text": "Be kind. No spoilers. Mods have final say.",
+          "trigger_usergroups": [
+            3
+          ],
+          "counter": 12.7
+        }
+      ]
+    },
+    {
+      "type": "command_aliases",
+      "data": [
+        {
+          "alias": "ds",
+          "id": "discord",
+          "type": "custom",
+          "arguments": "https://discord.gg/example"
+        },
+        {
+          "alias": "8b",
+          "id": "8ball",
+          "type": "custom"
+        },
+        {
+          "alias": "socials",
+          "id": "twitter",
+          "type": "builtin"
+        },
+        {
+          "alias": "lurk",
+          "id": "lurk",
+          "type": "custom"
+        }
+      ]
+    },
+    {
+      "type": "command_timers",
+      "data": [
+        {
+          "description": "orphan timer",
+          "enabled": true
+        },
+        {
+          "description": "community",
+          "enabled": true,
+          "time": 15,
+          "commands": [
+            "discord",
+            "rules"
+          ]
+        },
+        {
+          "description": "lurk reminder",
+          "enabled": true,
+          "time": 30,
+          "commands": [
+            "lurk",
+            "twitter"
+          ]
+        },
+        {
+          "description": "retired poll",
+          "enabled": false,
+          "time": 10,
+          "commands": [
+            "deaths"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "permission_groups",
+      "data": [
+        {
+          "name": "VIP Crew"
+        },
+        {
+          "name": "Loyalty Testers"
+        }
+      ]
+    },
+    {
+      "type": "responses",
+      "data": [
+        {
+          "key": "greeting"
+        },
+        {
+          "key": "farewell"
+        }
+      ]
+    }
+  ]
+}
