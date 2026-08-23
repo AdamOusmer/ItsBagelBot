@@ -121,17 +121,51 @@ func (b *Batcher[K, V]) Requeue(key K, value V) {
 	if _, exists := b.pending[key]; !exists {
 		b.pending[key] = value
 	}
+	// A failed flush requeues through here after flushPending zeroed the
+	// gauge; without this, Stats reports an empty backlog while retries sit
+	// in pending and staleness alerts stay silent.
+	b.pendingGauge.Store(int64(len(b.pending)))
 	b.mu.Unlock()
 }
 
+// closeRetryBackoff spaces out final-drain retries in Close so a database
+// that stopped answering is not hammered in a tight loop for the whole
+// shutdown budget.
+const closeRetryBackoff = 100 * time.Millisecond
+
 // Close flushes whatever is pending and stops the background loop. Idempotent:
 // an owner and a deferred cleanup may both call it without sequencing care.
+//
+// The final drain retries until the caller's context is spent: once stop has
+// fired, no later window can consume requeued items, so a transient failure
+// here would otherwise drop accepted writes at process exit. If the budget
+// runs out first, what remains is logged as lost — never returned silently.
 func (b *Batcher[K, V]) Close(ctx context.Context) {
 
 	b.closeOnce.Do(func() { close(b.stop) })
 	<-b.done
 
-	b.flushPending(ctx)
+	for b.pendingCount() > 0 {
+		b.flushPending(ctx)
+
+		if b.pendingCount() == 0 {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			b.log.Error("batcher closed before pending writes landed; writes lost",
+				zap.Int("items", b.pendingCount()))
+			return
+		case <-time.After(closeRetryBackoff):
+		}
+	}
+}
+
+func (b *Batcher[K, V]) pendingCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.pending)
 }
 
 func (b *Batcher[K, V]) run() {
