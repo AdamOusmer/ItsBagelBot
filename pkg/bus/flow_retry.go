@@ -14,7 +14,6 @@ import (
 
 	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
-	"github.com/nats-io/nuid"
 	"go.uber.org/zap"
 )
 
@@ -109,7 +108,9 @@ func scheduleLaneRetry(nc *nats.Conn, lane string, wire *nats.Msg, msg *Message)
 // outright when a time zone is present, even "UTC".
 func retryScheduleMsg(lane string, wire *nats.Msg, delay time.Duration, now time.Time) *nats.Msg {
 	target := RetryLaneSubject(lane)
-	schedule := nats.NewMsg(target + "." + nuid.Next())
+	// The pooled generator (nextNUID) avoids serializing this hop behind
+	// nuid.Next's process-global mutex; the row only needs uniqueness.
+	schedule := nats.NewMsg(target + "." + nextNUID())
 	schedule.Data = append([]byte(nil), wire.Data...)
 	copyApplicationHeaders(schedule.Header, wire.Header)
 
