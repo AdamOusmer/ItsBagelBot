@@ -536,6 +536,12 @@ func (s *pullSubscriber) pumpIterator() bool {
 	}
 	release := s.stopIteratorOnClose(iter)
 	defer release()
+	// A successfully bound iterator IS fetch-loop progress: Next may legitimately
+	// block for hours on an idle lane. Clearing the health clock here — not only
+	// on message arrival — is what lets a lane recover from one transient error
+	// while idle; otherwise errSince ages past laneUnhealthyAfter and the pod
+	// reports itself unready until traffic happens to return.
+	s.noteFetchProgress()
 	sinceFloor := 0
 	for {
 		wire, err := iter.Next()
