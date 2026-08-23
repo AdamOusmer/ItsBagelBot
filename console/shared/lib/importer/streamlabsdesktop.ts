@@ -1195,20 +1195,22 @@ function skipParens(text: string, pos: number): number {
 // reversed, since {random:max-min} would be an empty range here while SLCB
 // tolerates it).
 function randnumTarget(span: string): string | null {
-  const inner = span.replace(/^\(/, '').replace(/\)$/, '');
-  const parts = inner.split(',');
-  if (parts.length === 1) {
-    const maxV = goAtoi(parts[0].trim());
-    if (maxV === null) return null;
-    return `{random:1-${maxV}}`;
-  }
-  if (parts.length === 2) {
-    const a = goAtoi(parts[0].trim());
-    const b = goAtoi(parts[1].trim());
-    if (a === null || b === null) return null;
-    return `{random:${Math.min(a, b)}-${Math.max(a, b)}}`;
-  }
+  const parts = span.replace(/^\(/, '').replace(/\)$/, '').split(',');
+  if (parts.length === 1) return singleBoundRange(parts[0]);
+  if (parts.length === 2) return boundedRange(parts[0], parts[1]);
   return null;
+}
+
+function singleBoundRange(rawMax: string): string | null {
+  const max = goAtoi(rawMax.trim());
+  return max === null ? null : `{random:1-${max}}`;
+}
+
+function boundedRange(rawA: string, rawB: string): string | null {
+  const a = goAtoi(rawA.trim());
+  const b = goAtoi(rawB.trim());
+  if (a === null || b === null) return null;
+  return `{random:${Math.min(a, b)}-${Math.max(a, b)}}`;
 }
 
 // isArgsSlot reports whether name is one of $arg1..9 / $num1..9 / $argl1..9.

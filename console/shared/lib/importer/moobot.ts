@@ -790,14 +790,14 @@ function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
 // command present in the export; a disabled timer is dropped outright (nothing
 // user-authored is lost — entries synthesize from referenced commands).
 function applyTimers(state: ParseState): void {
-  for (const t of state.stagedTimers) expandTimer(t, state.texts, state.timers, state.diags);
+  for (const t of state.stagedTimers) expandTimer(t, state);
 }
 
-function expandTimer(t: RawTimer, texts: Map<string, string>, timers: ManifestTimer[], diags: ImportDiagnostic[]): void {
+function expandTimer(t: RawTimer, state: ParseState): void {
   let desc = asStr(t.description);
   if (desc === '') desc = '<unnamed>';
   if (t.enabled === false) {
-    diags.push({
+    state.diags.push({
       severity: 'error',
       item_index: -1,
       code: 'timer_disabled',
@@ -811,20 +811,13 @@ function expandTimer(t: RawTimer, texts: Map<string, string>, timers: ManifestTi
   const time = asNum(t.time);
   const interval = time !== undefined && time > 0 ? Math.trunc(time * 60) : 60;
 
-  expandTimerCommands(t, desc, interval, texts, timers, diags);
+  expandTimerCommands(t, desc, interval, state);
 }
 
-function expandTimerCommands(
-  t: RawTimer,
-  desc: string,
-  interval: number,
-  texts: Map<string, string>,
-  timers: ManifestTimer[],
-  diags: ImportDiagnostic[]
-): void {
+function expandTimerCommands(t: RawTimer, desc: string, interval: number, state: ParseState): void {
   const idents = strList(t.commands);
   if (idents.length === 0) {
-    diags.push({
+    state.diags.push({
       severity: 'error',
       item_index: -1,
       code: CODE.timerMessageEmpty,
@@ -833,17 +826,17 @@ function expandTimerCommands(
     return;
   }
 
-  const firstIdx = timers.length;
-  const resolution = resolveTimerCommands(idents, interval, texts, timers, diags);
+  const firstIdx = state.timers.length;
+  const resolution = resolveTimerCommands(idents, interval, state.texts, state.timers, state.diags);
   if (!resolution.resolved) {
-    diags.push({
+    state.diags.push({
       severity: 'error',
       item_index: -1,
       code: CODE.timerMessageEmpty,
       message: `timer ${q(desc)} references commands missing from this export (${resolution.unresolved.join(', ')}); skipped`
     });
   } else if (resolution.unresolved.length > 0) {
-    diags.push({
+    state.diags.push({
       severity: 'warn',
       item_index: firstIdx,
       code: 'timer_command_unresolved',
