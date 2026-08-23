@@ -294,25 +294,36 @@ function decodeBotCommand(entry: unknown): BotCommand {
   if (entry === null || typeof entry !== 'object')
     throw new TypeError('command entry must be an object');
   const e = entry as Record<string, unknown>;
-  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-  const boolUndef = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined);
   const cooldown = (e.cooldown ?? {}) as Record<string, unknown>;
   return {
-    command: str(e.command),
-    regex: str(e.regex),
-    reply: str(e.reply),
+    command: asString(e.command),
+    regex: asString(e.regex),
+    reply: asString(e.reply),
     aliases: Array.isArray(e.aliases) ? e.aliases.filter((a): a is string => typeof a === 'string') : [],
     keywords: Array.isArray(e.keywords) ? e.keywords.filter((k): k is string => typeof k === 'string') : [],
-    cooldownUser: num(cooldown.user),
-    cooldownGlobal: num(cooldown.global),
-    type: str(e.type),
-    accessLevel: num(e.accessLevel),
-    cost: num(e.cost),
-    enabled: boolUndef(e.enabled),
-    enabledOnline: boolUndef(e.enabledOnline),
-    enabledOffline: boolUndef(e.enabledOffline)
+    cooldownUser: finiteNumber(cooldown.user),
+    cooldownGlobal: finiteNumber(cooldown.global),
+    type: asString(e.type),
+    accessLevel: finiteNumber(e.accessLevel),
+    cost: finiteNumber(e.cost),
+    enabled: optionalFlag(e.enabled),
+    enabledOnline: optionalFlag(e.enabledOnline),
+    enabledOffline: optionalFlag(e.enabledOffline)
   };
+}
+
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+function finiteNumber(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+// optionalFlag reads an optional boolean without defaulting: undefined means
+// the schema decides (enabled-by-default).
+function optionalFlag(v: unknown): boolean | undefined {
+  return typeof v === 'boolean' ? v : undefined;
 }
 
 // flexText accepts every message shape observed in timer payloads: a plain
@@ -347,26 +358,31 @@ interface BotTimer {
 
 function decodeBotTimer(entry: unknown): BotTimer {
   if (entry === null || typeof entry !== 'object') throw new TypeError('timer entry must be an object');
-  const e = entry as Record<string, unknown>;
-  const window = (v: unknown): { enabled: boolean | undefined; interval: number } => {
-    if (v === null || typeof v !== 'object') return { enabled: undefined, interval: 0 };
-    const w = v as Record<string, unknown>;
-    return {
-      enabled: typeof w.enabled === 'boolean' ? w.enabled : undefined,
-      interval: typeof w.interval === 'number' && Number.isFinite(w.interval) ? w.interval : 0
-    };
-  };
-  const online = window(e.online);
-  const offline = window(e.offline);
+  return readBotTimer(entry as Record<string, unknown>);
+}
 
+function readBotTimer(e: Record<string, unknown>): BotTimer {
+  const online = timerWindowOf(e.online);
+  const offline = timerWindowOf(e.offline);
   return {
-    name: typeof e.name === 'string' ? e.name : '',
+    name: asString(e.name),
     text: timerText(e),
-    enabled: typeof e.enabled === 'boolean' ? e.enabled : undefined,
+    enabled: optionalFlag(e.enabled),
     onlineEnabled: online.enabled,
     onlineInterval: online.interval,
     offlineEnabled: offline.enabled,
     offlineInterval: offline.interval
+  };
+}
+
+// timerWindowOf reads one online/offline window object; a non-object window
+// means the schema default (enabled-undefined, interval 0).
+function timerWindowOf(v: unknown): { enabled: boolean | undefined; interval: number } {
+  if (v === null || typeof v !== 'object') return { enabled: undefined, interval: 0 };
+  const w = v as Record<string, unknown>;
+  return {
+    enabled: optionalFlag(w.enabled),
+    interval: finiteNumber(w.interval)
   };
 }
 
