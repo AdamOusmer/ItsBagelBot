@@ -19,12 +19,67 @@ type signals struct {
 	symbols   int
 	maxRepeat int
 	zeroWidth int
+	// emoji counts emoji pictographs and emoji-structure glue (ZWJ, VS16) in
+	// parallel to symbols, driving the emoji-hype rescue in heuristicVerdict.
+	// It is deliberately ADDITIVE - pictographs still count in symbols too -
+	// because removing them from the symbol numerator would cap symbolRatio at
+	// 0.5 whenever emoji dominate, making the >=0.6 threshold and therefore the
+	// rescue's "only flag is symbol" precondition arithmetically unreachable.
+	emoji int
+	// spaces backs the non-space denominator of emojiDominant.
+	spaces int
 	// lettersNonASCII counts letters above ascii - emoji and symbols are NOT
 	// letters, so an english line full of emoji stays at 0 while a genuinely
 	// foreign-language line dominates. Gates the (comparatively expensive)
 	// language-detection juror.
 	lettersNonASCII int
 	hasNonASCII     bool
+}
+
+// emojiMajority is the fraction of a line's non-space runes that must be emoji
+// for the emoji-hype rescue to apply. Same half-line rule as emoteMajority so
+// both rescues share one intuition ("half the line decides what it is"); pure
+// hype lines measure ~100% emoji, so anything at or below 0.5 catches them
+// while ordinary text with decorative emoji (measured well under 20%) stays
+// out. Raise it and "😂😂😂 hype!!!" shapes (just over half) start deleting
+// again; lower it and two-emoji sign-offs get suppressed alongside real
+// symbol-spam.
+const emojiMajority = 0.5
+
+// isEmojiRune reports whether r belongs to an emoji composition: the SMP
+// pictograph blocks (U+1F000-U+1FAFF: smileys, gestures, skin tones, regional
+// indicators), the BMP symbol blocks (U+2600-U+27BF: weather, zodiac,
+// dingbats), or the composition glue (U+200D ZWJ, U+FE0F VS16) that fuses
+// pieces into one glyph. Hex literals per house style - no emoji in source.
+//
+// Rejected: unicode/utf8 category-table probes and the golang.org/x/text or
+// third-party emoji packages - a per-rune table walk (or a new dependency in a
+// leaf package) to decide membership the spec pins to two range compares in a
+// loop whose contract is "effectively free". Edges are semantic, not tuned:
+// U+1FB00+ (legacy computing) and U+2190-U+25FF (arrows, geometric shapes)
+// must stay OUT, because arrow/box-drawing spam is precisely the symbol-noise
+// shape the symbol heuristic exists to catch.
+func isEmojiRune(r rune) bool {
+	switch {
+	case r >= 0x1f000 && r <= 0x1faff:
+		return true
+	case r >= 0x2600 && r <= 0x27bf:
+		return true
+	case r == 0x200d || r == 0xfe0f: // ZWJ, VS16: composition glue
+		return true
+	}
+	return false
+}
+
+// emojiDominant reports whether at least half of the line's non-space runes are
+// emoji (pictographs or composition glue). Float math matches emoteMajority;
+// this only runs on the already-flagged deep path, never the clean bail.
+func (s signals) emojiDominant() bool {
+	nonSpace := s.runes - s.spaces
+	if nonSpace <= 0 {
+		return false
+	}
+	return float64(s.emoji) >= emojiMajority*float64(nonSpace)
 }
 
 // foreignLeaning reports whether non-ascii letters make up enough of the line
@@ -69,9 +124,24 @@ func scan(text string) signals {
 			if unicode.IsUpper(r) {
 				s.upper++
 			}
+		// Emoji-structure glue must not read as evasion: U+200D ZWJ and
+		// U+FE0F VS16 are the JOINERS of 👨‍👩‍👧 / 🏳️‍🌈, and counting them
+		// as invisible (IsInvisible lists ZWJ) deleted every composed emoji.
+		// They route here instead of into zeroWidth; every other invisible
+		// (U+200B ZWSP, U+200C ZWNJ, word joiner, BOM, RTL overrides) still
+		// counts. ZWJ also does NOT enter symbols - it was never a symbol
+		// before, and minting one per joiner would inflate symbolRatio for
+		// multi-member families without any evasion being present.
+		case isEmojiRune(r):
+			s.emoji++
+			if r != 0x200d { // ZWJ
+				s.symbols++
+			}
 		case moderation.IsInvisible(r):
 			s.zeroWidth++
-		case !unicode.IsSpace(r) && !unicode.IsDigit(r):
+		case unicode.IsSpace(r):
+			s.spaces++
+		case !unicode.IsDigit(r):
 			s.symbols++
 		}
 		if r == last {
