@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { IconName } from './icons';
-import { GAME_MODULE_DEFS } from './catalog-games';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
@@ -529,7 +528,131 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // counter book; commands-only delegates retain picker access separately.
     replies: []
   },
-  ...GAME_MODULE_DEFS,
+  {
+    id: 'gamble',
+    label: 'Gamble',
+    tagline: 'Let viewers wager their points on a roll with !gamble.',
+    description:
+      'Give your loyalty points a game: viewers type !gamble <amount> (or half/all of their standing) and the bot rolls 1-100. Landing inside your win chance pays the stake back plus its match; anything else takes it. Set the win odds, bet limits and per-viewer cooldown below, rename the currency in the replies, and customize the win/lose lines. Every payout and debit moves real loyalty points through the same ledger as !points.',
+    icon: 'gamepad',
+    category: 'Community',
+    defaultEnabled: false,
+    // The numeric knobs are plain settings the generic page patches into the
+    // module blob; sesame clamps them server-side (engine.ClampGambleSettings),
+    // so an out-of-range save can never arm an unlimited machine.
+    settings: [
+      { key: 'pointsName', label: 'Currency name', type: 'text', placeholder: 'points', help: 'The word used in the win/lose lines (defaults to "points").' },
+      { key: 'winPercent', label: 'Win chance %', type: 'number', placeholder: '50', help: 'A roll of this number or lower wins. 50 is a fair coin; 1-99 allowed.' },
+      { key: 'minBet', label: 'Minimum bet', type: 'number', placeholder: '1' },
+      { key: 'maxBet', label: 'Maximum bet', type: 'number', placeholder: '1000' },
+      { key: 'cooldownSeconds', label: 'Cooldown (seconds)', type: 'number', placeholder: '10', help: 'Per viewer — one chatter gambling never blocks another.' }
+    ],
+    replies: [
+      {
+        key: 'won',
+        label: 'Win line',
+        tagline: 'When a roll lands inside the win chance.',
+        event: '!gamble 100',
+        command: 'gamble',
+        previewArgs: '100',
+        messageKey: 'winMessage',
+        defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and won {amount} {points} — now at {balance}!',
+        tokens: ['user', 'roll', 'chance', 'amount', 'balance', 'points'],
+        previewSamples: { user: 'sesame_sam', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' }
+      },
+      {
+        key: 'lost',
+        label: 'Loss line',
+        tagline: 'When a roll misses the win chance.',
+        event: '!gamble 100',
+        command: 'gamble',
+        previewArgs: '100',
+        messageKey: 'loseMessage',
+        defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}.',
+        tokens: ['user', 'roll', 'chance', 'amount', 'balance', 'points'],
+        previewSamples: { user: 'sesame_sam', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' }
+      }
+    ],
+    commands: [
+      { trigger: '!gamble <amount>', summary: 'Wager that many points on a roll.' },
+      { trigger: '!gamble half|all', summary: 'Wager half of / the whole standing.' }
+    ]
+  },
+  {
+    id: 'duel',
+    label: 'Duels',
+    tagline: 'Viewer-vs-viewer point duels: pot free-for-alls and 1v1 challenges.',
+    description:
+      "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake — when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend — nobody can wager what they do not have.",
+    icon: 'activity',
+    category: 'Community',
+    defaultEnabled: false,
+    settings: [
+      { key: 'pointsName', label: 'Currency name', type: 'text', placeholder: 'points', help: 'The word used in money lines (defaults to "points").' },
+      { key: 'minStake', label: 'Minimum stake', type: 'number', placeholder: '1' },
+      { key: 'maxStake', label: 'Maximum stake', type: 'number', placeholder: '1000' },
+      { key: 'potSeconds', label: 'Pot window (seconds)', type: 'number', placeholder: '60', help: 'How long a pot duel accepts stakes.' },
+      { key: 'challengeSeconds', label: 'Accept window (seconds)', type: 'number', placeholder: '120', help: 'How long the challenged party has to accept.' }
+    ],
+    replies: [
+      {
+        key: 'opened',
+        label: 'Pot duel opened',
+        tagline: 'When a pot duel starts and stakes open.',
+        event: '!duel 100',
+        command: 'duel',
+        previewArgs: '100',
+        messageKey: 'openedMessage',
+        defaultMessage: 'Pot duel is LIVE! @{user} put up {stake} {points} — type !duel <amount> to join. Drawing in {secs}s!',
+        tokens: ['user', 'stake', 'secs', 'points'],
+        previewSamples: { user: 'sesame_sam', stake: '100', secs: '60', points: 'points' }
+      },
+      {
+        key: 'joined',
+        label: 'Join confirmation',
+        tagline: 'When a viewer adds their stake to a running pot.',
+        event: '!duel 250',
+        command: 'duel',
+        previewArgs: '250',
+        messageKey: 'joinMessage',
+        defaultMessage: "@{user} you're in with {stake}! {count} in the duel, {pot} {points} in the pot.",
+        tokens: ['user', 'stake', 'count', 'pot', 'points'],
+        previewSamples: { user: 'sesame_sam', stake: '250', count: '4', pot: '700', points: 'points' }
+      },
+      {
+        key: 'challenge',
+        label: 'Challenge sent',
+        tagline: 'When a viewer challenges another to even stakes.',
+        event: '!duel @maya_live 500',
+        command: 'duel',
+        previewArgs: '@maya_live 500',
+        messageKey: 'challengeMessage',
+        defaultMessage: '@{user} challenges @{target} for {stake} {points}! @{target}, type !duel accept within {secs}s — winner takes {pot}!',
+        tokens: ['user', 'target', 'stake', 'pot', 'secs', 'points'],
+        previewSamples: { user: 'sesame_sam', target: 'maya_live', stake: '500', pot: '1000', secs: '120', points: 'points' }
+      },
+      {
+        key: 'won',
+        label: 'Result line',
+        tagline: 'When a challenge is accepted and settled.',
+        event: '!duel accept',
+        command: 'duel',
+        previewArgs: 'accept',
+        messageKey: 'wonMessage',
+        defaultMessage: 'The blades fall — @{winner} defeats @{loser} and takes {pot} {points}!',
+        tokens: ['winner', 'loser', 'pot', 'points'],
+        previewSamples: { winner: 'maya_live', loser: 'sesame_sam', pot: '1000', points: 'points' }
+      }
+    ],
+    commands: [
+      { trigger: '!duel', summary: 'Show what runs: a pot (entrants, pool, seconds) or a pending challenge.' },
+      { trigger: '!duel <stake>', summary: 'Open a pot duel — or join one that is running.' },
+      { trigger: '!duel <user> <stake>', summary: 'Challenge someone to even stakes; winner takes both.' },
+      { trigger: '!duel accept', summary: 'The challenged party matches the stake and settles it instantly.' },
+      { trigger: '!duel decline', summary: 'Refuse a challenge; the opener is refunded.', perm: 'mod' },
+      { trigger: '!duel cancel', summary: 'Tear the running duel down with full refunds (opener or mod).', perm: 'mod' }
+    ]
+  },
   {
     id: 'triggers',
     label: 'Trigger Words',
@@ -594,17 +717,6 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         ]
       }
     ]
-  },
-  {
-    id: 'emoteplay',
-    label: 'Emote Pyramids & Streaks',
-    tagline: 'Celebrate chat-built emote pyramids and emote streaks.',
-    description:
-      'Watch chat build emote pyramids (the same emote stacked 1, 2, 3 and back down to 1) and emote streaks (a run of single-emote messages), and let the bot cheer when they land. Fully automatic: no commands, no setup. A pyramid only counts when it is built cleanly, line by line, with nothing else posted in between.',
-    icon: 'pulse',
-    category: 'Chat Tools',
-    defaultEnabled: false,
-    replies: []
   },
   {
     id: 'automod',
@@ -1328,6 +1440,121 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     ]
   },
   {
+    // All five !val views are gossip lookups, so their token palettes below
+    // mirror app/sesame/modules/valorant.go.
+    id: 'valorant',
+    label: 'Valorant Stats',
+    tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',
+    description:
+      'One command, five looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag") — viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
+    icon: 'gamepad',
+    category: 'Games',
+    defaultEnabled: false,
+    replies: [
+      {
+        key: 'rank',
+        label: '!val',
+        tagline: 'Competitive standing — !val, !val rank or !valrank.',
+        event: '!val',
+        command: 'val',
+        enableKey: 'rankEnabled',
+        messageKey: 'rankMessage',
+        defaultMessage: '{player} · {tier} · {rr} RR ({lastchange}) · peak {peaktier}',
+        tokens: ['player', 'region', 'tier', 'elo', 'rr', 'lastchange', 'peaktier', 'placement'],
+        previewSamples: {
+          player: 'Frosty#EUW1', region: 'eu', tier: 'Immortal 2', elo: '1832', rr: '67',
+          lastchange: '-12', peaktier: 'Immortal 1', placement: '513'
+        }
+      },
+      {
+        key: 'matches',
+        label: '!val matches',
+        tagline: 'Recent ranked games (also !valmatches).',
+        event: '!val matches',
+        command: 'val matches',
+        enableKey: 'matchesEnabled',
+        messageKey: 'matchesMessage',
+        defaultMessage: "{player}'s last {count}: {matches}",
+        tokens: ['player', 'region', 'count', 'matches', 'lastago'],
+        previewSamples: {
+          player: 'Frosty#EUW1', region: 'eu', count: '2',
+          matches: 'Jett 20/14/7 win on Haven, Omen 9/17/3 loss on Ascent', lastago: '2h ago'
+        }
+      },
+      {
+        key: 'account',
+        label: '!val account',
+        tagline: 'Who an ID resolves to, with account level (also !valaccount).',
+        event: '!val account',
+        command: 'val account',
+        enableKey: 'accountEnabled',
+        messageKey: 'accountMessage',
+        defaultMessage: '{player} · account level {level}',
+        tokens: ['player', 'puuid', 'region', 'level', 'card', 'title'],
+        previewSamples: {
+          player: 'Frosty#EUW1', puuid: 'a1b2c3d4-05e6-47f8-89a0-b1c2d3e4f5a6',
+          region: 'eu', level: '142', card: 'Silver Card', title: 'Radiant'
+        }
+      },
+      {
+        key: 'board',
+        label: '!val lb',
+        tagline: 'Regional top 10, PC or console (also !vallb).',
+        event: '!val lb',
+        command: 'val lb',
+        enableKey: 'boardEnabled',
+        messageKey: 'boardMessage',
+        defaultMessage: '{board}: {entries}',
+        tokens: ['player', 'board', 'count', 'entries'],
+        previewSamples: {
+          player: 'Frosty#EUW1', board: 'ap/console', count: '2',
+          entries: '#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)'
+        }
+      },
+      {
+        key: 'shop',
+        label: '!val shop',
+        tagline: "Today's global skin rotation with reset countdown (also !valshop).",
+        event: '!val shop',
+        command: 'val shop',
+        enableKey: 'shopEnabled',
+        messageKey: 'shopMessage',
+        defaultMessage: 'Daily rotation ({count}): {items} · resets in {reset}',
+        tokens: ['count', 'items', 'reset'],
+        previewSamples: {
+          count: '2', items: 'Reaver Vandal (1775 VP), Ion Frenzy (875 VP)', reset: '2h 30m'
+        }
+      }
+    ],
+    settings: [
+      {
+        key: 'account',
+        label: 'Linked Riot ID',
+        type: 'text',
+        placeholder: 'Frosty#EUW1',
+        help: 'Default player for every command, as "Name#Tag" — Valorant has no name-only lookup, so the #tag is required.'
+      },
+      {
+        key: 'region',
+        label: 'Region shard',
+        type: 'text',
+        placeholder: 'eu',
+        help: 'na, eu, ap, kr, br or latam. Leave blank and the bot detects the shard from the account itself.'
+      },
+      {
+        key: 'platform',
+        label: 'Ladder',
+        type: 'select',
+        placeholder: 'pc',
+        options: [
+          { value: 'pc', label: 'PC' },
+          { value: 'console', label: 'Console' }
+        ],
+        help: 'Ranks and leaderboards are tracked as separate ladders per platform; blank means PC.'
+      }
+    ]
+  },
+  {
     id: 'queue',
     label: 'Play Queue',
     tagline: 'Let viewers line up to play with you, first come first served.',
@@ -1785,3 +2012,28 @@ export interface LoyaltyStanding {
   points: number;
   watchSeconds: number;
 }
+
+// --- Config importer -------------------------------------------------------
+// The canonical import shapes live in lib/importer/types.ts since the
+// standalone importer service was folded into the dashboard (2026-08-23) and
+// that module became their single source of truth. Re-exported here so every
+// existing '@bagel/shared' import keeps resolving unchanged. The NATS wire
+// mirrors that existed solely for bagel.rpc.importer.* (PreviewRequest et al)
+// were deleted with the protocol; PreviewResponse/CommitResponse survive as
+// the dashboard action-result shapes.
+export type {
+  AutomodTerms,
+  CollisionRef,
+  ImportDiagnostic,
+  ImportManifest,
+  ImportSource,
+  ImportStats,
+  ManifestCommand,
+  ManifestCounter,
+  ManifestQuote,
+  ManifestTimer,
+  ManifestTrigger,
+  PreviewResponse,
+  CommitResponse
+} from './importer/types';
+export { IMPORT_SOURCES, IMPORT_ITEM_CAPS } from './importer/types';

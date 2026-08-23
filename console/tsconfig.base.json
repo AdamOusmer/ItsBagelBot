@@ -10,5 +10,5 @@
     "strict": true,
     "moduleResolution": "bundler"
   },
-  "files": ["./shared/types/newrelic.d.ts"]
+  "files": ["./shared/types/newrelic.d.ts", "./shared/lib/importer/sql-js.d.ts"]
 }
