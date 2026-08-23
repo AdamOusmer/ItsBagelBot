@@ -114,16 +114,15 @@ func TestSequencerRespawnsPumpAfterIdle(t *testing.T) {
 
 func TestSequencerIgnoresZeroIDAndNilTask(t *testing.T) {
 	s := NewSequencer()
+	rec := &seqRecorder{}
 	assert.NotPanics(t, func() {
-		s.Do(0, func() {})
+		s.Do(0, func() { rec.record("zero-id") })
 		s.Do(3, nil)
 	})
-	s.Do(3, func() {})
-	assert.Eventually(t, func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return len(s.seqs) == 1 && s.seqs[3] != nil
-	}, time.Second, time.Millisecond)
+	// Only a task with a real broadcaster id and a body may ever run.
+	s.Do(3, func() { rec.record("real") })
+	assert.Eventually(t, func() bool { return len(rec.names()) == 1 }, time.Second, time.Millisecond)
+	assert.Equal(t, []string{"real"}, rec.names())
 }
 
 func TestSequencerConcurrentDoIsSafe(t *testing.T) {
