@@ -153,6 +153,15 @@
     </div>
   </section>
 
+  <!-- IMPORT: prominent entry to the config-import flow (/settings/import).
+       Kept as its own section so the section nav and the onboarding CTA have
+       a stable anchor, same as every other entry point here. -->
+  <section id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
+    <h2 id="h-import">{t('settings.importSetup')}</h2>
+    <p class="hint">{t('settings.importSetupHint')}</p>
+    <ButtonLink href="/settings/import" variant="secondary" icon="send">{t('settings.importSetupCta')}</ButtonLink>
+  </section>
+
   <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->
   <section id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
     <h2 id="h-access">{t('settings.sharedAccess')}</h2>

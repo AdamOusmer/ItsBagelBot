@@ -38,7 +38,13 @@
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/app.css": "./styles/app.css",
     "./components/*": "./components/*",
-    "./svelte-config": "./svelte-config.js"
+    "./svelte-config": "./svelte-config.js",
+    "./importer/moobot": "./lib/importer/moobot.ts",
+    "./importer/caps": "./lib/importer/caps.ts",
+    "./importer/types": "./lib/importer/types.ts",
+    "./importer/validate": "./lib/importer/validate.ts",
+    "./importer/streamelements": "./lib/importer/streamelements.ts",
+    "./importer/streamlabs-desktop": "./lib/importer/streamlabsdesktop.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
@@ -49,7 +55,8 @@
     "motion": "^12.0.0",
     "oauth4webapi": "^3.8.7",
     "pino": "^9",
-    "three": "^0.185.0"
+    "three": "^0.185.0",
+    "sql.js": "1.14.2"
   },
   "devDependencies": {
     "@types/three": "^0.185.0"
