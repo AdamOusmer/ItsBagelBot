@@ -305,6 +305,23 @@ func NewValkeyDuelStore(client valkey.Client, cfg DuelConfig, log *zap.Logger) *
 	return &ValkeyDuelStore{client: pkg_valkey.Primary(client), cfg: cfg, log: log}
 }
 
+// validStake accepts exactly the ledger entries worth counting.
+func validStake(n int64, err error) bool {
+	return err == nil && n > 0
+}
+
+// readable reports whether a hash read failed outright or came back empty —
+// both mean the opener-seeded fallback stands.
+func readable(err error, m map[string]string) bool {
+	return err != nil || len(m) == 0
+}
+
+// benign reports whether a reply's error is a normal outcome for these
+// flows: either success or the empty reply the nil-guard idiom covers.
+func benign(err error) bool {
+	return err == nil || valkey.IsValkeyNil(err)
+}
+
 // holdSection takes the resolution lock. Every money-moving path runs inside
 // it, so the read/mutate phases can never interleave across replicas.
 func (s *ValkeyDuelStore) holdSection(ctx context.Context, broadcasterID uint64) bool {
@@ -348,18 +365,37 @@ func (s *ValkeyDuelStore) Open(ctx context.Context, broadcasterID uint64, spec D
 // prepareDuelOpen validates one open request and resolves its clock: the pot
 // window or the challenge accept window, clamped store-side.
 func prepareDuelOpen(spec DuelOpenSpec) (int64, error) {
+	if err := validateOpenSpec(spec); err != nil {
+		return 0, err
+	}
+	return openClock(spec), nil
+}
+
+// validateOpenSpec refuses the four malformed shapes an open request can
+// take, one branch each.
+func validateOpenSpec(spec DuelOpenSpec) error {
 	switch {
-	case spec.Stake <= 0 || spec.Stake > DuelMaxStake || spec.Opener == "":
-		return 0, fmt.Errorf("duel: open spec invalid (stake %d)", spec.Stake)
-	case spec.Kind != DuelPot && spec.Kind != DuelChallenge:
-		return 0, fmt.Errorf("duel: unknown kind %q", spec.Kind)
+	case spec.Stake <= 0:
+		return fmt.Errorf("duel: stake below the floor (%d)", spec.Stake)
+	case spec.Stake > DuelMaxStake:
+		return fmt.Errorf("duel: stake above the ceiling (%d)", spec.Stake)
+	case spec.Opener == "":
+		return fmt.Errorf("duel: open without an opener")
 	case spec.Kind == DuelChallenge && spec.Challenged == "":
-		return 0, fmt.Errorf("duel: challenge without a challenged party")
+		return fmt.Errorf("duel: challenge without a challenged party")
 	}
+	if spec.Kind != DuelPot && spec.Kind != DuelChallenge {
+		return fmt.Errorf("duel: unknown kind %q", spec.Kind)
+	}
+	return nil
+}
+
+// openClock resolves which of the two windows this flavor arms.
+func openClock(spec DuelOpenSpec) int64 {
 	if spec.Kind == DuelChallenge {
-		return ClampDuelSeconds(spec.ChallengeSeconds, DuelDefaultChallengeSeconds), nil
+		return ClampDuelSeconds(spec.ChallengeSeconds, DuelDefaultChallengeSeconds)
 	}
-	return ClampDuelSeconds(spec.PotSeconds, DuelDefaultPotSeconds), nil
+	return ClampDuelSeconds(spec.PotSeconds, DuelDefaultPotSeconds)
 }
 
 // install escrows the opener and writes the duel record beside the freshly
@@ -739,7 +775,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 	}
 	m, err := s.client.Do(ctx, s.client.B().Hgetall().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrMap()
-	if err != nil || len(m) == 0 {
+	if readable(err, m) {
 		return stakes
 	}
 	return ledgerMap(parseDuelLedger(m))
@@ -837,7 +873,7 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 			s.client.B().Expire().Key(snap).Seconds(ttl).Build())
 	}
 	for _, r := range s.client.DoMulti(ctx, batch...) {
-		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
+		if err := r.Error(); !benign(err) {
 			s.log.Warn("duel: teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 			break
 		}
@@ -923,10 +959,9 @@ func parseDuelLedger(m map[string]string) []DuelStake {
 	entries := make([]DuelStake, 0, len(m))
 	for login, v := range m {
 		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || n <= 0 {
-			continue
+		if validStake(n, err) {
+			entries = append(entries, DuelStake{Login: login, Stake: n})
 		}
-		entries = append(entries, DuelStake{Login: login, Stake: n})
 	}
 	return SortDuelStakes(entries)
 }
@@ -1011,7 +1046,7 @@ func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterI
 		s.client.B().Del().Key(duelKey(duelStatePrefix, broadcasterID)).
 			Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build(),
 	) {
-		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
+		if err := r.Error(); !benign(err) {
 			s.log.Warn("duel: snapshot teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 			break
 		}

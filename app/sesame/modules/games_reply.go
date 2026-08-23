@@ -16,6 +16,17 @@ import (
 // where only a known key (or a broadcaster override) belongs.
 type replyKey string
 
+// token is one {placeholder},value pair handed to a reply. A named pair
+// keeps the expansion surface typed instead of a loose key/value string
+// slice.
+type token struct {
+	name  string
+	value string
+}
+
+// tk builds one placeholder substitution.
+func tk(name, value string) token { return token{name: name, value: value} }
+
 // gameReplier is the shared voice of the wager games: every line is either
 // the broadcaster's customized template for that reply or the localized
 // default, expanded with per-line tokens plus the two constants ({user}, the
@@ -38,15 +49,15 @@ func newGameReplier(c *module.Context, pointsName string) gameReplier {
 // reply emits one chat line. override is the broadcaster's customized
 // template ("" for the fixed system lines); kv are {token},value pairs
 // (token names without braces).
-func (g gameReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
+func (g gameReplier) reply(emit module.Emit, override string, key replyKey, tokens ...token) {
 	tmpl := override
 	if tmpl == "" {
 		tmpl = i18n.T(g.c.Locale, string(key))
 	}
 	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
+		for _, t := range tokens {
+			if t.name == k {
+				return t.value, true
 			}
 		}
 		switch k {
