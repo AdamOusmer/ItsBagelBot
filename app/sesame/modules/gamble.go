@@ -138,21 +138,25 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 	if err != nil || !ok {
 		return err
 	}
+	return gc.settle(ctx, login, wagerOutcome{bet: bet, balance: balance}, emit)
+}
 
+// settle rolls the dice against the escrowed stake and answers chat.
+func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
 	roll, err := engine.RollGamble()
 	if err != nil {
 		gc.log.Warn("gamble: roll failed", gc.bid(), zap.Error(err))
 		return err
 	}
-	wager := wagerOutcome{roll: roll, bet: bet, balance: balance}
+	wager.roll = roll
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
 		return gc.settleWin(ctx, login, wager, emit)
 	}
 	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
 		tk("roll", strconv.FormatInt(roll, 10)),
 		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
-		tk("amount", strconv.FormatInt(bet, 10)),
-		tk("balance", strconv.FormatInt(balance, 10)))
+		tk("amount", strconv.FormatInt(wager.bet, 10)),
+		tk("balance", strconv.FormatInt(wager.balance, 10)))
 	return nil
 }
 

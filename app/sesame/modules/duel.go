@@ -352,17 +352,8 @@ func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) er
 		return err
 	}
 	switch {
-	case res.Accepted && res.Unpaid:
-		// Settled on paper, credit failed: name the winner and pot so chat
-		// knows the outcome while the payout lands.
-		dc.reply(emit, "", "duel.payout_pending",
-			tk("winner", res.Winner),
-			tk("pot", strconv.FormatInt(res.Pot, 10)))
 	case res.Accepted:
-		dc.reply(emit, dc.t.WonMessage, "duel.won",
-			tk("winner", res.Winner),
-			tk("loser", res.Loser),
-			tk("pot", strconv.FormatInt(res.Pot, 10)))
+		dc.replySettled(res, emit)
 	case res.Found && res.WrongUser:
 		dc.reply(emit, "", "duel.accept.notYou")
 	case res.Short:
@@ -375,6 +366,23 @@ func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) er
 		dc.reply(emit, "", "duel.accept.none")
 	}
 	return nil
+}
+
+// replySettled announces an accepted duel: the clean win line, or the
+// pending-payout line when the credit failed after settlement.
+func (dc duelCmd) replySettled(res engine.DuelAcceptResult, emit module.Emit) {
+	if res.Unpaid {
+		// Settled on paper, credit failed: name the winner and pot so chat
+		// knows the outcome while the payout lands.
+		dc.reply(emit, "", "duel.payout_pending",
+			tk("winner", res.Winner),
+			tk("pot", strconv.FormatInt(res.Pot, 10)))
+		return
+	}
+	dc.reply(emit, dc.t.WonMessage, "duel.won",
+		tk("winner", res.Winner),
+		tk("loser", res.Loser),
+		tk("pot", strconv.FormatInt(res.Pot, 10)))
 }
 
 // decline refuses a pending challenge; the opener's stake goes back.
