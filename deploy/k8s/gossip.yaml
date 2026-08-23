@@ -17,6 +17,18 @@
 # (an api-fortnite.com key) additionally lights !fnstats. The "season" stats
 # window auto-resolves the season start from the stats upstream hourly;
 # FORTNITE_SEASON_START_UNIX optionally overrides it manually.
+# clashroyale (!cr / !crstats / !crdecks / !crranked / !crroad) needs a
+# Supercell key from developer.clashroyale.com with RoyaleAPI's proxy egress
+# IP 45.79.218.79 whitelisted on the key; set CLASHROYALE_API_KEY in Doppler
+# and calls ride proxy.royaleapi.dev. Without it the provider skips at boot
+# and the !cr commands time out at the caller like any disabled provider.
+# Lower CLASHROYALE_RATE_LIMIT from its default for a fresh key.
+# valorant (!valrank / !valmatches / !vallb / !valaccount / !valshop) needs
+# VALORANT_API_KEY in Doppler: a HenrikDev key from api.henrikdev.xyz/dashboard
+# (Discord join required). The instant Basic key is 30 req/min, which the
+# rate-limit default is sized to; an Enhanced key (90/min) must raise
+# VALORANT_RATE_LIMIT to ~80 to use it. Without the key the provider skips at
+# boot and every !val command times out at the caller.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:

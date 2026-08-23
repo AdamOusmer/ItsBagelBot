@@ -71,7 +71,7 @@ func main() {
 	// means the pool went cold and is paying the ~18ms handshake instead
 	// of reusing a conn.
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.Bool("nats", n.RPC.IsConnected),
+		health.NATS("nats", n.RPC),
 		health.Degrades(db.HealthCheck("mysql", driver.DB())))
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))

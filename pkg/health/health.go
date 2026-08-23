@@ -75,6 +75,51 @@ func Degrades(c Check) Check {
 	return c
 }
 
+// Pinger is the slice of *nats.Conn the NATS check needs, so this package
+// never imports nats.go. Both methods are satisfied by *nats.Conn directly.
+type Pinger interface {
+	IsConnected() bool
+	FlushTimeout(time.Duration) error
+}
+
+// NATS verifies a NATS connection with a real heartbeat round trip instead of
+// only reading its cached state.
+//
+// IsConnected alone is a local flag: it flips false only when the client's own
+// machinery has noticed the loss, and a half-open partition (NAT drop, node
+// pause, pulled cable) leaves it true indefinitely while every publish drains
+// into the void. FlushTimeout sends a PING and blocks on the server's PONG, so
+// a probe either heard from a live server or failed within its remaining
+// budget — the same heartbeat the client library itself runs, on demand. The
+// flag is still checked first so a client that already knows it is down fails
+// without spending a round trip.
+//
+// A nil conn always passes (see Bool): a service that wired no connection has
+// no NATS dependency to report on.
+func NATS(name string, conn Pinger) Check {
+	return Check{Name: name, Probe: func(ctx context.Context) error {
+		if conn == nil {
+			return nil
+		}
+		if !conn.IsConnected() {
+			return errors.New("not connected")
+		}
+		wait := checkTimeout
+		if deadline, ok := ctx.Deadline(); ok {
+			if d := time.Until(deadline); d < wait {
+				wait = d
+			}
+		}
+		if wait <= 0 {
+			return errors.New("heartbeat: probe deadline exceeded")
+		}
+		if err := conn.FlushTimeout(wait); err != nil {
+			return fmt.Errorf("heartbeat: %w", err)
+		}
+		return nil
+	}}
+}
+
 // CheckResult is one check's outcome inside a Report.
 type CheckResult struct {
 	Name      string `json:"name"`
