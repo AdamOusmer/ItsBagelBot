@@ -4,15 +4,11 @@
 package bus
 
 import (
-	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,145 +17,42 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Internal NATS RPCs authenticate callers only at the account-ACL boundary;
-// inside a handler every user_id / actor_id / broadcaster_id arrived on the
-// wire and was trusted verbatim. A single leaked service credential therefore
-// meant fleet-wide impersonation. These headers give handlers a cryptographic
-// answer to "who is calling me" and, for web-tier traffic, "which end user did
-// the web tier authenticate". Signing is HMAC-SHA256 over a canonical string
-// that binds caller, subject, timestamp, nonce and body, so signatures cannot
-// be replayed across subjects or bodies.
+// Service-to-service caller authentication lives at the broker: every service
+// connects with its own per-service NATS account (NATS_RPC_USER) whose
+// exports/imports are pinned account-to-account in deploy/messaging/nats-auth.conf,
+// and both client listeners run full mTLS against the fleet CA. An HMAC
+// caller-signature layer on top of that was tried and removed: it duplicated
+// the boundary the accounts already enforce, cost a per-request hash + global
+// nonce lock, and needed a signing key distributed to every peer pair. Do not
+// reintroduce it without a threat the account model demonstrably misses.
+//
+// What the account model CANNOT attest is the END USER behind a proxied
+// web-tier request — the web tier's NATS credential is held by server code,
+// not by the human. UserClaim below is that attestation, keyed by secrets the
+// web tier shares with each receiving service (WEB_TIER_CLAIM_KEY,
+// WEB_TIER_CLAIM_KEY_ADMIN).
 const (
-	HeaderRPCCaller    = "Bagelbot-RPC-Caller"
-	HeaderRPCTime      = "Bagelbot-RPC-Timestamp"
-	HeaderRPCNonce     = "Bagelbot-RPC-Nonce"
-	HeaderRPCSignature = "Bagelbot-RPC-Signature"
-
 	HeaderUserClaim    = "Bagelbot-User-Claim"
 	HeaderUserClaimSig = "Bagelbot-User-Claim-Signature"
 
-	// DefaultCallerSkew bounds how far a signature's timestamp may drift before
+	// DefaultCallerSkew bounds how far a claim's timestamp may drift before
 	// it is rejected. Nonce tracking closes the window behind the skew.
 	DefaultCallerSkew = time.Minute
 
 	signatureVersion = "v1"
 )
 
-// Well-known callers. The strings appear in nats-auth.conf account names and
-// in Doppler secret names (RPC_PEER_KEY_<UPPER>), so they are stable contract.
-const (
-	CallerConsoleWeb    = "console-web"
-	CallerConsoleAdmin  = "console-admin"
-	CallerSesame        = "sesame"
-	CallerUsers         = "users"
-	CallerLoyalty       = "loyalty"
-	CallerProjector     = "projector"
-	CallerModules       = "modules"
-	CallerOutgress      = "outgress"
-	CallerTransactions  = "transactions"
-	CallerNotifications = "notifications"
-)
-
-var rpcIdentity struct {
-	mu   sync.RWMutex
-	set  bool
-	name string
-	key  []byte
-}
-
-// InitRPCCaller configures the identity this process signs outbound RPC
-// requests with. Call it once at boot, before any RequestJSON traffic.
-func InitRPCCaller(name string, key []byte) {
-	if name == "" || len(key) == 0 {
-		return
-	}
-	rpcIdentity.mu.Lock()
-	defer rpcIdentity.mu.Unlock()
-	rpcIdentity.set, rpcIdentity.name, rpcIdentity.key = true, name, key
-}
-
-// MustInitRPCCallerFromEnv boots the signer from RPC_CALLER_NAME and
-// RPC_SIGNING_KEY. It is intentionally not fatal when unset so services can
-// roll out signing independently of their peers; receivers decide whether an
-// unsigned request is acceptable.
-func MustInitRPCCallerFromEnv(getenv func(string, string) string) {
-	InitRPCCaller(getenv("RPC_CALLER_NAME", ""), []byte(getenv("RPC_SIGNING_KEY", "")))
-}
-
-// CallerKeysFromEnv collects peer signing keys named RPC_PEER_KEY_<PEER> (peer
-// upper-cased, dashes to underscores). Peers without a configured key are
-// omitted, so verification fails closed for them.
-func CallerKeysFromEnv(getenv func(string, string) string, peers ...string) map[string][]byte {
-	keys := make(map[string][]byte, len(peers))
-	for _, peer := range peers {
-		env := "RPC_PEER_KEY_" + strings.ToUpper(strings.ReplaceAll(peer, "-", "_"))
-		if k := getenv(env, ""); k != "" {
-			keys[peer] = []byte(k)
-		}
-	}
-	return keys
-}
-
-// SignRequest stamps caller headers onto an outbound request using this
-// process's boot-time identity. Without an identity the message is left
-// untouched (legacy mode).
-func SignRequest(msg *nats.Msg) {
-	rpcIdentity.mu.RLock()
-	defer rpcIdentity.mu.RUnlock()
-	if !rpcIdentity.set {
-		return
-	}
-	now := time.Now().UnixMilli()
-	nonce := make([]byte, 16)
-	if _, err := rand.Read(nonce); err != nil {
-		return // unsigned; receiver rejects if it requires signatures
-	}
-	msg.Header = ensureHeader(msg.Header)
-	msg.Header.Set(HeaderRPCCaller, rpcIdentity.name)
-	msg.Header.Set(HeaderRPCTime, strconv.FormatInt(now, 10))
-	msg.Header.Set(HeaderRPCNonce, hex.EncodeToString(nonce))
-	msg.Header.Set(HeaderRPCSignature, requestSignature(rpcIdentity.key, signatureMaterial{
-		caller: rpcIdentity.name, subject: msg.Subject, nowMillis: now, nonce: nonce, body: msg.Data,
-	}))
-}
-
-// signatureMaterial is everything a request signature binds: caller, subject,
-// timestamp, nonce and body, so signatures cannot be replayed across subjects
-// or bodies.
-type signatureMaterial struct {
-	caller    string
-	subject   string
-	nowMillis int64
-	nonce     []byte
-	body      []byte
-}
-
-func requestSignature(key []byte, m signatureMaterial) string {
-	bodyHash := sha256.Sum256(m.body)
-	mac := hmac.New(sha256.New, key)
-	fmt.Fprintf(mac, "%s\n%s\n%s\n%d\n%s\n%s",
-		signatureVersion, m.caller, m.subject, m.nowMillis, hex.EncodeToString(m.nonce), hex.EncodeToString(bodyHash[:]))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func ensureHeader(h nats.Header) nats.Header {
-	if h == nil {
-		return nats.Header{}
-	}
-	return h
-}
-
 type nonceCache struct {
 	mu      sync.Mutex
-	seen    map[string]int64 // hex(caller|nonce) -> timestamp millis
+	seen    map[string]int64 // hex(scope|nonce) -> timestamp millis
 	lastCut int64
 	maxAge  time.Duration
 }
 
 var nonces = &nonceCache{seen: make(map[string]int64), maxAge: 2 * DefaultCallerSkew}
 
-func nonceSeen(caller, nonce string, now time.Time) bool {
-	k := caller + "|" + nonce
+func nonceSeen(scope, nonce string, now time.Time) bool {
+	k := scope + "|" + nonce
 	nonces.mu.Lock()
 	defer nonces.mu.Unlock()
 	cut := now.Add(-nonces.maxAge).UnixMilli()
@@ -179,90 +72,6 @@ func nonceSeen(caller, nonce string, now time.Time) bool {
 		nonces.seen = map[string]int64{k: now.UnixMilli()}
 	}
 	return false
-}
-
-// staleSince reports whether a signature or claim minted at tsMillis has
-// drifted further from now than maxSkew in either direction. Both verifiers
-// share it — an attestation may be stale into the future exactly as it is
-// stale into the past.
-func staleSince(tsMillis int64, maxSkew time.Duration) bool {
-	skew := time.Since(time.UnixMilli(tsMillis))
-	if skew < 0 {
-		skew = -skew
-	}
-	return skew > maxSkew
-}
-
-// callerAuth is the parsed, individually-validated wire form of a signed
-// caller's headers.
-type callerAuth struct {
-	caller   string
-	key      []byte
-	ts       int64
-	nonce    []byte
-	nonceHex string
-}
-
-// parseCallerAuth validates every header VerifySignedCaller needs and resolves
-// the caller's shared secret. A request missing any piece is unsigned; a known
-// shape from an unknown caller is refused by key absence, which is what makes
-// adding a new import in nats-auth.conf alone useless to an attacker.
-func parseCallerAuth(h nats.Header, keys map[string][]byte) (*callerAuth, error) {
-	for _, hdr := range []string{HeaderRPCCaller, HeaderRPCTime, HeaderRPCNonce, HeaderRPCSignature} {
-		if h.Get(hdr) == "" {
-			return nil, fmt.Errorf("unsigned request")
-		}
-	}
-	caller := h.Get(HeaderRPCCaller)
-	key, ok := keys[caller]
-	if !ok {
-		return nil, fmt.Errorf("caller %q not authorized", caller)
-	}
-	ts, err := strconv.ParseInt(h.Get(HeaderRPCTime), 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("bad timestamp")
-	}
-	nonceHex := h.Get(HeaderRPCNonce)
-	nonce, err := hex.DecodeString(nonceHex)
-	if err != nil || len(nonce) < 8 {
-		return nil, fmt.Errorf("bad nonce")
-	}
-	return &callerAuth{caller: caller, key: key, ts: ts, nonce: nonce, nonceHex: nonceHex}, nil
-}
-
-// VerifySignedCaller authenticates a request's origin. keys maps caller name
-// to its shared secret (see CallerKeysFromEnv); a caller without an entry is
-// rejected regardless of signature quality, which is what makes adding a new
-// import in nats-auth.conf alone useless to an attacker.
-// On success the caller is stored in ctx under CallerContextKey.
-func VerifySignedCaller(ctx context.Context, msg *nats.Msg, keys map[string][]byte, maxSkew time.Duration) (context.Context, string, error) {
-	auth, err := parseCallerAuth(msg.Header, keys)
-	if err != nil {
-		return ctx, "", err
-	}
-	if staleSince(auth.ts, maxSkew) {
-		return ctx, "", fmt.Errorf("stale signature")
-	}
-	expected := requestSignature(auth.key, signatureMaterial{
-		caller: auth.caller, subject: msg.Subject, nowMillis: auth.ts, nonce: auth.nonce, body: msg.Data,
-	})
-	if !hmac.Equal([]byte(expected), []byte(msg.Header.Get(HeaderRPCSignature))) {
-		return ctx, "", fmt.Errorf("signature mismatch")
-	}
-	if nonceSeen(auth.caller, auth.nonceHex, time.Now()) {
-		return ctx, "", fmt.Errorf("replayed signature")
-	}
-	ctx = context.WithValue(ctx, callerContextKey{}, auth.caller)
-	return ctx, auth.caller, nil
-}
-
-type callerContextKey struct{}
-
-// CallerFromContext returns the verified caller recorded by VerifySignedCaller,
-// or "" when the request never passed verification.
-func CallerFromContext(ctx context.Context) string {
-	c, _ := ctx.Value(callerContextKey{}).(string)
-	return c
 }
 
 // UserClaim is the web tier's attestation of the end user behind a proxied
@@ -321,7 +130,11 @@ func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserCla
 	if err := codec.Unmarshal(raw, &claim); err != nil {
 		return nil, fmt.Errorf("malformed user claim")
 	}
-	if staleSince(claim.IssuedAt, maxSkew) {
+	skew := time.Since(time.UnixMilli(claim.IssuedAt))
+	if skew < 0 {
+		skew = -skew
+	}
+	if skew > maxSkew {
 		return nil, fmt.Errorf("stale user claim")
 	}
 	if nonceSeen("user-claim:"+claim.UserID, claim.Nonce, time.Now()) {
