@@ -235,6 +235,8 @@ func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLive
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		BotUserID:                w.cfg.BotUserID,
 		KeyspaceDB:               0,
+		Publisher:                w.in.pub,
+		OutgressSystemSubject:    w.cfg.OutgressSystemSubject,
 		Log:                      w.log,
 	})
 	go clock.StartExpiryWatcher(w.ctx)
