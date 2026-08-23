@@ -100,19 +100,35 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 		return writeAllUserPrefs(ctx, tx, perUser)
 	})
 	if err == nil {
-		for id := range perUser {
-			r.announcePref(ctx, log, id)
-		}
+		r.announcePrefs(ctx, log, perUser)
 		return nil
 	}
 
-	txn.NoticeError(err)
+	txnNotice(txn, err)
 	log.Warn("preference window failed as one transaction, falling back per user",
 		zap.Int("users", len(perUser)),
 		zap.Error(err),
 	)
 	r.applyPrefEach(ctx, txn, log, perUser)
 	return nil
+}
+
+// prefAnnounceTimeout budgets post-commit event publication independently of
+// the flush deadline: the deadline protects the database window, but an
+// announcement racing its expiry must not inherit a spent context — the row
+// would be committed while its UserChanged event is lost.
+const prefAnnounceTimeout = 5 * time.Second
+
+// announcePrefs publishes one change event per affected user after a commit.
+// It derives a fresh bounded context (cancellation dropped, values kept so
+// announcements still report inside the flush transaction).
+func (r *Users) announcePrefs(ctx context.Context, log *zap.Logger, perUser map[uint64][]prefWrite) {
+	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), prefAnnounceTimeout)
+	defer cancel()
+
+	for id := range perUser {
+		r.announcePref(actx, log, id)
+	}
 }
 
 // beginFlush starts the background transaction a flush reports under and
@@ -192,7 +208,7 @@ func (r *Users) applyPrefEach(ctx context.Context, txn *newrelic.Transaction, lo
 
 		switch {
 		case err == nil:
-			r.announcePref(ctx, log, id)
+			r.announcePrefs(ctx, log, map[uint64][]prefWrite{id: writes})
 		case unpersistablePrefErr(err):
 			txnNotice(txn, err)
 			log.Error("dropping unpersistable preference change",
