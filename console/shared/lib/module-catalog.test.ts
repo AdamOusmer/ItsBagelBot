@@ -17,4 +17,19 @@ describe('module catalog', () => {
     expect(counters?.toggleable).toBe(false);
     expect(moduleDelegateSections(counters!)).toEqual(['modules']);
   });
+
+  // The emoteplay tile must stay a plain opt-in toggle: no bespoke page, no
+  // delegation grant of its own, and an id matching the sesame module name the
+  // engine gates on (app/sesame/modules/emoteplay.go). Its announcements are
+  // system text, so there are no editable replies to configure.
+  test('emoteplay is a toggle-only opt-in module keyed by its sesame name', () => {
+    const def = moduleDef('emoteplay');
+    expect(def).toBeDefined();
+    expect(def?.href).toBeUndefined();
+    expect(def?.hidden).toBeFalsy();
+    expect(def?.toggleable).not.toBe(false);
+    expect(def?.defaultEnabled).toBe(false);
+    expect(def?.replies).toHaveLength(0);
+    expect(def?.icon).toBe('pulse');
+  });
 });
