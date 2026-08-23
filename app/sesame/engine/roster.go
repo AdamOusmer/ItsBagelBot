@@ -20,6 +20,35 @@ import (
 // target's next line.
 const rosterCapacityPerChannel = 4096
 
+// chatterIdentity is one speaker's identity as the chat envelope carries it:
+// three loose strings on the wire (the stable login, its numeric Twitch id,
+// the mutable display name), kept together so the roster's surface stays
+// shape-based rather than string-based.
+type chatterIdentity struct {
+	id    string
+	login string
+	name  string
+}
+
+// rosterKey returns the roster's lookup key for this speaker — the lower-cased
+// login — plus the numeric id that keys viewer-scoped counter buckets. Both
+// come back zero-shaped when the identity is unusable (no login, or an
+// unparseable/zero id): a bucket keyed by login must carry a real id or the
+// bump it feeds would fall back to channel scope at flush time.
+func (who chatterIdentity) rosterKey() (string, uint64) {
+	if who.login == "" {
+		return "", 0
+	}
+	viewerID, err := strconv.ParseUint(who.id, 10, 64)
+	if err != nil {
+		return "", 0
+	}
+	if viewerID == 0 {
+		return "", 0
+	}
+	return strings.ToLower(who.login), viewerID
+}
+
 // chatterRoster remembers the viewers each replica has seen speak, per
 // channel: login -> Viewer (the id keys viewer-scoped counter buckets; login
 // and name ride along as the display identity). It is fed passively from every
@@ -46,33 +75,37 @@ func newChatterRoster() *chatterRoster {
 // burst is exactly when mentions fly). Non-chat envelopes contribute nothing;
 // identity-less lines are dropped by Observe.
 func (r *chatterRoster) ObserveEnvelope(broadcasterID uint64, env *lane.Envelope) {
-	if env.Type != chatType {
-		return
-	}
-	r.Observe(broadcasterID, env.ChatterUserLogin, env.ChatterUserID, env.ChatterUserName)
-	for i := range env.Senders {
-		// A cohort sender carries no display name on the wire; Observe keeps
-		// the one a direct line already taught us.
-		r.Observe(broadcasterID, env.Senders[i].ChatterUserLogin, env.Senders[i].ChatterUserID, "")
-	}
-}
-
-// Observe records one chat line's speaker under their lower-cased login.
-func (r *chatterRoster) Observe(broadcasterID uint64, login, id, name string) {
 	if r == nil {
 		return
 	}
+	if env.Type != chatType {
+		return
+	}
+	r.Observe(broadcasterID, chatterIdentity{
+		id:    env.ChatterUserID,
+		login: env.ChatterUserLogin,
+		name:  env.ChatterUserName,
+	})
+	for i := range env.Senders {
+		// A cohort sender carries no display name on the wire; Observe keeps
+		// the one a direct line already taught us.
+		r.Observe(broadcasterID, chatterIdentity{
+			id:    env.Senders[i].ChatterUserID,
+			login: env.Senders[i].ChatterUserLogin,
+		})
+	}
+}
+
+// Observe records one speaker in their channel's set, keyed by the identity's
+// lower-cased login.
+func (r *chatterRoster) Observe(broadcasterID uint64, who chatterIdentity) {
 	if broadcasterID == 0 {
 		return
 	}
-	if login == "" {
-		return
-	}
-	viewerID := parseChatterID(id)
+	login, viewerID := who.rosterKey()
 	if viewerID == 0 {
-		return
+		return // covers the empty-login shape too: rosterKey zeroes both
 	}
-	login = strings.ToLower(login)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -87,7 +120,13 @@ func (r *chatterRoster) Observe(broadcasterID uint64, login, id, name string) {
 			evictOne(chanViewers)
 		}
 	}
-	chanViewers[login] = Viewer{ID: viewerID, Login: login, Name: preferredName(name, prev.Name)}
+	entry := Viewer{ID: viewerID, Login: login, Name: who.name}
+	if who.name == "" {
+		// An unnamed observation (a folded-cohort sender carries no display
+		// name) must not clobber the one a direct line already taught us.
+		entry.Name = prev.Name
+	}
+	chanViewers[login] = entry
 }
 
 // Resolve looks up the mentioned viewer's identity by login. found=false
@@ -106,26 +145,6 @@ func (r *chatterRoster) Resolve(broadcasterID uint64, login string) (Viewer, boo
 	defer r.mu.RUnlock()
 	v, ok := r.chans[broadcasterID][strings.ToLower(login)]
 	return v, ok
-}
-
-// parseChatterID parses one wire chatter id, rejecting the empty and
-// non-numeric shapes: a roster bucket must carry an id the counter buckets can
-// key on, or the bump it feeds would fall back to channel scope at flush time.
-func parseChatterID(id string) uint64 {
-	viewerID, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return viewerID
-}
-
-// preferredName keeps a learned display name when the newer observation
-// carries none.
-func preferredName(newName, storedName string) string {
-	if newName != "" {
-		return newName
-	}
-	return storedName
 }
 
 // evictOne drops one arbitrary entry to make room for an insert. Go map range
