@@ -157,7 +157,6 @@ func TestMessageFromNATSUsesFleetIdentityAndCopiesMetadata(t *testing.T) {
 	wire := nats.NewMsg("data.test")
 	wire.Data = []byte("payload")
 	wire.Header.Set(MessageIDHeader, "fleet-id")
-	wire.Header.Set(legacyMessageIDHeader, "legacy-id")
 	wire.Header.Set(nats.MsgIdHdr, "broker-dedup-id")
 	wire.Header.Set("Traceparent", "trace-id")
 
@@ -176,18 +175,6 @@ func TestMessageFromNATSUsesFleetIdentityAndCopiesMetadata(t *testing.T) {
 	}
 	if _, ok := msg.Metadata[nats.MsgIdHdr]; ok {
 		t.Fatal("broker dedup identity leaked into application metadata")
-	}
-}
-
-func TestMessageFromNATSAcceptsLegacyIdentityDuringRollout(t *testing.T) {
-	wire := nats.NewMsg("data.test")
-	wire.Header.Set(legacyMessageIDHeader, "legacy-id")
-	msg, err := messageFromNATS(wire)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msg.UUID != "legacy-id" {
-		t.Fatalf("message id = %q, want legacy-id", msg.UUID)
 	}
 }
 

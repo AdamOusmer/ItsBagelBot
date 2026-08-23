@@ -15,6 +15,8 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"go.uber.org/zap"
+
+	"ItsBagelBot/pkg/env"
 )
 
 // The bus rides the JetStream cluster from ADR 0003: at-least-once delivery
@@ -186,7 +188,12 @@ func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.Co
 		// stops delivering and the pipeline stalls below that rate. At ~15 ms/event
 		// a 100k/s target needs ~1,500 in flight; 20,000 leaves headroom for
 		// latency spikes and burst scale-up without re-tuning per deploy.
-		MaxAckPending:  20000,
+		// Ceiling on unacked deliveries the server may hold for this queue
+		// group. Throughput is bounded by MaxAckPending / per-message dwell,
+		// so the historical inline 20000 capped lanes near ~65k msg/s however
+		// fast handlers ran; NATS_LANE_MAX_ACK_PENDING raises the window for
+		// lanes whose consumers drain fast enough to spend it.
+		MaxAckPending:  positiveInt(env.GetInt("NATS_LANE_MAX_ACK_PENDING", 20000), 20000),
 		DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
 		DeliverGroup:   group,
 		Metadata:       map[string]string{managedConsumerMetadata: "true"},
@@ -334,14 +341,21 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// laneModeFor is the scope guard for receipt-level acknowledgement. Only the
-// perishable hot ingress lanes qualify for either receipt-level mode; every
-// control lane, status subject and work-queue stream keeps explicit acks, and
-// the refusal is logged so an operator who set the mode can see which lanes it
-// actually reached.
+// laneQualifiesForReceiptAcks reports whether the lane's traffic contract fits
+// receipt-level acknowledgement: only the perishable hot ingress lanes and the
+// canary mirror qualify; every control lane, status subject and work-queue
+// stream keeps explicit acks.
+func laneQualifiesForReceiptAcks(target subscriptionTarget) bool {
+	return isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic)
+}
+
+// laneModeFor is the scope guard for receipt-level acknowledgement. The refusal
+// is logged so an operator who set the mode can see which lanes it actually
+// reached.
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
 	mode := consumeMode()
-	if mode == laneModeExplicit || isHotIngressLane(target.stream, target.topic) {
+	declined := mode != laneModeExplicit && !laneQualifiesForReceiptAcks(target)
+	if !declined {
 		return mode
 	}
 	s.logger().Info("receipt-level consumption declined outside the hot ingress lanes",

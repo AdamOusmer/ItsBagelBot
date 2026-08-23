@@ -6,6 +6,8 @@ package bus
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/pkg/env"
@@ -440,6 +442,64 @@ var TwitchIngressRetryStream = StreamSpec{
 // load-bearing wherever this slice is reconciled: the narrowing must land before
 // the create, or the create is refused for overlap. See the migration note on
 // TwitchIngressStandardStream.
+// Sends here cost 50 quota units each (see internal/youtube.Budget), so the
+// perishability is doubly right: dropping a send nobody will ever read is
+// strictly better than spending real daily budget on it.
+var YouTubeOutgressStream = StreamSpec{
+	Name:         "YOUTUBE_OUTGRESS",
+	Subjects:     []string{"youtube.outgress.premium", "youtube.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     64 << 20, // 64 MiB: YouTube chat volume is far below Twitch's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// MaxBytes is 32 MiB, not the 64 MiB the YouTube twin carries: each memory
+// stream costs its byte cap three times per hub peer (replica + RAFT WAL) plus
+// one 128 MiB ingest queue, and TestMemoryStreamsFitTheHubMemoryBudget holds
+// the sum under the pod's 5 GiB limit. At announcement volume 32 MiB under R3
+// is a deep lag budget; growing it is a deliberate edit there.
+var DiscordOutgressStream = StreamSpec{
+	Name:         "DISCORD_OUTGRESS",
+	Subjects:     []string{"discord.outgress.premium", "discord.outgress.standard"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       5 * time.Second,
+	MaxBytes:     32 << 20, // 32 MiB: announcement volume is far below Twitch chat's
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// Ownership is deliberately outgress for now: it is the only consumer of
+// these subjects today (the lifecycle lane feeds the live-chat directory).
+// When a YouTube sesame exists, reconciliation moves there.
+var YouTubeIngressStream = StreamSpec{
+	Name: "YOUTUBE_INGRESS",
+	Subjects: []string{
+		"youtube.ingress.event.premium",
+		"youtube.ingress.event.standard",
+		"youtube.ingress.event.stream",
+		// Status rides along under the same 10s window, mirroring how
+		// TWITCH_INGRESS carries twitch.ingress.status.>: observability with a
+		// self-expiring replay window.
+		"youtube.ingress.status.>",
+	},
+	Retention: nats.LimitsPolicy,
+	MaxAge:    10 * time.Second,
+	Storage:   nats.MemoryStorage,
+	Replicas:  3,
+	// 32 MiB under R3 is trivially inside the hub's memory budget at YouTube
+	// volume; MaxMsgsPer keeps one hot channel from evicting lifecycle events
+	// the directory consumer still needs.
+	MaxBytes:     32 << 20,
+	MaxMsgsPer:   100_000,
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
+
 var DataStreams = []StreamSpec{
 	BagelDataStream,
 	TwitchIngressStream,
@@ -483,6 +543,27 @@ func legacyTwitchIngressStream() StreamSpec {
 	return spec
 }
 
+type streamTopicResult struct {
+	name string
+	err  error
+}
+
+type streamTopicCache struct {
+	partitioned bool
+	entries     sync.Map
+}
+
+// The cache is deliberately unbounded and process-lifetime: the catalog is a
+// compile-time literal, so a (partition mode, topic) pair always resolves to
+// the same answer, and the key space is bounded by the handful of subject
+// literals each service publishes or binds — there is no attacker-controlled
+// cardinality to grow it. NATS_INGRESS_PARTITION is fixed for the life of the
+// pod (same assumption as the lane mode in bus.go), but the tests flip it via
+// t.Setenv and pin both resolutions of twitch.ingress.event.standard, so the
+// mode selects the generation rather than being baked into entries; in
+// production that costs one atomic load+compare on the hot path.
+var streamTopicCachePtr atomic.Pointer[streamTopicCache]
+
 // streamForTopic resolves the catalog stream that captures a subject, so
 // subscribers can bind explicitly instead of paying an account-wide lookup.
 // Every catalog subject set is disjoint (the broker enforces it, and
@@ -492,10 +573,31 @@ func legacyTwitchIngressStream() StreamSpec {
 // flip the standard subject must resolve to TWITCH_INGRESS, where it still
 // lives, or every standard consumer would bind a stream that does not exist.
 func streamForTopic(topic string) (string, error) {
+	partitioned := IngressPartitionEnabled()
+	cache := streamTopicCachePtr.Load()
+	for cache == nil || cache.partitioned != partitioned {
+		next := &streamTopicCache{partitioned: partitioned}
+		if streamTopicCachePtr.CompareAndSwap(cache, next) {
+			cache = next
+			break
+		}
+		cache = streamTopicCachePtr.Load()
+	}
+	if hit, ok := cache.entries.Load(topic); ok {
+		res := hit.(streamTopicResult)
+		return res.name, res.err
+	}
+	name, err := resolveStreamForTopic(topic)
+	cache.entries.Store(topic, streamTopicResult{name: name, err: err})
+	return name, err
+}
+
+func resolveStreamForTopic(topic string) (string, error) {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
-	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream)
+	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
+		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {
