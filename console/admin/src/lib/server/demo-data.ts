@@ -197,7 +197,7 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
       dbUser: `${id}_svc_r1demo00`,
       autoMigrate: 'false',
       canReadDoppler: true,
-      tokenSource: id === 'users' ? 'scoped' : 'legacy'
+      tokenSource: 'scoped'
     })),
     tokens: {
       users: [
@@ -213,13 +213,11 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
     scope: {
       sources: {
         users: 'scoped',
-        commands: 'legacy',
-        modules: 'legacy',
-        transactions: 'legacy',
-        notifications: 'legacy'
-      },
-      legacyInUse: true,
-      legacyExcessProjects: ['admin', 'dashboard', 'gossip']
+        commands: 'scoped',
+        modules: 'scoped',
+        transactions: 'scoped',
+        notifications: 'scoped'
+      }
     }
   };
 }
