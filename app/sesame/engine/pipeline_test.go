@@ -70,9 +70,9 @@ func (r fakeReader) Command(context.Context, uint64, string) (projection.Command
 // liveAlways is a LiveStore that reports live and no-ops its writes.
 type liveAlways struct{}
 
-func (liveAlways) IsLive(context.Context, uint64) (bool, error) { return true, nil }
-func (liveAlways) SetLive(context.Context, uint64) error        { return nil }
-func (liveAlways) ClearLive(context.Context, uint64) error      { return nil }
+func (liveAlways) IsLive(context.Context, uint64) (bool, error)           { return true, nil }
+func (liveAlways) SetLive(context.Context, uint64, int64) (bool, error)   { return true, nil }
+func (liveAlways) ClearLive(context.Context, uint64, int64) (bool, error) { return true, nil }
 
 const (
 	premiumSubj  = "outgress.premium"

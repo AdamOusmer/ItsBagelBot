@@ -101,9 +101,10 @@ func liveKey(id uint64) string { return livekey.Key(id) }
 // projector is written back so the key-expiry re-check applies to it.
 func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (bool, error) {
 	return s.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
-		val, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
+		// Existence is the answer; the value is the applied version (#561).
+		_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
 		if err == nil {
-			return val == "1", nil
+			return true, nil
 		}
 		if !valkey.IsValkeyNil(err) {
 			return false, err
@@ -121,39 +122,74 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 			return false, nil
 		}
 		if reply.Live {
-			_ = s.setLiveKey(ctx, broadcasterID)
+			_, _ = s.setLiveKey(ctx, broadcasterID, livekey.VersionNow())
 		}
 		return reply.Live, nil
 	})
 }
 
-// SetLive marks the broadcaster live (on stream.online) and fans the change out.
-func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64) error {
-	if err := s.setLiveKey(ctx, broadcasterID); err != nil {
-		return err
+// SetLive marks the broadcaster live (on stream.online) and fans the change
+// out. applied is false when a newer version was already on the key — the
+// caller must then skip its follow-up effects (greet reset, timer arm), which
+// belong to a session that has already ended (#561).
+func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
+	applied, err := s.setLiveKey(ctx, broadcasterID, version)
+	if err != nil || !applied {
+		return false, err
 	}
 	s.cache.Set(broadcasterID, true)
 	s.broadcast(broadcasterID)
-	return nil
+	return true, nil
 }
 
-// ClearLive drops the broadcaster's live state (on stream.offline) = invalidate.
-func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64) error {
-	if err := s.client.Do(ctx, s.client.B().Del().Key(liveKey(broadcasterID)).Build()).Error(); err != nil {
-		return err
-	}
+// ClearLive drops the broadcaster's live state (on stream.offline). A newer
+// applied version (a re-check that confirmed live after this event was sent)
+// survives: the local cache still drops so this replica re-reads the truth,
+// but the fleet-wide broadcast is skipped — nothing changed fleet-wide.
+func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
 	s.cache.Invalidate(broadcasterID)
+	applied, err := clearLiveKey(ctx, s.client, broadcasterID, version)
+	if err != nil || !applied {
+		return false, err
+	}
 	s.broadcast(broadcasterID)
-	return nil
+	return true, nil
 }
 
-func (s *ValkeyLiveStore) setLiveKey(ctx context.Context, broadcasterID uint64) error {
+func (s *ValkeyLiveStore) setLiveKey(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
 	ttl := s.cfg.TTL
 	if ttl <= 0 {
 		ttl = 12 * time.Hour
 	}
-	return s.client.Do(ctx, s.client.B().Set().Key(liveKey(broadcasterID)).Value("1").ExSeconds(int64(ttl.Seconds())).Build()).Error()
+	applied, err := setLiveScript.Exec(ctx, s.client, []string{liveKey(broadcasterID), livekey.VerKey(broadcasterID)}, []string{
+		livekey.Value(version), strconv.FormatInt(int64(ttl.Seconds()), 10), strconv.FormatInt(int64(livekey.VerTTL.Seconds()), 10),
+	}).AsInt64()
+	if err != nil {
+		return false, err
+	}
+	return applied > 0, nil
 }
+
+func clearLiveKey(ctx context.Context, client valkey.Client, broadcasterID uint64, version int64) (bool, error) {
+	applied, err := clearLiveScript.Exec(ctx, client, []string{liveKey(broadcasterID), livekey.VerKey(broadcasterID)}, []string{
+		livekey.Value(version), strconv.FormatInt(int64(livekey.VerTTL.Seconds()), 10),
+	}).AsInt64()
+	if err != nil {
+		return false, err
+	}
+	return applied > 0, nil
+}
+
+// The two writes run through their scripts atomically (internal/domain/live):
+// each compares the stored version and refuses to move state backwards. Not
+// NewLuaScriptRetryable on purpose — a retried SET would re-apply a version it
+// already wrote, which is idempotent, but a retried DEL racing a concurrent
+// SetLive could delete a freshly confirmed key; one clean failure beats one
+// wrong deletion (same reasoning as emoteplay_valkey.go).
+var (
+	setLiveScript   = valkey.NewLuaScript(livekey.SetScript)
+	clearLiveScript = valkey.NewLuaScript(livekey.ClearScript)
+)
 
 // broadcast fans a live change to every replica so their in-process caches drop
 // the entry immediately, backing the short cache TTL.

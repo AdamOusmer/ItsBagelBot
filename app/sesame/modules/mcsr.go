@@ -154,7 +154,7 @@ func Mcsr(d engine.Deps) module.Module {
 		_ = c.Decode(&cfg)
 		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		go func() {
+		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
 			defer cancel()
 			var reply gossiprpc.McsrSnapshotReply
@@ -165,7 +165,29 @@ func Mcsr(d engine.Deps) module.Module {
 			}
 			log.Debug("mcsr: stream-start snapshot stored",
 				zap.String("channel_id", channelID), zap.String("account", account), zap.Int("elo", reply.Elo))
-		}()
+		})
+		return nil
+	})
+
+	// Stream ended: clear the session-start baseline so a rapid stop/restart
+	// cycle (#561) cannot leave !session diffing the new stream against the old
+	// one's snapshot. Sequenced behind the online snapshot like every other
+	// lifecycle effect. Gossip deployments without the provider (or in shop-only
+	// mode) answer no-responder — an expected miss, hence Debug.
+	m.On("stream.offline", func(_ context.Context, c *module.Context, _ module.Emit) error {
+		if d.Gossip == nil {
+			return nil
+		}
+		channelID := strconv.FormatUint(c.BroadcasterID, 10)
+		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
+			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
+			defer cancel()
+			var reply gossiprpc.McsrSnapshotReply
+			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "session_end"}, gossiprpc.Request{ChannelID: channelID}, &reply); err != nil {
+				log.Debug("mcsr: stream-end snapshot clear failed",
+					zap.String("channel_id", channelID), zap.Error(err))
+			}
+		})
 		return nil
 	})
 
