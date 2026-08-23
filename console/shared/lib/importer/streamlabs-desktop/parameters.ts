@@ -403,20 +403,33 @@ interface ParamCursor {
 }
 
 function scanIdent(text: string, start: number): ParamCursor {
-  let i = start;
-  if (i >= text.length) return { name: '', next: start };
-  const c = text[i];
-  const isLead = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
-  if (!isLead) return { name: '', next: start };
-  while (i < text.length) {
-    const ch = text[i];
-    if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_') {
-      i++;
-      continue;
-    }
-    break;
-  }
-  return { name: text.slice(start, i), next: i };
+  if (!hasIdentStart(text, start)) return { name: '', next: start };
+  const end = readNameChars(text, start + 1);
+  return buildCursor(text, start, end);
+}
+
+// hasIdentStart checks the first character after '$': identifiers begin with
+// a letter or underscore — chat text like "$5" or "100$" must stay literal
+// dollars, so a leading digit terminates the scan immediately.
+function hasIdentStart(text: string, start: number): boolean {
+  if (start >= text.length) return false;
+  return isIdentLead(text[start]);
+}
+
+function isIdentLead(c: string): boolean {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
+}
+
+// readNameChars walks past the lead character while identifier characters
+// continue, returning the exclusive end of the name.
+function readNameChars(text: string, from: number): number {
+  let i = from;
+  while (i < text.length && isIdentChar(text[i])) i++;
+  return i;
+}
+
+function buildCursor(text: string, start: number, end: number): ParamCursor {
+  return { name: text.slice(start, end), next: end };
 }
 
 // parenArg returns the content of the (...) following pos, or null.

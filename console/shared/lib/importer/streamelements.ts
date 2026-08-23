@@ -1371,21 +1371,37 @@ function splitPickList(spec: string): string[] | null {
   return scan.raw;
 }
 
+// scanPickChar consumes one character of a random.pick argument list.
 function scanPickChar(scan: PickScan, c: string): void {
   if (scan.quote !== '\0') {
-    if (c === scan.quote) scan.quote = '\0';
-    else scan.cur += c;
+    absorbQuotedChar(scan, c);
     return;
   }
   if (isQuoteMark(c)) {
     scan.quote = c;
     return;
   }
-  if (c === ' ' || c === '\t' || c === ',') {
+  if (isPickSeparator(c)) {
     flushPick(scan);
     return;
   }
   scan.cur += c;
+}
+
+// absorbQuotedChar folds one character inside a quoted item: the closing
+// quote ends the quotation, everything else is content.
+function absorbQuotedChar(scan: PickScan, c: string): void {
+  if (c === scan.quote) {
+    scan.quote = '\0';
+    return;
+  }
+  scan.cur += c;
+}
+
+// isPickSeparator matches the documented item separators: SE accepts space-
+// and comma-separated lists, and tabs ride along with spaces.
+function isPickSeparator(c: string): boolean {
+  return c === ' ' || c === '\t' || c === ',';
 }
 
 function isQuoteMark(c: string): boolean {
