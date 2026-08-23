@@ -373,7 +373,7 @@ spec:
     # health.itsbagelbot.com/dashboard (status-routes.yaml), matches neither.
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-         Host(`commands.itsbagelbot.com`)) &&
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
       middlewares: [{name: dashboard-ratelimit}, {name: health-mask}]
@@ -389,7 +389,7 @@ spec:
     # the host-only catch-all below.
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-         Host(`commands.itsbagelbot.com`)) &&
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`))
       kind: Rule
       middlewares: [{name: dashboard-auth-ratelimit}]
@@ -406,9 +406,13 @@ spec:
     # already delivers it -- traefik's unrouted-host fallback proxies stray
     # hostnames to the marketing site, so an unlisted host serves the wrong
     # page rather than 404ing visibly.
+    #
+    # leaderboard.itsbagelbot.com/<user> is the same shape one level up: a
+    # branded short host over an ordinary app route (the root-level [user]
+    # route, which host-guards itself so no other hostname serves it).
     - match: >-
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-        Host(`commands.itsbagelbot.com`)
+        Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
       kind: Rule
       middlewares: [{name: dashboard-ratelimit}]
       services:

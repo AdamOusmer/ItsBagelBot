@@ -15,11 +15,21 @@
 
   const { t, locale } = getI18n();
 
+  // Hosts that answer /stats themselves. The leaderboard host renders under
+  // this same layout but serves only /<user>, so its stats link must leave for
+  // the canonical host instead of 404ing into the [user] route.
+  const STATS_HOSTS = new Set(['stats.itsbagelbot.com', 'dashboard.itsbagelbot.com']);
+  const localStats = $derived(STATS_HOSTS.has(page.url.hostname));
+
   const links = $derived([
     { href: webHref('/pricing', locale), label: t('public.nav.pricing') },
     { href: webHref('/guides', locale), label: t('public.nav.guides') },
     { href: webHref('/contact', locale), label: t('public.nav.contact') },
-    { href: '/stats', label: t('public.nav.stats'), active: page.url.pathname === '/stats' }
+    {
+      href: localStats ? '/stats' : 'https://stats.itsbagelbot.com/',
+      label: t('public.nav.stats'),
+      active: page.url.pathname === '/stats'
+    }
   ]);
 </script>
 
