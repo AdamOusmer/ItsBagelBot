@@ -107,12 +107,18 @@ type ParseOutcome =
   | { manifest: ImportManifest; diags: ImportDiagnostic[] }
   | { refusal: PreviewResponse };
 
-function refused(code: string, message: string): ParseOutcome {
+// RefusalDiag names the code+prose pair a preview refusal is built from.
+interface RefusalDiag {
+  code: string;
+  message: string;
+}
+
+function refused(diag: RefusalDiag): ParseOutcome {
   return {
     refusal: {
       stats: emptyStats(),
-      diagnostics: [errorDiag(-1, code, message)],
-      error: message
+      diagnostics: [errorDiag(-1, diag.code, diag.message)],
+      error: diag.message
     }
   };
 }
@@ -156,36 +162,38 @@ async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcom
     const fetched = await fetchStreamElements(req.credential ?? '');
     envelope = JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
   } catch (err) {
-    return refused(CODE.fetchFailed, (err as Error).message);
+    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
   }
   const parsed = parseStreamElements(envelope);
   return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
 }
 
 async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  if (!req.file_b64) return refused(CODE.fileRequired, 'upload your Chatbot.db file');
+  if (!req.file_b64) {
+    return refused({ code: CODE.fileRequired, message: 'upload your Chatbot.db file' });
+  }
 
   const file = Buffer.from(req.file_b64, 'base64');
   if (file.byteLength > MAX_DECODED_FILE_BYTES) {
-    return refused(
-      CODE.fileTooLarge,
-      `file is ${file.byteLength} bytes; the limit is ${MAX_DECODED_FILE_BYTES}`
-    );
+    return refused({
+      code: CODE.fileTooLarge,
+      message: `file is ${file.byteLength} bytes; the limit is ${MAX_DECODED_FILE_BYTES}`
+    });
   }
 
   try {
     const parsed = await parseStreamLabsDesktop(file);
     return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
   } catch (err) {
-    return refused(CODE.parseFailed, (err as Error).message);
+    return refused({ code: CODE.parseFailed, message: (err as Error).message });
   }
 }
 
 function unsupportedSource(source: string): ParseOutcome {
-  return refused(
-    CODE.unsupportedSource,
-    source === '' ? 'source required' : `${source}: unsupported source`
-  );
+  return refused({
+    code: CODE.unsupportedSource,
+    message: source === '' ? 'source required' : `${source}: unsupported source`
+  });
 }
 
 // finishPreview is the shared tail of every preview flow: canonicalization +
@@ -232,6 +240,7 @@ async function commandNames(userId: string): Promise<string[]> {
 // diagnostic stream and the applied tally.
 interface CommitContext {
   uid: string;
+  source: string;
   manifest: ImportManifest;
   overwrite: boolean;
   failed: FailedItems;
@@ -260,21 +269,27 @@ interface CommitContext {
 export async function commitImport(s: Session, req: ImportCommitRequest): Promise<CommitResponse> {
   const manifest = req.manifest ?? {};
   const diags = validateManifest(manifest);
-  const failed = new FailedItems(diags);
 
-  const collisions = await resolveCollisions(s.user_id, !!req.overwrite, manifest, diags);
   const ctx: CommitContext = {
     uid: s.user_id,
+    source: req.source || 'unknown',
     manifest,
     overwrite: !!req.overwrite,
-    failed,
-    skipCommands: collisionNames(collisions, 'command'),
-    skipCounters: collisionNames(collisions, 'counter'),
-    collisions,
+    failed: new FailedItems(diags),
+    skipCommands: new Set(),
+    skipCounters: new Set(),
+    collisions: [],
     diags,
     applied: emptyStats(),
     modules: null
   };
+
+  const existingNames = await commandNamesOrWarn(ctx);
+  if (existingNames && !ctx.overwrite) {
+    ctx.collisions = findCollisions(existingNames, ctx.manifest);
+    ctx.skipCommands = collisionNames(ctx.collisions, 'command');
+    ctx.skipCounters = collisionNames(ctx.collisions, 'counter');
+  }
 
   await commitCommands(ctx);
   ctx.modules = await loadModules(ctx);
@@ -286,26 +301,21 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
   // Cache drop so the dashboard reflects the import without waiting out a TTL
   // (commands upserts and modules blob patches both project into cached lists).
   invalidate(`commands:${ctx.uid}`, `modules:${ctx.uid}`);
-  logCommit(req.source || 'unknown', ctx);
+  logCommit(ctx);
   return { applied: ctx.applied, skipped: ctx.collisions, diagnostics: ctx.diags };
 }
 
-// resolveCollisions looks up the channel's live command names for the skip
-// sets. A lookup failure degrades to a warn (fail open): commit re-checks at
-// write time anyway, so a projector blip must not block an import.
-async function resolveCollisions(
-  uid: string,
-  overwrite: boolean,
-  manifest: ImportManifest,
-  diags: ImportDiagnostic[]
-): Promise<CommitResponse['skipped']> {
-  let existingNames: string[] | null = null;
+// commandNamesOrWarn looks up the channel's live command names for the skip
+// sets. A lookup failure degrades to a warn (fail open) and returns null:
+// commit re-checks at write time anyway, so a projector blip must not block
+// an import.
+async function commandNamesOrWarn(ctx: CommitContext): Promise<string[] | null> {
   try {
-    existingNames = await commandNames(uid);
+    return await commandNames(ctx.uid);
   } catch (err) {
-    diags.push({ severity: 'warn', item_index: -1, code: CODE.collisionLookupFailed, message: String(err) });
+    ctx.diags.push({ severity: 'warn', item_index: -1, code: CODE.collisionLookupFailed, message: String(err) });
+    return null;
   }
-  return existingNames && !overwrite ? findCollisions(existingNames, manifest) : [];
 }
 
 type CollisionKind = 'command' | 'counter';
@@ -355,13 +365,21 @@ async function commitCommands(ctx: CommitContext): Promise<void> {
     .map((cmd, idx) => ({ cmd, idx }))
     .filter(({ cmd, idx }) => !ctx.failed.has('commands', idx) && !ctx.skipCommands.has(normalizeName(cmd.name)));
   for (let start = 0; start < targets.length; start += COMMIT_COMMAND_BATCH) {
-    for (const { cmd, idx } of targets.slice(start, start + COMMIT_COMMAND_BATCH)) {
-      await upsertOneCommand(ctx, idx, cmd);
+    for (const target of targets.slice(start, start + COMMIT_COMMAND_BATCH)) {
+      await upsertOneCommand(ctx, target);
     }
   }
 }
 
-async function upsertOneCommand(ctx: CommitContext, idx: number, cmd: ManifestCommand): Promise<void> {
+// CommandTarget pairs one eligible manifest command with its slot, so the
+// writer can attribute a write-failure diagnostic to the right row.
+interface CommandTarget {
+  idx: number;
+  cmd: ManifestCommand;
+}
+
+async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Promise<void> {
+  const { idx, cmd } = target;
   try {
     await upsertCommand(ctx.uid, {
       name: normalizeName(cmd.name),
@@ -430,12 +448,12 @@ async function commitCounters(ctx: CommitContext): Promise<void> {
 }
 
 // logCommit is the audit row's replacement: one structured line per commit.
-function logCommit(source: string, ctx: CommitContext): void {
+function logCommit(ctx: CommitContext): void {
   logger.info(
     {
       event: 'config_import_commit',
       user_id: ctx.uid,
-      source,
+      source: ctx.source,
       overwrite: ctx.overwrite,
       applied: ctx.applied,
       skipped: (ctx.collisions ?? []).map((c) => `${c.kind}:${c.name}`),
@@ -559,7 +577,7 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
     ['block_terms', terms.block ?? []],
     ['allow_terms', terms.allow ?? []]
   ] as const) {
-    const merged = mergeTermList(typeof blob[key] === 'string' ? (blob[key] as string) : '', imported);
+    const merged = mergeTermList(splitTermList(typeof blob[key] === 'string' ? (blob[key] as string) : ''), imported);
     partial[key] = merged.value;
     ctx.diags.push(...merged.diags);
   }
@@ -587,9 +605,9 @@ function recordTerm(book: TermBook, t: string): void {
 // capping at MAX_AUTOMOD_TERMS entries (2 x 200 x ~100 bytes stays far under
 // the modules service's 16KiB blob cap, so hitting the cap mid-commit is
 // impossible rather than handled).
-function mergeTermList(existing: string, imported: string[]): { value: string; diags: ImportDiagnostic[] } {
+function mergeTermList(existingTerms: string[], imported: string[]): { value: string; diags: ImportDiagnostic[] } {
   const book: TermBook = { seen: new Map(), terms: [], added: 0 };
-  for (const t of splitTermList(existing)) {
+  for (const t of existingTerms) {
     recordTerm(book, t);
   }
   const truncated = importTerms(book, imported);

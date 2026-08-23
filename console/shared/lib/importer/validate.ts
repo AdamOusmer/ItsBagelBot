@@ -538,14 +538,31 @@ function validateCounterItem(c: ManifestCounter, index: number): ImportDiagnosti
 export function isRFC3339(s: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(s);
   if (!m) return false;
-  return validCalendarDay(+m[1], +m[2], +m[3]) && validClock(+m[4], +m[5], +m[6]);
+  const day: CalendarDay = { y: +m[1], mo: +m[2], d: +m[3] };
+  const time: ClockTime = { h: +m[4], mi: +m[5], s: +m[6] };
+  return validCalendarDay(day) && validClock(time);
 }
 
-function validCalendarDay(y: number, mo: number, d: number): boolean {
-  if (d < 1) return false;
-  const days = monthLength(y, mo);
+// CalendarDay names the date components one RFC3339 timestamp carries.
+interface CalendarDay {
+  y: number;
+  mo: number;
+  d: number;
+}
+
+// ClockTime names the time components; s = 60 = leap second, which Go's
+// RFC3339 parse also accepts.
+interface ClockTime {
+  h: number;
+  mi: number;
+  s: number;
+}
+
+function validCalendarDay(day: CalendarDay): boolean {
+  if (day.d < 1) return false;
+  const days = monthLength(day.y, day.mo);
   if (days === null) return false;
-  return d <= days;
+  return day.d <= days;
 }
 
 function monthLength(y: number, mo: number): number | null {
@@ -558,9 +575,8 @@ function isLeapYear(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }
 
-function validClock(h: number, mi: number, s: number): boolean {
-  // s = 60 = leap second, which Go's RFC3339 parse also accepts
-  return h <= 23 && mi <= 59 && s <= 60;
+function validClock(time: ClockTime): boolean {
+  return time.h <= 23 && time.mi <= 59 && time.s <= 60;
 }
 
 // --- failed-item lookup (commit's drop filter) -------------------------------

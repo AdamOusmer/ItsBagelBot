@@ -396,20 +396,29 @@ interface CalendarStamp {
   s?: number;
 }
 
+// ResolvedCalendar is a stamp with the omitted time fields filled in.
+interface ResolvedCalendar extends CalendarStamp {
+  h: number;
+  mi: number;
+  s: number;
+}
+
 function mkDate(stamp: CalendarStamp): DateUTC | null {
-  const h = stamp.h ?? 0;
-  const mi = stamp.mi ?? 0;
-  const s = stamp.s ?? 0;
-  if (!validCalendarDay(stamp.y, stamp.mo, stamp.d) || !validTimeOfDay(h, mi, s)) return null;
-  return new DateUTC(stamp.y, stamp.mo, stamp.d, h, mi, s);
+  const resolved = resolveStamp(stamp);
+  if (!validCalendarDay(resolved) || !validTimeOfDay(resolved)) return null;
+  return new DateUTC(resolved.y, resolved.mo, resolved.d, resolved.h, resolved.mi, resolved.s);
 }
 
-function validCalendarDay(y: number, mo: number, d: number): boolean {
-  return mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth(y, mo);
+function resolveStamp(stamp: CalendarStamp): ResolvedCalendar {
+  return { y: stamp.y, mo: stamp.mo, d: stamp.d, h: stamp.h ?? 0, mi: stamp.mi ?? 0, s: stamp.s ?? 0 };
 }
 
-function validTimeOfDay(h: number, mi: number, s: number): boolean {
-  return h <= 23 && mi <= 59 && s <= 59;
+function validCalendarDay(day: ResolvedCalendar): boolean {
+  return day.mo >= 1 && day.mo <= 12 && day.d >= 1 && day.d <= daysInMonth(day.y, day.mo);
+}
+
+function validTimeOfDay(time: ResolvedCalendar): boolean {
+  return time.h <= 23 && time.mi <= 59 && time.s <= 59;
 }
 
 // parseRFC3339 accepts exactly RFC 3339 (fractional seconds optional; Z or a

@@ -252,7 +252,7 @@ export function translateVariables(text: string, cmdName: string): TranslationRe
   // explanation.
   let final = s.out;
   if (s.argMax === 1) {
-    final = replaceWord(final, ['arg1', 'num1', 'argl1'], '{args}');
+    final = replaceWord(final, { names: ['arg1', 'num1', 'argl1'], target: '{args}' });
   } else if (s.argMax > 1) {
     warnOnce(
       s,
@@ -405,7 +405,7 @@ interface ParamCursor {
 function scanIdent(text: string, start: number): ParamCursor {
   if (!hasIdentStart(text, start)) return { name: '', next: start };
   const end = readNameChars(text, start + 1);
-  return buildCursor(text, start, end);
+  return { name: text.slice(start, end), next: end };
 }
 
 // hasIdentStart checks the first character after '$': identifiers begin with
@@ -428,9 +428,6 @@ function readNameChars(text: string, from: number): number {
   return i;
 }
 
-function buildCursor(text: string, start: number, end: number): ParamCursor {
-  return { name: text.slice(start, end), next: end };
-}
 
 // parenArg returns the content of the (...) following pos, or null.
 function parenArg(text: string, pos: number): string | null {
@@ -504,9 +501,17 @@ function argsSlotIndex(name: string): number {
   return 0;
 }
 
+// WordRewrite names the arg-slot rewrite applied to scanned output: which
+// $name spellings collapse and the canonical token they become.
+interface WordRewrite {
+  names: string[];
+  target: string;
+}
+
 // replaceWord rewrites exact $name occurrences (never prefixes of longer names
 // such as $arg10) in already-scanned output text.
-function replaceWord(text: string, names: string[], target: string): string {
+function replaceWord(text: string, rewrite: WordRewrite): string {
+  const { names, target } = rewrite;
   for (const n of names) {
     const token = `$${n}`;
     let b = '';
