@@ -226,25 +226,39 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 		// MaxAckPending seat until max_age; that race is what capped the
 		// lane near 2-3k msg/s. The non-delivery arms unwind the watch
 		// themselves and resultWatch.finished makes double release a no-op.
-		w := &resultWatch{s: s, natsMsg: natsMsg}
-		w.timer = time.AfterFunc(s.progress, w.keepAlive)
-		msg.setResolveHandler(w.resolve)
-		s.acks.Add(1)
-		handed := false
-		select {
-		case output <- msg:
-			handed = true
-		case <-ctx.Done():
-		case <-s.closeCh:
-		case <-callbacks.stopped():
-		}
-		if !handed {
-			w.timer.Stop()
-			if w.finished.CompareAndSwap(false, true) {
-				s.acks.Done()
-			}
+		w := s.newResultWatch(natsMsg, msg)
+		if !s.handOff(ctx, output, callbacks, msg) {
+			w.unwind()
 		}
 	}
+}
+
+// newResultWatch arms one message's keep-alive timer and resolve hook and
+// counts it against the in-flight ack budget.
+func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
+	w := &resultWatch{s: s, natsMsg: natsMsg}
+	w.timer = time.AfterFunc(s.progress, w.keepAlive)
+	msg.setResolveHandler(w.resolve)
+	s.acks.Add(1)
+	return w
+}
+
+// handOff blocks until the message lands on output or the lane shuts down
+// around it; it reports whether the handoff won.
+func (s *concurrentDurableSubscriber) handOff(
+	ctx context.Context,
+	output chan<- *Message,
+	callbacks *callbackGate,
+	msg *Message,
+) bool {
+	select {
+	case output <- msg:
+		return true
+	case <-ctx.Done():
+	case <-s.closeCh:
+	case <-callbacks.stopped():
+	}
+	return false
 }
 
 func newCallbackGate() *callbackGate {
@@ -362,6 +376,15 @@ type resultWatch struct {
 	// callback with its own Reset, so it needs no lock.
 	elapsed  time.Duration
 	finished atomic.Bool
+}
+
+// unwind releases a watch whose message never reached a worker: stop the
+// keep-alive timer and give the ack seat straight back.
+func (w *resultWatch) unwind() {
+	w.timer.Stop()
+	if w.finished.CompareAndSwap(false, true) {
+		w.s.acks.Done()
+	}
 }
 
 func (w *resultWatch) resolve(acked bool) {

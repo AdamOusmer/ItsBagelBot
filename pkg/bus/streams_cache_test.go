@@ -43,6 +43,17 @@ func TestStreamForTopicCacheFollowsThePartitionFlip(t *testing.T) {
 	requireStreamForTopic(t, "twitch.ingress.event.standard", TwitchIngressStream.Name)
 }
 
+// requireExactRefusal asserts streamForTopic answers an unknown subject with
+// the resolver's own refusal, byte for byte.
+func requireExactRefusal(t *testing.T, subject, wantName string, wantErr error) {
+	t.Helper()
+	gotName, gotErr := streamForTopic(subject)
+	if gotName != wantName || gotErr == nil || gotErr.Error() != wantErr.Error() {
+		t.Fatalf("streamForTopic(%q) = %q, %v; want the resolver's exact refusal %q, %v",
+			subject, gotName, gotErr, wantName, wantErr)
+	}
+}
+
 func TestStreamForTopicNegativeCacheMatchesResolverError(t *testing.T) {
 	const unknown = "nobody.claims.this"
 
@@ -51,18 +62,9 @@ func TestStreamForTopicNegativeCacheMatchesResolverError(t *testing.T) {
 		t.Fatalf("resolveStreamForTopic(%q) = %q, want an error", unknown, directName)
 	}
 
-	cachedName, cachedErr := streamForTopic(unknown)
-	if cachedName != directName || cachedErr == nil || cachedErr.Error() != directErr.Error() {
-		t.Fatalf("streamForTopic(%q) = %q, %v; want the resolver's exact refusal %q, %v",
-			unknown, cachedName, cachedErr, directName, directErr)
-	}
-
+	requireExactRefusal(t, unknown, directName, directErr)
 	for i := 0; i < 3; i++ {
-		name, err := streamForTopic(unknown)
-		if name != "" || err == nil || err.Error() != directErr.Error() {
-			t.Fatalf("streamForTopic(%q) repeat %d = %q, %v; want the stable refusal %q",
-				unknown, i, name, err, directErr)
-		}
+		requireExactRefusal(t, unknown, "", directErr)
 	}
 }
 

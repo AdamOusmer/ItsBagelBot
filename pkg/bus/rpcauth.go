@@ -168,48 +168,77 @@ func nonceSeen(caller, nonce string, now time.Time) bool {
 	return false
 }
 
+// staleSince reports whether a signature or claim minted at tsMillis has
+// drifted further from now than maxSkew in either direction. Both verifiers
+// share it — an attestation may be stale into the future exactly as it is
+// stale into the past.
+func staleSince(tsMillis int64, maxSkew time.Duration) bool {
+	skew := time.Since(time.UnixMilli(tsMillis))
+	if skew < 0 {
+		skew = -skew
+	}
+	return skew > maxSkew
+}
+
+// callerAuth is the parsed, individually-validated wire form of a signed
+// caller's headers.
+type callerAuth struct {
+	caller   string
+	key      []byte
+	ts       int64
+	nonce    []byte
+	nonceHex string
+}
+
+// parseCallerAuth validates every header VerifySignedCaller needs and resolves
+// the caller's shared secret. A request missing any piece is unsigned; a known
+// shape from an unknown caller is refused by key absence, which is what makes
+// adding a new import in nats-auth.conf alone useless to an attacker.
+func parseCallerAuth(h nats.Header, keys map[string][]byte) (*callerAuth, error) {
+	for _, hdr := range []string{HeaderRPCCaller, HeaderRPCTime, HeaderRPCNonce, HeaderRPCSignature} {
+		if h.Get(hdr) == "" {
+			return nil, fmt.Errorf("unsigned request")
+		}
+	}
+	caller := h.Get(HeaderRPCCaller)
+	key, ok := keys[caller]
+	if !ok {
+		return nil, fmt.Errorf("caller %q not authorized", caller)
+	}
+	ts, err := strconv.ParseInt(h.Get(HeaderRPCTime), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("bad timestamp")
+	}
+	nonceHex := h.Get(HeaderRPCNonce)
+	nonce, err := hex.DecodeString(nonceHex)
+	if err != nil || len(nonce) < 8 {
+		return nil, fmt.Errorf("bad nonce")
+	}
+	return &callerAuth{caller: caller, key: key, ts: ts, nonce: nonce, nonceHex: nonceHex}, nil
+}
+
 // VerifySignedCaller authenticates a request's origin. keys maps caller name
 // to its shared secret (see CallerKeysFromEnv); a caller without an entry is
 // rejected regardless of signature quality, which is what makes adding a new
 // import in nats-auth.conf alone useless to an attacker.
 // On success the caller is stored in ctx under CallerContextKey.
 func VerifySignedCaller(ctx context.Context, msg *nats.Msg, keys map[string][]byte, maxSkew time.Duration) (context.Context, string, error) {
-	h := msg.Header
-	caller := h.Get(HeaderRPCCaller)
-	tsStr := h.Get(HeaderRPCTime)
-	nonceHex := h.Get(HeaderRPCNonce)
-	sig := h.Get(HeaderRPCSignature)
-	if caller == "" || tsStr == "" || nonceHex == "" || sig == "" {
-		return ctx, "", fmt.Errorf("unsigned request")
-	}
-	key, ok := keys[caller]
-	if !ok {
-		return ctx, "", fmt.Errorf("caller %q not authorized", caller)
-	}
-	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	auth, err := parseCallerAuth(msg.Header, keys)
 	if err != nil {
-		return ctx, "", fmt.Errorf("bad timestamp")
+		return ctx, "", err
 	}
-	skew := time.Since(time.UnixMilli(ts))
-	if skew < 0 {
-		skew = -skew
-	}
-	if skew > maxSkew {
+	if staleSince(auth.ts, maxSkew) {
 		return ctx, "", fmt.Errorf("stale signature")
 	}
-	nonce, err := hex.DecodeString(nonceHex)
-	if err != nil || len(nonce) < 8 {
-		return ctx, "", fmt.Errorf("bad nonce")
-	}
-	expected := requestSignature(key, caller, msg.Subject, ts, nonce, msg.Data)
-	if !hmac.Equal([]byte(expected), []byte(sig)) {
+	expected := requestSignature(auth.key, auth.caller, msg.Subject, auth.ts, auth.nonce, msg.Data)
+	if !hmac.Equal([]byte(expected), []byte(msg.Header.Get(HeaderRPCSignature))) {
 		return ctx, "", fmt.Errorf("signature mismatch")
 	}
-	if nonceSeen(caller, nonceHex, time.Now()) {
+	if nonceSeen(auth.caller, auth.nonceHex, time.Now()) {
 		return ctx, "", fmt.Errorf("replayed signature")
 	}
-	ctx = context.WithValue(ctx, callerContextKey{}, caller)
-	return ctx, caller, nil
+	ctx = context.WithValue(ctx, callerContextKey{}, auth.caller)
+	return ctx, auth.caller, nil
 }
 
 type callerContextKey struct{}
@@ -277,11 +306,7 @@ func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserCla
 	if err := codec.Unmarshal(raw, &claim); err != nil {
 		return nil, fmt.Errorf("malformed user claim")
 	}
-	skew := time.Since(time.UnixMilli(claim.IssuedAt))
-	if skew < 0 {
-		skew = -skew
-	}
-	if skew > maxSkew {
+	if staleSince(claim.IssuedAt, maxSkew) {
 		return nil, fmt.Errorf("stale user claim")
 	}
 	if nonceSeen("user-claim:"+claim.UserID, claim.Nonce, time.Now()) {

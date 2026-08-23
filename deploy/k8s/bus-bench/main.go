@@ -86,7 +86,11 @@ func main() {
 	case "setup":
 		err = runSetup(*url, *stream, *maxBytes)
 	case "publish":
-		err = runPublish(*url, *subject, *duration, *startAt, *payloadSize, *confirmEvery, *rate, *podIndex, *feeders)
+		err = runPublish(publishOpts{
+			url: *url, subject: *subject, duration: *duration, startAt: *startAt,
+			payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate,
+			podIndex: *podIndex, feeders: *feeders,
+		})
 	case "consume":
 		err = runConsume(*url, *subject, *group, *duration, *startAt, *payloadSize)
 	case "cleanup":
@@ -327,84 +331,34 @@ func sortAsc(v []int64) {
 	slices.Sort(v)
 }
 
-func runPublish(url, subject string, duration time.Duration, startAt int64, payloadSize, confirmEvery, rate, podIndex, feeders int) error {
-	waitUntil(startAt)
-	windowStart := time.Now()
-	deadline := windowStart.Add(duration)
+// publishOpts bundles one publish-mode invocation. Every flag feeds the same
+// run, so they travel as a struct rather than as a nine-argument signature.
+type publishOpts struct {
+	url          string
+	subject      string
+	duration     time.Duration
+	startAt      int64
+	payloadSize  int
+	confirmEvery int
+	rate         int
+	podIndex     int
+	feeders      int
+}
 
-	pub, err := bus.NewPublisher(url, zap.NewNop())
+func runPublish(o publishOpts) error {
+	waitUntil(o.startAt)
+	windowStart := time.Now()
+	deadline := windowStart.Add(o.duration)
+
+	pub, err := bus.NewPublisher(o.url, zap.NewNop())
 	if err != nil {
 		return err
 	}
 	defer pub.Close()
 
 	ctx := context.Background()
-	var (
-		admitted uint64
-		pErrs    uint64
-	)
-	// hashStreamRouter pins one routing key to ONE pooled connection, so an
-	// unpartitioned feeder engages exactly one worker of the pool and the
-	// other members never build a worker at all. One feeder per pooled
-	// connection, each under its own publish partition, is the minimum shape
-	// that exercises the whole publisher; ordering is per-feeder, which is
-	// all the latency samples need.
-	if feeders < 1 {
-		feeders = 1
-	}
-	samplesCh := make(chan []int64, feeders)
-	var wg sync.WaitGroup
-	for f := 0; f < feeders; f++ {
-		wg.Add(1)
-		go func(f int) {
-			defer wg.Done()
-			fctx := bus.WithPublishPartition(ctx, strconv.Itoa(f))
-			seq := uint64(f)
-			var samples []int64
-			var nextSlot time.Time
-			if rate > 0 {
-				nextSlot = time.Now()
-			}
-			for time.Now().Before(deadline) {
-				if rate > 0 {
-					nextSlot = nextSlot.Add(time.Second * time.Duration(feeders) / time.Duration(rate))
-					if d := time.Until(nextSlot); d > 0 {
-						time.Sleep(d)
-					}
-				}
-				seq += uint64(feeders)
-				globalSeq := uint64(podIndex)<<48 | seq
-				body := buildPayload(globalSeq, time.Now().UnixNano(), payloadSize)
-				if confirmEvery > 0 && seq%uint64(confirmEvery) == 0 {
-					t0 := time.Now()
-					cerr := bus.PublishConfirmed(fctx, pub, bus.Publication{
-						Subject: subject,
-						ID:      fmt.Sprintf("bench-%d-%d", podIndex, seq),
-						Payload: body,
-					})
-					samples = append(samples, time.Since(t0).Nanoseconds())
-					if cerr != nil {
-						atomic.AddUint64(&pErrs, 1)
-					} else {
-						atomic.AddUint64(&admitted, 1)
-					}
-					continue
-				}
-				if rerr := bus.PublishRaw(fctx, pub, subject, body); rerr != nil {
-					atomic.AddUint64(&pErrs, 1)
-				} else {
-					atomic.AddUint64(&admitted, 1)
-				}
-			}
-			samplesCh <- samples
-		}(f)
-	}
-	wg.Wait()
-	close(samplesCh)
-	var samples []int64
-	for s := range samplesCh {
-		samples = append(samples, s...)
-	}
+	var admitted, pErrs uint64
+	samples := collectFeedSamples(ctx, pub, o, deadline, &admitted, &pErrs)
 
 	flushCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	_ = pub.Flush(flushCtx)
@@ -420,6 +374,95 @@ func runPublish(url, subject string, duration time.Duration, startAt int64, payl
 		CommitNs:    summarize(samples),
 	})
 	return nil
+}
+
+// collectFeedSamples drives every feeder goroutine to its deadline and returns
+// their merged commit-latency samples.
+func collectFeedSamples(ctx context.Context, pub bus.Publisher, o publishOpts, deadline time.Time, admitted, pErrs *uint64) []int64 {
+	feeders := max(o.feeders, 1)
+	samplesCh := make(chan []int64, feeders)
+	var wg sync.WaitGroup
+	for f := range feeders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			samplesCh <- runFeeder(bus.WithPublishPartition(ctx, strconv.Itoa(f)), pub, o, f, deadline, admitted, pErrs)
+		}()
+	}
+	wg.Wait()
+	close(samplesCh)
+	var samples []int64
+	for s := range samplesCh {
+		samples = append(samples, s...)
+	}
+	return samples
+}
+
+// feedPacer spaces a feeder's publishes so the pool offers rate/feeders msg/s
+// in aggregate; disabled when no rate was requested.
+type feedPacer struct {
+	on    bool
+	slot  time.Time
+	stride time.Duration
+}
+
+func newFeedPacer(rate, feeders int) feedPacer {
+	if rate <= 0 {
+		return feedPacer{}
+	}
+	return feedPacer{on: true, slot: time.Now(), stride: time.Second * time.Duration(feeders) / time.Duration(rate)}
+}
+
+func (p *feedPacer) wait() {
+	if !p.on {
+		return
+	}
+	p.slot = p.slot.Add(p.stride)
+	if d := time.Until(p.slot); d > 0 {
+		time.Sleep(d)
+	}
+}
+
+// publishOne sends one message, confirmed (commit latency sampled) or raw.
+func publishOne(ctx context.Context, pub bus.Publisher, subject, id string, body []byte, confirmed bool) (time.Duration, error) {
+	t0 := time.Now()
+	var err error
+	if confirmed {
+		err = bus.PublishConfirmed(ctx, pub, bus.Publication{Subject: subject, ID: id, Payload: body})
+	} else {
+		err = bus.PublishRaw(ctx, pub, subject, body)
+	}
+	return time.Since(t0), err
+}
+
+// runFeeder publishes under one partition until deadline. hashStreamRouter pins
+// one routing key to ONE pooled connection, so an unpartitioned feeder engages
+// exactly one worker of the pool and the other members never build a worker at
+// all. One feeder per pooled connection, each under its own publish partition,
+// is the minimum shape that exercises the whole publisher; ordering is
+// per-feeder, which is all the latency samples need.
+func runFeeder(ctx context.Context, pub bus.Publisher, o publishOpts, f int, deadline time.Time, admitted, pErrs *uint64) []int64 {
+	pacer := newFeedPacer(o.rate, max(o.feeders, 1))
+	seq := uint64(f)
+	var samples []int64
+	for time.Now().Before(deadline) {
+		pacer.wait()
+		seq += uint64(max(o.feeders, 1))
+		globalSeq := uint64(o.podIndex)<<48 | seq
+		body := buildPayload(globalSeq, time.Now().UnixNano(), o.payloadSize)
+		confirmed := o.confirmEvery > 0 && seq%uint64(o.confirmEvery) == 0
+		id := fmt.Sprintf("bench-%d-%d", o.podIndex, seq)
+		elapsed, err := publishOne(ctx, pub, o.subject, id, body, confirmed)
+		if err != nil {
+			atomic.AddUint64(pErrs, 1)
+		} else {
+			atomic.AddUint64(admitted, 1)
+		}
+		if confirmed {
+			samples = append(samples, elapsed.Nanoseconds())
+		}
+	}
+	return samples
 }
 
 type collector struct {
