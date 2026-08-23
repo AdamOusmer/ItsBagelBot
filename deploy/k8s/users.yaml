@@ -139,6 +139,10 @@ spec:
               value: tls://nats.messaging:4222
             - name: NATS_HUB_PUBLISH_URL
               value: tls://nats.messaging:4222
+            - name: NATS_PUBLISH_WIRE
+              value: atomic
+            - name: NATS_ATOMIC_PUBLISH_BATCH_SIZE
+              value: "1000"
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
