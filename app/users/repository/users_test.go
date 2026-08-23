@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.uber.org/zap"
+
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/v2/keyset"
@@ -52,8 +54,8 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 
 	pub := bustest.NewPublisher()
 
-	repo := repository.NewUsers(client, newPacker(t), pub)
-	t.Cleanup(repo.Close)
+	repo := repository.NewUsers(client, newPacker(t), pub, nil, zap.NewNop())
+	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	return client, pub, repo
 }
@@ -173,7 +175,11 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
 
+	// Creator code is write-behind preference state: validation is
+	// synchronous, but persistence and the announcement land at flush.
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "  MAVEY10  "))
+	repo.Close(context.Background())
+
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
 	require.NotNil(t, view.CreatorCode)
@@ -182,6 +188,8 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	assert.Equal(t, "MAVEY10", *client.User.GetX(ctx, 1001).CreatorCode)
 
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, ""))
+	repo.Close(context.Background())
+
 	view, err = repo.Get(ctx, 1001)
 	require.NoError(t, err)
 	assert.Nil(t, view.CreatorCode)

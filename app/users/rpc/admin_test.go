@@ -29,8 +29,8 @@ func setupAdminRPCTest(t *testing.T) (*adminRPC, *ent.Client) {
 
 	// packer and pub are nil because the list/search tests do not exercise
 	// write or token paths that would call them.
-	repo := repository.NewUsers(client, nil, nil)
-	t.Cleanup(repo.Close)
+	repo := repository.NewUsers(client, nil, nil, nil, zap.NewNop())
+	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	return &adminRPC{repo: repo, log: zap.NewNop()}, client
 }
