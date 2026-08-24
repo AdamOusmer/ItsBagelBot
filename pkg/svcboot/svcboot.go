@@ -16,9 +16,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	entsql "entgo.io/ent/dialect/sql"
 
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
@@ -28,6 +28,26 @@ import (
 
 	"go.uber.org/zap"
 )
+
+// APP_ENV values logger.New understands.
+const (
+	appEnvProduction  = "production"
+	appEnvDevelopment = "development"
+	appEnvDebug       = "debug"
+)
+
+// resolveAppEnv resolves APP_ENV through get and reports whether it was
+// defaulted. Defaults to production, not development (flipped 2026-08): a
+// production boot that forgot APP_ENV used to silently get verbose, unsampled
+// development logs — the expensive configuration — with nothing saying so. A
+// missing value must fall to the restrictive end, and defaulted=true is what
+// NewCore turns into the one-time boot warning that says it happened.
+func resolveAppEnv(get func(string) string) (string, bool) {
+	if value := get("APP_ENV"); value != "" {
+		return value, false
+	}
+	return appEnvProduction, true
+}
 
 // Core bundles the observability and lifecycle plumbing every service starts
 // with: the named, New-Relic-wrapped logger, the APM app and the SIGINT/SIGTERM
@@ -42,7 +62,12 @@ type Core struct {
 // returned cleanup stops signal delivery, flushes the APM agent and syncs the
 // logger, in that order; defer it first so it runs last.
 func NewCore(serviceName string) (Core, func()) {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
+	appEnv, defaulted := resolveAppEnv(os.Getenv)
+	log := logger.New(appEnv).Named(serviceName)
+	if defaulted {
+		// Once, before any wiring: after this point nothing else will say it.
+		log.Warn("APP_ENV not set; defaulted to production logging")
+	}
 
 	nrApp, err := monitor.New(serviceName, log)
 	if err != nil {
