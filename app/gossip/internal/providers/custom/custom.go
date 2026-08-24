@@ -248,7 +248,7 @@ func (p *api) planFlight(ctx context.Context, req gossiprpc.Request) (*flight, g
 // definition itself and the effective extraction path.
 func (p *api) resolveFlight(ctx context.Context, req gossiprpc.Request) (*flight, gossiprpc.FetchStatus) {
 	channelID := strings.TrimSpace(req.ChannelID)
-	if channelID == "" || (req.DefID == "" && req.Def == nil) {
+	if channelID == "" || missingDefIdentity(req) {
 		// A caller bug, not an upstream condition; bad_def keeps the author's
 		// token visible rather than chatting an error about our own wire.
 		return nil, gossiprpc.FetchBadDef
@@ -353,6 +353,12 @@ func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) (
 	default:
 		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	}
+}
+
+// missingDefIdentity: the request names nothing to run — no stored id and no
+// inline draft.
+func missingDefIdentity(req gossiprpc.Request) bool {
+	return req.DefID == "" && req.Def == nil
 }
 
 // resolveDef returns the definition to run: the inline draft when the request

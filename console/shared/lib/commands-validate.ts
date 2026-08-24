@@ -138,24 +138,39 @@ export function urlFetchNames(response: string): string[] {
  * verbatim (mark.unknown treatment): typos stay visible, matching the
  * engine's leave-unknown-tokens-literal rule.
  */
-export function malformedUrlFetchTokens(response: string): string[] {
-  const bad: string[] = [];
+interface FetchSpan {
+  span: string;
+  /** Text after the first ':' inside the braces; null when the token has none. */
+  payload: string | null;
+}
+
+// fetchSpans walks every '{urlfetch'-prefixed span; dangling carries an
+// unclosed trailing token verbatim.
+function fetchSpans(response: string): { spans: FetchSpan[]; dangling: string | null } {
+  const spans: FetchSpan[] = [];
   let i = response.indexOf('{urlfetch');
   while (i >= 0) {
     const end = response.indexOf('}', i + 1);
-    if (end < 0) {
-      bad.push(response.slice(i));
-      break;
-    }
+    if (end < 0) return { spans, dangling: response.slice(i) };
     const span = response.slice(i, end + 1);
     const body = span.slice(1, -1);
     const colon = body.indexOf(':');
-    const payload = colon < 0 ? null : body.slice(colon + 1);
-    if (payload === null || payload === '' || parseJsonPath(payload.toLowerCase()) === null || payload.includes(':')) {
-      bad.push(span);
-    }
+    spans.push({ span, payload: colon < 0 ? null : body.slice(colon + 1) });
     i = response.indexOf('{urlfetch', end);
   }
+  return { spans, dangling: null };
+}
+
+function malformedFetchPayload(payload: string | null): boolean {
+  if (payload === null || payload === '') return true;
+  if (payload.includes(':')) return true;
+  return parseJsonPath(payload.toLowerCase()) === null;
+}
+
+export function malformedUrlFetchTokens(response: string): string[] {
+  const { spans, dangling } = fetchSpans(response);
+  const bad = spans.filter((s) => malformedFetchPayload(s.payload)).map((s) => s.span);
+  if (dangling !== null) bad.push(dangling);
   return bad;
 }
 

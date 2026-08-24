@@ -267,7 +267,7 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 		ExecX(ctx)
 
 	// Refused while referenced; the refusal names the referencing commands.
-	err := repo.DeleteDef(ctx, 1001, "weather", false)
+	err := repo.DeleteDef(ctx, 1001, repository.DefDelete{Name: "weather", Force: false})
 	var refErr *repository.ErrFetchDefReferenced
 	require.ErrorAs(t, err, &refErr)
 	assert.Equal(t, []string{"temp"}, refErr.Commands)
@@ -280,7 +280,7 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 		SetName("other").
 		SetResponse("{URLFETCH:WEATHER2} and {urlfetch:withered}").
 		ExecX(ctx)
-	require.NoError(t, repo.DeleteDef(ctx, 1001, "weather", false), "no real reference to weather")
+	require.NoError(t, repo.DeleteDef(ctx, 1001, repository.DefDelete{Name: "weather", Force: false}), "no real reference to weather")
 	rows := client.FetchDefinition.Query().AllX(ctx)
 	assert.Empty(t, rows)
 
@@ -291,7 +291,7 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 		SetName("temp").
 		SetResponse("{urlfetch:wx}").
 		ExecX(ctx)
-	require.NoError(t, repo.DeleteDef(ctx, 1001, "wx", true))
+	require.NoError(t, repo.DeleteDef(ctx, 1001, repository.DefDelete{Name: "wx", Force: true}))
 	rows = client.FetchDefinition.Query().AllX(ctx)
 	assert.Empty(t, rows)
 
@@ -354,7 +354,7 @@ func TestRenameDefRetiresOldName(t *testing.T) {
 func TestDeleteDefValidation(t *testing.T) {
 	_, _, repo := fetchSetup(t)
 
-	err := repo.DeleteDef(context.Background(), 1001, "bad name!", false)
+	err := repo.DeleteDef(context.Background(), 1001, repository.DefDelete{Name: "bad name!"})
 	assert.ErrorIs(t, err, validate.ErrFetchDefName)
 }
 
