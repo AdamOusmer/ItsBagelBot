@@ -1,11 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The stage layout: no sidebar. A thin call-sign strip on top, one centered
-  // reading column for the page, and the floating command dock at the bottom —
-  // the same navigation pattern at every breakpoint.
+  // The stage layout: a thin call-sign strip on top, one centered reading
+  // column, and exactly one nav system per width — the Sidebar rail at
+  // ≥1024px, the floating command dock below it.
   import type { Snippet } from 'svelte';
   import Topbar from './Topbar.svelte';
+  import Sidebar from './Sidebar.svelte';
   import Dock from './Dock.svelte';
   import { getI18n } from '../lib/i18n/context';
   import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
@@ -65,6 +66,7 @@
     {delegateExitHref}
     {delegateExitLabel}
   />
+  <Sidebar {groups} />
   <main class="main" id="main-content" tabindex="-1" bind:this={mainEl}>
     <div class="canvas">{@render children()}</div>
   </main>
@@ -91,4 +93,23 @@
   /* impersonation/delegate offset for the fixed banner */
   .app.offset { box-sizing: border-box; padding-top: 44px; min-height: 100vh; }
   .app.offset :global(.topbar) { top: 44px; }
+
+  /* ≥1024px becomes a two-column stage: Sidebar owns column 1, the Topbar
+     rules across both, and main centers its canvas in what remains. Grid, not
+     a margin-left hack, because the rail must start BELOW the sticky topbar
+     (not slide under it) and the canvas should center in the leftover space
+     with no width arithmetic. DOM order (Topbar, Sidebar, main) drives
+     auto-placement; .main pins column 2 so a future element can't silently
+     reshuffle the stage. Below 1024 none of this applies and the dock shows. */
+  @media (min-width: 1024px) {
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w, 248px) minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+    }
+    .app :global(.topbar) { grid-column: 1 / -1; }
+    .main { grid-column: 2; }
+    /* The dock's 110px bottom reserve is dead weight once the dock is hidden. */
+    .canvas { padding-bottom: calc(var(--gutter) + 6px); }
+  }
 </style>

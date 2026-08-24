@@ -105,8 +105,11 @@
   const sections = $derived((data.sections ?? []) as string[]);
 
   // Notifications deliberately have NO nav entry: the topbar bell (badge +
-  // dropdown, "View all" link) is the only way in.
-  const items = $derived(dashboardNavItems({ isDelegate, sections, section, t }));
+  // dropdown, "View all" link) is the only way in. path/hash feed the
+  // subsection active flags (module categories are hash-gated to the hub).
+  const items = $derived(
+    dashboardNavItems({ isDelegate, sections, section, path, hash: page.url.hash, t })
+  );
   const groups = $derived(dashboardNavGroups(items, t));
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>

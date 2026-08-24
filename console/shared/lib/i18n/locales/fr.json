@@ -32,6 +32,7 @@
     "manage": "Gérer",
     "overview": "Aperçu",
     "commands": "Commandes",
+    "fetches": "Récupérations HTTP",
     "modules": "Modules",
     "counters": "Compteurs",
     "channelpoints": "Points de chaîne",
@@ -39,7 +40,10 @@
     "billing": "Facturation",
     "stats": "Stats",
     "status": "Statut",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "preferences": "Préférences",
+    "delegates": "Délégués",
+    "importSettings": "Paramètres d'import"
   },
   "topbar": {
     "roleBroadcaster": "Diffuseur",

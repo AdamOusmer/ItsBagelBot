@@ -10,6 +10,7 @@
 // means adding ONE entry here with its match prefixes; every consumer derives
 // from this list, so they cannot drift.
 
+import { MODULE_CATALOG } from './catalog';
 import type { IconName } from './icons';
 import type { NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
@@ -129,15 +130,91 @@ export function sectionForPath(path: string): SectionId {
  * delegate loses ownerOnly entries and keeps only grants they hold. `t` is
  * injected (the caller's locale-bound translator); defaults to identity so pure
  * callers (tests, server) need no i18n context.
+ *
+ * `path`/`hash` (the client location, both defaulting to '') drive only the
+ * subsection active flags: module categories are hash-gated to the hub page,
+ * static children match their path exactly. Parents stay section-driven, so a
+ * bare call (server render, Dock) yields children that simply read inactive.
  */
+
+// Subsection children of the registry sections. They never carry grant logic
+// of their own — they are built only for parents that survived the visibility
+// filter above, so they render exactly when their parent does.
+
+interface NavChildDef {
+  href: string;
+  icon: IconName;
+  labelKey: MessageKey;
+}
+
+const COMMAND_CHILDREN: readonly NavChildDef[] = [
+  { href: '/commands', icon: 'commands', labelKey: 'nav.commands' },
+  { href: '/commands/fetches', icon: 'link', labelKey: 'nav.fetches' }
+];
+
+const SETTINGS_CHILDREN: readonly NavChildDef[] = [
+  { href: '/settings', icon: 'settings', labelKey: 'settings.preferences' },
+  { href: '/access', icon: 'users', labelKey: 'nav.delegates' },
+  { href: '/settings/import', icon: 'globe', labelKey: 'nav.importSettings' }
+];
+
+// Category rows are presentational only; an unknown category falls back to the
+// parent's icon rather than growing a lookup entry per future category.
+const CATEGORY_ICONS: Record<string, IconName> = {
+  'Chat Tools': 'commands',
+  Community: 'users',
+  Moderation: 'moderation',
+  Games: 'gamepad'
+};
+
+// The exact id scheme modules/+page.svelte gives its category headings for the
+// scrollspy (`cat-` + slugified category) — change either side and the other's
+// links strand mid-page.
+function categoryAnchor(category: string): string {
+  return 'cat-' + category.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+// One child per catalog category, in first-appearance order — the same order
+// the hub renders its sections in. Hidden modules contribute nothing (they are
+// excluded server-side too, so no hub heading exists for their category).
+// Active only on the hub itself with the matching hash: prefix matches would
+// light every category at once on /modules/<id> pages.
+function moduleCategoryLinks(path: string, hash: string): NavLink[] {
+  const anchors = new Map<string, string>();
+  for (const m of MODULE_CATALOG) {
+    if (!m.hidden && !anchors.has(m.category)) anchors.set(m.category, categoryAnchor(m.category));
+  }
+  return [...anchors].map(([category, anchor]) => ({
+    href: `/modules#${anchor}`,
+    icon: CATEGORY_ICONS[category] ?? 'modules',
+    label: category,
+    active: path === '/modules' && hash === `#${anchor}`
+  }));
+}
+
+function sectionChildren(
+  def: DashboardSectionDef,
+  path: string,
+  hash: string,
+  t: (key: MessageKey) => string
+): NavLink[] | undefined {
+  if (def.id === 'modules') return moduleCategoryLinks(path, hash);
+  const defs = def.id === 'commands' ? COMMAND_CHILDREN : def.id === 'settings' ? SETTINGS_CHILDREN : undefined;
+  return defs?.map((c) => ({ href: c.href, icon: c.icon, label: t(c.labelKey), active: path === c.href }));
+}
+
 export function dashboardNavItems(opts: {
   isDelegate: boolean;
   sections: readonly string[];
   section: SectionId;
+  path?: string;
+  hash?: string;
   t?: (key: MessageKey) => string;
 }): NavLink[] {
   const { isDelegate, sections, section } = opts;
   const t = opts.t ?? identity;
+  const path = opts.path ?? '';
+  const hash = opts.hash ?? '';
   return DASHBOARD_SECTIONS.filter(
     (def) =>
       !(def.ownerOnly && isDelegate) &&
@@ -146,7 +223,8 @@ export function dashboardNavItems(opts: {
     href: def.href,
     icon: def.icon,
     label: t(def.labelKey),
-    active: section === def.id
+    active: section === def.id,
+    children: sectionChildren(def, path, hash, t)
   }));
 }
 

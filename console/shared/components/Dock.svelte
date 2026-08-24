@@ -1,12 +1,13 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The dock: navigation floats in a rounded bar at the bottom, the same
-  // pattern at every breakpoint. It scales without bloating: when the app
-  // declares more than one nav group (admin), each multi-item group collapses
-  // into ONE dock button that opens a small popover of its pages — the dock
-  // stays at a handful of buttons no matter how many routes exist. Any item
-  // routed at "/" is hoisted out of its group as a direct Home button.
+  // The dock: navigation floats in a rounded bar at the bottom for widths
+  // below 1024px — above that the Sidebar rail takes over and this component
+  // hides itself. It scales without bloating: when the app declares more than
+  // one nav group (admin), each multi-item group collapses into ONE dock
+  // button that opens a small popover of its pages — the dock stays at a
+  // handful of buttons no matter how many routes exist. Any item routed at "/"
+  // is hoisted out of its group as a direct Home button.
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import type { NavLink, NavGroupDef } from '../lib/types';
@@ -301,6 +302,15 @@
     .dock-item.active .lbl { display: block; }
     .group-wrap { flex: 1; }
     .group-wrap .dock-item { width: 100%; }
+  }
+  /* Desktop hands navigation to the Sidebar rail. Each nav surface owns its
+     own half of the breakpoint (Sidebar hides <1024, we hide ≥1024) so "never
+     both visible" holds by construction — no JS width listener in AppShell, no
+     wrapper div — and a popover left open while the window grows past 1024px
+     dies with the bar instead of floating orphaned over the rail. */
+  @media (min-width: 1024px) {
+    .dock,
+    .dock-scrim { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .dock-inner, .popover { animation: none; }

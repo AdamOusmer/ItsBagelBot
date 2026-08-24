@@ -32,6 +32,7 @@
     "manage": "Manage",
     "overview": "Overview",
     "commands": "Commands",
+    "fetches": "HTTP fetches",
     "modules": "Modules",
     "counters": "Counters",
     "channelpoints": "Channel Points",
@@ -39,7 +40,10 @@
     "billing": "Billing",
     "stats": "Stats",
     "status": "Status",
-    "settings": "Settings"
+    "settings": "Settings",
+    "preferences": "Preferences",
+    "delegates": "Delegates",
+    "importSettings": "Import settings"
   },
   "topbar": {
     "roleBroadcaster": "Broadcaster",

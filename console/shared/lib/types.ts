@@ -121,6 +121,11 @@ export interface NavLink {
   active?: boolean;
   locked?: boolean;
   count?: string | number;
+  // Subsection links rendered indented under this item by the desktop
+  // sidebar's disclosure. Exactly one level deep — a child carrying its own
+  // children is undefined behaviour, and the Dock ignores the field entirely
+  // (a phone-sized bar cannot afford a tree).
+  children?: NavLink[];
 }
 
 export interface NavGroupDef {
