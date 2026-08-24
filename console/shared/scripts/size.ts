@@ -47,8 +47,17 @@ const ENTRIES: {
     // Server-side StreamElements parser. Not currently in any client bundle;
     // budgeted so the day it is pulled client-side the cost is a deliberate
     // decision, not a silent one. Initial measurement 2026-08-24: 7499 B gzip.
+    //
+    // Raised from 7750 (2026-08-24) for the urlfetch importer feature: parsing
+    // now walks command replies for $(urlfetch ...) tokens and synthesizes
+    // deduped ManifestFetch entries (the fetchDefs Map plus the IMPORT_ITEM_CAPS
+    // import pulled in for it), landing at 8007 B gzip on macOS/arm64 — already
+    // over the old budget on its own. On top of that this repo's CI runner is
+    // linux/x64, which gzips the same bytes ~100-150 B larger than macOS/arm64
+    // (see the size-budgets skill); 8420 covers that delta and keeps the usual
+    // ~3% of room above the linux-side estimate (8007 + 150 = 8157 -> +3%).
     name: "streamelements parser",
-    budget: 7750,
+    budget: 8420,
     external: [],
     source: `import { parseStreamElements } from "../../lib/importer/streamelements";
              globalThis.x = parseStreamElements;`,
@@ -60,8 +69,15 @@ const ENTRIES: {
     // module ITSELF stays light, and blows up loudly if the wasm ever becomes
     // a static import someone tries to bundle. Initial measurement
     // 2026-08-24: 8058 B gzip.
+    //
+    // Raised from 8300 (2026-08-24): the parser itself hasn't grown, still
+    // 8058 B gzip on macOS/arm64, but that left only 242 B (2.9%) of room —
+    // too thin to survive CI's linux/x64 runner, which gzips the same bytes
+    // ~100-150 B larger than macOS/arm64 (see the size-budgets skill). 8460
+    // keeps the usual ~3% of room above the linux-side estimate (8058 + 150 =
+    // 8208 -> +3%).
     name: "streamlabs desktop parser",
-    budget: 8300,
+    budget: 8460,
     external: ["sql.js", "node:module"],
     source: `import { parseStreamLabsDesktop } from "../../lib/importer/streamlabs-desktop";
              globalThis.x = parseStreamLabsDesktop;`,
