@@ -1,0 +1,85 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * About — the ownership colophon, the last thing on the page before the
+ * footer's sign-off. Quiet by design: small mono type like the footer note,
+ * no links row, no display type.
+ *
+ * Why this exists: Hypixel verifies that a product belongs to an account by
+ * scanning the site for the username as visible text. Until now the only
+ * mention of ItsMavey sat mid-sentence in 10px legal fine print under Game
+ * Integrations — technically present, practically unfindable for a reviewer,
+ * which is exactly why the verification kept bouncing.
+ *
+ * This section is deliberately NOT gated behind data-reveal: every other
+ * section starts at opacity 0 (style.css [data-reveal]) and only appears
+ * once reveal.js runs and you scroll past it. A reviewer or headless checker
+ * with JS disabled would see blank space where the proof should be, so this
+ * one stays statically visible. The only links are the two inline NameMC
+ * anchors — the public registry page is the ownership evidence itself.
+ */
+import { OWNER_IGN, OWNER_PROFILE_URL } from '../../owner';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+// The ign placeholder marks where the linked handle sits so each locale keeps
+// its own prose order (same convention as games.legal).
+const [line1Before, line1After = ''] = t('about.line1').split('{ign}');
+const [mcBefore, mcAfter = ''] = t('about.mcLine').split('{ign}');
+---
+
+<section class="about" id="about">
+    <p class="about__line">{line1Before}<a
+        class="about__ign"
+        href={OWNER_PROFILE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+    >{OWNER_IGN}</a>{line1After}</p>
+    <p class="about__line">{mcBefore}<a
+        class="about__ign"
+        href={OWNER_PROFILE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+    >{OWNER_IGN}</a>{mcAfter}</p>
+</section>
+
+<style>
+    .about {
+        position: relative;
+        padding: 56px 24px 64px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+        z-index: 3;
+        text-align: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .about__line {
+        max-width: 560px;
+        margin: 0 auto 10px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        line-height: 1.8;
+        color: var(--muted, #888077);
+    }
+
+    .about__ign {
+        color: var(--tan-light, #e0c49a);
+        text-decoration: underline;
+        text-decoration-color: rgba(224, 196, 154, 0.4);
+        text-underline-offset: 3px;
+        transition: color 180ms ease, text-decoration-color 180ms ease;
+    }
+
+    .about__ign:is(:hover, :focus-visible) {
+        color: var(--white, #f0ece4);
+        text-decoration-color: rgba(240, 236, 228, 0.7);
+    }
+
+    .about__line:last-child { margin-bottom: 0; }
+</style>
