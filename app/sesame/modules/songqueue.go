@@ -110,6 +110,21 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	return qc, true
 }
 
+// songQueueAction handles one recognized !sr leading word: args is the whole
+// trimmed input (a request fallback needs it verbatim), rest is what followed
+// the verb.
+type songQueueAction func(qc *songQueueCmd, ctx context.Context, args, rest string, emit module.Emit) error
+
+// songQueueActions routes a recognized leading verb to its handler. Unknown
+// first words are queries, not subcommands.
+var songQueueActions = map[string]songQueueAction{
+	"retract": (*songQueueCmd).actRetract,
+	"cancel":  (*songQueueCmd).actRetract,
+	"remove":  (*songQueueCmd).actRemove,
+	"next":    (*songQueueCmd).actNext,
+	"clear":   (*songQueueCmd).actClear,
+}
+
 func songQueueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		qc, ok := newSongQueueCmd(d, c, log)
@@ -121,43 +136,54 @@ func songQueueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return qc.view(ctx, emit)
 		}
 		sub, rest := splitFirst(args)
-		isMod := c.Chatter().Allows(module.RoleModerator)
-
-		switch strings.ToLower(sub) {
-		case "retract", "cancel":
-			return qc.retract(ctx, emit)
-		case "remove":
-			// A number aims at someone else's position (mod-only); anything
-			// else — including a non-mod guessing at numbers — retracts the
-			// chatter's own request, which is always safe.
-			if n := parsePosition(rest); n > 0 && isMod {
-				return qc.removeAt(ctx, n, emit)
-			}
-			return qc.retract(ctx, emit)
-		case "next", "clear":
-			// Bare-word verbs only: with anything trailing, the whole input
-			// reads back as a query, so song titles starting with these words
-			// still resolve instead of being eaten as a mod command.
-			if rest != "" {
-				return qc.request(ctx, args, emit)
-			}
-			if !isMod {
-				return nil
-			}
-			if strings.ToLower(sub) == "next" {
-				return qc.nextTrack(ctx, emit)
-			}
-			return qc.clearAll(ctx, emit)
-		default:
+		act := songQueueActions[strings.ToLower(sub)]
+		if act == nil {
 			return qc.request(ctx, args, emit)
 		}
+		return act(&qc, ctx, args, rest, emit)
 	}
+}
+
+func (qc songQueueCmd) actRetract(ctx context.Context, _, _ string, emit module.Emit) error {
+	return qc.retract(ctx, emit)
+}
+
+// actRemove treats a number as aiming at someone else's position (mod-only);
+// anything else — including a non-mod guessing at numbers — retracts the
+// chatter's own request, which is always safe.
+func (qc songQueueCmd) actRemove(ctx context.Context, _ string, rest string, emit module.Emit) error {
+	if n := parsePosition(rest); n > 0 && qc.c.Chatter().Allows(module.RoleModerator) {
+		return qc.removeAt(ctx, n, emit)
+	}
+	return qc.retract(ctx, emit)
+}
+
+func (qc songQueueCmd) actNext(ctx context.Context, args, rest string, emit module.Emit) error {
+	return qc.bareModVerb(ctx, args, rest, emit, qc.nextTrack)
+}
+
+func (qc songQueueCmd) actClear(ctx context.Context, args, rest string, emit module.Emit) error {
+	return qc.bareModVerb(ctx, args, rest, emit, qc.clearAll)
+}
+
+// bareModVerb gates the bare-word mod verbs next/clear: with anything
+// trailing, the whole input reads back as a query, so song titles starting
+// with these words still resolve instead of being eaten as a mod command;
+// a bare word from a non-mod is silently ignored.
+func (qc songQueueCmd) bareModVerb(ctx context.Context, args, rest string, emit module.Emit, mod func(context.Context, module.Emit) error) error {
+	if rest != "" {
+		return qc.request(ctx, args, emit)
+	}
+	if !qc.c.Chatter().Allows(module.RoleModerator) {
+		return nil
+	}
+	return mod(ctx, emit)
 }
 
 // request resolves free text / links to exactly one track via the gossip
 // spotify provider and queues it for the asking viewer.
 func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Emit) error {
-	if qc.gossip == nil || qc.c.Env.ChatterUserID == "" {
+	if !qc.canRequest() {
 		return nil
 	}
 	track, failure := qc.resolveTrack(ctx, query)
@@ -166,6 +192,19 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		return nil
 	}
 	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth)
+	return qc.reportAdd(emit, *track, pos, err)
+}
+
+// canRequest gates adds on a gossip connection and the broadcaster's twitch
+// user id being on file; without either there is nothing to resolve against.
+func (qc songQueueCmd) canRequest() bool {
+	return qc.gossip != nil && qc.c.Env.ChatterUserID != ""
+}
+
+// reportAdd answers the queue outcome: duplicate and full get their localized
+// lines, an infrastructure error is logged here and bubbles to the engine,
+// success announces through the broadcaster's add template.
+func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack, pos int, err error) error {
 	switch {
 	case errors.Is(err, engine.ErrSongAlreadyQueued):
 		qc.reply(emit, "", "songqueue.add.already")
