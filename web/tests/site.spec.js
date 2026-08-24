@@ -90,6 +90,12 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('#letter')).toContainText('no trackers, no data sold');
         await expect(page.locator('[data-letter-stamp]')).toHaveCount(1);
         await expect(page.locator('.finale')).toContainText('Stream');
+
+        // Ownership colophon names the account Hypixel verification looks for
+        const about = page.locator('#about');
+        await expect(about).toContainText('ItsMavey');
+        const ignLinks = about.locator('a[href="https://namemc.com/profile/ItsMavey"]');
+        await expect(ignLinks).toHaveCount(2);
     });
 
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
@@ -160,6 +166,31 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('a button')).toHaveCount(0);
         await page.locator('[data-copy]').first().click();
         await expect(page).toHaveURL(/\/contact\/?$/);
+    });
+
+    test('changelog lists tagged releases linked to GitHub', async ({ page }) => {
+        await page.goto('/changelog');
+
+        await expect(page.locator('.phero__title')).toContainText("What's new.");
+        const items = page.locator('.clog__item');
+        await expect(items).toHaveCount(2);
+
+        await expect(items.first()).toContainText('Beta Launch');
+        await expect(items.first().locator('.rtag--beta')).toHaveCount(1);
+        await expect(items.first().locator('.clog__ver')).toHaveText('v1.0.0-beta');
+        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.0-beta"]')).toHaveCount(1);
+
+        await expect(items.last()).toContainText('Alpha Release');
+        await expect(items.last().locator('.rtag--alpha')).toHaveCount(1);
+        await expect(items.last().locator('.clog__ver')).toHaveText('v0.1.0-alpha');
+
+        await expect(page.locator('footer a[aria-label="Changelog"]')).toHaveCount(1);
+
+        await page.goto('/fr/changelog');
+        await expect(page.locator('.phero__title')).toContainText('Quoi de neuf.');
+        await expect(page.locator('.clog__item').first()).toContainText('Lancement bêta');
+        await expect(page.locator('.rtag--beta')).toContainText('Bêta');
+        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
     });
 
     test('production assets referenced by the document are emitted', async ({ page, request }) => {

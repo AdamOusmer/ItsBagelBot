@@ -3,6 +3,7 @@
 
 import type { IconName } from './icons';
 import { GAME_MODULE_DEFS } from './catalog-games';
+import { VALORANT_MODULE_DEF } from './catalog-valorant';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
@@ -1327,6 +1328,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
       }
     ]
   },
+  VALORANT_MODULE_DEF,
   {
     id: 'queue',
     label: 'Play Queue',
@@ -1785,3 +1787,25 @@ export interface LoyaltyStanding {
   points: number;
   watchSeconds: number;
 }
+
+// --- Config importer -------------------------------------------------------
+// The canonical import shapes live in lib/importer/types.ts since the
+// standalone importer service was folded into the dashboard (2026-08-23) and
+// that module became their single source of truth. Re-exported here so every
+// existing '@bagel/shared' import keeps resolving unchanged.
+export type {
+  AutomodTerms,
+  CollisionRef,
+  ImportDiagnostic,
+  ImportManifest,
+  ImportSource,
+  ImportStats,
+  ManifestCommand,
+  ManifestCounter,
+  ManifestQuote,
+  ManifestTimer,
+  ManifestTrigger,
+  PreviewResponse,
+  CommitResponse
+} from './importer/types';
+export { IMPORT_SOURCES, IMPORT_ITEM_CAPS } from './importer/types';

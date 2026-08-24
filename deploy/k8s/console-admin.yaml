@@ -15,7 +15,7 @@
 #
 # Region spread: replicas spread across the 3 cities (see console-dashboard.yaml
 # for the required node region/zone labels); the operator proxy prefers the
-# in-region admin pod via the Service's PreferClose.
+# in-region admin pod via the Service's PreferSameZone.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
@@ -366,7 +366,7 @@ metadata:
   namespace: app
 spec:
   # No sessionAffinity: stateless sessions make every pod interchangeable.
-  # PreferClose keeps the operator proxy on the in-region admin pod.
+  # PreferSameZone keeps the operator proxy on the in-region admin pod.
   trafficDistribution: PreferSameNode
   selector:
     app: console-admin

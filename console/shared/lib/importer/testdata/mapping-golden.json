@@ -1,0 +1,637 @@
+[
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "simple line",
+      "resp_index": 0,
+      "perm_source": "streamelements",
+      "perm": "",
+      "cooldown": -3
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "simple line"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "simple line",
+      "resp_index": 1,
+      "perm_source": "fossabot",
+      "perm": "Everyone",
+      "cooldown": 0
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "simple line"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "simple line",
+      "resp_index": 2,
+      "perm_source": "moobot",
+      "perm": "OWNER",
+      "cooldown": 45
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "simple line"
+      ],
+      "diags": [],
+      "perm": "broadcaster",
+      "perm_recognized": true,
+      "cooldown": 45
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "simple line",
+      "resp_index": 3,
+      "perm_source": "streamlabs_desktop",
+      "perm": "Subscribers",
+      "cooldown": 86400
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "simple line"
+      ],
+      "diags": [],
+      "perm": "sub",
+      "perm_recognized": true,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "simple line",
+      "resp_index": 4,
+      "perm_source": "streamelements",
+      "perm": "wizard",
+      "cooldown": 900000
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "simple line"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": false,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "  padded  \r\nsecond\r\rthird\n\n",
+      "resp_index": 0,
+      "perm_source": "fossabot",
+      "perm": "",
+      "cooldown": -3
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "padded",
+        "second",
+        "third"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "  padded  \r\nsecond\r\rthird\n\n",
+      "resp_index": 1,
+      "perm_source": "moobot",
+      "perm": "Everyone",
+      "cooldown": 0
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "padded",
+        "second",
+        "third"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "  padded  \r\nsecond\r\rthird\n\n",
+      "resp_index": 2,
+      "perm_source": "streamlabs_desktop",
+      "perm": "OWNER",
+      "cooldown": 45
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "padded",
+        "second",
+        "third"
+      ],
+      "diags": [],
+      "perm": "broadcaster",
+      "perm_recognized": true,
+      "cooldown": 45
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "  padded  \r\nsecond\r\rthird\n\n",
+      "resp_index": 3,
+      "perm_source": "streamelements",
+      "perm": "Subscribers",
+      "cooldown": 86400
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "padded",
+        "second",
+        "third"
+      ],
+      "diags": [],
+      "perm": "sub",
+      "perm_recognized": true,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "  padded  \r\nsecond\r\rthird\n\n",
+      "resp_index": 4,
+      "perm_source": "fossabot",
+      "perm": "wizard",
+      "cooldown": 900000
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "padded",
+        "second",
+        "third"
+      ],
+      "diags": [],
+      "perm": "everyone",
+      "perm_recognized": false,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "resp_index": 0,
+      "perm_source": "moobot",
+      "perm": "",
+      "cooldown": -3
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 0,
+          "code": "command_response_truncated",
+          "message": "response line cut from 600 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "resp_index": 1,
+      "perm_source": "streamlabs_desktop",
+      "perm": "Everyone",
+      "cooldown": 0
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 1,
+          "code": "command_response_truncated",
+          "message": "response line cut from 600 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "resp_index": 2,
+      "perm_source": "streamelements",
+      "perm": "OWNER",
+      "cooldown": 45
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 2,
+          "code": "command_response_truncated",
+          "message": "response line cut from 600 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "broadcaster",
+      "perm_recognized": true,
+      "cooldown": 45
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "resp_index": 3,
+      "perm_source": "fossabot",
+      "perm": "Subscribers",
+      "cooldown": 86400
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 3,
+          "code": "command_response_truncated",
+          "message": "response line cut from 600 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "sub",
+      "perm_recognized": true,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "resp_index": 4,
+      "perm_source": "moobot",
+      "perm": "wizard",
+      "cooldown": 900000
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 4,
+          "code": "command_response_truncated",
+          "message": "response line cut from 600 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": false,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "one\ntwo\nthree\nfour\nfive\nsix\nseven",
+      "resp_index": 0,
+      "perm_source": "streamlabs_desktop",
+      "perm": "",
+      "cooldown": -3
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 0,
+          "code": "command_response_line_dropped",
+          "message": "2 response line(s) dropped past the 5-line limit"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "one\ntwo\nthree\nfour\nfive\nsix\nseven",
+      "resp_index": 1,
+      "perm_source": "streamelements",
+      "perm": "Everyone",
+      "cooldown": 0
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 1,
+          "code": "command_response_line_dropped",
+          "message": "2 response line(s) dropped past the 5-line limit"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "one\ntwo\nthree\nfour\nfive\nsix\nseven",
+      "resp_index": 2,
+      "perm_source": "fossabot",
+      "perm": "OWNER",
+      "cooldown": 45
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 2,
+          "code": "command_response_line_dropped",
+          "message": "2 response line(s) dropped past the 5-line limit"
+        }
+      ],
+      "perm": "broadcaster",
+      "perm_recognized": true,
+      "cooldown": 45
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "one\ntwo\nthree\nfour\nfive\nsix\nseven",
+      "resp_index": 3,
+      "perm_source": "moobot",
+      "perm": "Subscribers",
+      "cooldown": 86400
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 3,
+          "code": "command_response_line_dropped",
+          "message": "2 response line(s) dropped past the 5-line limit"
+        }
+      ],
+      "perm": "sub",
+      "perm_recognized": true,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "one\ntwo\nthree\nfour\nfive\nsix\nseven",
+      "resp_index": 4,
+      "perm_source": "streamlabs_desktop",
+      "perm": "wizard",
+      "cooldown": 900000
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 4,
+          "code": "command_response_line_dropped",
+          "message": "2 response line(s) dropped past the 5-line limit"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": false,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "resp_index": 0,
+      "perm_source": "streamelements",
+      "perm": "",
+      "cooldown": -3
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 0,
+          "code": "command_response_truncated",
+          "message": "response line cut from 502 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "  HYPE  ",
+      "response": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "resp_index": 1,
+      "perm_source": "fossabot",
+      "perm": "Everyone",
+      "cooldown": 0
+    },
+    "out": {
+      "normalized_name": "hype",
+      "lines": [
+        "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 1,
+          "code": "command_response_truncated",
+          "message": "response line cut from 502 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": true,
+      "cooldown": 0
+    }
+  },
+  {
+    "in": {
+      "name": "",
+      "response": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "resp_index": 2,
+      "perm_source": "moobot",
+      "perm": "OWNER",
+      "cooldown": 45
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 2,
+          "code": "command_response_truncated",
+          "message": "response line cut from 502 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "broadcaster",
+      "perm_recognized": true,
+      "cooldown": 45
+    }
+  },
+  {
+    "in": {
+      "name": "!",
+      "response": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "resp_index": 3,
+      "perm_source": "streamlabs_desktop",
+      "perm": "Subscribers",
+      "cooldown": 86400
+    },
+    "out": {
+      "normalized_name": "",
+      "lines": [
+        "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 3,
+          "code": "command_response_truncated",
+          "message": "response line cut from 502 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "sub",
+      "perm_recognized": true,
+      "cooldown": 86400
+    }
+  },
+  {
+    "in": {
+      "name": "!Lurk",
+      "response": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "resp_index": 4,
+      "perm_source": "streamelements",
+      "perm": "wizard",
+      "cooldown": 900000
+    },
+    "out": {
+      "normalized_name": "lurk",
+      "lines": [
+        "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      ],
+      "diags": [
+        {
+          "severity": "warn",
+          "item_index": 4,
+          "code": "command_response_truncated",
+          "message": "response line cut from 502 to 500 bytes (Twitch per-message limit)"
+        }
+      ],
+      "perm": "everyone",
+      "perm_recognized": false,
+      "cooldown": 86400
+    }
+  }
+]

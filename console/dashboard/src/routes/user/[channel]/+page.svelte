@@ -381,7 +381,6 @@
       0 18px 42px rgba(0,0,0,0.34),
       0 0 28px rgba(82,183,136,0.08);
     backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
   }
   .creator-strip__signal {
     width: 8px;

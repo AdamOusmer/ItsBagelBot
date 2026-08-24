@@ -27,9 +27,24 @@ const (
 	defaultPublishAckWait   = 2 * time.Second
 	defaultPublishQueueSize = 16_384
 	maxInflightCohorts      = 4
+	maxInflightCohortSlots  = 64
 
 	messageIDHeader = "Bagelbot-Message-Id"
 )
+
+// publishInflightCohorts bounds how many cohorts one stream worker keeps in
+// flight. It was a hardcoded 4 because the hub admitted 50 open batches per
+// stream and three pods at 4 slots each had to fit under that; the hub cap is
+// now 200, so the default stays 4 but raising becomes an arithmetic question
+// instead of a code change. Each extra slot parks one more staged cohort, and
+// on the atomic wire a cohort's commit verdict is all-or-nothing, so the blast
+// radius of one ambiguous ack grows with the slot count — the ceiling exists
+// to keep a manifest typo from multiplying parked bytes, not to mark a tuned
+// optimum. One slot still makes progress, so there is no floor to defend.
+func publishInflightCohorts() int {
+	n := env.GetInt("NATS_PUBLISH_INFLIGHT_COHORTS", maxInflightCohorts)
+	return min(max(n, 1), maxInflightCohortSlots)
+}
 
 // StreamRouter is the strategy used to select a pooled connection. The default
 // hashes the stream plus optional aggregate partition. Calls without a
@@ -300,15 +315,35 @@ func (p *batchPublisher) publish(command publishCommand) error {
 }
 
 // resetWireHeader prepares a pooled envelope's header map for reuse: nil gets
-// an initial map sized for both identity keys plus the trace-header pair;
-// otherwise every prior key is dropped. Returns the map to write into.
+// an initial map sized for the identity key plus the trace-header pair;
+// otherwise every prior key except the identity slot is dropped. The identity
+// slot keeps its envelope-owned one-element value slice across pool cycles —
+// once the map itself was pooled, profiling still showed a fresh []string
+// allocated per publish at exactly this key, so the slot survives the reset
+// and publishMessage overwrites element zero. Returns the map to write into.
 func resetWireHeader(h nats.Header) nats.Header {
 	if h == nil {
-		return make(nats.Header, 3)
+		h = make(nats.Header, 2)
+	} else {
+		for k := range h {
+			if k == messageIDHeader {
+				continue
+			}
+			delete(h, k)
+		}
 	}
-	for k := range h {
-		delete(h, k)
+	id, ok := h[messageIDHeader]
+	if !ok || cap(id) != 1 {
+		// Anything not shaped like the envelope's own slot was grown by
+		// somebody else's append; replace it rather than inherit the capacity,
+		// so the slot's shape stays identical every cycle. The publish
+		// lifecycle never grows it, so this arm runs once per envelope.
+		id = make([]string, 1)
+	} else {
+		id = id[:1]
+		id[0] = ""
 	}
+	h[messageIDHeader] = id
 	return h
 }
 
@@ -335,8 +370,13 @@ func publishMessage(command publishCommand) *nats.Msg {
 	wire.Header = resetWireHeader(wire.Header)
 	// Preserve the fleet abstraction's message identity for subscribers, but
 	// deliberately omit Nats-Msg-Id. The custom header is transport metadata,
-	// not a broker dedup key.
-	wire.Header[messageIDHeader] = []string{command.msgID}
+	// not a broker dedup key. Element write, not slice assignment: the slot is
+	// the envelope's own, kept alive by resetWireHeader, so this reuses it
+	// instead of allocating. Recycling it is safe for the same reason reusing
+	// wire.Data is — the envelope is fully consumed once its cohort resolves,
+	// before finish Puts it back — and the identity string itself is owned per
+	// message by command.msgID.
+	wire.Header[messageIDHeader][0] = command.msgID
 	attachTraceHeaders(wire, command.ctx)
 	return wire
 }
@@ -463,7 +503,7 @@ func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error)
 		js:       p.js,
 		requests: make(chan publishRequest, defaultPublishQueueSize),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots:         make(chan struct{}, maxInflightCohorts),
+		slots:         make(chan struct{}, publishInflightCohorts()),
 		batchSize:     publishBatchSize(p.wire),
 		batchWait:     publishBatchWait(p.wire),
 		overlapCommit: atomicPublishOverlap(),

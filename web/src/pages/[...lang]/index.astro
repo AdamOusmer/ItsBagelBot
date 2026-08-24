@@ -13,6 +13,7 @@ import SafetyLayers from '../../components/home/SafetyLayers.astro'
 import Steps from '../../components/home/Steps.astro'
 import Letter from '../../components/home/Letter.astro'
 import Finale from '../../components/home/Finale.astro'
+import About from '../../components/home/About.astro'
 import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
 
 // One route per locale: the default locale emits the bare path (params.lang
@@ -36,4 +37,5 @@ const t = useTranslations(getLangFromUrl(Astro.url));
     <Steps />
     <Letter />
     <Finale />
+    <About />
 </Layout>

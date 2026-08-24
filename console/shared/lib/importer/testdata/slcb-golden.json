@@ -1,0 +1,208 @@
+[
+  {
+    "name": "full_feature_db",
+    "manifest": {
+      "commands": [
+        {
+          "name": "!caster",
+          "responses": [
+            "only streamer sees"
+          ],
+          "permission": "broadcaster"
+        },
+        {
+          "name": "!cookie",
+          "responses": [
+            "{counter:cookie} cookies eaten! {counter:lurk} via $readapi(https://example.api)"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "!editor",
+          "responses": [
+            "editor tool"
+          ],
+          "permission": "lead_mod"
+        },
+        {
+          "name": "!hug",
+          "responses": [
+            "/me hugs {target} {random:1-5} times!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "!Lurk",
+          "responses": [
+            "{user} is now lurking!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        },
+        {
+          "name": "!multi",
+          "responses": [
+            "line one",
+            "line two",
+            "line three"
+          ]
+        },
+        {
+          "name": "!quote",
+          "responses": [
+            "$randquote"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "!slots",
+          "responses": [
+            "$arg1 vs $arg2 who wins?!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "!viponly",
+          "responses": [
+            "vip greeting {args}"
+          ],
+          "permission": "vip"
+        }
+      ],
+      "timers": [
+        {
+          "message": "$count uses and counting!",
+          "interval_seconds": 600
+        },
+        {
+          "message": "Follow {channel} for {random:1-60} minute drops!",
+          "interval_seconds": 600
+        }
+      ],
+      "quotes": [
+        {
+          "text": "Duct tape solves all problems!",
+          "created_at": "2015-06-07T08:09:10Z"
+        },
+        {
+          "text": "I am a cat! – AnkhHeart",
+          "created_at": "2015-01-02T15:04:00Z"
+        },
+        {
+          "text": "Unparseable date quote"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "command_permission_unmapped",
+        "message": "permission \"Regular\" (channel regulars) has no tier here; widened to everyone — tighten it after import if needed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "command_script_dependent",
+        "message": "command \"cookie\" depends on a script or external API/file call; that part stays literal text until re-implemented here"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_permission_adjusted",
+        "message": "permission \"+e\" has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped",
+        "message": "response uses $randquote, which has no equivalent here; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 7,
+        "code": "command_variable_unmapped",
+        "message": "response uses numbered argument slots up to $arg2; positional splitting has no equivalent, all slots left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 7,
+        "code": "command_permission_unmapped",
+        "message": "permission \"Wizard\" is not one this importer knows; defaulted to everyone"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "manifest_source_note",
+        "message": "1 disabled command(s) were not imported; enable them in Streamlabs Chatbot first if wanted"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "command_variable_unmapped",
+        "message": "response uses \"$count\", which counts uses of a specific command; timers have no command to count, left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "manifest_source_note",
+        "message": "Chatbot.db stores the timer interval globally, not per timer; every imported timer defaults to 600s — adjust in the dashboard"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "quote_date_unparsed",
+        "message": "quote date \"not a date at all\" uses a format this importer does not know; imported without a date"
+      }
+    ]
+  },
+  {
+    "name": "alternate_column_spellings",
+    "manifest": {
+      "commands": [
+        {
+          "name": "!alt",
+          "responses": [
+            "hey {target}"
+          ],
+          "permission": "mod"
+        }
+      ]
+    },
+    "diags": []
+  },
+  {
+    "name": "missing_quotes_table_and_clamped_cooldown",
+    "manifest": {
+      "commands": [
+        {
+          "name": "!only",
+          "responses": [
+            "just me"
+          ],
+          "cooldown_seconds": 86400
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "manifest_source_note",
+        "message": "no \"quotes\" table found in Chatbot.db; that section was skipped"
+      }
+    ]
+  },
+  {
+    "name": "empty_tables",
+    "manifest": {},
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "manifest_source_note",
+        "message": "Chatbot.db contained no importable commands, timers or quotes"
+      }
+    ]
+  }
+]

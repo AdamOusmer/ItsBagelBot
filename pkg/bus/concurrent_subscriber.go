@@ -478,8 +478,15 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 	}), nil
 }
 
+// fleetMetadata copies the non-identity headers into delivery metadata. A
+// delivery carrying only identity headers — every firehose event before trace
+// propagation attaches NewRelic headers — returns a nil Metadata rather than
+// an empty map: the unconditional allocation sat on the consume hot path, and
+// readers go through Metadata.Get, whose nil-receiver index is Go's guaranteed
+// zero-value read. Nothing in the fleet writes to delivered metadata (a Set on
+// a nil map panics); callers needing a writable map build their own.
 func fleetMetadata(headers nats.Header) (Metadata, error) {
-	metadata := make(Metadata, len(headers))
+	var metadata Metadata
 	for key, values := range headers {
 		switch key {
 		case MessageIDHeader,
@@ -489,6 +496,9 @@ func fleetMetadata(headers nats.Header) (Metadata, error) {
 		}
 		if len(values) != 1 {
 			return nil, fmt.Errorf("bus: multiple values in NATS header %q: %v", key, values)
+		}
+		if metadata == nil {
+			metadata = make(Metadata, len(headers))
 		}
 		metadata[key] = values[0]
 	}

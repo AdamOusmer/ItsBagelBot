@@ -7,16 +7,16 @@
 import newrelic from 'newrelic';
 import {
   connect,
-  JSONCodec,
   type ConnectionOptions,
-  type NatsConnection,
-  type JetStreamClient,
-  type JetStreamManager,
-  type JetStreamManagerOptions
-} from 'nats';
+  type NatsConnection
+} from '@nats-io/transport-node';
+import { jetstream, jetstreamManager } from '@nats-io/jetstream';
+import type {
+  JetStreamClient,
+  JetStreamManager,
+  JetStreamManagerOptions
+} from '@nats-io/jetstream';
 import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
-
-const jc = JSONCodec();
 
 // Collapse numeric/id path tokens so per-subject RPC segments stay low-cardinality
 // in New Relic (e.g. `...status.12345` -> `...status.*`).
@@ -260,13 +260,13 @@ export function hubJetStreamOptions(): JetStreamManagerOptions {
 
 export async function js(): Promise<JetStreamClient> {
   const nc = await get('bus');
-  if (!jsClient) jsClient = nc.jetstream(hubJetStreamOptions());
+  if (!jsClient) jsClient = jetstream(nc, hubJetStreamOptions());
   return jsClient;
 }
 
 export async function jsm(): Promise<JetStreamManager> {
   const nc = await get('bus');
-  if (!jsManager) jsManager = await nc.jetstreamManager(hubJetStreamOptions());
+  if (!jsManager) jsManager = await jetstreamManager(nc, hubJetStreamOptions());
   return jsManager;
 }
 
@@ -318,11 +318,12 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
   return newrelic.startSegment(`NATS/request/${rpcSegment(subject)}`, true, async () => {
     const nc = await get('rpc');
     const subjects = rpcSubjectsForNode(subject, process.env.NODE_NAME);
-    const data = jc.encode(payload);
+    // v3 clients accept string payloads directly (JSONCodec was removed).
+    const data = JSON.stringify(payload);
     const msg = await requestLocalFirst(subjects, (routedSubject) =>
       nc.request(routedSubject, data, { timeout: timeoutMs })
     );
-    const reply = jc.decode(msg.data) as T & { error?: string };
+    const reply = msg.json<T & { error?: string }>();
     if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
     return reply as T;
   });
@@ -343,7 +344,7 @@ export async function publish(subject: string, payload: unknown = {}): Promise<v
     // JetStream streams and must use the bus connection; RPC + cache stay on rpc.
     const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
     const nc = await get(role);
-    nc.publish(subject, jc.encode(payload));
+    nc.publish(subject, JSON.stringify(payload));
     await nc.flush();
   });
 }
