@@ -37,9 +37,59 @@ var (
 			},
 		},
 	}
+	// FetchDefinitionsColumns holds the columns for the "fetch_definitions" table.
+	FetchDefinitionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "url", Type: field.TypeString, Size: 512},
+		{Name: "json_path", Type: field.TypeJSON, Nullable: true},
+		{Name: "key_label", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// FetchDefinitionsTable holds the schema information for the "fetch_definitions" table.
+	FetchDefinitionsTable = &schema.Table{
+		Name:       "fetch_definitions",
+		Columns:    FetchDefinitionsColumns,
+		PrimaryKey: []*schema.Column{FetchDefinitionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "fetchdefinition_user_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{FetchDefinitionsColumns[1], FetchDefinitionsColumns[2]},
+			},
+		},
+	}
+	// FetchKeysColumns holds the columns for the "fetch_keys" table.
+	FetchKeysColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "label", Type: field.TypeString, Size: 32},
+		{Name: "key_enc", Type: field.TypeBytes},
+		{Name: "last4", Type: field.TypeString, Size: 4},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// FetchKeysTable holds the schema information for the "fetch_keys" table.
+	FetchKeysTable = &schema.Table{
+		Name:       "fetch_keys",
+		Columns:    FetchKeysColumns,
+		PrimaryKey: []*schema.Column{FetchKeysColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "fetchkey_user_id_label",
+				Unique:  true,
+				Columns: []*schema.Column{FetchKeysColumns[1], FetchKeysColumns[2]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		CommandsTable,
+		FetchDefinitionsTable,
+		FetchKeysTable,
 	}
 )
 

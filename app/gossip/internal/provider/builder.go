@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"ItsBagelBot/app/gossip/internal/core"
 )
 
 // Builder is the fluent authoring surface for one provider, gossip's twin
@@ -14,9 +16,9 @@ import (
 // NewProvider, declares its endpoints, then calls Build to get the immutable
 // Provider the engine serves:
 //
-//	b := provider.NewProvider("mcsr", d)
+//	b := provider.NewProvider("mcsr", d).Trusted()
+//	p := newAPI(cfg, d, b) // constructs clients via b.Client
 //	b.Endpoint("user").Timeout(15 * time.Second).Handle(p.user)
-//	b.Endpoint("session").Timeout(15 * time.Second).Handle(p.session)
 //	return b.Build()
 //
 // Byte-flow endpoints (the cached fetch-and-shape skeleton every stats
@@ -29,6 +31,22 @@ type Builder struct {
 	name string
 	deps Deps
 	eps  []*endpointSpec
+
+	// trusted marks every client this builder constructs as trusted-direct.
+	// The default is inverted on purpose — unmarked providers construct
+	// WARP-lane clients — so a forgotten declaration fails toward hidden
+	// egress, never toward exposing production IPs. See Trusted.
+	trusted bool
+	// clients records every construction that went through Client, in order.
+	// It backs the boot-time tally log and the dead-flag validation.
+	clients []clientSpec
+}
+
+// clientSpec is one outbound client a provider constructed through the
+// Builder: the lane it dials. It exists so boot can account for every client
+// and Validate can catch a trust flag that guards nothing.
+type clientSpec struct {
+	lane core.Lane
 }
 
 // endpointSpec is one endpoint under assembly: exactly one of handle (a
@@ -58,15 +76,84 @@ func (b *Builder) Endpoint(name string) *EndpointBuilder {
 	return &EndpointBuilder{s: s}
 }
 
+// Trusted marks every client this provider constructs as trusted-direct:
+// egress from the pod's own IP on the shared transport. It returns the Builder
+// so the declaration chains off NewProvider.
+//
+// The default is INVERTED — a builder without Trusted constructs WARP-lane
+// clients — so the safe path is the default path and a forgotten flag fails
+// toward hidden egress. Trust is positional by construction: calling this
+// after any Client construction panics, because a client already built would
+// have picked its lane from a flag that did not exist yet. Declare it first,
+// immediately after NewProvider.
+func (b *Builder) Trusted() *Builder {
+	if len(b.clients) > 0 {
+		panic("gossip/provider: " + b.name + ".Trusted() called after Client(): trust is positional, declare it before constructing clients")
+	}
+	b.trusted = true
+	return b
+}
+
+// Client constructs one outbound HTTP client for this provider on the lane
+// its trust declaration chose, and records the construction for boot-time
+// accounting. It replaces every direct core constructor call — after that
+// constructor went unexported, this is the only way a provider gets a client,
+// which is what makes wrong-lane egress a reviewable diff instead of a silent
+// default.
+func (b *Builder) Client(base string, headers map[string]string, timeout time.Duration) *core.HTTPClient {
+	lane := core.LaneWARP
+	if b.trusted {
+		lane = core.LaneDirect
+	}
+	b.clients = append(b.clients, clientSpec{lane: lane})
+	return core.ProviderClient(lane, base, headers, timeout)
+}
+
 // Build validates the assembled provider and returns its immutable form. It
 // panics on a programmer error (empty or duplicate endpoint name, an endpoint
 // with no terminal, an unfinished flow): these are startup misconfigurations,
 // not runtime data, so failing loud at boot is the right behavior. Use
 // Validate to check without panicking.
+//
+// After validating it logs one line per provider tallying the clients it
+// constructed and their lanes ("govee: 1 client (trusted)") — the honest boot
+// record of who dials where. It cannot introspect Handle closures, so a
+// provider could still smuggle a raw net/http client past this; the tally
+// narrows that to a deliberate act, and WARP-lane external segments carrying
+// lane=warp make wrong-lane egress visible at runtime.
+// logClientTally records at boot who dials on which lane — the reviewable
+// audit line the Builder chokepoint exists to produce.
+func (b *Builder) logClientTally() {
+	log := b.deps.Log
+	if log == nil {
+		return
+	}
+	noun := "clients"
+	if len(b.clients) == 1 {
+		noun = "client"
+	}
+	log.Info(fmt.Sprintf("%s: %d %s (%s)", b.name, len(b.clients), noun, b.laneLabel()))
+}
+
+// laneLabel names the single lane every client shares, or "mixed".
+func (b *Builder) laneLabel() string {
+	if len(b.clients) == 0 {
+		return "mixed"
+	}
+	first := b.clients[0].lane
+	for _, c := range b.clients[1:] {
+		if c.lane != first {
+			return "mixed"
+		}
+	}
+	return first.String()
+}
+
 func (b *Builder) Build() Provider {
 	if err := b.Validate(); err != nil {
 		panic("gossip/provider: " + err.Error())
 	}
+	b.logClientTally()
 	eps := make([]Endpoint, len(b.eps))
 	for i, s := range b.eps {
 		eps[i] = Endpoint{Name: s.name, Timeout: s.timeout, Handle: s.handler(b)}
@@ -80,6 +167,13 @@ func (b *Builder) Build() Provider {
 func (b *Builder) Validate() error {
 	if b.name == "" {
 		return errors.New("provider must have a non-empty name")
+	}
+	// A dead trust flag is a misconfiguration, not a style issue: someone
+	// declared trusted-direct egress and then constructed nothing through the
+	// Builder — either the flag is stale or the clients were built somewhere
+	// the chokepoint cannot see. Both deserve a boot failure.
+	if b.trusted && len(b.clients) == 0 {
+		return fmt.Errorf("provider %q declares .Trusted() but constructed no clients through the builder", b.name)
 	}
 	if len(b.eps) == 0 {
 		return fmt.Errorf("provider %q declares no endpoints", b.name)

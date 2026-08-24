@@ -65,6 +65,29 @@ type BroadcasterKeyResolver interface {
 	Key(ctx context.Context, broadcasterID string) (string, error)
 }
 
+// FetchKeyResolver resolves a broadcaster's stored API key BY LABEL for the
+// custom urlfetch provider — the commands-service twin of GoveeKeyClient.
+// Same custody rules: the plaintext rides one fetch and is never cached,
+// logged, or projected anywhere. An empty key with a nil error means none is
+// on file for that label, which callers must treat as fail-closed.
+type FetchKeyResolver interface {
+	FetchKey(ctx context.Context, broadcasterID, label string) (string, error)
+}
+
+// DefSource is the read seam for projected urlfetch definitions — lane A's
+// projection Client.FetchDefs (tier-1 in-process entry, tier-2 Valkey,
+// tier-3 projector-RPC fallback), declared here as a minimal interface so
+// gossip builds against the contract, not the concrete client. found is false
+// for a name with no row; an inactive def IS found (IsActive false) and the
+// caller maps it to bad_def.
+//
+// SEAM NOTE (recorded deliberately): internal/projection.Client.FetchDefs had
+// not landed when this lane built; main.go wires an adapter here once it
+// does, and this interface stays the contract either way.
+type DefSource interface {
+	FetchDef(ctx context.Context, broadcasterID, name string) (gossiprpc.FetchDef, bool, error)
+}
+
 // Deps is the bundle of runtime services a provider captures when it is built,
 // mirroring sesame's engine.Deps: main constructs it once and hands it to
 // providers.All. Not every provider uses every field; unused ones are harmless.
@@ -79,6 +102,14 @@ type Deps struct {
 	// SpotifyKeys resolves per-broadcaster Spotify OAuth refresh tokens for
 	// the spotify provider, under the same custody split as GoveeKeys.
 	SpotifyKeys BroadcasterKeyResolver
+	// FetchKeys resolves per-broadcaster API keys by label for the custom
+	// urlfetch provider. Optional: keyless definitions still work when nil —
+	// only defs carrying a key_label then answer bad_def (fail closed).
+	FetchKeys FetchKeyResolver
+	// FetchDefs reads projected fetch definitions for the custom urlfetch
+	// provider. nil disables the whole provider: with no definition source
+	// there is nothing to fetch.
+	FetchDefs DefSource
 }
 
 // Logger returns Log, or a nop logger when it is unset, so providers and the

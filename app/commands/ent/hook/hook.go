@@ -20,6 +20,30 @@ func (f CommandsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CommandsMutation", m)
 }
 
+// The FetchDefinitionFunc type is an adapter to allow the use of ordinary
+// function as FetchDefinition mutator.
+type FetchDefinitionFunc func(context.Context, *ent.FetchDefinitionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FetchDefinitionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FetchDefinitionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FetchDefinitionMutation", m)
+}
+
+// The FetchKeyFunc type is an adapter to allow the use of ordinary
+// function as FetchKey mutator.
+type FetchKeyFunc func(context.Context, *ent.FetchKeyMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FetchKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FetchKeyMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FetchKeyMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

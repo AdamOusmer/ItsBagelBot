@@ -8,12 +8,24 @@
 // Normalization mirrors the commands service: the stored key never carries the
 // leading "!" and is lower-case; chat keeps the "!" to invoke.
 
+// The $(urlfetch) definition validators moved to fetch-validate.ts when they
+// outgrew this file; the re-export keeps every existing import path working.
+export * from './fetch-validate';
+import { urlFetchNames, URLFETCH_TOKEN_CAP, type FetchDefErrors } from './fetch-validate';
+
 export const COMMAND_NAME_MAX = 64;
 /** Per line — each line is sent as its own chat message (Twitch limit). */
 export const RESPONSE_MAX = 500;
 /** A response is newline-delimited: the bot sends one message per line. */
 export const RESPONSE_MAX_LINES = 5;
 export const COOLDOWN_MAX = 86400;
+
+// --- urlfetch definition rules ---------------------------------------------
+//
+// The numbers below are the shared contract between this console (instant
+// client feedback AND the authoritative server re-check in the fetches page
+// actions) and the commands/gossip services' Go validators. They live here —
+// not inline in the UI — so client and server literally cannot drift.
 
 /** The bare command trigger: drop a leading "!" and lower-case. */
 export function normName(s: string): string {
@@ -40,9 +52,11 @@ export function normalizeCommandResponse(response: string): string {
 
 // Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
 // trailing-whitespace regex backtracks polynomially on adversarial input.
+const LINE_TRAILERS = new Set([' ', '\t']);
+
 function trimLineEnd(line: string): string {
   let end = line.length;
-  while (end > 0 && (line[end - 1] === ' ' || line[end - 1] === '\t')) end--;
+  while (end > 0 && LINE_TRAILERS.has(line[end - 1])) end--;
   return line.slice(0, end);
 }
 
@@ -62,69 +76,81 @@ export type CommandErrors = Partial<
   Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id', string>
 >;
 
-function nameProblem(name: string, what: string): string | undefined {
-  if (!name) return `${what} is required.`;
-  if (name.length > COMMAND_NAME_MAX) return `${what} must be at most ${COMMAND_NAME_MAX} characters.`;
-  if (/\s/.test(name)) return `${what} cannot contain spaces.`;
-  if (name.includes('!')) return `${what} only carries the "!" in chat — leave it out here.`;
+// NameCheck is one trigger-shaped value under validation with the label its
+// error prose should carry ("Command name", "Alternate name …").
+interface NameCheck {
+  value: string;
+  what: string;
+}
+
+function nameProblem({ value, what }: NameCheck): string | undefined {
+  if (!value) return `${what} is required.`;
+  if (value.length > COMMAND_NAME_MAX) return `${what} must be at most ${COMMAND_NAME_MAX} characters.`;
+  if (/\s/.test(value)) return `${what} cannot contain spaces.`;
+  if (value.includes('!')) return `${what} only carries the "!" in chat — leave it out here.`;
+  return undefined;
+}
+
+// Per-field problem functions, the validateFetchDef shape: each owns one
+// field's rules and returns the first violation, so the assembler spends one
+// branch per field.
+function aliasesProblem(name: string, aliases: string[]): string | undefined {
+  const seen = new Set<string>([name]);
+  for (const a of aliases) {
+    const aliasErr = nameProblem({ value: a, what: `Alternate name "${a}"` });
+    if (aliasErr) return aliasErr;
+    if (a === name) return `"${a}" is already the command's own name.`;
+    if (seen.has(a)) return `"${a}" is listed twice.`;
+    seen.add(a);
+  }
+  return undefined;
+}
+
+function responseProblem(response: string): string | undefined {
+  const lines = responseLines(response);
+  if (lines.length === 0) return 'Response is required.';
+  if (lines.length > RESPONSE_MAX_LINES) {
+    return `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
+  }
+  if (lines.some((l) => l.length > RESPONSE_MAX)) return `Each line must be at most ${RESPONSE_MAX} characters.`;
+  if (lines.some((l) => CONTROL_CHAR_RE.test(l))) return 'Response cannot contain control characters.';
+  if (urlFetchNames(response).length > URLFETCH_TOKEN_CAP) {
+    // Distinct names, not occurrences: the engine dedupes repeats before the
+    // fan-out, so the latency budget it must absorb scales with distinct defs.
+    return `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
+  }
+  return undefined;
+}
+
+function cooldownProblem(cooldown: number): string | undefined {
+  // The negated range check refuses NaN and both infinities in one shape:
+  // NaN fails every comparison, ±Infinity falls outside the bounds.
+  if (!(cooldown >= 0 && cooldown <= COOLDOWN_MAX)) return `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
+  if (!Number.isInteger(cooldown)) return 'Cooldown must be a whole number of seconds.';
   return undefined;
 }
 
 export function validateCommand(f: CommandFields): CommandErrors {
   const errors: CommandErrors = {};
-
-  const nameErr = nameProblem(f.name, 'Command name');
-  if (nameErr) errors.name = nameErr;
-
-  const seen = new Set<string>([f.name]);
-  for (const a of f.aliases) {
-    const aliasErr = nameProblem(a, `Alternate name "${a}"`);
-    if (aliasErr) {
-      errors.aliases = aliasErr;
-      break;
-    }
-    if (a === f.name) {
-      errors.aliases = `"${a}" is already the command's own name.`;
-      break;
-    }
-    if (seen.has(a)) {
-      errors.aliases = `"${a}" is listed twice.`;
-      break;
-    }
-    seen.add(a);
-  }
-
-  const lines = responseLines(f.response);
-  if (lines.length === 0) errors.response = 'Response is required.';
-  else if (lines.length > RESPONSE_MAX_LINES) {
-    errors.response = `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
-  } else if (lines.some((l) => l.length > RESPONSE_MAX)) {
-    errors.response = `Each line must be at most ${RESPONSE_MAX} characters.`;
-  } else if (lines.some(hasControlCharacter)) {
-    errors.response = 'Response cannot contain control characters.';
-  }
-
-  if (!Number.isFinite(f.cooldown) || f.cooldown < 0 || f.cooldown > COOLDOWN_MAX) {
-    errors.cooldown = `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
-  } else if (!Number.isInteger(f.cooldown)) {
-    errors.cooldown = 'Cooldown must be a whole number of seconds.';
-  }
-
+  const name = nameProblem({ value: f.name, what: 'Command name' });
+  if (name) errors.name = name;
+  const aliases = aliasesProblem(f.name, f.aliases);
+  if (aliases) errors.aliases = aliases;
+  const response = responseProblem(f.response);
+  if (response) errors.response = response;
+  const cooldown = cooldownProblem(f.cooldown);
+  if (cooldown) errors.cooldown = cooldown;
   if (f.allowedUserId && !/^[0-9]+$/.test(f.allowedUserId)) {
     errors.allowed_user_id = 'User restriction must be a numeric Twitch user id.';
   }
-
   return errors;
 }
 
-function hasControlCharacter(line: string): boolean {
-  for (const char of line) {
-    if (char.codePointAt(0)! < 0x20) return true;
-  }
-  return false;
-}
+// Plain character class: linear, no backtracking (the same rune set the
+// byte loop it replaced checked — C0 controls).
+const CONTROL_CHAR_RE = /[\u0000-\u001f]/;
 
 /** Convenience: the first message of an error map, for single-line surfaces. */
-export function firstError(errors: CommandErrors): string | undefined {
+export function firstError(errors: CommandErrors | FetchDefErrors): string | undefined {
   return Object.values(errors)[0];
 }

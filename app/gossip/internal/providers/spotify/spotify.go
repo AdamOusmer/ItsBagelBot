@@ -134,8 +134,8 @@ type api struct {
 // all be present (providers.All skips the provider otherwise, since with no
 // resolver or no app to exchange against it can authenticate nothing).
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	b.Endpoint("search").Timeout(lookupTimeout).Handle(p.search)
 	b.Endpoint("track").Timeout(lookupTimeout).Handle(p.track)
 	b.Endpoint("artist").Timeout(lookupTimeout).Handle(p.artist)
@@ -143,7 +143,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.spotify.com"
@@ -156,8 +156,8 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:         core.NewHTTPClient(base, nil, httpTimeout),
-		auth:         core.NewHTTPClient(accounts, nil, httpTimeout),
+		http:         b.Client(base, nil, httpTimeout),
+		auth:         b.Client(accounts, nil, httpTimeout),
 		cache:        d.Cache,
 		keys:         d.SpotifyKeys,
 		log:          d.Logger(),

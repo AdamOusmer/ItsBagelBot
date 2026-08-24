@@ -11,6 +11,7 @@
     Scroller,
     PageToolbar,
     AlertBanner,
+    ButtonLink,
     DeckList,
     EmptyState,
     InspectorSurface,
@@ -274,6 +275,29 @@
     expanded = c.name;
     editorGen++;
   }
+
+  // #221: the draft snapshots Active at open, so anything flipping the row
+  // afterwards (the row Switch, a second tab, a failed-save rollback) left the
+  // editor holding the stale value — and the next Save wrote it straight back:
+  // toggling off with the inspector open reverted on save, and a sessionStorage
+  // draft captured while the command was active re-activated a disabled command
+  // when restored. Reconcile on every committed move instead. The effect never
+  // reads draft.is_active after first sight on purpose: tracking it would re-run
+  // this effect on the user's own checkbox click and snap it back to committed.
+  let committedActive: boolean | null = null;
+  $effect(() => {
+    const d = editorDraft;
+    const live =
+      d && d.edit && !d.builtin ? items.find((c) => c.name === d.originalName) : undefined;
+    if (!d || !live) {
+      committedActive = null;
+      return;
+    }
+    if (committedActive === null || committedActive !== live.is_active) {
+      committedActive = live.is_active;
+      d.is_active = live.is_active;
+    }
+  });
   // Unguarded close for the delete path (the command is already gone).
   function doCloseEditor() {
     expanded = null;
@@ -296,9 +320,8 @@
   // are then stripped so a refresh can't re-run a stale compose.
   let composeDraft = $state<CommandDraft | null>(null);
   let composeBusy = $state(false);
-  const composeReplaces = $derived(
-    composeDraft !== null && items.some((c) => !c.builtin && c.name === composeDraft!.name)
-  );
+  const matchingCustom = (name: string) => items.find((c) => !c.builtin && c.name === name);
+  const composeReplaces = $derived(composeDraft !== null && !!matchingCustom(composeDraft.name));
 
   onMount(() => {
     const url = new URL(window.location.href);
@@ -356,19 +379,21 @@
     const d = composeDraft;
     if (!d || composeBusy) return;
     composeBusy = true;
-    const replacing = composeReplaces;
+    // A replace edits content only (#221): keep the stored enabled state —
+    // composing over a disabled command must not resurrect it.
+    const existing = matchingCustom(d.name);
     const view: CommandView = {
       name: d.name,
       aliases: d.aliases,
       response: d.response,
-      is_active: true,
+      is_active: existing ? existing.is_active : true,
       stream_online_only: false,
       perm: d.perm,
       cooldown: d.cooldown,
       allowed_user_id: ''
     };
     const body = formDataFor(view);
-    if (replacing) {
+    if (existing) {
       // The modal warned "replace" — save as an edit so the server reports
       // (and audits) an update, not a create.
       body.set('edit', '1');
@@ -670,6 +695,7 @@
         <Icon name="search" size={15} />
         <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
       </label>
+      <ButtonLink href="/commands/fetches" variant="ghost"><Icon name="link" size={14} /> {t('commands.fetchDefs')}</ButtonLink>
       <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
         <Icon name="plus" size={14} /> {t('commands.newCommand')}
       </button>

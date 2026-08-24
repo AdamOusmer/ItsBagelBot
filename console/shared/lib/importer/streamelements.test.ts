@@ -16,8 +16,10 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
+import { CODE } from './validate';
 import {
   DEFAULT_API_BASE,
+  FETCH_DEF_CAP,
   MAX_CREDENTIAL_LEN,
   SE_CODE,
   StreamElementsError,
@@ -280,6 +282,131 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
 
   test('warnings mirror onto the command for the preview screen', () => {
     expect((manifest.commands![4].warnings ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// --- urlfetch mapping (docs/urlfetch/IMPLEMENTATION.md, Phase 4) --------------
+
+describe('urlfetch mapping', () => {
+  const parse = (reply: string, extra = '') =>
+    parseStreamElements(
+      `{"commands":[{"command":"weather","reply":${JSON.stringify(reply)},"accessLevel":100${extra}}],"timers":[]}`
+    );
+
+  test('inline URL extracted into a synthesized definition; token replaced', () => {
+    const { manifest } = parse('Temp: $(urlfetch https://api.example.com/v1)');
+    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:se-weather}');
+    expect(manifest.fetches).toEqual([
+      { name: 'se-weather', url: 'https://api.example.com/v1', source: 'streamelements' }
+    ]);
+  });
+
+  test('json path second argument becomes segments', () => {
+    const { manifest } = parse('$(urlfetch https://api.example.com data.current.temp_f)');
+    expect(manifest.fetches).toEqual([
+      {
+        name: 'se-weather',
+        url: 'https://api.example.com',
+        json_path: ['data', 'current', 'temp_f'],
+        source: 'streamelements'
+      }
+    ]);
+  });
+
+  test('distinct slots get index suffixes from 2 on (N>=2 rule)', () => {
+    const { manifest } = parse(
+      '$(urlfetch https://a.example/x) and $(urlfetch https://b.example/y) and $(urlfetch https://c.example/z)'
+    );
+    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se-weather', 'se-weather-2', 'se-weather-3']);
+    expect(manifest.commands![0].responses![0]).toBe(
+      '{urlfetch:se-weather} and {urlfetch:se-weather-2} and {urlfetch:se-weather-3}'
+    );
+  });
+
+  test('identical argument sets within one command share one definition', () => {
+    const reply = '$(urlfetch https://q.example/r) said $(urlfetch https://q.example/r)';
+    const { manifest } = parse(reply);
+    expect(manifest.fetches).toHaveLength(1);
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-weather} said {urlfetch:se-weather}');
+  });
+
+  test('unusable URLs stay literal with the standard unmapped warn', () => {
+    const { manifest, diagnostics } = parse('x $(urlfetch ftp://nope) y $(urlfetch) z');
+    expect(manifest.fetches).toBeUndefined();
+    expect(manifest.commands![0].responses![0]).toBe('x $(urlfetch ftp://nope) y $(urlfetch) z');
+    const warns = diagnostics.filter((d) => d.code === CODE.variableUnmapped);
+    expect(warns.map((d) => d.item_index)).toEqual([0, 0]);
+    expect(warns[0].message).toContain('$(urlfetch ftp://nope)');
+    expect(warns[1].message).toContain('$(urlfetch)');
+  });
+
+  test('${braced} form maps identically', () => {
+    const { manifest } = parse('${urlfetch https://b.example/z}');
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-weather}');
+    expect(manifest.fetches).toHaveLength(1);
+  });
+
+  test('timers and keyword triggers carry no sink: literal + their own unmapped code', () => {
+    const { manifest, diagnostics } = parseStreamElements(
+      JSON.stringify({
+        commands: [
+          {
+            command: 'w',
+            reply: '$(urlfetch https://ok.example/x)',
+            keywords: ['wtag'],
+            accessLevel: 100
+          }
+        ],
+        timers: [{ name: 't', online: { enabled: true, interval: 5 }, message: '$(urlfetch https://ok.example/x)' }]
+      })
+    );
+    // Command mapped; def exists once.
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-w}');
+    expect(manifest.fetches).toEqual([{ name: 'se-w', url: 'https://ok.example/x', source: 'streamelements' }]);
+    // Trigger kept the raw token, attributed with trigger_variable_unmapped.
+    expect(manifest.triggers![0].response).toContain('$(urlfetch https://ok.example/x)');
+    expect(diagnostics.some((d) => d.code === SE_CODE.triggerVariableUnmapped && d.message.includes('urlfetch'))).toBe(true);
+    // Timer likewise.
+    expect(manifest.timers![0].message).toContain('$(urlfetch https://ok.example/x)');
+    expect(diagnostics.some((d) => d.code === 'timer_variable_unmapped' && d.message.includes('urlfetch'))).toBe(true);
+  });
+
+  test('two exported commands normalizing onto one name collide: first def wins + warn', () => {
+    const { manifest, diagnostics } = parseStreamElements(
+      JSON.stringify({
+        commands: [
+          { command: 'clash', reply: '$(urlfetch https://first.example/a)', accessLevel: 100 },
+          { command: '!Clash', reply: '$(urlfetch https://second.example/b)', accessLevel: 100 }
+        ],
+        timers: []
+      })
+    );
+    expect(manifest.fetches).toEqual([{ name: 'se-clash', url: 'https://first.example/a', source: 'streamelements' }]);
+    // The loser's token degrades to literal rather than re-pointing at
+    // another command's data source.
+    expect(manifest.commands![1].responses![0]).toContain('$(urlfetch');
+    expect(diagnostics.some((d) => d.code === 'fetch_def_collision')).toBe(true);
+  });
+
+  test('re-import idempotence: same envelope parses to identical bytes', () => {
+    const raw =
+      '{"commands":[{"command":"weather","reply":"$(urlfetch https://a.example/x) $(urlfetch https://b.example/y)","accessLevel":100}],"timers":[]}';
+    expect(JSON.stringify(parseStreamElements(raw))).toBe(JSON.stringify(parseStreamElements(raw)));
+  });
+
+  test(`synthesis stops at FETCH_DEF_CAP (${FETCH_DEF_CAP}); excess tokens degrade to literal+warn`, () => {
+    const commands = Array.from({ length: FETCH_DEF_CAP + 1 }, (_, i) => ({
+      command: `c${i}`,
+      reply: '$(urlfetch https://x.example/f)',
+      accessLevel: 100
+    }));
+    const { manifest, diagnostics } = parseStreamElements(JSON.stringify({ commands, timers: [] }));
+    expect(manifest.fetches).toHaveLength(FETCH_DEF_CAP);
+    // The overflow command keeps its raw token instead of a dangling reference.
+    const last = manifest.commands![FETCH_DEF_CAP];
+    expect(last.responses![0]).toContain('$(urlfetch');
+    expect(diagnostics.filter((d) => d.code === CODE.variableUnmapped && d.item_index === FETCH_DEF_CAP))
+      .toHaveLength(1);
   });
 });
 

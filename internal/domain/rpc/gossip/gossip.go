@@ -110,6 +110,30 @@ type Request struct {
 	// provider drops it silently on that board rather than erroring.
 	Country string `json:"country,omitempty"`
 
+	// --- custom (user-defined urlfetch definitions) --------------------------
+	//
+	// The custom provider executes broadcaster-authored definitions authored
+	// in the console: a stored URL, an optional JSON dot-path and an optional
+	// stored API-key label. Every request runs behind the SSRF gate, the WARP
+	// egress lane and three rate-limit layers; see the custom provider.
+
+	// DefID is the stored definition the fetch executes, "<name>" or
+	// "<name>.<dot.path>" where the dot-path overrides/extends the def's own
+	// stored path for one token ({urlfetch:name.path}). Names carry no dots
+	// (^[a-z0-9_]{1,32}$), so the first dot always begins the path.
+	DefID string `json:"def_id,omitempty"`
+	// Def is an INLINE definition, never persisted: the dashboard rehearsal
+	// posts the unsaved draft here so authors exercise the production gates
+	// before saving. When set it replaces the DefID lookup entirely.
+	Def *FetchDef `json:"def,omitempty"`
+	// DryRun executes the fetch but spends no bucket and writes no cache —
+	// the rehearsal path. Nothing about it weakens the guards: same subject,
+	// same SSRF gate, same breaker observation as the chat path.
+	DryRun bool `json:"dry_run,omitempty"`
+	// Fresh skips the positive-cache READ but still writes: an author (or a
+	// template that must not serve yesterday's number) forces a live fetch.
+	Fresh bool `json:"fresh,omitempty"`
+
 	// --- valorant (HenrikDev community API lookups) --------------------------
 
 	// Region is the Valorant shard a lookup targets: "na", "eu", "ap", "kr",
@@ -823,4 +847,75 @@ type ValorantShopReply struct {
 	Count     int                `json:"count"`
 	Empty     bool               `json:"empty"`
 	Error     string             `json:"error,omitempty"`
+}
+
+// --- custom (user-defined urlfetch definitions) ------------------------------
+
+// FetchDef is the projected view of one broadcaster-authored fetch definition,
+// shared by the commands service (authoritative store), its projection, and
+// the custom provider that executes it. Field set and json tags match
+// fetchkey.FetchView exactly, so the projection decodes one into the other
+// without conversion; this twin lives here because gossiprpc.Request carries
+// it inline for the rehearsal path. It deliberately carries key_label only —
+// sealed material never enters the projection or any cache.
+type FetchDef struct {
+	// Name is the stored bare/lower-case name the {urlfetch:name} token names.
+	Name string `json:"name"`
+	// URL is the https-only endpoint the fetch dials. Re-validated by the SSRF
+	// gate on every fetch: a def saved before a denylist entry (or whose host
+	// later re-points) must not silently pass.
+	URL string `json:"url"`
+	// JSONPath is the optional path into the response as segments ("data",
+	// "items", "0", "name" — array indices as bare-digit segments), depth ≤ 8.
+	// Empty means a plain-kind def: the body text itself is the value.
+	JSONPath []string `json:"json_path,omitempty"`
+	// KeyLabel names the broadcaster's stored API key to authenticate with;
+	// empty for keyless endpoints.
+	KeyLabel string `json:"key_label,omitempty"`
+	// IsActive is false when the author paused the definition; inactive defs
+	// answer bad_def.
+	IsActive bool `json:"is_active"`
+}
+
+// FetchStatus classifies a custom.fetch outcome. Sesame maps each status onto
+// short static chat text and never renders upstream bodies:
+//
+//	ok             → interpolate Values
+//	denied         → "[source unavailable]"  (SSRF gate refused the URL)
+//	limited        → "[source unavailable]"  (bucket denial / breaker / WARP down)
+//	upstream_error → "[source error]"        (non-2xx, bad payload, our infra)
+//	timeout        → "[source timed out]"
+//	bad_def        → token left verbatim     (missing/inactive/broken definition)
+type FetchStatus string
+
+const (
+	// FetchOK interpolates Values into the command response.
+	FetchOK FetchStatus = "ok"
+	// FetchDenied is an SSRF-gate refusal (scheme/port/host shape).
+	FetchDenied FetchStatus = "denied"
+	// FetchLimited is a local refusal: bucket denial, armed breaker, or the
+	// WARP sidecar being down (the untrusted lane fails closed).
+	FetchLimited FetchStatus = "limited"
+	// FetchUpstreamError is the upstream answering badly (non-2xx, wrong
+	// content type, oversized body) or our own infrastructure failing.
+	FetchUpstreamError FetchStatus = "upstream_error"
+	// FetchTimeout is the fetch exceeding its wall-clock budget.
+	FetchTimeout FetchStatus = "timeout"
+	// FetchBadDef is a missing, inactive or broken definition (bad URL,
+	// unresolvable path, dangling key label) — the authoring signal.
+	FetchBadDef FetchStatus = "bad_def"
+)
+
+// CustomFetchReply is the answer to custom.fetch. Error stays empty in normal
+// operation — Status is the signal callers switch on — and exists only so the
+// reply satisfies the fleet's {"error": ""} envelope convention without ever
+// carrying upstream text.
+type CustomFetchReply struct {
+	Status FetchStatus `json:"status"`
+	// Values are the extracted strings (at most 5, each capped at 256 chars
+	// server-side — callers never see raw bodies). Empty on every failure.
+	Values []string `json:"values,omitempty"`
+	// MS is the handler's wall-clock cost in milliseconds.
+	MS    int    `json:"ms"`
+	Error string `json:"error,omitempty"`
 }

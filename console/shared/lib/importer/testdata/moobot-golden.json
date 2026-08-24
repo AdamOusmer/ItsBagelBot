@@ -75,6 +75,14 @@
             "Be kind. No spoilers. Mods have final say."
           ],
           "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
         }
       ],
       "timers": [
@@ -102,6 +110,20 @@
         {
           "name": "rules",
           "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
         }
       ]
     },
@@ -140,6 +162,21 @@
         "severity": "warn",
         "item_index": 8,
         "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
       },
       {
         "severity": "warn",
@@ -254,6 +291,14 @@
             "Be kind. No spoilers. Mods have final say."
           ],
           "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
         }
       ],
       "timers": [
@@ -281,6 +326,20 @@
         {
           "name": "rules",
           "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
         }
       ]
     },
@@ -319,6 +378,21 @@
         "severity": "warn",
         "item_index": 8,
         "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
       },
       {
         "severity": "warn",
@@ -450,6 +524,14 @@
             "Be kind. No spoilers. Mods have final say."
           ],
           "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
         }
       ],
       "timers": [
@@ -477,6 +559,20 @@
         {
           "name": "rules",
           "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
         }
       ]
     },
@@ -515,6 +611,21 @@
         "severity": "warn",
         "item_index": 8,
         "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
       },
       {
         "severity": "warn",
@@ -644,6 +755,14 @@
             "Be kind. No spoilers. Mods have final say."
           ],
           "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
         }
       ],
       "timers": [
@@ -671,6 +790,20 @@
         {
           "name": "rules",
           "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
         }
       ]
     },
@@ -709,6 +842,21 @@
         "severity": "warn",
         "item_index": 8,
         "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
       },
       {
         "severity": "warn",
@@ -875,6 +1023,14 @@
             "Be kind. No spoilers. Mods have final say."
           ],
           "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
         }
       ],
       "counters": [
@@ -885,6 +1041,20 @@
         {
           "name": "rules",
           "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
         }
       ]
     },
@@ -923,6 +1093,21 @@
         "severity": "warn",
         "item_index": 8,
         "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
       },
       {
         "severity": "warn",

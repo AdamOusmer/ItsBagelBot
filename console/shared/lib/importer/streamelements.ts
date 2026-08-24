@@ -26,7 +26,8 @@ import {
   mapPermission,
   normalizeName
 } from './validate';
-import type { ImportDiagnostic, ImportManifest, ManifestCommand } from './types';
+import type { ImportDiagnostic, ImportManifest, ManifestCommand, ManifestFetch } from './types';
+import { IMPORT_ITEM_CAPS } from './types';
 
 const warnDiag = (item_index: number, code: string, message: string): ImportDiagnostic => ({
   severity: 'warn',
@@ -500,13 +501,14 @@ export function parseStreamElements(raw: Uint8Array | string): {
 } {
   const env = decodeSeEnvelope(raw);
 
-  const state: SeParseState = { manifest: {}, diags: [] };
+  const state: SeParseState = { manifest: {}, diags: [], fetchDefs: new Map() };
 
   // Empty collections are deleted so the serialized shape mirrors the Go
   // struct's omitempty tags exactly.
   state.manifest.commands = [];
   parseCommands((env.commands as unknown[] | undefined) ?? [], state);
   omitIfEmpty(state.manifest, 'commands');
+  if (state.fetchDefs.size > 0) state.manifest.fetches = [...state.fetchDefs.values()];
 
   state.manifest.timers = [];
   parseTimers((env.timers as unknown[] | undefined) ?? [], state);
@@ -567,6 +569,11 @@ interface NoteSink {
   idx: number;
   diags: ImportDiagnostic[];
   notes: string[];
+  // fetch, when present, lets this command's reply map $(urlfetch ...) tokens
+  // onto synthesized definitions. Only command replies carry one: timers and
+  // keyword triggers reference no command name to build a deterministic slug
+  // from, so their urlfetch tokens keep the literal+unmapped-warn behavior.
+  fetch?: FetchSlotSink;
 }
 
 function addNote(sink: NoteSink, code: string, message: string): void {
@@ -579,6 +586,9 @@ function addNote(sink: NoteSink, code: string, message: string): void {
 interface SeParseState {
   manifest: ImportManifest;
   diags: ImportDiagnostic[];
+  // fetchDefs accumulates synthesized urlfetch definitions, deduped by slug
+  // across the whole envelope; emitted as manifest.fetches after the walk.
+  fetchDefs: Map<string, ManifestFetch>;
 }
 
 function parseCommands(entries: unknown[], state: SeParseState): void {
@@ -629,7 +639,12 @@ function commandExclusion(c: BotCommand): ImportDiagnostic | null {
 
 function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SeParseState): void {
   const name = normalizeName(c.command);
-  const sink: NoteSink = { idx: commands.length, diags: state.diags, notes: [] };
+  const sink: NoteSink = {
+    idx: commands.length,
+    diags: state.diags,
+    notes: [],
+    fetch: makeFetchSlotSink(`se-${name}`, state.fetchDefs, state.diags)
+  };
   const online = flag(c.enabledOnline);
 
   const { text, perm } = lossyNotes(c, name, online, sink);
@@ -668,7 +683,7 @@ function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink
       `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
   }
 
-  const { text, warns } = translateVariables(c.reply);
+  const { text, warns } = translateVariables(c.reply, sink.fetch);
   for (const tok of warns) {
     addNote(sink, CODE.variableUnmapped,
       `response uses ${tok}, which has no equivalent; left as literal text`);
@@ -982,7 +997,7 @@ const LEGACY_HEADS = new Set([
 //	$(random[.X-Y]|random.number X-Y)  → {random:X-Y}
 //	$(random.pick …)/{choose …}        → {choice:a,b}  quote-aware
 //	game/title/uptime/if/math/api/…    → literal + warn (no equivalent)
-export function translateVariables(inText: string): { text: string; warns: string[] } {
+export function translateVariables(inText: string, fetchSink?: FetchSlotSink): { text: string; warns: string[] } {
   const seen = new Set<string>();
   const order: string[] = [];
 
@@ -997,7 +1012,7 @@ export function translateVariables(inText: string): { text: string; warns: strin
       if (!found) break;
       b += s.slice(pos, found.start);
       const tok = s.slice(found.start, found.end);
-      const { repl, warned } = classifyToken(tok);
+      const { repl, warned } = classifyToken(tok, fetchSink);
       b += repl;
       if (warned && !seen.has(tok)) {
         seen.add(tok);
@@ -1236,14 +1251,136 @@ interface TokenView {
 
 type TokenOutcome = { repl: string; warned: boolean };
 
+// --- $(urlfetch) extraction (docs/urlfetch/IMPLEMENTATION.md, Phase 4) -------
+
+// MAX_FETCH_URL_BYTES mirrors the FetchURL validator (≤512 chars, https-only)
+// that ingestion will enforce per definition. A longer or scheme-less URL is
+// refused HERE — left literal with the standard unmapped warn — rather than
+// synthesized into a def that can only fail wholesale at save time, taking its
+// URL out of the reply text where it stayed visible.
+const MAX_FETCH_URL_BYTES = 512;
+
+const urlEncoder = new TextEncoder();
+
+// FetchSlotSink is what a caller of translateVariables provides to have
+// $(urlfetch ...) tokens mapped into `{urlfetch:<slug>}` references backed by
+// synthesized definitions. acquire returns null when no more definitions can
+// be synthesized (cap or slug collision), which degrades the token to the
+// literal+warn path.
+export interface FetchSlotSink {
+  acquire(url: string, jsonPath: string[] | undefined): string | null;
+}
+
+// FETCH_DEF_CAP reuses IMPORT_ITEM_CAPS.commands as the ceiling on synthesized
+// definitions per import instead of minting a second public number: each def
+// exists only to serve a command in this same manifest, so the commands cap
+// bounds it by construction and one fewer magic number cannot drift from the
+// mirrored server-side table. Past the cap a token stays literal (fail
+// visible) — never a dangling {urlfetch:} reference.
+export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
+
+// makeFetchSlotSink builds the per-command slot allocator over one shared
+// import-level def map. Slot rule: the first distinct argument set in a reply
+// takes the bare slug `se-<command>`, the Nth distinct one (N≥2) appends -N.
+// Identical argument sets within ONE command share their def — equality is
+// byte-exact here, so merging is safe — but distinct slots never merge even
+// when their URLs look equal, matching the Moobot-side rule where equality is
+// unknowable until the URL is re-entered; cross-source consistency beats a
+// half-def deduplication that behaves differently per importer.
+function makeFetchSlotSink(
+  baseSlug: string,
+  defs: Map<string, ManifestFetch>,
+  diags: ImportDiagnostic[]
+): FetchSlotSink {
+  const byArgs = new Map<string, string>();
+  let slots = 0;
+  return {
+    acquire(url, jsonPath) {
+      const argsKey = jsonPath?.length ? `${url} ${jsonPath.join('.')}` : url;
+      const existing = byArgs.get(argsKey);
+      if (existing !== undefined) return existing;
+
+      const key = slots > 0 ? `${baseSlug}-${slots + 1}` : baseSlug;
+      if (!registerFetchDef(defs, fetchDefFor(key, url, jsonPath), diags)) return null;
+      slots++;
+      byArgs.set(argsKey, key);
+      return key;
+    }
+  };
+}
+
+// fetchDefFor builds one synthesized definition. Key order matches
+// ManifestFetch's declaration (name, url, json_path, source) so serialized
+// manifests are byte-stable across parsers.
+function fetchDefFor(key: string, url: string, jsonPath: string[] | undefined): ManifestFetch {
+  return jsonPath?.length
+    ? { name: key, url, json_path: jsonPath, source: 'streamelements' }
+    : { name: key, url, source: 'streamelements' };
+}
+
+// registerFetchDef admits one definition into the import-level map: false at
+// the cap, and false with a warn when the slug is already taken — two
+// exported commands normalized onto one name; first wins (deterministic by
+// export order), because the loser's tokens would silently re-point at
+// another command's data source.
+function registerFetchDef(
+  defs: Map<string, ManifestFetch>,
+  def: ManifestFetch,
+  diags: ImportDiagnostic[]
+): boolean {
+  if (defs.has(def.name)) {
+    diags.push(warnDiag(-1, 'fetch_def_collision',
+      `fetch definition ${q(def.name)} was already synthesized with different contents; the earlier one wins`));
+    return false;
+  }
+  if (defs.size >= FETCH_DEF_CAP) return false;
+  defs.set(def.name, def);
+  return true;
+}
+
+// parseUrlfetchArgs splits a $urlfetch body into (url, json_path). The first
+// word is the URL (https/http required — our engine rejects everything else at
+// save AND fetch, so importing a def we know is dead helps nobody); any
+// remainder is SE's dot-path into a JSON response, split on '.' with empties
+// dropped. Segments are stored as-written: segment grammar/depth validation
+// stays authoritative downstream at ingestion, mirroring how counter names
+// ride normalizeName here but validate again at write time.
+function parseUrlfetchArgs(body: string): { url: string; jsonPath: string[] | undefined } | null {
+  const words = body.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  const url = words[0];
+  if (!/^https?:\/\//i.test(url)) return null;
+  if (urlEncoder.encode(url).length > MAX_FETCH_URL_BYTES) return null;
+  if (words.length === 1) return { url, jsonPath: undefined };
+  const segments = words.slice(1).join('.').split('.').map((w) => w.trim()).filter((w) => w !== '');
+  return { url, jsonPath: segments.length > 0 ? segments : undefined };
+}
+
+// urlfetchRule maps one $(urlfetch URL [json.path]) token onto its synthesized
+// definition reference. Extraction-at-import is safe by construction: the URL
+// is copied byte-exact out of the reply text into the definition — no fetch,
+// no resolution, no key handling happens here — and the reply keeps working at
+// runtime through the reviewed, sandboxed definition instead of an unreviewed
+// URL pasted into chat text. Without a sink (timers, keyword triggers) or with
+// unusable arguments there is nothing to extract into, so the token stays
+// literal and warned like any other unmapped variable.
+function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
+  if (!fetchSink || !v.delimited) return unmapped(v);
+  const args = parseUrlfetchArgs(v.restRaw);
+  if (!args) return unmapped(v);
+  const key = fetchSink.acquire(args.url, args.jsonPath);
+  if (key === null) return unmapped(v);
+  return ok(`{urlfetch:${key}}`);
+}
+
 // classifyToken resolves one scanned token to its replacement text by looking
 // its head up in TOKEN_RULES (unknown heads fall through to unmapped).
 // Returns warned=true when the token was an attempted-but-unmappable variable;
 // false covers both clean translations and silent literals.
-function classifyToken(tok: string): TokenOutcome {
+function classifyToken(tok: string, fetchSink?: FetchSlotSink): TokenOutcome {
   const v = readToken(tok);
   if (!v) return { repl: tok, warned: false };
-  return (TOKEN_RULES[v.head] ?? unmapped)(v);
+  return (TOKEN_RULES[v.head] ?? unmapped)(v, fetchSink);
 }
 
 function readToken(tok: string): TokenView | null {
@@ -1336,7 +1473,8 @@ function chooseParam(v: TokenView): TokenOutcome {
 
 // TOKEN_RULES resolves a token body by its head name. Adding a variable later
 // is a row here, not a branch in the scanner.
-const TOKEN_RULES: Record<string, (v: TokenView) => TokenOutcome> = {
+const TOKEN_RULES: Record<string, (v: TokenView, fetchSink?: FetchSlotSink) => TokenOutcome> = {
+  urlfetch: urlfetchRule,
   '': headless,
   user: bakedIdentity({ repl: '{user}', suffixes: ['.name'] }),
   sender: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),

@@ -350,5 +350,144 @@
         "message": "response uses {count hugs}, which has no equivalent; left as literal text"
       }
     ]
+  },
+{
+    "file": "urlfetch",
+    "manifest": {
+      "commands": [
+        {
+          "name": "weather",
+          "responses": [
+            "{urlfetch:se-weather}F and {urlfetch:se-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "quote",
+          "responses": [
+            "{urlfetch:se-quote} — no wait: {urlfetch:se-quote}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "mixedbag",
+          "responses": [
+            "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: {urlfetch:se-mixedbag}"
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "response uses $(urlfetch ftp://nope.example), which has no equivalent; left as literal text",
+            "response uses $(urlfetch), which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "clash",
+          "responses": [
+            "{urlfetch:se-clash}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "clash",
+          "responses": [
+            "$(urlfetch https://second.example/b)"
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "response uses $(urlfetch https://second.example/b), which has no equivalent; left as literal text"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "phrase": "wtag",
+          "response": "$(urlfetch https://api.weather.example/v1 data.current.temp_f)F and $(urlfetch https://api.other.example/hum)"
+        }
+      ],
+      "fetches": [
+        {
+          "name": "se-weather",
+          "url": "https://api.weather.example/v1",
+          "json_path": [
+            "data",
+            "current",
+            "temp_f"
+          ],
+          "source": "streamelements"
+        },
+        {
+          "name": "se-weather-2",
+          "url": "https://api.other.example/hum",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-quote",
+          "url": "https://api.q.example/random",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-mixedbag",
+          "url": "https://ok.example/x",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-clash",
+          "url": "https://first.example/a",
+          "source": "streamelements"
+        }
+      ],
+      "timers": [
+        {
+          "message": "Status: $(urlfetch https://status.example/now) every five minutes.",
+          "interval_seconds": 300,
+          "online_only": true
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"wtag\" response uses $(urlfetch https://api.weather.example/v1 data.current.temp_f), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"wtag\" response uses $(urlfetch https://api.other.example/hum), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch ftp://nope.example), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_collision",
+        "message": "fetch definition \"se-clash\" was already synthesized with different contents; the earlier one wins"
+      },
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch https://second.example/b), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "timer_variable_unmapped",
+        "message": "timer message uses $(urlfetch https://status.example/now), which has no equivalent; left as literal text"
+      }
+    ]
   }
 ]

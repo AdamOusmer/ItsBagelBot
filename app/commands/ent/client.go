@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/commands/ent/migrate"
 
 	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/fetchdefinition"
+	"ItsBagelBot/app/commands/ent/fetchkey"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -25,6 +27,10 @@ type Client struct {
 	Schema *migrate.Schema
 	// Commands is the client for interacting with the Commands builders.
 	Commands *CommandsClient
+	// FetchDefinition is the client for interacting with the FetchDefinition builders.
+	FetchDefinition *FetchDefinitionClient
+	// FetchKey is the client for interacting with the FetchKey builders.
+	FetchKey *FetchKeyClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -37,6 +43,8 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Commands = NewCommandsClient(c.config)
+	c.FetchDefinition = NewFetchDefinitionClient(c.config)
+	c.FetchKey = NewFetchKeyClient(c.config)
 }
 
 type (
@@ -127,9 +135,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:      ctx,
-		config:   cfg,
-		Commands: NewCommandsClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		Commands:        NewCommandsClient(cfg),
+		FetchDefinition: NewFetchDefinitionClient(cfg),
+		FetchKey:        NewFetchKeyClient(cfg),
 	}, nil
 }
 
@@ -147,9 +157,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:      ctx,
-		config:   cfg,
-		Commands: NewCommandsClient(cfg),
+		ctx:             ctx,
+		config:          cfg,
+		Commands:        NewCommandsClient(cfg),
+		FetchDefinition: NewFetchDefinitionClient(cfg),
+		FetchKey:        NewFetchKeyClient(cfg),
 	}, nil
 }
 
@@ -179,12 +191,16 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.Commands.Use(hooks...)
+	c.FetchDefinition.Use(hooks...)
+	c.FetchKey.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Commands.Intercept(interceptors...)
+	c.FetchDefinition.Intercept(interceptors...)
+	c.FetchKey.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -192,6 +208,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *CommandsMutation:
 		return c.Commands.mutate(ctx, m)
+	case *FetchDefinitionMutation:
+		return c.FetchDefinition.mutate(ctx, m)
+	case *FetchKeyMutation:
+		return c.FetchKey.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -331,12 +351,279 @@ func (c *CommandsClient) mutate(ctx context.Context, m *CommandsMutation) (Value
 	}
 }
 
+// FetchDefinitionClient is a client for the FetchDefinition schema.
+type FetchDefinitionClient struct {
+	config
+}
+
+// NewFetchDefinitionClient returns a client for the FetchDefinition from the given config.
+func NewFetchDefinitionClient(c config) *FetchDefinitionClient {
+	return &FetchDefinitionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `fetchdefinition.Hooks(f(g(h())))`.
+func (c *FetchDefinitionClient) Use(hooks ...Hook) {
+	c.hooks.FetchDefinition = append(c.hooks.FetchDefinition, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `fetchdefinition.Intercept(f(g(h())))`.
+func (c *FetchDefinitionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FetchDefinition = append(c.inters.FetchDefinition, interceptors...)
+}
+
+// Create returns a builder for creating a FetchDefinition entity.
+func (c *FetchDefinitionClient) Create() *FetchDefinitionCreate {
+	mutation := newFetchDefinitionMutation(c.config, OpCreate)
+	return &FetchDefinitionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FetchDefinition entities.
+func (c *FetchDefinitionClient) CreateBulk(builders ...*FetchDefinitionCreate) *FetchDefinitionCreateBulk {
+	return &FetchDefinitionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FetchDefinitionClient) MapCreateBulk(slice any, setFunc func(*FetchDefinitionCreate, int)) *FetchDefinitionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FetchDefinitionCreateBulk{err: fmt.Errorf("calling to FetchDefinitionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FetchDefinitionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FetchDefinitionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FetchDefinition.
+func (c *FetchDefinitionClient) Update() *FetchDefinitionUpdate {
+	mutation := newFetchDefinitionMutation(c.config, OpUpdate)
+	return &FetchDefinitionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FetchDefinitionClient) UpdateOne(_m *FetchDefinition) *FetchDefinitionUpdateOne {
+	mutation := newFetchDefinitionMutation(c.config, OpUpdateOne, withFetchDefinition(_m))
+	return &FetchDefinitionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FetchDefinitionClient) UpdateOneID(id int) *FetchDefinitionUpdateOne {
+	mutation := newFetchDefinitionMutation(c.config, OpUpdateOne, withFetchDefinitionID(id))
+	return &FetchDefinitionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FetchDefinition.
+func (c *FetchDefinitionClient) Delete() *FetchDefinitionDelete {
+	mutation := newFetchDefinitionMutation(c.config, OpDelete)
+	return &FetchDefinitionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FetchDefinitionClient) DeleteOne(_m *FetchDefinition) *FetchDefinitionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FetchDefinitionClient) DeleteOneID(id int) *FetchDefinitionDeleteOne {
+	builder := c.Delete().Where(fetchdefinition.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FetchDefinitionDeleteOne{builder}
+}
+
+// Query returns a query builder for FetchDefinition.
+func (c *FetchDefinitionClient) Query() *FetchDefinitionQuery {
+	return &FetchDefinitionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFetchDefinition},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FetchDefinition entity by its id.
+func (c *FetchDefinitionClient) Get(ctx context.Context, id int) (*FetchDefinition, error) {
+	return c.Query().Where(fetchdefinition.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FetchDefinitionClient) GetX(ctx context.Context, id int) *FetchDefinition {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FetchDefinitionClient) Hooks() []Hook {
+	hooks := c.hooks.FetchDefinition
+	return append(hooks[:len(hooks):len(hooks)], fetchdefinition.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *FetchDefinitionClient) Interceptors() []Interceptor {
+	return c.inters.FetchDefinition
+}
+
+func (c *FetchDefinitionClient) mutate(ctx context.Context, m *FetchDefinitionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FetchDefinitionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FetchDefinitionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FetchDefinitionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FetchDefinitionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FetchDefinition mutation op: %q", m.Op())
+	}
+}
+
+// FetchKeyClient is a client for the FetchKey schema.
+type FetchKeyClient struct {
+	config
+}
+
+// NewFetchKeyClient returns a client for the FetchKey from the given config.
+func NewFetchKeyClient(c config) *FetchKeyClient {
+	return &FetchKeyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `fetchkey.Hooks(f(g(h())))`.
+func (c *FetchKeyClient) Use(hooks ...Hook) {
+	c.hooks.FetchKey = append(c.hooks.FetchKey, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `fetchkey.Intercept(f(g(h())))`.
+func (c *FetchKeyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FetchKey = append(c.inters.FetchKey, interceptors...)
+}
+
+// Create returns a builder for creating a FetchKey entity.
+func (c *FetchKeyClient) Create() *FetchKeyCreate {
+	mutation := newFetchKeyMutation(c.config, OpCreate)
+	return &FetchKeyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FetchKey entities.
+func (c *FetchKeyClient) CreateBulk(builders ...*FetchKeyCreate) *FetchKeyCreateBulk {
+	return &FetchKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FetchKeyClient) MapCreateBulk(slice any, setFunc func(*FetchKeyCreate, int)) *FetchKeyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FetchKeyCreateBulk{err: fmt.Errorf("calling to FetchKeyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FetchKeyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FetchKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FetchKey.
+func (c *FetchKeyClient) Update() *FetchKeyUpdate {
+	mutation := newFetchKeyMutation(c.config, OpUpdate)
+	return &FetchKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FetchKeyClient) UpdateOne(_m *FetchKey) *FetchKeyUpdateOne {
+	mutation := newFetchKeyMutation(c.config, OpUpdateOne, withFetchKey(_m))
+	return &FetchKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FetchKeyClient) UpdateOneID(id int) *FetchKeyUpdateOne {
+	mutation := newFetchKeyMutation(c.config, OpUpdateOne, withFetchKeyID(id))
+	return &FetchKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FetchKey.
+func (c *FetchKeyClient) Delete() *FetchKeyDelete {
+	mutation := newFetchKeyMutation(c.config, OpDelete)
+	return &FetchKeyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FetchKeyClient) DeleteOne(_m *FetchKey) *FetchKeyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FetchKeyClient) DeleteOneID(id int) *FetchKeyDeleteOne {
+	builder := c.Delete().Where(fetchkey.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FetchKeyDeleteOne{builder}
+}
+
+// Query returns a query builder for FetchKey.
+func (c *FetchKeyClient) Query() *FetchKeyQuery {
+	return &FetchKeyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFetchKey},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FetchKey entity by its id.
+func (c *FetchKeyClient) Get(ctx context.Context, id int) (*FetchKey, error) {
+	return c.Query().Where(fetchkey.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FetchKeyClient) GetX(ctx context.Context, id int) *FetchKey {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FetchKeyClient) Hooks() []Hook {
+	return c.hooks.FetchKey
+}
+
+// Interceptors returns the client interceptors.
+func (c *FetchKeyClient) Interceptors() []Interceptor {
+	return c.inters.FetchKey
+}
+
+func (c *FetchKeyClient) mutate(ctx context.Context, m *FetchKeyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FetchKeyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FetchKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FetchKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FetchKeyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FetchKey mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Commands []ent.Hook
+		Commands, FetchDefinition, FetchKey []ent.Hook
 	}
 	inters struct {
-		Commands []ent.Interceptor
+		Commands, FetchDefinition, FetchKey []ent.Interceptor
 	}
 )

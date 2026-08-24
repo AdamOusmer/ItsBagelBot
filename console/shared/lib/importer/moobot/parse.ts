@@ -33,6 +33,7 @@ import type {
   ImportManifest,
   ManifestCommand,
   ManifestCounter,
+  ManifestFetch,
   ManifestTimer
 } from '../types';
 
@@ -50,6 +51,7 @@ const CODE = {
   permissionWidened: 'command_permission_widened',
   permissionCollapsed: 'command_permission_collapsed',
   variableUnmapped: 'command_variable_unmapped',
+  fetchUrlAbsent: 'command_fetch_url_absent',
   responseTruncated: 'command_response_truncated',
   responseLineDropped: 'command_response_line_dropped',
   intervalClamped: 'timer_interval_clamped',
@@ -396,6 +398,9 @@ interface ParseState {
   texts: Map<string, string>;
   stagedAliases: RawAlias[];
   stagedTimers: RawTimer[];
+  // fetchDefs accumulates synthesized urlfetch definition shells, deduped by
+  // slug across the whole export; emitted as manifest.fetches after the walk.
+  fetchDefs: Map<string, ManifestFetch>;
 }
 
 // SectionParser handles one decoded settings section's object rows. Parsers
@@ -465,7 +470,8 @@ export function parseMoobot(bytes: Uint8Array): {
     diags: [],
     texts: new Map(),
     stagedAliases: [],
-    stagedTimers: []
+    stagedTimers: [],
+    fetchDefs: new Map()
   };
 
   for (const sec of sections) SECTION_PARSERS[asStr(sec.type)]?.(sec, state);
@@ -477,6 +483,7 @@ export function parseMoobot(bytes: Uint8Array): {
   if (state.commands.length) manifest.commands = state.commands;
   if (state.timers.length) manifest.timers = state.timers;
   if (state.counters.length) manifest.counters = state.counters;
+  if (state.fetchDefs.size > 0) manifest.fetches = [...state.fetchDefs.values()];
 
   return { manifest, diagnostics: state.diags };
 }
@@ -505,11 +512,18 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
 
   applyCommandCooldown(item, cmd);
 
-  const ctx: TagContext = commandTagContext(item, name);
+  const ctx: TagContext = commandTagContext(item, name, state.fetchDefs);
   const tr = translateTags(asStr(item.text), ctx);
   for (const tok of tr.unmapped) {
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
       `response uses <${tok}>, which has no equivalent; left as literal text`));
+  }
+  for (const ref of tr.fetchRefs) {
+    // One targeted warn per distinct tag per command, in the shape of the
+    // variableUnmapped precedent: the tag itself mapped fine, but its
+    // definition is a URL-less shell until the broadcaster acts.
+    state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
+      `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}} — re-enter the URL for "${ref.key}" before it can fetch`));
   }
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
@@ -535,9 +549,10 @@ function applyCommandCooldown(item: RawCommand, cmd: ManifestCommand): void {
   if (clamped > 0) cmd.cooldown_seconds = clamped;
 }
 
-function commandTagContext(item: RawCommand, name: string): TagContext {
+function commandTagContext(item: RawCommand, name: string, fetchDefs: Map<string, ManifestFetch>): TagContext {
   return {
     name,
+    fetchDefs,
     randomStart: asNum(item.random_number_range_start),
     randomEnd: asNum(item.random_number_range_end),
     randomTexts: [

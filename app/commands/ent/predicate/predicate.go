@@ -8,3 +8,9 @@ import (
 
 // Commands is the predicate function for commands builders.
 type Commands func(*sql.Selector)
+
+// FetchDefinition is the predicate function for fetchdefinition builders.
+type FetchDefinition func(*sql.Selector)
+
+// FetchKey is the predicate function for fetchkey builders.
+type FetchKey func(*sql.Selector)

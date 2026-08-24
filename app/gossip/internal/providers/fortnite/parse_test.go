@@ -4,6 +4,7 @@
 package fortnite
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"regexp"
 	"testing"
 
@@ -268,3 +269,7 @@ func TestParseRawStatsIntegerOverflowToken(t *testing.T) {
 	}
 	assert.NotEqual(t, naive, resp.Overall.kills, "overflow guard should not silently wrap like the old accumulator")
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

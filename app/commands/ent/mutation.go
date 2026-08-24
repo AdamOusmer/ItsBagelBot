@@ -4,6 +4,8 @@ package ent
 
 import (
 	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/fetchdefinition"
+	"ItsBagelBot/app/commands/ent/fetchkey"
 	"ItsBagelBot/app/commands/ent/predicate"
 	"context"
 	"errors"
@@ -24,7 +26,9 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeCommands = "Commands"
+	TypeCommands        = "Commands"
+	TypeFetchDefinition = "FetchDefinition"
+	TypeFetchKey        = "FetchKey"
 )
 
 // CommandsMutation represents an operation that mutates the Commands nodes in the graph.
@@ -1119,4 +1123,1434 @@ func (m *CommandsMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *CommandsMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Commands edge %s", name)
+}
+
+// FetchDefinitionMutation represents an operation that mutates the FetchDefinition nodes in the graph.
+type FetchDefinitionMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	user_id         *uint64
+	adduser_id      *int64
+	name            *string
+	url             *string
+	json_path       *[]string
+	appendjson_path []string
+	key_label       *string
+	is_active       *bool
+	created_at      *time.Time
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*FetchDefinition, error)
+	predicates      []predicate.FetchDefinition
+}
+
+var _ ent.Mutation = (*FetchDefinitionMutation)(nil)
+
+// fetchdefinitionOption allows management of the mutation configuration using functional options.
+type fetchdefinitionOption func(*FetchDefinitionMutation)
+
+// newFetchDefinitionMutation creates new mutation for the FetchDefinition entity.
+func newFetchDefinitionMutation(c config, op Op, opts ...fetchdefinitionOption) *FetchDefinitionMutation {
+	m := &FetchDefinitionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFetchDefinition,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFetchDefinitionID sets the ID field of the mutation.
+func withFetchDefinitionID(id int) fetchdefinitionOption {
+	return func(m *FetchDefinitionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FetchDefinition
+		)
+		m.oldValue = func(ctx context.Context) (*FetchDefinition, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FetchDefinition.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFetchDefinition sets the old FetchDefinition of the mutation.
+func withFetchDefinition(node *FetchDefinition) fetchdefinitionOption {
+	return func(m *FetchDefinitionMutation) {
+		m.oldValue = func(context.Context) (*FetchDefinition, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FetchDefinitionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FetchDefinitionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FetchDefinitionMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FetchDefinitionMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FetchDefinition.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *FetchDefinitionMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *FetchDefinitionMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *FetchDefinitionMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *FetchDefinitionMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *FetchDefinitionMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *FetchDefinitionMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *FetchDefinitionMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *FetchDefinitionMutation) ResetName() {
+	m.name = nil
+}
+
+// SetURL sets the "url" field.
+func (m *FetchDefinitionMutation) SetURL(s string) {
+	m.url = &s
+}
+
+// URL returns the value of the "url" field in the mutation.
+func (m *FetchDefinitionMutation) URL() (r string, exists bool) {
+	v := m.url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURL returns the old "url" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURL: %w", err)
+	}
+	return oldValue.URL, nil
+}
+
+// ResetURL resets all changes to the "url" field.
+func (m *FetchDefinitionMutation) ResetURL() {
+	m.url = nil
+}
+
+// SetJSONPath sets the "json_path" field.
+func (m *FetchDefinitionMutation) SetJSONPath(s []string) {
+	m.json_path = &s
+	m.appendjson_path = nil
+}
+
+// JSONPath returns the value of the "json_path" field in the mutation.
+func (m *FetchDefinitionMutation) JSONPath() (r []string, exists bool) {
+	v := m.json_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldJSONPath returns the old "json_path" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldJSONPath(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldJSONPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldJSONPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldJSONPath: %w", err)
+	}
+	return oldValue.JSONPath, nil
+}
+
+// AppendJSONPath adds s to the "json_path" field.
+func (m *FetchDefinitionMutation) AppendJSONPath(s []string) {
+	m.appendjson_path = append(m.appendjson_path, s...)
+}
+
+// AppendedJSONPath returns the list of values that were appended to the "json_path" field in this mutation.
+func (m *FetchDefinitionMutation) AppendedJSONPath() ([]string, bool) {
+	if len(m.appendjson_path) == 0 {
+		return nil, false
+	}
+	return m.appendjson_path, true
+}
+
+// ClearJSONPath clears the value of the "json_path" field.
+func (m *FetchDefinitionMutation) ClearJSONPath() {
+	m.json_path = nil
+	m.appendjson_path = nil
+	m.clearedFields[fetchdefinition.FieldJSONPath] = struct{}{}
+}
+
+// JSONPathCleared returns if the "json_path" field was cleared in this mutation.
+func (m *FetchDefinitionMutation) JSONPathCleared() bool {
+	_, ok := m.clearedFields[fetchdefinition.FieldJSONPath]
+	return ok
+}
+
+// ResetJSONPath resets all changes to the "json_path" field.
+func (m *FetchDefinitionMutation) ResetJSONPath() {
+	m.json_path = nil
+	m.appendjson_path = nil
+	delete(m.clearedFields, fetchdefinition.FieldJSONPath)
+}
+
+// SetKeyLabel sets the "key_label" field.
+func (m *FetchDefinitionMutation) SetKeyLabel(s string) {
+	m.key_label = &s
+}
+
+// KeyLabel returns the value of the "key_label" field in the mutation.
+func (m *FetchDefinitionMutation) KeyLabel() (r string, exists bool) {
+	v := m.key_label
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKeyLabel returns the old "key_label" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldKeyLabel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKeyLabel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKeyLabel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKeyLabel: %w", err)
+	}
+	return oldValue.KeyLabel, nil
+}
+
+// ClearKeyLabel clears the value of the "key_label" field.
+func (m *FetchDefinitionMutation) ClearKeyLabel() {
+	m.key_label = nil
+	m.clearedFields[fetchdefinition.FieldKeyLabel] = struct{}{}
+}
+
+// KeyLabelCleared returns if the "key_label" field was cleared in this mutation.
+func (m *FetchDefinitionMutation) KeyLabelCleared() bool {
+	_, ok := m.clearedFields[fetchdefinition.FieldKeyLabel]
+	return ok
+}
+
+// ResetKeyLabel resets all changes to the "key_label" field.
+func (m *FetchDefinitionMutation) ResetKeyLabel() {
+	m.key_label = nil
+	delete(m.clearedFields, fetchdefinition.FieldKeyLabel)
+}
+
+// SetIsActive sets the "is_active" field.
+func (m *FetchDefinitionMutation) SetIsActive(b bool) {
+	m.is_active = &b
+}
+
+// IsActive returns the value of the "is_active" field in the mutation.
+func (m *FetchDefinitionMutation) IsActive() (r bool, exists bool) {
+	v := m.is_active
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsActive returns the old "is_active" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldIsActive(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsActive is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsActive requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsActive: %w", err)
+	}
+	return oldValue.IsActive, nil
+}
+
+// ResetIsActive resets all changes to the "is_active" field.
+func (m *FetchDefinitionMutation) ResetIsActive() {
+	m.is_active = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FetchDefinitionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FetchDefinitionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FetchDefinitionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *FetchDefinitionMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *FetchDefinitionMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the FetchDefinition entity.
+// If the FetchDefinition object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchDefinitionMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *FetchDefinitionMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the FetchDefinitionMutation builder.
+func (m *FetchDefinitionMutation) Where(ps ...predicate.FetchDefinition) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FetchDefinitionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FetchDefinitionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FetchDefinition, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FetchDefinitionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FetchDefinitionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FetchDefinition).
+func (m *FetchDefinitionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FetchDefinitionMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.user_id != nil {
+		fields = append(fields, fetchdefinition.FieldUserID)
+	}
+	if m.name != nil {
+		fields = append(fields, fetchdefinition.FieldName)
+	}
+	if m.url != nil {
+		fields = append(fields, fetchdefinition.FieldURL)
+	}
+	if m.json_path != nil {
+		fields = append(fields, fetchdefinition.FieldJSONPath)
+	}
+	if m.key_label != nil {
+		fields = append(fields, fetchdefinition.FieldKeyLabel)
+	}
+	if m.is_active != nil {
+		fields = append(fields, fetchdefinition.FieldIsActive)
+	}
+	if m.created_at != nil {
+		fields = append(fields, fetchdefinition.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, fetchdefinition.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FetchDefinitionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		return m.UserID()
+	case fetchdefinition.FieldName:
+		return m.Name()
+	case fetchdefinition.FieldURL:
+		return m.URL()
+	case fetchdefinition.FieldJSONPath:
+		return m.JSONPath()
+	case fetchdefinition.FieldKeyLabel:
+		return m.KeyLabel()
+	case fetchdefinition.FieldIsActive:
+		return m.IsActive()
+	case fetchdefinition.FieldCreatedAt:
+		return m.CreatedAt()
+	case fetchdefinition.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FetchDefinitionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		return m.OldUserID(ctx)
+	case fetchdefinition.FieldName:
+		return m.OldName(ctx)
+	case fetchdefinition.FieldURL:
+		return m.OldURL(ctx)
+	case fetchdefinition.FieldJSONPath:
+		return m.OldJSONPath(ctx)
+	case fetchdefinition.FieldKeyLabel:
+		return m.OldKeyLabel(ctx)
+	case fetchdefinition.FieldIsActive:
+		return m.OldIsActive(ctx)
+	case fetchdefinition.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case fetchdefinition.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown FetchDefinition field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FetchDefinitionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case fetchdefinition.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case fetchdefinition.FieldURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURL(v)
+		return nil
+	case fetchdefinition.FieldJSONPath:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetJSONPath(v)
+		return nil
+	case fetchdefinition.FieldKeyLabel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKeyLabel(v)
+		return nil
+	case fetchdefinition.FieldIsActive:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsActive(v)
+		return nil
+	case fetchdefinition.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case fetchdefinition.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FetchDefinition field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FetchDefinitionMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, fetchdefinition.FieldUserID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FetchDefinitionMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		return m.AddedUserID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FetchDefinitionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FetchDefinition numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FetchDefinitionMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(fetchdefinition.FieldJSONPath) {
+		fields = append(fields, fetchdefinition.FieldJSONPath)
+	}
+	if m.FieldCleared(fetchdefinition.FieldKeyLabel) {
+		fields = append(fields, fetchdefinition.FieldKeyLabel)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FetchDefinitionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FetchDefinitionMutation) ClearField(name string) error {
+	switch name {
+	case fetchdefinition.FieldJSONPath:
+		m.ClearJSONPath()
+		return nil
+	case fetchdefinition.FieldKeyLabel:
+		m.ClearKeyLabel()
+		return nil
+	}
+	return fmt.Errorf("unknown FetchDefinition nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FetchDefinitionMutation) ResetField(name string) error {
+	switch name {
+	case fetchdefinition.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case fetchdefinition.FieldName:
+		m.ResetName()
+		return nil
+	case fetchdefinition.FieldURL:
+		m.ResetURL()
+		return nil
+	case fetchdefinition.FieldJSONPath:
+		m.ResetJSONPath()
+		return nil
+	case fetchdefinition.FieldKeyLabel:
+		m.ResetKeyLabel()
+		return nil
+	case fetchdefinition.FieldIsActive:
+		m.ResetIsActive()
+		return nil
+	case fetchdefinition.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case fetchdefinition.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown FetchDefinition field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FetchDefinitionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FetchDefinitionMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FetchDefinitionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FetchDefinitionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FetchDefinitionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FetchDefinitionMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FetchDefinitionMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown FetchDefinition unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FetchDefinitionMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown FetchDefinition edge %s", name)
+}
+
+// FetchKeyMutation represents an operation that mutates the FetchKey nodes in the graph.
+type FetchKeyMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	user_id       *uint64
+	adduser_id    *int64
+	label         *string
+	key_enc       *[]byte
+	last4         *string
+	created_at    *time.Time
+	updated_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*FetchKey, error)
+	predicates    []predicate.FetchKey
+}
+
+var _ ent.Mutation = (*FetchKeyMutation)(nil)
+
+// fetchkeyOption allows management of the mutation configuration using functional options.
+type fetchkeyOption func(*FetchKeyMutation)
+
+// newFetchKeyMutation creates new mutation for the FetchKey entity.
+func newFetchKeyMutation(c config, op Op, opts ...fetchkeyOption) *FetchKeyMutation {
+	m := &FetchKeyMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFetchKey,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFetchKeyID sets the ID field of the mutation.
+func withFetchKeyID(id int) fetchkeyOption {
+	return func(m *FetchKeyMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FetchKey
+		)
+		m.oldValue = func(ctx context.Context) (*FetchKey, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FetchKey.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFetchKey sets the old FetchKey of the mutation.
+func withFetchKey(node *FetchKey) fetchkeyOption {
+	return func(m *FetchKeyMutation) {
+		m.oldValue = func(context.Context) (*FetchKey, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FetchKeyMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FetchKeyMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FetchKeyMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FetchKeyMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FetchKey.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *FetchKeyMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *FetchKeyMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *FetchKeyMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *FetchKeyMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *FetchKeyMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetLabel sets the "label" field.
+func (m *FetchKeyMutation) SetLabel(s string) {
+	m.label = &s
+}
+
+// Label returns the value of the "label" field in the mutation.
+func (m *FetchKeyMutation) Label() (r string, exists bool) {
+	v := m.label
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabel returns the old "label" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldLabel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabel: %w", err)
+	}
+	return oldValue.Label, nil
+}
+
+// ResetLabel resets all changes to the "label" field.
+func (m *FetchKeyMutation) ResetLabel() {
+	m.label = nil
+}
+
+// SetKeyEnc sets the "key_enc" field.
+func (m *FetchKeyMutation) SetKeyEnc(b []byte) {
+	m.key_enc = &b
+}
+
+// KeyEnc returns the value of the "key_enc" field in the mutation.
+func (m *FetchKeyMutation) KeyEnc() (r []byte, exists bool) {
+	v := m.key_enc
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKeyEnc returns the old "key_enc" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldKeyEnc(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKeyEnc is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKeyEnc requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKeyEnc: %w", err)
+	}
+	return oldValue.KeyEnc, nil
+}
+
+// ResetKeyEnc resets all changes to the "key_enc" field.
+func (m *FetchKeyMutation) ResetKeyEnc() {
+	m.key_enc = nil
+}
+
+// SetLast4 sets the "last4" field.
+func (m *FetchKeyMutation) SetLast4(s string) {
+	m.last4 = &s
+}
+
+// Last4 returns the value of the "last4" field in the mutation.
+func (m *FetchKeyMutation) Last4() (r string, exists bool) {
+	v := m.last4
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLast4 returns the old "last4" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldLast4(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLast4 is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLast4 requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLast4: %w", err)
+	}
+	return oldValue.Last4, nil
+}
+
+// ResetLast4 resets all changes to the "last4" field.
+func (m *FetchKeyMutation) ResetLast4() {
+	m.last4 = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FetchKeyMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FetchKeyMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FetchKeyMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *FetchKeyMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *FetchKeyMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the FetchKey entity.
+// If the FetchKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FetchKeyMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *FetchKeyMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the FetchKeyMutation builder.
+func (m *FetchKeyMutation) Where(ps ...predicate.FetchKey) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FetchKeyMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FetchKeyMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FetchKey, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FetchKeyMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FetchKeyMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FetchKey).
+func (m *FetchKeyMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FetchKeyMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.user_id != nil {
+		fields = append(fields, fetchkey.FieldUserID)
+	}
+	if m.label != nil {
+		fields = append(fields, fetchkey.FieldLabel)
+	}
+	if m.key_enc != nil {
+		fields = append(fields, fetchkey.FieldKeyEnc)
+	}
+	if m.last4 != nil {
+		fields = append(fields, fetchkey.FieldLast4)
+	}
+	if m.created_at != nil {
+		fields = append(fields, fetchkey.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, fetchkey.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FetchKeyMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case fetchkey.FieldUserID:
+		return m.UserID()
+	case fetchkey.FieldLabel:
+		return m.Label()
+	case fetchkey.FieldKeyEnc:
+		return m.KeyEnc()
+	case fetchkey.FieldLast4:
+		return m.Last4()
+	case fetchkey.FieldCreatedAt:
+		return m.CreatedAt()
+	case fetchkey.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FetchKeyMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case fetchkey.FieldUserID:
+		return m.OldUserID(ctx)
+	case fetchkey.FieldLabel:
+		return m.OldLabel(ctx)
+	case fetchkey.FieldKeyEnc:
+		return m.OldKeyEnc(ctx)
+	case fetchkey.FieldLast4:
+		return m.OldLast4(ctx)
+	case fetchkey.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case fetchkey.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown FetchKey field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FetchKeyMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case fetchkey.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case fetchkey.FieldLabel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabel(v)
+		return nil
+	case fetchkey.FieldKeyEnc:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKeyEnc(v)
+		return nil
+	case fetchkey.FieldLast4:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLast4(v)
+		return nil
+	case fetchkey.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case fetchkey.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FetchKey field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FetchKeyMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, fetchkey.FieldUserID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FetchKeyMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case fetchkey.FieldUserID:
+		return m.AddedUserID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FetchKeyMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case fetchkey.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FetchKey numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FetchKeyMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FetchKeyMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FetchKeyMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown FetchKey nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FetchKeyMutation) ResetField(name string) error {
+	switch name {
+	case fetchkey.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case fetchkey.FieldLabel:
+		m.ResetLabel()
+		return nil
+	case fetchkey.FieldKeyEnc:
+		m.ResetKeyEnc()
+		return nil
+	case fetchkey.FieldLast4:
+		m.ResetLast4()
+		return nil
+	case fetchkey.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case fetchkey.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown FetchKey field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FetchKeyMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FetchKeyMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FetchKeyMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FetchKeyMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FetchKeyMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FetchKeyMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FetchKeyMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown FetchKey unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FetchKeyMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown FetchKey edge %s", name)
 }

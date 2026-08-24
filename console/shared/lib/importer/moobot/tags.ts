@@ -8,6 +8,9 @@
 
 // --- tag translation (ported from tags.go) ----------------------------------
 
+import type { ManifestFetch } from '../types';
+import { IMPORT_ITEM_CAPS } from '../types';
+
 // Moobot stores response tags literally as <name>; this exact character class
 // is what their widget round-trips. Anything else in angle brackets is the
 // broadcaster's literal text and survives untouched.
@@ -18,6 +21,10 @@ export interface TagContext {
   randomStart?: number;
   randomEnd?: number;
   randomTexts: (TextOption[] | undefined)[];
+  // fetchDefs is the import-level accumulator of synthesized urlfetch
+  // definition shells, shared across every command in the export so slugs
+  // dedupe by name (two commands normalizing onto one name share the shell).
+  fetchDefs: Map<string, ManifestFetch>;
 }
 
 export interface TextOption {
@@ -44,6 +51,53 @@ const KNOWN_TAGS = new Set<string>([
 for (let i = 1; i <= 5; i++) KNOWN_TAGS.add(String(i));
 for (let i = 1; i <= 3; i++) KNOWN_TAGS.add(`random.text.${i}`);
 for (let i = 1; i <= 10; i++) KNOWN_TAGS.add(`urlfetch.json.${i}`);
+
+// --- urlfetch mapping (docs/urlfetch/IMPLEMENTATION.md, Phase 4) -------------
+
+// MOOBOT_JSON_SLOT recognizes the numbered urlfetch slots their editor inserts
+// (urlfetch.json.1 .. urlfetch.json.10); urlfetch.plain is the un-numbered one.
+const MOOBOT_JSON_SLOT = /^urlfetch\.json\.([1-9]|10)$/;
+
+// FETCH_DEF_CAP reuses IMPORT_ITEM_CAPS.commands as the per-import ceiling on
+// synthesized fetch definitions instead of minting a second public number:
+// every definition exists only to serve a command in this same export, so the
+// commands cap bounds it by construction, and one fewer magic number cannot
+// drift from the mirrored server-side table. Past the cap the tag falls back
+// to the literal+warn path — fail visible, never a dangling {urlfetch:}
+// reference.
+const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
+
+// urlfetchSlot classifies a tag: null for the un-numbered urlfetch.plain, the
+// slot number for urlfetch.json.N, undefined for anything not urlfetch-shaped.
+function urlfetchSlot(tag: string): number | null | undefined {
+  if (tag === 'urlfetch.plain') return null;
+  const m = MOOBOT_JSON_SLOT.exec(tag);
+  return m ? Number(m[1]) : undefined;
+}
+
+// urlfetchRef maps one Moobot urlfetch tag onto its `{urlfetch:<slug>}`
+// reference, synthesizing the definition shell on first sight. Slug rule:
+// `moobot-<normalizeName(command.name)>`, with the tag's own N appended for
+// json.N — the TAG NAME is the slot id, so mapping is a pure function of the
+// export and re-import lands on identical slugs (idempotent). Slots never
+// merge even though none of them carries a URL: equality is unknowable until
+// the broadcaster re-enters each URL, so plain and every json.N stay separate
+// definitions forever. Returns null at the cap, which degrades to the
+// literal+unmapped-warn path.
+function urlfetchRef(ctx: TagContext, slotN: number | null): string | null {
+  // Slug rule inlined: `moobot-<command>`, with the tag's own N appended for
+  // json.N — the TAG NAME is the slot id, so mapping is a pure function of
+  // the export and re-import lands on identical slugs (idempotent).
+  const key = slotN === null ? `moobot-${ctx.name}` : `moobot-${ctx.name}-${slotN}`;
+  if (!ctx.fetchDefs.has(key)) {
+    if (ctx.fetchDefs.size >= FETCH_DEF_CAP) return null;
+    // Deliberately NO url field: Moobot's BotCommand export carries no URL
+    // data at all, so the shell is a placeholder the broadcaster must complete
+    // in the fetch-definitions editor before anything can fetch.
+    ctx.fetchDefs.set(key, { name: key, source: 'moobot' });
+  }
+  return key;
+}
 
 function randomNumberKey(ctx: TagContext): string {
   const { randomStart: s, randomEnd: e } = ctx;
@@ -94,14 +148,23 @@ function replaceTag(tag: string, ctx: TagContext): string {
   return render ? render(ctx) : '';
 }
 
+// FetchTagRef is one distinct urlfetch tag this response mapped, with the
+// definition slug it landed on — the warn loop emits one "re-enter the URL"
+// finding per entry without recomputing the slug rule.
+export interface FetchTagRef {
+  tag: string;
+  key: string;
+}
+
 interface TagResult {
   text: string;
   unmapped: string[];
   counterUsed: boolean;
+  fetchRefs: FetchTagRef[];
 }
 
 export function translateTags(text: string, ctx: TagContext): TagResult {
-  const res: TagResult = { text: '', unmapped: [], counterUsed: false };
+  const res: TagResult = { text: '', unmapped: [], counterUsed: false, fetchRefs: [] };
   const seen = new Set<string>();
   const render: TagRender = { ctx, res, seen };
   let out = '';
@@ -110,7 +173,7 @@ export function translateTags(text: string, ctx: TagContext): TagResult {
     const start = m.index ?? 0;
     out += text.slice(last, start);
     last = start + m[0].length;
-    out += renderTag(render, m[0], m[1]);
+    out += renderTag(render, m[1]);
   }
   out += text.slice(last);
   res.text = out;
@@ -130,14 +193,32 @@ interface TagRender {
 // otherwise the literal bracketed text plus a first-of-kind warning for
 // catalog entries we cannot express (unknown bracketed words stay silent —
 // they are indistinguishable from prose until Moobot defines them).
-function renderTag(render: TagRender, raw: string, tag: string): string {
+// The literal form is reconstructable from the name alone — TAG_PATTERN
+// captures exactly the text between one "<" and one ">" — so renderers take
+// the tag and rebuild the bracketed literal on the degrade paths.
+function renderTag(render: TagRender, tag: string): string {
+  const slot = urlfetchSlot(tag);
+  if (slot !== undefined) return renderUrlfetchTag(render, tag, slot);
   const replacement = replaceTag(tag, render.ctx);
   if (replacement !== '') {
     if (tag === 'counter') render.res.counterUsed = true;
     return replacement;
   }
   noteUnmappedTag(render, tag);
-  return raw;
+  return `<${tag}>`;
+}
+
+// renderUrlfetchTag maps one urlfetch tag onto its {urlfetch:<slug>}
+// reference. At the definition cap it takes the same literal+warn degrade as
+// an unmappable catalog tag — never a dangling {urlfetch:} reference.
+function renderUrlfetchTag(render: TagRender, tag: string, slot: number | null): string {
+  const key = urlfetchRef(render.ctx, slot);
+  if (key === null) {
+    noteUnmappedTag(render, tag);
+    return `<${tag}>`;
+  }
+  if (!render.res.fetchRefs.some((r) => r.tag === tag)) render.res.fetchRefs.push({ tag, key });
+  return `{urlfetch:${key}}`;
 }
 
 // noteUnmappedTag records a first-of-kind warning for a known-but-unmappable

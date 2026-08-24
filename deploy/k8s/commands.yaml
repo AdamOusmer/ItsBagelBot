@@ -167,6 +167,14 @@ spec:
               value: "true"
             - name: GOMEMLIMIT
               value: 160MiB
+            # Tink keyset for at-rest $(urlfetch) API-key encryption (this
+            # service's own keyset, distinct from users' and modules'),
+            # consumed as a file. The mount is optional (see volumes): until
+            # the TINK_KEYSET secret is provisioned the file is absent and the
+            # service degrades to "definitions work keyless, custody refused"
+            # rather than crash-looping.
+            - name: TINK_KEYSET_PATH
+              value: /etc/tink/keyset.json
             # Serve HTTPS on 8080 with the cert-manager commands-tls cert so the
             # traefik hop to /status is TLS end-to-end (pkg/health reads the
             # pair; both or neither, a half-set pair fails the listener).
@@ -187,6 +195,9 @@ spec:
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/commands/tls, readOnly: true}
+            - name: tink-keyset
+              mountPath: /etc/tink
+              readOnly: true
           ports:
             - containerPort: 8080
           resources:
@@ -222,6 +233,15 @@ spec:
         - name: health-tls
           secret:
             secretName: commands-tls
+        # Optional: a missing TINK_KEYSET key leaves the file absent, and the
+        # service disables fetch key custody instead of failing to start.
+        - name: tink-keyset
+          secret:
+            secretName: commands-env
+            optional: true
+            items:
+              - key: TINK_KEYSET
+                path: keyset.json
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1
