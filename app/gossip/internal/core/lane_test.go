@@ -136,6 +136,12 @@ func TestClassifyAddrAllowsOnlyGlobalUnicast(t *testing.T) {
 		{"::ffff:10.0.0.9", false},  // mapped RFC1918
 		{"64:ff9b::7f00:1", false},  // NAT64 wrapping 127.0.0.1
 		{"2002:a00:1::", false},     // 6to4 wrapping 10.0.0.1
+		// 6to4 embeds its IPv4 in bits 16-48 (RFC 3056), NOT the low 32: the
+		// decoy low bytes here read 8.8.8.8 while the wrapped address is
+		// 10.0.0.1 — the shape the wrong-byte extraction bug allowed through.
+		{"2002:a00:1::808:808", false},
+		{"2002:5db8:d822::", true},  // 6to4 wrapping public 93.184.216.34 dials
+		{"64:ff9b::a2b:1", false},   // NAT64 wrapping 10.43.0.1 (k3s svc CIDR)
 		{"93.184.216.34", true},     // public unicast dials
 		{"2606:2800:220:1:248:1893:25c8:1946", true},
 	} {
