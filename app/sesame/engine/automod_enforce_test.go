@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/sesame/automod"
@@ -74,4 +75,21 @@ func TestSanitizeVarStripsLeadingSlash(t *testing.T) {
 	assert.Equal(t, "ban", sanitizeVar("  //ban"))
 	assert.Equal(t, "http://example.com", sanitizeVar("http://example.com"))
 	assert.Equal(t, "hello", sanitizeVar("hello"))
+}
+
+// A hostile upstream value must not mint extra chat lines or poison rendering:
+// control bytes (C0 + DEL) vanish, leading slash runs still trim, multibyte
+// runes survive byte-wise filtering (continuations are >= 0x80 and untouched),
+// and the ExternalVar cap stays rune-safe on top.
+func TestSanitizeVarStripsControlBytes(t *testing.T) {
+	assert.Equal(t, "hi/ban everyone", sanitizeVar("hi\r\n/ban everyone"), "no newline survives to mint a second line")
+	assert.Equal(t, "clean", sanitizeVar("cle\x00an"))
+	assert.Equal(t, "[31mred[0m", sanitizeVar("\x1b[31mred\x1b[0m"))
+	assert.Equal(t, "héllowörld", sanitizeVar("héllo\r\nwörld"), "byte-wise strip must not split runes")
+	assert.Equal(t, "", sanitizeVar("\r\n\x00\x1b"))
+
+	got := ExternalVar("/me\r\n" + strings.Repeat("é", 120))
+	assert.NotContains(t, got, "\r")
+	assert.NotContains(t, got, "\n")
+	assert.LessOrEqual(t, len(got), MaxExternalVarBytes+2, "cap backs off at most one rune boundary")
 }

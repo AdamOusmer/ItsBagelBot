@@ -4,6 +4,7 @@
 package spotify
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"context"
 	"io"
 	"net/http"
@@ -147,3 +148,7 @@ func TestSearchPlainTextStaysSingleShot(t *testing.T) {
 	assert.Equal(t, viaText, reply.ResolvedAs)
 	require.Len(t, reply.Tracks, 1)
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

@@ -35,7 +35,7 @@ const serviceName = "commands"
 // registerConsumers wires the event subscriptions onto repo: cache
 // invalidation fans out to every instance (broadcast), while use-counter and
 // account-deletion events are handled once per event (grouped).
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, fetches *repository.Fetches, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
 	// Use-counter events from the worker: exactly one instance sums each event
 	// (queue group), the repo batches them and flushes uses = uses + n.
 	subs := []struct {
@@ -45,8 +45,9 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		handle  func(*bus.Message) error
 	}{
 		{"command changes", broadcast, data.SubjectCommandChanged, invalidateOnChange(repo)},
+		{"fetch changes", broadcast, data.SubjectFetchChanged, invalidateFetchOnChange(fetches)},
 		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
-		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, log)},
+		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, fetches, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, s.sub, s.subject, s.handle, log); err != nil {
@@ -60,6 +61,18 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 func invalidateOnChange(repo *repository.Commands) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		var dto data.CommandChangedDTO
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
+			return err
+		}
+		repo.Invalidate(dto.UserID)
+		return nil
+	}
+}
+
+// invalidateFetchOnChange drops the cached fetch view of the changed user.
+func invalidateFetchOnChange(repo *repository.Fetches) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
+		var dto data.FetchChangedDTO
 		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
 			return err
 		}
@@ -83,9 +96,10 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 	}
 }
 
-// deleteAllForUser removes every command of a deleted account. Malformed or
-// invalid payloads are dropped; a DB failure is returned for retry.
-func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
+// deleteAllForUser removes every command, fetch definition and sealed key of
+// a deleted account. Malformed or invalid payloads are dropped; a DB failure
+// is returned for retry.
+func deleteAllForUser(repo *repository.Commands, fetches *repository.Fetches, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.UserDeletedDTO
@@ -98,6 +112,9 @@ func deleteAllForUser(repo *repository.Commands, log *zap.Logger) func(*bus.Mess
 			return nil
 		}
 		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+			return err
+		}
+		if err := fetches.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
 			return err
 		}
 		log.Info("commands: deleted all for user", zap.Uint64("user_id", dto.UserID))
@@ -125,7 +142,16 @@ func main() {
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 	defer closeIntake()                    // stops intake before the repo flush above
 
-	if err := registerConsumers(core.Ctx, core.NR, repo, n.Broadcast, n.Grouped, log); err != nil {
+	// Best-effort keyset load (modules-style): an unset path or an absent
+	// optional mount warns and disables key custody — definitions keep
+	// working keyless — while a present-but-invalid keyset is fatal inside
+	// NewFetchesFromEnv. commands rides the core chat path even with zero
+	// keys ever sealed, so it must not crash-loop on a secret that may not be
+	// provisioned yet.
+	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
+	defer fetches.Close()
+
+	if err := registerConsumers(core.Ctx, core.NR, repo, fetches, n.Broadcast, n.Grouped, log); err != nil {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
 
@@ -134,9 +160,29 @@ func main() {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
+	fetchesProjectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get")
+	if err := rpc.SubscribeFetchProjection(n.RPC, fetches, fetchesProjectionSubject, "commands-rpc", core.NR, log); err != nil {
+		log.Fatal("failed to subscribe fetches projection rpc", zap.Error(err))
+	}
+
 	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
 	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
+	}
+	if err := rpc.SubscribeFetchDashboard(n.RPC, fetches, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
+		log.Fatal("failed to subscribe fetch dashboard rpc", zap.Error(err))
+	}
+
+	fetchKeySubject := env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey") + ".get"
+	if err := rpc.SubscribeFetchKey(rpc.FetchKeySubscription{
+		NC:         n.RPC,
+		Repo:       fetches,
+		Subject:    fetchKeySubject,
+		QueueGroup: "commands-rpc",
+		App:        core.NR,
+		Log:        log,
+	}); err != nil {
+		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}
 
 	// mysql check alongside nats: PingContext exercises the same pool
@@ -154,7 +200,10 @@ func main() {
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),
+		zap.String("fetches_projection_subject", fetchesProjectionSubject),
 		zap.String("commands_prefix", commandsPrefix),
+		zap.String("fetch_key_subject", fetchKeySubject),
+		zap.Bool("key_custody", fetches.CustodyEnabled()),
 	)
 
 	<-core.Ctx.Done()

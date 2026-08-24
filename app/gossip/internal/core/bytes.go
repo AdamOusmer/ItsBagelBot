@@ -90,6 +90,31 @@ func CachedBytes(ctx context.Context, c *Cache, key string, admit func(context.C
 	return res.([]byte), nil
 }
 
+// CachedBytesFresh is CachedBytes with the positive-cache READ skipped: the
+// build ALWAYS runs and its result is written exactly like a miss. It backs
+// the custom.fetch `fresh` flag — an author (or template) demanding live data
+// must not be served the stored entry, but the fetch still lands in the cache
+// so everyone after them is warm. Admission still runs once per caller, and
+// the flight is shared with ordinary lookups, so a fresh caller arriving
+// mid-miss joins that build rather than double-dialing the upstream.
+func CachedBytesFresh(ctx context.Context, c *Cache, key string, admit func(context.Context) error, build func(context.Context) ([]byte, time.Duration, error)) ([]byte, error) {
+	if err := spend(ctx, admit); err != nil {
+		return nil, err
+	}
+	res, err, _ := c.sf.Do(key, func() (any, error) {
+		payload, ttl, berr := build(ctx)
+		if berr != nil {
+			return nil, berr
+		}
+		c.storeEntry(ctx, key, payload, ttl)
+		return payload, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.([]byte), nil
+}
+
 // readBytes reads one stored entry, reporting the payload and whether it has
 // passed its fresh window. ok is false when there is nothing usable: no entry, a
 // store error, or an entry whose format does not parse — the last of which is

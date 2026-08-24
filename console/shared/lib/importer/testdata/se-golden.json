@@ -1,0 +1,493 @@
+[
+  {
+    "file": "full",
+    "manifest": {
+      "commands": [
+        {
+          "name": "socials",
+          "aliases": [
+            "tw",
+            "twitter"
+          ],
+          "responses": [
+            "Follow me on Twitter and Twitch!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10,
+          "warnings": [
+            "command \"socials\" had a 30s per-user cooldown; only the shared cooldown (10s) is kept"
+          ]
+        },
+        {
+          "name": "hug",
+          "responses": [
+            "{sender} hugs $(1|everyone) tightly!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 5,
+          "warnings": [
+            "command \"hug\" replies natively upstream; it posts as a normal chat message here",
+            "response uses $(1|everyone), which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "death",
+          "aliases": [
+            "rip"
+          ],
+          "responses": [
+            "{counter:deaths} deaths so far — blame {touser} this time"
+          ],
+          "permission": "mod",
+          "cooldown_seconds": 5,
+          "warnings": [
+            "command \"death\" had a 15s per-user cooldown; only the shared cooldown (5s) is kept"
+          ]
+        },
+        {
+          "name": "hype",
+          "responses": [
+            "{user} triggered the hype counter: $(count hype)"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 3,
+          "warnings": [
+            "response uses $(count hype), which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "{user}, your secret lurk begins. See you {random} minutes later."
+          ],
+          "permission": "vip",
+          "cooldown_seconds": 20,
+          "warnings": [
+            "command \"lurk\" whispered its response upstream; the response posts publicly here",
+            "command \"lurk\" costs 50 loyalty points upstream; loyalty gating is not supported, so it is free here",
+            "command \"lurk\" had a 60s per-user cooldown; only the shared cooldown (20s) is kept"
+          ]
+        },
+        {
+          "name": "so",
+          "aliases": [
+            "shoutout"
+          ],
+          "responses": [
+            "Check out {touser}, they were last seen playing $(game {touser}) over at https://twitch.tv/{channel}"
+          ],
+          "permission": "mod",
+          "cooldown_seconds": 8,
+          "warnings": [
+            "response uses $(game {touser}), which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "roll",
+          "responses": [
+            "Rolling between 5 and 10... {random:5-10}! Snack is {choice:pizza,pasta,garlic bread} today."
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "gn",
+          "responses": [
+            "Sleep well {sender}, the stream is offline."
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30,
+          "warnings": [
+            "command \"gn\" runs only while offline upstream; imported as always available (widening)"
+          ]
+        },
+        {
+          "name": "dealwithit",
+          "aliases": [
+            "purge"
+          ],
+          "responses": [
+            "{touser} has been dealt with by the super mods."
+          ],
+          "permission": "lead_mod"
+        },
+        {
+          "name": "streamersecret",
+          "responses": [
+            "Only the broadcaster ever sees this trigger fire."
+          ],
+          "permission": "broadcaster"
+        },
+        {
+          "name": "lounge",
+          "responses": [
+            "Regulars-only lounge talk from {user}."
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "command \"lounge\" requires accessLevel 300 (Regular), which has no equivalent here; widened to everyone"
+          ]
+        },
+        {
+          "name": "mystatus",
+          "responses": [
+            "The weather outside is $(weather) and uptime is $(uptime)."
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "command \"mystatus\" requires accessLevel 777 (unknown level 777), which has no equivalent here; widened to everyone",
+            "response uses $(weather), which has no equivalent; left as literal text",
+            "response uses $(uptime), which has no equivalent; left as literal text"
+          ]
+        }
+      ],
+      "timers": [
+        {
+          "message": "Enjoying the stream? Follow {channel} so you never miss a live!",
+          "interval_seconds": 300,
+          "online_only": true
+        },
+        {
+          "message": "The stream is offline — sleep well, {sender}.",
+          "interval_seconds": 900
+        },
+        {
+          "message": "Line one starring {user}\nLine two with a $(random.chatter) cameo",
+          "interval_seconds": 1200,
+          "online_only": true
+        }
+      ],
+      "triggers": [
+        {
+          "phrase": "pog",
+          "response": "{user} triggered the hype counter: $(count hype)"
+        },
+        {
+          "phrase": "poggers",
+          "response": "{user} triggered the hype counter: $(count hype)"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "command_user_cooldown_dropped",
+        "message": "command \"socials\" had a 30s per-user cooldown; only the shared cooldown (10s) is kept"
+      },
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "command_type_reply",
+        "message": "command \"hug\" replies natively upstream; it posts as a normal chat message here"
+      },
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(1|everyone), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_user_cooldown_dropped",
+        "message": "command \"death\" had a 15s per-user cooldown; only the shared cooldown (5s) is kept"
+      },
+      {
+        "severity": "warn",
+        "item_index": 3,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(count hype), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"pog\" response uses $(count hype), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"poggers\" response uses $(count hype), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_type_whisper",
+        "message": "command \"lurk\" whispered its response upstream; the response posts publicly here"
+      },
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_cost_unsupported",
+        "message": "command \"lurk\" costs 50 loyalty points upstream; loyalty gating is not supported, so it is free here"
+      },
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_user_cooldown_dropped",
+        "message": "command \"lurk\" had a 60s per-user cooldown; only the shared cooldown (20s) is kept"
+      },
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(game {touser}), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_regex_skipped",
+        "message": "command \"test123\" uses a regex trigger (^test[0-9]{3}$); regex commands have no equivalent here and were skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_disabled_skipped",
+        "message": "command \"retired\" is disabled upstream and was skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 7,
+        "code": "command_offline_only_widened",
+        "message": "command \"gn\" runs only while offline upstream; imported as always available (widening)"
+      },
+      {
+        "severity": "warn",
+        "item_index": 10,
+        "code": "command_permission_unmapped",
+        "message": "command \"lounge\" requires accessLevel 300 (Regular), which has no equivalent here; widened to everyone"
+      },
+      {
+        "severity": "warn",
+        "item_index": 11,
+        "code": "command_permission_unmapped",
+        "message": "command \"mystatus\" requires accessLevel 777 (unknown level 777), which has no equivalent here; widened to everyone"
+      },
+      {
+        "severity": "warn",
+        "item_index": 11,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(weather), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 11,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(uptime), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "timer_offline_only_widened",
+        "message": "timer \"night mode\" runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "timer_disabled_skipped",
+        "message": "timer \"retired discord plug\" is disabled upstream and was skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "timer_variable_unmapped",
+        "message": "timer message uses $(random.chatter), which has no equivalent; left as literal text"
+      }
+    ]
+  },
+  {
+    "file": "legacy",
+    "manifest": {
+      "commands": [
+        {
+          "name": "oldso",
+          "responses": [
+            "{touser} is live right now! Come watch {channel}."
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "legacyvars",
+          "responses": [
+            "{user} checked in. Hug count: {counter:hugs}. Tea or coffee? {choice:tea,coffee}! Random: {random:1-6}/{random}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "hugcounter",
+          "responses": [
+            "{count hugs} hugs given so far, and {sender} started it."
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "response uses {count hugs}, which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "braceliteral",
+          "responses": [
+            "Braces that are just braces stay: {notavariable} and {} too."
+          ],
+          "permission": "everyone"
+        }
+      ],
+      "timers": [
+        {
+          "message": "{touser} rules the channel of {touser}!",
+          "interval_seconds": 600,
+          "online_only": true
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_variable_unmapped",
+        "message": "response uses {count hugs}, which has no equivalent; left as literal text"
+      }
+    ]
+  },
+{
+    "file": "urlfetch",
+    "manifest": {
+      "commands": [
+        {
+          "name": "weather",
+          "responses": [
+            "{urlfetch:se-weather}F and {urlfetch:se-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "quote",
+          "responses": [
+            "{urlfetch:se-quote} — no wait: {urlfetch:se-quote}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "mixedbag",
+          "responses": [
+            "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: {urlfetch:se-mixedbag}"
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "response uses $(urlfetch ftp://nope.example), which has no equivalent; left as literal text",
+            "response uses $(urlfetch), which has no equivalent; left as literal text"
+          ]
+        },
+        {
+          "name": "clash",
+          "responses": [
+            "{urlfetch:se-clash}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "clash",
+          "responses": [
+            "$(urlfetch https://second.example/b)"
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "response uses $(urlfetch https://second.example/b), which has no equivalent; left as literal text"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "phrase": "wtag",
+          "response": "$(urlfetch https://api.weather.example/v1 data.current.temp_f)F and $(urlfetch https://api.other.example/hum)"
+        }
+      ],
+      "fetches": [
+        {
+          "name": "se-weather",
+          "url": "https://api.weather.example/v1",
+          "json_path": [
+            "data",
+            "current",
+            "temp_f"
+          ],
+          "source": "streamelements"
+        },
+        {
+          "name": "se-weather-2",
+          "url": "https://api.other.example/hum",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-quote",
+          "url": "https://api.q.example/random",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-mixedbag",
+          "url": "https://ok.example/x",
+          "source": "streamelements"
+        },
+        {
+          "name": "se-clash",
+          "url": "https://first.example/a",
+          "source": "streamelements"
+        }
+      ],
+      "timers": [
+        {
+          "message": "Status: $(urlfetch https://status.example/now) every five minutes.",
+          "interval_seconds": 300,
+          "online_only": true
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"wtag\" response uses $(urlfetch https://api.weather.example/v1 data.current.temp_f), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "trigger_variable_unmapped",
+        "message": "keyword \"wtag\" response uses $(urlfetch https://api.other.example/hum), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch ftp://nope.example), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_collision",
+        "message": "fetch definition \"se-clash\" was already synthesized with different contents; the earlier one wins"
+      },
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_variable_unmapped",
+        "message": "response uses $(urlfetch https://second.example/b), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "timer_variable_unmapped",
+        "message": "timer message uses $(urlfetch https://status.example/now), which has no equivalent; left as literal text"
+      }
+    ]
+  }
+]
