@@ -285,11 +285,17 @@ func TestValkeyRecentErrorsSurfaceOncePerInterval(t *testing.T) {
 
 	found := false
 	for _, cmd := range rec.captured() {
-		if cmd[0] == "ZADD" && len(cmd) > 3 && strings.Contains(cmd[len(cmd)-1], "second line") {
+		if zaddCarrying(cmd, "second line") {
 			found = true
 		}
 	}
 	assert.True(t, found, "entries recorded after a failed flush still land")
+}
+
+// zaddCarrying reports whether a captured command vector is the pipelined
+// ZADD whose final score-member pair embeds text.
+func zaddCarrying(cmd []string, text string) bool {
+	return cmd[0] == "ZADD" && len(cmd) > 3 && strings.Contains(cmd[len(cmd)-1], text)
 }
 
 type failClient struct {
