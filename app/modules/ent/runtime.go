@@ -9,6 +9,7 @@ import (
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/quote"
 	"ItsBagelBot/app/modules/ent/schema"
+	"ItsBagelBot/app/modules/ent/spotifycredential"
 	"time"
 )
 
@@ -92,4 +93,12 @@ func init() {
 	quoteDescCreatedAt := quoteFields[4].Descriptor()
 	// quote.DefaultCreatedAt holds the default value on creation for the created_at field.
 	quote.DefaultCreatedAt = quoteDescCreatedAt.Default.(func() time.Time)
+	spotifycredentialFields := schema.SpotifyCredential{}.Fields()
+	_ = spotifycredentialFields
+	// spotifycredentialDescUpdatedAt is the schema descriptor for updated_at field.
+	spotifycredentialDescUpdatedAt := spotifycredentialFields[2].Descriptor()
+	// spotifycredential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	spotifycredential.DefaultUpdatedAt = spotifycredentialDescUpdatedAt.Default.(func() time.Time)
+	// spotifycredential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	spotifycredential.UpdateDefaultUpdatedAt = spotifycredentialDescUpdatedAt.UpdateDefault.(func() time.Time)
 }

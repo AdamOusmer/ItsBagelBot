@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/quote"
+	"ItsBagelBot/app/modules/ent/spotifycredential"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -37,6 +38,8 @@ type Client struct {
 	Modules *ModulesClient
 	// Quote is the client for interacting with the Quote builders.
 	Quote *QuoteClient
+	// SpotifyCredential is the client for interacting with the SpotifyCredential builders.
+	SpotifyCredential *SpotifyCredentialClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -53,6 +56,7 @@ func (c *Client) init() {
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 	c.Quote = NewQuoteClient(c.config)
+	c.SpotifyCredential = NewSpotifyCredentialClient(c.config)
 }
 
 type (
@@ -150,6 +154,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
+		SpotifyCredential:  NewSpotifyCredentialClient(cfg),
 	}, nil
 }
 
@@ -174,6 +179,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
+		SpotifyCredential:  NewSpotifyCredentialClient(cfg),
 	}, nil
 }
 
@@ -202,21 +208,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.ChannelFeedCounter.Use(hooks...)
-	c.FeedCounter.Use(hooks...)
-	c.GoveeCredential.Use(hooks...)
-	c.Modules.Use(hooks...)
-	c.Quote.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.ChannelFeedCounter, c.FeedCounter, c.GoveeCredential, c.Modules, c.Quote,
+		c.SpotifyCredential,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.ChannelFeedCounter.Intercept(interceptors...)
-	c.FeedCounter.Intercept(interceptors...)
-	c.GoveeCredential.Intercept(interceptors...)
-	c.Modules.Intercept(interceptors...)
-	c.Quote.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.ChannelFeedCounter, c.FeedCounter, c.GoveeCredential, c.Modules, c.Quote,
+		c.SpotifyCredential,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -232,6 +240,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Modules.mutate(ctx, m)
 	case *QuoteMutation:
 		return c.Quote.mutate(ctx, m)
+	case *SpotifyCredentialMutation:
+		return c.SpotifyCredential.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -902,13 +912,147 @@ func (c *QuoteClient) mutate(ctx context.Context, m *QuoteMutation) (Value, erro
 	}
 }
 
+// SpotifyCredentialClient is a client for the SpotifyCredential schema.
+type SpotifyCredentialClient struct {
+	config
+}
+
+// NewSpotifyCredentialClient returns a client for the SpotifyCredential from the given config.
+func NewSpotifyCredentialClient(c config) *SpotifyCredentialClient {
+	return &SpotifyCredentialClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `spotifycredential.Hooks(f(g(h())))`.
+func (c *SpotifyCredentialClient) Use(hooks ...Hook) {
+	c.hooks.SpotifyCredential = append(c.hooks.SpotifyCredential, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `spotifycredential.Intercept(f(g(h())))`.
+func (c *SpotifyCredentialClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SpotifyCredential = append(c.inters.SpotifyCredential, interceptors...)
+}
+
+// Create returns a builder for creating a SpotifyCredential entity.
+func (c *SpotifyCredentialClient) Create() *SpotifyCredentialCreate {
+	mutation := newSpotifyCredentialMutation(c.config, OpCreate)
+	return &SpotifyCredentialCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SpotifyCredential entities.
+func (c *SpotifyCredentialClient) CreateBulk(builders ...*SpotifyCredentialCreate) *SpotifyCredentialCreateBulk {
+	return &SpotifyCredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SpotifyCredentialClient) MapCreateBulk(slice any, setFunc func(*SpotifyCredentialCreate, int)) *SpotifyCredentialCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SpotifyCredentialCreateBulk{err: fmt.Errorf("calling to SpotifyCredentialClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SpotifyCredentialCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SpotifyCredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SpotifyCredential.
+func (c *SpotifyCredentialClient) Update() *SpotifyCredentialUpdate {
+	mutation := newSpotifyCredentialMutation(c.config, OpUpdate)
+	return &SpotifyCredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SpotifyCredentialClient) UpdateOne(_m *SpotifyCredential) *SpotifyCredentialUpdateOne {
+	mutation := newSpotifyCredentialMutation(c.config, OpUpdateOne, withSpotifyCredential(_m))
+	return &SpotifyCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SpotifyCredentialClient) UpdateOneID(id int) *SpotifyCredentialUpdateOne {
+	mutation := newSpotifyCredentialMutation(c.config, OpUpdateOne, withSpotifyCredentialID(id))
+	return &SpotifyCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SpotifyCredential.
+func (c *SpotifyCredentialClient) Delete() *SpotifyCredentialDelete {
+	mutation := newSpotifyCredentialMutation(c.config, OpDelete)
+	return &SpotifyCredentialDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SpotifyCredentialClient) DeleteOne(_m *SpotifyCredential) *SpotifyCredentialDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SpotifyCredentialClient) DeleteOneID(id int) *SpotifyCredentialDeleteOne {
+	builder := c.Delete().Where(spotifycredential.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SpotifyCredentialDeleteOne{builder}
+}
+
+// Query returns a query builder for SpotifyCredential.
+func (c *SpotifyCredentialClient) Query() *SpotifyCredentialQuery {
+	return &SpotifyCredentialQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSpotifyCredential},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SpotifyCredential entity by its id.
+func (c *SpotifyCredentialClient) Get(ctx context.Context, id int) (*SpotifyCredential, error) {
+	return c.Query().Where(spotifycredential.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SpotifyCredentialClient) GetX(ctx context.Context, id int) *SpotifyCredential {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SpotifyCredentialClient) Hooks() []Hook {
+	return c.hooks.SpotifyCredential
+}
+
+// Interceptors returns the client interceptors.
+func (c *SpotifyCredentialClient) Interceptors() []Interceptor {
+	return c.inters.SpotifyCredential
+}
+
+func (c *SpotifyCredentialClient) mutate(ctx context.Context, m *SpotifyCredentialMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SpotifyCredentialCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SpotifyCredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SpotifyCredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SpotifyCredentialDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SpotifyCredential mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote []ent.Hook
+		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote,
+		SpotifyCredential []ent.Hook
 	}
 	inters struct {
-		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules,
-		Quote []ent.Interceptor
+		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote,
+		SpotifyCredential []ent.Interceptor
 	}
 )
