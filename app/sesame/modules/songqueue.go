@@ -15,7 +15,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
 )
@@ -161,6 +160,37 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	if qc.gossip == nil || qc.c.Env.ChatterUserID == "" {
 		return nil
 	}
+	track, failure := qc.resolveTrack(ctx, query)
+	if failure != "" {
+		qc.emitChat(emit, failure)
+		return nil
+	}
+	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth)
+	switch {
+	case errors.Is(err, engine.ErrSongAlreadyQueued):
+		qc.reply(emit, "", "songqueue.add.already")
+	case errors.Is(err, engine.ErrSongQueueFull):
+		qc.reply(emit, "", "songqueue.add.full")
+	case err != nil:
+		qc.log.Warn("songqueue: add failed", qc.bid(), zap.Error(err))
+		return err
+	default:
+		qc.reply(emit, qc.cfg.AddMessage, "songqueue.add.ok",
+			"title", track.Name,
+			"artist", strings.Join(track.Artists, ", "),
+			"pos", strconv.Itoa(pos),
+		)
+	}
+	return nil
+}
+
+// resolveTrack runs the gossip search and returns its top track, or the
+// user-facing line explaining why none could be queued. A reply-level
+// failure already carries chat-safe text (an unsupported share, no Spotify
+// connection on file) and is surfaced verbatim; anything else is
+// infrastructure — logged here where it is known, answered generically so an
+// outage leaks no detail.
+func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossiprpc.SpotifyTrack, string) {
 	var reply gossiprpc.SpotifySearchReply
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "search"},
@@ -169,57 +199,33 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 			Query:     query,
 			Limit:     1,
 		}, &reply)
-	if err != nil {
-		// A provider-level failure ("no Spotify connection on file", "that
-		// link type isn't supported") is already chat-safe text; surface it
-		// verbatim. Anything else is infrastructure — say so generically.
-		var rpcErr *bus.RPCReplyError
-		if errors.As(err, &rpcErr) && reply.Error != "" {
-			qc.emitChat(emit, reply.Error)
-			return nil
-		}
-		qc.log.Warn("songqueue: search rpc failed",
-			zap.String("query", query), qc.bid(), zap.Error(err))
-		qc.reply(emit, "", "songqueue.err.upstream")
-		return nil
+	if err == nil && reply.Error == "" && len(reply.Tracks) > 0 {
+		return &reply.Tracks[0], ""
 	}
 	if reply.Error != "" {
-		qc.emitChat(emit, reply.Error)
-		return nil
+		return nil, reply.Error
 	}
-	if len(reply.Tracks) == 0 {
-		qc.reply(emit, "", "songqueue.search.none")
-		return nil
+	if err == nil {
+		return nil, i18n.T(qc.c.Locale, "songqueue.search.none")
 	}
+	qc.log.Warn("songqueue: search rpc failed",
+		zap.String("query", query), qc.bid(), zap.Error(err))
+	return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+}
 
-	track := reply.Tracks[0]
-	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, engine.SongEntry{
-		TrackID:       track.ID,
-		Title:         track.Name,
-		Artists:       track.Artists,
-		DurationMS:    track.DurationMS,
-		ArtworkURL:    track.ImageURL,
-		URL:           track.URL,
+// entry projects a resolved provider track onto a queue entry owned by the
+// asking viewer.
+func (qc songQueueCmd) entry(t gossiprpc.SpotifyTrack) engine.SongEntry {
+	return engine.SongEntry{
+		TrackID:       t.ID,
+		Title:         t.Name,
+		Artists:       t.Artists,
+		DurationMS:    t.DurationMS,
+		ArtworkURL:    t.ImageURL,
+		URL:           t.URL,
 		RequesterID:   qc.c.Env.ChatterUserID,
 		RequesterName: qc.c.Env.ChatterName(),
-	}, qc.maxDepth)
-	switch {
-	case errors.Is(err, engine.ErrSongAlreadyQueued):
-		qc.reply(emit, "", "songqueue.add.already")
-		return nil
-	case errors.Is(err, engine.ErrSongQueueFull):
-		qc.reply(emit, "", "songqueue.add.full")
-		return nil
-	case err != nil:
-		qc.log.Warn("songqueue: add failed", qc.bid(), zap.Error(err))
-		return err
 	}
-	qc.reply(emit, qc.cfg.AddMessage, "songqueue.add.ok",
-		"title", track.Name,
-		"artist", strings.Join(track.Artists, ", "),
-		"pos", strconv.Itoa(pos),
-	)
-	return nil
 }
 
 // retract takes back the chatter's own pending request — never anybody
