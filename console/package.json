@@ -9,7 +9,7 @@
     "dev:dashboard": "bun run --filter dashboard dev",
     "dev:admin": "bun run --filter admin dev",
     "check": "bun run --filter '*' check",
-    "test": "bun test shared"
+    "test": "bun test shared && bun shared/scripts/size.ts"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
