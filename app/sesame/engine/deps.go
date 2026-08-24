@@ -81,6 +81,11 @@ type Deps struct {
 	// Queue is the per-broadcaster play queue behind the queue module. nil
 	// leaves the module's commands inert.
 	Queue QueueStore
+	// SongQueue is the per-broadcaster spotify song-request queue behind the
+	// songqueue module; requests resolve through Deps.Gossip's spotify
+	// provider and retract authorization keys on chatter ids. nil leaves the
+	// module's commands inert.
+	SongQueue SongQueueStore
 	// Raffle is the per-broadcaster raffle behind the raffle module. nil
 	// leaves the module's commands inert. Its deadline-key expiry auto-close
 	// rides the same keyspace notifications as Timers and LoyaltyTick.
