@@ -98,7 +98,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
 	counters := p.bumpCounterTokens(ctx, c, cc.Name, args, cc.Response)
-	urls := p.fetchUrlTokens(ctx, c, cc.Name, cc.Response)
+	urls := p.fetchUrlTokens(ctx, c, cc)
 	emitted, err := p.emitResponse(c, cc.Response, args, counters, urls, emit)
 	if err != nil {
 		return err

@@ -118,7 +118,7 @@ func (d *fetchDashboardRPC) handleSetKey(ctx context.Context, req fetchkeyrpc.Fe
 		return fetchkeyrpc.FetchKeySetReply{Error: "invalid user_id"}
 	}
 
-	last4, err := d.repo.SetKey(ctx, id, req.Label, req.Value)
+	last4, err := d.repo.SetKey(ctx, id, repository.KeyEntry{Label: req.Label, Value: req.Value})
 	switch {
 	case err == nil:
 		return fetchkeyrpc.FetchKeySetReply{Last4: last4}

@@ -131,7 +131,7 @@ type api struct {
 
 	// admit is the budget seam: the production implementation spends the
 	// three bucket layers; tests stub it to stage denials without a Valkey.
-	admit func(ctx context.Context, channelID, defName, host string, isPremium bool) error
+	admit func(ctx context.Context, fl *flight, isPremium bool) error
 
 	// fails tracks consecutive transport failures per target host,
 	// pod-locally; arming itself goes through the store (Claim), so the open
@@ -334,9 +334,9 @@ func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) (
 		b, _, err := build(ctx) // TTL discarded: uncached by design
 		return b, err
 	case req.Fresh:
-		return core.CachedBytesFresh(ctx, p.cache, fl.key, p.admitFor(req, fl.def.Name, fl.host), build)
+		return core.CachedBytesFresh(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	default:
-		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl.def.Name, fl.host), build)
+		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl), build)
 	}
 }
 
@@ -372,7 +372,7 @@ func (p *api) resolveDef(ctx context.Context, req gossiprpc.Request, name string
 // infrastructure failures come back as errors so the cache layer stores
 // nothing.
 func (p *api) produce(ctx context.Context, fl *flight) ([]byte, time.Duration, error) {
-	body, err := p.fetchUpstream(ctx, fl.channelID, fl.def, fl.host)
+	body, err := p.fetchUpstream(ctx, fl)
 	if err != nil {
 		return p.failureReply(err)
 	}
@@ -426,29 +426,17 @@ func upstreamStatusReply(ue *core.UpstreamError, err error) ([]byte, time.Durati
 // "[source timed out]" for infra trouble; only an ANSWERED-but-bad upstream
 // says upstream_error.
 func (p *api) classify(err error) gossiprpc.FetchStatus {
-	if errors.Is(err, context.DeadlineExceeded) {
+	switch {
+	case timeoutClass(err):
 		return gossiprpc.FetchTimeout
-	}
-	var ne net.Error
-	if errors.As(err, &ne) && ne.Timeout() {
-		return gossiprpc.FetchTimeout
-	}
-	var se *core.SSRFError
-	if errors.As(err, &se) {
+	case policyDenied(err):
 		return gossiprpc.FetchDenied
-	}
-	if errors.Is(err, core.ErrBlockedAddressPolicy) {
-		return gossiprpc.FetchDenied
-	}
-	if errors.Is(err, core.ErrWARPDown) {
+	case errors.Is(err, core.ErrWARPDown):
 		return gossiprpc.FetchLimited
 	}
 	var ue *core.UpstreamError
 	if errors.As(err, &ue) {
-		if ue.Status == http.StatusTooManyRequests {
-			return gossiprpc.FetchLimited
-		}
-		return gossiprpc.FetchUpstreamError
+		return upstreamStatusClass(ue)
 	}
 	if breakerClass(err) {
 		return gossiprpc.FetchTimeout
@@ -456,11 +444,35 @@ func (p *api) classify(err error) gossiprpc.FetchStatus {
 	return gossiprpc.FetchUpstreamError
 }
 
+// timeoutClass: the deadline or a transport-level timeout — no usable
+// response arrived.
+func timeoutClass(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
+}
+
+// policyDenied: our own SSRF gate refused, at URL-shape or at address time.
+func policyDenied(err error) bool {
+	var se *core.SSRFError
+	return errors.As(err, &se) || errors.Is(err, core.ErrBlockedAddressPolicy)
+}
+
+// upstreamStatusClass maps an ANSWERED upstream onto its status family.
+func upstreamStatusClass(ue *core.UpstreamError) gossiprpc.FetchStatus {
+	if ue.Status == http.StatusTooManyRequests {
+		return gossiprpc.FetchLimited
+	}
+	return gossiprpc.FetchUpstreamError
+}
+
 // fetchUpstream resolves the key (if any) and performs one gate-checked GET.
 // Transport failures count toward the host breaker; anything that proves the
 // host reachable (any response, even 500, even a refused payload) resets it.
-func (p *api) fetchUpstream(ctx context.Context, channelID string, def *gossiprpc.FetchDef, host string) ([]byte, error) {
-	headers, err := p.authHeaders(ctx, channelID, def.KeyLabel)
+func (p *api) fetchUpstream(ctx context.Context, fl *flight) ([]byte, error) {
+	headers, err := p.authHeaders(ctx, fl.channelID, fl.def.KeyLabel)
 	if err != nil {
 		return nil, err // not the target host's fault; no breaker movement
 	}
@@ -469,18 +481,18 @@ func (p *api) fetchUpstream(ctx context.Context, channelID string, def *gossiprp
 	defer cancel()
 	body, err := p.http.FetchBounded(fctx, core.Request{
 		Method:  http.MethodGet,
-		Path:    def.URL, // base "" — the whole absolute URL rides Path
+		Path:    fl.def.URL, // base "" — the whole absolute URL rides Path
 		Headers: headers,
 	})
 	if err != nil {
 		if breakerClass(err) {
-			p.recordFailure(ctx, host)
+			p.recordFailure(ctx, fl.host)
 		} else {
-			p.resetFailure(host)
+			p.resetFailure(fl.host)
 		}
 		return nil, err
 	}
-	p.resetFailure(host)
+	p.resetFailure(fl.host)
 	return body, nil
 }
 
@@ -562,14 +574,14 @@ func (p *api) resetFailure(host string) {
 // Per-host 120/min bounds abuse against ONE third-party origin regardless of
 // how many defs aim at it — the ceiling that stops a hostile broadcaster from
 // burning a public API's goodwill for everyone.
-func (p *api) spendBudget(ctx context.Context, channelID, defName, host string, isPremium bool) error {
+func (p *api) spendBudget(ctx context.Context, fl *flight, isPremium bool) error {
 	if p.limiter == nil {
 		return nil
 	}
 	layers := []core.Buckets{
-		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + channelID),
-		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + defName),
-		p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + host),
+		p.channelBuckets.WithKey("ratelimit:gossip:custom:ch:" + fl.channelID),
+		p.defBuckets.WithKey("ratelimit:gossip:custom:def:" + fl.def.Name),
+		p.hostBuckets.WithKey("ratelimit:gossip:custom:host:" + fl.host),
 	}
 	for _, b := range layers {
 		if err := b.Enforce(ctx, p.limiter, isPremium); err != nil {
@@ -581,12 +593,12 @@ func (p *api) spendBudget(ctx context.Context, channelID, defName, host string, 
 
 // admitFor binds one request's identity to the budget seam, or returns nil
 // when there is nothing to spend (tests, nil limiter).
-func (p *api) admitFor(req gossiprpc.Request, defName, host string) func(context.Context) error {
+func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) error {
 	if p.admit == nil {
 		return nil
 	}
 	return func(ctx context.Context) error {
-		return p.admit(ctx, req.ChannelID, defName, host, req.IsPremium)
+		return p.admit(ctx, fl, req.IsPremium)
 	}
 }
 

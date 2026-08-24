@@ -535,19 +535,15 @@ func classifyAddr(a netip.Addr) error {
 	case a.IsPrivate():
 		return fmt.Errorf("private (RFC1918/ULA) address")
 	case a.Is4():
-		for _, p := range blockedSpecialV4 {
-			if p.Contains(a) {
-				return fmt.Errorf("special-purpose range %s", p)
-			}
+		if p, ok := matchedPrefix(a, blockedSpecialV4); ok {
+			return fmt.Errorf("special-purpose range %s", p)
 		}
 	case a.Is6():
 		if v4, ok := embeddedV4(a); ok {
 			return classifyAddr(v4)
 		}
-		for _, p := range blockedSpecialV6 {
-			if p.Contains(a) {
-				return fmt.Errorf("special-purpose range %s", p)
-			}
+		if p, ok := matchedPrefix(a, blockedSpecialV6); ok {
+			return fmt.Errorf("special-purpose range %s", p)
 		}
 	default:
 		return fmt.Errorf("unroutable address family")
@@ -567,15 +563,27 @@ func embeddedV4(a netip.Addr) (netip.Addr, bool) {
 	if netip.MustParsePrefix("2002::/16").Contains(a) {
 		return v4At(b, 2)
 	}
-	for _, p := range []netip.Prefix{
-		netip.MustParsePrefix("::ffff:0:0/96"),
-		netip.MustParsePrefix("64:ff9b::/96"),
-	} {
-		if p.Contains(a) {
-			return v4At(b, 12)
-		}
+	if _, ok := matchedPrefix(a, lowBitsEmbedV4); ok {
+		return v4At(b, 12)
 	}
 	return netip.Addr{}, false
+}
+
+// lowBitsEmbedV4 lists the translation formats carrying their IPv4 in the low
+// 32 bits (6to4 carries it in bits 16-48 instead — see embeddedV4).
+var lowBitsEmbedV4 = []netip.Prefix{
+	netip.MustParsePrefix("::ffff:0:0/96"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+}
+
+// matchedPrefix returns the first prefix containing a.
+func matchedPrefix(a netip.Addr, prefixes []netip.Prefix) (netip.Prefix, bool) {
+	for _, p := range prefixes {
+		if p.Contains(a) {
+			return p, true
+		}
+	}
+	return netip.Prefix{}, false
 }
 
 func v4At(b [16]byte, off int) (netip.Addr, bool) {
