@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers/hypixel"
 	"ItsBagelBot/app/gossip/internal/providers/mcsr"
 	"ItsBagelBot/app/gossip/internal/providers/paceman"
+	"ItsBagelBot/app/gossip/internal/providers/spotify"
 	"ItsBagelBot/app/gossip/internal/providers/urchin"
 	"ItsBagelBot/app/gossip/internal/providers/valorant"
 
@@ -40,6 +41,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendGovee(out, cfg, d, log)
 	out = appendClashRoyale(out, cfg, d, log)
 	out = appendValorant(out, cfg, d, log)
+	out = appendSpotify(out, cfg, d, log)
 	return out
 }
 
@@ -157,5 +159,28 @@ func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps
 		APIKey:           cfg.ValorantAPIKey,
 		RateLimit:        cfg.ValorantRateLimit,
 		ContentRateLimit: cfg.ValorantContentRateLimit,
+	}, d)
+}
+
+// appendSpotify adds the Spotify music provider. Like govee it needs no
+// service key of its own — each broadcaster connects their own account — but
+// it needs BOTH halves of the credential chain before any endpoint can
+// authenticate: the modules-side resolver that hands over a broadcaster's
+// stored OAuth refresh token, and the fleet's one Spotify app that token is
+// exchanged against. Whichever half is missing skips the whole provider.
+func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	disabled, reason := false, ""
+	switch {
+	case d.SpotifyKeys == nil:
+		disabled, reason = true, "spotify provider disabled: no refresh-token resolver (modules spotify RPC unwired)"
+	case cfg.SpotifyClientID == "" || cfg.SpotifyClientSecret == "":
+		disabled, reason = true, "spotify provider disabled: SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET not set"
+	}
+	return gated(out, log, disabled, reason, spotify.New, spotify.Config{
+		BaseURL:      cfg.SpotifyBaseURL,
+		AccountsURL:  cfg.SpotifyAccountsURL,
+		ClientID:     cfg.SpotifyClientID,
+		ClientSecret: cfg.SpotifyClientSecret,
+		RateLimit:    cfg.SpotifyRateLimit,
 	}, d)
 }

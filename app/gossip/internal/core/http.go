@@ -248,6 +248,14 @@ func (c *HTTPClient) newRequest(ctx context.Context, r Request) (*http.Request, 
 // (carrying the upstream's own error text when present), and otherwise decodes
 // the body into out.
 func decodeJSON(resp *http.Response, out any) error {
+	// A 204 carries no body by definition, so there is nothing to unmarshal:
+	// leave out zero-valued and report success. Falling through used to
+	// surface as a confusing decode error indistinguishable from an upstream
+	// fault; Spotify's currently-playing endpoint answers 204 for "nothing
+	// playing", which is an answer, not a failure.
+	if resp.StatusCode == http.StatusNoContent {
+		return nil
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
 		return err
