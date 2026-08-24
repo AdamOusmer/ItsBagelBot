@@ -28,6 +28,7 @@ import {
   generateRandomState,
   getValidatedIdTokenClaims,
   nopkce,
+  OperationProcessingError,
   processAuthorizationCodeResponse,
   skipStateCheck,
   validateAuthResponse,
@@ -39,6 +40,18 @@ import {
 } from 'oauth4webapi';
 
 export { ResponseBodyError, expectNoNonce };
+
+// isOAuthProtocolError is what the auth callbacks should catch: BOTH failure
+// families the exchange can produce. ResponseBodyError is the provider saying
+// no (invalid grant, revoked code); OperationProcessingError is the provider
+// answering something the strict parser refuses (the Twitch array-scope quirk
+// was one). Neither is OUR server failing, so neither deserves the framework
+// 500 — and a +server endpoint throw renders SvelteKit's bare fallback page,
+// never the app's +error.svelte, which is exactly how the array-scope bug
+// surfaced to users as an unstyled default 500.
+export function isOAuthProtocolError(e: unknown): boolean {
+  return e instanceof ResponseBodyError || e instanceof OperationProcessingError;
+}
 export const generateState = generateRandomState;
 
 const TWITCH_AS: AuthorizationServer = {
@@ -68,6 +81,36 @@ export class OAuth2Tokens {
     return claims;
   }
 }
+
+// normalizeTwitchScope rewrites the ONE way Twitch's token endpoint violates
+// RFC 6749 before the strict library sees it: `scope` comes back as a JSON
+// array (["openid", ...]) where §5.1 requires a space-delimited string.
+// oauth4webapi rightly refuses it ('"response" body "scope" property must be
+// a string'), which made EVERY successful login 500 — the exchange succeeds,
+// then parsing throws OperationProcessingError, which is not the
+// ResponseBodyError the callback maps to /login?e=oauth. Reproduced against a
+// Twitch-shaped body and green with only this join applied.
+//
+// Only a 200 JSON body with an array scope is touched; error responses pass
+// through byte-identical so ResponseBodyError classification stays the
+// library's. This is vendor-quirk normalization at the boundary, not protocol
+// logic — everything else stays inside oauth4webapi.
+async function normalizeTwitchScope(response: Response): Promise<Response> {
+  if (!response.ok) return response;
+  const body: unknown = await response.clone().json().catch(() => null);
+  if (typeof body !== 'object' || body === null) return response;
+  const record = body as Record<string, unknown>;
+  if (!Array.isArray(record.scope)) return response;
+  record.scope = record.scope.join(' ');
+  return new Response(JSON.stringify(record), {
+    status: response.status,
+    headers: response.headers
+  });
+}
+
+// Exported for the regression test only; production code reaches it through
+// Twitch.validateAuthorizationCode.
+export const __normalizeTwitchScopeForTests = normalizeTwitchScope;
 
 export class Twitch {
   private readonly client: Client;
@@ -115,10 +158,15 @@ export class Twitch {
       this.redirectURI,
       nopkce
     );
-    const result = await processAuthorizationCodeResponse(TWITCH_AS, this.client, response, {
-      requireIdToken: true,
-      ...(nonce ? { expectedNonce: nonce } : {})
-    });
+    const result = await processAuthorizationCodeResponse(
+      TWITCH_AS,
+      this.client,
+      await normalizeTwitchScope(response),
+      {
+        requireIdToken: true,
+        ...(nonce ? { expectedNonce: nonce } : {})
+      }
+    );
     return new OAuth2Tokens(result as unknown as Record<string, unknown>);
   }
 }
