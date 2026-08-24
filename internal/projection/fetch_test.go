@@ -84,8 +84,8 @@ func TestSetFetchesReplacesSectionAndMarksProjected(t *testing.T) {
 	key := "settings:44"
 
 	// Stale row from an earlier projection + a foreign field that survives.
-	f.seed(key, "fetch:old", `{"name":"old","url":"https://gone.example"}`)
-	f.seed(key, "status", "paid")
+	f.seed(key, fakeField{field: "fetch:old", value: `{"name":"old","url":"https://gone.example"}`})
+	f.seed(key, fakeField{field: "status", value: "paid"})
 
 	require.NoError(t, store.SetFetches(ctx, 44, []FetchView{
 		{Name: "a", URL: "https://a.example.com"},
@@ -121,7 +121,7 @@ func TestGetFetchUnprojectedVsMissing(t *testing.T) {
 	ctx := context.Background()
 
 	// Hash exists with other sections but no fetch marker: not projected.
-	f.seed("settings:45", "status", "free")
+	f.seed("settings:45", fakeField{field: "status", value: "free"})
 	_, _, projected, err := store.GetFetch(ctx, 45, "anything")
 	require.NoError(t, err)
 	assert.False(t, projected)

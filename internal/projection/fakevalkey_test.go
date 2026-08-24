@@ -114,13 +114,19 @@ func (f *fakeValkey) hash(key string) map[string]string {
 }
 
 // seed writes a hash field bypassing the Store, to stage pre-existing state.
-func (f *fakeValkey) seed(key, field, value string) {
+// fakeField is one hash field+value pair for seeding.
+type fakeField struct {
+	field string
+	value string
+}
+
+func (f *fakeValkey) seed(key string, kv fakeField) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.hashes[key] == nil {
 		f.hashes[key] = map[string]string{}
 	}
-	f.hashes[key][field] = value
+	f.hashes[key][kv.field] = kv.value
 }
 
 func (f *fakeValkey) serve() {

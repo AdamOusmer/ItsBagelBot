@@ -143,21 +143,27 @@ type urlTokenSink struct {
 	cancel context.CancelFunc
 }
 
-func (s *urlTokenSink) ok(name, render string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.results[name] = render
+// tokenOutcome is one name's finished resolution: rendered text on success,
+// fallback text (possibly empty = leave-verbatim) plus an optional claim
+// release on failure.
+type tokenOutcome struct {
+	name    string
+	text    string
+	failed  bool
+	release func()
 }
 
-func (s *urlTokenSink) fallback(name, text string, release func()) {
+func (s *urlTokenSink) record(o tokenOutcome) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.failures++
-	if text != "" {
-		s.results[name] = text
+	if o.failed {
+		s.failures++
 	}
-	if release != nil {
-		release()
+	if !o.failed || o.text != "" {
+		s.results[o.name] = o.text
+	}
+	if o.release != nil {
+		o.release()
 	}
 }
 
@@ -175,7 +181,7 @@ func (s *urlTokenSink) verdict() string {
 func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name string, sink *urlTokenSink) {
 	dup, release := p.claimedUrlValue(ctx, c, name)
 	if dup {
-		sink.fallback(name, urlFetchUnavailableText, nil) // replay: fallback, no network
+		sink.record(tokenOutcome{name: name, text: urlFetchUnavailableText, failed: true}) // replay: fallback, no network
 		return
 	}
 	sink.wg.Add(1)
@@ -183,11 +189,11 @@ func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name
 		defer sink.wg.Done()
 		render, resolved := p.resolveUrlToken(ctx, c, name)
 		if !resolved {
-			sink.fallback(name, render, release)
+			sink.record(tokenOutcome{name: name, text: render, failed: true, release: release})
 			sink.cancel()
 			return
 		}
-		sink.ok(name, render)
+		sink.record(tokenOutcome{name: name, text: render})
 	}()
 }
 

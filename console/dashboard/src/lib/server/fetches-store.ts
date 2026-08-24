@@ -123,12 +123,12 @@ async function deleteFetch(userId: string, ref: FetchDeleteRef): Promise<void> {
   if (r.error) throw new Error(r.error);
 }
 
-export function deleteFetchDef(userId: string, name: string): Promise<void> {
-  return deleteFetch(userId, { kind: 'def', name });
+export function deleteFetchDef(ref: { userId: string; name: string }): Promise<void> {
+  return deleteFetch(ref.userId, { kind: 'def', name: ref.name });
 }
 
-export function deleteFetchKey(userId: string, label: string): Promise<void> {
-  return deleteFetch(userId, { kind: 'key', name: label });
+export function deleteFetchKey(ref: { userId: string; label: string }): Promise<void> {
+  return deleteFetch(ref.userId, { kind: 'key', name: ref.label });
 }
 
 // --- rehearsal dry-run ------------------------------------------------------

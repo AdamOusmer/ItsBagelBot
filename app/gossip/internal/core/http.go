@@ -604,16 +604,26 @@ func v4At(b [16]byte, off int) (netip.Addr, bool) {
 // rebinding attack; pinning deletes it.
 func resolveAllowed(ctx context.Context, host string) (netip.Addr, error) {
 	if ip, err := netip.ParseAddr(strings.TrimSuffix(host, ".")); err == nil {
-		a := ip.Unmap()
-		if verr := classifyAddr(a); verr != nil {
-			return netip.Addr{}, &ErrBlockedAddress{Addr: a}
-		}
-		return a, nil
+		return allowedAddr(ip.Unmap())
 	}
 	ips, rerr := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 	if rerr != nil {
 		return netip.Addr{}, rerr
 	}
+	return firstAllowed(ips, host)
+}
+
+// allowedAddr admits one already-parsed address, or refuses it as policy.
+func allowedAddr(a netip.Addr) (netip.Addr, error) {
+	if verr := classifyAddr(a); verr != nil {
+		return netip.Addr{}, &ErrBlockedAddress{Addr: a}
+	}
+	return a, nil
+}
+
+// firstAllowed applies the every-record-must-pass rule and returns the first
+// address, preserving the resolver's ordering preference.
+func firstAllowed(ips []netip.Addr, host string) (netip.Addr, error) {
 	var first netip.Addr
 	for _, ne := range ips {
 		a := ne.Unmap()
