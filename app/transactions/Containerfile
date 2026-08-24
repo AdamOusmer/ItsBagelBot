@@ -7,7 +7,16 @@ FROM docker.io/library/golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+# proxy.golang.org's backing GCS bucket occasionally TLS-handshake-times-out
+# mid-fetch under the ~30 concurrent matrix jobs this workflow runs
+# (observed: "go: github.com/klauspost/compress@v1.19.2: ... net/http: TLS
+# handshake timeout", one job out of the whole build failing while every
+# other job on the same go.mod/go.sum succeeded). go.mod/go.sum/toolchain
+# were verified fine (go mod download and go mod verify both succeed
+# locally and in this exact base image) - go mod download just makes one
+# unretried attempt per module, so a single blip is fatal. Retry instead
+# of masking it with GOFLAGS/GONOSUMCHECK.
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
 
 COPY internal/domain internal/domain
 COPY internal/utils internal/utils
