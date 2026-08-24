@@ -11,11 +11,11 @@
 //     dashboard reads and runs the management verbs.
 import { rpc } from '@bagel/shared/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
-import { blankLoyaltyConfig, COUNTER_SCOPES } from '@bagel/shared';
+import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/shared';
 import { SUB } from './services';
 import { listModules, upsertModule } from './commands-store';
 
-const LOYALTY_MODULE = 'loyalty';
+const LOYALTY_MODULE = MOD.loyalty;
 
 export interface LoyaltyView {
   enabled: boolean;
