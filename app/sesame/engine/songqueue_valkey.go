@@ -167,40 +167,62 @@ func (s *ValkeySongQueueStore) cas(ctx context.Context, key, oldDoc, newDoc stri
 func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64, fn func(*songQueueDoc) error) error {
 	key := songQueueDocKey(broadcasterID)
 	for range casRetries {
-		oldDoc, err := s.readDoc(ctx, key)
+		oldDoc, doc, err := s.loadDoc(ctx, key, broadcasterID)
 		if err != nil {
 			return err
-		}
-		var doc songQueueDoc
-		if oldDoc != "" {
-			if err := codec.Unmarshal([]byte(oldDoc), &doc); err != nil {
-				// A corrupt or foreign-format document resets rather than
-				// bricking the channel's queue forever.
-				s.log.Warn("songqueue: undecodable document, resetting",
-					zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-				doc = songQueueDoc{}
-			}
 		}
 		if err := fn(&doc); err != nil {
 			return err
 		}
-		newB, err := codec.Marshal(doc)
+		done, err := s.commit(ctx, key, broadcasterID, oldDoc, doc)
 		if err != nil {
 			return err
 		}
-		newDoc := string(newB)
-		if newDoc == oldDoc {
-			return nil
-		}
-		won, err := s.cas(ctx, key, oldDoc, newDoc)
-		if err != nil {
-			return err
-		}
-		if won {
+		if done {
 			return nil
 		}
 	}
 	return errSongQueueStale
+}
+
+// loadDoc reads the channel's document and decodes it. A corrupt or
+// foreign-format payload resets to an empty queue rather than bricking the
+// channel forever — the log line is the audit trail for that decision.
+func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, key string, broadcasterID uint64) (string, songQueueDoc, error) {
+	oldDoc, err := s.readDoc(ctx, key)
+	if err != nil {
+		return "", songQueueDoc{}, err
+	}
+	var doc songQueueDoc
+	if oldDoc == "" {
+		return oldDoc, doc, nil
+	}
+	if err := codec.Unmarshal([]byte(oldDoc), &doc); err != nil {
+		s.log.Warn("songqueue: undecodable document, resetting",
+			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		doc = songQueueDoc{}
+	}
+	return oldDoc, doc, nil
+}
+
+// commit encodes the mutated document and compare-and-sets it over oldDoc.
+// done reports a finished mutation: either the document did not change (skip
+// the write entirely) or the CAS landed. false with no error sends the caller
+// around for another round with fresh reads.
+func (s *ValkeySongQueueStore) commit(ctx context.Context, key string, broadcasterID uint64, oldDoc string, doc songQueueDoc) (bool, error) {
+	newB, err := codec.Marshal(doc)
+	if err != nil {
+		return false, err
+	}
+	newDoc := string(newB)
+	if newDoc == oldDoc {
+		return true, nil
+	}
+	won, err := s.cas(ctx, key, oldDoc, newDoc)
+	if err != nil {
+		return false, err
+	}
+	return won, nil
 }
 
 func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth int) (int, error) {
