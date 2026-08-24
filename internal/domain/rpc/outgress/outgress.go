@@ -32,3 +32,16 @@ type AccountAgeReply struct {
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	Error     string    `json:"error,omitempty"`
 }
+
+type UptimeRequest struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
+// UptimeReply carries the current stream session's start. Live is false (and
+// StartedAt zero) when the channel is offline; StartedAt alone never implies
+// live, callers must check Live.
+type UptimeReply struct {
+	Live      bool      `json:"live"`
+	StartedAt time.Time `json:"started_at,omitempty"`
+	Error     string    `json:"error,omitempty"`
+}

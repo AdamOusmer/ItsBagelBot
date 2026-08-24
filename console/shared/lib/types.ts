@@ -120,6 +120,19 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     liveOnly: false
   },
   {
+    id: 'uptime',
+    label: 'Uptime',
+    summary: 'Built-in · shows how long the current stream has been live.',
+    description:
+      'Shows how long your current stream has been running. Replies that you are offline when no stream is up.',
+    usage: ['!uptime'],
+    preview: 'The stream has been live for 2 hours, 5 minutes.',
+    defaultActive: true,
+    defaultPerm: 'everyone',
+    defaultCooldown: 15,
+    liveOnly: false
+  },
+  {
     id: 'clip',
     label: 'Clip',
     summary: 'Built-in · clips the last moments of the stream and posts the link.',
