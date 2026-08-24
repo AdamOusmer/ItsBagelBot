@@ -374,7 +374,15 @@ func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName str
 // the delete is refused with the referencing command names, unless forced —
 // deleting silently would leave chat lines resolving a dead name. Key deletes
 // are separate (DeleteKey) and always allowed; dangling labels fail closed.
-func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, name string, force bool) error {
+// DefDelete names one definition to remove and whether to sever live
+// references ({urlfetch:<name>} in command responses) instead of refusing.
+type DefDelete struct {
+	Name  string
+	Force bool
+}
+
+func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, del DefDelete) error {
+	name, force := del.Name, del.Force
 
 	name = normalizeName(name)
 

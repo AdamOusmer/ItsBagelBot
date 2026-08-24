@@ -140,7 +140,7 @@ func (d *fetchDashboardRPC) handleDelete(ctx context.Context, req fetchkeyrpc.Fe
 
 	switch req.Kind {
 	case "def":
-		err = d.repo.DeleteDef(ctx, id, req.Name, req.Force)
+		err = d.repo.DeleteDef(ctx, id, repository.DefDelete{Name: req.Name, Force: req.Force})
 	case "key":
 		err = d.repo.DeleteKey(ctx, id, req.Label)
 	default:

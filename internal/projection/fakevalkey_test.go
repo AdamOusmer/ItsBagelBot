@@ -70,7 +70,7 @@ func newFakeValkey(t *testing.T) *fakeValkey {
 		ln:      ln,
 		addr:    ln.Addr().String(),
 		nowFunc: time.Now,
-		hashes:  map[string]map[string]string{},
+		hashes:  map[string]fakeHash{},
 		strs:    map[string]string{},
 		expires: map[string]time.Time{},
 		done:    make(chan struct{}),
@@ -103,7 +103,7 @@ func (f *fakeValkey) ops() []fakeOp {
 }
 
 // hash returns a copy of one hash for assertions.
-func (f *fakeValkey) hash(key string) map[string]string {
+func (f *fakeValkey) hash(key string) fakeHash {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := map[string]string{}
@@ -114,6 +114,9 @@ func (f *fakeValkey) hash(key string) map[string]string {
 }
 
 // seed writes a hash field bypassing the Store, to stage pre-existing state.
+// fakeHash is one key's field map.
+type fakeHash map[string]string
+
 // fakeField is one hash field+value pair for seeding.
 type fakeField struct {
 	field string
@@ -124,7 +127,7 @@ func (f *fakeValkey) seed(key string, kv fakeField) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.hashes[key] == nil {
-		f.hashes[key] = map[string]string{}
+		f.hashes[key] = fakeHash{}
 	}
 	f.hashes[key][kv.field] = kv.value
 }
@@ -205,7 +208,7 @@ func (f *fakeValkey) execHSET(args []string) []byte {
 		return respError("wrong number of arguments for HSET")
 	}
 	if f.hashes[key] == nil {
-		f.hashes[key] = map[string]string{}
+		f.hashes[key] = fakeHash{}
 	}
 	added := 0
 	for i := 0; i < len(pairs); i += 2 {

@@ -89,13 +89,14 @@ export async function upsertFetchDef(
 // re-entering a value against an existing label re-seals it. The reply's
 // last4 is derived at seal time so later lists never decrypt.
 export interface FetchKeyEntry {
+  userId: string;
   label: string;
   value: string;
 }
 
-export async function setFetchKey(userId: string, key: FetchKeyEntry): Promise<string> {
+export async function setFetchKey(key: FetchKeyEntry): Promise<string> {
   const r = await rpc<{ last4?: string; error?: string }>(`${SUB.commands}.fetch_set_key`, {
-    user_id: userId,
+    user_id: key.userId,
     label: key.label,
     value: key.value
   });
@@ -110,13 +111,14 @@ export async function setFetchKey(userId: string, key: FetchKeyEntry): Promise<s
 export type FetchDeleteKind = 'def' | 'key';
 
 interface FetchDeleteRef {
+  userId: string;
   kind: FetchDeleteKind;
   name: string;
 }
 
-async function deleteFetch(userId: string, ref: FetchDeleteRef): Promise<void> {
+async function deleteFetch(ref: FetchDeleteRef): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.commands}.fetch_delete`, {
-    user_id: userId,
+    user_id: ref.userId,
     kind: ref.kind,
     name: ref.name
   });
@@ -124,11 +126,11 @@ async function deleteFetch(userId: string, ref: FetchDeleteRef): Promise<void> {
 }
 
 export function deleteFetchDef(ref: { userId: string; name: string }): Promise<void> {
-  return deleteFetch(ref.userId, { kind: 'def', name: ref.name });
+  return deleteFetch({ userId: ref.userId, kind: 'def', name: ref.name });
 }
 
 export function deleteFetchKey(ref: { userId: string; label: string }): Promise<void> {
-  return deleteFetch(ref.userId, { kind: 'key', name: ref.label });
+  return deleteFetch({ userId: ref.userId, kind: 'key', name: ref.label });
 }
 
 // --- rehearsal dry-run ------------------------------------------------------

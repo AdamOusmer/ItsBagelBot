@@ -20,6 +20,31 @@ const KINDS: readonly CappedKind[] = ['commands', 'timers', 'triggers', 'quotes'
 // parsing) and the review DOM, which cannot render tens of thousands of rows
 // anyway. The server's own cap diagnostics stay authoritative for direct RPC
 // callers; here they can never fire because the overflow was already cut.
+interface CapSpec {
+  code: string;
+  label: string;
+  cap: number;
+}
+
+// capRows bounds one section, emitting the standard truncation warn when rows
+// fall past the cap. null means the section was absent/empty (stays omitted).
+function capRows(
+  rows: unknown[] | undefined,
+  spec: CapSpec,
+  diagnostics: ImportDiagnostic[]
+): unknown[] | null {
+  if (!rows?.length) return null;
+  if (rows.length > spec.cap) {
+    diagnostics.push({
+      severity: 'warn',
+      item_index: -1,
+      code: spec.code,
+      message: `${rows.length - spec.cap} ${spec.label} dropped past the ${spec.cap}-item import limit`
+    });
+  }
+  return rows.slice(0, spec.cap);
+}
+
 export function applyImportCaps(
   manifest: ImportManifest
 ): { manifest: ImportManifest; diagnostics: ImportDiagnostic[] } {
@@ -27,18 +52,12 @@ export function applyImportCaps(
   const out: ImportManifest = {};
   if (manifest.automod) out.automod = manifest.automod;
   for (const kind of KINDS) {
-    const rows = manifest[kind];
-    if (!rows?.length) continue;
-    const cap = IMPORT_ITEM_CAPS[kind];
-    (out[kind] as unknown[]) = rows.slice(0, cap);
-    if (rows.length > cap) {
-      diagnostics.push({
-        severity: 'warn',
-        item_index: -1,
-        code: `manifest_${kind}_capped`,
-        message: `${rows.length - cap} ${kind} dropped past the ${cap}-item import limit`
-      });
-    }
+    const capped = capRows(
+      manifest[kind],
+      { code: `manifest_${kind}_capped`, label: kind, cap: IMPORT_ITEM_CAPS[kind] },
+      diagnostics
+    );
+    if (capped) (out[kind] as unknown[]) = capped;
   }
   // fetches ride the commands cap rather than getting a number of its own:
   // every definition serves a command slot in this same manifest, so the
@@ -46,17 +65,11 @@ export function applyImportCaps(
   // invite drift from IMPORT_ITEM_CAPS (the numbers are mirrored server-side).
   // Parsers already refuse synthesis past this exact value; the slice only
   // matters for hand-built or older manifests POSTed directly.
-  const fetches = manifest.fetches;
-  if (fetches?.length) {
-    out.fetches = fetches.slice(0, IMPORT_ITEM_CAPS.commands);
-    if (fetches.length > IMPORT_ITEM_CAPS.commands) {
-      diagnostics.push({
-        severity: 'warn',
-        item_index: -1,
-        code: 'manifest_fetches_capped',
-        message: `${fetches.length - IMPORT_ITEM_CAPS.commands} fetch definitions dropped past the ${IMPORT_ITEM_CAPS.commands}-item import limit`
-      });
-    }
-  }
+  const fetches = capRows(
+    manifest.fetches,
+    { code: 'manifest_fetches_capped', label: 'fetch definitions', cap: IMPORT_ITEM_CAPS.commands },
+    diagnostics
+  );
+  if (fetches) out.fetches = fetches as ImportManifest['fetches'];
   return { manifest: out, diagnostics };
 }
