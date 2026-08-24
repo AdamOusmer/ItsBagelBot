@@ -64,6 +64,9 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 	if err := bus.QueueSubscribeJSON[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, prefix+".accountage.get", queueGroup, handleTimeout, app, log, m.handleAccountAge); err != nil {
 		return err
 	}
+	if err := bus.QueueSubscribeJSON[outgressrpc.UptimeRequest, outgressrpc.UptimeReply](nc, prefix+".uptime.get", queueGroup, followageHandleTimeout, app, log, m.handleUptime); err != nil {
+		return err
+	}
 	if err := bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause); err != nil {
 		return err
 	}
@@ -135,6 +138,21 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 		return outgressrpc.AccountAgeReply{UserFound: false}
 	}
 	return outgressrpc.AccountAgeReply{TargetID: id, UserFound: true, CreatedAt: createdAt}
+}
+
+// handleUptime resolves one broadcaster's current stream session for !uptime.
+// The live flag and the session start come from the same Get Streams read, so
+// the reply can never pair "live" with a stale or zero start.
+func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {
+	if req.BroadcasterID == "" {
+		return outgressrpc.UptimeReply{Error: "bad request"}
+	}
+	startedAt, live, err := m.twitch.StreamStartedAt(ctx, req.BroadcasterID)
+	if err != nil {
+		m.log.Warn("uptime lookup failed", zap.Error(err))
+		return outgressrpc.UptimeReply{Error: "lookup failed"}
+	}
+	return outgressrpc.UptimeReply{Live: live, StartedAt: startedAt}
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
