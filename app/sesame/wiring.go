@@ -107,6 +107,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Reputation: engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
 		Campaign:   engine.NewValkeyCampaign(in.vc, log),
 		Queue:      engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
+		SongQueue:  engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
 		Raffle:     rt.raffle,
 		Duel:       rt.duel,
 		Timers:     rt.timers,
