@@ -213,10 +213,12 @@ const (
 	LaneDirect Lane = iota
 	// LaneWARP routes every dial through the Cloudflare WARP sidecar's SOCKS
 	// listener on loopback, so target hosts never see a cluster IP and cannot
-	// null-route one. The hostname travels inside the SOCKS CONNECT and
-	// resolves at Cloudflare's edge; we never pre-verify the resolved IP (the
-	// Zero Trust Gateway policy kills RFC1918/link-local at the edge instead).
-	// A dead sidecar fails closed as ErrWARPDown — never a direct fallback.
+	// null-route one. DNS resolves LOCALLY through the same guarded path as
+	// the direct lane and the SOCKS CONNECT carries the PINNED IP (see
+	// newWARPTransport) — classification is ours on both lanes, only the
+	// packet path differs; any edge-side Gateway policy is defense in depth,
+	// never the gate. A dead sidecar fails closed as ErrWARPDown — never a
+	// direct fallback.
 	LaneWARP
 )
 
@@ -555,22 +557,33 @@ func classifyAddr(a netip.Addr) error {
 
 // embeddedV4 extracts the IPv4 carried by IPv4-mapped (::ffff:/96), NAT64
 // (64:ff9b::/96) or 6to4 (2002::/16) addresses; false for everything else.
+// The formats differ in WHERE the IPv4 sits: mapped and NAT64 carry it in the
+// low 32 bits, but 6to4 (RFC 3056) embeds it in bits 16-48 — reading the low
+// bytes there judges attacker-chosen decoys (2002:a00:1::808:808 wraps
+// 10.0.0.1 while its low bytes read 8.8.8.8), which is exactly the bug this
+// split fixes.
 func embeddedV4(a netip.Addr) (netip.Addr, bool) {
+	b := a.As16()
+	if netip.MustParsePrefix("2002::/16").Contains(a) {
+		return v4At(b, 2)
+	}
 	for _, p := range []netip.Prefix{
 		netip.MustParsePrefix("::ffff:0:0/96"),
 		netip.MustParsePrefix("64:ff9b::/96"),
-		netip.MustParsePrefix("2002::/16"),
 	} {
 		if p.Contains(a) {
-			b := a.As16()
-			v4, ok := netip.AddrFromSlice(b[12:16])
-			if !ok {
-				return netip.Addr{}, false
-			}
-			return v4.Unmap(), true
+			return v4At(b, 12)
 		}
 	}
 	return netip.Addr{}, false
+}
+
+func v4At(b [16]byte, off int) (netip.Addr, bool) {
+	v4, ok := netip.AddrFromSlice(b[off : off+4])
+	if !ok {
+		return netip.Addr{}, false
+	}
+	return v4.Unmap(), true
 }
 
 // resolveAllowed resolves ONE hostname under the strict rule: EVERY returned
