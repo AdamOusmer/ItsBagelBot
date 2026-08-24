@@ -298,6 +298,22 @@ func zaddCarrying(cmd []string, text string) bool {
 	return cmd[0] == "ZADD" && len(cmd) > 3 && strings.Contains(cmd[len(cmd)-1], text)
 }
 
+// wroteMemberContaining reports whether any captured pipelined ZADD carried a
+// member whose text contains substr.
+func wroteMemberContaining(rec *recentRecordingClient, substr string) bool {
+	for _, cmd := range rec.captured() {
+		if cmd[0] != "ZADD" {
+			continue
+		}
+		for i, arg := range cmd {
+			if i >= 2 && i%2 == 0 && strings.Contains(arg, substr) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type failClient struct {
 	valkey.Client
 	shouldFail *bool

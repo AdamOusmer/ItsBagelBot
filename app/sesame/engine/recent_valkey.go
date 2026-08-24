@@ -137,12 +137,22 @@ func (v *ValkeyRecent) flush(ctx context.Context) {
 	v.buffered = 0
 	v.mu.Unlock()
 
-	flushAt := newestBufferedAt(batch)
-	cutoff := strconv.FormatInt(int64((flushAt-stamp(recentTTL))/stamp(time.Millisecond)), 10)
+	plan := flushPlan{
+		cutoff: strconv.FormatInt(int64((newestBufferedAt(batch)-stamp(recentTTL))/stamp(time.Millisecond)), 10),
+		ttlSec: int64(recentTTL / time.Second),
+	}
 
 	for chanID, entries := range batch {
-		v.flushChannel(ctx, chanID, entries, cutoff)
+		v.flushChannel(ctx, chanID, entries, plan)
 	}
+}
+
+// flushPlan carries the batch-wide eviction bounds every per-channel pipeline
+// shares: the TTL cutoff in millis (derived from the freshest buffered line,
+// keeping tests deterministic) and the sliding key expiry.
+type flushPlan struct {
+	cutoff string
+	ttlSec int64
 }
 
 // newestBufferedAt finds the freshest entry in the batch; the eviction cutoff
@@ -164,7 +174,7 @@ func newestBufferedAt(batch map[uint64][]recentEntry) stamp {
 // flushChannel writes one channel's buffered lines as a single pipelined
 // DoMulti: add the new members, evict expired ones, enforce the cardinality
 // cap, and slide the key's TTL.
-func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries []recentEntry, cutoff string) {
+func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries []recentEntry, plan flushPlan) {
 	key := recentChannelKey(chanID)
 	zadd := v.client.B().Zadd().Key(key).ScoreMember()
 	for i := range entries {
@@ -172,9 +182,9 @@ func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries 
 	}
 	resps := v.client.DoMulti(ctx,
 		zadd.Build(),
-		v.client.B().Zremrangebyscore().Key(key).Min("-inf").Max(cutoff).Build(),
+		v.client.B().Zremrangebyscore().Key(key).Min("-inf").Max(plan.cutoff).Build(),
 		v.client.B().Zremrangebyrank().Key(key).Start(0).Stop(-(recentRingCap + 1)).Build(),
-		v.client.B().Expire().Key(key).Seconds(int64(recentTTL/time.Second)).Build(),
+		v.client.B().Expire().Key(key).Seconds(plan.ttlSec).Build(),
 	)
 	v.noteErrors(resps)
 }
