@@ -2,14 +2,16 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Encrypted session cookie codec: AES-256-GCM, layout base64url(nonce[12] ||
-// ct||tag), AAD "session". The crypto is identical across the console apps, but
-// each app keeps its OWN Session shape and its OWN isolated SESSION_KEY (separate
-// Doppler configs); secrets are never shared, so an app's session can only be
-// minted by that app's own OAuth callback. This module factors out the shared
+// ct||tag), AAD is a per-app label passed at construction (e.g.
+// "dashboard-session" / "admin-session"). The crypto is identical across the
+// console apps, but each app keeps its OWN Session shape and its OWN isolated
+// SESSION_KEY (separate Doppler configs); secrets are never shared, so an app's
+// session can only be minted by that app's own OAuth callback. The distinct AAD
+// makes that isolation cryptographic, not just operational: even if the two
+// apps' SESSION_KEYs were ever mixed up, a cookie sealed under one app's label
+// fails GCM authentication in the other. This module factors out the shared
 // crypto as a generic codec; each app instantiates it over its own type.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-
-const AAD = Buffer.from('session');
 
 /**
  * Minimum contract: every session carries unix-seconds issue + expiry stamps.
@@ -55,9 +57,15 @@ export function decodeKey(b64: string | undefined): Buffer {
 /**
  * Build a codec over session type `T`. `getKey` is called per seal/open so the
  * key can come from `$env/dynamic/private` (read at request time, never cached
- * at module-eval).
+ * at module-eval). `aad` is the app's session label ("dashboard-session",
+ * "admin-session"): it is bound into the GCM tag, so cookies never validate
+ * across apps even under a shared or swapped key.
  */
-export function createSessionCodec<T extends SessionBase>(getKey: () => Buffer): SessionCodec<T> {
+export function createSessionCodec<T extends SessionBase>(
+  getKey: () => Buffer,
+  aad: string
+): SessionCodec<T> {
+  const AAD = Buffer.from(aad);
   return {
     seal(s: T): string {
       const iv = randomBytes(12);
