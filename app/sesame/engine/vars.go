@@ -6,6 +6,7 @@ package engine
 import (
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/sesame/module"
 )
@@ -96,12 +97,32 @@ func counterTokenNames(tmpl string) []string {
 	}
 }
 
-// sanitizeVar neutralizes a user-supplied command variable so it cannot inject a
-// leading slash-verb into the expanded response. Leading spaces and slashes are
-// trimmed; the rest is untouched (a URL's "http://" keeps its slashes because
-// they are not leading).
+// sanitizeVar neutralizes a user-supplied command variable so it cannot inject
+// a leading slash-verb into the expanded response. Control characters (C0 plus
+// DEL) are stripped first — an embedded newline would otherwise survive into
+// the expansion and emitResponse's per-line split would mint it a fresh line,
+// which a leading slash then turns into a remote moderation verb — and
+// leading spaces/slashes are trimmed after. The rest is untouched: a URL's
+// "http://" keeps its slashes because they are not leading.
 func sanitizeVar(s string) string {
-	return trimLeftSlashSpace(s)
+	return trimLeftSlashSpace(stripControls(s))
+}
+
+// stripControls removes every ASCII control rune, returning s unchanged when
+// it carries none (the overwhelmingly common case pays only the scan).
+func stripControls(s string) string {
+	i := strings.IndexFunc(s, func(r rune) bool { return r < ' ' || r == '\x7f' })
+	if i < 0 {
+		return s
+	}
+	out := make([]byte, 0, len(s))
+	out = append(out, s[:i]...)
+	for _, r := range s[i:] {
+		if r >= ' ' && r != '\x7f' {
+			out = utf8.AppendRune(out, r)
+		}
+	}
+	return string(out)
 }
 
 func trimLeftSlashSpace(s string) string {
