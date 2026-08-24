@@ -194,7 +194,7 @@ spec:
                 defaultMode: 0555
           initContainers:
             - name: dump
-              image: mysql:8.4-oracle@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+              image: mysql:26.7-oracle@sha256:66aec17cd21a956029b83f083b813073859e8355dc1a00e55df6ba02f0e32345
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/dump.sh"]
               env:
