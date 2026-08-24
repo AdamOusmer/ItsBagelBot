@@ -86,7 +86,7 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		automod.WithChannel(mctx.BroadcasterID),
 		automod.WithChatter(env.ChatterUserID),
 		automod.WithMessageEmotes(p.adaptiveEmoteCodes(mctx)))
-	v = p.campaignVote(ctx, voteInput{
+	v, councilMint := p.campaignVote(ctx, voteInput{
 		verdict:     v,
 		simhash:     sigs.SimHash,
 		linkish:     sigs.Linkish,
@@ -104,8 +104,9 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		// enforcement switch: strikes used to be recorded before this check,
 		// so shadow-mode verdicts accrued them, and arming enforcement later
 		// inherited escalated punishments from history that was never
-		// actioned. Shadow keeps logging verdicts; it no longer scores them.
-		if p.reputation != nil {
+		// actioned. A council-minted verdict skips scoring entirely — see
+		// campaignVote for the attribution rule.
+		if p.reputation != nil && !councilMint {
 			v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
 			p.reputation.Bump(ctx, env.ChatterUserID)
 		}
@@ -150,31 +151,40 @@ type voteInput struct {
 // the valkey distinct-sender count for this line's template, when the line is
 // either already content-flagged at delete level or an unflagged link carrier.
 // The broadcaster scopes the count to this one channel — a quorum is senders
-// within a tenant, never across the fleet. Corroboration escalates a delete to
-// a timeout; on its own it only adds the mildest action (delete), never a
-// punishment - abstain in favor of the user. Observe is HLL-idempotent per sender.
-func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) automod.Verdict {
+// within a tenant, never across the fleet. It returns the verdict plus whether
+// the juror AUTHORED the action alone (the ActionNone mint): a band quorum can
+// be manufactured by colluding accounts, so a council-only verdict enforces
+// its immediate delete but records NO reputation strike — letting it score
+// would let eight accounts pump an innocent user up the ladder while the
+// reason launders it as automod. Content-backed escalations keep their
+// strike. Every quorum activation lands one Warn audit line naming the
+// channel and the consulted chatter. Observe is HLL-idempotent per sender.
+func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) (automod.Verdict, bool) {
 	if p.campaign == nil || in.simhash == 0 {
-		return in.verdict
+		return in.verdict, false
 	}
 	if !in.linkish && in.verdict.Action != automod.ActionDelete {
-		return in.verdict
+		return in.verdict, false
 	}
 	if p.campaign.Observe(ctx, in.broadcaster, in.simhash, in.sender) < campaignThreshold {
-		return in.verdict
+		return in.verdict, false
 	}
+
+	p.log.Warn("campaign band quorum",
+		zap.Uint64("broadcaster_id", in.broadcaster),
+		zap.String("chatter_id", in.sender))
 
 	switch in.verdict.Action {
 	case automod.ActionNone:
-		return automod.Verdict{Action: automod.ActionDelete, Rule: "council:campaign"}
+		return automod.Verdict{Action: automod.ActionDelete, Rule: "council:campaign"}, true
 	case automod.ActionDelete:
 		v := in.verdict
 		v.Action = automod.ActionTimeout
 		v.Seconds = 600
 		v.Rule += "+campaign"
-		return v
+		return v, false
 	}
-	return in.verdict
+	return in.verdict, false
 }
 
 // gateCohort handles a folded duplicate cohort: plain chat the ingress squash

@@ -64,7 +64,6 @@
     border: 1px solid var(--glass-border);
     border-radius: 8px;
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 180%));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 180%));
     box-shadow: var(--glass-rim), var(--glass-shadow);
   }
   .panel img {

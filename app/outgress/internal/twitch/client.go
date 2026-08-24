@@ -313,36 +313,59 @@ func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID strin
 	return c.request(ctx, src, call)
 }
 
-// IsStreamLive reports whether broadcasterID is currently live, via Helix Get
-// Streams under the app token. Get Streams only returns a stream object for live
-// channels, so a non-empty data array means live. The caller does not own a
-// response body (it is consumed here).
-func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
+// helixStream is the slice of Helix Get Streams the workers and RPC handlers
+// read: the broadcast type ("live" while streaming) and when the session began.
+type helixStream struct {
+	Type      string    `json:"type"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+// getStream fetches broadcasterID's current stream via Helix Get Streams under
+// the app token. live folds Twitch's two offline signals — no stream object at
+// all, or one whose broadcast type is not "live" — into the single flag
+// callers actually branch on. The caller does not own a response body (it is
+// consumed here).
+func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStream, bool, error) {
 	res, err := c.request(ctx, c.app, getCall("/helix/streams?user_id="+url.QueryEscape(broadcasterID)))
 	if err != nil {
-		return false, err
+		return helixStream{}, false, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return false, &StatusError{Status: res.StatusCode, Body: string(body)}
+		return helixStream{}, false, &StatusError{Status: res.StatusCode, Body: string(body)}
 	}
 
 	var payload struct {
-		Data []struct {
-			Type string `json:"type"`
-		} `json:"data"`
+		Data []helixStream `json:"data"`
 	}
 	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return false, err
+		return helixStream{}, false, err
 	}
-	for _, s := range payload.Data {
-		if s.Type == "live" {
-			return true, nil
-		}
+	if len(payload.Data) == 0 {
+		return helixStream{}, false, nil
 	}
-	return false, nil
+	stream := payload.Data[0]
+	return stream, stream.Type == "live", nil
+}
+
+// IsStreamLive reports whether broadcasterID is currently live, via Helix Get
+// Streams under the app token.
+func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
+	_, live, err := c.getStream(ctx, broadcasterID)
+	return live, err
+}
+
+// StreamStartedAt reports whether broadcasterID is currently live and, when it
+// is, when the current stream session began. The pair comes from one Get
+// Streams call so !uptime's live check and its clock cannot disagree.
+func (c *Client) StreamStartedAt(ctx context.Context, broadcasterID string) (time.Time, bool, error) {
+	stream, live, err := c.getStream(ctx, broadcasterID)
+	if err != nil || !live {
+		return time.Time{}, false, err
+	}
+	return stream.StartedAt, true, nil
 }
 
 // helixUser is the slice of Helix Get Users the workers read: the account's

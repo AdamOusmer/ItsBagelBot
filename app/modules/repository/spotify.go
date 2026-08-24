@@ -103,6 +103,33 @@ func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
 	})
 }
 
+// ErrRotateStale marks a rotation whose prev token no longer matches the
+// stored one — another writer got there first (a concurrent mint's rotation,
+// or a fresh console reconnect). The store keeps the newer value.
+var ErrRotateStale = errors.New("spotify refresh token changed since this rotation was minted")
+
+// RotateToken compare-and-swaps the broadcaster's stored refresh token after
+// Spotify rotated it on exchange: the new token is stored only while prev
+// still matches what is on file. The match runs on the unsealed value — AEAD
+// ciphertexts are non-deterministic, so comparing envelopes in SQL cannot
+// work, which is also why this is read-compare-write rather than a
+// conditional UPDATE. The unguarded window between read and upsert is
+// accepted: rotations are rare and per-broadcaster, and a loser in that
+// window merely re-stores a token Spotify just issued.
+func (s *SpotifyCreds) RotateToken(ctx context.Context, userID uint64, prev, next string) error {
+	if next == "" {
+		return errors.New("empty spotify refresh token")
+	}
+	current, err := s.Token(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if current != prev {
+		return ErrRotateStale
+	}
+	return s.SetToken(ctx, userID, next)
+}
+
 // tokenRow loads the (validated) broadcaster's sealed credential row, mapping
 // a missing row to ErrNoSpotifyToken. Both HasToken and Token read through it.
 func (s *SpotifyCreds) tokenRow(ctx context.Context, userID uint64) (*ent.SpotifyCredential, error) {

@@ -18,16 +18,20 @@ import (
 )
 
 const (
-	maxUsernameLength     = 25  // Twitch login limit
-	maxEmailLength        = 254 // RFC 5321
-	maxCommandNameLength  = 64
-	maxCommandAliases     = 25
-	maxResponseLineLength = 500   // Twitch chat message limit, per line
-	maxCooldownSeconds    = 86400 // one day; guards against absurd values
-	maxModuleNameLength   = 64
-	maxConfigsBytes       = 16 << 10
-	maxTokenBytes         = 8 << 10
+	maxUsernameLength    = 25  // Twitch login limit
+	maxEmailLength       = 254 // RFC 5321
+	maxCommandNameLength = 64
+	maxCommandAliases    = 25
+	maxCooldownSeconds   = 86400 // one day; guards against absurd values
+	maxModuleNameLength  = 64
+	maxConfigsBytes      = 16 << 10
+	maxTokenBytes        = 8 << 10
 )
+
+// MaxResponseLineLength is the per-line chat message limit. Exported alongside
+// MaxResponseLines so the engine's emit-side cap mirrors the save-time shape
+// from one constant instead of a duplicated literal.
+const MaxResponseLineLength = 500
 
 // MaxResponseLines caps how many chat messages one command response may fan
 // out into: the response is newline-delimited and the bot sends one message
@@ -177,7 +181,7 @@ func CommandResponse(response string) error {
 // validResponseLine reports whether one chat line is within the single-message
 // limit and carries no control characters (including CR).
 func validResponseLine(line string) bool {
-	if len(line) == 0 || len(line) > maxResponseLineLength {
+	if len(line) == 0 || len(line) > MaxResponseLineLength {
 		return false
 	}
 	for _, r := range line {

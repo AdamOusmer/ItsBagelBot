@@ -400,7 +400,6 @@ samp {
 
 header.header {
     backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid var(--sl-color-hairline-shade);
 }
 
