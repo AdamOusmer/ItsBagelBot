@@ -257,6 +257,14 @@ func (s *concurrentDurableSubscriber) runPump(ctx context.Context, output chan<-
 			live = false
 		}
 	}
+	// A lost handoff races stopSubscription: a callback that already passed
+	// gate enter can still enqueue until stopAndWait returns, so draining
+	// immediately would strand its watch with no pump left to unwind it —
+	// the held ack seat then rides the wheel deadline (up to handlerDeadline)
+	// before Close's drain can clear it. halt runs only after stopAndWait on
+	// every path that can lose a handoff — ctx via watchBind, closeCh and
+	// stopped both inside stopSubscription — so this wait is that barrier.
+	<-pump.stop
 	s.abandon(pump.queue)
 }
 
@@ -400,9 +408,10 @@ func (s *concurrentDurableSubscriber) deliver(
 	return false
 }
 
-// abandon unwinds every delivery the queue still holds. It runs strictly after
-// callbacks.stopAndWait (via pumpDone), which guarantees no enqueuer remains,
-// so a plain non-blocking drain cannot miss an entry.
+// abandon unwinds every delivery the queue still holds. runPump only reaches
+// it after <-pump.stop, and halt runs strictly after callbacks.stopAndWait,
+// which guarantees no enqueuer remains — so a plain non-blocking drain cannot
+// miss an entry.
 func (s *concurrentDurableSubscriber) abandon(queue <-chan pendingDelivery) {
 	for {
 		select {
@@ -641,7 +650,6 @@ func (w *keepAliveWheel) advance() {
 	w.cursor = (w.cursor + 1) % len(w.buckets)
 	w.epoch++
 	e := w.epoch
-	next := w.buckets[w.cursor]
 	w.mu.Unlock()
 
 	var survivors []*resultWatch
@@ -650,7 +658,7 @@ func (w *keepAliveWheel) advance() {
 			survivors = append(survivors, watch)
 		}
 	}
-	w.refile(next, survivors)
+	w.refile(survivors)
 }
 
 // sweepDue reports one unfinished watch against its deadline. It returns false
@@ -672,15 +680,19 @@ func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
 	return false
 }
 
-// refile returns survivors to the bucket the cursor points at: they are due
-// again next interval, and registrations landing mid-pass joined the same
-// slice under the same lock.
-func (w *keepAliveWheel) refile(base []*resultWatch, survivors []*resultWatch) {
+// refile returns survivors to the bucket the cursor points at. The bucket is
+// re-read under the lock, never carried from advance: a register landing
+// mid-pass appends to that slice after the snapshot was taken, and rebuilding
+// from the stale header — even one sharing the array — would overwrite or
+// orphan those watches. A watch dropped here is walked by no later pass: it
+// stops reporting progress, never reaches the deadline branch, and holds its
+// acks seat until Close's drain gives up.
+func (w *keepAliveWheel) refile(survivors []*resultWatch) {
 	if len(survivors) == 0 {
 		return
 	}
 	w.mu.Lock()
-	w.buckets[w.cursor] = append(base, survivors...)
+	w.buckets[w.cursor] = append(w.buckets[w.cursor], survivors...)
 	w.mu.Unlock()
 }
 
