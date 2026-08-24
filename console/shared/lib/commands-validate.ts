@@ -209,11 +209,19 @@ function parsedUrl(url: string): URL | null {
   }
 }
 
+function parsedHttpsUrl(url: string): URL | null {
+  const parsed = parsedUrl(url);
+  if (!parsed) return null;
+  if (parsed.protocol !== 'https:') return null;
+  if (!parsed.hostname) return null;
+  return parsed;
+}
+
 function fetchUrlProblem(url: string): string | undefined {
   if (!url) return 'URL is required.';
   if (url.length > FETCH_URL_MAX) return `URL must be at most ${FETCH_URL_MAX} characters.`;
-  const parsed = parsedUrl(url);
-  if (!parsed || parsed.protocol !== 'https:' || !parsed.hostname) return 'URL must start with https://';
+  const parsed = parsedHttpsUrl(url);
+  if (!parsed) return 'URL must start with https://';
   if (hostIsDenied(parsed.hostname)) return 'URL must point at a public https host.';
   return undefined;
 }
@@ -275,9 +283,13 @@ export function normalizeCommandResponse(response: string): string {
 
 // Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
 // trailing-whitespace regex backtracks polynomially on adversarial input.
+function isLineTrailer(ch: string): boolean {
+  return ch === ' ' || ch === '\t';
+}
+
 function trimLineEnd(line: string): string {
   let end = line.length;
-  while (end > 0 && (line[end - 1] === ' ' || line[end - 1] === '\t')) end--;
+  while (end > 0 && isLineTrailer(line[end - 1])) end--;
   return line.slice(0, end);
 }
 
@@ -305,54 +317,61 @@ function nameProblem(name: string, what: string): string | undefined {
   return undefined;
 }
 
-export function validateCommand(f: CommandFields): CommandErrors {
-  const errors: CommandErrors = {};
-
-  const nameErr = nameProblem(f.name, 'Command name');
-  if (nameErr) errors.name = nameErr;
-
-  const seen = new Set<string>([f.name]);
-  for (const a of f.aliases) {
+// Per-field problem functions, the validateFetchDef shape: each owns one
+// field's rules and returns the first violation, so the assembler spends one
+// branch per field.
+function aliasesProblem(name: string, aliases: string[]): string | undefined {
+  const seen = new Set<string>([name]);
+  for (const a of aliases) {
     const aliasErr = nameProblem(a, `Alternate name "${a}"`);
-    if (aliasErr) {
-      errors.aliases = aliasErr;
-      break;
-    }
-    if (a === f.name) {
-      errors.aliases = `"${a}" is already the command's own name.`;
-      break;
-    }
-    if (seen.has(a)) {
-      errors.aliases = `"${a}" is listed twice.`;
-      break;
-    }
+    if (aliasErr) return aliasErr;
+    if (a === name) return `"${a}" is already the command's own name.`;
+    if (seen.has(a)) return `"${a}" is listed twice.`;
     seen.add(a);
   }
+  return undefined;
+}
 
-  const lines = responseLines(f.response);
-  if (lines.length === 0) errors.response = 'Response is required.';
-  else if (lines.length > RESPONSE_MAX_LINES) {
-    errors.response = `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
-  } else if (lines.some((l) => l.length > RESPONSE_MAX)) {
-    errors.response = `Each line must be at most ${RESPONSE_MAX} characters.`;
-  } else if (lines.some(hasControlCharacter)) {
-    errors.response = 'Response cannot contain control characters.';
-  } else if (urlFetchNames(f.response).length > URLFETCH_TOKEN_CAP) {
+function responseProblem(response: string): string | undefined {
+  const lines = responseLines(response);
+  if (lines.length === 0) return 'Response is required.';
+  if (lines.length > RESPONSE_MAX_LINES) {
+    return `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
+  }
+  if (lines.some((l) => l.length > RESPONSE_MAX)) return `Each line must be at most ${RESPONSE_MAX} characters.`;
+  if (lines.some(hasControlCharacter)) return 'Response cannot contain control characters.';
+  if (urlFetchNames(response).length > URLFETCH_TOKEN_CAP) {
     // Distinct names, not occurrences: the engine dedupes repeats before the
     // fan-out, so the latency budget it must absorb scales with distinct defs.
-    errors.response = `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
+    return `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
   }
+  return undefined;
+}
 
-  if (!Number.isFinite(f.cooldown) || f.cooldown < 0 || f.cooldown > COOLDOWN_MAX) {
-    errors.cooldown = `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
-  } else if (!Number.isInteger(f.cooldown)) {
-    errors.cooldown = 'Cooldown must be a whole number of seconds.';
-  }
+function outsideCooldownRange(cooldown: number): boolean {
+  if (!Number.isFinite(cooldown)) return true;
+  return cooldown < 0 || cooldown > COOLDOWN_MAX;
+}
 
+function cooldownProblem(cooldown: number): string | undefined {
+  if (outsideCooldownRange(cooldown)) return `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
+  if (!Number.isInteger(cooldown)) return 'Cooldown must be a whole number of seconds.';
+  return undefined;
+}
+
+export function validateCommand(f: CommandFields): CommandErrors {
+  const errors: CommandErrors = {};
+  const name = nameProblem(f.name, 'Command name');
+  if (name) errors.name = name;
+  const aliases = aliasesProblem(f.name, f.aliases);
+  if (aliases) errors.aliases = aliases;
+  const response = responseProblem(f.response);
+  if (response) errors.response = response;
+  const cooldown = cooldownProblem(f.cooldown);
+  if (cooldown) errors.cooldown = cooldown;
   if (f.allowedUserId && !/^[0-9]+$/.test(f.allowedUserId)) {
     errors.allowed_user_id = 'User restriction must be a numeric Twitch user id.';
   }
-
   return errors;
 }
 

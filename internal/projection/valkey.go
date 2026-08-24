@@ -38,20 +38,6 @@ const (
 	fetchFieldPrefix   = "fetch:"
 )
 
-// FetchView is the projected view of one $(urlfetch) definition, stored as
-// the JSON body of the fetch:<name> hash field. Field set and json tags match
-// internal/domain/rpc/fetchkey.FetchView exactly (the CommandView/contract
-// duplication precedent) so gossip and the console decode without conversion.
-// It carries key_label only: sealed key material never enters Valkey or any
-// cache — plaintext travels the single key RPC per fetch.
-type FetchView struct {
-	Name     string   `json:"name"`
-	URL      string   `json:"url"`
-	JSONPath []string `json:"json_path,omitempty"`
-	KeyLabel string   `json:"key_label,omitempty"`
-	IsActive bool     `json:"is_active"`
-}
-
 // Store is the unified data access object for the settings projection. One hash per user:
 //
 //	settings:<user_id>
@@ -362,13 +348,13 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 		v.client.B().Hget().Key(key).Field("commands:projected").Build(),
 	)
 
-	projected, err = commandsProjected(res[2])
+	projected, err = markerProjected(res[2])
 	if err != nil {
 		return CommandView{}, false, false, err
 	}
 
 	// Direct hit: the typed name is a command's own field.
-	view, found, err = decodeCommandField(res[0])
+	view, found, err = decodeJSONField[CommandView](res[0])
 	if err != nil {
 		return CommandView{}, false, projected, err
 	}
@@ -380,8 +366,8 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 	return v.resolveAlias(ctx, key, res[1], projected)
 }
 
-// commandsProjected reads the commands:projected marker (nil = not projected).
-func commandsProjected(res valkey.ValkeyResult) (bool, error) {
+// markerProjected reads a section's :projected marker (nil = not projected).
+func markerProjected(res valkey.ValkeyResult) (bool, error) {
 	pj, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
@@ -392,20 +378,23 @@ func commandsProjected(res valkey.ValkeyResult) (bool, error) {
 	return pj == "1", nil
 }
 
-// decodeCommandField decodes a command body straight off an HGET result. A nil
+// decodeJSONField decodes one JSON body straight off an HGET result. A nil
 // field or an unparseable body is a clean miss (found=false, err=nil); only a
-// real Valkey error propagates.
-func decodeCommandField(res valkey.ValkeyResult) (CommandView, bool, error) {
+// real Valkey error propagates. Shared by the command and fetch row readers —
+// the decode contract is identical by design (both views mirror their wire
+// DTOs field-for-field).
+func decodeJSONField[T any](res valkey.ValkeyResult) (T, bool, error) {
+	var zero T
 	body, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			return CommandView{}, false, nil
+			return zero, false, nil
 		}
-		return CommandView{}, false, err
+		return zero, false, err
 	}
-	var view CommandView
+	var view T
 	if codec.Unmarshal([]byte(body), &view) != nil {
-		return CommandView{}, false, nil
+		return zero, false, nil
 	}
 	return view, true, nil
 }
@@ -425,7 +414,7 @@ func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.Va
 		return CommandView{}, false, projected, nil
 	}
 
-	view, found, err := decodeCommandField(v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
+	view, found, err := decodeJSONField[CommandView](v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
 	if err != nil || !found {
 		return CommandView{}, false, projected, err
 	}
@@ -566,154 +555,6 @@ func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, 
 			continue
 		}
 		out = append(out, cmd)
-	}
-	return out, projected, nil
-}
-
-// SetFetch projects one $(urlfetch) definition of one user, the fetch twin of
-// SetCommand minus alias pointers: definitions have no aliases. A Deleted
-// event (rename or delete; rows hard-delete) retires the fetch:<name> field
-// via the same HDEL path. Like every per-row setter it deliberately does NOT
-// set the fetch:projected marker — only the full-section write may declare
-// completeness.
-func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
-	defer segment(ctx, "HSET")()
-
-	key := cache.UserKey(settingsKeyPrefix, dto.UserID)
-	field := fetchFieldPrefix + strings.ToLower(dto.Name)
-
-	if dto.Deleted {
-		cmds := append(
-			[]valkey.Completed{v.client.B().Hdel().Key(key).Field(field).Build()},
-			v.expiryCommands(key, DefaultTTL)...,
-		)
-		return v.pipeline(ctx, cmds...)
-	}
-
-	body, err := codec.Marshal(FetchView{
-		Name:     strings.ToLower(dto.Name),
-		URL:      dto.URL,
-		JSONPath: dto.JSONPath,
-		KeyLabel: dto.KeyLabel,
-		IsActive: dto.IsActive,
-	})
-	if err != nil {
-		return err
-	}
-
-	cmds := append(
-		[]valkey.Completed{
-			v.client.B().Hset().Key(key).FieldValue().FieldValue(field, string(body)).Build(),
-		},
-		v.expiryCommands(key, DefaultTTL)...,
-	)
-	return v.pipeline(ctx, cmds...)
-}
-
-// SetFetches projects a complete definition list and records that an empty
-// list is known data, not a cold Valkey miss.
-func (v *Store) SetFetches(ctx context.Context, userID uint64, fetches []FetchView) error {
-	return v.SetFetchesWithTTL(ctx, userID, fetches, DefaultTTL)
-}
-
-// SetFetchesWithTTL replaces the complete fetch section and keeps the hash
-// for at least ttl. An empty list is still marked as projected.
-func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []FetchView, ttl time.Duration) error {
-	defer segment(ctx, "HSET")()
-
-	rows := make([][2]string, 0, len(fetches))
-	for _, f := range fetches {
-		body, err := codec.Marshal(f)
-		if err != nil {
-			return err
-		}
-		rows = append(rows, [2]string{fetchFieldPrefix + strings.ToLower(f.Name), string(body)})
-	}
-	return v.replaceSection(ctx, userID, sectionWrite{prefix: fetchFieldPrefix, marker: "fetch:projected", ttl: ttl, rows: rows})
-}
-
-// GetFetch reads one definition by name in a single round trip. found reports
-// whether the definition exists; projected reports whether the fetch section
-// has been populated at all, so a caller can tell a real "no such definition"
-// from a cold Valkey miss that should fall through to the projector RPC.
-func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view FetchView, found bool, projected bool, err error) {
-	defer segment(ctx, "HGET")()
-
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	lname := strings.ToLower(name)
-
-	res := v.client.DoMulti(ctx,
-		v.client.B().Hget().Key(key).Field(fetchFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field("fetch:projected").Build(),
-	)
-
-	projected, err = fetchSectionProjected(res[1])
-	if err != nil {
-		return FetchView{}, false, false, err
-	}
-
-	view, found, err = decodeFetchField(res[0])
-	if err != nil {
-		return FetchView{}, false, projected, err
-	}
-	return view, found, projected, nil
-}
-
-// fetchSectionProjected reads the fetch:projected marker (nil = not
-// projected).
-func fetchSectionProjected(res valkey.ValkeyResult) (bool, error) {
-	pj, err := res.ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return pj == "1", nil
-}
-
-// decodeFetchField decodes a definition body straight off an HGET result. A
-// nil field or an unparseable body is a clean miss (found=false, err=nil);
-// only a real Valkey error propagates.
-func decodeFetchField(res valkey.ValkeyResult) (FetchView, bool, error) {
-	body, err := res.ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return FetchView{}, false, nil
-		}
-		return FetchView{}, false, err
-	}
-	var view FetchView
-	if codec.Unmarshal([]byte(body), &view) != nil {
-		return FetchView{}, false, nil
-	}
-	return view, true, nil
-}
-
-// GetFetches reads the complete projected definition list of one user,
-// mirroring GetCommands: the fetch:projected marker alone decides whether a
-// missing row means "none" or "not yet hydrated".
-func (v *Store) GetFetches(ctx context.Context, userID uint64) ([]FetchView, bool, error) {
-	defer segment(ctx, "HGETALL")()
-
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
-	if err != nil {
-		return nil, false, err
-	}
-
-	projected := fields["fetch:projected"] == "1"
-	out := make([]FetchView, 0)
-	for field, value := range fields {
-		name, ok := strings.CutPrefix(field, fetchFieldPrefix)
-		if !ok || name == "" || name == "projected" {
-			continue
-		}
-		var f FetchView
-		if err := codec.Unmarshal([]byte(value), &f); err != nil {
-			continue
-		}
-		out = append(out, f)
 	}
 	return out, projected, nil
 }

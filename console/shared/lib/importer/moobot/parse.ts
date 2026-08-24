@@ -37,7 +37,7 @@ import type {
   ManifestTimer
 } from '../types';
 
-import { translateTags, urlfetchSlot, urlfetchSlug } from './tags';
+import { translateTags } from './tags';
 import type { TagContext, TextOption } from './tags';
 
 // Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
@@ -518,13 +518,12 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
       `response uses <${tok}>, which has no equivalent; left as literal text`));
   }
-  for (const tag of tr.fetchTags) {
+  for (const ref of tr.fetchRefs) {
     // One targeted warn per distinct tag per command, in the shape of the
     // variableUnmapped precedent: the tag itself mapped fine, but its
     // definition is a URL-less shell until the broadcaster acts.
-    const key = urlfetchSlug(name, urlfetchSlot(tag) ?? null);
     state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
-      `response uses <${tag}>, imported as {urlfetch:${key}} — re-enter the URL for "${key}" before it can fetch`));
+      `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}} — re-enter the URL for "${ref.key}" before it can fetch`));
   }
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
