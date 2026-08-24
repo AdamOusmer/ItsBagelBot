@@ -228,9 +228,18 @@ spec:
             # (MASQUE) SOCKS proxy, so it needs neither — and withholding them
             # is the hard guarantee that WARP CANNOT create a tunnel interface
             # or rewrite routes in the shared pod netns, which is what would
-            # otherwise blackhole gossip's pod-to-pod traffic. runAsNonRoot
-            # stays false only because warp-svc writes its registration state
-            # as root; it binds loopback:40000 (>1024), needing no privilege.
+            # otherwise blackhole gossip's pod-to-pod traffic.
+            #
+            # runAsUser/runAsGroup 0 must be stated EXPLICITLY: the pod-level
+            # securityContext pins 65532, and runAsNonRoot:false alone does not
+            # replace it — the daemon then dies immediately with
+            # "PermissionDenied" (reproduced: `podman run --user 65532 …
+            # warp-svc` fails exactly this way, `--user 0` comes up in ~2s)
+            # because it cannot create its IPC socket or write its registration
+            # state. Root here buys no network privilege: it still holds no
+            # capabilities and binds only loopback:40000.
+            runAsUser: 0
+            runAsGroup: 0
             runAsNonRoot: false
             capabilities:
               drop: ["ALL"]
@@ -241,13 +250,22 @@ spec:
             - name: warp-socks
               containerPort: 40000
           readinessProbe:
-            # 45 x 2s = 90s. The listener binds only after daemon boot (~2s)
-            # AND consumer registration, which is a live call to Cloudflare —
-            # the old 30s budget left no room for a slow enrollment, and this
-            # is a native sidecar, so a sidecar that never reports ready keeps
-            # the whole gossip pod out of service and stalls the rollout.
-            tcpSocket:
-              port: warp-socks
+            # EXEC, not tcpSocket: warp-svc binds the proxy on 127.0.0.1:40000
+            # only — which is exactly what we want, since nothing outside this
+            # pod should reach the untrusted egress lane — but a tcpSocket
+            # probe dials the POD IP, where nothing is listening, so it can
+            # never pass. Observed as a pod stuck at 1/2 with the tunnel
+            # already Connected and the listener bound. The probe therefore
+            # has to run INSIDE the container's netns and check loopback.
+            #
+            # 45 x 2s = 90s: the listener appears only after daemon boot (~2s)
+            # plus consumer registration, a live call to Cloudflare, and this
+            # is a native sidecar whose readiness gates the whole gossip pod.
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "ss -ltn | grep -q '127.0.0.1:40000'"
             periodSeconds: 2
             failureThreshold: 45
           livenessProbe:
