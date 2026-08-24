@@ -10,7 +10,7 @@ interface TestSession extends SessionBase {
 }
 
 const key = randomBytes(32);
-const codec = createSessionCodec<TestSession>(() => key);
+const codec = createSessionCodec<TestSession>(() => key, 'test-session');
 const now = () => Math.floor(Date.now() / 1000);
 
 function make(overrides: Partial<TestSession> = {}): TestSession {
@@ -22,7 +22,7 @@ function make(overrides: Partial<TestSession> = {}): TestSession {
 function sealRaw(payload: unknown): string {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', key, iv);
-  c.setAAD(Buffer.from('session'));
+  c.setAAD(Buffer.from('test-session'));
   const ct = Buffer.concat([c.update(JSON.stringify(payload), 'utf8'), c.final()]);
   return Buffer.concat([iv, ct, c.getAuthTag()]).toString('base64url');
 }
@@ -36,8 +36,13 @@ describe('session codec', () => {
   test('rejects tampered ciphertext and the wrong key', () => {
     const sealed = codec.seal(make());
     expect(codec.open(sealed.slice(0, -2))).toBeNull();
-    const other = createSessionCodec<TestSession>(() => randomBytes(32));
+    const other = createSessionCodec<TestSession>(() => randomBytes(32), 'test-session');
     expect(other.open(sealed)).toBeNull();
+  });
+
+  test('rejects a cookie sealed under a different AAD even with the same key', () => {
+    const sameKeyOtherApp = createSessionCodec<TestSession>(() => key, 'other-session');
+    expect(sameKeyOtherApp.open(codec.seal(make()))).toBeNull();
   });
 
   test('rejects an expired session', () => {
