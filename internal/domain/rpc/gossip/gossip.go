@@ -50,6 +50,21 @@ type Request struct {
 	// opt-in "a viewer types off to turn the lights off" reward behaviour.
 	PowerOff bool `json:"power_off,omitempty"`
 
+	// --- spotify (per-broadcaster music lookups) -----------------------------
+	// The spotify provider authenticates with the broadcaster's connected
+	// account (OAuth refresh token resolved from ChannelID), so these carry
+	// only what to look up. Zero on every non-spotify request.
+
+	// Query is the free-text search string spotify.search resolves to tracks.
+	Query string `json:"query,omitempty"`
+	// TrackID is the bare Spotify track id (base62) spotify.track looks up.
+	TrackID string `json:"track_id,omitempty"`
+	// ArtistID is the bare Spotify artist id (base62) spotify.artist looks up.
+	ArtistID string `json:"artist_id,omitempty"`
+	// Limit caps spotify.search's result count (1..10); zero lets the provider
+	// apply its own default rather than every caller repeating it.
+	Limit int `json:"limit,omitempty"`
+
 	// --- fortnite (fortnite-api.com stats lookups) ---------------------------
 
 	// AccountType is the platform namespace Account lives in for fortnite.stats:
@@ -320,6 +335,70 @@ type GoveeDevicesReply struct {
 type GoveeControlReply struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+}
+
+// --- spotify (music over each broadcaster's connected account) ---------------
+
+// SpotifyTrack is one resolved track, shaped for chat and overlay rendering.
+type SpotifyTrack struct {
+	// ID is the bare catalog id; callers pair it with spotify.track to re-read
+	// the full object without another search.
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Artists    []string `json:"artists"`
+	Album      string   `json:"album"`
+	DurationMS int64    `json:"duration_ms"`
+	// ImageURL is the album art at its largest size, so consumers downscale
+	// rather than upscale; empty when the album carries no artwork.
+	ImageURL string `json:"image_url,omitempty"`
+	// URL is the open.spotify.com track link.
+	URL string `json:"url,omitempty"`
+}
+
+// SpotifySearchReply is the answer to spotify.search: up to Limit tracks,
+// best match first. ResolvedAs reports HOW the input was interpreted —
+// "track_link", "artist_top" or "album" (direct catalog lookups off a pasted
+// link), "filtered" (field-scoped text search) or "text" (plain search, also
+// the token when a filtered search fell back) — so callers can present
+// "exact match" vs "best guess" without re-parsing the input themselves.
+// Display metadata, never a discriminator to switch on.
+type SpotifySearchReply struct {
+	Tracks     []SpotifyTrack `json:"tracks"`
+	ResolvedAs string         `json:"resolved_as,omitempty"`
+	Error      string         `json:"error,omitempty"`
+}
+
+// SpotifyTrackReply is the answer to spotify.track. A missing or malformed id
+// surfaces as Error.
+type SpotifyTrackReply struct {
+	Track *SpotifyTrack `json:"track,omitempty"`
+	Error string        `json:"error,omitempty"`
+}
+
+// SpotifyArtist is one resolved artist.
+type SpotifyArtist struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Genres    []string `json:"genres,omitempty"`
+	Followers int64    `json:"followers"`
+	ImageURL  string   `json:"image_url,omitempty"`
+	URL       string   `json:"url,omitempty"`
+}
+
+// SpotifyArtistReply is the answer to spotify.artist.
+type SpotifyArtistReply struct {
+	Artist *SpotifyArtist `json:"artist,omitempty"`
+	Error  string         `json:"error,omitempty"`
+}
+
+// SpotifyNowPlayingReply is the answer to spotify.nowplaying: the
+// broadcaster's currently-playing track with playback progress, or IsPlaying
+// false when playback is idle or private — an answer, not an error.
+type SpotifyNowPlayingReply struct {
+	IsPlaying  bool          `json:"is_playing"`
+	ProgressMS int64         `json:"progress_ms,omitempty"`
+	Track      *SpotifyTrack `json:"track,omitempty"`
+	Error      string        `json:"error,omitempty"`
 }
 
 // McsrSessionReply is the answer to mcsr.session: the change in a player's

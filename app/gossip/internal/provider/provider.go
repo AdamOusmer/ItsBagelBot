@@ -53,13 +53,15 @@ type Provider interface {
 	Endpoints() []Endpoint
 }
 
-// GoveeKeyResolver hands the govee provider the decrypted Govee API key for one
-// broadcaster, resolved from the modules service over an internal RPC. It is
-// the gossip service's twin of outgress's tokenstore: the service that dials the
-// upstream fetches the sealed credential just-in-time instead of holding a
-// copy. An empty key with a nil error means the broadcaster has none on file
-// (govee not set up), which the provider reports as a friendly reply error.
-type GoveeKeyResolver interface {
+// BroadcasterKeyResolver hands a provider the decrypted per-broadcaster
+// credential for one external system — govee's API key, spotify's OAuth
+// refresh token — resolved from the modules service over an internal RPC. It
+// is the gossip service's twin of outgress's tokenstore: the service that
+// dials the upstream fetches the sealed credential just-in-time instead of
+// holding a copy. An empty key with a nil error means the broadcaster has
+// none on file (not set up), which the providers report as a friendly reply
+// error.
+type BroadcasterKeyResolver interface {
 	Key(ctx context.Context, broadcasterID string) (string, error)
 }
 
@@ -73,7 +75,10 @@ type Deps struct {
 	// GoveeKeys resolves per-broadcaster Govee API keys for the govee provider.
 	// nil disables that provider (providers.All skips it), the same degrade as a
 	// missing service API key.
-	GoveeKeys GoveeKeyResolver
+	GoveeKeys BroadcasterKeyResolver
+	// SpotifyKeys resolves per-broadcaster Spotify OAuth refresh tokens for
+	// the spotify provider, under the same custody split as GoveeKeys.
+	SpotifyKeys BroadcasterKeyResolver
 }
 
 // Logger returns Log, or a nop logger when it is unset, so providers and the
