@@ -8,6 +8,15 @@
 # from outside; /healthz, /readyz and /drain stay cluster-internal (a public
 # /drain would let anyone hold handler goroutines for 10s a request).
 #
+# Path-shape note (measured 2026-08-25, live-probed): edge URL normalization
+# folds //gossip and /./gossip onto the clean path before matching, so those
+# shapes DO reach this router — but replacePath pins every match to /status,
+# and /gossip%2fstatus, /gossip/../drain, //gossip/drain all miss into the
+# unrouted fallback (302). The reachable-endpoint invariant survives every
+# observed shape: exactly {<svc> -> /status}. Accepted as-is rather than
+# adding a canonicalization middleware: it would buy zero reachable-set
+# reduction on a surface whose only endpoint is already public.
+#
 # DNS needs no record work: the cloudflared tunnel wildcard admits any
 # *.itsbagelbot.com hostname, and this router claiming Host(health...) is what
 # lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).

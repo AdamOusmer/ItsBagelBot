@@ -7,6 +7,11 @@
 # Services, transports, middleware and routes live here beside the pods after
 # the app/db split. The webhook route rides along: it terminates on the same
 # transactions Service.
+#
+# Path-shape note (measured 2026-08-25): edge normalization folds //svc,
+# /./svc onto the clean path before matching, but replacePath pins the
+# backend to /status for every match, so the reachable set is still exactly
+# {<svc> -> /status}. See deploy/k8s/status-routes.yaml for the probe list.
 apiVersion: v1
 kind: Service
 metadata:
