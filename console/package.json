@@ -28,6 +28,6 @@
   "overrides": {
     "uuid": "^14.0.0",
     "@opentelemetry/core": "^2.8.0",
-    "cookie": "^0.7.0"
+    "cookie": "^2.0.0"
   }
 }
