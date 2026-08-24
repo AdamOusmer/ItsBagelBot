@@ -11,10 +11,11 @@
 // listModules/upsertModule path every other module uses, and reads/mutates
 // the rows through the quote RPC.
 import { rpc } from '@bagel/shared/server/nats';
+import { MOD } from '@bagel/shared';
 import { SUB } from './services';
 import { listModules, upsertModule } from './commands-store';
 
-const QUOTES_MODULE = 'quotes';
+const QUOTES_MODULE = MOD.quotes;
 
 // Default permission when the blob has no addPerm/editPerm set; mirrors the
 // sesame module's quotePermRole default (empty -> moderator).
