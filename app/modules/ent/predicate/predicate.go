@@ -20,3 +20,6 @@ type Modules func(*sql.Selector)
 
 // Quote is the predicate function for quote builders.
 type Quote func(*sql.Selector)
+
+// SpotifyCredential is the predicate function for spotifycredential builders.
+type SpotifyCredential func(*sql.Selector)
