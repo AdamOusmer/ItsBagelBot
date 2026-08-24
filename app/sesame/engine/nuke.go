@@ -195,8 +195,14 @@ func emitTimeouts(broadcasterID string, targets []RecentHit, secs int64, emit mo
 // pipeline's raid gate dedups the activation so a raid already escalated by
 // the automod is not double-tripped.
 func escalateOnOverflow(shield func(uint64) bool, overflow int, broadcasterID uint64, emit module.Emit) bool {
-	if overflow == 0 || shield == nil || !shield(broadcasterID) {
-		return false
+	if overflow == 0 {
+		return false // within budget: nothing to cover for
+	}
+	if shield == nil {
+		return false // no armed policy: report the cap instead
+	}
+	if !shield(broadcasterID) {
+		return false // disarmed for this channel or raid-gated by the automod
 	}
 	o := GetOutput()
 	o.Type = outgress.TypeShieldMode
