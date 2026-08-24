@@ -78,7 +78,7 @@ func (n *Nuke) recordChat(broadcasterID uint64, env *lane.Envelope) {
 	if n.Recent == nil || env.Type != chatType {
 		return
 	}
-	n.Recent.Record(broadcasterID, env, n.now())
+	n.Recent.Record(channelID(broadcasterID), env, n.now())
 }
 
 const nukeUsage = "usage: !nuke <phrase> [seconds] — sweeps the last 10m of chat for messages containing phrase"
@@ -127,7 +127,7 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 		return nil
 	}
 
-	hits := n.Recent.Sweep(ctx, c.BroadcasterID, phrase, n.now())
+	hits := n.Recent.Sweep(ctx, channelID(c.BroadcasterID), phrase, n.now())
 	targets := filterNukeTargets(hits, c.BroadcasterID, n.BotID)
 	overflow := max(len(targets)-nukeMaxTargets, 0)
 	targets = targets[:min(len(targets), nukeMaxTargets)]
@@ -156,9 +156,10 @@ func emitChat(emit module.Emit, broadcasterID, text string) {
 // VIPs and above (staff in the line of fire of their own raid cleanup),
 // the broadcaster, and the bot.
 func filterNukeTargets(hits []RecentHit, broadcasterID uint64, botID uint64) []RecentHit {
+	protected := protectedIDs{broadcaster: channelID(broadcasterID), bot: channelID(botID)}
 	targets := make([]RecentHit, 0, len(hits))
 	for _, h := range hits {
-		if protectedFromSweep(h, broadcasterID, botID) {
+		if !h.sweepable(protected) {
 			continue
 		}
 		targets = append(targets, h)
@@ -166,11 +167,20 @@ func filterNukeTargets(hits []RecentHit, broadcasterID uint64, botID uint64) []R
 	return targets
 }
 
-// protectedFromSweep reports whether a phrase collision must never punish the
-// matched sender: VIP and above are staff in the line of fire of their own
-// raid cleanup, and the broadcaster and bot anchor the channel.
-func protectedFromSweep(h RecentHit, broadcasterID uint64, botID uint64) bool {
-	return h.Role >= module.RoleVIP || h.UserID == broadcasterID || h.UserID == botID
+// protectedIDs names the two identities a sweep must never punish no matter
+// what they typed: the channel's owner and the bot itself.
+type protectedIDs struct {
+	broadcaster channelID
+	bot         channelID
+}
+
+// sweepable reports whether a matched sender may take the punishment: staff
+// (VIP and up), the broadcaster and the bot are never swept on a phrase hit.
+func (h RecentHit) sweepable(p protectedIDs) bool {
+	if h.Role >= module.RoleVIP {
+		return false
+	}
+	return h.UserID != p.broadcaster && h.UserID != p.bot
 }
 
 // emitTimeouts translates the capped target list into Helix timeout jobs.
@@ -183,7 +193,7 @@ func emitTimeouts(broadcasterID string, targets []RecentHit, secs int64, emit mo
 		emit(&module.Output{
 			Type:          outgress.TypeTimeout,
 			BroadcasterID: broadcasterID,
-			TargetUserID:  string(strconv.AppendUint(id[:0], targets[i].UserID, 10)),
+			TargetUserID:  string(strconv.AppendUint(id[:0], uint64(targets[i].UserID), 10)),
 			Duration:      float64(secs),
 			Reason:        "nuke",
 		})

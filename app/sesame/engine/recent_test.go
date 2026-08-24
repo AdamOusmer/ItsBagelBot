@@ -136,7 +136,7 @@ func TestRecentSweepMatchesNormalizedPhrase(t *testing.T) {
 
 	hits := l.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
 	require.Len(t, hits, 1)
-	assert.Equal(t, uint64(999), hits[0].UserID)
+	assert.Equal(t, channelID(999), hits[0].UserID)
 	assert.Equal(t, module.RoleEveryone, hits[0].Role)
 }
 

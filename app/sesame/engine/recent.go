@@ -50,6 +50,11 @@ const (
 	recentChanCap = 4096
 )
 
+// channelID is a Twitch broadcaster id: the tenant every piece of sweep
+// state is scoped by. Keys, quorums and windows never fuse across tenants,
+// so the boundary gets a name the compiler enforces.
+type channelID uint64
+
 // stamp is a unix-nano instant in the recent window's clock domain. A named
 // integer keeps the ring's expiry arithmetic (record cutoffs, idle prunes,
 // TTL comparisons) from blending with unrelated int64s — the type system now
@@ -111,8 +116,8 @@ type recentShard struct {
 // centralized store production runs — see recent_valkey.go for why a replica
 // pool cannot share an in-memory window).
 type recentStore interface {
-	Record(chanID uint64, env *lane.Envelope, now time.Time)
-	Sweep(ctx context.Context, chanID uint64, phrase string, now time.Time) []RecentHit
+	Record(chanID channelID, env *lane.Envelope, now time.Time)
+	Sweep(ctx context.Context, chanID channelID, phrase string, now time.Time) []RecentHit
 }
 
 // RecentLog is the IN-MEMORY recentStore: correct only when a single sesame
@@ -169,7 +174,7 @@ func chatEntriesFromEnvelope(env *lane.Envelope, now time.Time) []recentEntry {
 
 // Record retains one chat envelope: the solo sender, or every sender of a
 // folded cohort (which share one text copy).
-func (l *RecentLog) Record(chanID uint64, env *lane.Envelope, now time.Time) {
+func (l *RecentLog) Record(chanID channelID, env *lane.Envelope, now time.Time) {
 	entries := chatEntriesFromEnvelope(env, now)
 	if entries == nil {
 		return
@@ -177,17 +182,17 @@ func (l *RecentLog) Record(chanID uint64, env *lane.Envelope, now time.Time) {
 	at := entries[0].at
 	cutoff := at - stamp(recentTTL)
 
-	sh := &l.shards[chanID%recentShards]
+	sh := &l.shards[uint64(chanID)%recentShards]
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 
-	c := sh.chans[chanID]
+	c := sh.chans[uint64(chanID)]
 	if c == nil {
 		if len(sh.chans) >= recentChanCap {
 			pruneChannels(sh, cutoff)
 		}
 		c = &chanRecent{}
-		sh.chans[chanID] = c
+		sh.chans[uint64(chanID)] = c
 	}
 	for _, e := range entries {
 		c.push(e, cutoff)
@@ -201,7 +206,7 @@ func (l *RecentLog) Record(chanID uint64, env *lane.Envelope, now time.Time) {
 
 // RecentHit is one distinct sender whose recent line matched a nuke phrase.
 type RecentHit struct {
-	UserID uint64
+	UserID channelID
 	Role   module.Role
 }
 
@@ -212,18 +217,18 @@ type RecentHit struct {
 // The accepted residual mirrors the floor's documented one: fused tokens
 // ("freenitro") miss — splitting fused words needs edit-distance machinery
 // whose false-positive rate no nuke should carry.
-func (l *RecentLog) Sweep(_ context.Context, chanID uint64, phrase string, now time.Time) []RecentHit {
+func (l *RecentLog) Sweep(_ context.Context, chanID channelID, phrase string, now time.Time) []RecentHit {
 	q := moderation.Normalize(GetBuf(), phrase)
 	defer PutBuf(q)
 	if utf8.RuneCount(q) == 0 {
 		return nil
 	}
 
-	sh := &l.shards[chanID%recentShards]
+	sh := &l.shards[uint64(chanID)%recentShards]
 	sh.mu.Lock()
 	defer sh.mu.Unlock()
 
-	c := sh.chans[chanID]
+	c := sh.chans[uint64(chanID)]
 	if c == nil {
 		return nil
 	}
@@ -239,10 +244,10 @@ func (l *RecentLog) Sweep(_ context.Context, chanID uint64, phrase string, now t
 			break // walking newest→oldest: everything further back is expired
 		}
 		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || seenUID(hits, e.uid) {
+		if !containsPhrase(t, q) || seenUID(hits, channelID(e.uid)) {
 			continue
 		}
-		hits = append(hits, RecentHit{UserID: e.uid, Role: e.role})
+		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
 	}
 	PutBuf(t)
 	return hits
@@ -290,7 +295,7 @@ func isWordByte(b byte) bool {
 	}
 }
 
-func seenUID(hits []RecentHit, uid uint64) bool {
+func seenUID(hits []RecentHit, uid channelID) bool {
 	for i := range hits {
 		if hits[i].UserID == uid {
 			return true
