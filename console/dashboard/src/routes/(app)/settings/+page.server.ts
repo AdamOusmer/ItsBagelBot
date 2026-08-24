@@ -29,11 +29,9 @@ import { env } from '$env/dynamic/private';
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// Dashboard sections an owner can delegate. Billing is view-only for a delegate
-// (the money actions stay owner-only — see billing/+page.server.ts). Counters
-// ride under 'modules'; timers also ride under 'commands' (see the catalog's
-// delegateSections and module-gate.ts).
-const SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
+// The delegatable sections are the shared registry's grant set; the "what is
+// grantable and why" rationale lives on that constant in @bagel/shared/nav.
+import { GRANTABLE_SECTIONS } from '@bagel/shared';
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
@@ -66,7 +64,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     return {
       given: d.demoDelegationGiven,
       received: d.demoDelegationReceived,
-      grantableSections: [...SECTIONS],
+      grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: d.demoSavedLocale,
       degraded: false
@@ -103,7 +101,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
-  return { given, received, grantableSections: [...SECTIONS], notifications, savedLocale, degraded };
+  return { given, received, grantableSections: [...GRANTABLE_SECTIONS], notifications, savedLocale, degraded };
 };
 
 export const actions: Actions = {
@@ -169,7 +167,7 @@ export const actions: Actions = {
   },
 
   create: ownerAction('Could not create link.', async (s, f) => {
-    const sections = SECTIONS.filter((sec) => f.get(sec) === 'on');
+    const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
     if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
 
     const token = await delegationCreate(s.user_id, s.login, sections);
@@ -191,7 +189,7 @@ export const actions: Actions = {
   updateSections: ownerAction('Could not update link.', async (s, f) => {
     const token = String(f.get('token') ?? '');
     if (!token) return fail(400, { error: 'Missing grant.' });
-    const sections = SECTIONS.filter((sec) => f.get(sec) === 'on');
+    const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
     if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
 
     await delegationUpdate(s.user_id, token, sections);
