@@ -49,3 +49,24 @@ func (c *SpotifyKeyClient) Key(ctx context.Context, broadcasterID string) (strin
 	}
 	return reply.RefreshToken, nil
 }
+
+// Rotate writes a replacement refresh token back to custody after Spotify
+// rotated it on exchange. Compare-and-swap on the previous value: the modules
+// store refuses the swap when someone else already replaced the token, and
+// that staleness comes back as an error like any other failure — the caller
+// treats them all the same way (warn and keep serving on the token it has).
+func (c *SpotifyKeyClient) Rotate(ctx context.Context, broadcasterID, prevToken, newToken string) error {
+	reply, err := bus.RequestJSONTimeout[spotifyrpc.RefreshTokenMutateReply](
+		ctx, c.nc, c.prefix+".rotate", spotifyrpc.RefreshTokenRotateRequest{
+			UserID:    broadcasterID,
+			PrevToken: prevToken,
+			NewToken:  newToken,
+		}, spotifyKeyTimeout)
+	if err != nil {
+		return fmt.Errorf("spotify key rotate rpc: %w", err)
+	}
+	if reply.Error != "" {
+		return fmt.Errorf("spotify key rotate: %s", reply.Error)
+	}
+	return nil
+}

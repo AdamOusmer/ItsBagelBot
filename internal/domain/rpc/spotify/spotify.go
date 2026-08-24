@@ -14,11 +14,12 @@
 //     "bagel.rpc.modules.spotify"): "set" stores a token, "clear" removes it,
 //     "status" reports only whether one is on file. None ever echoes the
 //     token back — the console shows "connected", never the value.
-//   - One internal verb, "bagel.rpc.internal.spotify.key.get",
+//   - Internal verbs under "bagel.rpc.internal.spotify.key",
 //     export/import-scoped at the NATS account level to the gateway alone,
-//     mirroring the users service's token/email RPCs. It returns the
+//     mirroring the users service's token/email RPCs. "get" returns the
 //     decrypted refresh token so the gateway can mint a short-lived access
-//     token.
+//     token; "rotate" writes a replacement back when Spotify rotates the
+//     token on that exchange.
 package spotifyrpc
 
 // RefreshTokenSetRequest stores (or replaces) a broadcaster's connected
@@ -49,6 +50,18 @@ type RefreshTokenStatusReply struct {
 // RefreshTokenMutateReply is the ack for set/clear: a bare error envelope.
 type RefreshTokenMutateReply struct {
 	Error string `json:"error,omitempty"`
+}
+
+// RefreshTokenRotateRequest is the internal write-back the gateway makes when
+// Spotify rotates a refresh token on exchange. Compare-and-swap: the store
+// replaces the token only while PrevToken still matches what is on file, so a
+// delayed write-back can never clobber a newer credential (a concurrent
+// mint's rotation, or a fresh console reconnect). Both tokens ride the same
+// account-scoped internal subject as the decrypt verb and are never logged.
+type RefreshTokenRotateRequest struct {
+	UserID    string `json:"user_id"`
+	PrevToken string `json:"prev_token"`
+	NewToken  string `json:"new_token"`
 }
 
 // RefreshTokenGetRequest is the internal decrypt request the gateway makes.
