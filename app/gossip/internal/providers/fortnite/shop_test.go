@@ -10,6 +10,7 @@ package fortnite
 // staleness budget.
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"context"
 	"net/http"
 	"testing"
@@ -91,3 +92,7 @@ func TestNextShopRotationIsTheNextMidnightUTC(t *testing.T) {
 		})
 	}
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

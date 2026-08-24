@@ -21,6 +21,13 @@ type tokens struct {
 	// keyed by normalized name. runCustom bumps each referenced counter once
 	// (with ctx) before expansion, so the sync callback only looks values up.
 	counters map[string]string
+	// urls holds the pre-resolved {urlfetch:<name>} values for this run, keyed
+	// by normalized token payload ("name", or "name.path" when the token
+	// selects a dotted path into the fetched document). runCustom fans each
+	// referenced definition out to gossip once (with ctx) before expansion —
+	// the sync repl callback carries no ctx, so a network hook inside it is
+	// impossible without faking it.
+	urls map[string]string
 }
 
 // counterTokenPrefix marks the counter substitution inside a response
@@ -67,6 +74,10 @@ func expandCommand(dst []byte, tmpl string, t tokens) []byte {
 				v, ok := t.counters[NormalizeCounterName(name)]
 				return v, ok // unresolved (no loyalty store): leave the token visible
 			}
+			if payload, ok := strings.CutPrefix(key, urlFetchTokenPrefix); ok {
+				v, ok := t.urls[NormalizeCounterName(payload)]
+				return v, ok // unresolved (missing/inactive def): leave the token visible
+			}
 			return module.ParseDynamic(key)
 		}
 	})
@@ -101,7 +112,25 @@ func counterTokenNames(tmpl string) []string {
 // trimmed; the rest is untouched (a URL's "http://" keeps its slashes because
 // they are not leading).
 func sanitizeVar(s string) string {
-	return trimLeftSlashSpace(s)
+	return trimLeftSlashSpace(stripControls(s))
+}
+
+// stripControls deletes ASCII control bytes (C0 plus DEL) from an external
+// value before it can reach a template: an embedded \n or \r would mint extra
+// chat lines through emitResponse's per-line split, an ESC poisons terminal/
+// IRC rendering, and a NUL truncates downstream writers. Control bytes are
+// single-byte in UTF-8 (continuation bytes are >= 0x80), so byte-wise
+// filtering cannot split a rune. First landed as an uncommitted secfix and
+// lost to the concurrent-session clobber of 2026-08-24; restored with the
+// adversarial battery pinning it end-to-end.
+func stripControls(s string) string {
+	kept := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 0x20 && c != 0x7f {
+			kept = append(kept, c)
+		}
+	}
+	return string(kept)
 }
 
 func trimLeftSlashSpace(s string) string {

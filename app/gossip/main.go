@@ -16,6 +16,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	"ItsBagelBot/app/gossip/internal/engine"
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -33,6 +36,7 @@ import (
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -57,28 +61,13 @@ func main() {
 
 	cfg := config.Load()
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := connectValkey(cfg, log)
 	defer valkeyClient.Close()
 
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	nc := connectNATS(cfg, log)
 	defer nc.Close()
 
-	// Deps is the bundle every provider captures; main builds it once.
-	// providers.All returns the configured providers, which the engine
-	// subscribes. Adding an external system is a new package under
-	// internal/providers plus one line in all.go — no wiring here.
-	deps := provider.Deps{
-		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
-		Limiter: ratelimit.New(valkeyClient),
-		Log:     log,
-	}
-	wireKeyResolvers(cfg, nc, &deps)
+	deps := buildDeps(cfg, nc, valkeyClient, log)
 
 	active := providers.All(cfg, deps)
 	if len(active) == 0 {
@@ -91,6 +80,42 @@ func main() {
 
 	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
 
+	logReady(active, cfg, log)
+
+	awaitShutdown(ctx, log)
+}
+
+func connectValkey(cfg *config.Config, log *zap.Logger) valkey_go.Client {
+	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
+	if err != nil {
+		log.Fatal("failed to connect to valkey", zap.Error(err))
+	}
+	return valkeyClient
+}
+
+func connectNATS(cfg *config.Config, log *zap.Logger) *nats.Conn {
+	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats", zap.Error(err))
+	}
+	return nc
+}
+
+func buildDeps(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, log *zap.Logger) provider.Deps {
+	// Deps is the bundle every provider captures; main builds it once.
+	// providers.All returns the configured providers, which the engine
+	// subscribes. Adding an external system is a new package under
+	// internal/providers plus one line in all.go — no wiring here.
+	deps := provider.Deps{
+		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
+		Limiter: ratelimit.New(valkeyClient),
+		Log:     log,
+	}
+	wireKeyResolvers(cfg, nc, valkeyClient, &deps)
+	return deps
+}
+
+func logReady(active []provider.Provider, cfg *config.Config, log *zap.Logger) {
 	names := make([]string, 0, len(active))
 	for _, p := range active {
 		names = append(names, p.Name())
@@ -99,7 +124,9 @@ func main() {
 		zap.String("subject_prefix", cfg.SubjectPrefix),
 		zap.Strings("providers", names),
 	)
+}
 
+func awaitShutdown(ctx context.Context, log *zap.Logger) {
 	<-ctx.Done()
 
 	log.Info("gossip shutting down")
@@ -139,11 +166,64 @@ func subscribeRPCHealth(nc *nats.Conn, queueGroup string, log *zap.Logger) {
 // connected account's OAuth refresh token, both fetched from the modules
 // service at call time. An empty subject prefix leaves a resolver nil, which
 // disables its provider (providers.All skips it).
-func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, deps *provider.Deps) {
+func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, deps *provider.Deps) {
 	if cfg.GoveeKeySubjectPrefix != "" {
 		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
 	}
 	if cfg.SpotifyKeySubjectPrefix != "" {
 		deps.SpotifyKeys = core.NewSpotifyKeyClient(nc, cfg.SpotifyKeySubjectPrefix)
 	}
+	if cfg.FetchKeySubjectPrefix != "" {
+		deps.FetchKeys = core.NewFetchKeyClient(nc, cfg.FetchKeySubjectPrefix)
+	}
+	if cfg.FetchProjectionSubject != "" {
+		deps.FetchDefs = fetchDefSource{client: newFetchProjection(nc, valkeyClient, cfg.FetchProjectionSubject)}
+	}
+}
+
+// newFetchProjection builds the read-side client for the commands service's
+// fetch-definition projection: in-process cache fronting the shared Valkey
+// hash, with the projector's tier-3 verb as the cold-read fallback. Read-only
+// — gossip never writes definitions; ownership stays with commands.
+func newFetchProjection(nc *nats.Conn, vc valkey_go.Client, subject string) *projection.Client {
+	return projection.NewClient(projection.Config{
+		Store: projection.NewStore(vc),
+		NC:    nc,
+		Subjects: projection.Subjects{
+			Fetches: subject,
+		},
+		TTL: projectionCacheTTL,
+	})
+}
+
+// projectionCacheTTL bounds the in-process definition cache. Definitions are
+// authoring data that changes rarely and heals on rename/delete via the
+// invalidation events commands publishes; two minutes keeps an edit visible
+// quickly without making every chat burst a Valkey round trip.
+const projectionCacheTTL = 2 * time.Minute
+
+// fetchDefSource adapts the projection client's uint64-keyed view onto
+// provider.DefSource's string-keyed seam. A non-numeric broadcaster id is a
+// caller bug upstream of us: no definitions can exist for it, so it reads as
+// a clean not-found rather than an error.
+type fetchDefSource struct {
+	client *projection.Client
+}
+
+func (s fetchDefSource) FetchDef(ctx context.Context, broadcasterID, name string) (gossiprpc.FetchDef, bool, error) {
+	uid, err := strconv.ParseUint(broadcasterID, 10, 64)
+	if err != nil || uid == 0 {
+		return gossiprpc.FetchDef{}, false, nil
+	}
+	view, ok, err := s.client.FetchDefs(ctx, uid, name)
+	if err != nil || !ok {
+		return gossiprpc.FetchDef{}, false, err
+	}
+	return gossiprpc.FetchDef{
+		Name:     name,
+		URL:      view.URL,
+		JSONPath: view.JSONPath,
+		KeyLabel: view.KeyLabel,
+		IsActive: view.IsActive,
+	}, true, nil
 }

@@ -8,6 +8,7 @@ package fortnite
 // rather than on the stats aggregation the main file covers.
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"context"
 	"net/http"
 	"testing"
@@ -105,3 +106,7 @@ func TestStatsSeasonLegIsBounded(t *testing.T) {
 // concurrent machinery: since resolveStatsWindow takes the plain serial path,
 // a broken season endpoint (which would 500 the concurrent path's fetch, were
 // it reachable) never gets called and never affects the result.
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

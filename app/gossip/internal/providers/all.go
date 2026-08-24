@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/config"
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers/clashroyale"
+	"ItsBagelBot/app/gossip/internal/providers/custom"
 	"ItsBagelBot/app/gossip/internal/providers/fortnite"
 	"ItsBagelBot/app/gossip/internal/providers/govee"
 	"ItsBagelBot/app/gossip/internal/providers/hypixel"
@@ -42,6 +43,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendClashRoyale(out, cfg, d, log)
 	out = appendValorant(out, cfg, d, log)
 	out = appendSpotify(out, cfg, d, log)
+	out = appendCustom(out, cfg, d, log)
 	return out
 }
 
@@ -182,5 +184,18 @@ func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps,
 		ClientID:     cfg.SpotifyClientID,
 		ClientSecret: cfg.SpotifyClientSecret,
 		RateLimit:    cfg.SpotifyRateLimit,
+	}, d)
+}
+
+// appendCustom adds the urlfetch provider behind its definition source: with
+// no projected definitions to execute there is nothing to serve, the same
+// degrade as a credential-less provider. (The FetchDefs adapter lands with
+// the commands-service projection; main.wireKeyResolvers records the seam.)
+func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, d.FetchDefs == nil, "custom urlfetch provider disabled: no definition source (projection FetchDefs unwired)", custom.New, custom.Config{
+		ChannelRateLimit: cfg.CustomChannelRateLimit,
+		DefRateLimit:     cfg.CustomDefRateLimit,
+		HostRateLimit:    cfg.CustomHostRateLimit,
+		PositiveTTL:      cfg.CustomPositiveTTL,
 	}, d)
 }

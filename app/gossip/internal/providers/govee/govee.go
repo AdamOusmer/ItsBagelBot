@@ -100,14 +100,14 @@ type api struct {
 // skips the provider otherwise, since with no key resolver it can authenticate
 // nothing).
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	b.Endpoint("devices").Timeout(devicesTimeout).Handle(p.devices)
 	b.Endpoint("control").Timeout(controlTimeout).Handle(p.control)
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://openapi.api.govee.com"
@@ -117,7 +117,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 	}
 	return &api{
 		// No baked auth header: the key rides per request (see authHeader).
-		http:    core.NewHTTPClient(base, nil, httpTimeout),
+		http:    b.Client(base, nil, httpTimeout),
 		cache:   d.Cache,
 		keys:    d.GoveeKeys,
 		log:     d.Logger(),

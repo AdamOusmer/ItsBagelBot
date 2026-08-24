@@ -9,6 +9,7 @@
 package valorant
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"context"
 	"fmt"
 	"net/http"
@@ -96,3 +97,7 @@ func TestAccountEndpointKeepsItsOwnCacheEntry(t *testing.T) {
 	defer mu.Unlock()
 	assert.Equal(t, 2, accountHits, "the account endpoint's own byte-flow cache absorbs the repeat")
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

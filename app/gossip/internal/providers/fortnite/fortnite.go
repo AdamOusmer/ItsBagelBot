@@ -169,17 +169,27 @@ type api struct {
 	// keyed reports whether the stats key is configured; without it the stats
 	// endpoints are not served (shop-only mode).
 	keyed bool
+	// bldr is the builder this api constructed its clients through; build()
+	// finishes declaring endpoints on the same one.
+	bldr *provider.Builder
+	// built memoizes Build's result: endpoint declarations are consumed by
+	// Build, so a second call would re-declare them onto the same Builder.
+	built provider.Provider
 }
 
 // New builds the fortnite provider. The shop endpoint always serves; the
 // keyed stats/session endpoints register only when the api-fortnite.com key is
 // configured, so shop-only mode simply never subscribes them.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	return newAPI(cfg, d).build()
+	b := provider.NewProvider(providerName, d).Trusted()
+	return newAPI(cfg, d, b).build()
 }
 
 func (p *api) build() provider.Provider {
-	b := provider.NewProvider(providerName, p.deps)
+	if p.built != nil {
+		return p.built
+	}
+	b := p.bldr
 	b.Endpoint("shop").Timeout(handlerTimeout).
 		CachedUntil(nextShopRotation, negativeTTL).
 		ID(provider.StaticID("current")).
@@ -199,10 +209,11 @@ func (p *api) build() provider.Provider {
 		b.Endpoint("session").Timeout(handlerTimeout).Handle(p.session)
 		b.Endpoint("session_end").Timeout(handlerTimeout).Handle(p.sessionEnd)
 	}
-	return b.Build()
+	p.built = b.Build()
+	return p.built
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	shopBase := strings.TrimSuffix(cfg.ShopBaseURL, "/")
 	if shopBase == "" {
 		shopBase = "https://fortnite-api.com"
@@ -222,8 +233,8 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		statsHeaders = map[string]string{"x-api-key": cfg.APIKey}
 	}
 	return &api{
-		shop:        core.NewHTTPClient(shopBase, nil, httpTimeout),
-		stats:       core.NewHTTPClient(statsBase, statsHeaders, httpTimeout),
+		shop:        b.Client(shopBase, nil, httpTimeout),
+		stats:       b.Client(statsBase, statsHeaders, httpTimeout),
 		cache:       d.Cache,
 		log:         d.Logger(),
 		deps:        d,
@@ -231,6 +242,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		statsBucket: core.NewBuckets("ratelimit:gossip:fortnite:stats", cfg.StatsRateLimit, statsWindowSeconds),
 		seasonStart: cfg.SeasonStartUnix,
 		keyed:       cfg.APIKey != "",
+		bldr:        b,
 	}
 }
 

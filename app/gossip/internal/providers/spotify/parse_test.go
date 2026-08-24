@@ -4,6 +4,7 @@
 package spotify
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,3 +118,7 @@ func TestPlanTextSearch(t *testing.T) {
 		})
 	}
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

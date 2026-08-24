@@ -14,6 +14,10 @@ type Tx struct {
 	config
 	// Commands is the client for interacting with the Commands builders.
 	Commands *CommandsClient
+	// FetchDefinition is the client for interacting with the FetchDefinition builders.
+	FetchDefinition *FetchDefinitionClient
+	// FetchKey is the client for interacting with the FetchKey builders.
+	FetchKey *FetchKeyClient
 
 	// lazily loaded.
 	client     *Client
@@ -146,6 +150,8 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Commands = NewCommandsClient(tx.config)
+	tx.FetchDefinition = NewFetchDefinitionClient(tx.config)
+	tx.FetchKey = NewFetchKeyClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

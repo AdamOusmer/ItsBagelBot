@@ -259,3 +259,7 @@ func TestSearchMissingQuery(t *testing.T) {
 		endpoint(t, p, "search")(context.Background(), gossiprpc.Request{ChannelID: "2", Query: "   "}))
 	assert.Contains(t, reply.Error, "missing search query")
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

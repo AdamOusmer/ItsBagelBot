@@ -1,0 +1,1188 @@
+[
+  {
+    "name": "bom",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "discord",
+          "aliases": [
+            "ds"
+          ],
+          "responses": [
+            "Join the community at https://discord.gg/example - see you there!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "Thanks for lurking {user}, enjoy the stream!"
+          ],
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "love",
+          "responses": [
+            "{user} x {target} = {random:1-100}% compatible!"
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "8ball",
+          "aliases": [
+            "8b"
+          ],
+          "responses": [
+            "The ball says: {choice:absolutely yes.,no chance.,ask again later.}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "deaths",
+          "responses": [
+            "Death counter: {counter:deaths}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 15
+        },
+        {
+          "name": "so",
+          "responses": [
+            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "multi",
+          "responses": [
+            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "offline",
+          "responses": [
+            "The stream is offline right now, check the schedule!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "rules",
+          "responses": [
+            "Be kind. No spoilers. Mods have final say."
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        }
+      ],
+      "timers": [
+        {
+          "message": "Join the community at https://discord.gg/example - see you there!",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Be kind. No spoilers. Mods have final say.",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Thanks for lurking {user}, enjoy the stream!",
+          "interval_seconds": 1800,
+          "online_only": true
+        }
+      ],
+      "counters": [
+        {
+          "name": "deaths",
+          "value": 87
+        },
+        {
+          "name": "rules",
+          "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_permission_collapsed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "error",
+        "item_index": 7,
+        "code": "command_disabled"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "command_permission_widened"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_arguments"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "timer_command_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_disabled"
+      }
+    ]
+  },
+  {
+    "name": "compact",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "discord",
+          "aliases": [
+            "ds"
+          ],
+          "responses": [
+            "Join the community at https://discord.gg/example - see you there!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "Thanks for lurking {user}, enjoy the stream!"
+          ],
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "love",
+          "responses": [
+            "{user} x {target} = {random:1-100}% compatible!"
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "8ball",
+          "aliases": [
+            "8b"
+          ],
+          "responses": [
+            "The ball says: {choice:absolutely yes.,no chance.,ask again later.}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "deaths",
+          "responses": [
+            "Death counter: {counter:deaths}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 15
+        },
+        {
+          "name": "so",
+          "responses": [
+            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "multi",
+          "responses": [
+            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "offline",
+          "responses": [
+            "The stream is offline right now, check the schedule!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "rules",
+          "responses": [
+            "Be kind. No spoilers. Mods have final say."
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        }
+      ],
+      "timers": [
+        {
+          "message": "Join the community at https://discord.gg/example - see you there!",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Be kind. No spoilers. Mods have final say.",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Thanks for lurking {user}, enjoy the stream!",
+          "interval_seconds": 1800,
+          "online_only": true
+        }
+      ],
+      "counters": [
+        {
+          "name": "deaths",
+          "value": 87
+        },
+        {
+          "name": "rules",
+          "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_permission_collapsed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "error",
+        "item_index": 7,
+        "code": "command_disabled"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "command_permission_widened"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_arguments"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "timer_command_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_disabled"
+      }
+    ]
+  },
+  {
+    "name": "corrupt-section",
+    "detect": true,
+    "manifest": {},
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "module_read_failed"
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "detect": false,
+    "err": "importer/moobot: not a JSON export file: unexpected end of JSON input"
+  },
+  {
+    "name": "fixture",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "discord",
+          "aliases": [
+            "ds"
+          ],
+          "responses": [
+            "Join the community at https://discord.gg/example - see you there!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "Thanks for lurking {user}, enjoy the stream!"
+          ],
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "love",
+          "responses": [
+            "{user} x {target} = {random:1-100}% compatible!"
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "8ball",
+          "aliases": [
+            "8b"
+          ],
+          "responses": [
+            "The ball says: {choice:absolutely yes.,no chance.,ask again later.}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "deaths",
+          "responses": [
+            "Death counter: {counter:deaths}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 15
+        },
+        {
+          "name": "so",
+          "responses": [
+            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "multi",
+          "responses": [
+            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "offline",
+          "responses": [
+            "The stream is offline right now, check the schedule!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "rules",
+          "responses": [
+            "Be kind. No spoilers. Mods have final say."
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        }
+      ],
+      "timers": [
+        {
+          "message": "Join the community at https://discord.gg/example - see you there!",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Be kind. No spoilers. Mods have final say.",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Thanks for lurking {user}, enjoy the stream!",
+          "interval_seconds": 1800,
+          "online_only": true
+        }
+      ],
+      "counters": [
+        {
+          "name": "deaths",
+          "value": 87
+        },
+        {
+          "name": "rules",
+          "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_permission_collapsed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "error",
+        "item_index": 7,
+        "code": "command_disabled"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "command_permission_widened"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_arguments"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "timer_command_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_disabled"
+      }
+    ]
+  },
+  {
+    "name": "minimal-command",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "hey",
+          "responses": [
+            "yo {user} {random} {counter:hey}"
+          ]
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "counter_value_absent"
+      }
+    ]
+  },
+  {
+    "name": "no-aliases",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "discord",
+          "responses": [
+            "Join the community at https://discord.gg/example - see you there!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "Thanks for lurking {user}, enjoy the stream!"
+          ],
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "love",
+          "responses": [
+            "{user} x {target} = {random:1-100}% compatible!"
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "8ball",
+          "responses": [
+            "The ball says: {choice:absolutely yes.,no chance.,ask again later.}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "deaths",
+          "responses": [
+            "Death counter: {counter:deaths}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 15
+        },
+        {
+          "name": "so",
+          "responses": [
+            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "multi",
+          "responses": [
+            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "offline",
+          "responses": [
+            "The stream is offline right now, check the schedule!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "rules",
+          "responses": [
+            "Be kind. No spoilers. Mods have final say."
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        }
+      ],
+      "timers": [
+        {
+          "message": "Join the community at https://discord.gg/example - see you there!",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Be kind. No spoilers. Mods have final say.",
+          "interval_seconds": 900,
+          "online_only": true
+        },
+        {
+          "message": "Thanks for lurking {user}, enjoy the stream!",
+          "interval_seconds": 1800,
+          "online_only": true
+        }
+      ],
+      "counters": [
+        {
+          "name": "deaths",
+          "value": 87
+        },
+        {
+          "name": "rules",
+          "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_permission_collapsed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "error",
+        "item_index": 7,
+        "code": "command_disabled"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "command_permission_widened"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "warn",
+        "item_index": 2,
+        "code": "timer_command_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_disabled"
+      }
+    ]
+  },
+  {
+    "name": "no-commands",
+    "detect": true,
+    "manifest": {},
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_message_empty"
+      },
+      {
+        "severity": "error",
+        "item_index": -1,
+        "code": "timer_disabled"
+      }
+    ]
+  },
+  {
+    "name": "no-settings",
+    "detect": false,
+    "err": "importer/moobot: export carries no settings array"
+  },
+  {
+    "name": "no-timers",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "discord",
+          "aliases": [
+            "ds"
+          ],
+          "responses": [
+            "Join the community at https://discord.gg/example - see you there!"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 10
+        },
+        {
+          "name": "lurk",
+          "responses": [
+            "Thanks for lurking {user}, enjoy the stream!"
+          ],
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "love",
+          "responses": [
+            "{user} x {target} = {random:1-100}% compatible!"
+          ],
+          "permission": "sub",
+          "cooldown_seconds": 5
+        },
+        {
+          "name": "8ball",
+          "aliases": [
+            "8b"
+          ],
+          "responses": [
+            "The ball says: {choice:absolutely yes.,no chance.,ask again later.}"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "deaths",
+          "responses": [
+            "Death counter: {counter:deaths}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 15
+        },
+        {
+          "name": "so",
+          "responses": [
+            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+          ],
+          "permission": "mod"
+        },
+        {
+          "name": "multi",
+          "responses": [
+            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+          ],
+          "permission": "sub"
+        },
+        {
+          "name": "offline",
+          "responses": [
+            "The stream is offline right now, check the schedule!"
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "rules",
+          "responses": [
+            "Be kind. No spoilers. Mods have final say."
+          ],
+          "permission": "everyone"
+        },
+        {
+          "name": "weather",
+          "responses": [
+            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+          ],
+          "permission": "everyone",
+          "cooldown_seconds": 30
+        }
+      ],
+      "counters": [
+        {
+          "name": "deaths",
+          "value": 87
+        },
+        {
+          "name": "rules",
+          "value": 12
+        }
+      ],
+      "fetches": [
+        {
+          "name": "moobot-weather",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-1",
+          "source": "moobot"
+        },
+        {
+          "name": "moobot-weather-2",
+          "source": "moobot"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 5,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_permission_collapsed"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "warn",
+        "item_index": 6,
+        "code": "command_variable_unmapped"
+      },
+      {
+        "severity": "error",
+        "item_index": 7,
+        "code": "command_disabled"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "command_permission_widened"
+      },
+      {
+        "severity": "warn",
+        "item_index": 8,
+        "code": "counter_value_fractional"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": 9,
+        "code": "command_fetch_url_absent"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "response_overrides_skipped"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_arguments"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "command_alias_unresolved"
+      }
+    ]
+  },
+  {
+    "name": "not-json",
+    "detect": false,
+    "err": "importer/moobot: not a JSON export file: invalid character '\u003c' looking for beginning of value"
+  },
+  {
+    "name": "only-perm-groups",
+    "detect": true,
+    "manifest": {},
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "permission_groups_skipped"
+      }
+    ]
+  },
+  {
+    "name": "truncated-half",
+    "detect": false,
+    "err": "importer/moobot: not a JSON export file: unexpected end of JSON input"
+  },
+  {
+    "name": "type-profile",
+    "detect": false,
+    "err": "importer/moobot: not a settings export (type \"profile\")"
+  },
+  {
+    "name": "unknown-usergroup",
+    "detect": true,
+    "manifest": {
+      "commands": [
+        {
+          "name": "x",
+          "responses": [
+            "t"
+          ],
+          "permission": "everyone"
+        }
+      ]
+    },
+    "diags": [
+      {
+        "severity": "warn",
+        "item_index": 0,
+        "code": "command_permission_unmapped"
+      }
+    ]
+  },
+  {
+    "name": "version-2",
+    "detect": false,
+    "err": "importer/moobot: unsupported export version 2 (want 1)"
+  }
+]

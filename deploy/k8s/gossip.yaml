@@ -144,6 +144,77 @@ spec:
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
       priorityClassName: bagel-service
+      # WARP sidecar (native initContainer, k8s >=1.29): the untrusted egress
+      # lane for user-defined urlfetch fetches. gossip's own containers never
+      # talk to it except over loopback SOCKS (127.0.0.1:40000); every dial
+      # through it leaves from Cloudflare's IPs, so a target cannot null-route
+      # the hot-path nodes. The trusted providers keep direct egress — startup
+      # ordering follows because the SOCKS listener binds BEFORE enrollment
+      # completes: readiness passes and gossip serves immediately, while
+      # untrusted requests during the enrollment window fail closed
+      # (core.ErrWARPDown → "limited"), never unproxied.
+      #
+      # Image pin: <ver>@sha256:<digest> is deliberately left as a placeholder.
+      # Pins are hand-applied with kubectl at rollout time per repo convention
+      # (nothing rewrites these manifests): fill BOTH pins in one commit, apply,
+      # and let maxSurge 0 / maxUnavailable 1 roll one replica at a time under
+      # the PDB below — required anti-affinity spreads the three daemons across
+      # nodes. cloudflared/warp image digests are published by Cloudflare;
+      # verify against the official registry before pasting.
+      initContainers:
+        - name: warp
+          image: docker.io/cloudflare/cloudflare-warp:<ver>@sha256:<digest>
+          imagePullPolicy: IfNotPresent
+          restartPolicy: Always # native sidecar: runs for the pod's lifetime
+          # Bootstrap: start the daemon, switch the client to proxy mode (this
+          # binds the loopback listener immediately, so readiness goes green
+          # before Zero Trust enrollment finishes), enroll with the service
+          # token from Doppler, then connect the tunnel. Enrollment failures
+          # keep the container running (the daemon retries); liveness catches
+          # a wedged daemon via warp-cli status.
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              warp-svc &
+              warp-cli --accept-tos mode proxy
+              warp-cli --accept-tos registration token "$WARP_ENROLL_TOKEN"
+              warp-cli --accept-tos connect
+              # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the tunnel.
+              wait
+          securityContext:
+            runAsNonRoot: false # warp-svc needs root to own the tun device
+            capabilities:
+              add: ["NET_ADMIN"]
+              drop: ["ALL"]
+            devices:
+              - devicePath: /dev/net/tun # k8s >=1.30 securityContext.devices;
+                # else fall back to a scoped privileged run at rollout
+          envFrom:
+            - secretRef:
+                name: gossip-warp-env # DopplerSecret wired like gossip-env,
+                # renamed via processors in deploy/cache/dopplersecrets.yaml
+          ports:
+            - name: warp-socks
+              containerPort: 40000
+          readinessProbe:
+            # 15 x 2s: generous enough to cover daemon boot, tight enough that
+            # a pod whose tunnel never comes up stops receiving traffic.
+            tcpSocket:
+              port: warp-socks
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            exec:
+              command: ["warp-cli", "--accept-tos", "status"]
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
       containers:
         - name: gossip
           image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787194469-cb0d16209c6d@sha256:aa3094009ee618ca3bdb9bedd1136f6710f68cb9a901050361eaff6785bf6d38
