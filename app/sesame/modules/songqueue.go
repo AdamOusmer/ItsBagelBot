@@ -238,18 +238,17 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 			Query:     query,
 			Limit:     1,
 		}, &reply)
-	if err == nil && reply.Error == "" && len(reply.Tracks) > 0 {
-		return &reply.Tracks[0], ""
-	}
-	if reply.Error != "" {
+	switch {
+	case reply.Error != "":
 		return nil, reply.Error
-	}
-	if err == nil {
+	case err != nil:
+		qc.log.Warn("songqueue: search rpc failed",
+			zap.String("query", query), qc.bid(), zap.Error(err))
+		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	case len(reply.Tracks) == 0:
 		return nil, i18n.T(qc.c.Locale, "songqueue.search.none")
 	}
-	qc.log.Warn("songqueue: search rpc failed",
-		zap.String("query", query), qc.bid(), zap.Error(err))
-	return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	return &reply.Tracks[0], ""
 }
 
 // entry projects a resolved provider track onto a queue entry owned by the
