@@ -321,9 +321,10 @@ type helixStream struct {
 }
 
 // getStream fetches broadcasterID's current stream via Helix Get Streams under
-// the app token. found is false when Twitch returns no stream object, which is
-// how Get Streams says the channel is offline. The caller does not own a
-// response body (it is consumed here).
+// the app token. live folds Twitch's two offline signals — no stream object at
+// all, or one whose broadcast type is not "live" — into the single flag
+// callers actually branch on. The caller does not own a response body (it is
+// consumed here).
 func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStream, bool, error) {
 	res, err := c.request(ctx, c.app, getCall("/helix/streams?user_id="+url.QueryEscape(broadcasterID)))
 	if err != nil {
@@ -345,25 +346,23 @@ func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStre
 	if len(payload.Data) == 0 {
 		return helixStream{}, false, nil
 	}
-	return payload.Data[0], true, nil
+	stream := payload.Data[0]
+	return stream, stream.Type == "live", nil
 }
 
 // IsStreamLive reports whether broadcasterID is currently live, via Helix Get
 // Streams under the app token.
 func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
-	stream, found, err := c.getStream(ctx, broadcasterID)
-	if err != nil || !found {
-		return false, err
-	}
-	return stream.Type == "live", nil
+	_, live, err := c.getStream(ctx, broadcasterID)
+	return live, err
 }
 
 // StreamStartedAt reports whether broadcasterID is currently live and, when it
 // is, when the current stream session began. The pair comes from one Get
 // Streams call so !uptime's live check and its clock cannot disagree.
 func (c *Client) StreamStartedAt(ctx context.Context, broadcasterID string) (time.Time, bool, error) {
-	stream, found, err := c.getStream(ctx, broadcasterID)
-	if err != nil || !found || stream.Type != "live" {
+	stream, live, err := c.getStream(ctx, broadcasterID)
+	if err != nil || !live {
 		return time.Time{}, false, err
 	}
 	return stream.StartedAt, true, nil

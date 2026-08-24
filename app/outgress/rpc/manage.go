@@ -46,31 +46,44 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
 
-	if err := bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, app, log, m.handleChannelGet); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, app, log, m.handleChannelSet); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[struct{}, manage.ChannelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, app, log, m.handleChannelList); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[struct{}, manage.SystemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, app, log, m.handleSystemStatus); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, prefix+".followage.get", queueGroup, followageHandleTimeout, app, log, m.handleFollowage); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, prefix+".accountage.get", queueGroup, handleTimeout, app, log, m.handleAccountAge); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.UptimeRequest, outgressrpc.UptimeReply](nc, prefix+".uptime.get", queueGroup, followageHandleTimeout, app, log, m.handleUptime); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause); err != nil {
-		return err
-	}
+	return subscribeAll(
+		func() error {
+			return bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, app, log, m.handleChannelGet)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, app, log, m.handleChannelSet)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[struct{}, manage.ChannelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, app, log, m.handleChannelList)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[struct{}, manage.SystemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, app, log, m.handleSystemStatus)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, prefix+".followage.get", queueGroup, followageHandleTimeout, app, log, m.handleFollowage)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, prefix+".accountage.get", queueGroup, handleTimeout, app, log, m.handleAccountAge)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.UptimeRequest, outgressrpc.UptimeReply](nc, prefix+".uptime.get", queueGroup, followageHandleTimeout, app, log, m.handleUptime)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause)
+		},
+	)
+}
 
+// subscribeAll registers each verb in order and aborts on the first failure,
+// so a broken subscription never leaves half the management API silently
+// dark. The per-verb generics make a plain data table impossible; the closure
+// keeps every registration branch-free at the call site.
+func subscribeAll(register ...func() error) error {
+	for _, r := range register {
+		if err := r(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
