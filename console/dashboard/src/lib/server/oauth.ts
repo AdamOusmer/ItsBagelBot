@@ -4,7 +4,7 @@
 // Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
-import { Twitch } from '@bagel/shared/server/oauth';
+import { Spotify, Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
@@ -36,6 +36,22 @@ export function twitch(): Twitch {
   const redirect = env.TWITCH_REDIRECT_URI;
   if (!id || !secret || !redirect) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
   return new Twitch(id, secret, redirect);
+}
+
+// Spotify connect for song requests (the /songqueue page). Playback state
+// scopes let the bot report what is actually playing and resolve !sr queries;
+// the refresh token itself is handed to the modules service's sealed custody,
+// never stored here.
+export function spotifyScopes(): string[] {
+  return ['user-read-currently-playing', 'user-read-playback-state'];
+}
+
+export function spotify(): Spotify {
+  const id = env.SPOTIFY_CLIENT_ID;
+  const secret = env.SPOTIFY_CLIENT_SECRET;
+  const redirect = env.SPOTIFY_REDIRECT_URI;
+  if (!id || !secret || !redirect) throw new Error('SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return new Spotify(id, secret, redirect);
 }
 
 // Fetch the account email from Helix with the just-issued user token. The

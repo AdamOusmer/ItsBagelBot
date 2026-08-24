@@ -18,6 +18,8 @@ import {
   MODULE_CATALOG,
   PERM_LABELS,
   blankReward,
+  blankSpotifyRedeem,
+  blankSpotifySr,
   blankTimer,
   type ChannelPointReward,
   type CommandView,
@@ -296,6 +298,22 @@ export function demoGoveeDevices(): GoveeDevice[] {
     { device: '11:22:33:44:55:66', sku: 'H6072', name: 'Floor lamp', color: true },
     { device: '99:88:77:66:55:44', sku: 'H5081', name: 'Smart plug', color: false }
   ];
+}
+
+// demoSpotifyView seeds the songqueue page in demo mode: module on, both
+// request paths on, and a bound reward so the bound-state row renders.
+export function demoSpotifyView() {
+  return {
+    enabled: true,
+    sr: { ...blankSpotifySr(), enabled: true },
+    redeem: {
+      ...blankSpotifyRedeem(),
+      enabled: true,
+      rewardId: 'demo-reward',
+      replyMessage: '@{user} queued {track}!',
+      reward: { rewardId: 'demo-reward', title: 'Play a song', cost: 500, color: '#1db954', cooldown: 0 }
+    }
+  };
 }
 
 export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
