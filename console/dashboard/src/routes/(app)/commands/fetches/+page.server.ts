@@ -186,8 +186,14 @@ export const actions: Actions = {
     const res = await tryRpc('save', () =>
       upsertFetchDef(
         ctx.uid,
-        { name: def.name, url: def.url, jsonPath: def.path, isActive: def.isActive, keyLabel: def.keyLabel },
-        renamed ? def.originalName : undefined
+        {
+          name: def.name,
+          url: def.url,
+          jsonPath: def.path,
+          isActive: def.isActive,
+          keyLabel: def.keyLabel,
+          originalName: renamed ? def.originalName : undefined
+        }
       )
     );
     if (!res.ok) return fail(400, { ok: false });

@@ -61,7 +61,7 @@ func TestFetchKeySealUnsealRoundTrip(t *testing.T) {
 	client, _, repo := fetchSetup(t)
 	ctx := context.Background()
 
-	last4, err := repo.SetKey(ctx, 1001, "openweather", "sk-weather-secret-a1b2")
+	last4, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "openweather", Value: "sk-weather-secret-a1b2"})
 	require.NoError(t, err)
 	assert.Equal(t, "a1b2", last4)
 
@@ -80,7 +80,7 @@ func TestFetchKeyLast4ShortValue(t *testing.T) {
 	_, _, repo := fetchSetup(t)
 	ctx := context.Background()
 
-	last4, err := repo.SetKey(ctx, 1001, "tiny", "abc")
+	last4, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "tiny", Value: "abc"})
 	require.NoError(t, err)
 	assert.Equal(t, "abc", last4, "values shorter than four chars store as-is")
 }
@@ -89,7 +89,7 @@ func TestFetchKeyAADBindsUserAndLabel(t *testing.T) {
 	client, _, repo := fetchSetup(t)
 	ctx := context.Background()
 
-	_, err := repo.SetKey(ctx, 1001, "alpha", "key-for-alpha")
+	_, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "alpha", Value: "key-for-alpha"})
 	require.NoError(t, err)
 	// Copy user 1001's alpha envelope onto the same user's OTHER label: the
 	// AAD binds the label too, so it must fail to open rather than leak.
@@ -112,9 +112,9 @@ func TestFetchKeyUpsertReplacesAndDeletes(t *testing.T) {
 	_, _, repo := fetchSetup(t)
 	ctx := context.Background()
 
-	_, err := repo.SetKey(ctx, 1001, "openweather", "first")
+	_, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "openweather", Value: "first"})
 	require.NoError(t, err)
-	_, err = repo.SetKey(ctx, 1001, "openweather", "second-secret-99aa")
+	_, err = repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "openweather", Value: "second-secret-99aa"})
 	require.NoError(t, err)
 
 	got, err := repo.Key(ctx, 1001, "openweather")
@@ -150,7 +150,7 @@ func TestFetchCustodyDisabledRefusesClosedButDefsWork(t *testing.T) {
 
 	assert.False(t, repo.CustodyEnabled())
 
-	_, err := repo.SetKey(ctx, 1001, "label", "value")
+	_, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "label", Value: "value"})
 	assert.ErrorIs(t, err, repository.ErrCustodyUnavailable)
 	_, err = repo.Key(ctx, 1001, "label")
 	assert.ErrorIs(t, err, repository.ErrCustodyUnavailable)
@@ -363,9 +363,9 @@ func TestDeleteAllForUserClearsDefsAndKeys(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, repo.UpsertDef(ctx, 1001, fetchSpec("wx", "https://api.example.com")))
-	_, err := repo.SetKey(ctx, 1001, "openweather", "secret-value-zz09")
+	_, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "openweather", Value: "secret-value-zz09"})
 	require.NoError(t, err)
-	_, err = repo.SetKey(ctx, 2002, "other", "untouched-value")
+	_, err = repo.SetKey(ctx, 2002, repository.KeyEntry{Label: "other", Value: "untouched-value"})
 	require.NoError(t, err)
 
 	require.NoError(t, repo.DeleteAllForUser(ctx, 1001))

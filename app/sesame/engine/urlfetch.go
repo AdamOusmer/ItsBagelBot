@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"ItsBagelBot/internal/projection"
 	"context"
 	"slices"
 	"strings"
@@ -94,11 +95,11 @@ func urlFetchNames(tmpl string) []string {
 // fallback text — a replay must never burn the broadcaster's fetch quota
 // twice. A fetch that produced no fresh value releases its claim so a
 // quorum-loss redelivery retries it.
-func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, command, response string) map[string]string {
-	if p.customFetch == nil || !strings.Contains(response, "{"+urlFetchTokenPrefix) {
+func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, cc projection.Command) map[string]string {
+	if p.customFetch == nil || !strings.Contains(cc.Response, "{"+urlFetchTokenPrefix) {
 		return nil
 	}
-	names := urlFetchNames(response)
+	names := urlFetchNames(cc.Response)
 	if len(names) == 0 {
 		return nil
 	}
@@ -110,7 +111,7 @@ func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, comman
 	// attributes, never in the span name.
 	seg := startStage(ctx, "sesame.urlfetch")
 	if seg != nil {
-		seg.AddAttribute("command", command)
+		seg.AddAttribute("command", cc.Name)
 		seg.AddAttribute("broadcaster_id", c.BroadcasterID)
 	}
 

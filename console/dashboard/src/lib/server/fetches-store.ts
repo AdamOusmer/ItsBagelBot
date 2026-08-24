@@ -57,15 +57,15 @@ export interface FetchDefInput {
   jsonPath: string[];
   isActive: boolean;
   keyLabel: string;
+  // originalName, when set and different from name, renames in place — the
+  // upsert shape of dashboard.go's command rename (single row update, not
+  // delete-old + create-new).
+  originalName?: string;
 }
 
-// originalName, when set and different from def.name, renames in place — the
-// upsert shape of dashboard.go's command rename (single row update, not
-// delete-old + create-new).
 export async function upsertFetchDef(
   userId: string,
-  def: FetchDefInput,
-  originalName?: string
+  def: FetchDefInput
 ): Promise<{ defs: FetchDefView[]; keys: FetchKeyView[] }> {
   await rpc(`${SUB.commands}.fetch_set_def`, {
     user_id: userId,
@@ -74,7 +74,7 @@ export async function upsertFetchDef(
     json_path: def.jsonPath,
     is_active: def.isActive,
     key_label: def.keyLabel,
-    original_name: originalName ?? ''
+    original_name: def.originalName ?? ''
   });
   try {
     return await listFetches(userId);
@@ -109,21 +109,26 @@ export async function setFetchKey(userId: string, key: FetchKeyEntry): Promise<s
 // key_labels fail closed until relinked).
 export type FetchDeleteKind = 'def' | 'key';
 
-async function deleteFetch(userId: string, kind: FetchDeleteKind, name: string): Promise<void> {
+interface FetchDeleteRef {
+  kind: FetchDeleteKind;
+  name: string;
+}
+
+async function deleteFetch(userId: string, ref: FetchDeleteRef): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.commands}.fetch_delete`, {
     user_id: userId,
-    kind,
-    name
+    kind: ref.kind,
+    name: ref.name
   });
   if (r.error) throw new Error(r.error);
 }
 
 export function deleteFetchDef(userId: string, name: string): Promise<void> {
-  return deleteFetch(userId, 'def', name);
+  return deleteFetch(userId, { kind: 'def', name });
 }
 
 export function deleteFetchKey(userId: string, label: string): Promise<void> {
-  return deleteFetch(userId, 'key', label);
+  return deleteFetch(userId, { kind: 'key', name: label });
 }
 
 // --- rehearsal dry-run ------------------------------------------------------

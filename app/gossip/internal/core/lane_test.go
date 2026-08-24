@@ -140,9 +140,9 @@ func TestClassifyAddrAllowsOnlyGlobalUnicast(t *testing.T) {
 		// decoy low bytes here read 8.8.8.8 while the wrapped address is
 		// 10.0.0.1 — the shape the wrong-byte extraction bug allowed through.
 		{"2002:a00:1::808:808", false},
-		{"2002:5db8:d822::", true},  // 6to4 wrapping public 93.184.216.34 dials
-		{"64:ff9b::a2b:1", false},   // NAT64 wrapping 10.43.0.1 (k3s svc CIDR)
-		{"93.184.216.34", true},     // public unicast dials
+		{"2002:5db8:d822::", true}, // 6to4 wrapping public 93.184.216.34 dials
+		{"64:ff9b::a2b:1", false},  // NAT64 wrapping 10.43.0.1 (k3s svc CIDR)
+		{"93.184.216.34", true},    // public unicast dials
 		{"2606:2800:220:1:248:1893:25c8:1946", true},
 	} {
 		err := classifyAddr(netip.MustParseAddr(tc.ip))

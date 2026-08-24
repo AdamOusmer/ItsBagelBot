@@ -297,7 +297,7 @@ func newHarness(t *testing.T) *harness {
 	b := provider.NewProvider(providerName, deps) // no .Trusted(): WARP lane by default
 	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, PositiveTTL: time.Minute}
 	h.p = newAPI(cfg, deps, b)
-	h.p.admit = func(context.Context, string, string, string, bool) error {
+	h.p.admit = func(context.Context, *flight, bool) error {
 		h.admit.Add(1)
 		return nil
 	}
@@ -306,10 +306,10 @@ func newHarness(t *testing.T) *harness {
 
 // route stages (or restages) one upstream response for an exact path. Tests
 // may call it again mid-flight to change what the upstream says.
-func (h *harness) route(t *testing.T, path string, status int, contentType, body string) {
+func (h *harness) route(t *testing.T, path string, r staged) {
 	t.Helper()
 	h.routesMu.Lock()
-	h.routes[path] = staged{status: status, ct: contentType, body: body}
+	h.routes[path] = r
 	h.routesMu.Unlock()
 }
 
@@ -333,8 +333,8 @@ func call(t *testing.T, h *harness, req gossiprpc.Request) gossiprpc.CustomFetch
 
 func TestFetchExtractsNestedJSONPath(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json",
-		`{"data":{"items":[{"name":"Shiny Thing"},{"name":"Other"}]},"n":42,"ok":true}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json",
+		body: `{"data":{"items":[{"name":"Shiny Thing"},{"name":"Other"}]},"n":42,"ok":true}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{
 		URL:      "placeholder",
 		IsActive: true,
@@ -350,7 +350,7 @@ func TestFetchExtractsNestedJSONPath(t *testing.T) {
 
 func TestFetchTokenTailOverridesStoredPath(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"a":"first","b":42,"c":true}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"a":"first","b":42,"c":true}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"a"}})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx.b"})
@@ -364,7 +364,7 @@ func TestFetchTokenTailOverridesStoredPath(t *testing.T) {
 
 func TestFetchPlainKindReturnsBodyText(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/plain", http.StatusOK, "text/plain", "  hello from upstream\n")
+	h.route(t, "/plain", staged{status: http.StatusOK, ct: "text/plain", body: "  hello from upstream\n"})
 	h.addDef("plain", "/plain", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "plain"})
@@ -374,7 +374,7 @@ func TestFetchPlainKindReturnsBodyText(t *testing.T) {
 
 func TestFetchUnresolvablePathIsBadDefAndNegativeCached(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"a":"x"}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"a":"x"}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"nope"}})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
@@ -391,7 +391,7 @@ func TestFetchUnresolvablePathIsBadDefAndNegativeCached(t *testing.T) {
 
 func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"v":1}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"v"}})
 
 	first := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
@@ -399,7 +399,7 @@ func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 	assert.Equal(t, int32(1), h.hits.Load())
 
 	// Change what the upstream says, then ask FRESH.
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"v":2}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":2}`})
 
 	cached := call(t, h, gossiprpc.Request{ChannelID: "ch2", DefID: "wx"})
 	require.Equal(t, gossiprpc.FetchOK, cached.Status)
@@ -418,7 +418,7 @@ func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 
 func TestFetchUpstream404NegativeCachedAt15s(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/gone", http.StatusNotFound, "application/json", `{"error":"nope"}`)
+	h.route(t, "/gone", staged{status: http.StatusNotFound, ct: "application/json", body: `{"error":"nope"}`})
 	h.addDef("gone", "/gone", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "gone"})
@@ -431,7 +431,7 @@ func TestFetchUpstream404NegativeCachedAt15s(t *testing.T) {
 
 func TestFetchInfraFailureStaysUncached(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/boom", http.StatusInternalServerError, "text/plain", "dead")
+	h.route(t, "/boom", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "dead"})
 	h.addDef("boom", "/boom", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "boom"})
@@ -448,7 +448,7 @@ func TestFetchInfraFailureStaysUncached(t *testing.T) {
 
 func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"v":1}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"v"}})
 
 	r1 := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", DryRun: true})
@@ -466,10 +466,10 @@ func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 
 func TestFetchBucketDenialAnswersLimited(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"v":1}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 	denials := atomic.Int32{}
-	h.p.admit = func(context.Context, string, string, string, bool) error {
+	h.p.admit = func(context.Context, *flight, bool) error {
 		if denials.Add(1) > 0 {
 			return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
 		}
@@ -486,14 +486,14 @@ func TestFetchBucketDenialAnswersLimited(t *testing.T) {
 
 func TestFetchPremiumRidesAdmitLane(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/wx", http.StatusOK, "application/json", `{"v":1}`)
+	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	var gotPremium atomic.Bool
 	var gotHost string
-	h.p.admit = func(_ context.Context, channelID, defName, host string, isPremium bool) error {
+	h.p.admit = func(_ context.Context, fl *flight, isPremium bool) error {
 		gotPremium.Store(isPremium)
-		gotHost = host
+		gotHost = fl.host
 		return nil
 	}
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", IsPremium: true})
@@ -527,7 +527,7 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	assert.True(t, armed, "five consecutive transport failures must arm the fleet-wide circuit")
 
 	// Armed hosts answer limited WITHOUT dialing — even a healthy one.
-	h.route(t, "/healthy", http.StatusOK, "application/json", `{"v":1}`)
+	h.route(t, "/healthy", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("healthy", "/healthy", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, KeyLabel: ""})
 	// Same host? No — the armed key is host-scoped, so stage the healthy def on
 	// the SAME host by pointing its URL through a def-level rewrite.
@@ -554,7 +554,7 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	assert.False(t, armedPre, "%d failures alone must not arm", breakerThreshold-1)
 	// Now an answered request on the same host: tunnel lets it through again.
 	h2.socks.setRefusing(false)
-	h2.route(t, "/alive", http.StatusInternalServerError, "text/plain", "answering, badly")
+	h2.route(t, "/alive", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "answering, badly"})
 	h2.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: h2.srv.URL + "/alive", IsActive: true}
 	call(t, h2, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
 	for i := 0; i < breakerThreshold-1; i++ {
@@ -579,7 +579,7 @@ func TestFetchBadDefs(t *testing.T) {
 	})
 	t.Run("inactive def", func(t *testing.T) {
 		h := newHarness(t)
-		h.route(t, "/wx", http.StatusOK, "application/json", `{}`)
+		h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{}`})
 		h.addDef("paused", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: false})
 		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "paused"})
 		assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
@@ -587,7 +587,7 @@ func TestFetchBadDefs(t *testing.T) {
 	})
 	t.Run("dangling key label fails closed", func(t *testing.T) {
 		h := newHarness(t)
-		h.route(t, "/wx", http.StatusOK, "application/json", `{"v":1}`)
+		h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 		h.addDef("keyed", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, KeyLabel: "gone"})
 		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "keyed"})
 		assert.Equal(t, gossiprpc.FetchBadDef, reply.Status, "no resolver wired: fail closed, never send unauthenticated")
@@ -597,7 +597,7 @@ func TestFetchBadDefs(t *testing.T) {
 
 func TestFetchInlineDefRehearsal(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/draft", http.StatusOK, "application/json", `{"temp_f":"71.2"}`)
+	h.route(t, "/draft", staged{status: http.StatusOK, ct: "application/json", body: `{"temp_f":"71.2"}`})
 
 	draft := &gossiprpc.FetchDef{
 		Name:     "unsaved",
@@ -632,7 +632,7 @@ func TestFetchDeniedBySSRFGate(t *testing.T) {
 
 func TestFetchRejectsDisallowedContentType(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/binary", http.StatusOK, "application/octet-stream", "\xde\xad")
+	h.route(t, "/binary", staged{status: http.StatusOK, ct: "application/octet-stream", body: "\xde\xad"})
 	h.addDef("bin", "/binary", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "bin"})
@@ -642,7 +642,7 @@ func TestFetchRejectsDisallowedContentType(t *testing.T) {
 func TestFetchCapsValues(t *testing.T) {
 	h := newHarness(t)
 	long := strings.Repeat("x", 500)
-	h.route(t, "/long", http.StatusOK, "text/plain", long)
+	h.route(t, "/long", staged{status: http.StatusOK, ct: "text/plain", body: long})
 	h.addDef("long", "/long", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "long"})

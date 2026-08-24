@@ -471,10 +471,19 @@ func fetchTokenBoundary(haystack string, at int) bool {
 	return at < len(haystack) && (haystack[at] == '}' || haystack[at] == '.')
 }
 
+// KeyEntry is one label+value pair as the dashboard submits it: the label
+// names the sealed row, the value is the plaintext secret that exists only
+// for the duration of this call.
+type KeyEntry struct {
+	Label string
+	Value string
+}
+
 // SetKey seals the broadcaster's API key and upserts it under the label.
 // Returns the derived last4 exactly once, from the just-submitted plaintext.
 // The plaintext never touches the database, logs or any reply afterwards.
-func (r *Fetches) SetKey(ctx context.Context, userID uint64, label, value string) (string, error) {
+func (r *Fetches) SetKey(ctx context.Context, userID uint64, key KeyEntry) (string, error) {
+	label, value := key.Label, key.Value
 	if r.packer == nil {
 		return "", ErrCustodyUnavailable
 	}

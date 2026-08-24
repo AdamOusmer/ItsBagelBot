@@ -378,19 +378,19 @@ func (f *fakeValkey) aliveLocked(key string) bool {
 // --- RESP2 encoding helpers ---
 
 // respCount reads one "*N"/"$N" header line and returns N.
-func respCount(r *bufio.Reader, prefix byte, what string) (int, error) {
+func respCount(r *bufio.Reader, prefix byte) (int, error) {
 	line, err := readLine(r)
 	if err != nil {
 		return 0, err
 	}
 	if len(line) == 0 || line[0] != prefix {
-		return 0, fmt.Errorf("expected %s header, got %q", what, line)
+		return 0, fmt.Errorf("expected %q-prefixed header, got %q", prefix, line)
 	}
 	return strconv.Atoi(line[1:])
 }
 
 func readBulkString(r *bufio.Reader) (string, error) {
-	size, err := respCount(r, '$', "bulk")
+	size, err := respCount(r, '$')
 	if err != nil {
 		return "", err
 	}
@@ -402,7 +402,7 @@ func readBulkString(r *bufio.Reader) (string, error) {
 }
 
 func readRESPArray(r *bufio.Reader) ([]string, error) {
-	n, err := respCount(r, '*', "array")
+	n, err := respCount(r, '*')
 	if err != nil {
 		return nil, err
 	}

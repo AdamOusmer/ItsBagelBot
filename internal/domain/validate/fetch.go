@@ -94,12 +94,21 @@ func FetchDefName(name string) error {
 // here means a bypass, not an un-normalized save.
 func isFetchNameCharset(name string) bool {
 	for i := 0; i < len(name); i++ {
-		c := name[i]
-		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
+		if !isFetchNameByte(name[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+func isFetchNameByte(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z':
+		return true
+	case c >= '0' && c <= '9':
+		return true
+	}
+	return c == '_'
 }
 
 // FetchURL validates a definition's endpoint at save time: absolute https,

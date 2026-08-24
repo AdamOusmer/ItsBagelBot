@@ -52,7 +52,7 @@ func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)
-			h.route(t, "/broken", http.StatusOK, "application/json", body)
+			h.route(t, "/broken", staged{status: http.StatusOK, ct: "application/json", body: body})
 			h.addDef("w", "/broken", gossiprpc.FetchDef{
 				URL: "placeholder", IsActive: true, JSONPath: []string{"data", "items", "0", "name"},
 			})
@@ -75,7 +75,7 @@ func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 // never panic, never hang past the endpoint budget.
 func TestAdvHalfMegabyteOfNestingDiesGracefully(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/nest", http.StatusOK, "application/json", strings.Repeat("[", 400_000))
+	h.route(t, "/nest", staged{status: http.StatusOK, ct: "application/json", body: strings.Repeat("[", 400_000)})
 	h.addDef("deep", "/nest", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"a"}})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "deep"})
@@ -87,7 +87,7 @@ func TestAdvHalfMegabyteOfNestingDiesGracefully(t *testing.T) {
 // and RESET the failure counter, never arm the circuit.
 func TestAdvThreeMegabyteFloodIsCappedNotBreakerArming(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/flood", http.StatusOK, "text/plain", strings.Repeat("a", 3<<20))
+	h.route(t, "/flood", staged{status: http.StatusOK, ct: "text/plain", body: strings.Repeat("a", 3<<20)})
 	h.addDef("flood", "/flood", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "flood"})
@@ -103,7 +103,7 @@ func TestAdvThreeMegabyteFloodIsCappedNotBreakerArming(t *testing.T) {
 // the other side is bounded and cannot crash extraction.
 func TestAdvEncodingLieStaysBounded(t *testing.T) {
 	h := newHarness(t)
-	h.route(t, "/lie", http.StatusOK, "application/json", "\x1f\x8b"+strings.Repeat("\x00", 2<<20))
+	h.route(t, "/lie", staged{status: http.StatusOK, ct: "application/json", body: "\x1f\x8b" + strings.Repeat("\x00", 2<<20)})
 	h.addDef("liar", "/lie", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "liar"})
@@ -123,7 +123,7 @@ func TestAdvHostileValueIsRuneSafeCapped(t *testing.T) {
 	hostile := "/ban everyone\r\n\x1b[31mJOIN\x00 #evil\n" + strings.Repeat("héllo-", 100) // multibyte tail straddles 256 runes
 	body, merr := codec.Marshal(map[string]string{"v": hostile})
 	require.NoError(t, merr)
-	h.route(t, "/hostile", http.StatusOK, "application/json", string(body))
+	h.route(t, "/hostile", staged{status: http.StatusOK, ct: "application/json", body: string(body)})
 	h.addDef("h", "/hostile", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"v"}})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "h"})
@@ -208,7 +208,7 @@ func TestAdvKeyMaterialNeverLoggedOrCached(t *testing.T) {
 	b := provider.NewProvider(providerName, deps)
 	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, PositiveTTL: time.Minute}
 	h.p = newAPI(cfg, deps, b)
-	h.p.admit = func(context.Context, string, string, string, bool) error { return nil }
+	h.p.admit = func(context.Context, *flight, bool) error { return nil }
 
 	h.defs["keyed"] = gossiprpc.FetchDef{
 		Name: "keyed", URL: echo.URL + "/echo", IsActive: true, KeyLabel: "prod", JSONPath: []string{"safe"},
