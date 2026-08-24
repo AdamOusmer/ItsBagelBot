@@ -13,9 +13,11 @@
 #   podman build -t itsbagelbot/warp -f app/warp/Containerfile .
 #
 # The image is deliberately inert: no ENTRYPOINT/CMD. The manifest owns the
-# bootstrap (warp-svc, mode proxy, registration, connect) so proxy port and
-# enrollment stay deployment concerns; runtime needs NET_ADMIN and
-# /dev/net/tun, granted by the pod spec, never baked in here.
+# bootstrap (warp-svc, mode proxy, consumer registration, connect) so the
+# proxy port stays a deployment concern. Runtime needs NO NET_ADMIN and NO tun
+# device: proxy mode is a userspace L4 (MASQUE) SOCKS proxy — see the sidecar
+# securityContext note in deploy/k8s/gossip.yaml for why withholding them is
+# the pod-to-pod safety guarantee.
 
 FROM docker.io/library/debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
 

@@ -171,39 +171,61 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/warp:main-0000000000-placeholder
           imagePullPolicy: IfNotPresent
           restartPolicy: Always # native sidecar: runs for the pod's lifetime
-          # Bootstrap: start the daemon, switch the client to proxy mode (this
-          # binds the loopback listener immediately, so readiness goes green
-          # before Zero Trust enrollment finishes), enroll with the service
-          # token from Doppler, then connect the tunnel. Enrollment failures
-          # keep the container running (the daemon retries); liveness catches
-          # a wedged daemon via warp-cli status.
+          # Bootstrap (consumer WARP, deliberately NO Zero Trust org). Two
+          # reasons this uses the free consumer account rather than a team:
+          #   1. No seats, no team, no charge — a Zero Trust org bills per
+          #      enrolled device, and this sidecar only needs egress-IP
+          #      masking, not any Gateway/Access feature.
+          #   2. The SSRF gate is entirely LOCAL. gossip resolves and
+          #      classifies every user-defined target itself (core.resolveAllowed
+          #      / classifyAddr, global-unicast-or-nothing) and dials the PINNED
+          #      IP through the SOCKS proxy; WARP is only the packet path, so a
+          #      target sees a Cloudflare egress IP and cannot null-route the
+          #      hot-path nodes. An edge Gateway policy would be pure
+          #      defense-in-depth, which is why we do not pay for one.
+          #
+          # Proxy mode (MASQUE, L4) is why this cannot break pod-to-pod: it
+          # binds a userspace SOCKS5 listener on loopback and captures NOTHING
+          # else — every dial that is not sent to 127.0.0.1:40000 (all of
+          # gossip's NATS-leaf, Valkey and CoreDNS traffic) leaves the pod
+          # netns untouched, over the normal cluster path. There is no tun
+          # device and no route table change; see the securityContext note.
+          #
+          # `registration new` with no token registers a consumer device. The
+          # SOCKS listener binds as soon as `mode proxy` lands, so readiness
+          # goes green before the tunnel finishes connecting; requests during
+          # that window fail closed (core.ErrWARPDown → "limited"), never
+          # unproxied. Registration/connect failures keep the container
+          # running (the daemon retries); liveness catches a wedged daemon.
           command:
             - /bin/sh
             - -ec
             - |
               warp-svc &
+              # Proxy mode is MASQUE-only since 2025.8; set it explicitly and
+              # tolerate a no-op on builds where proxy mode already implies it.
+              warp-cli --accept-tos tunnel protocol set MASQUE || true
               warp-cli --accept-tos mode proxy
-              warp-cli --accept-tos registration token "$WARP_ENROLL_TOKEN"
-              warp-cli --accept-tos connect
-              # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the tunnel.
+              warp-cli --accept-tos proxy port 40000
+              # Consumer registration: no organization, no service token, no seat.
+              warp-cli --accept-tos registration new || true
+              warp-cli --accept-tos connect || true
+              # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the proxy.
               wait
           securityContext:
-            runAsNonRoot: false # warp-svc needs root to own the tun device
+            # NO NET_ADMIN and NO tun device: proxy mode is a userspace L4
+            # (MASQUE) SOCKS proxy, so it needs neither — and withholding them
+            # is the hard guarantee that WARP CANNOT create a tunnel interface
+            # or rewrite routes in the shared pod netns, which is what would
+            # otherwise blackhole gossip's pod-to-pod traffic. runAsNonRoot
+            # stays false only because warp-svc writes its registration state
+            # as root; it binds loopback:40000 (>1024), needing no privilege.
+            runAsNonRoot: false
             capabilities:
-              add: ["NET_ADMIN"]
               drop: ["ALL"]
-          # /dev/net/tun rides a hostPath mount: securityContext has no
-          # device field in any shipped k8s (1.33 included), so NET_ADMIN +
-          # the char device mounted in is the standard non-privileged shape.
           volumeMounts:
-            - name: dev-net-tun
-              mountPath: /dev/net/tun
             - name: warp-state
               mountPath: /var/lib/cloudflare-warp
-          envFrom:
-            - secretRef:
-                name: gossip-warp-env # DopplerSecret wired like gossip-env,
-                # renamed via processors in deploy/cache/dopplersecrets.yaml
           ports:
             - name: warp-socks
               containerPort: 40000
@@ -338,13 +360,9 @@ spec:
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
-        # WARP sidecar: the tun char device (type guards against a directory
-        # silently appearing if the node module were missing) and a scratch
-        # home for warp-svc registration state, gone with the pod.
-        - name: dev-net-tun
-          hostPath:
-            path: /dev/net/tun
-            type: CharDevice
+        # WARP sidecar scratch home for warp-svc registration state, gone with
+        # the pod. No tun device: proxy mode is userspace, see the sidecar's
+        # securityContext note.
         - name: warp-state
           emptyDir: {}
       terminationGracePeriodSeconds: 45
