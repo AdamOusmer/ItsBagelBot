@@ -113,6 +113,9 @@ func (f *fakeValkey) hash(key string) fakeHash {
 }
 
 // seed writes a hash field bypassing the Store, to stage pre-existing state.
+// cmdArgs is one decoded RESP command line: the words after the verb.
+type cmdArgs []string
+
 // fakeHash is one key's field map.
 type fakeHash map[string]string
 
@@ -162,7 +165,7 @@ func (f *fakeValkey) session(c net.Conn) {
 // Handlers run with f.mu HELD and receive the args AFTER the command word;
 // they answer in RESP2 via the resp* helpers. Unknown commands fall to the
 // default at the bottom of exec, matching the real server's error shape.
-var fakeCommandHandlers = map[string]func(*fakeValkey, []string) []byte{
+var fakeCommandHandlers = map[string]func(*fakeValkey, cmdArgs) []byte{
 	"HSET":    (*fakeValkey).execHSET,
 	"HGET":    (*fakeValkey).execHGET,
 	"HMGET":   (*fakeValkey).execHMGET,
@@ -176,7 +179,7 @@ var fakeCommandHandlers = map[string]func(*fakeValkey, []string) []byte{
 }
 
 // exec runs one command atomically under the global fake lock and records it.
-func (f *fakeValkey) exec(args []string) []byte {
+func (f *fakeValkey) exec(args cmdArgs) []byte {
 	if len(args) == 0 {
 		return respError("empty command")
 	}
@@ -200,7 +203,7 @@ func (f *fakeValkey) exec(args []string) []byte {
 	return respError(fmt.Sprintf("unknown command '%s'", cmd))
 }
 
-func (f *fakeValkey) execHSET(args []string) []byte {
+func (f *fakeValkey) execHSET(args cmdArgs) []byte {
 	key := args[0]
 	pairs := args[1:]
 	if len(pairs)%2 != 0 {
@@ -219,7 +222,7 @@ func (f *fakeValkey) execHSET(args []string) []byte {
 	return respInt(int64(added))
 }
 
-func (f *fakeValkey) execHGET(args []string) []byte {
+func (f *fakeValkey) execHGET(args cmdArgs) []byte {
 	v, ok := f.hashes[args[0]][args[1]]
 	if !ok || !f.aliveLocked(args[0]) {
 		return respNil()
@@ -227,7 +230,7 @@ func (f *fakeValkey) execHGET(args []string) []byte {
 	return respBulk(v)
 }
 
-func (f *fakeValkey) execHMGET(args []string) []byte {
+func (f *fakeValkey) execHMGET(args cmdArgs) []byte {
 	h := f.hashes[args[0]]
 	var b strings.Builder
 	fmt.Fprintf(&b, "*%d\r\n", len(args)-1)
@@ -241,7 +244,7 @@ func (f *fakeValkey) execHMGET(args []string) []byte {
 	return []byte(b.String())
 }
 
-func (f *fakeValkey) execHGETALL(args []string) []byte {
+func (f *fakeValkey) execHGETALL(args cmdArgs) []byte {
 	h := f.hashes[args[0]]
 	flat := make([]string, 0, len(h)*2)
 	for k, v := range h {
@@ -250,7 +253,7 @@ func (f *fakeValkey) execHGETALL(args []string) []byte {
 	return respFlatArray(flat)
 }
 
-func (f *fakeValkey) execHDEL(args []string) []byte {
+func (f *fakeValkey) execHDEL(args cmdArgs) []byte {
 	key := args[0]
 	h, ok := f.hashes[key]
 	if !ok || !f.aliveLocked(key) {
@@ -266,7 +269,7 @@ func (f *fakeValkey) execHDEL(args []string) []byte {
 	return respInt(removed)
 }
 
-func (f *fakeValkey) execDEL(args []string) []byte {
+func (f *fakeValkey) execDEL(args cmdArgs) []byte {
 	deleted := int64(0)
 	for _, key := range args {
 		if _, ok := f.hashes[key]; ok {
@@ -282,7 +285,7 @@ func (f *fakeValkey) execDEL(args []string) []byte {
 	return respInt(deleted)
 }
 
-func (f *fakeValkey) execEXISTS(args []string) []byte {
+func (f *fakeValkey) execEXISTS(args cmdArgs) []byte {
 	n := int64(0)
 	for _, key := range args {
 		if f.aliveLocked(key) {
@@ -292,7 +295,7 @@ func (f *fakeValkey) execEXISTS(args []string) []byte {
 	return respInt(n)
 }
 
-func (f *fakeValkey) execSET(args []string) []byte {
+func (f *fakeValkey) execSET(args cmdArgs) []byte {
 	key := args[0]
 	f.strs[key] = args[1]
 	for i := 2; i+1 < len(args); i += 2 {
@@ -304,7 +307,7 @@ func (f *fakeValkey) execSET(args []string) []byte {
 	return respSimple("OK")
 }
 
-func (f *fakeValkey) execEXPIRE(args []string) []byte {
+func (f *fakeValkey) execEXPIRE(args cmdArgs) []byte {
 	key := args[0]
 	secs, _ := strconv.Atoi(args[1])
 	mode := ""
@@ -331,7 +334,7 @@ func (f *fakeValkey) execEXPIRE(args []string) []byte {
 
 // execEVAL implements just the scripts the projection layer issues:
 // clearFieldsLua deletes every hash field prefixed by any ARGV entry.
-func (f *fakeValkey) execEVAL(args []string) []byte {
+func (f *fakeValkey) execEVAL(args cmdArgs) []byte {
 	script := args[0]
 	numkeys, _ := strconv.Atoi(args[1])
 	keys := args[2 : 2+numkeys]
@@ -344,7 +347,7 @@ func (f *fakeValkey) execEVAL(args []string) []byte {
 
 // deleteByPrefixes mirrors the projection sweep script: HDEL every field of
 // key matching any prefix, returning the count.
-func (f *fakeValkey) deleteByPrefixes(key string, prefixes []string) int64 {
+func (f *fakeValkey) deleteByPrefixes(key string, prefixes cmdArgs) int64 {
 	h, ok := f.hashes[key]
 	if !ok || !f.aliveLocked(key) {
 		return 0
@@ -359,7 +362,7 @@ func (f *fakeValkey) deleteByPrefixes(key string, prefixes []string) int64 {
 	return removed
 }
 
-func hasAnyPrefix(s string, prefixes []string) bool {
+func hasAnyPrefix(s string, prefixes cmdArgs) bool {
 	for _, p := range prefixes {
 		if strings.HasPrefix(s, p) {
 			return true

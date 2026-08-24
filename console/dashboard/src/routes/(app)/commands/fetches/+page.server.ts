@@ -23,7 +23,10 @@ import {
   listFetches,
   rehearseFetch,
   setFetchKey,
-  upsertFetchDef
+  upsertFetchDef,
+  type FetchDefInput,
+  type FetchDefView,
+  type FetchKeyView
 } from '$lib/server/fetches-store';
 import { listCommands } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
@@ -152,6 +155,52 @@ async function saveErrors(uid: string, def: DefForm): Promise<FetchDefErrors> {
   return errors;
 }
 
+function isRename(def: DefForm): boolean {
+  if (!def.isEdit) return false;
+  if (def.originalName === '') return false;
+  return def.originalName !== def.name;
+}
+
+function savedPayload(def: DefForm, renamed: boolean, lists: { defs: FetchDefView[]; keys: FetchKeyView[] }) {
+  return {
+    ok: true,
+    action: def.isEdit ? 'updated' : 'created',
+    name: def.name,
+    original: renamed ? def.originalName : undefined,
+    ...(lists.defs.length ? lists : { defs: [], keys: [] })
+  };
+}
+
+function savedDefInput(def: DefForm, renamed: boolean): FetchDefInput {
+  return {
+    name: def.name,
+    url: def.url,
+    jsonPath: def.path,
+    isActive: def.isActive,
+    keyLabel: def.keyLabel,
+    originalName: renamed ? def.originalName : undefined
+  };
+}
+
+function setkeyErrors(label: string, value: string): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!label) errors.label = 'Label is required.';
+  else if (label.length > 32) errors.label = 'Label must be at most 32 characters.';
+  if (!value.trim()) errors.value = 'Key value is required.';
+  else if (value.length > KEY_VALUE_MAX) errors.value = `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+  return errors;
+}
+
+async function demoSetkey(label: string, value: string) {
+  const { demoFetches } = await import('$lib/server/demo-data');
+  const current = demoFetches();
+  const keys = [
+    ...current.keys.filter((k) => k.label !== label),
+    { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
+  ];
+  return { ok: true, action: 'updated', name: label, keys, silent: true };
+}
+
 async function demoSave(def: DefForm, renamed: boolean) {
   const { demoFetches } = await import('$lib/server/demo-data');
   const current = demoFetches();
@@ -178,7 +227,7 @@ export const actions: Actions = {
     const ctx = actionContext({ locals });
     if (!ctx) return notSignedIn();
     const def = parseDefForm(await request.formData());
-    const renamed = def.isEdit && def.originalName !== '' && def.originalName !== def.name;
+    const renamed = isRename(def);
 
     const errors = await saveErrors(ctx.uid, def);
     if (Object.keys(errors).length) {
@@ -186,26 +235,11 @@ export const actions: Actions = {
     }
     if (DEMO) return demoSave(def, renamed);
 
-    const res = await tryRpc('save', () =>
-      upsertFetchDef(ctx.uid, {
-        name: def.name,
-        url: def.url,
-        jsonPath: def.path,
-        isActive: def.isActive,
-        keyLabel: def.keyLabel,
-        originalName: renamed ? def.originalName : undefined
-      })
-    );
+    const res = await tryRpc('save', () => upsertFetchDef(ctx.uid, savedDefInput(def, renamed)));
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, def.isEdit ? 'fetchdef:update' : 'fetchdef:create', def.name);
-    return {
-      ok: true,
-      action: def.isEdit ? 'updated' : 'created',
-      name: def.name,
-      original: renamed ? def.originalName : undefined,
-      ...(res.value.defs.length ? res.value : { defs: [], keys: [] })
-    };
+    return savedPayload(def, renamed, res.value);
   },
 
   // Definition delete. The service refuses while any command response still
@@ -245,24 +279,12 @@ export const actions: Actions = {
     const label = slugifyName(String(form.get('label') ?? ''));
     const value = String(form.get('value') ?? '');
 
-    const errors: Record<string, string> = {};
-    if (!label) errors.label = 'Label is required.';
-    else if (label.length > 32) errors.label = 'Label must be at most 32 characters.';
-    if (!value.trim()) errors.value = 'Key value is required.';
-    else if (value.length > KEY_VALUE_MAX) errors.value = `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+    const errors = setkeyErrors(label, value);
     if (Object.keys(errors).length) {
       return fail(400, { ok: false, errors, error: Object.values(errors)[0] });
     }
 
-    if (DEMO) {
-      const { demoFetches } = await import('$lib/server/demo-data');
-      const current = demoFetches();
-      const keys = [
-        ...current.keys.filter((k) => k.label !== label),
-        { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
-      ];
-      return { ok: true, action: 'updated', name: label, keys, silent: true };
-    }
+    if (DEMO) return demoSetkey(label, value);
 
     let last4 = '';
     const res = await tryRpc('setkey', async () => {
@@ -306,50 +328,62 @@ export const actions: Actions = {
   testrun: async ({ request, locals }) => {
     const ctx = actionContext({ locals });
     if (!ctx) return notSignedIn();
+    const limited = await testrunLimited(ctx.uid);
+    if (limited) return limited;
 
-    if (!DEMO) {
-      const decision = await fetchTestLimiter.check(`fetchtest:${ctx.uid}`);
-      if (!decision.allowed)
-        return fail(429, {
-          ok: false,
-          error: 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.'
-        });
-    }
-
-    const form = await request.formData();
-    const def = parseDefForm(form);
-    const errors = validateFetchDef({
-      name: def.name || 'draft',
-      url: def.url,
-      kind: def.kind,
-      path: def.path,
-      keyLabel: def.keyLabel
-    });
-    // A draft may not have its slug yet; the token identity falls back to the
-    // display name for preview purposes. Everything else must be sound —
-    // this is about to dial a third-party host for real.
-    if (errors.url || errors.path || errors.kind || errors.key_label) {
-      return fail(400, { ok: false, error: firstError(errors) ?? 'Fix the highlighted fields first.' });
-    }
-
-    if (DEMO) {
-      const { demoFetchTestRun } = await import('$lib/server/demo-data');
-      return { ok: true, status: 'ok', values: demoFetchTestRun().values, ms: demoFetchTestRun().ms };
-    }
-
-    let reply;
-    try {
-      reply = await rehearseFetch(ctx.uid, {
-        name: def.name || normName(def.keyLabel) || 'draft',
-        url: def.url,
-        jsonPath: def.path,
-        keyLabel: def.keyLabel
-      });
-    } catch (e) {
-      logger.error({ err: e }, '[fetches] testrun failed');
-      return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
-    }
-
-    return { ok: true, status: reply.status, values: reply.values, ms: reply.ms };
+    const def = parseDefForm(await request.formData());
+    const gateError = testrunGateError(def);
+    if (gateError) return fail(400, { ok: false, error: gateError });
+    if (DEMO) return demoTestrun();
+    return runRehearsal(ctx, def);
   }
 };
+
+// testrunLimited enforces the per-broadcaster rehearsal budget: each run
+// calls the real API.
+async function testrunLimited(uid: string) {
+  if (DEMO) return null;
+  const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
+  if (decision.allowed) return null;
+  return fail(429, {
+    ok: false,
+    error: 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.'
+  });
+}
+
+// testrunGateError re-validates the draft before dialing. A draft may not
+// have its slug yet; the token identity falls back to the display name for
+// preview purposes. Everything else must be sound — this is about to dial a
+// third-party host for real.
+function testrunGateError(def: DefForm): string | undefined {
+  const errors = validateFetchDef({
+    name: def.name || 'draft',
+    url: def.url,
+    kind: def.kind,
+    path: def.path,
+    keyLabel: def.keyLabel
+  });
+  const blocking = { url: errors.url, path: errors.path, kind: errors.kind, key_label: errors.key_label };
+  return firstError(blocking);
+}
+
+async function demoTestrun() {
+  const { demoFetchTestRun } = await import('$lib/server/demo-data');
+  const demo = demoFetchTestRun();
+  return { ok: true, status: 'ok', values: demo.values, ms: demo.ms };
+}
+
+async function runRehearsal(ctx: NonNullable<ReturnType<typeof actionContext>>, def: DefForm) {
+  try {
+    const reply = await rehearseFetch(ctx.uid, {
+      name: def.name || normName(def.keyLabel) || 'draft',
+      url: def.url,
+      jsonPath: def.path,
+      keyLabel: def.keyLabel
+    });
+    return { ok: true, status: reply.status, values: reply.values, ms: reply.ms };
+  } catch (e) {
+    logger.error({ err: e }, '[fetches] testrun failed');
+    return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
+  }
+}

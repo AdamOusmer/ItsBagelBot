@@ -410,13 +410,8 @@ func redirectPolicy(req *http.Request, via []*http.Request) error {
 // invariant, stated once and enforced where addresses exist: a user-authored
 // fetch may target GLOBAL UNICAST space and nothing else (classifyAddr).
 // It runs at resolution/dial time on both lanes and again per redirect hop.
-// SSRFCheck below is deliberately dumb — transport shape plus a literal-IP
-// fast-fail so policy refusals get clean taxonomy before DNS — because every
-// hostname, however it is spelled, ends at classifyAddr.
-func SSRFCheck(u *url.URL) error {
-	if allowPlainHTTPUpstreamsForTests.Load() {
-		return nil
-	}
+// transportShape enforces the https-and-443-only half of the gate.
+func transportShape(u *url.URL) error {
 	if u == nil || u.Host == "" {
 		return &SSRFError{"missing host"}
 	}
@@ -425,6 +420,19 @@ func SSRFCheck(u *url.URL) error {
 	}
 	if p := u.Port(); p != "" && p != "443" {
 		return &SSRFError{fmt.Sprintf("port %q not allowed (443 only)", p)}
+	}
+	return nil
+}
+
+// SSRFCheck below is deliberately dumb — transport shape plus a literal-IP
+// fast-fail so policy refusals get clean taxonomy before DNS — because every
+// hostname, however it is spelled, ends at classifyAddr.
+func SSRFCheck(u *url.URL) error {
+	if allowPlainHTTPUpstreamsForTests.Load() {
+		return nil
+	}
+	if err := transportShape(u); err != nil {
+		return err
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if host == "" {
@@ -692,7 +700,13 @@ func (c *HTTPClient) FetchBounded(ctx context.Context, r Request) ([]byte, error
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	return vetBoundedResponse(resp)
+}
 
+// vetBoundedResponse reads and vets one bounded upstream response: status
+// family, content type, and the post-decompression size ceiling (the limited
+// reader IS the gzip-bomb guard; Content-Length is never consulted — it lies).
+func vetBoundedResponse(resp *http.Response) ([]byte, error) {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, customMaxBody))
 	if err != nil {
 		return nil, err
@@ -700,8 +714,7 @@ func (c *HTTPClient) FetchBounded(ctx context.Context, r Request) ([]byte, error
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, &UpstreamError{Status: resp.StatusCode, Message: upstreamMessage(body)}
 	}
-	ct := resp.Header.Get("Content-Type")
-	if !allowedContentType(ct) {
+	if ct := resp.Header.Get("Content-Type"); !allowedContentType(ct) {
 		return nil, fmt.Errorf("%w: %q", ErrContentTypeNotAllowed, ct)
 	}
 	if len(body) > customMaxBody-1 {
