@@ -93,6 +93,12 @@ type Config struct {
 	// suppression. On by default; the endpoints are small, public and unauthenticated.
 	EmotesEnabled bool
 
+	// NukeEnabled arms the !nuke mass-moderation feature: the per-channel
+	// recent-chat sweep memory on the pipeline hot path and the moderation
+	// module's command. On by default; off (SESAME_NUKE=off) is the kill
+	// switch — nothing is recorded and the command goes inert.
+	NukeEnabled bool
+
 	// AdaptiveEnabled arms the learned false-positive layers: the per-channel
 	// style baselines (caps/symbol thresholds adapt to a channel's house style)
 	// and the learned community vocabulary (high-consensus tokens shed style
@@ -201,6 +207,8 @@ func Load() *Config {
 		ShieldEnabled:   env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
 		EmotesEnabled:   env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
 		AdaptiveEnabled: env.Get("SESAME_AUTOMOD_ADAPTIVE", "false") == "true",
+
+		NukeEnabled: env.Get("SESAME_NUKE", "on") != "off",
 
 		LiveTTL: env.GetDuration("SESAME_LIVE_TTL", 12*time.Hour),
 
