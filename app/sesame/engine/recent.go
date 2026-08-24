@@ -50,13 +50,19 @@ const (
 	recentChanCap = 4096
 )
 
+// stamp is a unix-nano instant in the recent window's clock domain. A named
+// integer keeps the ring's expiry arithmetic (record cutoffs, idle prunes,
+// TTL comparisons) from blending with unrelated int64s — the type system now
+// carries the distinction the comments used to.
+type stamp int64
+
 // recentEntry is one retained chat line: who said it, when, with what trust
 // level, and the truncated text. The user id is stored parsed because Helix
 // takes numeric ids anyway and a uint64 never dangles — envelope strings are
 // zero-copy views into a recycled lane payload, so anything retained past the
 // handler must be copied or parsed.
 type recentEntry struct {
-	at   int64 // unix nanos
+	at   stamp // unix nanos
 	uid  uint64
 	text string
 	role module.Role
@@ -69,10 +75,10 @@ type chanRecent struct {
 	buf  []recentEntry
 	head int
 	len  int
-	last int64 // newest entry's unix nanos; the channel-prune key
+	last stamp // newest entry's timestamp; the channel-prune key
 }
 
-func (c *chanRecent) push(e recentEntry, cutoff int64) {
+func (c *chanRecent) push(e recentEntry, cutoff stamp) {
 	for c.len > 0 && c.buf[c.oldestIdx()].at < cutoff {
 		c.len--
 	}
@@ -143,7 +149,7 @@ func chatEntriesFromEnvelope(env *lane.Envelope, now time.Time) []recentEntry {
 		return nil
 	}
 	text := truncateRunes(env.Text, recentMaxTextRunes)
-	at := now.UnixNano()
+	at := stamp(now.UnixNano())
 	var out []recentEntry
 	add := func(id string, role module.Role) {
 		if uid, ok := parseTwitchID(id); ok {
@@ -169,7 +175,7 @@ func (l *RecentLog) Record(chanID uint64, env *lane.Envelope, now time.Time) {
 		return
 	}
 	at := entries[0].at
-	cutoff := at - int64(recentTTL)
+	cutoff := at - stamp(recentTTL)
 
 	sh := &l.shards[chanID%recentShards]
 	sh.mu.Lock()
@@ -221,7 +227,7 @@ func (l *RecentLog) Sweep(_ context.Context, chanID uint64, phrase string, now t
 	if c == nil {
 		return nil
 	}
-	cutoff := now.Add(-recentTTL).UnixNano()
+	cutoff := stamp(now.Add(-recentTTL).UnixNano())
 	hits := make([]RecentHit, 0, 16)
 	t := GetBuf()
 	// The ring bounds the walk (≤ recentRingCap entries), so no separate
@@ -330,7 +336,7 @@ func parseTwitchID(s string) (uint64, bool) {
 // pruneChannels drops channels idle past the TTL and, if still over the cap,
 // the stalest remainder. Called under the shard lock, amortized once per
 // recentPruneEvery records.
-func pruneChannels(sh *recentShard, cutoff int64) {
+func pruneChannels(sh *recentShard, cutoff stamp) {
 	for id, c := range sh.chans {
 		if c.last < cutoff {
 			delete(sh.chans, id)
@@ -346,7 +352,7 @@ func pruneChannels(sh *recentShard, cutoff int64) {
 // while over the cap).
 func stalestChannel(chans map[uint64]*chanRecent) uint64 {
 	var staleID uint64
-	var staleAt int64
+	var staleAt stamp
 	first := true
 	for id, c := range chans {
 		if first || c.last < staleAt {

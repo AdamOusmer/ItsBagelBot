@@ -158,12 +158,19 @@ func emitChat(emit module.Emit, broadcasterID, text string) {
 func filterNukeTargets(hits []RecentHit, broadcasterID uint64, botID uint64) []RecentHit {
 	targets := make([]RecentHit, 0, len(hits))
 	for _, h := range hits {
-		if h.Role >= module.RoleVIP || h.UserID == broadcasterID || h.UserID == botID {
+		if protectedFromSweep(h, broadcasterID, botID) {
 			continue
 		}
 		targets = append(targets, h)
 	}
 	return targets
+}
+
+// protectedFromSweep reports whether a phrase collision must never punish the
+// matched sender: VIP and above are staff in the line of fire of their own
+// raid cleanup, and the broadcaster and bot anchor the channel.
+func protectedFromSweep(h RecentHit, broadcasterID uint64, botID uint64) bool {
+	return h.Role >= module.RoleVIP || h.UserID == broadcasterID || h.UserID == botID
 }
 
 // emitTimeouts translates the capped target list into Helix timeout jobs.
