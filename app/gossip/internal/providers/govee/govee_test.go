@@ -67,7 +67,7 @@ type fakeKeys struct {
 
 func (f fakeKeys) Key(context.Context, string) (string, error) { return f.key, f.err }
 
-func newTestProvider(t *testing.T, keys provider.GoveeKeyResolver, handler http.Handler) provider.Provider {
+func newTestProvider(t *testing.T, keys provider.BroadcasterKeyResolver, handler http.Handler) provider.Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)

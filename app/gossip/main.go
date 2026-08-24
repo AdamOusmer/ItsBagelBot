@@ -73,19 +73,12 @@ func main() {
 	// providers.All returns the configured providers, which the engine
 	// subscribes. Adding an external system is a new package under
 	// internal/providers plus one line in all.go — no wiring here.
-	//
-	// GoveeKeys is the one provider dependency that needs the RPC connection:
-	// the govee provider authenticates with each broadcaster's own key, fetched
-	// just-in-time from the modules service. An empty subject prefix leaves it
-	// nil, which disables the govee provider.
 	deps := provider.Deps{
 		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
 		Limiter: ratelimit.New(valkeyClient),
 		Log:     log,
 	}
-	if cfg.GoveeKeySubjectPrefix != "" {
-		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
-	}
+	wireKeyResolvers(cfg, nc, &deps)
 
 	active := providers.All(cfg, deps)
 	if len(active) == 0 {
@@ -137,5 +130,20 @@ func drainRPCHandlers(log *zap.Logger) {
 func subscribeRPCHealth(nc *nats.Conn, queueGroup string, log *zap.Logger) {
 	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+}
+
+// wireKeyResolvers attaches the just-in-time credential resolvers to deps —
+// the provider dependencies that need the RPC connection. Govee
+// authenticates with each broadcaster's own API key and spotify with their
+// connected account's OAuth refresh token, both fetched from the modules
+// service at call time. An empty subject prefix leaves a resolver nil, which
+// disables its provider (providers.All skips it).
+func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, deps *provider.Deps) {
+	if cfg.GoveeKeySubjectPrefix != "" {
+		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
+	}
+	if cfg.SpotifyKeySubjectPrefix != "" {
+		deps.SpotifyKeys = core.NewSpotifyKeyClient(nc, cfg.SpotifyKeySubjectPrefix)
 	}
 }
