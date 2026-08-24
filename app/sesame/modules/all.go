@@ -45,5 +45,10 @@ func All(d engine.Deps) []module.Module {
 		TimeOfDay(d),
 		Triggers(d),
 		EmotePlay(d),
+		// SongQueue registers last on purpose: its !sr spelling is checked
+		// against every earlier module's triggers by the same first-wins
+		// de-dup, so a future collision surfaces as this line failing a test,
+		// not as a silent takeover of someone else's command.
+		SongQueue(d),
 	}
 }
