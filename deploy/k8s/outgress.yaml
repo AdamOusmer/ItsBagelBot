@@ -126,7 +126,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: outgress
-          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1787595359-141d372665a9@sha256:6f4f9546cb4832cdee616c54a99f73d8aa080436a95b8b5e89910b754f601a24 # {"$imagepolicy": "flux-system:outgress"}
+          image: ghcr.io/adamousmer/itsbagelbot/outgress:main-1787603663-a1c27f889ca7@sha256:df0c1dbfa7744cb7a99fd821dae4c54194690b0fd80af9628c0abf149d551fa1 # {"$imagepolicy": "flux-system:outgress"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
