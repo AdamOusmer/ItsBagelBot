@@ -5,8 +5,16 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
-  import { AppShell, ImpersonationBanner, NotificationBell, ToastHost, getI18n } from '@bagel/shared';
-  import type { NavGroupDef, NavLink } from '@bagel/shared';
+  import {
+    AppShell,
+    ImpersonationBanner,
+    NotificationBell,
+    ToastHost,
+    getI18n,
+    sectionForPath,
+    dashboardNavItems,
+    dashboardNavGroups
+  } from '@bagel/shared';
   let { data, children } = $props();
 
   const i18n = getI18n();
@@ -57,25 +65,11 @@
   }
 
   // A stable section key drives active-state + the breadcrumb label; the label
-  // itself is translated, so comparisons never break across languages.
+  // itself is translated, so comparisons never break across languages. The
+  // path→section ladder lives in the shared nav registry (DASHBOARD_SECTIONS),
+  // alongside everything else that needs to know a page's section.
   const path = $derived(page.url.pathname);
-  const section = $derived(
-    path.startsWith('/commands')
-      ? 'commands'
-      : path.startsWith('/modules') ||
-          path.startsWith('/counters') ||
-          path.startsWith('/quotes') ||
-          path.startsWith('/govee') ||
-          path.startsWith('/channelpoints') ||
-          path.startsWith('/timers') ||
-          path.startsWith('/loyalty')
-          ? 'modules'
-          : path.startsWith('/billing')
-          ? 'billing'
-          : path.startsWith('/settings') || path.startsWith('/access')
-            ? 'settings'
-            : 'overview'
-  );
+  const section = $derived(sectionForPath(path));
   const crumb = $derived(t(`nav.${section}`));
 
   // A client route change (unlike a full load) neither moves focus nor updates
@@ -105,34 +99,15 @@
   });
 
   // Delegate view: nav and routes are limited to the granted sections, and the
-  // owner-only Overview/Settings entries are hidden.
+  // owner-only Overview/Settings entries are hidden (visibility rules live on
+  // the registry's ownerOnly/grant flags). Billing is owner-only except for a
+  // delegate explicitly granted it (view-only).
   const sections = $derived((data.sections ?? []) as string[]);
-  const canCommands = $derived(!isDelegate || sections.includes('commands'));
-  const canModules = $derived(!isDelegate || sections.includes('modules'));
-  // Billing is owner-only except for a delegate explicitly granted it (view-only).
-  const canBilling = $derived(!isDelegate || sections.includes('billing'));
 
   // Notifications deliberately have NO nav entry: the topbar bell (badge +
   // dropdown, "View all" link) is the only way in.
-  const items = $derived([
-    ...(!isDelegate
-      ? [{ href: '/', icon: 'overview', label: t('nav.overview'), active: section === 'overview' }]
-      : []),
-    ...(canCommands
-      ? [{ href: '/commands', icon: 'commands', label: t('nav.commands'), active: section === 'commands' }]
-      : []),
-    ...(canModules
-      ? [{ href: '/modules', icon: 'modules', label: t('nav.modules'), active: section === 'modules' }]
-      : []),
-    ...(canBilling
-      ? [{ href: '/billing', icon: 'card', label: t('nav.billing'), active: section === 'billing' }]
-      : []),
-    ...(!isDelegate
-      ? [{ href: '/settings', icon: 'settings', label: t('nav.settings'), active: section === 'settings' }]
-      : [])
-  ] as NavLink[]);
-
-  const groups = $derived([{ label: t('nav.manage'), items }] as NavGroupDef[]);
+  const items = $derived(dashboardNavItems({ isDelegate, sections, section, t }));
+  const groups = $derived(dashboardNavGroups(items, t));
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>
 
