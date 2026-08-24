@@ -87,8 +87,12 @@ const (
 // NATS_CONSUME_FLOW=off predates NATS_CONSUME_MODE and still wins outright,
 // because it is set in deployed manifests as the kill switch back to explicit
 // acks — an operator reaching for it during an incident must not have to know
-// that a second variable exists. An unrecognised mode falls back to pull for
-// the same reason: a typo must not silently change the lane's shape.
+// that a second variable exists. An unrecognised mode falls through to pull:
+// consumeMode has no error return, so every value must bind some shape, and
+// pull is the receipt-level shape this fleet ships. That fallback is fail-safe,
+// not shape-preserving — a typo DOES silently move a flow or explicit lane to
+// pull (which divides delivery instead of fanning it out), and the honest
+// alternative is failing every pod's bind at once.
 //
 // Pull is the receipt-level shape PR #637 ships sesame onto. The flow consumer fans out per
 // consumer name, so every pod added by the autoscaler receives a full copy of
