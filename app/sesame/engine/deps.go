@@ -53,17 +53,22 @@ type QuotesStore interface {
 // builds its Module. main constructs it once and hands it to modules.All. Not
 // every module uses every field; unused ones are harmless.
 type Deps struct {
-	Proj       projection.Reader
-	Live       LiveStore
-	Greet      GreetStore
-	Cooldown   CooldownStore
-	Special    *SpecialSet
-	Pub        bus.Publisher
-	Commands   CommandManager
-	Gossip     GossipCaller
-	Followage  FollowageLookup
-	AccountAge AccountAgeLookup
-	Log        *zap.Logger
+	Proj     projection.Reader
+	Live     LiveStore
+	Greet    GreetStore
+	Cooldown CooldownStore
+	Special  *SpecialSet
+	Pub      bus.Publisher
+	Commands CommandManager
+	Gossip   GossipCaller
+	// CustomFetch resolves {urlfetch:<name>} response tokens through gossip's
+	// custom.fetch endpoint (the same NATS connection viewed through one more
+	// narrow interface). nil leaves every such token visible, like any other
+	// unresolved token.
+	CustomFetch UrlFetchCaller
+	Followage   FollowageLookup
+	AccountAge  AccountAgeLookup
+	Log         *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
 	// live module's stream.online/offline hooks skip the calls).
@@ -133,6 +138,13 @@ type Deps struct {
 	// intra-replica half of the fix — the versioned LiveStore writes are the
 	// cross-replica half. nil leaves every handler plain fire-and-forget.
 	Seq *Sequencer
+	// Nuke is the phrase-targeted mass-moderation service behind !nuke. When
+	// set, the pipeline feeds each chat line into its recentStore (the sweep
+	// memory — ValkeyRecent in production, centralized because the replica
+	// pool shares one durable consumer) and binds its Shield Mode escalation
+	// decision; the moderation module reads the same handle to run sweeps.
+	// nil disables both: nothing is recorded and !nuke is inert.
+	Nuke *Nuke
 }
 
 // FeedCounts is one feeding's fleet-wide readout: how often the bagel has been

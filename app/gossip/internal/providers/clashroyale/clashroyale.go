@@ -56,8 +56,8 @@ type api struct {
 // New builds a Clash Royale provider: four byte-flow views over one shared
 // profile cache, so reading several views still costs one upstream request.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	p.view(b, "stats", func(tag, msg string) any { return gossiprpc.ClashRoyaleStatsReply{Tag: tag, Error: msg} }, shapeStats)
 	p.view(b, "decks", func(tag, msg string) any { return gossiprpc.ClashRoyaleDecksReply{Tag: tag, Error: msg} }, shapeDecks)
 	p.view(b, "ranked", func(tag, msg string) any { return gossiprpc.ClashRoyaleRankedReply{Tag: tag, Error: msg} }, shapeRanked)
@@ -65,7 +65,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = defaultBaseURL
@@ -74,7 +74,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		cfg.RateLimit = 600
 	}
 	return &api{
-		http: core.NewHTTPClient(base, map[string]string{
+		http: b.Client(base, map[string]string{
 			"Authorization": "Bearer " + cfg.APIKey,
 		}, httpTimeout),
 		cache:   d.Cache,

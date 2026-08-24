@@ -79,6 +79,9 @@ type Pipeline struct {
 	loyalty  LoyaltyStore
 	dedup    *EventDedup
 	stats    *botStats
+	// customFetch resolves {urlfetch:...} response tokens through gossip's
+	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
+	customFetch UrlFetchCaller
 	// roster remembers who this replica has seen speak, so a target-addressed
 	// counter token ({counter:target:...}) can key its bump on the mentioned
 	// viewer. Pure in-process memory; see chatterRoster.
@@ -100,6 +103,11 @@ type Pipeline struct {
 	// codes at the door so gate options match the pre-learned call shape.
 	adaptiveEnabled bool
 	raidGate        *raidCooldown
+
+	// nuke, when set, receives every chat line into its recent log (the sweep
+	// memory behind !nuke) and answers its overflow escalations through this
+	// pipeline's Shield Mode policy. nil records nothing.
+	nuke *Nuke
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -115,6 +123,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		cooldown:         d.Cooldown,
 		loyalty:          d.Loyalty,
 		dedup:            d.Dedup,
+		customFetch:      d.CustomFetch,
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,
@@ -126,6 +135,10 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		adaptiveEnabled:  cfg.AdaptiveEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
 		roster:           newChatterRoster(),
+		nuke:             d.Nuke,
+	}
+	if d.Nuke != nil {
+		d.Nuke.setShield(p.shieldDecision)
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
@@ -185,6 +198,13 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
 	p.roster.ObserveEnvelope(broadcasterID, env)
+
+	// Feed the nuke sweep memory before any stage can action the line: a
+	// message the automod times out is exactly the one a following !nuke must
+	// still be able to target (its siblings who landed a second earlier).
+	if p.nuke != nil {
+		p.nuke.recordChat(broadcasterID, env)
+	}
 
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {

@@ -31,6 +31,7 @@ import type { Session } from './session';
 import type { BillingState, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { GoveeDevice, GoveeView } from './govee-store';
+import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
 import type { PublicBoards } from './public-boards';
 import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
@@ -295,6 +296,33 @@ export function demoGoveeDevices(): GoveeDevice[] {
     { device: '11:22:33:44:55:66', sku: 'H6072', name: 'Floor lamp', color: true },
     { device: '99:88:77:66:55:44', sku: 'H5081', name: 'Smart plug', color: false }
   ];
+}
+
+export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
+  return {
+    defs: [
+      {
+        name: 'weather',
+        url: 'https://api.weatherdemo.example/v1/current?city=london',
+        json_path: ['forecast', 'current', 'temp_f'],
+        is_active: true,
+        key_label: 'weather_api'
+      },
+      {
+        name: 'cat_fact',
+        url: 'https://catfactdemo.example/fact',
+        json_path: ['fact'],
+        is_active: true,
+        key_label: ''
+      }
+    ],
+    // last4 only — the demo never fabricates key material either.
+    keys: [{ label: 'weather_api', last4: '9f2c', created_at: '2026-01-01T00:00:00.000Z' }]
+  };
+}
+
+export function demoFetchTestRun(): { status: string; values: string[]; ms: number } {
+  return { status: 'ok', values: ['71.2'], ms: 214 };
 }
 
 // Sample rows use the STORED key format (no leading "!" — chat adds it), same

@@ -11,6 +11,8 @@
 package config
 
 import (
+	"time"
+
 	"ItsBagelBot/pkg/env"
 )
 
@@ -125,6 +127,21 @@ type Config struct {
 	ClashRoyaleAPIKey    string
 	ClashRoyaleRateLimit float64
 
+	// Custom urlfetch provider (broadcaster-authored definitions). The key
+	// resolver prefix is the commands service's internal decrypt RPC; empty
+	// leaves defs carrying a key_label fail-closed, but the provider runs.
+	FetchKeySubjectPrefix string
+	// FetchProjectionSubject is the commands service's tier-3 fetch-definition
+	// projection verb, the cold-read fallback behind gossip's in-process
+	// definition cache. Empty disables the custom provider entirely (no
+	// definition source).
+	FetchProjectionSubject string
+
+	CustomChannelRateLimit float64
+	CustomDefRateLimit     float64
+	CustomHostRateLimit    float64
+	CustomPositiveTTL      time.Duration
+
 	ListenAddr string
 }
 
@@ -214,6 +231,34 @@ func Load() *Config {
 		ClashRoyaleBaseURL:   env.Get("CLASHROYALE_BASE_URL", "https://proxy.royaleapi.dev/v1"),
 		ClashRoyaleAPIKey:    env.Get("CLASHROYALE_API_KEY", ""),
 		ClashRoyaleRateLimit: env.GetFloat("CLASHROYALE_RATE_LIMIT", 600.0),
+
+		// Custom urlfetch provider (broadcaster-authored definitions). The key
+		// resolver prefix is the commands service's internal decrypt RPC; empty
+		// leaves defs with a key_label fail-closed but the provider still runs.
+		FetchKeySubjectPrefix:  env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey"),
+		FetchProjectionSubject: env.Get("PROJECTION_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get"),
+
+		// Per-channel budget (requests/min): bounded by chat cadence — cooldowns
+		// already keep one command from firing faster than every few seconds; 6
+		// absorbs a viewer burst and starves a hot-loop. Lower starves legitimate
+		// shared-channel use; higher doubles the worst case one broadcaster can
+		// pull for no observed demand.
+		CustomChannelRateLimit: env.GetFloat("CUSTOM_FETCH_CHANNEL_RATE_LIMIT", 6.0),
+		// Per-definition fleet budget (requests/min): caps any single definition's
+		// aggregate pull no matter how many channels reference it. Lower breaks a
+		// popular shared def (weather, facts) mid-stream; higher shrinks the abuse
+		// dwell window the per-host layer exists to enforce.
+		CustomDefRateLimit: env.GetFloat("CUSTOM_FETCH_DEF_RATE_LIMIT", 30.0),
+		// Per-target-host fleet budget (requests/min): the ceiling that stops a
+		// hostile broadcaster from burning one third-party origin's goodwill for
+		// everyone. Sized above any single def so THIS layer only trips when many
+		// definitions converge on one host — exactly the convergence it exists to
+		// bound.
+		CustomHostRateLimit: env.GetFloat("CUSTOM_FETCH_HOST_RATE_LIMIT", 120.0),
+		// Success-cache fresh window: chat bursts collapse onto one entry while
+		// live-data tokens stay honest. 5 minutes serves weather that stopped
+		// being true mid-stream; 5 seconds re-dials on every token re-fire.
+		CustomPositiveTTL: env.GetDuration("CUSTOM_FETCH_POSITIVE_TTL", 30*time.Second),
 
 		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}

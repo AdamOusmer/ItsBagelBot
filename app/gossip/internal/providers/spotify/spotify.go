@@ -133,9 +133,12 @@ type api struct {
 // New builds the spotify provider. d.SpotifyKeys and the app credentials must
 // all be present (providers.All skips the provider otherwise, since with no
 // resolver or no app to exchange against it can authenticate nothing).
+//
+// Trusted is declared before any client exists — trust is positional — and
+// marks both dialing surfaces (API, accounts) direct-egress.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	b.Endpoint("search").Timeout(lookupTimeout).Handle(p.search)
 	b.Endpoint("track").Timeout(lookupTimeout).Handle(p.track)
 	b.Endpoint("artist").Timeout(lookupTimeout).Handle(p.artist)
@@ -143,7 +146,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.spotify.com"
@@ -156,8 +159,8 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:         core.NewHTTPClient(base, nil, httpTimeout),
-		auth:         core.NewHTTPClient(accounts, nil, httpTimeout),
+		http:         b.Client(base, nil, httpTimeout),
+		auth:         b.Client(accounts, nil, httpTimeout),
 		cache:        d.Cache,
 		keys:         d.SpotifyKeys,
 		log:          d.Logger(),
@@ -274,15 +277,13 @@ func (p *api) accessTokenFor(ctx context.Context, broadcaster string) (tok acces
 	return tok, ""
 }
 
-// deadCredential reports the token-endpoint statuses that mean the stored
-// grant itself is gone — revoked, expired, disconnected — rather than
+// deadCredentialStatuses are the token-endpoint statuses that mean the
+// stored grant itself is gone — revoked, expired, disconnected — rather than
 // Spotify being unreachable. Recovery is a console reconnect, not a retry.
-func deadCredential(status int) bool {
-	switch status {
-	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
-		return true
-	}
-	return false
+var deadCredentialStatuses = map[int]bool{
+	http.StatusBadRequest:   true,
+	http.StatusUnauthorized: true,
+	http.StatusForbidden:    true,
 }
 
 // friendlyAuthError maps a token-mint failure onto a chat-safe message. A
@@ -290,7 +291,10 @@ func deadCredential(status int) bool {
 // accounts.spotify.com outage never leaks detail.
 func friendlyAuthError(err error) string {
 	var ue *core.UpstreamError
-	if errors.As(err, &ue) && deadCredential(ue.Status) {
+	if !errors.As(err, &ue) {
+		return "could not reach Spotify"
+	}
+	if deadCredentialStatuses[ue.Status] {
 		return "your Spotify connection needs to be set up again"
 	}
 	return "could not reach Spotify"
@@ -457,61 +461,97 @@ type albumResponse struct {
 	} `json:"tracks"`
 }
 
+// searchRequest is one incoming search validated and classified: who asked,
+// what they asked for in both spellings (the raw phrase rides to the text
+// route; its normalized form keyed the cache), and the result cap every
+// route applies. Assembling it once up front keeps the handler to
+// credentials, caching and routing.
+type searchRequest struct {
+	target      resolvedInput
+	broadcaster string
+	query       textQuery
+	limit       int
+}
+
+// searchTTLs picks the cache window per classified input: ids address
+// immutable catalog objects and hold for the long lookup TTL, while text
+// answers drift with the catalog. resolveUnsupportedLink never reaches this
+// table (classifySearch refuses it before credentials), but it maps anyway
+// so no kind can ever read back a zero duration.
+var searchTTLs = map[resolveKind]time.Duration{
+	resolveTrackID:         trackTTL,
+	resolveAlbumID:         trackTTL,
+	resolveArtistID:        searchTTL,
+	resolveUnsupportedLink: searchTTL,
+	resolveText:            searchTTL,
+}
+
+// classifySearch validates one wire request and classifies its input. msg is
+// a reply-ready refusal, "" when well-formed. The unsupported-link refusal
+// resolves here deliberately — BEFORE any credential work: sharing a
+// podcast should not spend a token mint to end in results that merely echo
+// its words.
+func classifySearch(req gossiprpc.Request) (searchRequest, string) {
+	in := searchRequest{
+		broadcaster: strings.TrimSpace(req.ChannelID),
+		query:       newTextQuery(req.Query),
+		limit:       clampSearchLimit(req.Limit),
+	}
+	switch {
+	case in.query.normalized == "":
+		return searchRequest{}, "missing search query"
+	case in.broadcaster == "":
+		return searchRequest{}, "missing channel"
+	}
+	in.target = classify(in.query.raw)
+	if in.target.kind == resolveUnsupportedLink {
+		return searchRequest{}, "that Spotify link type isn't supported; share a track, artist or album"
+	}
+	return in, ""
+}
+
+// scope derives this request's cache identity and window: broadcaster
+// scoping, result cap and canonical input identity key the entry; the TTL
+// comes from the classified kind.
+func (in searchRequest) scope() searchScope {
+	return searchScope{
+		broadcaster: in.broadcaster,
+		limit:       in.limit,
+		canonical:   in.target.cacheKey(),
+		ttl:         searchTTLs[in.target.kind],
+	}
+}
+
 func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
-	if msg := missingSearchInput(req); msg != "" {
-		return gossiprpc.SpotifySearchReply{Error: msg}
-	}
-	broadcaster := strings.TrimSpace(req.ChannelID)
-
-	target := classify(strings.TrimSpace(req.Query))
-
-	// Said plainly BEFORE any credential work: an unsupported share should
-	// not spend a token mint to end in results that merely echo its words.
-	if target.kind == resolveUnsupportedLink {
-		return gossiprpc.SpotifySearchReply{Error: "that Spotify link type isn't supported; share a track, artist or album"}
-	}
-
-	tok, msg := p.accessTokenFor(ctx, broadcaster)
+	in, msg := classifySearch(req)
 	if msg != "" {
 		return gossiprpc.SpotifySearchReply{Error: msg}
 	}
 
-	scope := searchScope{
-		broadcaster: broadcaster,
-		limit:       clampSearchLimit(req.Limit),
-		canonical:   target.cacheKey(),
-		ttl:         searchTTL,
+	tok, msg := p.accessTokenFor(ctx, in.broadcaster)
+	if msg != "" {
+		return gossiprpc.SpotifySearchReply{Error: msg}
 	}
-	switch target.kind {
+
+	scope := in.scope()
+	return p.searchCached(ctx, scope, p.route(in, tok, scope))
+}
+
+// route selects the upstream attempt one classified input resolves through:
+// pasted links fetch their immutable object directly, free text runs the
+// ordered candidate plan. Each branch packs exactly what its fetch needs —
+// link routes the catalog id, the text route the raw phrase.
+func (p *api) route(in searchRequest, tok accessToken, scope searchScope) searchFetch {
+	switch in.target.kind {
 	case resolveTrackID:
-		scope.ttl = trackTTL
-		return p.searchCached(ctx, scope, p.trackByIDFetch(tok, target.id))
+		return p.trackByIDFetch(catalogRead{tok: tok, id: in.target.id})
 	case resolveArtistID:
-		return p.searchCached(ctx, scope, p.artistTopFetch(tok, target.id, scope.limit))
+		return p.artistTopFetch(catalogRead{tok: tok, id: in.target.id, limit: scope.limit})
 	case resolveAlbumID:
-		scope.ttl = trackTTL
-		return p.searchCached(ctx, scope, p.albumTracksFetch(tok, target.id, scope.limit))
+		return p.albumTracksFetch(catalogRead{tok: tok, id: in.target.id, limit: scope.limit})
 	default:
-		return p.searchCached(ctx, scope, p.textFetch(tok, rawQuery(req), scope.limit))
+		return p.textFetch(catalogRead{tok: tok, query: in.query.raw, limit: scope.limit})
 	}
-}
-
-// missingSearchInput reports the reply error for a request missing either
-// identifier every route needs, or "" when it is well-formed.
-func missingSearchInput(req gossiprpc.Request) string {
-	if strings.TrimSpace(req.Query) == "" {
-		return "missing search query"
-	}
-	if strings.TrimSpace(req.ChannelID) == "" {
-		return "missing channel"
-	}
-	return ""
-}
-
-// rawQuery re-reads the trimmed query for the text route; classify already
-// normalized its own copy for cache-keying.
-func rawQuery(req gossiprpc.Request) string {
-	return strings.TrimSpace(req.Query)
 }
 
 func clampSearchLimit(limit int) int {
@@ -533,6 +573,18 @@ type searchScope struct {
 	limit       int
 	canonical   string
 	ttl         time.Duration
+}
+
+// catalogRead bundles one authenticated upstream read: whose broadcaster
+// token rides the call, which catalog id it targets (the link routes), which
+// phrase it searches (the text route), and the caller's result cap. One
+// value argument replaces the parallel token/id/limit lists the fetch
+// constructors would otherwise each repeat.
+type catalogRead struct {
+	tok   accessToken
+	id    string
+	query string
+	limit int
 }
 
 // searchFetch produces one branch's typed reply on a cache miss. Each route
@@ -564,10 +616,10 @@ func (p *api) searchCached(ctx context.Context, scope searchScope, fetch searchF
 }
 
 // trackByIDFetch resolves a pasted link straight to its immutable object.
-func (p *api) trackByIDFetch(tok accessToken, id string) searchFetch {
+func (p *api) trackByIDFetch(call catalogRead) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
 		var it trackItem
-		r := core.Request{Method: http.MethodGet, Path: trackPath + id, Headers: bearerHeader(tok)}
+		r := core.Request{Method: http.MethodGet, Path: trackPath + call.id, Headers: bearerHeader(call.tok)}
 		if err := p.http.Do(ctx, r, &it); err != nil {
 			return gossiprpc.SpotifySearchReply{}, err
 		}
@@ -580,10 +632,10 @@ func (p *api) trackByIDFetch(tok accessToken, id string) searchFetch {
 
 // artistTopFetch serves an artist link as their current top tracks, capped at
 // the caller's limit (the upstream window is fixed at ten).
-func (p *api) artistTopFetch(tok accessToken, id string, limit int) searchFetch {
+func (p *api) artistTopFetch(call catalogRead) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
 		var resp topTracksResponse
-		r := core.Request{Method: http.MethodGet, Path: artistPath + id + "/top-tracks", Headers: bearerHeader(tok)}
+		r := core.Request{Method: http.MethodGet, Path: artistPath + call.id + "/top-tracks", Headers: bearerHeader(call.tok)}
 		if err := p.http.Do(ctx, r, &resp); err != nil {
 			return gossiprpc.SpotifySearchReply{}, err
 		}
@@ -594,21 +646,21 @@ func (p *api) artistTopFetch(tok accessToken, id string, limit int) searchFetch 
 		for _, it := range resp.Tracks {
 			reply.Tracks = append(reply.Tracks, *shapeTrack(it))
 		}
-		return truncateTracks(reply, limit), nil
+		return truncateTracks(reply, call.limit), nil
 	}
 }
 
 // albumTracksFetch lists an album capped at the caller's limit.
-func (p *api) albumTracksFetch(tok accessToken, id string, limit int) searchFetch {
+func (p *api) albumTracksFetch(call catalogRead) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-		return p.albumTracks(ctx, tok, id, limit)
+		return p.albumTracks(ctx, call)
 	}
 }
 
 // textFetch runs the ordered candidate plan for free-text inputs.
-func (p *api) textFetch(tok accessToken, raw string, limit int) searchFetch {
+func (p *api) textFetch(call catalogRead) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-		return p.searchText(ctx, tok, planTextSearch(raw), limit)
+		return p.searchText(ctx, call, planTextSearch(call.query))
 	}
 }
 
@@ -616,10 +668,10 @@ func (p *api) textFetch(tok accessToken, raw string, limit int) searchFetch {
 // wins, an upstream failure aborts outright (infrastructure is not answered
 // by quietly degrading further down the plan), and a plan exhausted without a
 // hit returns the final empty reply — no result is an answer, not an error.
-func (p *api) searchText(ctx context.Context, tok accessToken, plan []searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
+func (p *api) searchText(ctx context.Context, call catalogRead, plan []searchCandidate) (gossiprpc.SpotifySearchReply, error) {
 	var last gossiprpc.SpotifySearchReply
 	for _, c := range plan {
-		reply, err := p.runSearch(ctx, tok, c, limit)
+		reply, err := p.runSearch(ctx, call, c)
 		if err != nil {
 			return gossiprpc.SpotifySearchReply{}, err
 		}
@@ -631,10 +683,10 @@ func (p *api) searchText(ctx context.Context, tok accessToken, plan []searchCand
 	return last, nil
 }
 
-func (p *api) runSearch(ctx context.Context, tok accessToken, c searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
-	q := url.Values{"q": {c.q}, "type": {"track"}, "limit": {strconv.Itoa(limit)}}
+func (p *api) runSearch(ctx context.Context, call catalogRead, c searchCandidate) (gossiprpc.SpotifySearchReply, error) {
+	q := url.Values{"q": {c.q}, "type": {"track"}, "limit": {strconv.Itoa(call.limit)}}
 	var resp searchResponse
-	r := core.Request{Method: http.MethodGet, Path: searchPath, Query: q, Headers: bearerHeader(tok)}
+	r := core.Request{Method: http.MethodGet, Path: searchPath, Query: q, Headers: bearerHeader(call.tok)}
 	if err := p.http.Do(ctx, r, &resp); err != nil {
 		return gossiprpc.SpotifySearchReply{}, err
 	}
@@ -650,9 +702,9 @@ func (p *api) runSearch(ctx context.Context, tok accessToken, c searchCandidate,
 
 // albumTracks lists an album's tracks capped at limit, stamping the album
 // name and artwork onto every entry since the slim track objects lack them.
-func (p *api) albumTracks(ctx context.Context, tok accessToken, id string, limit int) (gossiprpc.SpotifySearchReply, error) {
+func (p *api) albumTracks(ctx context.Context, call catalogRead) (gossiprpc.SpotifySearchReply, error) {
 	var resp albumResponse
-	r := core.Request{Method: http.MethodGet, Path: albumPath + id, Headers: bearerHeader(tok)}
+	r := core.Request{Method: http.MethodGet, Path: albumPath + call.id, Headers: bearerHeader(call.tok)}
 	if err := p.http.Do(ctx, r, &resp); err != nil {
 		return gossiprpc.SpotifySearchReply{}, err
 	}
@@ -679,7 +731,7 @@ func (p *api) albumTracks(ctx context.Context, tok accessToken, id string, limit
 		}
 		reply.Tracks = append(reply.Tracks, track)
 	}
-	return truncateTracks(reply, limit), nil
+	return truncateTracks(reply, call.limit), nil
 }
 
 // truncateTracks caps a reply at limit: top-tracks and album listings come

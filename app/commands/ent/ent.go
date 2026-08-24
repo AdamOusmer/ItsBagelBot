@@ -4,6 +4,8 @@ package ent
 
 import (
 	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/fetchdefinition"
+	"ItsBagelBot/app/commands/ent/fetchkey"
 	"context"
 	"errors"
 	"fmt"
@@ -73,7 +75,9 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			commands.Table: commands.ValidColumn,
+			commands.Table:        commands.ValidColumn,
+			fetchdefinition.Table: fetchdefinition.ValidColumn,
+			fetchkey.Table:        fetchkey.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

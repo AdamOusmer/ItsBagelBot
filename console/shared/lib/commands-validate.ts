@@ -15,6 +15,200 @@ export const RESPONSE_MAX = 500;
 export const RESPONSE_MAX_LINES = 5;
 export const COOLDOWN_MAX = 86400;
 
+// --- urlfetch definition rules ---------------------------------------------
+//
+// The numbers below are the shared contract between this console (instant
+// client feedback AND the authoritative server re-check in the fetches page
+// actions) and the commands/gossip services' Go validators. They live here —
+// not inline in the UI — so client and server literally cannot drift.
+
+/** Stored bare/lower-case like a command trigger. Matches Go FetchDefName
+ * `^[a-z0-9_]{1,32}$` — one grammar for `{urlfetch:name}` payload heads. */
+export const FETCH_NAME_MAX = 32;
+/** https only; long enough for signed query strings (512 measured across the
+ * APIs broadcasters actually wire up), rejected beyond. */
+export const FETCH_URL_MAX = 512;
+/** Depth of the dotted JSON path. Mirrors the Go resolver's cap; deeper paths
+ * are almost always a sign the author picked the wrong leaf. */
+export const JSON_PATH_MAX_DEPTH = 8;
+/** Distinct `{urlfetch:…}` references allowed in one command response. Each
+ * distinct name fans out to gossip before the line renders, so the cap bounds
+ * the chat-latency worst case (3 × ~2.5s in parallel, never serial). */
+export const URLFETCH_TOKEN_CAP = 3;
+/** Names the sealed key a def uses; display-only label, not the secret. */
+export const KEY_LABEL_MAX = 32;
+/** Sealed key material ceiling; the value crosses the wire exactly once. */
+export const KEY_VALUE_MAX = 512;
+/** Definitions per broadcaster. Chat expansion resolves every token in a
+ * response, so 20 defs bounds one broadcaster's share of the fan-out budget;
+ * enforced synchronously at save by the commands service (COUNT before
+ * insert), mirrored here only as an early, friendly stop. */
+export const DEFS_PER_BROADCASTER = 20;
+
+const FETCH_NAME_RE = /^[a-z0-9_]+$/;
+// Path segments and array indices: indices `\d+` are a subset of the name
+// charset, so one regex covers both (mirrors the Go resolver's two rules).
+const PATH_SEGMENT_RE = /^[A-Za-z0-9_-]+$/;
+
+export type FetchKind = 'plain' | 'json';
+
+/** The bare trigger discipline of normName applied to a def slug: trim,
+ * lower-case, fold every non-grammar rune run to "_", trim "_" edges. Empty
+ * when the input carries no usable character at all. */
+export function slugifyName(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+/, '')
+    .replace(/_+$/, '')
+    .slice(0, FETCH_NAME_MAX)
+    .replace(/_+$/, '');
+}
+
+export interface FetchDefFields {
+  /** Normalized slug (slugifyName output). */
+  name: string;
+  url: string;
+  kind: FetchKind;
+  /** Path segments; [] for plain defs and for root-scalar json picks. */
+  path: string[];
+  /** '' = no auth. Must name a stored key at fetch time (dangling fails closed). */
+  keyLabel: string;
+}
+
+/** field -> human message; empty object = valid. Keys match form field names. */
+export type FetchDefErrors = Partial<Record<'name' | 'url' | 'kind' | 'path' | 'key_label', string>>;
+
+/**
+ * Dotted token form of a path ('forecast.current.temp_f', array indices as
+ * bare digits) — the exact spelling inside `{urlfetch:name.<path>}` that the
+ * Go dot-path extractor reads.
+ */
+export function buildJsonPath(segments: string[]): string {
+  return segments.join('.');
+}
+
+/**
+ * Inverse of buildJsonPath, validated against the resolver grammar. Returns
+ * null when any segment is malformed so callers can reject instead of storing
+ * a path the engine would silently misread.
+ */
+export function parseJsonPath(dotted: string): string[] | null {
+  if (dotted === '') return [];
+  const segments = dotted.split('.');
+  if (segments.some((s) => !PATH_SEGMENT_RE.test(s))) return null;
+  return segments;
+}
+
+/**
+ * Distinct `{urlfetch:<payload>}` payloads in first-appearance order — the
+ * byte-for-byte twin of sesame's urlFetchNames scan (fast-path Contains, then
+ * Index('{urlfetch:') / IndexByte('}')). Payloads fold to lower-case because
+ * def names are stored bare/lower-case; repeats collapse so one definition
+ * referenced three times still costs one fetch, exactly as the engine dedupes.
+ */
+export function urlFetchNames(response: string): string[] {
+  if (!response.includes('{urlfetch')) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  let i = response.indexOf('{urlfetch:');
+  while (i >= 0) {
+    const end = response.indexOf('}', i + 1);
+    if (end < 0) break;
+    const name = response.slice(i + '{urlfetch:'.length, end).toLowerCase();
+    if (name !== '' && !seen.has(name)) {
+      seen.add(name);
+      out.push(name);
+    }
+    i = response.indexOf('{urlfetch:', end);
+  }
+  return out;
+}
+
+/**
+ * `{urlfetch…` spans that can never resolve — unclosed brace, empty payload,
+ * or a payload failing the name/path grammar. The source view flags these
+ * verbatim (mark.unknown treatment): typos stay visible, matching the
+ * engine's leave-unknown-tokens-literal rule.
+ */
+export function malformedUrlFetchTokens(response: string): string[] {
+  const bad: string[] = [];
+  let i = response.indexOf('{urlfetch');
+  while (i >= 0) {
+    const end = response.indexOf('}', i + 1);
+    if (end < 0) {
+      bad.push(response.slice(i));
+      break;
+    }
+    const span = response.slice(i, end + 1);
+    const body = span.slice(1, -1);
+    const colon = body.indexOf(':');
+    const payload = colon < 0 ? null : body.slice(colon + 1);
+    if (payload === null || payload === '' || parseJsonPath(payload.toLowerCase()) === null || payload.includes(':')) {
+      bad.push(span);
+    }
+    i = response.indexOf('{urlfetch', end);
+  }
+  return bad;
+}
+
+/** Hostname shape-check mirroring the Go denylist for author feedback:
+ * IP literals (dotted quad or any ':'-bearing IPv6 form), localhost and the
+ * .local/.internal suffixes are rejected at save AND fetch time server-side;
+ * this browser-side mirror exists because the shared module runs in the
+ * browser too and must not import node's net. The Go gate stays authoritative
+ * (it also re-checks DNS-era changes and the IP-logger floor). */
+function hostIsDenied(host: string): boolean {
+  const bare = host.replace(/^\[/, '').replace(/\]$/, '');
+  if (bare === 'localhost' || bare.endsWith('.local') || bare.endsWith('.internal')) return true;
+  if (bare.includes(':')) return true; // IPv6 literal form
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(bare); // IPv4 literal form
+}
+
+export function validateFetchDef(f: FetchDefFields): FetchDefErrors {
+  const errors: FetchDefErrors = {};
+
+  if (!f.name) errors.name = 'Definition name is required.';
+  else if (f.name.length > FETCH_NAME_MAX)
+    errors.name = `Definition name must be at most ${FETCH_NAME_MAX} characters.`;
+  else if (!FETCH_NAME_RE.test(f.name))
+    errors.name = 'Use lower-case letters, digits and underscores only.';
+
+  if (!f.url) errors.url = 'URL is required.';
+  else if (f.url.length > FETCH_URL_MAX) errors.url = `URL must be at most ${FETCH_URL_MAX} characters.`;
+  else {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(f.url);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || parsed.protocol !== 'https:' || !parsed.hostname) {
+      errors.url = 'URL must start with https://';
+    } else if (hostIsDenied(parsed.hostname)) {
+      errors.url = 'URL must point at a public https host.';
+    }
+  }
+
+  if (f.kind !== 'plain' && f.kind !== 'json') {
+    errors.kind = 'Pick plain or json.';
+  } else if (f.kind === 'plain' && f.path.length > 0) {
+    errors.path = 'A plain fetch reads the whole body — clear the path or switch to json.';
+  } else if (f.kind === 'json') {
+    if (f.path.length > JSON_PATH_MAX_DEPTH) {
+      errors.path = `Path can be at most ${JSON_PATH_MAX_DEPTH} segments deep.`;
+    } else {
+      const bad = f.path.find((s) => !PATH_SEGMENT_RE.test(s));
+      if (bad !== undefined) errors.path = `"${bad}" cannot be used as a path segment — letters, digits, "-" and "_" only.`;
+    }
+  }
+
+  if (f.keyLabel.length > KEY_LABEL_MAX) errors.key_label = `Key label must be at most ${KEY_LABEL_MAX} characters.`;
+
+  return errors;
+}
+
 /** The bare command trigger: drop a leading "!" and lower-case. */
 export function normName(s: string): string {
   return s.trim().replace(/^!+/, '').trim().toLowerCase();
@@ -102,6 +296,10 @@ export function validateCommand(f: CommandFields): CommandErrors {
     errors.response = `Each line must be at most ${RESPONSE_MAX} characters.`;
   } else if (lines.some(hasControlCharacter)) {
     errors.response = 'Response cannot contain control characters.';
+  } else if (urlFetchNames(f.response).length > URLFETCH_TOKEN_CAP) {
+    // Distinct names, not occurrences: the engine dedupes repeats before the
+    // fan-out, so the latency budget it must absorb scales with distinct defs.
+    errors.response = `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
   }
 
   if (!Number.isFinite(f.cooldown) || f.cooldown < 0 || f.cooldown > COOLDOWN_MAX) {
@@ -125,6 +323,6 @@ function hasControlCharacter(line: string): boolean {
 }
 
 /** Convenience: the first message of an error map, for single-line surfaces. */
-export function firstError(errors: CommandErrors): string | undefined {
+export function firstError(errors: CommandErrors | FetchDefErrors): string | undefined {
   return Object.values(errors)[0];
 }

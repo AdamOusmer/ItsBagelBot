@@ -4,6 +4,8 @@ package runtime
 
 import (
 	"ItsBagelBot/app/commands/ent/commands"
+	"ItsBagelBot/app/commands/ent/fetchdefinition"
+	"ItsBagelBot/app/commands/ent/fetchkey"
 	"ItsBagelBot/app/commands/ent/schema"
 	"time"
 )
@@ -72,9 +74,87 @@ func init() {
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	commands.UpdateDefaultUpdatedAt = commandsDescUpdatedAt.UpdateDefault.(func() time.Time)
+	fetchdefinitionHooks := schema.FetchDefinition{}.Hooks()
+	fetchdefinition.Hooks[0] = fetchdefinitionHooks[0]
+	fetchdefinitionFields := schema.FetchDefinition{}.Fields()
+	_ = fetchdefinitionFields
+	// fetchdefinitionDescName is the schema descriptor for name field.
+	fetchdefinitionDescName := fetchdefinitionFields[1].Descriptor()
+	// fetchdefinition.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	fetchdefinition.NameValidator = func() func(string) error {
+		validators := fetchdefinitionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// fetchdefinitionDescURL is the schema descriptor for url field.
+	fetchdefinitionDescURL := fetchdefinitionFields[2].Descriptor()
+	// fetchdefinition.URLValidator is a validator for the "url" field. It is called by the builders before save.
+	fetchdefinition.URLValidator = fetchdefinitionDescURL.Validators[0].(func(string) error)
+	// fetchdefinitionDescKeyLabel is the schema descriptor for key_label field.
+	fetchdefinitionDescKeyLabel := fetchdefinitionFields[4].Descriptor()
+	// fetchdefinition.KeyLabelValidator is a validator for the "key_label" field. It is called by the builders before save.
+	fetchdefinition.KeyLabelValidator = fetchdefinitionDescKeyLabel.Validators[0].(func(string) error)
+	// fetchdefinitionDescIsActive is the schema descriptor for is_active field.
+	fetchdefinitionDescIsActive := fetchdefinitionFields[5].Descriptor()
+	// fetchdefinition.DefaultIsActive holds the default value on creation for the is_active field.
+	fetchdefinition.DefaultIsActive = fetchdefinitionDescIsActive.Default.(bool)
+	// fetchdefinitionDescCreatedAt is the schema descriptor for created_at field.
+	fetchdefinitionDescCreatedAt := fetchdefinitionFields[6].Descriptor()
+	// fetchdefinition.DefaultCreatedAt holds the default value on creation for the created_at field.
+	fetchdefinition.DefaultCreatedAt = fetchdefinitionDescCreatedAt.Default.(func() time.Time)
+	// fetchdefinitionDescUpdatedAt is the schema descriptor for updated_at field.
+	fetchdefinitionDescUpdatedAt := fetchdefinitionFields[7].Descriptor()
+	// fetchdefinition.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	fetchdefinition.DefaultUpdatedAt = fetchdefinitionDescUpdatedAt.Default.(func() time.Time)
+	// fetchdefinition.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	fetchdefinition.UpdateDefaultUpdatedAt = fetchdefinitionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	fetchkeyFields := schema.FetchKey{}.Fields()
+	_ = fetchkeyFields
+	// fetchkeyDescLabel is the schema descriptor for label field.
+	fetchkeyDescLabel := fetchkeyFields[1].Descriptor()
+	// fetchkey.LabelValidator is a validator for the "label" field. It is called by the builders before save.
+	fetchkey.LabelValidator = func() func(string) error {
+		validators := fetchkeyDescLabel.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(label string) error {
+			for _, fn := range fns {
+				if err := fn(label); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// fetchkeyDescLast4 is the schema descriptor for last4 field.
+	fetchkeyDescLast4 := fetchkeyFields[3].Descriptor()
+	// fetchkey.Last4Validator is a validator for the "last4" field. It is called by the builders before save.
+	fetchkey.Last4Validator = fetchkeyDescLast4.Validators[0].(func(string) error)
+	// fetchkeyDescCreatedAt is the schema descriptor for created_at field.
+	fetchkeyDescCreatedAt := fetchkeyFields[4].Descriptor()
+	// fetchkey.DefaultCreatedAt holds the default value on creation for the created_at field.
+	fetchkey.DefaultCreatedAt = fetchkeyDescCreatedAt.Default.(func() time.Time)
+	// fetchkeyDescUpdatedAt is the schema descriptor for updated_at field.
+	fetchkeyDescUpdatedAt := fetchkeyFields[5].Descriptor()
+	// fetchkey.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	fetchkey.DefaultUpdatedAt = fetchkeyDescUpdatedAt.Default.(func() time.Time)
+	// fetchkey.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	fetchkey.UpdateDefaultUpdatedAt = fetchkeyDescUpdatedAt.UpdateDefault.(func() time.Time)
 }
 
 const (
-	Version = "v0.14.5"                                         // Version of ent codegen.
-	Sum     = "h1:Rj2WOYJtCkWyFo6a+5wB3EfBRP0rnx1fMk6gGA0UUe4=" // Sum of ent codegen.
+	Version = "v0.14.6"                                         // Version of ent codegen.
+	Sum     = "h1:/f2696BpwuWAEEG6PVGWflg6+Inrpq4pRWuNlWz/Skk=" // Sum of ent codegen.
 )

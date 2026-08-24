@@ -14,6 +14,12 @@ const (
 	SubjectCommandChanged = "data.commands.changed"
 	SubjectCommandUsed    = "data.commands.used"
 
+	// SubjectFetchChanged carries $(urlfetch) definition changes (the
+	// FetchDefinition rows; sealed FetchKeys are never projected). Consumers
+	// retire or rewrite the fetch:<name> field of the user's settings hash
+	// exactly like command:<name>.
+	SubjectFetchChanged = "data.commands.fetch_changed"
+
 	// SubjectReprojectRequest asks every data service to republish its
 	// current state as ordinary change events. The projector sends it on a
 	// cold start so it can rebuild the Valkey projection without ever
@@ -63,6 +69,21 @@ type CommandChangedDTO struct {
 	// on every change event so the projection never regresses it.
 	Uses    uint64 `json:"uses,omitempty"`
 	Deleted bool   `json:"deleted"`
+}
+
+// FetchChangedDTO is the full state of one $(urlfetch) definition after the
+// change (event-carried state transfer, like CommandChangedDTO). Deleted
+// rides on rename and delete so consumers HDEL the old fetch:<name> field;
+// rows hard-delete, there is no tombstone. KeyLabel carries only the label —
+// sealed key material never enters events, Valkey or any cache.
+type FetchChangedDTO struct {
+	UserID   uint64   `json:"user_id"`
+	Name     string   `json:"name"`
+	URL      string   `json:"url,omitempty"`
+	JSONPath []string `json:"json_path,omitempty"`
+	KeyLabel string   `json:"key_label,omitempty"`
+	IsActive bool     `json:"is_active"`
+	Deleted  bool     `json:"deleted"`
 }
 
 // CommandUsedDTO reports successful executions of a custom command in chat.

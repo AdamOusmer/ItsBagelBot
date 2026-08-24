@@ -11,6 +11,7 @@
   // (module replies); there pasted newlines collapse to spaces.
   import { RESPONSE_MAX, getI18n } from '@bagel/shared';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
+  import FetchPathPicker from '$lib/components/commands/fetches/FetchPathPicker.svelte';
 
   const i18n = getI18n();
 
@@ -35,13 +36,18 @@
     name = 'response',
     tokens = DEFAULT_TOKENS,
     placeholder,
-    maxLines = 1
+    maxLines = 1,
+    fetchPickerName = ''
   }: {
     value: string;
     name?: string;
     tokens?: PaletteToken[];
     placeholder?: string;
     maxLines?: number;
+    // When set, the palette grows the urlfetch path picker (paste a sample,
+    // click a leaf, `{urlfetch:<name>.<path>}` inserts at the caret). Empty on
+    // every other surface — module replies and rewards have no defs to pick.
+    fetchPickerName?: string;
   } = $props();
 
   const chipTitle = (tk: PaletteToken) => (tk.hint ? i18n.t(tk.hint) : (tk.label ?? tk.token));
@@ -192,6 +198,9 @@
   {/each}
   {#if pickerOn}
     <CounterPicker onInsert={insert} />
+  {/if}
+  {#if pickerOn && fetchPickerName.trim() !== ''}
+    <FetchPathPicker name={fetchPickerName} onInsert={insert} />
   {/if}
 </div>
 

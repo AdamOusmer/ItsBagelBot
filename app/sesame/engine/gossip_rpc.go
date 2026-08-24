@@ -23,6 +23,35 @@ import (
 // try" symptom.
 const gossipRPCTimeout = 12 * time.Second
 
+// customFetchRPCTimeout bounds one custom.fetch ({urlfetch:...} token) request.
+// It is sized in the OPPOSITE direction of gossipRPCTimeout, for the same
+// reason: this endpoint has no cold-resolve tail — its own budget is a fixed
+// 3s (one SSRF-gated HTTP GET against an allow-listed URL plus a cache read,
+// docs/urlfetch IMPLEMENTATION.md Phase 2) inside gossip's generic 5s handler
+// default — so sitting just ABOVE the endpoint budget (3.5s) lets a slow
+// upstream surface as gossip's typed timeout reply instead of dying as a
+// client-side abort nobody can distinguish from a dead responder. Fetches run
+// concurrently per response (fetchUrlTokens), so the overall chat-latency cap
+// equals this figure, not a sum; nothing upstream bounds us — the ctx reaching
+// runCustom carries no WithTimeout between delivery and expansion — so 3.5s
+// is self-imposed and deliberately tight.
+const customFetchRPCTimeout = 3500 * time.Millisecond
+
+const (
+	customFetchProvider = "custom"
+	customFetchEndpoint = "fetch"
+)
+
+// UrlFetchCaller is the {urlfetch:...} token family's call surface — the
+// custom.fetch twin of GossipCaller, narrowed to one endpoint's request/reply
+// shape so fetchUrlTokens tests can stub it without a NATS connection (the
+// fakeGossip pattern). The chat path sends Request{DefID, ChannelID,
+// IsPremium} and leaves DryRun/Fresh/Def zero: dry-run/fresh are rehearsal
+// knobs and inline defs never ride chat.
+type UrlFetchCaller interface {
+	Fetch(ctx context.Context, req gossiprpc.Request) (gossiprpc.CustomFetchReply, error)
+}
+
 // GossipRoute addresses one provider endpoint on the gossip service (e.g.
 // provider "fortnite", endpoint "stats").
 type GossipRoute struct {
@@ -77,4 +106,36 @@ func (g *GossipRPC) Call(ctx context.Context, route GossipRoute, req gossiprpc.R
 		return fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
 	}
 	return nil
+}
+
+// Fetch requests one custom.fetch execution and decodes its typed reply. The
+// skeleton mirrors Call (same marshal/request/envelope discipline), with two
+// differences: the per-request deadline is customFetchRPCTimeout, and a reply
+// carrying the conventional {"error": "..."} envelope still short-circuits as
+// bus.RPCReplyError — an infrastructure-shaped answer the token mapper renders
+// as the timeout-family fallback text. Endpoint failures ride Status instead,
+// so no error is returned for them.
+func (g *GossipRPC) Fetch(ctx context.Context, req gossiprpc.Request) (gossiprpc.CustomFetchReply, error) {
+	subject := gossiprpc.Subject(g.prefix, customFetchProvider, customFetchEndpoint)
+
+	ctx, cancel := context.WithTimeout(ctx, customFetchRPCTimeout)
+	defer cancel()
+
+	body, err := codec.Marshal(req)
+	if err != nil {
+		return gossiprpc.CustomFetchReply{}, fmt.Errorf("rpc %s marshal request: %w", subject, err)
+	}
+	msg, err := bus.RequestWithContext(ctx, g.nc, subject, body)
+	if err != nil {
+		return gossiprpc.CustomFetchReply{}, fmt.Errorf("rpc %s request: %w", subject, err)
+	}
+
+	if message := bus.ReplyErrorMessage(msg.Data); message != "" {
+		return gossiprpc.CustomFetchReply{}, bus.RPCReplyError{Subject: subject, Message: message}
+	}
+	var reply gossiprpc.CustomFetchReply
+	if err := codec.Unmarshal(msg.Data, &reply); err != nil {
+		return gossiprpc.CustomFetchReply{}, fmt.Errorf("rpc %s unmarshal reply: %w", subject, err)
+	}
+	return reply, nil
 }

@@ -118,13 +118,15 @@ func TestCampaignNotConsultedOnCleanShortChat(t *testing.T) {
 	assert.Zero(t, camp.calls, "a clean short line never reaches the campaign juror")
 }
 
-func TestCampaignEscalatesFlaggedDeleteToTimeout(t *testing.T) {
+func TestCampaignStyleDeleteStaysDeleteAtQuorum(t *testing.T) {
 	camp := &fakeCampaign{count: campaignThreshold}
 	pub := &fakePublisher{}
 	p := councilPipeline(pub, camp)
 
-	// A caps heuristic line (delete verdict) corroborated by the campaign juror
-	// becomes a timeout.
+	// A caps-heuristic line (style-only delete verdict) corroborated by the
+	// campaign juror must NOT become a timeout: eight senders posting
+	// near-identical hype/copypasta is a meme spreading, not a punishable
+	// conspiracy. The delete itself stands.
 	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
@@ -137,7 +139,31 @@ func TestCampaignEscalatesFlaggedDeleteToTimeout(t *testing.T) {
 	require.NoError(t, p.Process(bus.NewMessage("u", body)))
 
 	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type, "delete + campaign quorum = timeout")
+	assert.Equal(t, outgress.TypeDelete, pub.got[0].msg.Type,
+		"style-only delete + campaign quorum = delete, never a timeout")
+}
+
+func TestCampaignContentBackedDeleteEscalatesToTimeout(t *testing.T) {
+	camp := &fakeCampaign{count: campaignThreshold}
+	pub := &fakePublisher{}
+	p := councilPipeline(pub, camp)
+
+	// The same shape carrying an actual LINK is objective spam evidence, not
+	// stylistic noise: quorum escalates it to a timeout.
+	body, err := codec.Marshal(map[string]any{
+		"type":                chatType,
+		"lane":                "standard",
+		"broadcaster_user_id": "123",
+		"chatter_user_id":     "888",
+		"msg_id":              "m-888",
+		"text":                "FREE VBUCKS CLICK MY PROFILE RIGHT NOW EVERYONE HURRY bit.ly/free-vbucks",
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Process(bus.NewMessage("u", body)))
+
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, outgress.TypeTimeout, pub.got[0].msg.Type,
+		"link-backed delete + campaign quorum = timeout")
 }
 
 func TestHarassmentWarnPairsWithDelete(t *testing.T) {

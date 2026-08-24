@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/sesame/automod"
@@ -168,6 +169,18 @@ func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) automod.Verdi
 	case automod.ActionNone:
 		return automod.Verdict{Action: automod.ActionDelete, Rule: "council:campaign"}
 	case automod.ActionDelete:
+		// The jury rule: quorum turns a delete into a timeout only when the
+		// base verdict rests on CONTENT evidence - a lexicon hit, a channel
+		// block-term, or an actual link on the line. A style-only flag
+		// (rule "heuristic": elongation, caps, symbol walls) plus eight
+		// near-duplicate senders is indistinguishable from a copypasta meme
+		// spreading through chat, and timing out eight people for a meme is
+		// precisely the overreach this council exists to prevent. Corroboration
+		// still leaves the style delete itself standing - the message goes, no
+		// punishment rides on it.
+		if !in.linkish && !contentBackedRule(in.verdict.Rule) {
+			return in.verdict
+		}
 		v := in.verdict
 		v.Action = automod.ActionTimeout
 		v.Seconds = 600
@@ -175,6 +188,14 @@ func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) automod.Verdi
 		return v
 	}
 	return in.verdict
+}
+
+// contentBackedRule reports whether a verdict's rule names content evidence
+// rather than a style heuristic: lexicon categories ("lex:hate:...", and any
+// future "lex:*") or a broadcaster's own block term. Floor rules never reach
+// here (they resolve straight to timeout/ban upstream).
+func contentBackedRule(rule string) bool {
+	return strings.HasPrefix(rule, "lex:") || rule == "block_term"
 }
 
 // gateCohort handles a folded duplicate cohort: plain chat the ingress squash

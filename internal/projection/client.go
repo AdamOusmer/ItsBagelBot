@@ -50,6 +50,11 @@ const (
 	usersCacheCapacity    int64 = 4096
 	modulesCacheCapacity  int64 = 4096
 	commandsCacheCapacity int64 = 8192
+	// fetchesCacheCapacity matches commands: entries are keyed per definition
+	// name AND cache negative "no such definition" results, so unknown-name
+	// churn (a typo in one command response firing every message) gets the
+	// same headroom against eviction as the command cache.
+	fetchesCacheCapacity int64 = 8192
 )
 
 // User is the projected tier state of one broadcaster. Live state is NOT here:
@@ -87,6 +92,13 @@ type commandEntry struct {
 	found bool
 }
 
+// fetchEntry is the definition twin of commandEntry: negative lookups are
+// cached so an unresolved {urlfetch:typo} in a hot command costs nothing.
+type fetchEntry struct {
+	fetch FetchView
+	found bool
+}
+
 // Command is one custom chat command of a user.
 type Command struct {
 	Name             string   `json:"name"`
@@ -114,6 +126,7 @@ type Subjects struct {
 	Users    string
 	Modules  string
 	Commands string
+	Fetches  string
 }
 
 // Client is the default Reader: in-process cache fronting a read-only Valkey
@@ -127,6 +140,7 @@ type Client struct {
 	users    *cache.Cache[User]
 	modules  *cache.Cache[[]ModuleView]
 	commands *cache.Cache[commandEntry]
+	fetches  *cache.Cache[fetchEntry]
 
 	rpcTimeout      time.Duration
 	invalidationSub *nats.Subscription
@@ -152,6 +166,7 @@ func NewClient(cfg Config) *Client {
 		users:      cache.New[User](usersCacheCapacity, cfg.TTL),
 		modules:    cache.New[[]ModuleView](modulesCacheCapacity, cfg.TTL),
 		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL),
+		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 }
@@ -164,6 +179,7 @@ func (c *Client) Close() {
 	c.users.Close()
 	c.modules.Close()
 	c.commands.Close()
+	c.fetches.Close()
 }
 
 // StartOccupancyLogger logs how full the three projection caches run every
@@ -174,6 +190,7 @@ func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duratio
 		"projection_users":    c.users,
 		"projection_modules":  c.modules,
 		"projection_commands": c.commands,
+		"projection_fetches":  c.fetches,
 	})
 }
 
@@ -230,6 +247,11 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 		// Drop the custom command entry for every key carried by the event.
 		for _, name := range keys {
 			c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
+		}
+	case "fetches":
+		// Drop the definition entry for every name carried by the event.
+		for _, name := range keys {
+			c.fetches.Invalidate(fetchKey(id, strings.ToLower(name)))
 		}
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
@@ -370,10 +392,63 @@ func projectionRequest(userID uint64) map[string]string {
 	return map[string]string{"user_id": strconv.FormatUint(userID, 10)}
 }
 
+// FetchDefs resolves one $(urlfetch) definition by name, the exact tiering of
+// Command: a short-TTL per-definition cache entry (with negative caching) in
+// front of one Valkey HGET, falling through to the commands service's fetch
+// list RPC for a cold, not-yet-projected user. Keys never appear here — the
+// view carries key_label only; plaintext stays on the one-call key RPC.
+func (c *Client) FetchDefs(ctx context.Context, userID uint64, name string) (FetchView, bool, error) {
+	if name == "" {
+		return FetchView{}, false, nil
+	}
+	lname := strings.ToLower(name)
+
+	entry, err := c.fetches.GetOrLoad(ctx, fetchKey(userID, lname), func(ctx context.Context) (fetchEntry, error) {
+		return c.loadFetch(ctx, userID, lname)
+	})
+	if err != nil {
+		return FetchView{}, false, err
+	}
+	return entry.fetch, entry.found, nil
+}
+
+// loadFetch resolves one definition from the Valkey projection (tier 2),
+// falling back to the commands service's whole list for a cold,
+// not-yet-projected user (tier 3). A negative result is a valid cached entry,
+// not an error.
+func (c *Client) loadFetch(ctx context.Context, userID uint64, lname string) (fetchEntry, error) {
+	if view, found, projected, err := c.store.GetFetch(ctx, userID, lname); err == nil && projected {
+		return fetchEntry{fetch: view, found: found}, nil
+	}
+
+	reply, err := bus.RequestJSONTimeout[struct {
+		Fetches []FetchView `json:"fetches"`
+	}](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
+	if err != nil {
+		return fetchEntry{found: false}, nil
+	}
+	return findFetch(reply.Fetches, lname), nil
+}
+
+// findFetch picks the definition whose name matches lname (already
+// lower-cased), or a negative entry when none does.
+func findFetch(fetches []FetchView, lname string) fetchEntry {
+	for _, f := range fetches {
+		if strings.ToLower(f.Name) == lname {
+			return fetchEntry{fetch: f, found: true}
+		}
+	}
+	return fetchEntry{found: false}
+}
+
 func key(kind string, userID uint64) string {
 	return cache.UserKey(kind+":", userID)
 }
 
 func cmdKey(userID uint64, name string) string {
 	return cache.PairKey("command:", userID, name)
+}
+
+func fetchKey(userID uint64, name string) string {
+	return cache.PairKey("fetch:", userID, name)
 }

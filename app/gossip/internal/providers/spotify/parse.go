@@ -75,25 +75,42 @@ var linkKinds = map[string]resolveKind{
 	"audiobook": resolveUnsupportedLink,
 }
 
+// textQuery is one free-text search phrase in both spellings downstream code
+// needs: the raw input trimmed of surrounding space, and the normalized form
+// (case-folded, inner whitespace collapsed) that cache keys, upstream queries
+// and plans all share. Building it once keeps normalization happening exactly
+// once — re-deriving it per hop invited drift between the cached key and the
+// query actually sent.
+type textQuery struct {
+	raw        string
+	normalized string
+}
+
+// newTextQuery trims and normalizes one raw phrase.
+func newTextQuery(raw string) textQuery {
+	s := strings.TrimSpace(raw)
+	return textQuery{raw: s, normalized: normalizeText(s)}
+}
+
 // classify inspects one raw search input and decides how the provider will
 // resolve it. Classification never errors: anything it cannot pin down
 // degrades to resolveText, which is always servable.
 func classify(raw string) resolvedInput {
-	s := strings.TrimSpace(raw)
-	if s == "" {
+	q := newTextQuery(raw)
+	if q.normalized == "" {
 		return resolvedInput{kind: resolveText}
 	}
-	lower := strings.ToLower(s)
+	lower := strings.ToLower(q.raw)
 	switch {
 	case strings.HasPrefix(lower, "spotify:"):
-		return classifyURI(s)
+		return classifyURI(q.raw)
 	case strings.HasPrefix(lower, "https://"), strings.HasPrefix(lower, "http://"):
-		return classifyURL(s)
+		return classifyURL(q.raw)
 	case strings.Contains(lower, "open.spotify.com/"), strings.Contains(lower, "play.spotify.com/"):
 		// Schemeless paste ("open.spotify.com/track/x"): parse tolerantly.
-		return classifyURL("https://" + s)
+		return classifyURL("https://" + q.raw)
 	default:
-		return resolvedInput{kind: resolveText, text: normalizeText(s)}
+		return resolvedInput{kind: resolveText, text: q.normalized}
 	}
 }
 
@@ -184,30 +201,35 @@ type searchCandidate struct {
 // plans are at most two deep (field-filtered, then plain), so a mis-split
 // costs one cheap empty search, never a wrong answer served confidently.
 func planTextSearch(raw string) []searchCandidate {
-	s := normalizeText(raw)
-	if s == "" {
+	q := newTextQuery(raw)
+	if q.normalized == "" {
 		return nil
 	}
-	if first, ok := heuristicCandidate(s); ok {
-		return []searchCandidate{first, {q: s, name: viaText}}
-	}
-	return []searchCandidate{{q: s, name: viaText}}
+	return q.plan()
 }
 
-// heuristicCandidate builds the field-scoped first candidate from whichever
-// naming convention the input follows — "song by artist" first, then the
-// dash form copied from video titles. ok is false when neither convention
-// matches or a split leaves a usable side empty; the caller then plans the
-// plain search alone. A false positive ("Stand by Me") survives as the
-// fallback candidate, which is why the two-step plan exists.
-func heuristicCandidate(s string) (searchCandidate, bool) {
-	split := splitBy(s)
-	if !split.ok {
-		split = splitDash(s)
-		split.swap() // the dash convention orders artist first
+// plan orders this query's attempts: the field-scoped heuristic candidate
+// first when the phrase follows a naming convention, the plain search always
+// last so a heuristic misfire ("Stand by Me") survives as the fallback
+// rather than returning nothing.
+func (q textQuery) plan() []searchCandidate {
+	first, ok := q.filteredCandidate()
+	if !ok {
+		return []searchCandidate{{q: q.normalized, name: viaText}}
 	}
+	return []searchCandidate{first, {q: q.normalized, name: viaText}}
+}
+
+// filteredCandidate shapes the query into the field-scoped first candidate
+// by whichever naming convention it follows — "song by artist" first, then
+// the dash form copied from video titles (artist first, hence the swap). ok
+// is false when neither convention matches or a split leaves a usable side
+// empty; the plan then searches plainly alone.
+func (q textQuery) filteredCandidate() (searchCandidate, bool) {
+	split := splitBy(q.normalized)
 	if !split.ok {
-		return searchCandidate{}, false
+		split = splitDash(q.normalized)
+		split.swap() // the dash convention orders artist first
 	}
 	return split.candidate()
 }
