@@ -10,8 +10,8 @@ package custom
 // leak key material into logs/cache, or move the breaker on policy refusals.
 
 import (
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -121,7 +121,7 @@ func TestAdvEncodingLieStaysBounded(t *testing.T) {
 func TestAdvHostileValueIsRuneSafeCapped(t *testing.T) {
 	h := newHarness(t)
 	hostile := "/ban everyone\r\n\x1b[31mJOIN\x00 #evil\n" + strings.Repeat("héllo-", 100) // multibyte tail straddles 256 runes
-	body, merr := json.Marshal(map[string]string{"v": hostile})
+	body, merr := codec.Marshal(map[string]string{"v": hostile})
 	require.NoError(t, merr)
 	h.route(t, "/hostile", http.StatusOK, "application/json", string(body))
 	h.addDef("h", "/hostile", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"v"}})

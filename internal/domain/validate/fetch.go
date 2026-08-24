@@ -83,19 +83,23 @@ func FetchDefName(name string) error {
 	if len(name) == 0 || len(name) > 32 {
 		return ErrFetchDefName
 	}
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		switch {
-		case c >= 'a' && c <= 'z':
-		case c >= '0' && c <= '9':
-		case c == '_':
-		default:
-			// Upper-case included: callers normalize before validating, so an
-			// upper-case letter here means a bypass, not an un-normalized save.
-			return ErrFetchDefName
-		}
+	if !isFetchNameCharset(name) {
+		return ErrFetchDefName
 	}
 	return FloorClean(strings.ReplaceAll(name, "_", " "))
+}
+
+// isFetchNameCharset reports [a-z0-9_]+ over raw bytes. Upper-case is part of
+// the refusal: callers normalize before validating, so an upper-case letter
+// here means a bypass, not an un-normalized save.
+func isFetchNameCharset(name string) bool {
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 // FetchURL validates a definition's endpoint at save time: absolute https,
@@ -107,19 +111,28 @@ func FetchURL(raw string) error {
 		return ErrFetchURL
 	}
 
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Opaque != "" {
-		// Opaque URLs ("https:example.com") have no dialable host; refuse
-		// rather than let the fetch-time gate discover it later.
-		return ErrFetchURL
-	}
-	if parsed.Scheme != "https" || parsed.Host == "" {
+	parsed := parsedAbsoluteHTTPS(raw)
+	if parsed == nil {
 		return ErrFetchURL
 	}
 	if err := FetchHostAllowed(parsed.Hostname()); err != nil {
 		return err
 	}
 	return FloorClean(raw)
+}
+
+// parsedAbsoluteHTTPS returns the parsed URL only when it is absolute https
+// with a dialable host. Opaque URLs ("https:example.com") have no dialable
+// host; refuse rather than let the fetch-time gate discover it later.
+func parsedAbsoluteHTTPS(raw string) *url.URL {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Opaque != "" {
+		return nil
+	}
+	if parsed.Scheme != "https" || parsed.Host == "" {
+		return nil
+	}
+	return parsed
 }
 
 // FetchHostAllowed is the host half of the SSRF gate, shared by the save-time
@@ -135,16 +148,21 @@ func FetchURL(raw string) error {
 // pair is cheaper than either failure mode.
 func FetchHostAllowed(host string) error {
 	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
-	if host == "" {
+	switch {
+	case host == "":
 		return ErrFetchHost
-	}
-	if net.ParseIP(host) != nil {
+	case net.ParseIP(host) != nil:
 		return ErrFetchHost
-	}
-	if host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+	case deniedHostName(host):
 		return ErrFetchHost
 	}
 	return nil
+}
+
+// deniedHostName lists the never-dialable name shapes: localhost and the
+// mDNS/intranet-style suffixes.
+func deniedHostName(host string) bool {
+	return host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal")
 }
 
 // FetchPath validates optional dot-path extraction segments: each segment

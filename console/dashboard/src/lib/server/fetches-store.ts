@@ -88,11 +88,16 @@ export async function upsertFetchDef(
 // setFetchKey seals one value under a label. Rotation is the same verb:
 // re-entering a value against an existing label re-seals it. The reply's
 // last4 is derived at seal time so later lists never decrypt.
-export async function setFetchKey(userId: string, label: string, value: string): Promise<string> {
+export interface FetchKeyEntry {
+  label: string;
+  value: string;
+}
+
+export async function setFetchKey(userId: string, key: FetchKeyEntry): Promise<string> {
   const r = await rpc<{ last4?: string; error?: string }>(`${SUB.commands}.fetch_set_key`, {
     user_id: userId,
-    label,
-    value
+    label: key.label,
+    value: key.value
   });
   if (r.error) throw new Error(r.error);
   return r.last4 ?? '';
@@ -156,19 +161,22 @@ const FETCH_TEST_TIMEOUT_MS = 8000;
 // exactly those names (they must match the Go struct's marshal form) but PARSE
 // the reply tolerantly across both conventions, since the Go lane lands in
 // parallel.
-export async function rehearseFetch(
-  userId: string,
-  def: { name: string; url: string; jsonPath: string[]; keyLabel: string }
-): Promise<FetchTestReply> {
-  const r = await rpc<{
-    Status?: string;
-    status?: string;
-    Values?: string[];
-    values?: string[];
-    MS?: number;
-    ms?: number;
-    error?: string;
-  }>(
+/** A rehearsal draft: a definition minus its activation flag. */
+export type FetchDraft = Omit<FetchDefInput, 'isActive'>;
+
+/** The gossip reply's wire shape across both casing conventions. */
+interface RawRehearsalReply {
+  Status?: string;
+  status?: string;
+  Values?: string[];
+  values?: string[];
+  MS?: number;
+  ms?: number;
+  error?: string;
+}
+
+export async function rehearseFetch(userId: string, def: FetchDraft): Promise<FetchTestReply> {
+  const r = await rpc<RawRehearsalReply>(
     `${SUB.gossip}.custom.fetch`,
     {
       DefID: '',
@@ -182,6 +190,10 @@ export async function rehearseFetch(
     FETCH_TEST_TIMEOUT_MS
   );
 
+  return parsedRehearsalReply(r);
+}
+
+function parsedRehearsalReply(r: RawRehearsalReply): FetchTestReply {
   const raw = (r.status ?? r.Status ?? '').toLowerCase();
   const status: FetchTestStatus = (FETCH_TEST_STATUSES as readonly string[]).includes(raw)
     ? (raw as FetchTestStatus)

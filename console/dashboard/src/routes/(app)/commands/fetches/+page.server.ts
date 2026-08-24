@@ -260,7 +260,7 @@ export const actions: Actions = {
 
     let last4 = '';
     const res = await tryRpc('setkey', async () => {
-      last4 = await setFetchKey(ctx.uid, label, value);
+      last4 = await setFetchKey(ctx.uid, { label, value });
       return listFetches(ctx.uid);
     });
     if (!res.ok) return fail(400, { ok: false });

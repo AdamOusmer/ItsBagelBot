@@ -130,20 +130,23 @@ func (f *fakeValkey) serve() {
 			close(f.done)
 			return
 		}
-		go func(c net.Conn) {
-			defer c.Close()
-			r := bufio.NewReader(c)
-			for {
-				args, err := readRESPArray(r)
-				if err != nil {
-					return
-				}
-				reply := f.exec(args)
-				if _, err := c.Write(reply); err != nil {
-					return
-				}
-			}
-		}(conn)
+		go f.session(conn)
+	}
+}
+
+// session serves one connection: read a command array, execute, write the
+// reply, until either side drops.
+func (f *fakeValkey) session(c net.Conn) {
+	defer c.Close()
+	r := bufio.NewReader(c)
+	for {
+		args, err := readRESPArray(r)
+		if err != nil {
+			return
+		}
+		if _, err := c.Write(f.exec(args)); err != nil {
+			return
+		}
 	}
 }
 
@@ -328,21 +331,33 @@ func (f *fakeValkey) execEVAL(args []string) []byte {
 	if !strings.Contains(script, "HKEYS") || !strings.Contains(script, "HDEL") {
 		return respError("unsupported script in fake")
 	}
-	key := keys[0]
+	return respInt(f.deleteByPrefixes(keys[0], argv))
+}
+
+// deleteByPrefixes mirrors the projection sweep script: HDEL every field of
+// key matching any prefix, returning the count.
+func (f *fakeValkey) deleteByPrefixes(key string, prefixes []string) int64 {
 	h, ok := f.hashes[key]
+	if !ok || !f.aliveLocked(key) {
+		return 0
+	}
 	removed := int64(0)
-	if ok && f.aliveLocked(key) {
-		for field := range h {
-			for _, p := range argv {
-				if strings.HasPrefix(field, p) {
-					delete(h, field)
-					removed++
-					break
-				}
-			}
+	for field := range h {
+		if hasAnyPrefix(field, prefixes) {
+			delete(h, field)
+			removed++
 		}
 	}
-	return respInt(removed)
+	return removed
+}
+
+func hasAnyPrefix(s string, prefixes []string) bool {
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // aliveLocked applies lazy expiry; caller holds mu.
@@ -362,36 +377,42 @@ func (f *fakeValkey) aliveLocked(key string) bool {
 
 // --- RESP2 encoding helpers ---
 
-func readRESPArray(r *bufio.Reader) ([]string, error) {
+// respCount reads one "*N"/"$N" header line and returns N.
+func respCount(r *bufio.Reader, prefix byte, what string) (int, error) {
 	line, err := readLine(r)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	if len(line) == 0 || line[0] != '*' {
-		return nil, fmt.Errorf("expected array header, got %q", line)
+	if len(line) == 0 || line[0] != prefix {
+		return 0, fmt.Errorf("expected %s header, got %q", what, line)
 	}
-	n, err := strconv.Atoi(line[1:])
+	return strconv.Atoi(line[1:])
+}
+
+func readBulkString(r *bufio.Reader) (string, error) {
+	size, err := respCount(r, '$', "bulk")
+	if err != nil {
+		return "", err
+	}
+	buf := make([]byte, size+2) // payload + CRLF
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return "", err
+	}
+	return string(buf[:size]), nil
+}
+
+func readRESPArray(r *bufio.Reader) ([]string, error) {
+	n, err := respCount(r, '*', "array")
 	if err != nil {
 		return nil, err
 	}
 	args := make([]string, 0, n)
 	for i := 0; i < n; i++ {
-		bulk, err := readLine(r)
+		arg, err := readBulkString(r)
 		if err != nil {
 			return nil, err
 		}
-		if len(bulk) == 0 || bulk[0] != '$' {
-			return nil, fmt.Errorf("expected bulk header, got %q", bulk)
-		}
-		size, err := strconv.Atoi(bulk[1:])
-		if err != nil {
-			return nil, err
-		}
-		buf := make([]byte, size+2) // payload + CRLF
-		if _, err := io.ReadFull(r, buf); err != nil {
-			return nil, err
-		}
-		args = append(args, string(buf[:size]))
+		args = append(args, arg)
 	}
 	return args, nil
 }

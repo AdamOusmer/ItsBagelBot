@@ -117,14 +117,11 @@ func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, comman
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var (
-		sink = &urlTokenSink{results: make(map[string]string, len(names))}
-		wg   sync.WaitGroup
-	)
+	sink := &urlTokenSink{results: make(map[string]string, len(names)), cancel: cancel}
 	for _, name := range names {
-		p.launchTokenFetch(ctx, cancel, c, name, sink, &wg)
+		p.launchTokenFetch(ctx, c, name, sink)
 	}
-	wg.Wait()
+	sink.wg.Wait()
 
 	endStage(seg, sink.verdict())
 	return sink.results
@@ -134,10 +131,15 @@ func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, comman
 // results map, failures count toward the stage verdict and may release a
 // dedup claim. An empty fallback text is the leave-verbatim outcome (bad_def):
 // the name stays ABSENT from the map so expandCommand preserves the token.
+// It also owns the fan-out's WaitGroup and cancel handle, so a launch site
+// passes one collaborator instead of the same four loose values per token.
 type urlTokenSink struct {
 	mu       sync.Mutex
 	results  map[string]string
 	failures int
+
+	wg     sync.WaitGroup
+	cancel context.CancelFunc
 }
 
 func (s *urlTokenSink) ok(name, render string) {
@@ -167,21 +169,21 @@ func (s *urlTokenSink) verdict() string {
 
 // launchTokenFetch starts one name's resolution: the redelivery claim runs on
 // the caller's goroutine (claims must order with the command's other effects),
-// and a fresh claim fans the network call out. The supplied cancel fires on
+// and a fresh claim fans the network call out. The sink's cancel fires on
 // first failure so sibling in-flight fetches stop early; recorded results stand.
-func (p *Pipeline) launchTokenFetch(ctx context.Context, cancel context.CancelFunc, c *module.Context, name string, sink *urlTokenSink, wg *sync.WaitGroup) {
+func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name string, sink *urlTokenSink) {
 	dup, release := p.claimedUrlValue(ctx, c, name)
 	if dup {
 		sink.fallback(name, urlFetchUnavailableText, nil) // replay: fallback, no network
 		return
 	}
-	wg.Add(1)
+	sink.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer sink.wg.Done()
 		render, resolved := p.resolveUrlToken(ctx, c, name)
 		if !resolved {
 			sink.fallback(name, render, release)
-			cancel()
+			sink.cancel()
 			return
 		}
 		sink.ok(name, render)

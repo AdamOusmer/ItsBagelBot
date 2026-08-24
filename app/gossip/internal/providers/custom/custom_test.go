@@ -87,50 +87,73 @@ func (f *fakeSOCKS) serve() {
 }
 
 func (f *fakeSOCKS) handle(conn net.Conn) {
-	// Greeting: VER NMETHODS METHODS — answer "no auth".
+	if !socksGreet(conn) {
+		return
+	}
+	target, ok := readSOCKSTarget(conn)
+	if !ok {
+		return
+	}
+	f.pipe(conn, target)
+}
+
+// socksGreet answers the VER NMETHODS METHODS greeting with "no auth".
+func socksGreet(conn net.Conn) bool {
 	head := make([]byte, 2)
 	if _, err := io.ReadFull(conn, head); err != nil || head[0] != 5 {
-		return
+		return false
 	}
 	methods := make([]byte, head[1])
 	if _, err := io.ReadFull(conn, methods); err != nil {
-		return
+		return false
 	}
-	if _, err := conn.Write([]byte{5, 0}); err != nil {
-		return
-	}
-	// Request: VER CMD RSV ATYP ADDR PORT; CONNECT only.
+	_, err := conn.Write([]byte{5, 0})
+	return err == nil
+}
+
+// readSOCKSTarget decodes the VER CMD RSV ATYP ADDR PORT request (CONNECT
+// only) into a dialable host:port.
+func readSOCKSTarget(conn net.Conn) (string, bool) {
 	req := make([]byte, 4)
 	if _, err := io.ReadFull(conn, req); err != nil || req[1] != 1 {
-		return
+		return "", false
 	}
-	var host string
-	switch req[3] {
-	case 1:
-		ip := make([]byte, 4)
-		if _, err := io.ReadFull(conn, ip); err != nil {
-			return
-		}
-		host = net.IP(ip).String()
-	case 3:
-		l := make([]byte, 1)
-		if _, err := io.ReadFull(conn, l); err != nil {
-			return
-		}
-		name := make([]byte, l[0])
-		if _, err := io.ReadFull(conn, name); err != nil {
-			return
-		}
-		host = string(name)
-	default:
-		return
+	host, ok := readSOCKSHost(conn, req[3])
+	if !ok {
+		return "", false
 	}
 	port := make([]byte, 2)
 	if _, err := io.ReadFull(conn, port); err != nil {
-		return
+		return "", false
 	}
-	target := net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(port))))
+	return net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(port)))), true
+}
 
+func readSOCKSHost(conn net.Conn, atyp byte) (string, bool) {
+	switch atyp {
+	case 1:
+		ip := make([]byte, 4)
+		if _, err := io.ReadFull(conn, ip); err != nil {
+			return "", false
+		}
+		return net.IP(ip).String(), true
+	case 3:
+		l := make([]byte, 1)
+		if _, err := io.ReadFull(conn, l); err != nil {
+			return "", false
+		}
+		name := make([]byte, l[0])
+		if _, err := io.ReadFull(conn, name); err != nil {
+			return "", false
+		}
+		return string(name), true
+	}
+	return "", false
+}
+
+// pipe answers the CONNECT: refused when the fake is refusing or the dial
+// fails, otherwise splices both directions until either side closes.
+func (f *fakeSOCKS) pipe(conn net.Conn, target string) {
 	f.mu.Lock()
 	refuse := f.refusing
 	f.mu.Unlock()
