@@ -11,6 +11,8 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+
+	"go.uber.org/zap"
 )
 
 // benchChatBody builds a representative channel.chat.message envelope once, so the
@@ -136,4 +138,20 @@ func TestProcessWithViewsAllocCeiling(t *testing.T) {
 	if avg > allocViewsCeiling {
 		t.Fatalf("views-path no-output hot path allocates %.1f allocs/op, ceiling %.0f: view-map pooling likely regressed", avg, allocViewsCeiling)
 	}
+}
+
+// BenchmarkProcessNoOutputWithRecording is the hot path with the nuke sweep
+// memory armed (Deps.Nuke set): every plain chat line additionally parses and
+// buffers into the sweep memory. Production's ValkeyRecent flushes that
+// buffer off-path every 50ms; this measures only the on-path stage against
+// the in-memory double. Measured on M1 Pro (2026-08-24): 767 -> 813 ns/op
+// (+6%), 687 -> 703 B/op (+2.3%), allocs 12 -> 12.
+func BenchmarkProcessNoOutputWithRecording(b *testing.B) {
+	n := NewNuke(NewRecentLog(), 0, zap.NewNop())
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
+		Pub: &fakePublisher{}, Log: zap.NewNop(), Nuke: n}
+	p := NewPipeline(d, NewRegistry(zap.NewNop(), silentCore()), Config{
+		OutgressPremium: premiumSubj, OutgressStandard: standardSubj,
+	})
+	benchProcess(b, p, benchMsg())
 }
