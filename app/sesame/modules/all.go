@@ -22,6 +22,7 @@ func All(d engine.Deps) []module.Module {
 		Alerts(d),
 		Clip(d),
 		Followage(d),
+		Uptime(d),
 		Urchin(d),
 		Mcsr(d),
 		Fortnite(d),

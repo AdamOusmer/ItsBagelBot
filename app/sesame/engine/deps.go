@@ -63,6 +63,7 @@ type Deps struct {
 	Gossip     GossipCaller
 	Followage  FollowageLookup
 	AccountAge AccountAgeLookup
+	Uptime     UptimeLookup
 	Log        *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
