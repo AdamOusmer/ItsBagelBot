@@ -302,16 +302,24 @@ func zaddCarrying(cmd []string, text string) bool {
 // member whose text contains substr.
 func wroteMemberContaining(rec *recentRecordingClient, substr string) bool {
 	for _, cmd := range rec.captured() {
-		if cmd[0] != "ZADD" {
-			continue
-		}
-		for i, arg := range cmd {
-			if i >= 2 && i%2 == 0 && strings.Contains(arg, substr) {
-				return true
-			}
+		if zaddCarriesMember(cmd, substr) {
+			return true
 		}
 	}
 	return false
+}
+
+// zaddCarriesMember scans a captured ZADD's score/member pairs (everything
+// after the key) for a member whose text contains substr.
+func zaddCarriesMember(cmd []string, substr string) bool {
+	if len(cmd) < 4 || cmd[0] != "ZADD" {
+		return false
+	}
+	for i := 3; i < len(cmd); i += 2 {
+		if strings.Contains(cmd[i], substr) {
+			return true
+		}
+	}
 }
 
 type failClient struct {
