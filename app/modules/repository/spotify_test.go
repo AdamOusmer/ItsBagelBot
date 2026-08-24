@@ -103,3 +103,41 @@ func TestSpotifyTokenClearMissingIsNoop(t *testing.T) {
 	_, creds := spotifySetup(t)
 	assert.NoError(t, creds.ClearToken(context.Background(), 9999))
 }
+
+func TestSpotifyRotateTokenSwapsOnMatch(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
+	require.NoError(t, creds.RotateToken(ctx, 1001, "first", "second"))
+
+	got, err := creds.Token(ctx, 1001)
+	require.NoError(t, err)
+	assert.Equal(t, "second", got, "a matching rotation must replace the stored token")
+}
+
+func TestSpotifyRotateTokenStaleRefused(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetToken(ctx, 1001, "newer"))
+	err := creds.RotateToken(ctx, 1001, "older", "rotated-from-older")
+	require.ErrorIs(t, err, repository.ErrRotateStale)
+
+	got, err := creds.Token(ctx, 1001)
+	require.NoError(t, err)
+	assert.Equal(t, "newer", got, "a stale rotation must never clobber the newer token")
+}
+
+func TestSpotifyRotateTokenMissingRow(t *testing.T) {
+	_, creds := spotifySetup(t)
+	err := creds.RotateToken(context.Background(), 1001, "prev", "next")
+	require.ErrorIs(t, err, repository.ErrNoSpotifyToken)
+}
+
+func TestSpotifyRotateTokenEmptyNextRefused(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
+	require.Error(t, creds.RotateToken(ctx, 1001, "first", ""))
+}

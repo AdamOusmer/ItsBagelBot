@@ -59,6 +59,10 @@ func wireSpotify(w spotifyWiring) error {
 		w.nc, internal+".get", w.queueGroup, 3*time.Second, w.app, w.log, s.handleGet); err != nil {
 		return err
 	}
+	if err := bus.QueueSubscribeJSON[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](
+		w.nc, internal+".rotate", w.queueGroup, 3*time.Second, w.app, w.log, s.handleRotate); err != nil {
+		return err
+	}
 	w.log.Info("spotify token custody enabled", zap.String("dashboard_prefix", dash))
 	return nil
 }
@@ -101,6 +105,18 @@ func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTok
 		return spotifyrpc.RefreshTokenStatusReply{Error: err.Error()}
 	}
 	return spotifyrpc.RefreshTokenStatusReply{Present: present}
+}
+
+func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTokenRotateRequest) spotifyrpc.RefreshTokenMutateReply {
+	id, err := strconv.ParseUint(req.UserID, 10, 64)
+	if err != nil {
+		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
+	}
+	if err := s.creds.RotateToken(ctx, id, req.PrevToken, req.NewToken); err != nil {
+		// Never carries a token: validation, seal or staleness.
+		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
+	}
+	return spotifyrpc.RefreshTokenMutateReply{}
 }
 
 func (s *spotifyRPC) handleGet(ctx context.Context, req spotifyrpc.RefreshTokenGetRequest) spotifyrpc.RefreshTokenGetReply {
