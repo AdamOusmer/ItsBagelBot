@@ -123,78 +123,78 @@ function actionContext({ locals }: { locals: App.Locals }): { uid: string; sessi
 
 const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
 
+
+// saveErrors runs the shared validator (the client editor runs the exact same
+// checks, so this is the authoritative re-check — commands/+page.server.ts:232
+// shape) plus one courtesy pre-read covering the collision and quota checks.
+// Both are courtesies ahead of the service's own synchronous enforcement
+// (COUNT before insert, unique (user_id,name)); our list can be a beat stale,
+// Go owns truth. Returns plain data — the action keeps the fail() so SvelteKit
+// still infers ActionData from the action itself.
+async function saveErrors(uid: string, def: DefForm): Promise<FetchDefErrors> {
+  const errors: FetchDefErrors = validateFetchDef({
+    name: def.name,
+    url: def.url,
+    kind: def.kind,
+    path: def.path,
+    keyLabel: def.keyLabel
+  });
+  if (DEMO) return errors;
+  const fresh = await tryRpc('pre-check', () => listFetches(uid));
+  if (!fresh.ok) return errors;
+  const taken = fresh.value.defs.some((d) => d.name === def.name && d.name !== def.originalName);
+  const isNew = !fresh.value.defs.some((d) => d.name === def.name);
+  if (taken) {
+    errors.name = `A definition named "${def.name}" already exists.`;
+  } else if (isNew && fresh.value.defs.length >= DEFS_PER_BROADCASTER) {
+    errors.name = `At most ${DEFS_PER_BROADCASTER} definitions per channel.`;
+  }
+  return errors;
+}
+
+async function demoSave(def: DefForm, renamed: boolean) {
+  const { demoFetches } = await import('$lib/server/demo-data');
+  const current = demoFetches();
+  const row = {
+    name: def.name,
+    url: def.url,
+    json_path: def.path,
+    is_active: def.isActive,
+    key_label: def.keyLabel
+  };
+  const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
+  defs.push(row);
+  return {
+    ok: true,
+    action: def.isEdit ? 'updated' : 'created',
+    name: def.name,
+    original: renamed ? def.originalName : undefined,
+    defs
+  };
+}
+
 export const actions: Actions = {
   save: async ({ request, locals }) => {
     const ctx = actionContext({ locals });
     if (!ctx) return notSignedIn();
-    const form = await request.formData();
-    const def = parseDefForm(form);
-
-    // Shared validator: the client editor runs the exact same checks, so this
-    // is the authoritative re-check (commands/+page.server.ts:232 shape).
-    const errors: FetchDefErrors = validateFetchDef({
-      name: def.name,
-      url: def.url,
-      kind: def.kind,
-      path: def.path,
-      keyLabel: def.keyLabel
-    });
-
+    const def = parseDefForm(await request.formData());
     const renamed = def.isEdit && def.originalName !== '' && def.originalName !== def.name;
 
-    // One pre-read covers the collision and quota checks — both are courtesies
-    // ahead of the service's own synchronous enforcement (COUNT before insert,
-    // unique (user_id,name)); our list can be a beat stale, Go owns truth.
-    if (!DEMO) {
-      const fresh = await tryRpc('pre-check', () => listFetches(ctx.uid));
-      if (fresh.ok) {
-        const existsElsewhere = fresh.value.defs.some(
-          (d) => d.name === def.name && d.name !== def.originalName
-        );
-        if (existsElsewhere) {
-          errors.name = `A definition named "${def.name}" already exists.`;
-        } else if (!fresh.value.defs.some((d) => d.name === def.name) && fresh.value.defs.length >= DEFS_PER_BROADCASTER) {
-          errors.name = `At most ${DEFS_PER_BROADCASTER} definitions per channel.`;
-        }
-      }
-    }
+    const errors = await saveErrors(ctx.uid, def);
     if (Object.keys(errors).length) {
       return fail(400, { ok: false, errors, error: firstError(errors) });
     }
-
-    if (DEMO) {
-      const { demoFetches } = await import('$lib/server/demo-data');
-      const current = demoFetches();
-      const row = {
-        name: def.name,
-        url: def.url,
-        json_path: def.path,
-        is_active: def.isActive,
-        key_label: def.keyLabel
-      };
-      const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
-      defs.push(row);
-      return {
-        ok: true,
-        action: def.isEdit ? 'updated' : 'created',
-        name: def.name,
-        original: renamed ? def.originalName : undefined,
-        defs
-      };
-    }
+    if (DEMO) return demoSave(def, renamed);
 
     const res = await tryRpc('save', () =>
-      upsertFetchDef(
-        ctx.uid,
-        {
-          name: def.name,
-          url: def.url,
-          jsonPath: def.path,
-          isActive: def.isActive,
-          keyLabel: def.keyLabel,
-          originalName: renamed ? def.originalName : undefined
-        }
-      )
+      upsertFetchDef(ctx.uid, {
+        name: def.name,
+        url: def.url,
+        jsonPath: def.path,
+        isActive: def.isActive,
+        keyLabel: def.keyLabel,
+        originalName: renamed ? def.originalName : undefined
+      })
     );
     if (!res.ok) return fail(400, { ok: false });
 
@@ -222,7 +222,7 @@ export const actions: Actions = {
       return { ok: true, action: 'deleted', name, defs: current.defs.filter((d) => d.name !== name), keys: current.keys };
     }
 
-    const res = await tryRpc('delete', () => deleteFetchDef(ctx.uid, name));
+    const res = await tryRpc('delete', () => deleteFetchDef({ userId: ctx.uid, name }));
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'fetchdef:delete', name);
@@ -291,7 +291,7 @@ export const actions: Actions = {
     }
 
     const res = await tryRpc('delkey', async () => {
-      await deleteFetchKey(ctx.uid, label);
+      await deleteFetchKey({ userId: ctx.uid, label });
       return listFetches(ctx.uid);
     });
     if (!res.ok) return fail(400, { ok: false });

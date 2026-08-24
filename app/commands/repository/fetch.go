@@ -445,30 +445,38 @@ func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name s
 	return referrers, nil
 }
 
+// fetchTokenScan is one definition name's needle over one lowered response.
+type fetchTokenScan struct {
+	haystack string
+	needle   string
+}
+
 // responseReferencesFetch reports whether a command response contains the
-// token {urlfetch:name} or {urlfetch:name.<path…}. The boundary check ('}' or
-// '.') keeps "weather" from matching "{urlfetch:weather2}".
+// token {urlfetch:name} or {urlfetch:name.<path…}.
 func responseReferencesFetch(response, name string) bool {
-	haystack := strings.ToLower(response)
-	needle := "{urlfetch:" + name
-	for at := 0; at < len(haystack); {
-		idx := strings.Index(haystack[at:], needle)
+	scan := fetchTokenScan{haystack: strings.ToLower(response), needle: "{urlfetch:" + name}
+	return scan.referenced()
+}
+
+func (t fetchTokenScan) referenced() bool {
+	for at := 0; at < len(t.haystack); {
+		idx := strings.Index(t.haystack[at:], t.needle)
 		if idx < 0 {
 			return false
 		}
-		at += idx + len(needle)
-		if fetchTokenBoundary(haystack, at) {
+		at += idx + len(t.needle)
+		if t.boundaryAt(at) {
 			return true
 		}
 	}
 	return false
 }
 
-// fetchTokenBoundary reports whether position at terminates a {urlfetch:...}
-// token ('}' closes it, '.' opens the dot-path tail) — without it "weather"
-// would match "{urlfetch:weather2}".
-func fetchTokenBoundary(haystack string, at int) bool {
-	return at < len(haystack) && (haystack[at] == '}' || haystack[at] == '.')
+// boundaryAt reports whether position at terminates a {urlfetch:...} token
+// ('}' closes it, '.' opens the dot-path tail) — without it "weather" would
+// match "{urlfetch:weather2}".
+func (t fetchTokenScan) boundaryAt(at int) bool {
+	return at < len(t.haystack) && (t.haystack[at] == '}' || t.haystack[at] == '.')
 }
 
 // KeyEntry is one label+value pair as the dashboard submits it: the label

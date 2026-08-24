@@ -237,6 +237,16 @@ type flight struct {
 // resolve, path build, URL gate, breaker — and returns the admitted flight.
 // nil means answer the returned status without dialing anything.
 func (p *api) planFlight(ctx context.Context, req gossiprpc.Request) (*flight, gossiprpc.FetchStatus) {
+	fl, status := p.resolveFlight(ctx, req)
+	if fl == nil {
+		return nil, status
+	}
+	return p.admitFlight(ctx, fl)
+}
+
+// resolveFlight owns the authoring half of admission: request shape, the
+// definition itself and the effective extraction path.
+func (p *api) resolveFlight(ctx context.Context, req gossiprpc.Request) (*flight, gossiprpc.FetchStatus) {
 	channelID := strings.TrimSpace(req.ChannelID)
 	if channelID == "" || (req.DefID == "" && req.Def == nil) {
 		// A caller bug, not an upstream condition; bad_def keeps the author's
@@ -252,10 +262,25 @@ func (p *api) planFlight(ctx context.Context, req gossiprpc.Request) (*flight, g
 	if !ok {
 		return nil, gossiprpc.FetchBadDef
 	}
-	host, status := p.gateURL(ctx, channelID, def)
+	return &flight{
+		channelID: channelID,
+		def:       def,
+		inline:    inline,
+		path:      path,
+		// Keyed by the FULL id as the caller addressed it — "<name>" bare or
+		// "<name>.<path>": different paths are different answers and must
+		// never share an entry.
+		key: resultKey(strings.ToLower(strings.TrimSpace(req.DefID))),
+	}, gossiprpc.FetchOK
+}
+
+// admitFlight owns the dialing half: the URL gate and the host breaker.
+func (p *api) admitFlight(ctx context.Context, fl *flight) (*flight, gossiprpc.FetchStatus) {
+	host, status := p.gateURL(ctx, fl.channelID, fl.def)
 	if status != gossiprpc.FetchOK {
 		return nil, status
 	}
+	fl.host = host
 	// Breaker check BEFORE buckets: an armed host answers without spending
 	// anyone's tokens on a dial we already know is dead. Rehearsal sees the
 	// same gate — dry_run weakens nothing but billing. The answer is the same
@@ -264,17 +289,7 @@ func (p *api) planFlight(ctx context.Context, req gossiprpc.Request) (*flight, g
 	if armed, _ := p.cache.Exists(ctx, breakerKey(host)); armed {
 		return nil, p.classify(&core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true})
 	}
-	return &flight{
-		channelID: channelID,
-		def:       def,
-		inline:    inline,
-		host:      host,
-		path:      path,
-		// Keyed by the FULL id as the caller addressed it — "<name>" bare or
-		// "<name>.<path>": different paths are different answers and must
-		// never share an entry.
-		key: resultKey(strings.ToLower(strings.TrimSpace(req.DefID))),
-	}, gossiprpc.FetchOK
+	return fl, gossiprpc.FetchOK
 }
 
 // effectivePath builds the extraction path for this ask. The console picker
