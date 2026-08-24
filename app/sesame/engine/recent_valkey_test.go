@@ -78,28 +78,36 @@ func (s *recentScriptedServer) handle(c net.Conn) {
 		}
 		switch strings.ToUpper(cmd.args[0]) {
 		case "HELLO":
-			if _, err := io.WriteString(c, "-ERR unknown command 'HELLO'\r\n"); err != nil {
-				return
-			}
+			writeLine(c, "-ERR unknown command 'HELLO'\r\n")
 		case "ZRANGEBYSCORE":
-			s.mu.Lock()
-			members := append([]string(nil), s.members...)
-			s.lastRange = append([]string(nil), cmd.args...)
-			s.mu.Unlock()
-			var b strings.Builder
-			fmt.Fprintf(&b, "*%d\r\n", len(members))
-			for _, m := range members {
-				fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(m), m)
-			}
-			if _, err := io.WriteString(c, b.String()); err != nil {
-				return
-			}
+			s.writeMemberArray(c, cmd.args)
 		default:
-			if _, err := io.WriteString(c, ":1\r\n"); err != nil {
-				return
-			}
+			writeLine(c, ":1\r\n")
 		}
 	}
+}
+
+// writeLine emits one raw RESP line; a write failure ends the connection.
+func writeLine(c net.Conn, line string) {
+	if _, err := io.WriteString(c, line); err != nil {
+		c.Close()
+	}
+}
+
+// writeMemberArray answers a ZRANGEBYSCORE with the currently scripted
+// members, recording the command that asked so tests can pin the read shape.
+func (s *recentScriptedServer) writeMemberArray(c net.Conn, args []string) {
+	s.mu.Lock()
+	members := append([]string(nil), s.members...)
+	s.lastRange = append([]string(nil), args...)
+	s.mu.Unlock()
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "*%d\r\n", len(members))
+	for _, m := range members {
+		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(m), m)
+	}
+	writeLine(c, b.String())
 }
 
 func dialRecentClient(tb testing.TB, addr string) valkey.Client {

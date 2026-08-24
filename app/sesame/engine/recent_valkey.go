@@ -137,6 +137,20 @@ func (v *ValkeyRecent) flush(ctx context.Context) {
 	v.buffered = 0
 	v.mu.Unlock()
 
+	flushAt := newestBufferedAt(batch)
+	cutoff := strconv.FormatInt((flushAt-int64(recentTTL))/int64(time.Millisecond), 10)
+	ttlSec := int64(recentTTL / time.Second)
+
+	for chanID, entries := range batch {
+		v.flushChannel(ctx, chanID, entries, cutoff, ttlSec)
+	}
+}
+
+// newestBufferedAt finds the freshest entry in the batch; the eviction cutoff
+// derives from it rather than wall-clock time, so tests stay deterministic and
+// a quiet channel's stale members still die on its next activity (the sliding
+// EXPIRE covers the idle case).
+func newestBufferedAt(batch map[uint64][]recentEntry) int64 {
 	newest := int64(0)
 	for _, entries := range batch {
 		for i := range entries {
@@ -145,23 +159,25 @@ func (v *ValkeyRecent) flush(ctx context.Context) {
 			}
 		}
 	}
-	cutoff := strconv.FormatInt((newest-int64(recentTTL))/int64(time.Millisecond), 10)
-	ttlSec := int64(recentTTL / time.Second)
+	return newest
+}
 
-	for chanID, entries := range batch {
-		key := recentChannelKey(chanID)
-		zadd := v.client.B().Zadd().Key(key).ScoreMember()
-		for i := range entries {
-			zadd = zadd.ScoreMember(float64(entries[i].at/int64(time.Millisecond)), encodeRecentMember(entries[i]))
-		}
-		resps := v.client.DoMulti(ctx,
-			zadd.Build(),
-			v.client.B().Zremrangebyscore().Key(key).Min("-inf").Max(cutoff).Build(),
-			v.client.B().Zremrangebyrank().Key(key).Start(0).Stop(-(recentRingCap + 1)).Build(),
-			v.client.B().Expire().Key(key).Seconds(ttlSec).Build(),
-		)
-		v.noteErrors(resps)
+// flushChannel writes one channel's buffered lines as a single pipelined
+// DoMulti: add the new members, evict expired ones, enforce the cardinality
+// cap, and slide the key's TTL.
+func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries []recentEntry, cutoff string, ttlSec int64) {
+	key := recentChannelKey(chanID)
+	zadd := v.client.B().Zadd().Key(key).ScoreMember()
+	for i := range entries {
+		zadd = zadd.ScoreMember(float64(entries[i].at/int64(time.Millisecond)), encodeRecentMember(entries[i]))
 	}
+	resps := v.client.DoMulti(ctx,
+		zadd.Build(),
+		v.client.B().Zremrangebyscore().Key(key).Min("-inf").Max(cutoff).Build(),
+		v.client.B().Zremrangebyrank().Key(key).Start(0).Stop(-(recentRingCap + 1)).Build(),
+		v.client.B().Expire().Key(key).Seconds(ttlSec).Build(),
+	)
+	v.noteErrors(resps)
 }
 
 // Sweep reads the channel's fresh members in one round trip and matches them

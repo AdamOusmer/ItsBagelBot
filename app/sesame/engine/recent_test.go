@@ -35,32 +35,38 @@ func newNukeUnderTest() *Nuke {
 	return n
 }
 
-// chatFrom processes one plain chat line through a recording pipeline.
-func chatFrom(t *testing.T, p *Pipeline, uuid, chatter, text string) {
-	t.Helper()
-	body, err := codec.Marshal(map[string]any{
-		"type":                chatType,
-		"lane":                "standard",
-		"broadcaster_user_id": "123",
-		"chatter_user_id":     chatter,
-		"text":                text,
-	})
-	require.NoError(t, err)
-	require.NoError(t, p.Process(bus.NewMessage(uuid, body)))
+// chatLineInput is one synthetic chat line: who said what (and wearing what).
+// The bus uuid derives from the pair, so callers stay two-argument simple and
+// distinct lines still get distinct identities for free.
+type chatLineInput struct {
+	chatter string
+	text    string
+	badges  []map[string]string
 }
 
-func chatWithBadges(t *testing.T, p *Pipeline, uuid, chatter, text string, badges []map[string]string) {
+// processChat marshals one input into a channel-123 chat envelope and runs it
+// through the pipeline.
+func processChat(t *testing.T, p *Pipeline, in chatLineInput) {
 	t.Helper()
-	body, err := codec.Marshal(map[string]any{
+	body := map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
 		"broadcaster_user_id": "123",
-		"chatter_user_id":     chatter,
-		"text":                text,
-		"badges":              badges,
-	})
+		"chatter_user_id":     in.chatter,
+		"text":                in.text,
+	}
+	if in.badges != nil {
+		body["badges"] = in.badges
+	}
+	payload, err := codec.Marshal(body)
 	require.NoError(t, err)
-	require.NoError(t, p.Process(bus.NewMessage(uuid, body)))
+	require.NoError(t, p.Process(bus.NewMessage("u-"+in.chatter+":"+in.text, payload)))
+}
+
+// chatFrom processes one plain chat line through a recording pipeline.
+func chatFrom(t *testing.T, p *Pipeline, chatter, text string) {
+	t.Helper()
+	processChat(t, p, chatLineInput{chatter: chatter, text: text})
 }
 
 // nukeModule mirrors the production moderation module's registration so the
@@ -80,8 +86,11 @@ func nukeModule(n *Nuke) module.Module {
 // moderatorNuke processes "!nuke <args>" from a moderator in channel 123.
 func moderatorNuke(t *testing.T, p *Pipeline, args string) {
 	t.Helper()
-	chatWithBadges(t, p, "uuid-nuke:"+args, "777", "!nuke "+args,
-		[]map[string]string{{"set_id": "moderator"}})
+	processChat(t, p, chatLineInput{
+		chatter: "777",
+		text:    "!nuke " + args,
+		badges:  []map[string]string{{"set_id": "moderator"}},
+	})
 }
 
 func soloChatEnv(chatter, text string) *lane.Envelope {
@@ -195,9 +204,9 @@ func TestNukeTimesOutMatchedChattersAndReports(t *testing.T) {
 	pub := &fakePublisher{}
 	p := nukeTestPipeline(pub, n, nukeModule(n))
 
-	chatFrom(t, p, "u1", "111", "join my free nitro giveaway now")
-	chatFrom(t, p, "u2", "222", "totally innocent message")
-	chatFrom(t, p, "u3", "333", "FREE NITRO over here!!")
+	chatFrom(t, p, "111", "join my free nitro giveaway now")
+	chatFrom(t, p, "222", "totally innocent message")
+	chatFrom(t, p, "333", "FREE NITRO over here!!")
 	moderatorNuke(t, p, "free nitro")
 
 	ids := timeoutTargets(t, pub)
@@ -223,10 +232,10 @@ func TestNukeNeverTouchesStaffBroadcasterOrBot(t *testing.T) {
 	pub := &fakePublisher{}
 	p := nukeTestPipeline(pub, n, nukeModule(n))
 
-	chatWithBadges(t, p, "u1", "555", "free nitro friends", []map[string]string{{"set_id": "vip"}})
-	chatWithBadges(t, p, "u2", "666", "free nitro friends", []map[string]string{{"set_id": "moderator"}})
-	chatFrom(t, p, "u3", "123", "free nitro friends") // the broadcaster themself
-	chatFrom(t, p, "u4", "888", "free nitro friends")
+	processChat(t, p, chatLineInput{chatter: "555", text: "free nitro friends", badges: []map[string]string{{"set_id": "vip"}}})
+	processChat(t, p, chatLineInput{chatter: "666", text: "free nitro friends", badges: []map[string]string{{"set_id": "moderator"}}})
+	chatFrom(t, p, "123", "free nitro friends") // the broadcaster themself
+	chatFrom(t, p, "888", "free nitro friends")
 	moderatorNuke(t, p, "free nitro")
 
 	assert.Equal(t, []string{"888"}, timeoutTargets(t, pub))
@@ -241,7 +250,7 @@ func TestNukeOverflowEscalatesShieldOncePerWindow(t *testing.T) {
 	n.setShield(func(uint64) bool { shieldCalls++; return true })
 
 	for i := 0; i < nukeMaxTargets+5; i++ {
-		chatFrom(t, p, "u"+strconv.Itoa(i), strconv.Itoa(1000+i), "the raid has arrived brothers")
+		chatFrom(t, p, strconv.Itoa(1000+i), "the raid has arrived brothers")
 	}
 	moderatorNuke(t, p, "raid has arrived")
 
@@ -264,7 +273,7 @@ func TestNukeWithoutShieldArmedStillReportsTheCap(t *testing.T) {
 	p := nukeTestPipeline(pub, n, nukeModule(n))
 
 	for i := 0; i < nukeMaxTargets+1; i++ {
-		chatFrom(t, p, "u"+strconv.Itoa(i), strconv.Itoa(1000+i), "spam wave incoming now")
+		chatFrom(t, p, strconv.Itoa(1000+i), "spam wave incoming now")
 	}
 	moderatorNuke(t, p, "spam wave incoming")
 
@@ -315,7 +324,7 @@ func TestNukeInertWithoutService(t *testing.T) {
 	pub := &fakePublisher{}
 	p := nukeTestPipeline(pub, nil, nukeModule(nil))
 
-	chatFrom(t, p, "u1", "111", "free nitro everyone come")
+	chatFrom(t, p, "111", "free nitro everyone come")
 	moderatorNuke(t, p, "free nitro")
 
 	assert.Empty(t, timeoutTargets(t, pub), "no service wired, no actions")

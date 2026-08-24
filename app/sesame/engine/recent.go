@@ -254,11 +254,20 @@ func containsPhrase(text, phrase []byte) bool {
 		}
 		s := off + i
 		e := s + len(phrase)
-		if (s == 0 || !isWordByte(text[s-1])) && (e >= len(text) || !isWordByte(text[e])) {
+		if atWordBoundary(text, s, e) {
 			return true
 		}
 		off = s + 1
 	}
+}
+
+// atWordBoundary reports whether text[s:e] stands as its own token: neither
+// edge may continue a word character.
+func atWordBoundary(text []byte, s, e int) bool {
+	if s > 0 && isWordByte(text[s-1]) {
+		return false
+	}
+	return e >= len(text) || !isWordByte(text[e])
 }
 
 // isWordByte treats any non-ASCII byte as part of a word (conservative: a
@@ -328,14 +337,21 @@ func pruneChannels(sh *recentShard, cutoff int64) {
 		}
 	}
 	for len(sh.chans) > recentChanCap {
-		var staleID uint64
-		var staleAt int64
-		first := true
-		for id, c := range sh.chans {
-			if first || c.last < staleAt {
-				staleID, staleAt, first = id, c.last, false
-			}
-		}
-		delete(sh.chans, staleID)
+		delete(sh.chans, stalestChannel(sh.chans))
 	}
+}
+
+// stalestChannel finds the channel whose newest line is oldest. Callers hold
+// the shard lock; the map is never empty when this runs (the caller only asks
+// while over the cap).
+func stalestChannel(chans map[uint64]*chanRecent) uint64 {
+	var staleID uint64
+	var staleAt int64
+	first := true
+	for id, c := range chans {
+		if first || c.last < staleAt {
+			staleID, staleAt, first = id, c.last, false
+		}
+	}
+	return staleID
 }
