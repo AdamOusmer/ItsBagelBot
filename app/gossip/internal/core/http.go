@@ -525,6 +525,21 @@ func classifyAddr(a netip.Addr) error {
 		return fmt.Errorf("invalid address")
 	}
 	a = a.Unmap()
+	if err := classifyLocal(a); err != nil {
+		return err
+	}
+	switch {
+	case a.Is4():
+		return classifySpecial(a, blockedSpecialV4)
+	case a.Is6():
+		return classifyV6(a)
+	}
+	return fmt.Errorf("unroutable address family")
+}
+
+// classifyLocal refuses the family-independent locality classes Go's own
+// predicates name.
+func classifyLocal(a netip.Addr) error {
 	switch {
 	case a.IsUnspecified():
 		return fmt.Errorf("unspecified address")
@@ -534,19 +549,22 @@ func classifyAddr(a netip.Addr) error {
 		return fmt.Errorf("link-local/multicast address")
 	case a.IsPrivate():
 		return fmt.Errorf("private (RFC1918/ULA) address")
-	case a.Is4():
-		if p, ok := matchedPrefix(a, blockedSpecialV4); ok {
-			return fmt.Errorf("special-purpose range %s", p)
-		}
-	case a.Is6():
-		if v4, ok := embeddedV4(a); ok {
-			return classifyAddr(v4)
-		}
-		if p, ok := matchedPrefix(a, blockedSpecialV6); ok {
-			return fmt.Errorf("special-purpose range %s", p)
-		}
-	default:
-		return fmt.Errorf("unroutable address family")
+	}
+	return nil
+}
+
+// classifyV6 unwraps translation formats (their real destination hides in the
+// embedded IPv4) and refuses the v6 special-purpose ranges.
+func classifyV6(a netip.Addr) error {
+	if v4, ok := embeddedV4(a); ok {
+		return classifyAddr(v4)
+	}
+	return classifySpecial(a, blockedSpecialV6)
+}
+
+func classifySpecial(a netip.Addr, prefixes []netip.Prefix) error {
+	if p, ok := matchedPrefix(a, prefixes); ok {
+		return fmt.Errorf("special-purpose range %s", p)
 	}
 	return nil
 }

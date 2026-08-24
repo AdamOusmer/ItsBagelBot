@@ -1300,29 +1300,42 @@ function makeFetchSlotSink(
       const existing = byArgs.get(argsKey);
       if (existing !== undefined) return existing;
 
-      let key = baseSlug;
-      if (slots > 0) key = `${baseSlug}-${slots + 1}`;
-      // Key order matches ManifestFetch's declaration (name, url, json_path,
-      // source) so serialized manifests are byte-stable across parsers.
-      const def: ManifestFetch = jsonPath?.length
-        ? { name: key, url, json_path: jsonPath, source: 'streamelements' }
-        : { name: key, url, source: 'streamelements' };
-
-      if (defs.has(key)) {
-        // Same slug, different content: two exported commands normalized onto
-        // one name. First wins (deterministic by export order); the loser's
-        // tokens would silently re-point at another command's data source.
-        diags.push(warnDiag(-1, 'fetch_def_collision',
-          `fetch definition ${q(key)} was already synthesized with different contents; the earlier one wins`));
-        return null;
-      }
-      if (defs.size >= FETCH_DEF_CAP) return null;
-      defs.set(key, def);
+      const key = slots > 0 ? `${baseSlug}-${slots + 1}` : baseSlug;
+      if (!registerFetchDef(defs, fetchDefFor(key, url, jsonPath), diags)) return null;
       slots++;
       byArgs.set(argsKey, key);
       return key;
     }
   };
+}
+
+// fetchDefFor builds one synthesized definition. Key order matches
+// ManifestFetch's declaration (name, url, json_path, source) so serialized
+// manifests are byte-stable across parsers.
+function fetchDefFor(key: string, url: string, jsonPath: string[] | undefined): ManifestFetch {
+  return jsonPath?.length
+    ? { name: key, url, json_path: jsonPath, source: 'streamelements' }
+    : { name: key, url, source: 'streamelements' };
+}
+
+// registerFetchDef admits one definition into the import-level map: false at
+// the cap, and false with a warn when the slug is already taken — two
+// exported commands normalized onto one name; first wins (deterministic by
+// export order), because the loser's tokens would silently re-point at
+// another command's data source.
+function registerFetchDef(
+  defs: Map<string, ManifestFetch>,
+  def: ManifestFetch,
+  diags: ImportDiagnostic[]
+): boolean {
+  if (defs.has(def.name)) {
+    diags.push(warnDiag(-1, 'fetch_def_collision',
+      `fetch definition ${q(def.name)} was already synthesized with different contents; the earlier one wins`));
+    return false;
+  }
+  if (defs.size >= FETCH_DEF_CAP) return false;
+  defs.set(def.name, def);
+  return true;
 }
 
 // parseUrlfetchArgs splits a $urlfetch body into (url, json_path). The first

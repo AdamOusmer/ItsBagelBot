@@ -118,16 +118,12 @@ export function urlFetchNames(response: string): string[] {
   if (!response.includes('{urlfetch')) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  let i = response.indexOf('{urlfetch:');
-  while (i >= 0) {
-    const end = response.indexOf('}', i + 1);
-    if (end < 0) break;
-    const name = response.slice(i + '{urlfetch:'.length, end).toLowerCase();
+  for (const s of fetchSpans(response).spans) {
+    const name = (s.payload ?? '').toLowerCase();
     if (name !== '' && !seen.has(name)) {
       seen.add(name);
       out.push(name);
     }
-    i = response.indexOf('{urlfetch:', end);
   }
   return out;
 }
@@ -182,7 +178,15 @@ export function malformedUrlFetchTokens(response: string): string[] {
  * (it also re-checks DNS-era changes and the IP-logger floor). */
 function hostIsDenied(host: string): boolean {
   const bare = host.replace(/^\[/, '').replace(/\]$/, '');
-  if (bare === 'localhost' || bare.endsWith('.local') || bare.endsWith('.internal')) return true;
+  return deniedName(bare) || ipLiteral(bare);
+}
+
+function deniedName(bare: string): boolean {
+  if (bare === 'localhost') return true;
+  return bare.endsWith('.local') || bare.endsWith('.internal');
+}
+
+function ipLiteral(bare: string): boolean {
   if (bare.includes(':')) return true; // IPv6 literal form
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(bare); // IPv4 literal form
 }

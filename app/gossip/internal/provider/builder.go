@@ -121,28 +121,39 @@ func (b *Builder) Client(base string, headers map[string]string, timeout time.Du
 // provider could still smuggle a raw net/http client past this; the tally
 // narrows that to a deliberate act, and WARP-lane external segments carrying
 // lane=warp make wrong-lane egress visible at runtime.
+// logClientTally records at boot who dials on which lane — the reviewable
+// audit line the Builder chokepoint exists to produce.
+func (b *Builder) logClientTally() {
+	log := b.deps.Log
+	if log == nil {
+		return
+	}
+	noun := "clients"
+	if len(b.clients) == 1 {
+		noun = "client"
+	}
+	log.Info(fmt.Sprintf("%s: %d %s (%s)", b.name, len(b.clients), noun, b.laneLabel()))
+}
+
+// laneLabel names the single lane every client shares, or "mixed".
+func (b *Builder) laneLabel() string {
+	if len(b.clients) == 0 {
+		return "mixed"
+	}
+	first := b.clients[0].lane
+	for _, c := range b.clients[1:] {
+		if c.lane != first {
+			return "mixed"
+		}
+	}
+	return first.String()
+}
+
 func (b *Builder) Build() Provider {
 	if err := b.Validate(); err != nil {
 		panic("gossip/provider: " + err.Error())
 	}
-	if log := b.deps.Log; log != nil {
-		lanes := "mixed"
-		if len(b.clients) > 0 {
-			first := b.clients[0].lane
-			uniform := true
-			for _, c := range b.clients[1:] {
-				uniform = uniform && c.lane == first
-			}
-			if uniform {
-				lanes = first.String()
-			}
-		}
-		noun := "clients"
-		if len(b.clients) == 1 {
-			noun = "client"
-		}
-		log.Info(fmt.Sprintf("%s: %d %s (%s)", b.name, len(b.clients), noun, lanes))
-	}
+	b.logClientTally()
 	eps := make([]Endpoint, len(b.eps))
 	for i, s := range b.eps {
 		eps[i] = Endpoint{Name: s.name, Timeout: s.timeout, Handle: s.handler(b)}

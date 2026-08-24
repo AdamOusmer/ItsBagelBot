@@ -231,24 +231,41 @@ func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleV
 func (v *Store) SetModulesWithTTL(ctx context.Context, userID uint64, modules []ModuleView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
+	rows := make([][2]string, 0, 2*len(modules))
+	for _, mod := range modules {
+		rows = append(rows, [2]string{"module:" + mod.Name + ":enabled", utils.BoolField(mod.IsEnabled)})
+		if len(mod.Configs) > 0 {
+			rows = append(rows, [2]string{"module:" + mod.Name + ":config", string(mod.Configs)})
+		}
+	}
+	return v.replaceSection(ctx, userID, sectionWrite{prefix: "module:", marker: "modules:projected", ttl: ttl, rows: rows})
+}
+
+// sectionWrite is one full-section replacement: clear everything under
+// prefix, then write the projected marker plus rows in one HSET, refreshing
+// the TTL. The marker rides the SAME write as the rows on purpose — the
+// projection-marker trust rule (markers may only ever come from full-section
+// writes) is enforced by this being the only path that writes one.
+type sectionWrite struct {
+	prefix string
+	marker string
+	ttl    time.Duration
+	rows   [][2]string
+}
+
+func (v *Store) replaceSection(ctx context.Context, userID uint64, sec sectionWrite) error {
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, "module:"); err != nil {
+	if err := v.clearProjectionFields(ctx, key, sec.prefix); err != nil {
 		return err
 	}
-
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("modules:projected", "1")
-
-	for _, mod := range modules {
-		fields = fields.FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
-		if len(mod.Configs) > 0 {
-			fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
-		}
+		FieldValue(sec.marker, "1")
+	for _, row := range sec.rows {
+		fields = fields.FieldValue(row[0], row[1])
 	}
-
-	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+	return v.pipelineWithTTL(ctx, key, sec.ttl, fields.Build())
 }
 
 // SetCommand projects one command row of one user. The command JSON lands under
@@ -604,25 +621,15 @@ func (v *Store) SetFetches(ctx context.Context, userID uint64, fetches []FetchVi
 func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []FetchView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, fetchFieldPrefix); err != nil {
-		return err
-	}
-
-	fields := v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("fetch:projected", "1")
-
+	rows := make([][2]string, 0, len(fetches))
 	for _, f := range fetches {
 		body, err := codec.Marshal(f)
 		if err != nil {
 			return err
 		}
-		fields = fields.FieldValue(fetchFieldPrefix+strings.ToLower(f.Name), string(body))
+		rows = append(rows, [2]string{fetchFieldPrefix + strings.ToLower(f.Name), string(body)})
 	}
-
-	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+	return v.replaceSection(ctx, userID, sectionWrite{prefix: fetchFieldPrefix, marker: "fetch:projected", ttl: ttl, rows: rows})
 }
 
 // GetFetch reads one definition by name in a single round trip. found reports

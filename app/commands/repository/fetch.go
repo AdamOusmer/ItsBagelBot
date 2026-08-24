@@ -446,7 +446,7 @@ func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name s
 
 	var referrers []string
 	for _, row := range rows {
-		if responseReferencesFetch(row.Response, name) {
+		if (fetchTokenScan{haystack: strings.ToLower(row.Response), needle: "{urlfetch:" + name}).referenced() {
 			referrers = append(referrers, row.Name)
 		}
 	}
@@ -457,13 +457,6 @@ func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name s
 type fetchTokenScan struct {
 	haystack string
 	needle   string
-}
-
-// responseReferencesFetch reports whether a command response contains the
-// token {urlfetch:name} or {urlfetch:name.<path…}.
-func responseReferencesFetch(response, name string) bool {
-	scan := fetchTokenScan{haystack: strings.ToLower(response), needle: "{urlfetch:" + name}
-	return scan.referenced()
 }
 
 func (t fetchTokenScan) referenced() bool {
