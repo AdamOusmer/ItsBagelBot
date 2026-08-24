@@ -11,16 +11,16 @@ import DashFrame from '../../../components/guides/DashFrame.astro';
 const sections = [
     { id: 'how', heading: 'Comment fonctionnent les modules', note: 'Un interrupteur par fonction. Cliquez la tuile pour que ses messages sonnent comme vous.' },
     { id: 'welcome', heading: 'Accueillir le monde', note: "Alertes, shoutouts de raid, mots déclencheurs et l'heure chez vous." },
-    { id: 'economy', heading: 'Points, récompenses et minuteries', note: 'Des points de fidélité pour la présence, des récompenses de points de chaîne qui agissent, et des messages planifiés.' },
-    { id: 'together', heading: 'Jouer ensemble', note: "Une loterie sans contestation possible, une file d'attente équitable et un recueil des meilleures citations du chat." },
-    { id: 'games', heading: 'Stats de jeu dans le chat', note: 'Hypixel Bedwars, MCSR Ranked et Fortnite, à une commande de distance.' },
-    { id: 'safety', heading: 'Modération et commandes intégrées', note: "Les quatre niveaux d'AutoMod, et les trois commandes livrées avec le bot." },
+    { id: 'economy', heading: 'Points, récompenses et minuteries', note: 'Des points de fidélité pour la présence, des récompenses de points de chaîne qui agissent, des messages planifiés et deux jeux de mise pour les courageux.' },
+    { id: 'together', heading: 'Jouer ensemble', note: "Une loterie sans contestation possible, une file d'attente équitable, un recueil des meilleures citations du chat et des applaudissements pour les pyramides d'émotes." },
+    { id: 'games', heading: 'Stats de jeu dans le chat', note: 'Bedwars, MCSR Ranked, Fortnite, Clash Royale et Valorant, à une commande de distance.' },
+    { id: 'safety', heading: 'Modération et commandes intégrées', note: "Les quatre niveaux d'AutoMod, et les quatre commandes livrées avec le bot." },
 ];
 ---
 
 <Layout
     title="Le manuel des modules — Guides ItsBagelBot"
-    description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, loteries, file d'attente, citations, stats de jeu et AutoMod."
+    description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, loteries, jeux de mise, file d'attente, citations, stats de jeu, pyramides d'émotes et AutoMod."
     ogType="article"
 >
     <PageHero
@@ -43,9 +43,11 @@ const sections = [
                 réglages. La plupart des modules parlent dans le chat, et chacune de leurs phrases est
                 un modèle que vous pouvez réécrire, avec les mêmes variables à accolades que les
                 <a href="/fr/guides/commands">commandes personnalisées</a> (plus quelques extras par
-                module, listés plus bas). À noter: les noms des modules s'affichent en anglais dans
-                le tableau de bord (Chat Alerts, Timers, Loyalty Points…), comme dans les aperçus
-                ci-dessous.
+                module, listés plus bas). Chaque modèle est accompagné de la même répétition en direct
+                que les commandes, juste sous son éditeur : vous voyez la réponse atterrir dans un chat
+                factice avant n'importe quel spectateur. À noter: les noms des modules s'affichent en
+                anglais dans le tableau de bord (Chat Alerts, Timers, Loyalty Points…), comme dans les
+                aperçus ci-dessous.
             </p>
             <DashFrame
                 path="/modules"
@@ -59,7 +61,7 @@ const sections = [
                     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>Console</small></span><span class="df-crumb">ItsBagelBot / <b>Modules</b></span><span class="df-account">streamer · Diffuseur</span></div>
                     <span class="df-eyebrow">Gérer</span>
                     <p class="df-title">Modules de <i>chaîne</i></p>
-                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 13 activée.</p>
+                    <p class="df-sub">Fonctions optionnelles pour votre chaîne. 1 sur 20 activée.</p>
                     <div class="df-cols df-cols--rail">
                         <div class="df-rail"><b>Categories</b><span>Chat Tools</span><span class="is-active">Community</span><span>Games</span></div>
                         <div style="display:grid; gap:10px; align-content:start;">
@@ -164,6 +166,32 @@ const sections = [
                 ne fonctionnent pas dans les minuteries. Gardez-les pour les commandes et les réponses
                 de modules.
             </p>
+            <h3>Pari</h3>
+            <p>
+                Transforme vos points en jeu : les spectateurs misent leur propre solde avec
+                <code>!gamble 100</code>, ou <code>!gamble half</code> / <code>!gamble all</code> pour
+                les téméraires, et le bot lance un dé de 1 à 100. Atterrir dans la chance de gain que
+                vous avez fixée rapporte la mise plus son équivalent ; sinon elle est prise. Vous
+                choisissez aussi les limites de mise et un délai par spectateur, et chaque paiement ou
+                débit passe par le même registre que <code>!points</code>. Les lignes de gain et de
+                perte sont des modèles, avec <code>&#123;roll&#125;</code>,
+                <code>&#123;chance&#125;</code>, <code>&#123;amount&#125;</code> et
+                <code>&#123;balance&#125;</code>.
+            </p>
+            <h3>Duels</h3>
+            <p>
+                Des duels de points entre spectateurs, de deux façons. Le pot : quelqu'un ouvre avec
+                <code>!duel 100</code>, chacun ajoute sa mise tant que la fenêtre est ouverte, puis le
+                bot tire un gagnant pondéré par la mise et il rafle tout. Le défi :
+                <code>!duel @maya_live 500</code> désigne un adversaire qui doit taper
+                <code>!duel accept</code> avant la fin du délai — mises égales, pile ou face, le
+                gagnant prend tout. Refus, annulations et absences remboursent toujours chaque point.
+            </p>
+            <p class="gtip">
+                <b>Équitable par conception</b>
+                Les deux jeux passent par le registre des Points de fidélité : personne ne peut miser
+                ce qu'il n'a pas, et la cote est exactement le nombre que vous fixez.
+            </p>
         </Fragment>
 
         <Fragment slot="together">
@@ -220,11 +248,19 @@ const sections = [
                 <code>!quote remove</code>. La collection se consulte et se modifie depuis sa page
                 du tableau de bord.
             </p>
+            <h3>Pyramides et séries d'émotes</h3>
+            <p>
+                Une clique d'encouragements pour les projets artistiques du chat. Le module surveille
+                les pyramides d'émotes (le même émote empilé 1-2-3 puis redescendu) et les séries de
+                messages à émote unique, et publie une ligne de célébration quand l'une atterrit
+                proprement — rien d'autre posté entre deux. Totalement automatique : pas de commande,
+                pas de réglage, juste l'interrupteur.
+            </p>
         </Fragment>
 
         <Fragment slot="games">
             <p>
-                Quatre intégrations mettent les stats de jeu dans le chat pour que personne ne quitte le
+                Cinq intégrations mettent les stats de jeu dans le chat pour que personne ne quitte le
                 stream. Liez votre compte une fois sur la page du module; chaque réponse est un modèle
                 réécrivable avec des variables propres au jeu.
             </p>
@@ -252,6 +288,11 @@ const sections = [
                             <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
                             <td>Profil à vie (niveau, victoires/défaites, taux de victoire), le deck actuel avec son élixir moyen, le classement Path of Legends et le record trophée — par tag de joueur.</td>
                         </tr>
+                        <tr>
+                            <td>Stats Valorant</td>
+                            <td><code>!val</code> <code>!val matches</code> <code>!val account</code> <code>!val lb</code> <code>!val shop</code></td>
+                            <td>Classement compétitif (rang, RR, variation du dernier match, record), dernières parties classées en K/D/A d'agent, résolution d'un Riot ID avec son niveau de compte, top 10 régionaux sur PC ou console, et rotation boutique du jour avec prix en VP et compte à rebours. Les formes contractées comme <code>!valrank</code> marchent aussi ; un mot de shard ou de ladder dans la ligne délimite cette recherche.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -275,14 +316,15 @@ const sections = [
                 jamais. Il n'y a pas encore de tuile ni de page de réglages dans le tableau de bord;
                 les contrôles fins arrivent.
             </p>
-            <h3>Les trois commandes intégrées</h3>
+            <h3>Les quatre commandes intégrées</h3>
             <p>
                 Sur la <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">page Commandes</a>,
-                au-dessus de vos propres commandes, vivent trois commandes livrées avec le bot:
+                au-dessus de vos propres commandes, vivent quatre commandes livrées avec le bot:
             </p>
             <ul>
                 <li><code>!followage</code>: depuis combien de temps quelqu'un vous suit.</li>
                 <li><code>!accountage</code>: l'âge d'un compte Twitch.</li>
+                <li><code>!uptime</code>: depuis combien de temps votre stream est en direct.</li>
                 <li><code>!clip</code>: crée un clip des derniers instants et publie le lien (en direct seulement). Sa réponse est un modèle réécrivable, avec <code>&#123;clip&#125;</code>, <code>&#123;user&#125;</code> et <code>&#123;target&#125;</code>.</li>
             </ul>
             <p>

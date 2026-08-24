@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { ErrorCode } from 'nats';
+import { NoRespondersError, RequestError, TimeoutError } from '@nats-io/transport-node';
 import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
 
 describe('RPC node locality', () => {
@@ -23,7 +23,11 @@ describe('RPC node locality', () => {
     const called: string[] = [];
     const result = await requestLocalFirst(['rpc.get.node.node2', 'rpc.get'], async (subject) => {
       called.push(subject);
-      if (subject.endsWith('.node.node2')) throw { code: ErrorCode.NoResponders };
+      if (subject.endsWith('.node.node2')) {
+        throw new RequestError(`no responders for '${subject}'`, {
+          cause: new NoRespondersError(subject)
+        });
+      }
       return 'generic reply';
     });
     expect(result).toBe('generic reply');
@@ -35,9 +39,9 @@ describe('RPC node locality', () => {
     await expect(
       requestLocalFirst(['rpc.write.node.node2', 'rpc.write'], async (subject) => {
         called.push(subject);
-        throw { code: ErrorCode.Timeout };
+        throw new TimeoutError();
       })
-    ).rejects.toEqual({ code: ErrorCode.Timeout });
+    ).rejects.toBeInstanceOf(TimeoutError);
     expect(called).toEqual(['rpc.write.node.node2']);
   });
 });

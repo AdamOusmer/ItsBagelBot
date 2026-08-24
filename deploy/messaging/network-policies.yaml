@@ -1,0 +1,85 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# East-west gate for the messaging namespace (red-team finding F5). app/db ship
+# default-deny policies; messaging had none, so one popped pod anywhere could
+# enumerate the fleet over NATS's UNAUTHENTICATED monitor/profiling listeners —
+# connz/jsz/subsz leak account names, consumer lag and peer IPs.
+#
+# Shape mirrors deploy/k8s/network-policies.yaml: default-deny first, then
+# explicit allows (policies union). Data-plane ports stay reachable cluster-
+# wide on purpose — every service already holds NATS credentials by design;
+# the monitor ports are what needed gating.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-nats
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-data-plane
+  namespace: messaging
+spec:
+  # Clients live across the app and db namespaces; leafnodes and cluster routes
+  # stay inside messaging itself. 7422 is the websocket listener.
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+      ports:
+        - port: 4222
+        - port: 4223
+        - port: 6222
+        - port: 6223
+        - port: 7422
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-monitor
+  namespace: messaging
+spec:
+  # Monitor/profiling only from namespaces with a reason to look: the
+  # observability stack, and the tailscale ProxyGroup fronting
+  # nats-monitoring.tail451e6d.ts.net.
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        # WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
+        # from cilium_host misclassified as the "world" identity instead of "host".
+        # This ipBlock allows "world" (0.0.0.0/0) but excludes the cluster's pod CIDR,
+        # securely allowing kubelet probes while keeping pod-to-pod monitor access blocked.
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16
+      ports:
+        - port: 8222
+        - port: 8223

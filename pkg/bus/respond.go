@@ -20,6 +20,10 @@ func Respond(msg *nats.Msg, v any) error {
 	return sendResponse(msg, body)
 }
 
-func marshalResponse(v any) ([]byte, error) { return codec.Marshal(v) }
+// marshalResponse encodes handler replies on the fast config: like PublishJSON,
+// replies are fleet-produced JSON whose consumers decode rather than diff
+// bytes, so std's escaping and key-ordering guarantees are not worth paying
+// for on every RPC reply.
+func marshalResponse(v any) ([]byte, error) { return codec.FastMarshal(v) }
 
 func sendResponse(msg *nats.Msg, body []byte) error { return msg.Respond(body) }

@@ -56,7 +56,7 @@ function normalizePath(path: string): string {
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
-  '/guides/counters', '/command-builder',
+  '/guides/counters', '/command-builder', '/changelog',
 ]);
 
 /** Locale from the URL: first path segment when it names a known locale, else default. */

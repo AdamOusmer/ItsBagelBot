@@ -39,6 +39,7 @@ const dashboardQuery = lang === defaultLang ? '' : `?lang=${lang}`;
                 <p>{t('footer.product')}</p>
                 <TextLink href={localizePath("/pricing", lang)} label={t('footer.pricing')} />
                 <TextLink href={localizePath("/guides", lang)} label={t('footer.guides')} />
+                <TextLink href={localizePath("/changelog", lang)} label={t('footer.changelog')} />
                 <TextLink href={localizePath("/command-builder", lang)} label={t('footer.builder')} />
                 <TextLink href="https://docs.itsbagelbot.com" label={t('footer.developer')} external />
                 <TextLink href={`https://dashboard.itsbagelbot.com${dashboardQuery}`} label={t('footer.dashboard')} external />

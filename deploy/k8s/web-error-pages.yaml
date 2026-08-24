@@ -2,20 +2,27 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 # Unrouted hostnames at the traefik edge (anything the tunnel wildcard admits
-# that no router claims) proxy straight through to the marketing site, path
-# intact. An unknown path gets web/'s coded 404 page under a genuine 404
-# status — and because the path is NOT rewritten, the page's own assets
-# (/_astro/*, styles, fonts) resolve through the same catch-all to the real
-# files with the right MIME types. (The first cut rewrote every path to a
-# 404-forcing one, which turned each asset request into an HTML error page:
-# MIME refusals and CSP noise all the way down.)
+# that no router claims) get a 302 to the canonical branded 404:
+# https://itsbagelbot.com/404
 #
-# The marketing apex resolves to Cloudflare's static hosting directly (NOT back
-# through the tunnel — verified: the apex serves with no tunnel route present),
-# so proxying to it cannot loop into cloudflared.
+# History, so nobody re-litigates it blindly:
+#   v1 proxied every unmatched host straight to the apex, path intact — great
+#   branded pages, but ANY forgotten subdomain silently served production
+#   content publicly (wildcard DNS + tunnel admit Host(*)), and the route
+#   doubled as an origin-fetch primitive for whatever Host a client invented.
+#   v2 deleted the fallback entirely — failed closed, but lost the branded
+#   page. Owner call: the 404 must live at itsbagelbot.com/404.
+#   v3 (this): redirect-only. A redirect hands back a Location header and
+#   serves nothing from our origin on unclaimed names, and the attacker-
+#   supplied path is discarded rather than forwarded. Temporary (not
+#   permanent) so browsers never cache a mapping for a name we may later
+#   route deliberately.
 #
-# Requires providers.kubernetesCRD.allowExternalNameServices=true in the
-# traefik HelmChartConfig (deploy/infra/cluster/traefik-config.yaml).
+# The web-origin ExternalName + ServersTransport are kept as the route's
+# backend formality: the redirect middleware answers before any dial happens,
+# so nothing is ever fetched through them here. Requires
+# providers.kubernetesCRD.allowExternalNameServices=true in the traefik
+# HelmChartConfig (deploy/infra/cluster/traefik-config.yaml).
 apiVersion: v1
 kind: Service
 metadata:
@@ -40,6 +47,19 @@ spec:
   serverName: itsbagelbot.com
 ---
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: unrouted-host-404
+  namespace: app
+spec:
+  redirectRegex:
+    # Anything about the request beyond its presence is discarded: scheme,
+    # host and path all collapse to the one canonical URL.
+    regex: .*
+    replacement: https://itsbagelbot.com/404
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: unrouted-host-fallback
@@ -52,11 +72,12 @@ spec:
     - match: HostRegexp(`^.+$`)
       kind: Rule
       priority: 1
+      middlewares:
+        - name: unrouted-host-404
       services:
         - name: web-origin
           port: 443
           scheme: https
           serversTransport: web-origin-transport
-          # Host must be the marketing site for Cloudflare to route it.
           passHostHeader: false
   tls: {}

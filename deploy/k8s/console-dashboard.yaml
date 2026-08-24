@@ -17,10 +17,10 @@
 #     kubectl label node <n> topology.kubernetes.io/region=<city> \
 #                            topology.kubernetes.io/zone=<city> --overwrite
 #   Path: Cloudflare edge -> closest cloudflared connector (per-node DaemonSet)
-#   -> node-local traefik (per-node DaemonSet, Service PreferClose). traefik then
+#   -> node-local traefik (per-node DaemonSet, Service PreferSameZone). traefik then
 #   routes to THIS Service's ClusterIP (nativeLB: true below) instead of load-
 #   balancing pod endpoints directly, so it inherits trafficDistribution:
-#   PreferClose and keeps the request inside the entry city, spilling to another
+#   PreferSameZone and keeps the request inside the entry city, spilling to another
 #   city only when the local pods are gone.
 #
 # Secrets: uses the Doppler-synced `dashboard-env` secret (project dashboard /
@@ -424,7 +424,7 @@ spec:
           scheme: https
           serversTransport: console-dashboard-transport
           # Route to the Service ClusterIP (not pod endpoints) so traefik
-          # inherits the Service's PreferClose region routing. No sticky cookie:
+          # inherits the Service's PreferSameZone region routing. No sticky cookie:
           # sessions are stateless, so any in-region pod is interchangeable.
           nativeLB: true
   tls: {}

@@ -5,7 +5,12 @@
 // subscription that drives the SSE endpoint. Kept separate from the shared
 // request/reply client so a long-lived subscription never interferes with the
 // short-lived RPC requests (and vice versa).
-import { connect, type ConnectionOptions, type NatsConnection, type Subscription } from 'nats';
+import {
+  connect,
+  type ConnectionOptions,
+  type NatsConnection,
+  type Subscription
+} from '@nats-io/transport-node';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;

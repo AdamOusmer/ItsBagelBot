@@ -3,10 +3,12 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // First-visit onboarding: a roaming guide shown once when a new user reaches
   // the dashboard (they're already connected by then, so it starts at the step
-  // people actually miss - modding the bot). Same five steps, same copy, same
-  // guards as the old dialog stepper, but the blob walks the screen instead of
-  // sitting still in a card. Dismissal is remembered in localStorage;
-  // `?welcome=1` re-opens it for a refresher (both handled by the caller).
+  // people actually miss - modding the bot). Six steps in walking order:
+  // consent, language, mod, import, then commands and modules; each feature
+  // step carries a direct CTA link onto its page. Same guards as the old
+  // dialog stepper, but the blob walks the screen instead of sitting still in
+  // a card. Dismissal is remembered in localStorage; `?welcome=1` re-opens it
+  // for a refresher (both handled by the caller).
   import { Icon, Bolota, Toggle, getI18n } from '@bagel/shared';
   import LangSwitch from './LangSwitch.svelte';
   import CursorSwitch from './CursorSwitch.svelte';
@@ -21,18 +23,20 @@
   };
 
   // Anchor points as percentages of the viewport, one per step, in walking
-  // order: centre, upper-right, lower-left, centre-right, back to centre. Kept
-  // well inside the edges (max 78 / min 22) so the bubble's own width never
-  // needs more room than the flip logic below already accounts for.
+  // order: centre, upper-right, lower-left, centre-right, upper-left, low
+  // centre. Kept well inside the edges (max 76 / min 24) so the bubble's own
+  // width never needs more room than the flip logic below already accounts for.
   const ANCHORS: { x: number; y: number }[] = [
     { x: 50, y: 50 },
     { x: 76, y: 26 },
     { x: 24, y: 74 },
-    { x: 70, y: 46 },
-    { x: 50, y: 50 }
+    { x: 72, y: 44 },
+    { x: 26, y: 32 },
+    { x: 52, y: 66 }
   ];
 
-  let { open = false, name, onDone }: { open: boolean; name: string; onDone: () => void } = $props();
+  let { open = false, name, onDone }: { open: boolean; name: string; onDone: () => void } =
+    $props();
 
   const { t } = getI18n();
 
@@ -75,12 +79,18 @@
     {
       title: t('onboarding.langTitle'),
       body: t('onboarding.langBody'),
-      lang: true
+      lang: true,
+      cta: { href: '/settings#preferences', label: t('onboarding.langCta') }
     },
     {
       title: t('onboarding.step1Title'),
       body: t('onboarding.step1Body'),
       mod: true
+    },
+    {
+      title: t('onboarding.importTitle'),
+      body: t('onboarding.importBody'),
+      cta: { href: '/settings/import', label: t('onboarding.importCta') }
     },
     {
       title: t('onboarding.step2Title'),
@@ -243,6 +253,7 @@
 
           {#key step}
             <div class="step">
+              <p class="progress" aria-hidden="true">{t('onboarding.stepOf', { n: step + 1, total: steps.length })}</p>
               <h4 id="onb-title">{s.title}</h4>
               <p class="step-body">{s.body}</p>
 
@@ -367,6 +378,13 @@
     filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
   }
 
+  /* Light: heavy black elevation under the coach-mark reads as a smudge on
+     paper; ink alphas keep the lift. The .mod-cmd well is an inset, so it
+     becomes an ink tint rather than a black hole. */
+  :global(:root[data-theme="light"]) .blob-slot { filter: drop-shadow(0 8px 20px rgba(20, 17, 12, 0.14)); }
+  :global(:root[data-theme="light"]) .bubble { box-shadow: 0 16px 40px rgba(20, 17, 12, 0.16); }
+  :global(:root[data-theme="light"]) .mod-cmd { background: rgba(20, 17, 12, 0.05); }
+
   .bubble {
     position: relative;
     width: min(380px, 82vw);
@@ -408,6 +426,10 @@
     color: var(--bb-muted); margin: 0 0 14px;
   }
 
+  .progress {
+    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--bb-muted); margin: 0 0 6px;
+  }
   .step h4 {
     font-family: var(--bb-font-display); font-weight: 700; font-size: 16px;
     letter-spacing: -0.01em; color: var(--bb-white); margin: 0 0 8px;
@@ -469,6 +491,7 @@
     background: rgba(240, 236, 228, 0.18); border: none; cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease, transform var(--bb-dur-fast, 180ms) var(--bb-ease-out-back, ease);
   }
+  :global(:root[data-theme="light"]) .dot { background: rgba(20, 17, 12, 0.18); }
   .dot.on { background: var(--bb-tan); transform: scale(1.25); }
   /* A step the consent gate has not opened yet: visibly not a target, rather
      than a dot that looks clickable and refuses. */

@@ -80,7 +80,7 @@
     position: absolute; inset: 0;
     padding: 0; border: 0; cursor: pointer;
     background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
     animation: fade var(--bb-dur-fast, 160ms) var(--bb-ease-out-expo, ease) both;
   }
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -93,7 +93,7 @@
       linear-gradient(var(--glass-fill), var(--glass-fill)),
       var(--bb-bg-1, #111);
     border-left: 1px solid var(--glass-border);
-    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     box-shadow: -16px 0 48px rgba(0, 0, 0, 0.45);
     transform: translateX(100%);
     animation: slide-in var(--bb-dur-med, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) forwards;
