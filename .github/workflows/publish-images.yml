@@ -27,6 +27,7 @@ on:
           - transactions
           - users
           - sesame
+          - warp
           - twitch-ingress
           - console-dashboard
           - console-admin
@@ -192,6 +193,7 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
+            add "warp"
             add "twitch-ingress"
             add "console-dashboard"
             add "console-admin"
