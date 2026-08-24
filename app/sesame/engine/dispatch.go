@@ -267,24 +267,62 @@ func (p *Pipeline) bumpCounterTokens(ctx context.Context, c *module.Context, com
 		if strings.HasPrefix(base, botCounterTokenPrefix) {
 			continue // bot counters are admin-only; the token stays visible
 		}
-		value, err := p.loyalty.CounterBump(ctx, CounterBump{
+		value := p.claimedCounterValue(ctx, c, base, viewer, command)
+		if value == "" {
+			continue // bump failed / counter unknown: the token stays visible
+		}
+		counters[name] = value
+	}
+	return counters
+}
+
+// claimedCounterValue applies one event's counter bump exactly once: a fresh
+// dedup claim bumps and renders the new value; a replay (redelivered command
+// line) skips the increment and renders the counter's CURRENT value via a
+// peek, so the re-run line shows the same number instead of double-counting;
+// a failed bump releases its claim so redelivery retries. The kill switch
+// (nil dedup) degrades to the plain unguarded bump. An empty result means
+// "render without a value" — a bump error or an unknown-counter peek.
+func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, name string, viewer Viewer, command string) string {
+	bump := func() (int64, error) {
+		return p.loyalty.CounterBump(ctx, CounterBump{
 			BroadcasterID: c.BroadcasterID,
-			Name:          base,
+			Name:          name,
 			Viewer:        viewer,
 			Command:       command,
 			Delta:         1,
 		})
-		if err != nil {
-			p.log.Warn("counter token bump failed",
-				zap.Uint64("broadcaster_id", c.BroadcasterID),
-				zap.String("counter", base),
-				zap.Error(err),
-			)
-			continue
-		}
-		counters[name] = strconv.FormatInt(value, 10)
 	}
-	return counters
+	fail := func(err error) string {
+		p.log.Warn("counter token bump failed",
+			zap.Uint64("broadcaster_id", c.BroadcasterID),
+			zap.String("counter", name),
+			zap.Error(err),
+		)
+		return ""
+	}
+	if p.dedup == nil {
+		value, err := bump()
+		if err != nil {
+			return fail(err)
+		}
+		return strconv.FormatInt(value, 10)
+	}
+	dup, release := p.dedup.Claim(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: CounterEffect(name)})
+	if dup {
+		return CounterPeekValue(ctx, p.loyalty, CounterTarget{
+			BroadcasterID: c.BroadcasterID,
+			Name:          name,
+			ViewerID:      viewer.ID,
+			Command:       command,
+		})
+	}
+	value, err := bump()
+	if err != nil {
+		release()
+		return fail(err)
+	}
+	return strconv.FormatInt(value, 10)
 }
 
 // firstArg returns the first whitespace-delimited word of a command's

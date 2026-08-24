@@ -53,7 +53,6 @@ const (
 	// instant (a mass stream.online after an ingress restart) don't line their
 	// chatters fetches up.
 	watchTickJitter = time.Minute
-
 	// loyaltyTickClaimTTL covers one tick's work: a paginated chatters fetch
 	// (10s handler budget) plus the reporter hand-off.
 	loyaltyTickClaimTTL = 30 * time.Second
@@ -523,6 +522,23 @@ func rearmAfterFailure(failures int) time.Duration {
 		return watchTickQuickRetry
 	}
 	return watchTickInterval
+}
+
+// watchTickIdentity is the stable dedup identity for the accrual bucket that
+// contains at on one channel: the channel id plus the interval index of the
+// event's OWN timestamp. Both replicas firing the same key expiry derive the
+// same string (the bucket comes from the payload's clock, never the local
+// one), yet the next legitimate window indexes differently — so the dedup
+// guard collapses a refired expiry without suppressing the following accrual.
+func watchTickIdentity(broadcasterID uint64, at time.Time) string {
+	buf := GetBuf()
+	buf = append(buf, "wtick:"...)
+	buf = strconv.AppendUint(buf, broadcasterID, 10)
+	buf = append(buf, ':')
+	buf = strconv.AppendInt(buf, at.Unix()/int64(watchTickInterval/time.Second), 10)
+	key := string(buf)
+	PutBuf(buf)
+	return key
 }
 
 // requestLiveRecheck asks outgress to resolve the broadcaster's live state

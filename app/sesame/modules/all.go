@@ -35,6 +35,7 @@ func All(d engine.Deps) []module.Module {
 		Queue(d),
 		Quotes(d),
 		Automod(d),
+		Moderation(d),
 		ChannelPoints(d),
 		Loyalty(d),
 		// The wager games ride the loyalty economy; they register right after
