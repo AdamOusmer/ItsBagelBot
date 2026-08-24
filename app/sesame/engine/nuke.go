@@ -52,7 +52,7 @@ type Nuke struct {
 	BotID uint64
 
 	log    *zap.Logger
-	shield func(broadcasterID uint64) bool
+	shield func(channelID) bool
 	now    func() time.Time
 }
 
@@ -66,7 +66,9 @@ func NewNuke(recent recentStore, botID uint64, log *zap.Logger) *Nuke {
 
 // setShield wires the pipeline's escalation decision (armed + raid-gate dedup)
 // after construction; modules hold the Nuke before the Pipeline exists.
-func (n *Nuke) setShield(fn func(broadcasterID uint64) bool) { n.shield = fn }
+func (n *Nuke) setShield(fn func(broadcasterID uint64) bool) {
+	n.shield = func(id channelID) bool { return fn(uint64(id)) }
+}
 
 // setClock overrides the time source (tests).
 func (n *Nuke) setClock(fn func() time.Time) { n.now = fn }
@@ -128,17 +130,23 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 	}
 
 	hits := n.Recent.Sweep(ctx, channelID(c.BroadcasterID), phrase, n.now())
-	targets := filterNukeTargets(hits, c.BroadcasterID, n.BotID)
-	overflow := max(len(targets)-nukeMaxTargets, 0)
-	targets = targets[:min(len(targets), nukeMaxTargets)]
+	matched := filterNukeTargets(hits, c.BroadcasterID, n.BotID)
 
-	emitTimeouts(c.Env.BroadcasterUserID, targets, secs, emit)
-	shielded := escalateOnOverflow(n.shield, overflow, c.BroadcasterID, emit)
-	emitChat(emit, c.Env.BroadcasterUserID, nukeSummary(len(targets), overflow, shielded, secs))
+	res := sweepResult{
+		broadcaster: c.Env.BroadcasterUserID,
+		tenant:      channelID(c.BroadcasterID),
+		seconds:     secs,
+		actioned:    min(len(matched), nukeMaxTargets),
+	}
+	res.overflow = max(len(matched)-nukeMaxTargets, 0)
+
+	emitTimeouts(matched[:res.actioned], res, emit)
+	shielded := n.escalateOnOverflow(res, emit)
+	emitChat(emit, res.broadcaster, res.summary(shielded))
 
 	n.log.Info("nuke executed",
 		zap.Uint64("broadcaster_id", c.BroadcasterID),
-		zap.Int("targets", len(targets)),
+		zap.Int("targets", res.actioned),
 		zap.Int("matched", len(hits)),
 		zap.Int("phrase_runes", runes),
 		zap.Int64("seconds", secs),
@@ -186,15 +194,18 @@ func (h RecentHit) sweepable(p protectedIDs) bool {
 // emitTimeouts translates the capped target list into Helix timeout jobs.
 // The outgress lane buckets pace them within Twitch's action budget; this
 // side only enforces its own per-sweep cap.
-func emitTimeouts(broadcasterID string, targets []RecentHit, secs int64, emit module.Emit) {
+// emitTimeouts translates the capped target list into Helix timeout jobs.
+// The outgress lane buckets pace them within Twitch's action budget; this
+// side only enforces its own per-sweep cap.
+func emitTimeouts(targets []RecentHit, res sweepResult, emit module.Emit) {
 	id := GetBuf()
 	defer PutBuf(id)
 	for i := range targets {
 		emit(&module.Output{
 			Type:          outgress.TypeTimeout,
-			BroadcasterID: broadcasterID,
+			BroadcasterID: res.broadcaster,
 			TargetUserID:  string(strconv.AppendUint(id[:0], uint64(targets[i].UserID), 10)),
-			Duration:      float64(secs),
+			Duration:      float64(res.seconds),
 			Reason:        "nuke",
 		})
 	}
@@ -204,38 +215,51 @@ func emitTimeouts(broadcasterID string, targets []RecentHit, secs int64, emit mo
 // reporting whether it did. Only an armed policy escalates, and the
 // pipeline's raid gate dedups the activation so a raid already escalated by
 // the automod is not double-tripped.
-func escalateOnOverflow(shield func(uint64) bool, overflow int, broadcasterID uint64, emit module.Emit) bool {
-	if overflow == 0 {
+func (n *Nuke) escalateOnOverflow(res sweepResult, emit module.Emit) bool {
+	if res.overflow == 0 {
 		return false // within budget: nothing to cover for
 	}
-	if shield == nil {
+	if n.shield == nil {
 		return false // no armed policy: report the cap instead
 	}
-	if !shield(broadcasterID) {
+	if !n.shield(res.tenant) {
 		return false // disarmed for this channel or raid-gated by the automod
 	}
 	o := GetOutput()
 	o.Type = outgress.TypeShieldMode
-	o.BroadcasterID = strconv.FormatUint(broadcasterID, 10)
+	o.BroadcasterID = res.broadcaster
 	o.Reason = "nuke:overflow"
 	emit(o)
 	PutOutput(o)
 	return true
 }
 
-// nukeSummary renders the chat-facing outcome: what happened, and — when the
+// sweepResult is what one !nuke invocation found and did. The reporting,
+// capping and escalation helpers consume this one value instead of parallel
+// primitives that drift apart when a new field joins the story. broadcaster
+// is the raw channel id outgress outputs address; chan is the same tenant in
+// its domain type for policy calls.
+type sweepResult struct {
+	broadcaster string
+	tenant      channelID
+	seconds     int64 // timeout length every target receives
+	actioned    int   // senders actually timed out (within budget)
+	overflow    int   // matched senders left over the budget cap
+}
+
+// summary renders the chat-facing outcome: what happened, and — when the
 // budget capped the sweep — what covered the rest. The matched phrase stays
 // out of the reply so a mod cannot make the bot echo spam back into chat.
-func nukeSummary(actioned, overflow int, shielded bool, secs int64) string {
-	if actioned == 0 {
+func (res sweepResult) summary(shielded bool) string {
+	if res.actioned == 0 {
 		return "no recent messages matched — nothing nuked"
 	}
-	s := "🚯 nuked " + strconv.Itoa(actioned) + " user(s) with " + strconv.FormatInt(secs, 10) + "s timeouts"
+	s := "🚯 nuked " + strconv.Itoa(res.actioned) + " user(s) with " + strconv.FormatInt(res.seconds, 10) + "s timeouts"
 	switch {
 	case shielded:
 		s += " — over budget, Shield Mode activated"
-	case overflow > 0:
-		s += " — cap reached, " + strconv.Itoa(overflow) + " more left for Shield Mode"
+	case res.overflow > 0:
+		s += " — cap reached, " + strconv.Itoa(res.overflow) + " more left for Shield Mode"
 	}
 	return s
 }
