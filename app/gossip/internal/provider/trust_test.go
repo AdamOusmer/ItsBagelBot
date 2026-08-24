@@ -73,40 +73,43 @@ func TestBuilderRecordsEveryClient(t *testing.T) {
 // Build logs one line per provider tallying clients and lanes — the honest
 // boot record of who dials where.
 func TestBuildLogsClientTally(t *testing.T) {
-	t.Run("trusted", func(t *testing.T) {
-		observed, logs := observer.New(zap.InfoLevel)
-		d := Deps{Log: zap.New(observed)}
+	for _, tc := range []struct {
+		name    string
+		trusted bool
+		clients []string
+		want    string
+	}{
+		{"govee", true, []string{"https://a.invalid", "https://m.invalid"}, "govee: 2 clients (trusted)"},
+		{"custom", false, []string{"https://c.invalid"}, "custom: 1 client (warp)"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			logs := builtProviderLogs(tc.name, tc.trusted, tc.clients)
+			assert.True(t, tallyLogged(logs, tc.want), "expected exact tally line, got %v", logs.All())
+		})
+	}
+}
 
-		b := NewProvider("govee", d).Trusted()
-		b.Client("https://a.invalid", nil, time.Second)
-		b.Client("https://m.invalid", nil, time.Second)
-		b.Endpoint("devices").Handle(noop)
-		b.Build()
+// builtProviderLogs builds one provider with the given trust and client set,
+// returning its captured boot logs.
+func builtProviderLogs(name string, trusted bool, clients []string) *observer.ObservedLogs {
+	observed, logs := observer.New(zap.InfoLevel)
+	b := NewProvider(name, Deps{Log: zap.New(observed)})
+	if trusted {
+		b = b.Trusted()
+	}
+	for _, base := range clients {
+		b.Client(base, nil, time.Second)
+	}
+	b.Endpoint("e").Handle(noop)
+	b.Build()
+	return logs
+}
 
-		found := false
-		for _, e := range logs.All() {
-			if e.Message == "govee: 2 clients (trusted)" {
-				found = true
-			}
+func tallyLogged(logs *observer.ObservedLogs, want string) bool {
+	for _, e := range logs.All() {
+		if e.Message == want {
+			return true
 		}
-		assert.True(t, found, "expected exact tally line, got %v", logs.All())
-	})
-
-	t.Run("warp default", func(t *testing.T) {
-		observed, logs := observer.New(zap.InfoLevel)
-		d := Deps{Log: zap.New(observed)}
-
-		w := NewProvider("custom", d)
-		w.Client("https://c.invalid", nil, time.Second)
-		w.Endpoint("fetch").Handle(noop)
-		w.Build()
-
-		found := false
-		for _, e := range logs.All() {
-			if e.Message == "custom: 1 client (warp)" {
-				found = true
-			}
-		}
-		assert.True(t, found, "expected exact tally line, got %v", logs.All())
-	})
+	}
+	return false
 }

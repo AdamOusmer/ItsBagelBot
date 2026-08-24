@@ -195,107 +195,149 @@ var errKeyMissing = errors.New("key missing")
 // channel B's entry.
 func (p *api) fetch(ctx context.Context, req gossiprpc.Request) any {
 	start := time.Now()
-	log := monitor.TxnLogger(ctx, p.log)
-
-	reply := func(status gossiprpc.FetchStatus, values []string) any {
-		return gossiprpc.CustomFetchReply{Status: status, Values: values, MS: int(time.Since(start).Milliseconds())}
+	fl, status := p.planFlight(ctx, req)
+	if fl == nil {
+		return fetchReply(status, nil, start)
 	}
+	b, err := p.dispatch(ctx, req, fl)
+	if err != nil {
+		return fetchReply(p.classify(err), nil, start)
+	}
+	// Stamp total handler latency onto whatever the cache/build returned. One
+	// small decode/remarshal even on hits — the reply is bounded well under
+	// 4KB, and MS belongs to the whole handler, hit or miss.
+	var out gossiprpc.CustomFetchReply
+	if uerr := codec.Unmarshal(b, &out); uerr != nil {
+		monitor.TxnLogger(ctx, p.log).Error("custom fetch reply decode failed", zap.String("def", fl.def.Name), zap.Error(uerr))
+		return fetchReply(gossiprpc.FetchUpstreamError, nil, start)
+	}
+	out.MS = int(time.Since(start).Milliseconds())
+	out.Values = capValues(out.Values)
+	return out
+}
 
+func fetchReply(status gossiprpc.FetchStatus, values []string, start time.Time) gossiprpc.CustomFetchReply {
+	return gossiprpc.CustomFetchReply{Status: status, Values: values, MS: int(time.Since(start).Milliseconds())}
+}
+
+// flight bundles everything one admitted fetch needs downstream: the resolved
+// definition, its vetted host, the effective extraction path and the cache
+// key. Built once by planFlight so the dispatch and produce layers stop
+// threading the same five values as loose arguments.
+type flight struct {
+	channelID string
+	def       *gossiprpc.FetchDef
+	inline    bool
+	host      string
+	path      codec.Path
+	key       string
+}
+
+// planFlight runs the whole admission preamble — request shape, definition
+// resolve, path build, URL gate, breaker — and returns the admitted flight.
+// nil means answer the returned status without dialing anything.
+func (p *api) planFlight(ctx context.Context, req gossiprpc.Request) (*flight, gossiprpc.FetchStatus) {
 	channelID := strings.TrimSpace(req.ChannelID)
 	if channelID == "" || (req.DefID == "" && req.Def == nil) {
 		// A caller bug, not an upstream condition; bad_def keeps the author's
 		// token visible rather than chatting an error about our own wire.
-		return reply(gossiprpc.FetchBadDef, nil)
+		return nil, gossiprpc.FetchBadDef
 	}
-
 	name, tail := splitTokenPath(req.DefID)
-
 	def, inline := p.resolveDef(ctx, req, name)
-	if def == nil {
-		return reply(gossiprpc.FetchBadDef, nil)
+	if def == nil || !def.IsActive {
+		return nil, gossiprpc.FetchBadDef
 	}
-	if !def.IsActive {
-		return reply(gossiprpc.FetchBadDef, nil)
+	path, ok := effectivePath(def, tail)
+	if !ok {
+		return nil, gossiprpc.FetchBadDef
 	}
-
-	// The console picker inserts the FULL dotted path into the token
-	// ({urlfetch:name.a.b}), so a non-empty token path is the whole path for
-	// this ask and overrides the def's own; an empty one falls back to it.
-	effective := tail
-	if len(effective) == 0 {
-		effective = def.JSONPath
+	host, status := p.gateURL(ctx, channelID, def)
+	if status != gossiprpc.FetchOK {
+		return nil, status
 	}
-	path, err := buildPath(effective)
-	if err != nil {
-		return reply(gossiprpc.FetchBadDef, nil) // malformed authoring, stable
-	}
-
-	u, err := url.Parse(def.URL)
-	if err != nil || u.Scheme == "" {
-		log.Warn("custom fetch has an unparseable url", zap.String("broadcaster", channelID), zap.String("def", def.Name))
-		return reply(gossiprpc.FetchBadDef, nil)
-	}
-	// Gate before anything expensive; Do/FetchBounded re-runs it as defense in
-	// depth. A refusal is a POLICY denial (denied), distinct from upstream
-	// breakage — and it costs no bucket, since nothing was fetched.
-	if serr := core.SSRFCheck(u); serr != nil {
-		reason := serr.Error()
-		var se *core.SSRFError
-		if errors.As(serr, &se) {
-			reason = se.Reason
-		}
-		log.Warn("custom fetch denied by ssrf gate",
-			zap.String("broadcaster", channelID), zap.String("def", def.Name), zap.String("reason", reason))
-		return reply(gossiprpc.FetchDenied, nil)
-	}
-	host := strings.ToLower(u.Hostname())
-
 	// Breaker check BEFORE buckets: an armed host answers without spending
 	// anyone's tokens on a dial we already know is dead. Rehearsal sees the
 	// same gate — dry_run weakens nothing but billing. The answer is the same
 	// typed local-denial a drained bucket mints (429 + LocalDeny), so the
 	// status mapping has exactly one source of truth.
 	if armed, _ := p.cache.Exists(ctx, breakerKey(host)); armed {
-		return reply(p.classify(&core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true}), nil)
+		return nil, p.classify(&core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true})
 	}
+	return &flight{
+		channelID: channelID,
+		def:       def,
+		inline:    inline,
+		host:      host,
+		path:      path,
+		// Keyed by the FULL id as the caller addressed it — "<name>" bare or
+		// "<name>.<path>": different paths are different answers and must
+		// never share an entry.
+		key: resultKey(strings.ToLower(strings.TrimSpace(req.DefID))),
+	}, gossiprpc.FetchOK
+}
 
-	// Keyed by the FULL id as the caller addressed it — "<name>" bare or
-	// "<name>.<path>": different paths are different answers and must never
-	// share an entry.
-	key := resultKey(strings.ToLower(strings.TrimSpace(req.DefID)))
-	build := func(ctx context.Context) ([]byte, time.Duration, error) {
-		return p.produce(ctx, req, channelID, def, host, path)
+// effectivePath builds the extraction path for this ask. The console picker
+// inserts the FULL dotted path into the token ({urlfetch:name.a.b}), so a
+// non-empty token path is the whole path and overrides the def's own; an
+// empty one falls back to it. false means malformed authoring — stable, so
+// bad_def.
+func effectivePath(def *gossiprpc.FetchDef, tail []string) (codec.Path, bool) {
+	effective := tail
+	if len(effective) == 0 {
+		effective = def.JSONPath
 	}
-
-	var b []byte
-	switch {
-	case inline || req.DryRun:
-		// Execute for real; spend no bucket, read no cache, write no cache.
-		// Inline defs bypass caching entirely so an unsaved draft can never
-		// poison the stored definition's entry under the same name.
-		var ttl time.Duration
-		b, ttl, err = build(ctx)
-		_ = ttl // uncached by design
-	case req.Fresh:
-		b, err = core.CachedBytesFresh(ctx, p.cache, key, p.admitFor(req, def.Name, host), build)
-	default:
-		b, err = core.CachedBytes(ctx, p.cache, key, p.admitFor(req, def.Name, host), build)
-	}
+	path, err := buildPath(effective)
 	if err != nil {
-		return reply(p.classify(err), nil)
+		return nil, false
 	}
+	return path, true
+}
 
-	// Stamp total handler latency onto whatever the cache/build returned. One
-	// small decode/remarshal even on hits — the reply is bounded well under
-	// 4KB, and MS belongs to the whole handler, hit or miss.
-	var out gossiprpc.CustomFetchReply
-	if err := codec.Unmarshal(b, &out); err != nil {
-		log.Error("custom fetch reply decode failed", zap.String("def", def.Name), zap.Error(err))
-		return reply(gossiprpc.FetchUpstreamError, nil)
+// gateURL parses and SSRF-vets the definition's URL, returning its lowered
+// host. Gate before anything expensive; Do/FetchBounded re-runs it as defense
+// in depth. A refusal is a POLICY denial (denied), distinct from upstream
+// breakage — and it costs no bucket, since nothing was fetched.
+func (p *api) gateURL(ctx context.Context, channelID string, def *gossiprpc.FetchDef) (string, gossiprpc.FetchStatus) {
+	log := monitor.TxnLogger(ctx, p.log)
+	u, err := url.Parse(def.URL)
+	if err != nil || u.Scheme == "" {
+		log.Warn("custom fetch has an unparseable url", zap.String("broadcaster", channelID), zap.String("def", def.Name))
+		return "", gossiprpc.FetchBadDef
 	}
-	out.MS = int(time.Since(start).Milliseconds())
-	out.Values = capValues(out.Values)
-	return out
+	if serr := core.SSRFCheck(u); serr != nil {
+		log.Warn("custom fetch denied by ssrf gate",
+			zap.String("broadcaster", channelID), zap.String("def", def.Name), zap.String("reason", ssrfReason(serr)))
+		return "", gossiprpc.FetchDenied
+	}
+	return strings.ToLower(u.Hostname()), gossiprpc.FetchOK
+}
+
+func ssrfReason(serr error) string {
+	var se *core.SSRFError
+	if errors.As(serr, &se) {
+		return se.Reason
+	}
+	return serr.Error()
+}
+
+// dispatch runs the flight through the right cache lane. Inline defs and
+// rehearsals execute for real but spend no bucket, read no cache and write no
+// cache — an unsaved draft can never poison the stored definition's entry
+// under the same name.
+func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) ([]byte, error) {
+	build := func(ctx context.Context) ([]byte, time.Duration, error) {
+		return p.produce(ctx, fl)
+	}
+	switch {
+	case fl.inline || req.DryRun:
+		b, _, err := build(ctx) // TTL discarded: uncached by design
+		return b, err
+	case req.Fresh:
+		return core.CachedBytesFresh(ctx, p.cache, fl.key, p.admitFor(req, fl.def.Name, fl.host), build)
+	default:
+		return core.CachedBytes(ctx, p.cache, fl.key, p.admitFor(req, fl.def.Name, fl.host), build)
+	}
 }
 
 // resolveDef returns the definition to run: the inline draft when the request
@@ -324,36 +366,33 @@ func (p *api) resolveDef(ctx context.Context, req gossiprpc.Request, name string
 	return &def, false
 }
 
-// produce runs the real work for one flight: key resolve, gated fetch,
-// extraction. It returns ready-to-send reply bytes plus the TTL they may be
-// stored for (zero = do not store) and swallows every error it could shape
-// into a reply — infrastructure failures come back as errors so the cache
-// layer stores nothing.
-func (p *api) produce(ctx context.Context, req gossiprpc.Request, channelID string, def *gossiprpc.FetchDef, host string, path codec.Path) ([]byte, time.Duration, error) {
-	body, err := p.fetchUpstream(ctx, channelID, def, host)
-	if err == nil {
-		values, xerr := extractValues(body, path)
-		if xerr == nil {
-			return marshalReply(gossiprpc.FetchOK, values), p.positiveTTL, nil
-		}
+// produce runs the real work for one flight: gated fetch, then extraction. It
+// returns ready-to-send reply bytes plus the TTL they may be stored for
+// (zero = do not store) and swallows every error it could shape into a reply —
+// infrastructure failures come back as errors so the cache layer stores
+// nothing.
+func (p *api) produce(ctx context.Context, fl *flight) ([]byte, time.Duration, error) {
+	body, err := p.fetchUpstream(ctx, fl.channelID, fl.def, fl.host)
+	if err != nil {
+		return p.failureReply(err)
+	}
+	values, xerr := extractValues(body, fl.path)
+	if xerr != nil {
 		// A path that names nothing (or a non-scalar leaf) is broken
 		// authoring: stable, so negative-cache it briefly.
 		return marshalReply(gossiprpc.FetchBadDef, nil), negativeTTL, nil
 	}
+	return marshalReply(gossiprpc.FetchOK, values), p.positiveTTL, nil
+}
 
+// failureReply shapes a fetch failure into cacheable reply bytes where the
+// condition is stable enough to store, and propagates everything else as an
+// error so the cache layer stores nothing.
+func (p *api) failureReply(err error) ([]byte, time.Duration, error) {
 	var ue *core.UpstreamError
 	switch {
 	case errors.As(err, &ue):
-		switch {
-		case ue.Status == http.StatusBadRequest || ue.Status == http.StatusNotFound:
-			return marshalReply(gossiprpc.FetchUpstreamError, nil), negativeTTL, nil
-		case ue.Status == http.StatusTooManyRequests && ue.LocalDeny:
-			return marshalReply(gossiprpc.FetchLimited, nil), 0, nil // refills in seconds; retry raw
-		case ue.Status == http.StatusTooManyRequests:
-			return marshalReply(gossiprpc.FetchLimited, nil), core.ThrottleTTL, nil
-		default:
-			return nil, 0, err // 401/403/5xx: real conditions, uncached
-		}
+		return upstreamStatusReply(ue, err)
 	case errors.Is(err, errKeyMissing):
 		// Dangling key_label: fail closed, and remember briefly — it heals
 		// only when the broadcaster relinks a key.
@@ -364,6 +403,20 @@ func (p *api) produce(ctx context.Context, req gossiprpc.Request, channelID stri
 		return marshalReply(gossiprpc.FetchLimited, nil), 0, nil
 	}
 	return nil, 0, err // timeouts and everything else: propagate uncached
+}
+
+// upstreamStatusReply maps an ANSWERED upstream's status onto reply bytes and
+// their storage TTL.
+func upstreamStatusReply(ue *core.UpstreamError, err error) ([]byte, time.Duration, error) {
+	switch {
+	case ue.Status == http.StatusBadRequest || ue.Status == http.StatusNotFound:
+		return marshalReply(gossiprpc.FetchUpstreamError, nil), negativeTTL, nil
+	case ue.Status == http.StatusTooManyRequests && ue.LocalDeny:
+		return marshalReply(gossiprpc.FetchLimited, nil), 0, nil // refills in seconds; retry raw
+	case ue.Status == http.StatusTooManyRequests:
+		return marshalReply(gossiprpc.FetchLimited, nil), core.ThrottleTTL, nil
+	}
+	return nil, 0, err // 401/403/5xx: real conditions, uncached
 }
 
 // classify maps a propagated infrastructure error onto a status. Everything

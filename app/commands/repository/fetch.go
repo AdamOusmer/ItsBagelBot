@@ -457,16 +457,18 @@ func responseReferencesFetch(response, name string) bool {
 			return false
 		}
 		at += idx + len(needle)
-		// The needle must terminate a token ('}' closes it, '.' opens the
-		// dot-path tail) or "weather" would match "{urlfetch:weather2}".
-		if at < len(haystack) {
-			switch haystack[at] {
-			case '}', '.':
-				return true
-			}
+		if fetchTokenBoundary(haystack, at) {
+			return true
 		}
 	}
 	return false
+}
+
+// fetchTokenBoundary reports whether position at terminates a {urlfetch:...}
+// token ('}' closes it, '.' opens the dot-path tail) — without it "weather"
+// would match "{urlfetch:weather2}".
+func fetchTokenBoundary(haystack string, at int) bool {
+	return at < len(haystack) && (haystack[at] == '}' || haystack[at] == '.')
 }
 
 // SetKey seals the broadcaster's API key and upserts it under the label.

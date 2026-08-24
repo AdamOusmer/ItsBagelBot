@@ -56,14 +56,20 @@ export type FetchKind = 'plain' | 'json';
  * lower-case, fold every non-grammar rune run to "_", trim "_" edges. Empty
  * when the input carries no usable character at all. */
 export function slugifyName(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+/, '')
-    .replace(/_+$/, '')
-    .slice(0, FETCH_NAME_MAX)
-    .replace(/_+$/, '');
+  // Underscore edges are trimmed by index scan, not /^_+/ and /_+$/ — those
+  // anchors backtrack polynomially on adversarial runs of "_" (CodeQL
+  // js/polynomial-redos), and this input is broadcaster-typed. The remaining
+  // char-class fold is unambiguous and linear.
+  const folded = s.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+  return trimUnderscores(trimUnderscores(folded).slice(0, FETCH_NAME_MAX));
+}
+
+function trimUnderscores(s: string): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s[start] === '_') start++;
+  while (end > start && s[end - 1] === '_') end--;
+  return s.slice(start, end);
 }
 
 export interface FetchDefFields {
@@ -166,46 +172,62 @@ function hostIsDenied(host: string): boolean {
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(bare); // IPv4 literal form
 }
 
+// Each field's rules live in their own problem function returning the first
+// violation (or undefined), so the assembler below spends exactly one branch
+// per field — the gate shape this file's validators share with validateCommand.
+function fetchNameProblem(name: string): string | undefined {
+  if (!name) return 'Definition name is required.';
+  if (name.length > FETCH_NAME_MAX) return `Definition name must be at most ${FETCH_NAME_MAX} characters.`;
+  if (!FETCH_NAME_RE.test(name)) return 'Use lower-case letters, digits and underscores only.';
+  return undefined;
+}
+
+function parsedUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function fetchUrlProblem(url: string): string | undefined {
+  if (!url) return 'URL is required.';
+  if (url.length > FETCH_URL_MAX) return `URL must be at most ${FETCH_URL_MAX} characters.`;
+  const parsed = parsedUrl(url);
+  if (!parsed || parsed.protocol !== 'https:' || !parsed.hostname) return 'URL must start with https://';
+  if (hostIsDenied(parsed.hostname)) return 'URL must point at a public https host.';
+  return undefined;
+}
+
+// kind and path validate together (which field errs depends on the kind), so
+// the problem carries its own field name.
+function kindPathProblem(f: FetchDefFields): { field: 'kind' | 'path'; msg: string } | undefined {
+  if (f.kind !== 'plain' && f.kind !== 'json') return { field: 'kind', msg: 'Pick plain or json.' };
+  if (f.kind === 'plain') {
+    if (f.path.length === 0) return undefined;
+    return { field: 'path', msg: 'A plain fetch reads the whole body — clear the path or switch to json.' };
+  }
+  return jsonPathProblem(f.path);
+}
+
+function jsonPathProblem(path: string[]): { field: 'path'; msg: string } | undefined {
+  if (path.length > JSON_PATH_MAX_DEPTH) {
+    return { field: 'path', msg: `Path can be at most ${JSON_PATH_MAX_DEPTH} segments deep.` };
+  }
+  const bad = path.find((s) => !PATH_SEGMENT_RE.test(s));
+  if (bad === undefined) return undefined;
+  return { field: 'path', msg: `"${bad}" cannot be used as a path segment — letters, digits, "-" and "_" only.` };
+}
+
 export function validateFetchDef(f: FetchDefFields): FetchDefErrors {
   const errors: FetchDefErrors = {};
-
-  if (!f.name) errors.name = 'Definition name is required.';
-  else if (f.name.length > FETCH_NAME_MAX)
-    errors.name = `Definition name must be at most ${FETCH_NAME_MAX} characters.`;
-  else if (!FETCH_NAME_RE.test(f.name))
-    errors.name = 'Use lower-case letters, digits and underscores only.';
-
-  if (!f.url) errors.url = 'URL is required.';
-  else if (f.url.length > FETCH_URL_MAX) errors.url = `URL must be at most ${FETCH_URL_MAX} characters.`;
-  else {
-    let parsed: URL | null = null;
-    try {
-      parsed = new URL(f.url);
-    } catch {
-      parsed = null;
-    }
-    if (!parsed || parsed.protocol !== 'https:' || !parsed.hostname) {
-      errors.url = 'URL must start with https://';
-    } else if (hostIsDenied(parsed.hostname)) {
-      errors.url = 'URL must point at a public https host.';
-    }
-  }
-
-  if (f.kind !== 'plain' && f.kind !== 'json') {
-    errors.kind = 'Pick plain or json.';
-  } else if (f.kind === 'plain' && f.path.length > 0) {
-    errors.path = 'A plain fetch reads the whole body — clear the path or switch to json.';
-  } else if (f.kind === 'json') {
-    if (f.path.length > JSON_PATH_MAX_DEPTH) {
-      errors.path = `Path can be at most ${JSON_PATH_MAX_DEPTH} segments deep.`;
-    } else {
-      const bad = f.path.find((s) => !PATH_SEGMENT_RE.test(s));
-      if (bad !== undefined) errors.path = `"${bad}" cannot be used as a path segment — letters, digits, "-" and "_" only.`;
-    }
-  }
-
+  const name = fetchNameProblem(f.name);
+  if (name !== undefined) errors.name = name;
+  const url = fetchUrlProblem(f.url);
+  if (url !== undefined) errors.url = url;
+  const kindPath = kindPathProblem(f);
+  if (kindPath !== undefined) errors[kindPath.field] = kindPath.msg;
   if (f.keyLabel.length > KEY_LABEL_MAX) errors.key_label = `Key label must be at most ${KEY_LABEL_MAX} characters.`;
-
   return errors;
 }
 

@@ -169,7 +169,9 @@ func main() {
 	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeFetchDashboard(n.RPC, fetches, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
+	if err := rpc.SubscribeFetchDashboard(rpc.FetchDashboardWiring{
+		NC: n.RPC, Repo: fetches, Prefix: commandsPrefix, QueueGroup: "commands-rpc", App: core.NR, Log: log,
+	}); err != nil {
 		log.Fatal("failed to subscribe fetch dashboard rpc", zap.Error(err))
 	}
 
