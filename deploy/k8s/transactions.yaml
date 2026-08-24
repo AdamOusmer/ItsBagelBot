@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1787252044-f4347119cdf9@sha256:1f1225f1014e8c9450d6320032bec9d7e7d9a89a4d45586a469a1461893f5f3c # {"$imagepolicy": "flux-system:transactions"}
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:main-1787595359-141d372665a9@sha256:a3800029fedc38a5637706befd1335da244e91043d76aecec905df0c36e4aaa7 # {"$imagepolicy": "flux-system:transactions"}
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
