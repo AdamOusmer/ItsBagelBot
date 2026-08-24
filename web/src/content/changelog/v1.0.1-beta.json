@@ -1,0 +1,14 @@
+{
+  "tag": "beta",
+  "version": "v1.0.1-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "Game Integrations & AutoMod Beta",
+    "fr": "Intégrations de jeux et Bêta AutoMod"
+  },
+  "description": {
+    "en": "Added Valorant, Spotify, and Clash Royale integrations. Launched the new AutoMod (Beta) with reputation-based cohorts and learned protections. Included various security fixes.",
+    "fr": "Ajout des intégrations Valorant, Spotify et Clash Royale. Lancement du nouvel AutoMod (Bêta) avec des cohortes basées sur la réputation et des protections apprises. Inclusion de divers correctifs de sécurité."
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.1-beta"
+}
