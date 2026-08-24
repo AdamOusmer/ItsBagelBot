@@ -79,9 +79,12 @@ type api struct {
 }
 
 // New builds the hypixel provider: one byte-flow stats endpoint.
+//
+// Trusted is declared before any client exists — trust is positional — and
+// marks both dialing surfaces (Hypixel, Mojang) direct-egress.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	b.Endpoint("stats").Timeout(handlerTimeout).
 		Cached(statsTTL, negativeTTL).
 		Reply(statsErrReply).
@@ -91,7 +94,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.hypixel.net"
@@ -107,8 +110,8 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		cfg.MojangRateLimit = 600
 	}
 	return &api{
-		http:          core.NewHTTPClient(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
-		mojang:        core.NewHTTPClient(mojangBase, nil, httpTimeout),
+		http:          b.Client(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
+		mojang:        b.Client(mojangBase, nil, httpTimeout),
 		cache:         d.Cache,
 		limiter:       d.Limiter,
 		buckets:       core.NewBuckets("ratelimit:gossip:hypixel", cfg.RateLimit, rateWindowSeconds),

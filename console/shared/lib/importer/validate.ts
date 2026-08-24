@@ -239,7 +239,11 @@ export function findCollisions(existingNames: string[], m: ImportManifest | null
 
   return [
     ...(m.commands ?? []).filter((c) => commandCollides(c, existing)).map((c) => collisionRef('command', c.name)),
-    ...(m.counters ?? []).filter((c) => existing.has(normalizeName(c.name))).map((c) => collisionRef('counter', c.name))
+    ...(m.counters ?? []).filter((c) => existing.has(normalizeName(c.name))).map((c) => collisionRef('counter', c.name)),
+    // Synthesized urlfetch definitions collide like any other named item: a
+    // slug (<source>-<command>) that already names something on the channel
+    // would fight it at ingestion, so surface it and let the review screen skip.
+    ...(m.fetches ?? []).filter((f) => existing.has(normalizeName(f.name))).map((f) => collisionRef('fetch', f.name))
   ];
 }
 
@@ -250,7 +254,7 @@ function commandCollides(c: ManifestCommand, existing: Set<string>): boolean {
   return (c.aliases ?? []).some((a) => existing.has(normalizeName(a)));
 }
 
-function collisionRef(kind: 'command' | 'counter', name: string): CollisionRef {
+function collisionRef(kind: 'command' | 'counter' | 'fetch', name: string): CollisionRef {
   return { kind, name: normalizeName(name) };
 }
 

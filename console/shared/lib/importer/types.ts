@@ -73,6 +73,32 @@ export interface ManifestCounter {
   value: number;
 }
 
+// ManifestFetch is one synthesized $(urlfetch) definition riding the manifest
+// as side-data (docs/urlfetch/IMPLEMENTATION.md, Phase 4 "Importer mapping").
+// Importers cannot create real definitions — the commands service owns those
+// (Phase 1) — so parsers emit this carrier and future ingestion turns each
+// entry into a fetch_set_def upsert verbatim:
+//   - name is the reference slug embedded in translated responses as
+//     `{urlfetch:name}`: deterministic "<source>-<normalizeName(command.name)>"
+//     (slot suffixes -N appended per the parser's slot rule), so re-importing
+//     the same export lands on identical names.
+//   - url is OMITTED when the source export carries none (Moobot's BotCommand
+//     has no URL field); the broadcaster must re-enter it before the def can
+//     fetch. StreamElements extracts the URL inline in $urlfetch(...) reply
+//     text, so its defs always carry one.
+//   - json_path mirrors the ent schema's []string segments (alias-style);
+//     segment/depth validation stays authoritative downstream at ingestion.
+//   - source tags the producing parser for provenance.
+// Not counted by stats() and not a review-screen collection today; bounded by
+// IMPORT_ITEM_CAPS.commands wherever collections are truncated (caps.ts) and
+// at synthesis time in both parsers.
+export interface ManifestFetch {
+  name: string;
+  url?: string;
+  json_path?: string[];
+  source: ImportSource;
+}
+
 export interface AutomodTerms {
   block?: string[];
   allow?: string[];
@@ -87,11 +113,14 @@ export interface ImportManifest {
   triggers?: ManifestTrigger[];
   quotes?: ManifestQuote[];
   counters?: ManifestCounter[];
+  fetches?: ManifestFetch[];
   automod?: AutomodTerms;
 }
 
 // CollisionRef names one existing channel item a manifest item would collide
-// with; kind is 'command' | 'timer' | 'trigger' | 'quote' | 'counter'.
+// with; kind is 'command' | 'timer' | 'trigger' | 'quote' | 'counter' |
+// 'fetch' ('fetch' = a synthesized urlfetch definition whose slug already
+// names an existing channel item).
 export interface CollisionRef {
   kind: string;
   name: string;

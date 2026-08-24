@@ -22,9 +22,10 @@
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { detectMoobot, MoobotExportError, parseMoobot } from './moobot';
-import type { ImportDiagnostic, ImportManifest } from '../types';
+import type { ImportDiagnostic, ImportManifest } from './types';
+import { findCollisions } from './validate';
 
 const here = dirname(import.meta.path);
 
@@ -149,3 +150,89 @@ for (const want of golden) {
     }
   });
 }
+
+// --- urlfetch mapping (docs/urlfetch/IMPLEMENTATION.md, Phase 4) --------------
+
+function exportWith(text: string, identifier = 'weather'): Uint8Array {
+  return new TextEncoder().encode(
+    JSON.stringify({
+      version: 1,
+      type: 'settings',
+      settings: [{ type: 'commands_custom', data: [{ identifier, text }] }]
+    })
+  );
+}
+
+describe('urlfetch mapping', () => {
+  test('plain tag maps to the bare slug backed by a URL-less shell def', () => {
+    const { manifest } = parseMoobot(exportWith('Temp: <urlfetch.plain>'));
+    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:moobot-weather}');
+    // Deliberately NO url: Moobot exports carry none; the shell is a
+    // placeholder until the broadcaster re-enters it.
+    expect(manifest.fetches).toEqual([{ name: 'moobot-weather', source: 'moobot' }]);
+  });
+
+  test('json.N tags map to slug-N; plain and slots coexist as distinct defs', () => {
+    const { manifest } = parseMoobot(
+      exportWith('<urlfetch.plain> | <urlfetch.json.1> | <urlfetch.json.3> | <urlfetch.json.10>')
+    );
+    expect(manifest.commands![0].responses![0]).toBe(
+      '{urlfetch:moobot-weather} | {urlfetch:moobot-weather-1} | {urlfetch:moobot-weather-3} | {urlfetch:moobot-weather-10}'
+    );
+    expect(manifest.fetches!.map((f) => f.name)).toEqual([
+      'moobot-weather',
+      'moobot-weather-1',
+      'moobot-weather-3',
+      'moobot-weather-10'
+    ]);
+    for (const f of manifest.fetches!) {
+      expect(f.url).toBeUndefined();
+      expect(f.source).toBe('moobot');
+    }
+  });
+
+  test('one targeted warn per distinct tag, pointing at the slug to complete', () => {
+    const { diagnostics } = parseMoobot(exportWith('<urlfetch.plain> <urlfetch.plain> <urlfetch.json.2>'));
+    const warns = diagnostics.filter((d) => d.code === 'command_fetch_url_absent');
+    expect(warns).toHaveLength(2);
+    for (const w of warns) {
+      expect(w.severity).toBe('warn');
+      expect(w.item_index).toBe(0);
+      expect(w.message).toContain('re-enter the URL for');
+    }
+    expect(warns[0].message).toContain('{urlfetch:moobot-weather}');
+    expect(warns[1].message).toContain('"moobot-weather-2"');
+  });
+
+  test('command name normalization feeds the slug (!Weather folds onto weather)', () => {
+    const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', '!Weather'));
+    expect(manifest.fetches!.map((f) => f.name)).toEqual(['moobot-weather']);
+  });
+
+  test('re-import idempotence: same export parses to identical bytes', () => {
+    const bytes = exportWith('<urlfetch.plain> <urlfetch.json.1>');
+    expect(JSON.stringify(parseMoobot(bytes))).toBe(JSON.stringify(parseMoobot(bytes)));
+  });
+
+  test('slug collisions with existing channel items surface via CollisionRef', () => {
+    const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', 'weather'));
+    // The slug itself ("moobot-weather") is the name that could clash with an
+    // existing item — a plain "weather" command on the channel does not.
+    expect(findCollisions(['moobot-weather'], manifest)).toEqual([{ kind: 'fetch', name: 'moobot-weather' }]);
+    // The imported command "weather" would of course collide with itself on
+    // the channel; only an unrelated existing list stays fully clean.
+    expect(findCollisions(['nothing-here'], manifest)).toEqual([]);
+  });
+
+  test(`synthesis stops at the commands cap (${2000}); excess tags degrade to literal+warn`, () => {
+    const data = Array.from({ length: 2001 }, (_, i) => ({ identifier: `c${i}`, text: '<urlfetch.plain>' }));
+    const bytes = new TextEncoder().encode(
+      JSON.stringify({ version: 1, type: 'settings', settings: [{ type: 'commands_custom', data }] })
+    );
+    const { manifest, diagnostics } = parseMoobot(bytes);
+    expect(manifest.fetches).toHaveLength(2000);
+    const overflow = diagnostics.filter((d) => d.code === 'command_variable_unmapped' && d.item_index === 2000);
+    expect(overflow).toHaveLength(1);
+    expect(manifest.commands![2000].responses![0]).toContain('<urlfetch.plain>');
+  });
+});

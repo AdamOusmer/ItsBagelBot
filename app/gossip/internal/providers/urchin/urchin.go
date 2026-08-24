@@ -78,9 +78,11 @@ type api struct {
 // New builds the urchin provider: the three session-delta endpoints plus the
 // blacklist pair, all byte-flow. cfg.APIKey must be non-empty (providers.All
 // skips the provider entirely when it is not configured).
+//
+// Trusted is declared before any client exists — trust is positional.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 	for _, period := range []string{"daily", "weekly", "monthly"} {
 		b.Endpoint(period).Timeout(handlerTimeout).
 			Cached(sessionTTL, negativeTTL).
@@ -104,7 +106,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = "https://api.urchin.gg"
@@ -117,7 +119,7 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		window = batchWindowDefault
 	}
 	a := &api{
-		http:    core.NewHTTPClient(base, map[string]string{"X-API-Key": cfg.APIKey}, httpTimeout),
+		http:    b.Client(base, map[string]string{"X-API-Key": cfg.APIKey}, httpTimeout),
 		cache:   d.Cache,
 		key:     cfg.APIKey,
 		limiter: d.Limiter,

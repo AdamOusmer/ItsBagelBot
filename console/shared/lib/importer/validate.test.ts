@@ -264,3 +264,14 @@ describe('FailedItems', () => {
     expect(failed.has('quotes', 2)).toBe(true);
   });
 });
+
+// Synthesized urlfetch definitions (Phase 4 importer mapping) collide like any
+// other named item: a slug that already names something on the channel would
+// fight it at ingestion.
+test('FindCollisions flags fetch-definition slugs as kind "fetch"', () => {
+  const m: ImportManifest = {
+    commands: [{ name: 'weather', responses: ['{urlfetch:moobot-weather}'] }],
+    fetches: [{ name: 'moobot-weather', source: 'moobot' }, { name: 'se-fresh', url: 'https://x.example', source: 'streamelements' }]
+  };
+  expect(findCollisions(['MOOBOT-WEATHER', 'chat'], m)).toEqual([{ kind: 'fetch', name: 'moobot-weather' }]);
+});

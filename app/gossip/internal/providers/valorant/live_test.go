@@ -70,3 +70,7 @@ func TestLiveUpstream(t *testing.T) {
 		fmt.Println("shop: no featured bundle payload")
 	}
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

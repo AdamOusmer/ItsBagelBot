@@ -85,6 +85,14 @@
             3
           ],
           "counter": 12.7
+        },
+        {
+          "identifier": "weather",
+          "text": "Weather: <urlfetch.plain> | Humidity: <urlfetch.json.1> | Wind: <urlfetch.json.2>",
+          "cooldown": 30,
+          "trigger_usergroups": [
+            0
+          ]
         }
       ]
     },

@@ -8,6 +8,7 @@ package fortnite
 // endpoints rather than either endpoint on its own.
 
 import (
+	"ItsBagelBot/app/gossip/internal/core"
 	"context"
 	"net/http"
 	"testing"
@@ -99,3 +100,7 @@ func TestSessionSurfacesSharedNegativeEntry(t *testing.T) {
 	assert.Equal(t, "player not found", sess.Error)
 	assert.Equal(t, before, len(reqs), "the negative entry must serve the repeat lookup")
 }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

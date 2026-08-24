@@ -25,6 +25,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
+// dial httptest servers, so the process-wide test switch turns the gate off.
+// The gate's own semantics are pinned by core's table tests.
+func init() { core.SetSSRFCheckForTests(false) }
+
 // memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
@@ -86,7 +91,9 @@ func newTestProviderWithStore(t *testing.T, stats, shop http.Handler, extra func
 		extra(&cfg)
 	}
 	store := newMemStore()
-	return newAPI(cfg, provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}), store
+	d := provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}
+	bldr := provider.NewProvider(providerName, d).Trusted()
+	return newAPI(cfg, d, bldr), store
 }
 
 func noUpstream(t *testing.T, name string) http.Handler {

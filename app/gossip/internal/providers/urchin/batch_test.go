@@ -366,3 +366,7 @@ func (r *batchRecorder) stubs(t *testing.T) http.Handler {
 
 // canonicalTestUUID derives a stable valid uuid from an index.
 func canonicalTestUUID(i int) string { return fmt.Sprintf("%032x", i) }
+
+// These tests stage plain-http loopback upstreams the gate rightly refuses;
+// production binaries never set this (see core.SetSSRFCheckForTests).
+func init() { core.SetSSRFCheckForTests(false) }

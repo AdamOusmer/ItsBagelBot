@@ -381,3 +381,21 @@ func (c *Cache) SetJSON(ctx context.Context, key string, v any, ttl time.Duratio
 func (c *Cache) DelJSON(ctx context.Context, key string) error {
 	return c.store.Del(ctx, key)
 }
+
+// Exists reports whether a key is present, value unread — the cheap
+// "is the breaker armed for this host" probe that runs before every
+// user-defined fetch.
+func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
+	_, found, err := c.store.Get(ctx, key)
+	return found, err
+}
+
+// Claim takes the fleet-wide mutual-exclusion primitive (Store.SetNX) for a
+// caller-chosen key: exactly ONE replica wins, the claim expires on its own,
+// and losing is a normal outcome, not an error. The urlfetch breaker arms
+// through it, so five consecutive transport failures on ANY replica open the
+// circuit fleet-wide — coordination lives in the shared store, never in
+// pod-local state, the same discipline refreshBytes' SWR claim follows.
+func (c *Cache) Claim(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return c.store.SetNX(ctx, key, []byte("1"), ttl)
+}

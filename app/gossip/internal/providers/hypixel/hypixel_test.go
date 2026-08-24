@@ -21,6 +21,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
+// dial httptest servers, so the process-wide test switch turns the gate off.
+// The gate's own semantics are pinned by core's table tests.
+func init() { core.SetSSRFCheckForTests(false) }
+
 // memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
@@ -243,7 +248,9 @@ func TestOddRateLimitDoesNotPanic(t *testing.T) {
 // original defect — left the resolve hop completely unmetered, so Mojang could
 // answer 429 while the Hypixel budget still read as untouched.
 func TestMojangCarriesItsOwnBudget(t *testing.T) {
-	p := newAPI(Config{APIKey: "k"}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	d := provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(Config{APIKey: "k"}, d, b)
 	assert.NotEqual(t, p.buckets, p.mojangBuckets, "the resolve hop must not share the Hypixel key's bucket")
 	assert.NotEqual(t, core.Buckets{}, p.mojangBuckets, "the resolve hop must be metered")
 }

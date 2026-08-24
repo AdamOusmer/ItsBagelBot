@@ -39,7 +39,7 @@ func TestSharedTransportH2TimeoutsFitBudgets(t *testing.T) {
 	tr := newSharedTransport()
 	require.NotNil(t, tr.HTTP2)
 
-	// defaultClientTimeout is the per-call budget NewHTTPClient falls back to.
+	// defaultClientTimeout is the per-call budget newHTTPClient falls back to.
 	const defaultClientTimeout = 10 * time.Second
 	assert.Less(t, tr.HTTP2.PingTimeout, defaultClientTimeout,
 		"the PONG verdict must arrive before the request's own deadline, or it is useless")
@@ -116,11 +116,11 @@ func TestSharedTransportOwnsItsH2Config(t *testing.T) {
 	assert.NotSame(t, a.HTTP2, b.HTTP2)
 }
 
-// NewHTTPClient must actually run on the configured transport; a client that
+// newHTTPClient must actually run on the configured transport; a client that
 // fell back to http.DefaultTransport would silently lose both the pooling and
 // the health check.
 func TestNewHTTPClientUsesSharedTransport(t *testing.T) {
-	c := NewHTTPClient("https://example.invalid", nil, 0)
+	c := newHTTPClient(LaneDirect, "https://example.invalid", nil, 0)
 	assert.Same(t, sharedTransport, c.hc.Transport)
 	assert.Equal(t, 10*time.Second, c.hc.Timeout, "a non-positive timeout falls back to 10s")
 }

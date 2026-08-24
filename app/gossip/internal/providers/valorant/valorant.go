@@ -121,8 +121,8 @@ type api struct {
 // plus the featured-bundle viewer, which joins HenrikDev's store payload
 // against the content CDN's catalogue.
 func New(cfg Config, d provider.Deps) provider.Provider {
-	p := newAPI(cfg, d)
-	b := provider.NewProvider(providerName, d)
+	b := provider.NewProvider(providerName, d).Trusted()
+	p := newAPI(cfg, d, b)
 
 	b.Endpoint("rank").Timeout(handlerTimeout).
 		Cached(rankTTL, negativeTTL).
@@ -167,7 +167,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	return b.Build()
 }
 
-func newAPI(cfg Config, d provider.Deps) *api {
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	base := strings.TrimSuffix(cfg.BaseURL, "/")
 	if base == "" {
 		base = defaultBaseURL
@@ -193,10 +193,10 @@ func newAPI(cfg Config, d provider.Deps) *api {
 		// HenrikDev takes the raw key in Authorization — no "Bearer" prefix.
 		// Its auth scheme is a bare token (sending Bearer yields 401), unlike
 		// the Supercell proxy clashroyale uses.
-		http: core.NewHTTPClient(base, map[string]string{
+		http: b.Client(base, map[string]string{
 			"Authorization": cfg.APIKey,
 		}, httpTimeout),
-		content:        core.NewHTTPClient(content, nil, httpTimeout),
+		content:        b.Client(content, nil, httpTimeout),
 		cache:          d.Cache,
 		limiter:        d.Limiter,
 		buckets:        core.NewBuckets("ratelimit:gossip:valorant", cfg.RateLimit, rateWindowSeconds),

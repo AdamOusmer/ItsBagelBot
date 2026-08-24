@@ -35,6 +35,7 @@ const DefaultTTL = 24 * time.Hour
 const (
 	commandFieldPrefix = "command:"
 	aliasFieldPrefix   = "cmdalias:"
+	fetchFieldPrefix   = "fetch:"
 )
 
 // Store is the unified data access object for the settings projection. One hash per user:
@@ -216,24 +217,41 @@ func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleV
 func (v *Store) SetModulesWithTTL(ctx context.Context, userID uint64, modules []ModuleView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
+	rows := make([][2]string, 0, 2*len(modules))
+	for _, mod := range modules {
+		rows = append(rows, [2]string{"module:" + mod.Name + ":enabled", utils.BoolField(mod.IsEnabled)})
+		if len(mod.Configs) > 0 {
+			rows = append(rows, [2]string{"module:" + mod.Name + ":config", string(mod.Configs)})
+		}
+	}
+	return v.replaceSection(ctx, userID, sectionWrite{prefix: "module:", marker: "modules:projected", ttl: ttl, rows: rows})
+}
+
+// sectionWrite is one full-section replacement: clear everything under
+// prefix, then write the projected marker plus rows in one HSET, refreshing
+// the TTL. The marker rides the SAME write as the rows on purpose — the
+// projection-marker trust rule (markers may only ever come from full-section
+// writes) is enforced by this being the only path that writes one.
+type sectionWrite struct {
+	prefix string
+	marker string
+	ttl    time.Duration
+	rows   [][2]string
+}
+
+func (v *Store) replaceSection(ctx context.Context, userID uint64, sec sectionWrite) error {
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, "module:"); err != nil {
+	if err := v.clearProjectionFields(ctx, key, sec.prefix); err != nil {
 		return err
 	}
-
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
-		FieldValue("modules:projected", "1")
-
-	for _, mod := range modules {
-		fields = fields.FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
-		if len(mod.Configs) > 0 {
-			fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
-		}
+		FieldValue(sec.marker, "1")
+	for _, row := range sec.rows {
+		fields = fields.FieldValue(row[0], row[1])
 	}
-
-	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+	return v.pipelineWithTTL(ctx, key, sec.ttl, fields.Build())
 }
 
 // SetCommand projects one command row of one user. The command JSON lands under
@@ -330,13 +348,13 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 		v.client.B().Hget().Key(key).Field("commands:projected").Build(),
 	)
 
-	projected, err = commandsProjected(res[2])
+	projected, err = markerProjected(res[2])
 	if err != nil {
 		return CommandView{}, false, false, err
 	}
 
 	// Direct hit: the typed name is a command's own field.
-	view, found, err = decodeCommandField(res[0])
+	view, found, err = decodeJSONField[CommandView](res[0])
 	if err != nil {
 		return CommandView{}, false, projected, err
 	}
@@ -348,8 +366,8 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 	return v.resolveAlias(ctx, key, res[1], projected)
 }
 
-// commandsProjected reads the commands:projected marker (nil = not projected).
-func commandsProjected(res valkey.ValkeyResult) (bool, error) {
+// markerProjected reads a section's :projected marker (nil = not projected).
+func markerProjected(res valkey.ValkeyResult) (bool, error) {
 	pj, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
@@ -360,20 +378,23 @@ func commandsProjected(res valkey.ValkeyResult) (bool, error) {
 	return pj == "1", nil
 }
 
-// decodeCommandField decodes a command body straight off an HGET result. A nil
+// decodeJSONField decodes one JSON body straight off an HGET result. A nil
 // field or an unparseable body is a clean miss (found=false, err=nil); only a
-// real Valkey error propagates.
-func decodeCommandField(res valkey.ValkeyResult) (CommandView, bool, error) {
+// real Valkey error propagates. Shared by the command and fetch row readers —
+// the decode contract is identical by design (both views mirror their wire
+// DTOs field-for-field).
+func decodeJSONField[T any](res valkey.ValkeyResult) (T, bool, error) {
+	var zero T
 	body, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			return CommandView{}, false, nil
+			return zero, false, nil
 		}
-		return CommandView{}, false, err
+		return zero, false, err
 	}
-	var view CommandView
+	var view T
 	if codec.Unmarshal([]byte(body), &view) != nil {
-		return CommandView{}, false, nil
+		return zero, false, nil
 	}
 	return view, true, nil
 }
@@ -393,7 +414,7 @@ func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.Va
 		return CommandView{}, false, projected, nil
 	}
 
-	view, found, err := decodeCommandField(v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
+	view, found, err := decodeJSONField[CommandView](v.client.Do(ctx, v.client.B().Hget().Key(key).Field(commandFieldPrefix+primary).Build()))
 	if err != nil || !found {
 		return CommandView{}, false, projected, err
 	}

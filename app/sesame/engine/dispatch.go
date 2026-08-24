@@ -98,7 +98,8 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
 	counters := p.bumpCounterTokens(ctx, c, cc.Name, args, cc.Response)
-	emitted, err := p.emitResponse(c, cc.Response, args, counters, emit)
+	urls := p.fetchUrlTokens(ctx, c, cc)
+	emitted, err := p.emitResponse(c, cc.Response, args, counters, urls, emit)
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string
 // worker owns their execution order; a single action keeps the ordinary wire
 // shape. Each line gets its own slash-verb translation. The line count is
 // capped at validate.MaxResponseLines as an emit-side backstop.
-func (p *Pipeline) emitResponse(c *module.Context, response, args string, counters map[string]string, emit module.Emit) (bool, error) {
+func (p *Pipeline) emitResponse(c *module.Context, response, args string, counters, urls map[string]string, emit module.Emit) (bool, error) {
 	// {user}/{sender}/{channel} render the display name (login fallback); {touser}
 	// defaults to the sender's display name and is otherwise the @mention the
 	// chatter typed, taken verbatim.
@@ -155,6 +156,7 @@ func (p *Pipeline) emitResponse(c *module.Context, response, args string, counte
 		touser:   touser,
 		channel:  c.Env.BroadcasterName(),
 		counters: counters,
+		urls:     urls,
 	})
 	expanded := string(buf)
 	PutBuf(buf)

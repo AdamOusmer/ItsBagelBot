@@ -79,6 +79,9 @@ type Pipeline struct {
 	loyalty  LoyaltyStore
 	dedup    *EventDedup
 	stats    *botStats
+	// customFetch resolves {urlfetch:...} response tokens through gossip's
+	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
+	customFetch UrlFetchCaller
 	// roster remembers who this replica has seen speak, so a target-addressed
 	// counter token ({counter:target:...}) can key its bump on the mentioned
 	// viewer. Pure in-process memory; see chatterRoster.
@@ -120,6 +123,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		cooldown:         d.Cooldown,
 		loyalty:          d.Loyalty,
 		dedup:            d.Dedup,
+		customFetch:      d.CustomFetch,
 		botID:            cfg.BotID,
 		outgressPremium:  cfg.OutgressPremium,
 		outgressStandard: cfg.OutgressStandard,
