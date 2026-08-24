@@ -163,15 +163,15 @@ const (
 	//	than a slow one, so the ceiling stops where the budget stops.
 	//
 	// Pools are per subscription, so the process-wide worst case is this ceiling
-	// times the number of subjects. gossip registers nineteen: urchin 5,
-	// fortnite 4, clashroyale 4, mcsr 3, govee 2, hypixel 1. All nineteen
-	// saturated with
+	// times the number of subjects. gossip registers thirty-seven: mcsr 8,
+	// valorant 5, urchin 5, fortnite 4, clashroyale 4, paceman 4, spotify 4,
+	// govee 2, hypixel 1. All thirty-seven saturated with
 	// pathological 4MiB bodies is past the limit and is NOT defended by this
 	// ceiling; it is defended by the shape of the workload (chat commands, one or
 	// two hot endpoints at a time), by the per-upstream buckets, and by the fact
 	// that 4MiB is the guard against a misbehaving upstream while the largest
 	// real payload — a full Hypixel profile — is a few hundred KiB, which puts
-	// even all fifteen saturated well inside the budget. If that ever stops being
+	// even all thirty-seven saturated well inside the budget. If that ever stops being
 	// true the answer is a process-wide admission gate or a lower ceiling, not a
 	// bigger container.
 	//

@@ -87,7 +87,7 @@ const providerName = "govee"
 type api struct {
 	http    *core.HTTPClient
 	cache   *core.Cache
-	keys    provider.GoveeKeyResolver
+	keys    provider.BroadcasterKeyResolver
 	log     *zap.Logger
 	limiter *ratelimit.Limiter
 
