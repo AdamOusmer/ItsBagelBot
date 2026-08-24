@@ -81,6 +81,8 @@ func (n *Nuke) recordChat(broadcasterID uint64, env *lane.Envelope) {
 	n.Recent.Record(broadcasterID, env, n.now())
 }
 
+const nukeUsage = "usage: !nuke <phrase> [seconds] — sweeps the last 10m of chat for messages containing phrase"
+
 // parseNukeArgs splits "!nuke" arguments into the phrase and the timeout
 // seconds. A trailing token of bare digits (or digits+"s") is the duration;
 // anything else leaves the default. A phrase-less invocation parses but
@@ -121,57 +123,18 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 	defer PutBuf(norm)
 	runes := utf8.RuneCount(norm)
 	if runes < nukeMinPhraseRunes || runes > nukeMaxPhraseRunes {
-		emitChat(emit, c.Env.BroadcasterUserID, "usage: !nuke <phrase> [seconds] — sweeps the last 10m of chat for messages containing phrase")
+		emitChat(emit, c.Env.BroadcasterUserID, nukeUsage)
 		return nil
 	}
 
 	hits := n.Recent.Sweep(ctx, c.BroadcasterID, phrase, n.now())
-	targets := make([]RecentHit, 0, len(hits))
-	for _, h := range hits {
-		if h.Role >= module.RoleVIP || h.UserID == c.BroadcasterID || h.UserID == n.BotID {
-			continue // never sweep staff, the broadcaster, or the bot
-		}
-		targets = append(targets, h)
-	}
+	targets := filterNukeTargets(hits, c.BroadcasterID, n.BotID)
 	overflow := max(len(targets)-nukeMaxTargets, 0)
 	targets = targets[:min(len(targets), nukeMaxTargets)]
 
-	broadcasterID := c.Env.BroadcasterUserID
-	id := GetBuf()
-	defer PutBuf(id)
-	for i := range targets {
-		emit(&module.Output{
-			Type:          outgress.TypeTimeout,
-			BroadcasterID: broadcasterID,
-			TargetUserID:  string(strconv.AppendUint(id[:0], targets[i].UserID, 10)),
-			Duration:      float64(secs),
-			Reason:        "nuke",
-		})
-	}
-
-	shielded := overflow > 0 && n.shield != nil && n.shield(c.BroadcasterID)
-	if shielded {
-		o := GetOutput()
-		o.Type = outgress.TypeShieldMode
-		o.BroadcasterID = broadcasterID
-		o.Reason = "nuke:overflow"
-		emit(o)
-		PutOutput(o)
-	}
-
-	switch {
-	case len(targets) == 0:
-		emitChat(emit, broadcasterID, "no recent messages matched — nothing nuked")
-	case shielded:
-		emitChat(emit, broadcasterID, "🚯 nuked "+strconv.Itoa(len(targets))+
-			" user(s) with "+strconv.FormatInt(secs, 10)+"s timeouts — over budget, Shield Mode activated")
-	case overflow > 0:
-		emitChat(emit, broadcasterID, "🚯 nuked "+strconv.Itoa(len(targets))+
-			" user(s) with "+strconv.FormatInt(secs, 10)+"s timeouts — cap reached, "+strconv.Itoa(overflow)+" more left for Shield Mode")
-	default:
-		emitChat(emit, broadcasterID, "🚯 nuked "+strconv.Itoa(len(targets))+
-			" user(s) with "+strconv.FormatInt(secs, 10)+"s timeouts")
-	}
+	emitTimeouts(c.Env.BroadcasterUserID, targets, secs, emit)
+	shielded := escalateOnOverflow(n.shield, overflow, c.BroadcasterID, emit)
+	emitChat(emit, c.Env.BroadcasterUserID, nukeSummary(len(targets), overflow, shielded, secs))
 
 	n.log.Info("nuke executed",
 		zap.Uint64("broadcaster_id", c.BroadcasterID),
@@ -187,6 +150,71 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 
 func emitChat(emit module.Emit, broadcasterID, text string) {
 	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: broadcasterID, Text: text})
+}
+
+// filterNukeTargets drops everyone a phrase collision must never punish:
+// VIPs and above (staff in the line of fire of their own raid cleanup),
+// the broadcaster, and the bot.
+func filterNukeTargets(hits []RecentHit, broadcasterID uint64, botID uint64) []RecentHit {
+	targets := make([]RecentHit, 0, len(hits))
+	for _, h := range hits {
+		if h.Role >= module.RoleVIP || h.UserID == broadcasterID || h.UserID == botID {
+			continue
+		}
+		targets = append(targets, h)
+	}
+	return targets
+}
+
+// emitTimeouts translates the capped target list into Helix timeout jobs.
+// The outgress lane buckets pace them within Twitch's action budget; this
+// side only enforces its own per-sweep cap.
+func emitTimeouts(broadcasterID string, targets []RecentHit, secs int64, emit module.Emit) {
+	id := GetBuf()
+	defer PutBuf(id)
+	for i := range targets {
+		emit(&module.Output{
+			Type:          outgress.TypeTimeout,
+			BroadcasterID: broadcasterID,
+			TargetUserID:  string(strconv.AppendUint(id[:0], targets[i].UserID, 10)),
+			Duration:      float64(secs),
+			Reason:        "nuke",
+		})
+	}
+}
+
+// escalateOnOverflow activates Shield Mode when matches overrun the budget,
+// reporting whether it did. Only an armed policy escalates, and the
+// pipeline's raid gate dedups the activation so a raid already escalated by
+// the automod is not double-tripped.
+func escalateOnOverflow(shield func(uint64) bool, overflow int, broadcasterID uint64, emit module.Emit) bool {
+	if overflow == 0 || shield == nil || !shield(broadcasterID) {
+		return false
+	}
+	o := GetOutput()
+	o.Type = outgress.TypeShieldMode
+	o.BroadcasterID = strconv.FormatUint(broadcasterID, 10)
+	o.Reason = "nuke:overflow"
+	emit(o)
+	PutOutput(o)
+	return true
+}
+
+// nukeSummary renders the chat-facing outcome: what happened, and — when the
+// budget capped the sweep — what covered the rest. The matched phrase stays
+// out of the reply so a mod cannot make the bot echo spam back into chat.
+func nukeSummary(actioned, overflow int, shielded bool, secs int64) string {
+	if actioned == 0 {
+		return "no recent messages matched — nothing nuked"
+	}
+	s := "🚯 nuked " + strconv.Itoa(actioned) + " user(s) with " + strconv.FormatInt(secs, 10) + "s timeouts"
+	switch {
+	case shielded:
+		s += " — over budget, Shield Mode activated"
+	case overflow > 0:
+		s += " — cap reached, " + strconv.Itoa(overflow) + " more left for Shield Mode"
+	}
+	return s
 }
 
 // shieldDecision is the pipeline's escalation policy, shared with the cohort
