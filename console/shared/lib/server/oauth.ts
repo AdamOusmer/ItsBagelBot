@@ -28,6 +28,7 @@ import {
   generateRandomState,
   getValidatedIdTokenClaims,
   nopkce,
+  OperationProcessingError,
   processAuthorizationCodeResponse,
   skipStateCheck,
   validateAuthResponse,
@@ -39,6 +40,18 @@ import {
 } from 'oauth4webapi';
 
 export { ResponseBodyError, expectNoNonce };
+
+// isOAuthProtocolError is what the auth callbacks should catch: BOTH failure
+// families the exchange can produce. ResponseBodyError is the provider saying
+// no (invalid grant, revoked code); OperationProcessingError is the provider
+// answering something the strict parser refuses (the Twitch array-scope quirk
+// was one). Neither is OUR server failing, so neither deserves the framework
+// 500 — and a +server endpoint throw renders SvelteKit's bare fallback page,
+// never the app's +error.svelte, which is exactly how the array-scope bug
+// surfaced to users as an unstyled default 500.
+export function isOAuthProtocolError(e: unknown): boolean {
+  return e instanceof ResponseBodyError || e instanceof OperationProcessingError;
+}
 export const generateState = generateRandomState;
 
 const TWITCH_AS: AuthorizationServer = {
