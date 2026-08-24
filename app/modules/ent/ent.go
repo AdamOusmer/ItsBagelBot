@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/modules/ent/goveecredential"
 	"ItsBagelBot/app/modules/ent/modules"
 	"ItsBagelBot/app/modules/ent/quote"
+	"ItsBagelBot/app/modules/ent/spotifycredential"
 	"context"
 	"errors"
 	"fmt"
@@ -82,6 +83,7 @@ func checkColumn(t, c string) error {
 			goveecredential.Table:    goveecredential.ValidColumn,
 			modules.Table:            modules.ValidColumn,
 			quote.Table:              quote.ValidColumn,
+			spotifycredential.Table:  spotifycredential.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
