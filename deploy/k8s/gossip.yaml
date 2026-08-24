@@ -168,7 +168,7 @@ spec:
       # "warp" package private right after its first publish.
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1787595359-141d372665a9@sha256:379732f5759c50b95b7e827c878e8df3cf97619a66adb6d52293a70b37577bd4
+          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1787597825-d5324cbf57a0@sha256:8b4e50ca01a8137164e8f3f309417c88393c5800d4afae7ea0b0455dd6859ab4
           imagePullPolicy: IfNotPresent
           restartPolicy: Always # native sidecar: runs for the pod's lifetime
           # Bootstrap (consumer WARP, deliberately NO Zero Trust org). Two
