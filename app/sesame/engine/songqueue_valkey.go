@@ -133,6 +133,17 @@ func songQueueDocKey(id uint64) string {
 	return songQueueDocPrefix + strconv.FormatUint(id, 10)
 }
 
+// docState is one read of a channel's document: the raw payload the next
+// CAS must match ("" denotes absent) and its decoded form, under the key
+// they both belong to. Bundling them keeps the read, the mutation and the
+// commit referring to ONE snapshot instead of threading key/raw/decoded as
+// loose primitives through every hop of the retry loop.
+type docState struct {
+	key string
+	raw string
+	doc songQueueDoc
+}
+
 func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key string) (string, error) {
 	resp := s.client.Do(ctx, s.client.B().Get().Key(key).Build())
 	b, err := resp.AsBytes()
@@ -145,12 +156,12 @@ func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key string) (string,
 	return string(b), nil
 }
 
-func (s *ValkeySongQueueStore) cas(ctx context.Context, key, oldDoc, newDoc string) (bool, error) {
+func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc string) (bool, error) {
 	n, err := s.client.Do(ctx, s.client.B().Eval().
 		Script(casScript).
 		Numkeys(1).
-		Key(key).
-		Arg(oldDoc).
+		Key(st.key).
+		Arg(st.raw).
 		Arg(newDoc).
 		Arg(strconv.FormatInt(int64(s.ttl.Seconds()), 10)).
 		Build()).AsInt64()
@@ -165,16 +176,15 @@ func (s *ValkeySongQueueStore) cas(ctx context.Context, key, oldDoc, newDoc stri
 // as errors, which abort the loop untouched. An unchanged document skips the
 // write entirely.
 func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64, fn func(*songQueueDoc) error) error {
-	key := songQueueDocKey(broadcasterID)
 	for range casRetries {
-		oldDoc, doc, err := s.loadDoc(ctx, key, broadcasterID)
+		st, err := s.loadDoc(ctx, broadcasterID)
 		if err != nil {
 			return err
 		}
-		if err := fn(&doc); err != nil {
+		if err := fn(&st.doc); err != nil {
 			return err
 		}
-		done, err := s.commit(ctx, key, broadcasterID, oldDoc, doc)
+		done, err := s.commit(ctx, st)
 		if err != nil {
 			return err
 		}
@@ -188,41 +198,39 @@ func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64,
 // loadDoc reads the channel's document and decodes it. A corrupt or
 // foreign-format payload resets to an empty queue rather than bricking the
 // channel forever — the log line is the audit trail for that decision.
-func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, key string, broadcasterID uint64) (string, songQueueDoc, error) {
-	oldDoc, err := s.readDoc(ctx, key)
+func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, broadcasterID uint64) (docState, error) {
+	st := docState{key: songQueueDocKey(broadcasterID)}
+	raw, err := s.readDoc(ctx, st.key)
 	if err != nil {
-		return "", songQueueDoc{}, err
+		return st, err
 	}
-	var doc songQueueDoc
-	if oldDoc == "" {
-		return oldDoc, doc, nil
+	st.raw = raw
+	if raw == "" {
+		return st, nil
 	}
-	if err := codec.Unmarshal([]byte(oldDoc), &doc); err != nil {
+	if err := codec.Unmarshal([]byte(raw), &st.doc); err != nil {
 		s.log.Warn("songqueue: undecodable document, resetting",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		doc = songQueueDoc{}
+		st.doc = songQueueDoc{}
 	}
-	return oldDoc, doc, nil
+	return st, nil
 }
 
-// commit encodes the mutated document and compare-and-sets it over oldDoc.
-// done reports a finished mutation: either the document did not change (skip
-// the write entirely) or the CAS landed. false with no error sends the caller
-// around for another round with fresh reads.
-func (s *ValkeySongQueueStore) commit(ctx context.Context, key string, broadcasterID uint64, oldDoc string, doc songQueueDoc) (bool, error) {
-	newB, err := codec.Marshal(doc)
+// commit encodes the snapshot's mutated document and compare-and-sets it
+// over the raw payload the snapshot was read with. done reports a finished
+// mutation: either the document did not change (skip the write entirely) or
+// the CAS landed. false with no error sends the caller around for another
+// round with fresh reads.
+func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, error) {
+	newB, err := codec.Marshal(st.doc)
 	if err != nil {
 		return false, err
 	}
 	newDoc := string(newB)
-	if newDoc == oldDoc {
+	if newDoc == st.raw {
 		return true, nil
 	}
-	won, err := s.cas(ctx, key, oldDoc, newDoc)
-	if err != nil {
-		return false, err
-	}
-	return won, nil
+	return s.cas(ctx, st, newDoc)
 }
 
 func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth int) (int, error) {
