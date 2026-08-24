@@ -635,7 +635,10 @@ func (s *pullSubscriber) deliver(wire jsapi.Msg) bool {
 	case <-s.closeCh:
 		// Nobody took the message, so the callback will never run and the count
 		// it owns has to be released here or shutdown waits out its whole budget.
+		// The resolve handler owning the envelope's Put never fires for the same
+		// reason — the message was never handed off — so return it here.
 		s.inflight.Done()
+		pullEnvelopePool.Put(delivery.wire)
 		return false
 	}
 }
@@ -644,6 +647,9 @@ func (s *pullSubscriber) decode(wire jsapi.Msg) (pullDelivery, bool) {
 	core := pullWireMessage(wire)
 	msg, err := messageFromNATS(core)
 	if err != nil {
+		// The resolve handler that returns the envelope never exists on this
+		// path — nothing was delivered — so the pool gets it back here.
+		pullEnvelopePool.Put(core)
 		s.log.Warn("dropping malformed lane delivery",
 			zap.String("subject", s.subject), zap.Error(err))
 		return pullDelivery{}, false

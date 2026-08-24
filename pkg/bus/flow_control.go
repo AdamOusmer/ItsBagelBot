@@ -5,6 +5,7 @@ package bus
 
 import (
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -68,13 +69,18 @@ type flowPosition struct {
 // the wire. The flow response never claims more than this, so the replicated
 // ack floor can never move past a message the pod did not receive.
 //
-// The pair is two atomics rather than a mutex. Writers serialize on the stream
-// word's CAS (every commit is CAS-from-observed, so the stream never regresses)
-// and store the consumer sample after winning it; readers load consumer before
-// stream, which sequentially-consistent atomics pin to at most one window of
-// staleness — a response may under-claim an ack floor but can never over-claim
-// one.
+// The pair is two atomics rather than one word because it is read far more
+// often than written: snapshot stays lock-free, loading consumer before
+// stream so any mixed pair it catches under-claims an ack floor and never
+// over-claims one. Writers take mu: without it, record's CAS-from-observed
+// retry could reload a cursor reset() had just zeroed and republish a dead
+// session's stream sequence onto the fresh pair — prevStream 0 passes both
+// gates for any live-looking sample, and recovery would then start past
+// messages no session ever received. reset is rare (heartbeat-loss
+// reprovision) and record's critical section is two loads and two stores, so
+// the uncontended mutex costs nothing next to the per-delivery network work.
 type flowCursor struct {
+	mu       sync.Mutex
 	consumer atomic.Uint64
 	stream   atomic.Uint64
 }
@@ -86,21 +92,15 @@ type flowCursor struct {
 // floor at MaxAckPending with no redelivery and no error. It returns false for a
 // sample that did not advance the cursor.
 func (c *flowCursor) record(consumer, stream uint64) bool {
-	for {
-		prevStream := c.stream.Load()
-		prevConsumer := c.consumer.Load()
-		if c.consumer.Load() != prevConsumer {
-			continue // a writer committed mid-read; re-decide against the settled pair
-		}
-		if !isSessionReset(prevConsumer, consumer) && stream <= prevStream {
-			return false
-		}
-		if !c.stream.CompareAndSwap(prevStream, stream) {
-			continue // lost the word to a concurrent commit or reset; re-decide
-		}
-		c.consumer.Store(consumer)
-		return true
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prevStream := c.stream.Load()
+	if !isSessionReset(c.consumer.Load(), consumer) && stream <= prevStream {
+		return false
 	}
+	c.consumer.Store(consumer)
+	c.stream.Store(stream)
+	return true
 }
 
 // isSessionReset recognises the server's own reset signature: a consumer
@@ -119,17 +119,14 @@ func (c *flowCursor) snapshot() flowPosition {
 
 // reset drops the cursor when this process recreates its own consumer. The new
 // consumer's sequences start over, so keeping the old pair would answer flow
-// control with an ack floor from a session the server no longer has. A record
-// committing inside these two stores can leave a mixed pair whose values are
-// each genuine receipts — conservative in the same direction as snapshot.
+// control with an ack floor from a session the server no longer has. mu makes
+// the two stores one step against record, so no commit can straddle them and
+// leave either word speaking for a session that is gone.
 func (c *flowCursor) reset() {
-	for {
-		prev := c.stream.Load()
-		if c.stream.CompareAndSwap(prev, 0) {
-			c.consumer.Store(0)
-			return
-		}
-	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.consumer.Store(0)
+	c.stream.Store(0)
 }
 
 // flowControlResponse builds the receipt-level acknowledgement for one push
