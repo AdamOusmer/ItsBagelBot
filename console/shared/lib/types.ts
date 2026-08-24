@@ -120,6 +120,19 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     liveOnly: false
   },
   {
+    id: 'uptime',
+    label: 'Uptime',
+    summary: 'Built-in · shows how long the current stream has been live.',
+    description:
+      'Shows how long your current stream has been running. Replies that you are offline when no stream is up.',
+    usage: ['!uptime'],
+    preview: 'The stream has been live for 2 hours, 5 minutes.',
+    defaultActive: true,
+    defaultPerm: 'everyone',
+    defaultCooldown: 15,
+    liveOnly: false
+  },
+  {
     id: 'clip',
     label: 'Clip',
     summary: 'Built-in · clips the last moments of the stream and posts the link.',
@@ -1787,3 +1800,25 @@ export interface LoyaltyStanding {
   points: number;
   watchSeconds: number;
 }
+
+// --- Config importer -------------------------------------------------------
+// The canonical import shapes live in lib/importer/types.ts since the
+// standalone importer service was folded into the dashboard (2026-08-23) and
+// that module became their single source of truth. Re-exported here so every
+// existing '@bagel/shared' import keeps resolving unchanged.
+export type {
+  AutomodTerms,
+  CollisionRef,
+  ImportDiagnostic,
+  ImportManifest,
+  ImportSource,
+  ImportStats,
+  ManifestCommand,
+  ManifestCounter,
+  ManifestQuote,
+  ManifestTimer,
+  ManifestTrigger,
+  PreviewResponse,
+  CommitResponse
+} from './importer/types';
+export { IMPORT_SOURCES, IMPORT_ITEM_CAPS } from './importer/types';

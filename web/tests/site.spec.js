@@ -90,6 +90,12 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('#letter')).toContainText('no trackers, no data sold');
         await expect(page.locator('[data-letter-stamp]')).toHaveCount(1);
         await expect(page.locator('.finale')).toContainText('Stream');
+
+        // Ownership colophon names the account Hypixel verification looks for
+        const about = page.locator('#about');
+        await expect(about).toContainText('ItsMavey');
+        const ignLinks = about.locator('a[href="https://namemc.com/profile/ItsMavey"]');
+        await expect(ignLinks).toHaveCount(2);
     });
 
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {

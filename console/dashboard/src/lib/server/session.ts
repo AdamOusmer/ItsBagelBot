@@ -46,7 +46,7 @@ export interface Session {
   sections?: string[];
 }
 
-const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY));
+const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY), 'dashboard-session');
 
 export const seal = (s: Session): string => codec.seal(s);
 

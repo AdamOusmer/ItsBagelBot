@@ -23,7 +23,7 @@ export interface Session {
   expires_at: number;
 }
 
-const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY));
+const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY), 'admin-session');
 
 export const seal = (s: Session): string => codec.seal(s);
 // Total lifetime is capped from iat, so a re-sealed payload with a pushed-out

@@ -34,7 +34,6 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 
 	"go.uber.org/zap"
@@ -180,8 +179,8 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
-	// RefreshToken appears only when Spotify ROTATES the refresh token. See
-	// mintToken for why rotation is logged rather than persisted.
+	// RefreshToken appears only when Spotify ROTATES the refresh token; it
+	// is written back to custody best-effort (see persistRotation).
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -225,11 +224,10 @@ func tokenCacheTTL(expiresIn int) time.Duration {
 // mintToken exchanges the broadcaster's refresh token for an access token
 // using the fleet's own app credentials (confidential-client form flow).
 //
-// Spotify MAY rotate the refresh token on this exchange. Gossip cannot
-// persist the replacement — custody of the stored token belongs to the
-// modules service — so a rotation is surfaced loudly here instead of dropped
-// silently: the operator needs to know the store still holds the previous
-// token, which Spotify keeps valid unless it explicitly invalidates it.
+// Spotify MAY rotate the refresh token on this exchange. Custody of the
+// stored token belongs to the modules service, so the replacement is written
+// back through its compare-and-swap rotate verb (see persistRotation) —
+// best-effort, never blocking the mint that already succeeded.
 func (p *api) mintToken(ctx context.Context, broadcaster, refreshToken string) (tokenResponse, error) {
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
@@ -253,11 +251,7 @@ func (p *api) mintToken(ctx context.Context, broadcaster, refreshToken string) (
 	if tok.AccessToken == "" {
 		return tok, fmt.Errorf("spotify token mint: empty access_token")
 	}
-	if tok.RefreshToken != "" && tok.RefreshToken != refreshToken {
-		monitor.TxnLogger(ctx, p.log).Warn(
-			"spotify rotated a broadcaster's refresh token; the modules store still holds the previous one",
-			zap.String("broadcaster", broadcaster))
-	}
+	p.persistRotation(ctx, broadcaster, refreshToken, tok.RefreshToken)
 	return tok, nil
 }
 

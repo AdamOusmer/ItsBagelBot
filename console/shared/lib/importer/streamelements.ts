@@ -104,39 +104,43 @@ export async function fetchStreamElements(
       'streamelements: credential does not look like a StreamElements JWT (expected eyX.yyy.zzz from "Show secrets")'
     );
 
-  const base = opts.baseUrl || DEFAULT_API_BASE;
-  const me = await getJSON<Record<string, unknown>>(base, token, '/kappa/v2/channels/me', opts);
+  const client: KappaClient = { base: opts.baseUrl || DEFAULT_API_BASE, token, opts };
+  const me = await kappaGet<Record<string, unknown>>(client, '/kappa/v2/channels/me');
   const id = typeof me._id === 'string' ? me._id : '';
   if (!id)
     throw new StreamElementsError(
       'streamelements: /channels/me returned no _id; the token is not a channel secret JWT'
     );
 
-  const cmds = await getJSON<unknown[]>(base, token, `/kappa/v2/bot/commands/${id}`, opts);
-  const timers = await getJSON<unknown[]>(base, token, `/kappa/v2/bot/timers/${id}`, opts);
+  const cmds = await kappaGet<unknown[]>(client, `/kappa/v2/bot/commands/${id}`);
+  const timers = await kappaGet<unknown[]>(client, `/kappa/v2/bot/timers/${id}`);
   return { commands: cmds, timers };
 }
 
-async function getJSON<T>(base: string, token: string, path: string, opts: FetchOptions): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
+// KappaClient binds the channel JWT to the API root for the three sequenced
+// reads fetchStreamElements performs.
+interface KappaClient {
+  base: string;
+  token: string;
+  opts: FetchOptions;
+}
+
+// KappaRequest names one resolved kappa v2 GET: endpoint URL, channel JWT and
+// the path (kept alongside for error prose).
+interface KappaRequest {
+  url: string;
+  token: string;
+  path: string;
+}
+
+async function kappaGet<T>(client: KappaClient, path: string): Promise<T> {
+  const timeoutMs = client.opts.timeoutMs ?? FETCH_TIMEOUT_MS;
   // AbortController bounds the call the way Go's http.Client.Timeout did.
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    const res = await fetch(base + path, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      signal: abort.signal
-    });
-    // Cap how much of a hostile reply is buffered before decoding.
-    const text = await readCapped(res, MAX_RESPONSE_BODY, path);
-    if (res.status !== 200)
-      throw new StreamElementsError(`${path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
-    try {
-      return JSON.parse(text) as T;
-    } catch (err) {
-      throw new StreamElementsError(`${path}: decoding response: ${(err as Error).message}`);
-    }
+    const req: KappaRequest = { url: client.base + path, token: client.token, path };
+    return await requestJSON<T>(req, abort.signal);
   } catch (err) {
     if (err instanceof StreamElementsError) throw err;
     const reason =
@@ -147,6 +151,23 @@ async function getJSON<T>(base: string, token: string, path: string, opts: Fetch
   }
 }
 
+async function requestJSON<T>(req: KappaRequest, signal: AbortSignal): Promise<T> {
+  const res = await fetch(req.url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${req.token}`, Accept: 'application/json' },
+    signal
+  });
+  // Cap how much of a hostile reply is buffered before decoding.
+  const text = await readCapped(res, MAX_RESPONSE_BODY, req.path);
+  if (res.status !== 200)
+    throw new StreamElementsError(`${req.path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new StreamElementsError(`${req.path}: decoding response: ${(err as Error).message}`);
+  }
+}
+
 // readCapped reads the body but refuses to buffer more than cap bytes — the
 // port of Go's io.LimitReader + oversize rejection. A hostile server streaming
 // forever must not balloon the dashboard pod's memory.
@@ -154,29 +175,41 @@ async function readCapped(res: Response, cap: number, path: string): Promise<str
   try {
     const reader = res.body?.getReader();
     if (!reader) return await res.text();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > cap) {
-        await reader.cancel();
-        throw new StreamElementsError(`${path}: reading response: body exceeds ${cap} bytes`);
-      }
-      chunks.push(value);
-    }
-    const merged = new Uint8Array(total);
-    let at = 0;
-    for (const c of chunks) {
-      merged.set(c, at);
-      at += c.byteLength;
-    }
-    return new TextDecoder().decode(merged);
+    return await decodeCappedChunks(reader, cap, path);
   } catch (err) {
     if (err instanceof StreamElementsError) throw err;
     throw new StreamElementsError(`${path}: reading response: ${String(err)}`);
   }
+}
+
+async function decodeCappedChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  cap: number,
+  path: string
+): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      throw new StreamElementsError(`${path}: reading response: body exceeds ${cap} bytes`);
+    }
+    chunks.push(value);
+  }
+  return joinChunks(chunks, total);
+}
+
+function joinChunks(chunks: Uint8Array[], total: number): string {
+  const merged = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    merged.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(merged);
 }
 
 // authHint appends remediation only where the cause is almost certainly the
@@ -207,7 +240,7 @@ function snippet(body: string): string {
 // pair string command+reply with a numeric accessLevel; SE timers uniquely
 // carry the chatLines/online window fields.
 export function detectStreamElements(raw: Uint8Array | string): boolean {
-  const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+  const text = decodeText(raw);
   if (text.trim().length === 0) return false;
   let doc: unknown;
   try {
@@ -215,15 +248,26 @@ export function detectStreamElements(raw: Uint8Array | string): boolean {
   } catch {
     return false;
   }
-  if (doc === null || typeof doc !== 'object') return false;
-  const env = doc as Record<string, unknown>;
-  const commands = env.commands;
-  const timers = env.timers;
-  if (commands !== undefined && !Array.isArray(commands)) return false;
-  if (timers !== undefined && !Array.isArray(timers)) return false;
-  for (const c of commands ?? []) if (looksLikeCommand(c)) return true;
-  for (const t of timers ?? []) if (looksLikeTimer(t)) return true;
-  return false;
+  const env = envelopeCollections(doc);
+  if (!env) return false;
+  if (env.commands.some(looksLikeCommand)) return true;
+  return env.timers.some(looksLikeTimer);
+}
+
+// envelopeCollections accepts the {commands,timers} envelope: missing keys
+// read as empty lists, present-yet-non-array values refuse detection.
+function envelopeCollections(doc: unknown): { commands: unknown[]; timers: unknown[] } | null {
+  if (doc === null || typeof doc !== 'object') return null;
+  const source = doc as Record<string, unknown>;
+  const commands = arrayField(source.commands);
+  const timers = arrayField(source.timers);
+  if (commands === null || timers === null) return null;
+  return { commands, timers };
+}
+
+function arrayField(value: unknown): unknown[] | null {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : null;
 }
 
 // looksLikeCommand checks one envelope entry against the BotCommand schema's
@@ -268,25 +312,36 @@ function decodeBotCommand(entry: unknown): BotCommand {
   if (entry === null || typeof entry !== 'object')
     throw new TypeError('command entry must be an object');
   const e = entry as Record<string, unknown>;
-  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-  const boolUndef = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined);
   const cooldown = (e.cooldown ?? {}) as Record<string, unknown>;
   return {
-    command: str(e.command),
-    regex: str(e.regex),
-    reply: str(e.reply),
+    command: asString(e.command),
+    regex: asString(e.regex),
+    reply: asString(e.reply),
     aliases: Array.isArray(e.aliases) ? e.aliases.filter((a): a is string => typeof a === 'string') : [],
     keywords: Array.isArray(e.keywords) ? e.keywords.filter((k): k is string => typeof k === 'string') : [],
-    cooldownUser: num(cooldown.user),
-    cooldownGlobal: num(cooldown.global),
-    type: str(e.type),
-    accessLevel: num(e.accessLevel),
-    cost: num(e.cost),
-    enabled: boolUndef(e.enabled),
-    enabledOnline: boolUndef(e.enabledOnline),
-    enabledOffline: boolUndef(e.enabledOffline)
+    cooldownUser: finiteNumber(cooldown.user),
+    cooldownGlobal: finiteNumber(cooldown.global),
+    type: asString(e.type),
+    accessLevel: finiteNumber(e.accessLevel),
+    cost: finiteNumber(e.cost),
+    enabled: optionalFlag(e.enabled),
+    enabledOnline: optionalFlag(e.enabledOnline),
+    enabledOffline: optionalFlag(e.enabledOffline)
   };
+}
+
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+function finiteNumber(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+// optionalFlag reads an optional boolean without defaulting: undefined means
+// the schema decides (enabled-by-default).
+function optionalFlag(v: unknown): boolean | undefined {
+  return typeof v === 'boolean' ? v : undefined;
 }
 
 // flexText accepts every message shape observed in timer payloads: a plain
@@ -297,22 +352,19 @@ function decodeBotCommand(entry: unknown): BotCommand {
 function flexText(v: unknown): string {
   if (v === undefined || v === null) return '';
   if (typeof v === 'string') return v;
-  if (Array.isArray(v)) {
-    const parts: string[] = [];
-    for (const el of v) {
-      if (typeof el === 'string') {
-        parts.push(el);
-        continue;
-      }
-      if (el !== null && typeof el === 'object' && typeof (el as Record<string, unknown>).text === 'string') {
-        parts.push((el as Record<string, unknown>).text as string);
-        continue;
-      }
-      throw new TypeError('timer message array elements must be strings or {text} objects');
-    }
-    return parts.join('\n');
-  }
+  if (Array.isArray(v)) return v.map(textElement).join('\n');
   throw new TypeError('timer message must be a string or an array of strings/{text} objects');
+}
+
+function textElement(el: unknown): string {
+  if (typeof el === 'string') return el;
+  if (!isTextObject(el)) throw new TypeError('timer message array elements must be strings or {text} objects');
+  return (el as Record<string, unknown>).text as string;
+}
+
+function isTextObject(el: unknown): boolean {
+  if (el === null || typeof el !== 'object') return false;
+  return typeof (el as Record<string, unknown>).text === 'string';
 }
 
 interface BotTimer {
@@ -327,36 +379,39 @@ interface BotTimer {
 
 function decodeBotTimer(entry: unknown): BotTimer {
   if (entry === null || typeof entry !== 'object') throw new TypeError('timer entry must be an object');
-  const e = entry as Record<string, unknown>;
-  const window = (v: unknown): { enabled: boolean | undefined; interval: number } => {
-    if (v === null || typeof v !== 'object') return { enabled: undefined, interval: 0 };
-    const w = v as Record<string, unknown>;
-    return {
-      enabled: typeof w.enabled === 'boolean' ? w.enabled : undefined,
-      interval: typeof w.interval === 'number' && Number.isFinite(w.interval) ? w.interval : 0
-    };
-  };
-  const online = window(e.online);
-  const offline = window(e.offline);
+  return readBotTimer(entry as Record<string, unknown>);
+}
 
-  // text prefers the messages[] shape when present, falling back to message.
-  let text = '';
-  if (e.messages !== undefined) {
-    if (!Array.isArray(e.messages)) throw new TypeError('timer message must be a string or an array of strings/{text} objects');
-    text = e.messages.map((m) => flexText(m)).join('\n');
-  } else {
-    text = flexText(e.message);
-  }
-
+function readBotTimer(e: Record<string, unknown>): BotTimer {
+  const online = timerWindowOf(e.online);
+  const offline = timerWindowOf(e.offline);
   return {
-    name: typeof e.name === 'string' ? e.name : '',
-    text,
-    enabled: typeof e.enabled === 'boolean' ? e.enabled : undefined,
+    name: asString(e.name),
+    text: timerText(e),
+    enabled: optionalFlag(e.enabled),
     onlineEnabled: online.enabled,
     onlineInterval: online.interval,
     offlineEnabled: offline.enabled,
     offlineInterval: offline.interval
   };
+}
+
+// timerWindowOf reads one online/offline window object; a non-object window
+// means the schema default (enabled-undefined, interval 0).
+function timerWindowOf(v: unknown): { enabled: boolean | undefined; interval: number } {
+  if (v === null || typeof v !== 'object') return { enabled: undefined, interval: 0 };
+  const w = v as Record<string, unknown>;
+  return {
+    enabled: optionalFlag(w.enabled),
+    interval: finiteNumber(w.interval)
+  };
+}
+
+// timerText prefers the messages[] shape when present, falling back to message.
+function timerText(e: Record<string, unknown>): string {
+  if (e.messages === undefined) return flexText(e.message);
+  if (!Array.isArray(e.messages)) throw new TypeError('timer message must be a string or an array of strings/{text} objects');
+  return e.messages.map((m) => flexText(m)).join('\n');
 }
 
 // Diagnostic codes this parser emits beyond the shared consts. Free-form
@@ -407,48 +462,30 @@ export const SE_CODE = {
 // exactly the niche lead_mod occupies here. Unknown numerics cannot be trusted
 // as "more than everyone" — inventing trust from an undocumented value is the
 // one unrecoverable mistake a permission mapper can make.
+const ACCESS_LEVELS: readonly {
+  level: number;
+  perm: 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
+  label: string;
+  recognized: boolean;
+}[] = [
+  { level: 100, perm: 'everyone', label: 'Everyone', recognized: true },
+  { level: 250, perm: 'sub', label: 'Subscriber', recognized: true },
+  { level: 300, perm: 'everyone', label: 'Regular', recognized: false },
+  { level: 400, perm: 'vip', label: 'VIP', recognized: true },
+  { level: 500, perm: 'mod', label: 'Moderator', recognized: true },
+  { level: 1000, perm: 'lead_mod', label: 'Super Moderator', recognized: true },
+  { level: 1500, perm: 'broadcaster', label: 'Broadcaster', recognized: true }
+];
+
 export function mapAccessLevel(level: number): { perm: 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster'; recognized: boolean } {
-  switch (level) {
-    case 100:
-      return { perm: 'everyone', recognized: true };
-    case 250:
-      return { perm: 'sub', recognized: true };
-    case 300:
-      return { perm: 'everyone', recognized: false };
-    case 400:
-      return { perm: 'vip', recognized: true };
-    case 500:
-      return { perm: 'mod', recognized: true };
-    case 1000:
-      return { perm: 'lead_mod', recognized: true };
-    case 1500:
-      return { perm: 'broadcaster', recognized: true };
-    default:
-      return { perm: 'everyone', recognized: false };
-  }
+  const row = ACCESS_LEVELS.find((r) => r.level === level);
+  return row ? { perm: row.perm, recognized: row.recognized } : { perm: 'everyone', recognized: false };
 }
 
 // levelLabel renders SE's own names inside warning messages so the broadcaster
 // sees their dashboard vocabulary, not ours.
 function levelLabel(level: number): string {
-  switch (level) {
-    case 100:
-      return 'Everyone';
-    case 250:
-      return 'Subscriber';
-    case 300:
-      return 'Regular';
-    case 400:
-      return 'VIP';
-    case 500:
-      return 'Moderator';
-    case 1000:
-      return 'Super Moderator';
-    case 1500:
-      return 'Broadcaster';
-    default:
-      return `unknown level ${level}`;
-  }
+  return ACCESS_LEVELS.find((r) => r.level === level)?.label ?? `unknown level ${level}`;
 }
 
 const q = (s: string): string => JSON.stringify(s);
@@ -462,296 +499,450 @@ export function parseStreamElements(raw: Uint8Array | string): {
   manifest: ImportManifest;
   diagnostics: ImportDiagnostic[];
 } {
-  const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-  let doc: unknown;
-  try {
-    doc = JSON.parse(text);
-  } catch (err) {
-    throw new Error(`streamelements: payload is not a commands/timers envelope: ${(err as Error).message}`);
-  }
-  if (doc === null || typeof doc !== 'object' || Array.isArray(doc))
-    throw new Error('streamelements: payload is not a commands/timers envelope: JSON must be an object');
-  const env = doc as Record<string, unknown>;
-  if (env.commands !== undefined && !Array.isArray(env.commands))
-    throw new Error('streamelements: payload is not a commands/timers envelope: commands must be an array');
-  if (env.timers !== undefined && !Array.isArray(env.timers))
-    throw new Error('streamelements: payload is not a commands/timers envelope: timers must be an array');
+  const env = decodeSeEnvelope(raw);
 
-  const manifest: ImportManifest = {};
-  const diags: ImportDiagnostic[] = [];
+  const state: SeParseState = { manifest: {}, diags: [], fetchDefs: new Map() };
 
   // Empty collections are deleted so the serialized shape mirrors the Go
   // struct's omitempty tags exactly.
-  const fetchDefs = new Map<string, ManifestFetch>();
-  manifest.commands = [];
-  parseCommands(env.commands ?? [], manifest.commands, manifest, fetchDefs, diags);
-  if (manifest.commands.length === 0) delete manifest.commands;
-  if (fetchDefs.size > 0) manifest.fetches = [...fetchDefs.values()];
+  state.manifest.commands = [];
+  parseCommands((env.commands as unknown[] | undefined) ?? [], state);
+  omitIfEmpty(state.manifest, 'commands');
+  if (state.fetchDefs.size > 0) state.manifest.fetches = [...state.fetchDefs.values()];
 
-  manifest.timers = [];
-  parseTimers(env.timers ?? [], manifest.timers, diags);
-  if (manifest.timers.length === 0) delete manifest.timers;
+  state.manifest.timers = [];
+  parseTimers((env.timers as unknown[] | undefined) ?? [], state);
+  omitIfEmpty(state.manifest, 'timers');
 
-  return { manifest, diagnostics: diags };
+  return { manifest: state.manifest, diagnostics: state.diags };
 }
 
-function parseCommands(
-  entries: unknown[],
-  commands: ManifestCommand[],
-  m: ImportManifest,
-  fetchDefs: Map<string, ManifestFetch>,
-  diags: ImportDiagnostic[]
-): void {
+function omitIfEmpty(m: ImportManifest, key: 'commands' | 'timers'): void {
+  if ((m[key]?.length ?? 0) === 0) delete m[key];
+}
+
+// decodeSeEnvelope validates the fetched JSON's outer shape against the
+// kappa v2 envelope, mirroring the Go decoder's error prose.
+function decodeSeEnvelope(raw: Uint8Array | string): Record<string, unknown> {
+  const doc = parseEnvelopeJson(decodeText(raw));
+  if (!isPlainObject(doc)) throw notEnvelope('JSON must be an object');
+  const env = doc as Record<string, unknown>;
+  arrayFieldOrThrow(env, 'commands');
+  arrayFieldOrThrow(env, 'timers');
+  return env;
+}
+
+function isPlainObject(doc: unknown): boolean {
+  if (doc === null || typeof doc !== 'object') return false;
+  return !Array.isArray(doc);
+}
+
+// arrayFieldOrThrow accepts a missing key (treated as empty) and refuses
+// present-yet-non-array values exactly like the Go decoder.
+function arrayFieldOrThrow(env: Record<string, unknown>, field: string): unknown[] {
+  const value = env[field];
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw notEnvelope(`${field} must be an array`);
+  return value;
+}
+
+function decodeText(raw: Uint8Array | string): string {
+  return typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+}
+
+function parseEnvelopeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`streamelements: payload is not a commands/timers envelope: ${(err as Error).message}`);
+  }
+}
+
+function notEnvelope(reason: string): Error {
+  return new Error(`streamelements: payload is not a commands/timers envelope: ${reason}`);
+}
+
+// NoteSink accumulates the per-item warn diagnostics that also surface on the
+// command as warnings: every lossy note is both a diagnostic at idx and a
+// message in cmd.warnings.
+interface NoteSink {
+  idx: number;
+  diags: ImportDiagnostic[];
+  notes: string[];
+  // fetch, when present, lets this command's reply map $(urlfetch ...) tokens
+  // onto synthesized definitions. Only command replies carry one: timers and
+  // keyword triggers reference no command name to build a deterministic slug
+  // from, so their urlfetch tokens keep the literal+unmapped-warn behavior.
+  fetch?: FetchSlotSink;
+}
+
+function addNote(sink: NoteSink, code: string, message: string): void {
+  sink.diags.push(warnDiag(sink.idx, code, message));
+  sink.notes.push(message);
+}
+
+// SeParseState threads one envelope's manifest and diagnostic stream through
+// the per-entry parsers.
+interface SeParseState {
+  manifest: ImportManifest;
+  diags: ImportDiagnostic[];
+  // fetchDefs accumulates synthesized urlfetch definitions, deduped by slug
+  // across the whole envelope; emitted as manifest.fetches after the walk.
+  fetchDefs: Map<string, ManifestFetch>;
+}
+
+function parseCommands(entries: unknown[], state: SeParseState): void {
+  const commands = state.manifest.commands!;
   for (const entry of entries) {
-    let c: BotCommand;
-    try {
-      c = decodeBotCommand(entry);
-    } catch (err) {
-      diags.push(warnDiag(-1, SE_CODE.commandUnparseable, 'skipped one unparseable StreamElements command entry: ' + (err as Error).message));
+    const c = decodeCommandOrSkip(entry, state.diags);
+    if (!c) continue;
+    const problem = commandExclusion(c);
+    if (problem) {
+      state.diags.push(problem);
       continue;
     }
-
-    const name = normalizeName(c.command);
-
-    // Regex commands are a different feature (pattern-triggered), not a
-    // command with an unlucky name; importing one would ship a command whose
-    // trigger is a regex literal. Excluded, not errored-in-place, so the
-    // preview never offers a broken item for confirmation.
-    if (c.regex.trim() !== '') {
-      diags.push(warnDiag(-1, SE_CODE.commandRegexSkipped,
-        `command ${q(c.command)} uses a regex trigger (${c.regex}); regex commands have no equivalent here and were skipped`));
-      continue;
-    }
-    if (!flag(c.enabled)) {
-      diags.push(warnDiag(-1, SE_CODE.commandDisabledSkipped,
-        `command ${q(c.command)} is disabled upstream and was skipped`));
-      continue;
-    }
-    if (!flag(c.enabledOnline) && !flag(c.enabledOffline)) {
-      diags.push(warnDiag(-1, SE_CODE.commandDisabledSkipped,
-        `command ${q(c.command)} is disabled both online and offline upstream and was skipped`));
-      continue;
-    }
-
-    const idx = commands.length;
-    const notes: string[] = [];
-    const addNote = (code: string, msg: string): void => {
-      diags.push(warnDiag(idx, code, msg));
-      notes.push(msg);
-    };
-
-    const online = flag(c.enabledOnline);
-    const offline = flag(c.enabledOffline);
-    const onlineOnly = online && !offline;
-    if (!online && offline) {
-      addNote(SE_CODE.commandOfflineOnlyWidened,
-        `command ${q(name)} runs only while offline upstream; imported as always available (widening)`);
-    }
-
-    switch (c.type.trim().toLowerCase()) {
-      case '':
-      case 'say':
-        // Default response style; nothing to adjust.
-        break;
-      case 'reply':
-        addNote(SE_CODE.commandTypeReply,
-          `command ${q(name)} replies natively upstream; it posts as a normal chat message here`);
-        break;
-      case 'whisper':
-        addNote(SE_CODE.commandTypeWhisper,
-          `command ${q(name)} whispered its response upstream; the response posts publicly here`);
-        break;
-      default:
-        addNote(SE_CODE.commandTypeUnknown,
-          `command ${q(name)} has unknown response type ${q(c.type)}; posting as a normal chat message`);
-    }
-
-    if (c.cost > 0) {
-      addNote(SE_CODE.commandCostUnsupported,
-        `command ${q(name)} costs ${c.cost} loyalty points upstream; loyalty gating is not supported, so it is free here`);
-    }
-
-    const { perm, recognized } = mapAccessLevel(c.accessLevel);
-    if (!recognized) {
-      addNote(CODE.permissionUnmapped,
-        `command ${q(name)} requires accessLevel ${c.accessLevel} (${levelLabel(c.accessLevel)}), which has no equivalent here; widened to everyone`);
-    }
-
-    if (c.cooldownUser > 0) {
-      addNote(SE_CODE.commandUserCooldownDropped,
-        `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
-    }
-
-    // Command replies get a urlfetch slot allocator keyed on the normalized
-    // command name (the slug rule); keyword triggers below deliberately do
-    // not — they carry no slug of their own.
-    const sink = makeFetchSlotSink(`se-${name}`, fetchDefs, diags);
-    const { text, warns } = translateVariables(c.reply, sink);
-    for (const tok of warns) {
-      addNote(CODE.variableUnmapped,
-        `response uses ${tok}, which has no equivalent; left as literal text`);
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-
-    // Fields mirror Go's omitempty tags: absent/empty values are omitted so a
-    // serialized manifest stays identical to what the importer service emitted.
-    const cmd: ManifestCommand = { name, responses: lines };
-    const aliases: string[] = [];
-    for (const a of c.aliases) {
-      const norm = normalizeName(a);
-      if (norm === '') {
-        const msg = `command ${q(name)} had alias ${q(a)} that normalizes to nothing; dropped`;
-        diags.push(warnDiag(idx, SE_CODE.commandAliasDropped, msg));
-        notes.push(msg);
-      } else if (norm === name) {
-        const msg = `command ${q(name)} listed itself as an alias; dropped`;
-        diags.push(warnDiag(idx, SE_CODE.commandAliasDropped, msg));
-        notes.push(msg);
-      } else if (!aliases.includes(norm)) {
-        aliases.push(norm);
-      }
-    }
-    if (aliases.length > 0) cmd.aliases = aliases;
-    cmd.permission = perm;
-    if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
-    if (onlineOnly) cmd.online_only = true;
-    if (notes.length > 0) cmd.warnings = notes;
-    commands.push(cmd);
-
-    diags.push(...respDiags);
-
-    if (lines.length === 0 && c.reply.trim() !== '') {
-      // Canonicalization dropped everything (blank lines only after variable
-      // removal); mark it so commit skips rather than writes an empty command.
-      diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no usable response after translation`));
-    } else if (lines.length === 0) {
-      diags.push(errAt(idx, CODE.responseInvalid, `command ${q(name)} has no response`));
-    }
-
-    keywordsToTriggers(c.keywords, c.reply, name, m, diags);
+    appendCommand(c, commands, state);
   }
 }
 
-// keywordsToTriggers expands one command's keyword list into phrase triggers.
-// Each keyword gets the same translated response, flattened to a single line:
-// commit stores triggers as "phrase => response" textarea rows, so embedded
-// newlines would corrupt the rules blob.
-function keywordsToTriggers(keywords: string[], reply: string, commandName: string, m: ImportManifest, diags: ImportDiagnostic[]): void {
-  for (const kw of keywords) {
-    const phrase = kw.trim();
-    if (phrase === '') continue;
-
-    m.triggers ??= [];
-    const idx = m.triggers.length;
-    const { text, warns } = translateVariables(reply);
-    for (const tok of warns) {
-      diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
-        `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-    // CanonicalizeResponse attributes its findings with command_-prefixed
-    // codes; these items are triggers, so the codes are re-prefixed to keep
-    // FailedItems dropping the right collection.
-    for (const d of respDiags) {
-      if (d.code === CODE.responseTruncated) d.code = SE_CODE.triggerResponseTruncated;
-      else if (d.code === CODE.responseLineDropped) d.code = SE_CODE.triggerResponseLineDropped;
-    }
-    diags.push(...respDiags);
-
-    const response = lines.join(' ');
-    if (response === '' || phrase === '') {
-      diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
-        `keyword ${q(kw)} on command ${q(commandName)} has no usable phrase/response pair; skipped`));
-      continue;
-    }
-
-    m.triggers.push({ phrase, response });
+function decodeCommandOrSkip(entry: unknown, diags: ImportDiagnostic[]): BotCommand | null {
+  try {
+    return decodeBotCommand(entry);
+  } catch (err) {
+    diags.push(warnDiag(-1, SE_CODE.commandUnparseable, 'skipped one unparseable StreamElements command entry: ' + (err as Error).message));
+    return null;
   }
-  if (m.triggers?.length === 0) delete m.triggers;
 }
 
-function parseTimers(entries: unknown[], timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
+// commandExclusion reports why an entry cannot land at all (attributed to
+// index -1: it owns no manifest slot), or null when it should be imported.
+//
+// Regex commands are a different feature (pattern-triggered), not a
+// command with an unlucky name; importing one would ship a command whose
+// trigger is a regex literal. Excluded, not errored-in-place, so the
+// preview never offers a broken item for confirmation.
+function commandExclusion(c: BotCommand): ImportDiagnostic | null {
+  if (c.regex.trim() !== '') {
+    return warnDiag(-1, SE_CODE.commandRegexSkipped,
+      `command ${q(c.command)} uses a regex trigger (${c.regex}); regex commands have no equivalent here and were skipped`);
+  }
+  if (!flag(c.enabled)) {
+    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
+      `command ${q(c.command)} is disabled upstream and was skipped`);
+  }
+  if (!flag(c.enabledOnline) && !flag(c.enabledOffline)) {
+    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
+      `command ${q(c.command)} is disabled both online and offline upstream and was skipped`);
+  }
+  return null;
+}
+
+function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SeParseState): void {
+  const name = normalizeName(c.command);
+  const sink: NoteSink = {
+    idx: commands.length,
+    diags: state.diags,
+    notes: [],
+    fetch: makeFetchSlotSink(`se-${name}`, state.fetchDefs, state.diags)
+  };
+  const online = flag(c.enabledOnline);
+
+  const { text, perm } = lossyNotes(c, name, online, sink);
+  const { lines, diags: respDiags } = canonicalizeResponse(text, sink.idx);
+
+  const draft: CommandDraft = { c, name, online, perm, lines };
+  commands.push(assembleCommand(draft, sink));
+  state.diags.push(...respDiags);
+  emptyResponseErrors(draft, sink);
+  keywordsToTriggers(draft, state);
+}
+
+// lossyNotes emits, in pinned order (the golden fixtures pin diagnostic
+// order), every widening/dropping translation note for one command and sinks
+// the variable-translation warnings. Returns the translated response text and
+// the resolved permission tier.
+type AccessTier = ReturnType<typeof mapAccessLevel>['perm'];
+
+function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink): { text: string; perm: AccessTier } {
+  if (!online && flag(c.enabledOffline)) {
+    addNote(sink, SE_CODE.commandOfflineOnlyWidened,
+      `command ${q(name)} runs only while offline upstream; imported as always available (widening)`);
+  }
+
+  responseTypeNote(c, name, sink);
+
+  if (c.cost > 0) {
+    addNote(sink, SE_CODE.commandCostUnsupported,
+      `command ${q(name)} costs ${c.cost} loyalty points upstream; loyalty gating is not supported, so it is free here`);
+  }
+
+  const perm = accessLevelNote(c, name, sink).perm;
+
+  if (c.cooldownUser > 0) {
+    addNote(sink, SE_CODE.commandUserCooldownDropped,
+      `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
+  }
+
+  const { text, warns } = translateVariables(c.reply, sink.fetch);
+  for (const tok of warns) {
+    addNote(sink, CODE.variableUnmapped,
+      `response uses ${tok}, which has no equivalent; left as literal text`);
+  }
+  return { text, perm };
+}
+
+// responseTypeNote covers the response-style column: say/default posts
+// unchanged, reply/whisper lose their delivery style, unknown types post as
+// plain chat messages.
+function responseTypeNote(c: BotCommand, name: string, sink: NoteSink): void {
+  switch (c.type.trim().toLowerCase()) {
+    case '':
+    case 'say':
+      break;
+    case 'reply':
+      addNote(sink, SE_CODE.commandTypeReply,
+        `command ${q(name)} replies natively upstream; it posts as a normal chat message here`);
+      break;
+    case 'whisper':
+      addNote(sink, SE_CODE.commandTypeWhisper,
+        `command ${q(name)} whispered its response upstream; the response posts publicly here`);
+      break;
+    default:
+      addNote(sink, SE_CODE.commandTypeUnknown,
+        `command ${q(name)} has unknown response type ${q(c.type)}; posting as a normal chat message`);
+  }
+}
+
+// accessLevelNote warns when the source tier has no equivalent here.
+function accessLevelNote(c: BotCommand, name: string, sink: NoteSink): ReturnType<typeof mapAccessLevel> {
+  const mapped = mapAccessLevel(c.accessLevel);
+  if (!mapped.recognized) {
+    addNote(sink, CODE.permissionUnmapped,
+      `command ${q(name)} requires accessLevel ${c.accessLevel} (${levelLabel(c.accessLevel)}), which has no equivalent here; widened to everyone`);
+  }
+  return mapped;
+}
+
+// CommandDraft carries one decoded command through assembly and the empty-
+// response check: the source entry, its normalized name, window flags,
+// resolved tier and canonicalized response lines.
+interface CommandDraft {
+  c: BotCommand;
+  name: string;
+  online: boolean;
+  perm: AccessTier;
+  lines: string[];
+}
+
+// assembleCommand builds the manifest entry with omitempty parity: absent or
+// empty values are omitted so a serialized manifest stays identical to what
+// the importer service emitted.
+function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
+  const { c, name, online, perm, lines } = draft;
+  const cmd: ManifestCommand = { name, responses: lines };
+  const aliases = collectAliases(c, name, sink);
+  if (aliases.length > 0) cmd.aliases = aliases;
+  cmd.permission = perm;
+  if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
+  if (online && !flag(c.enabledOffline)) cmd.online_only = true;
+  if (sink.notes.length > 0) cmd.warnings = sink.notes;
+  return cmd;
+}
+
+// collectAliases normalizes the alias list, recording a drop note for every
+// alias that cannot land. Returns the kept, de-duplicated aliases.
+function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
+  const aliases: string[] = [];
+  for (const a of c.aliases) {
+    const norm = normalizeName(a);
+    if (norm === '') {
+      addNote(sink, SE_CODE.commandAliasDropped,
+        `command ${q(name)} had alias ${q(a)} that normalizes to nothing; dropped`);
+    } else if (norm === name) {
+      addNote(sink, SE_CODE.commandAliasDropped,
+        `command ${q(name)} listed itself as an alias; dropped`);
+    } else if (!aliases.includes(norm)) {
+      aliases.push(norm);
+    }
+  }
+  return aliases;
+}
+
+// emptyResponseErrors marks commands whose canonicalization left nothing, so
+// commit skips rather than writes an empty command. sink.idx is the slot the
+// command was just pushed into.
+function emptyResponseErrors(draft: CommandDraft, sink: NoteSink): void {
+  if (draft.lines.length > 0) return;
+  if (draft.c.reply.trim() !== '') {
+    // Canonicalization dropped everything (blank lines only after variable
+    // removal).
+    sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no usable response after translation`));
+  } else {
+    sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no response`));
+  }
+}
+
+// KeywordExpansion bundles one command's trigger-expansion inputs: the raw
+// response to re-translate per keyword and the name diagnostics should name.
+interface KeywordExpansion {
+  reply: string;
+  commandName: string;
+}
+
+function keywordsToTriggers(draft: CommandDraft, state: SeParseState): void {
+  const expansion: KeywordExpansion = { reply: draft.c.reply, commandName: draft.name };
+  for (const kw of draft.c.keywords) {
+    appendKeywordTrigger(kw, expansion, state);
+  }
+  if (state.manifest.triggers?.length === 0) delete state.manifest.triggers;
+}
+
+// appendKeywordTrigger expands one keyword into a phrase trigger carrying the
+// same translated response, flattened to a single line: commit stores triggers
+// as "phrase => response" textarea rows, so embedded newlines would corrupt
+// the rules blob.
+function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: SeParseState): void {
+  const phrase = kw.trim();
+  if (phrase === '') return;
+
+  const triggers = (state.manifest.triggers ??= []);
+  const idx = triggers.length;
+  const { text, warns } = translateVariables(expansion.reply);
+  for (const tok of warns) {
+    state.diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
+      `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
+  }
+
+  const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
+  // CanonicalizeResponse attributes its findings with command_-prefixed
+  // codes; these items are triggers, so the codes are re-prefixed to keep
+  // FailedItems dropping the right collection.
+  retitleResponseCodes(respDiags, TRIGGER_RETITLE);
+  state.diags.push(...respDiags);
+
+  const response = lines.join(' ');
+  if (response === '') {
+    state.diags.push(warnDiag(-1, SE_CODE.triggerInvalidSkipped,
+      `keyword ${q(kw)} on command ${q(expansion.commandName)} has no usable phrase/response pair; skipped`));
+    return;
+  }
+  triggers.push({ phrase, response });
+}
+
+// RetitleMap pairs the canonicalization codes with their retitled counterparts
+// for one item kind.
+interface RetitleMap {
+  truncated: string;
+  lineDropped: string;
+}
+
+const TRIGGER_RETITLE: RetitleMap = {
+  truncated: SE_CODE.triggerResponseTruncated,
+  lineDropped: SE_CODE.triggerResponseLineDropped
+};
+
+const TIMER_RETITLE: RetitleMap = {
+  truncated: SE_CODE.timerMessageTruncated,
+  lineDropped: SE_CODE.timerLineDropped
+};
+
+// retitleResponseCodes re-prefixes canonicalization findings from their
+// command_ codes onto the caller's item kind.
+function retitleResponseCodes(diags: ImportDiagnostic[], map: RetitleMap): void {
+  for (const d of diags) {
+    if (d.code === CODE.responseTruncated) d.code = map.truncated;
+    else if (d.code === CODE.responseLineDropped) d.code = map.lineDropped;
+  }
+}
+
+function parseTimers(entries: unknown[], state: SeParseState): void {
+  const timers = state.manifest.timers!;
   for (const entry of entries) {
-    let t: BotTimer;
-    try {
-      t = decodeBotTimer(entry);
-    } catch (err) {
-      diags.push(warnDiag(-1, SE_CODE.timerUnparseable, 'skipped one unparseable StreamElements timer entry: ' + (err as Error).message));
+    const t = decodeTimerOrSkip(entry, state.diags);
+    if (!t) continue;
+    const label = timerLabel(t);
+    const problem = timerExclusion(t, label);
+    if (problem) {
+      state.diags.push(problem);
       continue;
     }
-
-    let label = t.name;
-    if (label === '') {
-      label = firstLine(t.text);
-      if (label === '') label = '(unnamed)';
-    }
-
-    if (!flag(t.enabled)) {
-      diags.push(warnDiag(-1, SE_CODE.timerDisabledSkipped,
-        `timer ${q(label)} is disabled upstream and was skipped`));
-      continue;
-    }
-
-    const online = flag(t.onlineEnabled);
-    const offline = flag(t.offlineEnabled);
-    if (!online && !offline) {
-      diags.push(warnDiag(-1, SE_CODE.timerDisabledSkipped,
-        `timer ${q(label)} has neither an online nor an offline window enabled upstream and was skipped`));
-      continue;
-    }
-
-    const idx = timers.length;
-
-    // Decision record — interval units: StreamElements timer intervals are
-    // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
-    // API's own examples (online 5, offline 30) only make sense on a minute
-    // scale — a 5-second repeating announcement would sit below any sane rate
-    // limit and below this engine's 30s floor. Multiply by 60 here, once, so
-    // the manifest carries seconds like every consumer expects; commit clamps
-    // sub-floor values itself.
-    let interval = 0;
-    let onlineOnly = online;
-    if (online) interval = t.onlineInterval * 60;
-    else if (offline) interval = t.offlineInterval * 60;
-    if (interval < 0) interval = 0;
-
-    const addNote = (code: string, msg: string): void => {
-      diags.push(warnDiag(idx, code, msg));
-    };
-    if (!online && offline) {
-      onlineOnly = false;
-      addNote(SE_CODE.timerOfflineOnlyWidened,
-        `timer ${q(label)} runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)`);
-    }
-
-    const rawMsg = t.text;
-    const { text, warns } = translateVariables(rawMsg);
-    for (const tok of warns) {
-      addNote('timer_variable_unmapped',
-        `timer message uses ${tok}, which has no equivalent; left as literal text`);
-    }
-
-    const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-    for (const d of respDiags) {
-      if (d.code === CODE.responseTruncated) d.code = SE_CODE.timerMessageTruncated;
-      else if (d.code === CODE.responseLineDropped) d.code = SE_CODE.timerLineDropped;
-    }
-    diags.push(...respDiags);
-
-    // omitempty parity: online_only false is omitted.
-    const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
-      message: lines.join('\n'),
-      interval_seconds: interval
-    };
-    if (onlineOnly) timer.online_only = true;
-    timers.push(timer);
-
-    if (timer.message.trim() === '') {
-      diags.push(errAt(idx, CODE.timerMessageEmpty, `timer ${q(label)} has no usable message after translation`));
-    }
+    appendTimer(t, label, timers, state.diags);
   }
+}
+
+function decodeTimerOrSkip(entry: unknown, diags: ImportDiagnostic[]): BotTimer | null {
+  try {
+    return decodeBotTimer(entry);
+  } catch (err) {
+    diags.push(warnDiag(-1, SE_CODE.timerUnparseable, 'skipped one unparseable StreamElements timer entry: ' + (err as Error).message));
+    return null;
+  }
+}
+
+function timerLabel(t: BotTimer): string {
+  return t.name !== '' ? t.name : firstLine(t.text) || '(unnamed)';
+}
+
+// timerExclusion reports why the timer cannot land at all, or null.
+function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
+  if (!flag(t.enabled)) {
+    return warnDiag(-1, SE_CODE.timerDisabledSkipped,
+      `timer ${q(label)} is disabled upstream and was skipped`);
+  }
+  if (!flag(t.onlineEnabled) && !flag(t.offlineEnabled)) {
+    return warnDiag(-1, SE_CODE.timerDisabledSkipped,
+      `timer ${q(label)} has neither an online nor an offline window enabled upstream and was skipped`);
+  }
+  return null;
+}
+
+function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
+  const idx = timers.length;
+  // Decision record — interval units: StreamElements timer intervals are
+  // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
+  // API's own examples (online 5, offline 30) only make sense on a minute
+  // scale — a 5-second repeating announcement would sit below any sane rate
+  // limit and below this engine's 30s floor. Multiply by 60 here, once, so
+  // the manifest carries seconds like every consumer expects; commit clamps
+  // sub-floor values itself.
+  const window = timerWindow(t);
+  if (window.widened) {
+    diags.push(warnDiag(idx, SE_CODE.timerOfflineOnlyWidened,
+      `timer ${q(label)} runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)`));
+  }
+
+  const { text, warns } = translateVariables(t.text);
+  for (const tok of warns) {
+    diags.push(warnDiag(idx, SE_CODE.timerVariableUnmapped,
+      `timer message uses ${tok}, which has no equivalent; left as literal text`));
+  }
+
+  const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
+  retitleResponseCodes(respDiags, TIMER_RETITLE);
+  diags.push(...respDiags);
+
+  // omitempty parity: online_only false is omitted.
+  const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
+    message: lines.join('\n'),
+    interval_seconds: window.seconds
+  };
+  if (window.onlineOnly) timer.online_only = true;
+  timers.push(timer);
+
+  if (timer.message.trim() === '') {
+    diags.push(errAt(idx, CODE.timerMessageEmpty, `timer ${q(label)} has no usable message after translation`));
+  }
+}
+
+// timerWindow resolves which firing window survives the import. Exactly one
+// of the two is enabled here (the neither case was excluded); an offline-only
+// timer widens with a note because timers here fire only while live.
+function timerWindow(t: BotTimer): { seconds: number; onlineOnly: boolean; widened: boolean } {
+  const clampNegative = (s: number): number => (s < 0 ? 0 : s);
+  if (flag(t.onlineEnabled)) {
+    return { seconds: clampNegative(t.onlineInterval * 60), onlineOnly: true, widened: false };
+  }
+  return { seconds: clampNegative(t.offlineInterval * 60), onlineOnly: false, widened: true };
 }
 
 // flag dereferences an optional boolean with the schema's enabled-by-default.
@@ -805,7 +996,6 @@ const LEGACY_HEADS = new Set([
 //	$(count ...)                       → literal+warn  mutates upstream
 //	$(random[.X-Y]|random.number X-Y)  → {random:X-Y}
 //	$(random.pick …)/{choose …}        → {choice:a,b}  quote-aware
-//	$(urlfetch URL [json.path])        → {urlfetch:se-<cmd>}  def extracted
 //	game/title/uptime/if/math/api/…    → literal + warn (no equivalent)
 export function translateVariables(inText: string, fetchSink?: FetchSlotSink): { text: string; warns: string[] } {
   const seen = new Set<string>();
@@ -850,29 +1040,77 @@ export function translateVariables(inText: string, fetchSink?: FetchSlotSink): {
 // "$(weather ${1:})" into "$(weather {args})" instead of stranding the
 // argument untranslated inside a dead wrapper.
 function findNext(s: string, from: number): { start: number; end: number } | null {
-  for (let i = from; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch === 0x24 /* $ */ && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{')) {
-      const end = matchDelimited(s, i);
-      if (end !== -1) {
-        if (!hasNestedExplicit(s, i + 2, end - 1)) return { start: i, end };
-        i++; // descend past the wrapper's opener; its closer stays literal
-      } else {
-        i++; // malformed explicit token: step past '$' and keep scanning
-      }
-    } else if (ch === 0x7b /* { */) {
-      const end = matchBrace(s, i);
-      if (end !== -1 && legacyCandidate(s.slice(i + 1, end - 1))) return { start: i, end };
+  let i = from;
+  while (i < s.length) {
+    const end = delimitedEnd(s, i);
+    if (end !== undefined) {
+      // A delimited token whose body nests another explicit token is skipped
+      // in favour of its interior: the composite has no mapping of its own
+      // (it is warned as-is next pass, once its interior reads translated),
+      // while the inner leaf can land cleanly right now. This is what turns
+      // SE's documented nesting "$(weather ${1:})" into "$(weather {args})"
+      // instead of stranding the argument untranslated inside a dead wrapper.
+      if (!hasNestedExplicit({ s, from: i + 2, until: end - 1 })) return { start: i, end };
+      i += 2; // descend past the wrapper's opener; its closer stays literal
+      continue;
     }
+    if (malformedDelimited(s, i)) {
+      i += 2; // malformed explicit token: step past '$' and keep scanning
+      continue;
+    }
+    const braceEnd = legacyBraceEnd(s, i);
+    if (braceEnd !== -1) return { start: i, end: braceEnd };
+    i++;
   }
   return null;
 }
 
-// hasNestedExplicit reports whether s[from:until] opens another $( or ${
-// token, i.e. whether the enclosing token is a composite.
-function hasNestedExplicit(s: string, from: number, until: number): boolean {
-  for (let j = from; j < until - 1; j++) {
-    if (s[j] === '$' && j + 1 < until && (s[j + 1] === '(' || s[j + 1] === '{')) return true;
+function isDollar(charCode: number): boolean {
+  return charCode === 0x24; /* $ */
+}
+
+// opensDelimited reports whether i opens a $( or ${ token.
+function opensDelimited(s: string, i: number): boolean {
+  return isDollar(s.charCodeAt(i)) && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{');
+}
+
+// delimitedEnd returns the exclusive end of the balanced $(/${ token opening
+// at i, or undefined when i does not open one or it never closes.
+function delimitedEnd(s: string, i: number): number | undefined {
+  if (!opensDelimited(s, i)) return undefined;
+  const end = matchDelimited(s, i);
+  return end === -1 ? undefined : end;
+}
+
+// malformedDelimited reports whether i opens an unbalanced $(/${ wrapper,
+// which the scan must step past instead of matching.
+function malformedDelimited(s: string, i: number): boolean {
+  return opensDelimited(s, i) && delimitedEnd(s, i) === undefined;
+}
+
+// legacyBraceEnd returns the end of a bare-brace token starting at i whose
+// head names a recognized legacy family, else -1.
+function legacyBraceEnd(s: string, i: number): number {
+  if (s[i] !== '{') return -1;
+  const end = matchBrace(s, i);
+  if (end !== -1 && legacyCandidate(s.slice(i + 1, end - 1))) return end;
+  return -1;
+}
+
+// TokenWindow scopes a scan to a character range of the surrounding string.
+interface TokenWindow {
+  s: string;
+  from: number;
+  until: number;
+}
+
+// hasNestedExplicit reports whether the window opens another $( or ${
+// token, i.e. whether the enclosing token is a composite. The lookahead never
+// crosses until: an end index inside s implies j + 1 stays inside s too, so
+// opensFamily's own length guard is equivalent to the original bound here.
+function hasNestedExplicit(w: TokenWindow): boolean {
+  for (let j = w.from; j < w.until - 1; j++) {
+    if (opensFamily(w.s, j) !== '') return true;
   }
   return false;
 }
@@ -882,39 +1120,61 @@ function hasNestedExplicit(s: string, from: number, until: number): boolean {
 // end the outer scan early. Returns -1 when unbalanced (token left literal).
 function matchDelimited(s: string, start: number): number {
   const openParen = s[start + 1] === '(';
-  let paren = 0;
-  let brace = 0;
+  const depth = { paren: 0, brace: 0 };
   for (let j = start; j < s.length; j++) {
-    if (s[j] === '$' && j + 1 < s.length) {
-      if (s[j + 1] === '(') {
-        paren++;
-        j++;
-        continue;
-      }
-      if (s[j + 1] === '{') {
-        brace++;
-        j++;
-        continue;
-      }
+    const family = opensFamily(s, j);
+    if (family !== '') {
+      depth[family]++;
+      j++;
+      continue;
     }
-    switch (s[j]) {
-      case '(':
-        paren++;
-        break;
-      case ')':
-        paren--;
-        if (openParen && paren === 0 && brace <= 0) return j + 1;
-        break;
-      case '{':
-        brace++;
-        break;
-      case '}':
-        brace--;
-        if (!openParen && brace === 0 && paren <= 0) return j + 1;
-        break;
-    }
+    if (closesDelimited(s[j], openParen, depth)) return j + 1;
   }
   return -1;
+}
+
+// opensFamily reports the delimiter family a "$(" / "${" pair at i opens,
+// or '' when neither.
+function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
+  if (!isDollar(s.charCodeAt(i)) || i + 1 >= s.length) return '';
+  if (s[i + 1] === '(') return 'paren';
+  if (s[i + 1] === '{') return 'brace';
+  return '';
+}
+
+// closesDelimited folds one depth-bearing character and reports whether it
+// just closed the wrapper.
+function closesDelimited(ch: string, openParen: boolean, depth: ScanDepth): boolean {
+  applyDepthStep(ch, depth);
+  return reachedOwnClose(ch, openParen, depth);
+}
+
+interface ScanDepth {
+  paren: number;
+  brace: number;
+}
+
+function applyDepthStep(ch: string, depth: ScanDepth): void {
+  if (ch === '(') {
+    depth.paren++;
+    return;
+  }
+  if (ch === '{') {
+    depth.brace++;
+    return;
+  }
+  if (ch === ')') {
+    depth.paren--;
+    return;
+  }
+  if (ch === '}') depth.brace--;
+}
+
+// reachedOwnClose reports whether the character just closed the same family
+// the wrapper opened, with no opposite-family nesting left outstanding.
+function reachedOwnClose(ch: string, openParen: boolean, depth: ScanDepth): boolean {
+  if (openParen) return ch === ')' && depth.paren === 0 && depth.brace <= 0;
+  return ch === '}' && depth.brace === 0 && depth.paren <= 0;
 }
 
 // matchBrace finds the } closing the { at start (nested braces counted);
@@ -922,13 +1182,15 @@ function matchDelimited(s: string, start: number): number {
 function matchBrace(s: string, start: number): number {
   let depth = 0;
   for (let j = start; j < s.length; j++) {
-    if (s[j] === '{') depth++;
-    else if (s[j] === '}') {
-      depth--;
-      if (depth === 0) return j + 1;
-    }
+    depth += braceStep(s[j]);
+    if (depth === 0) return j + 1;
   }
   return -1;
+}
+
+function braceStep(ch: string): number {
+  if (ch === '{') return 1;
+  return ch === '}' ? -1 : 0;
 }
 
 // legacyCandidate reports whether a bare-brace body names a variable family we
@@ -973,6 +1235,22 @@ function asciiLower(s: string): string {
   return out;
 }
 
+// TokenView carries one scanned token through the rule table below. head is
+// the lower-cased name run; restRaw/rest are the remainder in original and
+// lower-cased bytes (sub-field suffixes compare case-insensitively so
+// $(USER.NAME) resolves like $(user.name), while argument payloads keep their
+// original bytes so counter names and choice items survive verbatim);
+// delimited says whether an explicit $(…)/${…} wrapper was present.
+interface TokenView {
+  tok: string;
+  head: string;
+  restRaw: string;
+  rest: string;
+  delimited: boolean;
+}
+
+type TokenOutcome = { repl: string; warned: boolean };
+
 // --- $(urlfetch) extraction (docs/urlfetch/IMPLEMENTATION.md, Phase 4) -------
 
 // MAX_FETCH_URL_BYTES mirrors the FetchURL validator (≤512 chars, https-only)
@@ -982,20 +1260,18 @@ function asciiLower(s: string): string {
 // URL out of the reply text where it stayed visible.
 const MAX_FETCH_URL_BYTES = 512;
 
-const encoder = new TextEncoder();
+const urlEncoder = new TextEncoder();
 
 // FetchSlotSink is what a caller of translateVariables provides to have
-// $(urlfetch …) tokens mapped into `{urlfetch:<slug>}` references backed by
+// $(urlfetch ...) tokens mapped into `{urlfetch:<slug>}` references backed by
 // synthesized definitions. acquire returns null when no more definitions can
-// be synthesized (cap), which degrades the token to the literal+warn path.
-// Only command replies get a sink: timers and keyword triggers reference no
-// command name to build a deterministic slug from, so their urlfetch tokens
-// keep today's literal+unmapped-warn behavior.
+// be synthesized (cap or slug collision), which degrades the token to the
+// literal+warn path.
 export interface FetchSlotSink {
   acquire(url: string, jsonPath: string[] | undefined): string | null;
 }
 
-// fetchDefCap reuses IMPORT_ITEM_CAPS.commands as the ceiling on synthesized
+// FETCH_DEF_CAP reuses IMPORT_ITEM_CAPS.commands as the ceiling on synthesized
 // definitions per import instead of minting a second public number: each def
 // exists only to serve a command in this same manifest, so the commands cap
 // bounds it by construction and one fewer magic number cannot drift from the
@@ -1032,10 +1308,7 @@ function makeFetchSlotSink(
         ? { name: key, url, json_path: jsonPath, source: 'streamelements' }
         : { name: key, url, source: 'streamelements' };
 
-      if (!defs.has(key)) {
-        if (defs.size >= FETCH_DEF_CAP) return null;
-        defs.set(key, def);
-      } else {
+      if (defs.has(key)) {
         // Same slug, different content: two exported commands normalized onto
         // one name. First wins (deterministic by export order); the loser's
         // tokens would silently re-point at another command's data source.
@@ -1043,6 +1316,8 @@ function makeFetchSlotSink(
           `fetch definition ${q(key)} was already synthesized with different contents; the earlier one wins`));
         return null;
       }
+      if (defs.size >= FETCH_DEF_CAP) return null;
+      defs.set(key, def);
       slots++;
       byArgs.set(argsKey, key);
       return key;
@@ -1062,190 +1337,295 @@ function parseUrlfetchArgs(body: string): { url: string; jsonPath: string[] | un
   if (words.length === 0) return null;
   const url = words[0];
   if (!/^https?:\/\//i.test(url)) return null;
-  if (encoder.encode(url).length > MAX_FETCH_URL_BYTES) return null;
+  if (urlEncoder.encode(url).length > MAX_FETCH_URL_BYTES) return null;
   if (words.length === 1) return { url, jsonPath: undefined };
-  const segments = words.slice(1).join('.').split('.').map((s) => s.trim()).filter((s) => s !== '');
+  const segments = words.slice(1).join('.').split('.').map((w) => w.trim()).filter((w) => w !== '');
   return { url, jsonPath: segments.length > 0 ? segments : undefined };
 }
 
-// classifyToken resolves one scanned token to its replacement text. Returns
-// warned=true when the token was an attempted-but-unmappable variable; false
-// covers both clean translations and silent literals.
-function classifyToken(tok: string, fetchSink?: FetchSlotSink): { repl: string; warned: boolean } {
-  let inner = '';
-  let delimited = false;
-  if (tok.startsWith('$(') && tok.endsWith(')') && tok.length > 3) {
-    inner = tok.slice(2, -1);
-    delimited = true;
-  } else if (tok.startsWith('${') && tok.endsWith('}') && tok.length > 3) {
-    inner = tok.slice(2, -1);
-    delimited = true;
-  } else if (tok.startsWith('{') && tok.endsWith('}') && tok.length > 2) {
-    inner = tok.slice(1, -1);
-  } else {
-    return { repl: tok, warned: false };
-  }
-
-  const [head0, rest0] = splitHead(inner.trim());
-  // Sub-field suffixes are compared ASCII-case-insensitively ($(USER.NAME)
-  // must resolve like $(user.name)); argument payloads keep their original
-  // bytes so counter names and choice items survive verbatim.
-  const head = head0;
-  const rest = asciiLower(rest0);
-
-  const unmap = (): { repl: string; warned: boolean } => {
-    if (delimited) return { repl: tok, warned: true };
-    // Bare-brace bodies with a known head but unusable shape (e.g.
-    // {random:xq}) stay literal without a warning: bare braces are ambiguous
-    // punctuation, unlike an explicit $(…) attempt.
-    return { repl: tok, warned: head === 'count' || head === 'getcount' };
-  };
-
-  switch (head) {
-    case '':
-      if (delimited && rest !== '') return { repl: tok, warned: true }; // $(:3) ranges, other headless tokens
-      return { repl: tok, warned: false };
-    case 'user':
-      if (rest === '' || rest === '.name') return { repl: '{user}', warned: false };
-      return unmap();
-    case 'sender':
-    case 'source':
-      if (rest === '' || rest === '.name') return { repl: '{sender}', warned: false };
-      return unmap();
-    case 'touser':
-      if (rest0 === '') return { repl: '{touser}', warned: false };
-      return unmap();
-    case 'target':
-      if (rest === '' || rest === '.user' || rest === '.name') return { repl: '{touser}', warned: false };
-      return unmap();
-    case 'channel':
-      if (rest === '' || rest === '.alias' || rest === '.display_name') return { repl: '{channel}', warned: false };
-      return unmap();
-    case '1':
-      if (delimited && rest0 === ':') return { repl: '{args}', warned: false };
-      return unmap();
-    case 'getcount': {
-      const name = firstWord(rest0);
-      if (name === '') return unmap();
-      const norm = normalizeName(name);
-      if (norm !== '') return { repl: `{counter:${norm}}`, warned: false };
-      return unmap();
-    }
-    case 'count':
-      // Mutating upstream (increments and returns); our {counter:*}
-      // substitution only reads. Silently rewriting would drop the increment
-      // side-effect, which is a behavior change, not a translation — warn.
-      return { repl: tok, warned: true };
-    case 'random':
-      return classifyRandom(tok, rest0, delimited);
-    case 'choose':
-      if (delimited) return unmap();
-      return pickBare(tok, rest0);
-    case 'urlfetch': {
-      // Extraction-at-import is safe by construction: the URL is copied
-      // byte-exact out of the reply text into the synthesized definition —
-      // no fetch, no resolution, no key handling happens here — and the reply
-      // keeps working at runtime through the reviewed, sandboxed definition
-      // instead of an unreviewed URL pasted into chat text. Without a sink
-      // (timers, keyword triggers) or with unusable arguments there is nothing
-      // to extract into, so the token stays literal and warned like any other
-      // unmapped variable.
-      if (!fetchSink || !delimited) return unmap();
-      const args = parseUrlfetchArgs(rest0);
-      if (!args) return unmap();
-      const key = fetchSink.acquire(args.url, args.jsonPath);
-      if (key === null) return unmap();
-      return { repl: `{urlfetch:${key}}`, warned: false };
-    }
-    default:
-      return unmap();
-  }
+// urlfetchRule maps one $(urlfetch URL [json.path]) token onto its synthesized
+// definition reference. Extraction-at-import is safe by construction: the URL
+// is copied byte-exact out of the reply text into the definition — no fetch,
+// no resolution, no key handling happens here — and the reply keeps working at
+// runtime through the reviewed, sandboxed definition instead of an unreviewed
+// URL pasted into chat text. Without a sink (timers, keyword triggers) or with
+// unusable arguments there is nothing to extract into, so the token stays
+// literal and warned like any other unmapped variable.
+function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
+  if (!fetchSink || !v.delimited) return unmapped(v);
+  const args = parseUrlfetchArgs(v.restRaw);
+  if (!args) return unmapped(v);
+  const key = fetchSink.acquire(args.url, args.jsonPath);
+  if (key === null) return unmapped(v);
+  return ok(`{urlfetch:${key}}`);
 }
+
+// classifyToken resolves one scanned token to its replacement text by looking
+// its head up in TOKEN_RULES (unknown heads fall through to unmapped).
+// Returns warned=true when the token was an attempted-but-unmappable variable;
+// false covers both clean translations and silent literals.
+function classifyToken(tok: string, fetchSink?: FetchSlotSink): TokenOutcome {
+  const v = readToken(tok);
+  if (!v) return { repl: tok, warned: false };
+  return (TOKEN_RULES[v.head] ?? unmapped)(v, fetchSink);
+}
+
+function readToken(tok: string): TokenView | null {
+  if (isDelimitedToken(tok)) return tokenOf({ tok, inner: tok.slice(2, -1), delimited: true });
+  if (isBareBraceToken(tok)) return tokenOf({ tok, inner: tok.slice(1, -1), delimited: false });
+  return null;
+}
+
+// RawToken is a scanner hit before head/rest resolution: the full token text,
+// its unwrapped body and which delimiter family wrapped it.
+interface RawToken {
+  tok: string;
+  inner: string;
+  delimited: boolean;
+}
+
+function isDelimitedToken(tok: string): boolean {
+  return (
+    (tok.startsWith('$(') && tok.endsWith(')') && tok.length > 3) ||
+    (tok.startsWith('${') && tok.endsWith('}') && tok.length > 3)
+  );
+}
+
+function isBareBraceToken(tok: string): boolean {
+  return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
+}
+
+function tokenOf(raw: RawToken): TokenView {
+  const [head, restRaw] = splitHead(raw.inner.trim());
+  return { tok: raw.tok, head, restRaw, rest: asciiLower(restRaw), delimited: raw.delimited };
+}
+
+const ok = (repl: string): TokenOutcome => ({ repl, warned: false });
+const silentLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: false });
+const flaggedLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: true });
+
+// unmapped keeps an attempted-but-unmappable variable literal. Explicit
+// $(…)/${…} attempts warn — someone clearly wrote a variable — while
+// bare-brace bodies stay silent except the counter families: bare braces are
+// ambiguous punctuation, but rewriting count/getcount would drop their
+// increment side-effect.
+function unmapped(v: TokenView): TokenOutcome {
+  if (v.delimited) return flaggedLiteral(v);
+  return { repl: v.tok, warned: v.head === 'count' || v.head === 'getcount' };
+}
+
+// BakedIdentitySpec names the identity mapping one table row carries: the
+// canonical replacement and the dot-subfield suffixes that resolve to it.
+interface BakedIdentitySpec {
+  repl: string;
+  suffixes: string[];
+}
+
+// bakedIdentity maps one identity family: bare or dot-subfield suffixes land
+// on a single canonical key, anything else falls back to unmapped.
+function bakedIdentity(spec: BakedIdentitySpec): (v: TokenView) => TokenOutcome {
+  return (v) => (v.rest === '' || spec.suffixes.includes(v.rest) ? ok(spec.repl) : unmapped(v));
+}
+
+// headless separates explicit headless tokens ($(:3)-style ranges and other
+// nameless attempts, which warn) from bare nameless braces (punctuation).
+function headless(v: TokenView): TokenOutcome {
+  return v.delimited && v.rest !== '' ? flaggedLiteral(v) : silentLiteral(v);
+}
+
+function touserParam(v: TokenView): TokenOutcome {
+  return v.restRaw === '' ? ok('{touser}') : unmapped(v);
+}
+
+// argsRange maps $(1:) — words 1..end — to {args}; every other numeric form
+// stays put.
+function argsRange(v: TokenView): TokenOutcome {
+  return v.delimited && v.restRaw === ':' ? ok('{args}') : unmapped(v);
+}
+
+function getCounterParam(v: TokenView): TokenOutcome {
+  const name = firstWord(v.restRaw);
+  if (name === '') return unmapped(v);
+  const norm = normalizeName(name);
+  return norm !== '' ? ok(`{counter:${norm}}`) : unmapped(v);
+}
+
+function chooseParam(v: TokenView): TokenOutcome {
+  if (v.delimited) return unmapped(v);
+  // The legacy bare {choose a,b,c} form warns on failure like an explicit
+  // attempt: someone clearly wrote a choice list.
+  const items = pickItems(v.restRaw);
+  return items ? ok('{choice:' + items.join(',') + '}') : flaggedLiteral(v);
+}
+
+// TOKEN_RULES resolves a token body by its head name. Adding a variable later
+// is a row here, not a branch in the scanner.
+const TOKEN_RULES: Record<string, (v: TokenView, fetchSink?: FetchSlotSink) => TokenOutcome> = {
+  urlfetch: urlfetchRule,
+  '': headless,
+  user: bakedIdentity({ repl: '{user}', suffixes: ['.name'] }),
+  sender: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
+  source: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
+  touser: touserParam,
+  target: bakedIdentity({ repl: '{touser}', suffixes: ['.user', '.name'] }),
+  channel: bakedIdentity({ repl: '{channel}', suffixes: ['.alias', '.display_name'] }),
+  '1': argsRange,
+  getcount: getCounterParam,
+  // Mutating upstream (increments and returns); our {counter:*} substitution
+  // only reads, so the token always stays literal with a warning.
+  count: flaggedLiteral,
+  random: classifyRandom,
+  choose: chooseParam
+};
+
+// Each RANDOM_ROWS entry renders one documented $(random …)/{random …}
+// spelling, or null when its arguments do not parse; classifyRandom walks the
+// rows in order and the first hit wins. Rows are mutually exclusive by prefix,
+// mirroring the upstream grammar: bare range, dot-forms ($(random.X)),
+// space-pick, plain bare-brace range.
+type RandomRow = (v: TokenView) => string | null;
+
+const RANDOM_ROWS: RandomRow[] = [
+  (v) => (v.restRaw === '' ? '{random}' : null),
+  dotRandomRange,
+  dotRandomNumber,
+  dotRandomPick,
+  spaceRandomPick,
+  plainRandomRange
+];
 
 // classifyRandom resolves $(random …) forms. Bare-brace random uses a space
 // before the range ({random 5-10}); delimited uses a dot ($(random.5-10)).
-function classifyRandom(tok: string, rest: string, delimited: boolean): { repl: string; warned: boolean } {
-  if (rest === '') return { repl: '{random}', warned: false };
-  if (rest.startsWith('.')) {
-    const body = rest.slice(1);
-    const bodyLower = asciiLower(body);
-    const range = parseRange(body);
-    if (range) return { repl: rangeKey(range[0], range[1]), warned: false };
-    if (bodyLower.startsWith('number')) {
-      const fields = body.slice('number'.length).trim().split(/\s+/).filter(Boolean);
-      if (fields.length === 1) {
-        const r = parseRange(fields[0]);
-        if (r) return { repl: rangeKey(r[0], r[1]), warned: false };
-      }
-    }
-    if (bodyLower.startsWith('pick')) {
-      const items = pickItems(body.slice('pick'.length));
-      if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-    }
-  } else if (rest.startsWith(' pick')) {
-    const items = pickItems(rest.slice(' pick'.length));
-    if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-  } else if (!delimited) {
-    const r = parseRange(rest);
-    if (r) return { repl: rangeKey(r[0], r[1]), warned: false };
-  }
-  return { repl: tok, warned: delimited };
+// An unusable shape stays literal, warning only on the explicit attempt.
+function classifyRandom(v: TokenView): TokenOutcome {
+  const repl = RANDOM_ROWS.map((row) => row(v)).find((r) => r !== null);
+  if (repl !== undefined) return ok(repl);
+  return v.delimited ? flaggedLiteral(v) : silentLiteral(v);
 }
 
-// pickBare resolves the legacy bare {choose a,b,c} form. It warns on failure
-// like an explicit attempt: someone clearly wrote a choice list.
-function pickBare(tok: string, spec: string): { repl: string; warned: boolean } {
-  const items = pickItems(spec);
-  if (items) return { repl: '{choice:' + items.join(',') + '}', warned: false };
-  return { repl: tok, warned: true };
+function dotRandomRange(v: TokenView): string | null {
+  if (!v.rest.startsWith('.')) return null;
+  const r = parseRange(v.restRaw.slice(1));
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function dotRandomNumber(v: TokenView): string | null {
+  if (!v.rest.startsWith('.number')) return null;
+  const fields = v.restRaw.slice(1 + 'number'.length).trim().split(/\s+/).filter(Boolean);
+  if (fields.length !== 1) return null;
+  const r = parseRange(fields[0]);
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function dotRandomPick(v: TokenView): string | null {
+  if (!v.rest.startsWith('.pick')) return null;
+  return pickKey(pickItems(v.restRaw.slice(1 + 'pick'.length)));
+}
+
+function spaceRandomPick(v: TokenView): string | null {
+  if (!v.rest.startsWith(' pick')) return null;
+  return pickKey(pickItems(v.restRaw.slice(' pick'.length)));
+}
+
+function plainRandomRange(v: TokenView): string | null {
+  // Dot-prefixed rests can never satisfy goAtoi's integer halves (a leading
+  // '.', letter or space cannot open an int), so this row only has to exclude
+  // the delimited form to match the upstream ladder's reach exactly.
+  if (v.delimited || v.rest.startsWith('.')) return null;
+  const r = parseRange(v.restRaw);
+  return r ? rangeKey(r[0], r[1]) : null;
+}
+
+function pickKey(items: string[] | null): string | null {
+  return items ? '{choice:' + items.join(',') + '}' : null;
 }
 
 // pickItems splits a random.pick argument list honoring quotes: items may be
 // wrapped in '…', "…" or `…` to carry spaces, and both space- and comma-
-// separated lists are accepted (SE's two documented forms). Any item that
-// itself contains a comma after quote-stripping fails, because our {choice:…}
-// grammar splits on every comma and cannot represent the difference — leaving
-// the token literal beats corrupting the list.
+// separated lists are accepted (SE's two documented forms). Returns null when
+// the list cannot survive our {choice:…} comma-splitting grammar — leaving
+// the token literal beats corrupting it.
 function pickItems(spec: string): string[] | null {
-  spec = spec.trim();
-  if (spec === '') return null;
+  const raw = splitPickList(spec);
+  if (raw === null) return null;
+  return sanitizePickItems(raw);
+}
 
-  const raw: string[] = [];
-  let cur = '';
-  const flush = (): void => {
-    const t = cur.trim();
-    if (t !== '') raw.push(t);
-    cur = '';
-  };
-  let quote = '\0';
-  for (let i = 0; i < spec.length; i++) {
-    const c = spec[i];
-    if (quote !== '\0') {
-      if (c === quote) quote = '\0';
-      else cur += c;
-    } else if (c === "'" || c === '"' || c === '`') {
-      quote = c;
-    } else if (c === ' ' || c === '\t' || c === ',') {
-      flush();
-    } else {
-      cur += c;
-    }
+interface PickScan {
+  raw: string[];
+  cur: string;
+  quote: string;
+}
+
+// splitPickList tokenizes on spaces, tabs and commas outside quotes; an
+// unterminated quote fails the whole list.
+function splitPickList(spec: string): string[] | null {
+  const scan: PickScan = { raw: [], cur: '', quote: '\0' };
+  for (const c of spec.trim()) scanPickChar(scan, c);
+  if (scan.quote !== '\0') return null;
+  flushPick(scan);
+  return scan.raw;
+}
+
+// scanPickChar consumes one character of a random.pick argument list.
+function scanPickChar(scan: PickScan, c: string): void {
+  if (scan.quote !== '\0') {
+    absorbQuotedChar(scan, c);
+    return;
   }
-  if (quote !== '\0') return null; // unterminated quote
-  flush();
+  if (isQuoteMark(c)) {
+    scan.quote = c;
+    return;
+  }
+  if (isPickSeparator(c)) {
+    flushPick(scan);
+    return;
+  }
+  scan.cur += c;
+}
 
+// absorbQuotedChar folds one character inside a quoted item: the closing
+// quote ends the quotation, everything else is content.
+function absorbQuotedChar(scan: PickScan, c: string): void {
+  if (c === scan.quote) {
+    scan.quote = '\0';
+    return;
+  }
+  scan.cur += c;
+}
+
+// isPickSeparator matches the documented item separators: SE accepts space-
+// and comma-separated lists, and tabs ride along with spaces.
+function isPickSeparator(c: string): boolean {
+  return c === ' ' || c === '\t' || c === ',';
+}
+
+function isQuoteMark(c: string): boolean {
+  return c === "'" || c === '"' || c === '`';
+}
+
+function flushPick(scan: PickScan): void {
+  const t = scan.cur.trim();
+  if (t !== '') scan.raw.push(t);
+  scan.cur = '';
+}
+
+// sanitizePickItems strips wrapping quotes and rejects empty entries and any
+// item that itself contains a comma after quote-stripping.
+function sanitizePickItems(raw: string[]): string[] | null {
   const items: string[] = [];
   for (const r of raw) {
-    let t = r.trim();
-    if (t.length >= 2 && (t[0] === "'" || t[0] === '"' || t[0] === '`') && t[t.length - 1] === t[0]) {
-      t = t.slice(1, -1).trim();
-    }
+    const t = unwrapQuotes(r.trim());
     if (t === '') continue;
-    if (t.includes(',')) return null; // cannot survive our comma-splitting grammar
+    if (t.includes(',')) return null;
     items.push(t);
   }
-  if (items.length === 0) return null;
-  return items;
+  return items.length > 0 ? items : null;
+}
+
+function unwrapQuotes(t: string): string {
+  const quoted = t.length >= 2 && isQuoteMark(t[0]) && t[t.length - 1] === t[0];
+  return quoted ? t.slice(1, -1).trim() : t;
 }
 
 // rangeKey formats a parsed random range canonically.

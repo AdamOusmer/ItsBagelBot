@@ -68,6 +68,7 @@ type Deps struct {
 	CustomFetch UrlFetchCaller
 	Followage   FollowageLookup
 	AccountAge  AccountAgeLookup
+	Uptime      UptimeLookup
 	Log         *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
@@ -138,6 +139,13 @@ type Deps struct {
 	// intra-replica half of the fix — the versioned LiveStore writes are the
 	// cross-replica half. nil leaves every handler plain fire-and-forget.
 	Seq *Sequencer
+	// Nuke is the phrase-targeted mass-moderation service behind !nuke. When
+	// set, the pipeline feeds each chat line into its recentStore (the sweep
+	// memory — ValkeyRecent in production, centralized because the replica
+	// pool shares one durable consumer) and binds its Shield Mode escalation
+	// decision; the moderation module reads the same handle to run sweeps.
+	// nil disables both: nothing is recorded and !nuke is inert.
+	Nuke *Nuke
 }
 
 // FeedCounts is one feeding's fleet-wide readout: how often the bagel has been

@@ -6,6 +6,7 @@ package engine
 import (
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/sesame/module"
 )
@@ -107,30 +108,35 @@ func counterTokenNames(tmpl string) []string {
 	}
 }
 
-// sanitizeVar neutralizes a user-supplied command variable so it cannot inject a
-// leading slash-verb into the expanded response. Leading spaces and slashes are
-// trimmed; the rest is untouched (a URL's "http://" keeps its slashes because
-// they are not leading).
+// sanitizeVar neutralizes a user-supplied command variable so it cannot inject
+// a leading slash-verb into the expanded response. Control characters (C0 plus
+// DEL) are stripped first — an embedded newline would otherwise survive into
+// the expansion and emitResponse's per-line split would mint it a fresh line,
+// which a leading slash then turns into a remote moderation verb — and
+// leading spaces/slashes are trimmed after. The rest is untouched: a URL's
+// "http://" keeps its slashes because they are not leading.
 func sanitizeVar(s string) string {
 	return trimLeftSlashSpace(stripControls(s))
 }
 
-// stripControls deletes ASCII control bytes (C0 plus DEL) from an external
-// value before it can reach a template: an embedded \n or \r would mint extra
-// chat lines through emitResponse's per-line split, an ESC poisons terminal/
-// IRC rendering, and a NUL truncates downstream writers. Control bytes are
-// single-byte in UTF-8 (continuation bytes are >= 0x80), so byte-wise
-// filtering cannot split a rune. First landed as an uncommitted secfix and
-// lost to the concurrent-session clobber of 2026-08-24; restored with the
-// adversarial battery pinning it end-to-end.
+// stripControls removes every ASCII control rune before an external value can
+// reach a template: an embedded \n or \r would mint extra chat lines through
+// emitResponse's per-line split, an ESC poisons terminal/IRC rendering, and a
+// NUL truncates downstream writers. Returns s unchanged when it carries none
+// (the overwhelmingly common case pays only the scan).
 func stripControls(s string) string {
-	kept := make([]byte, 0, len(s))
-	for i := 0; i < len(s); i++ {
-		if c := s[i]; c >= 0x20 && c != 0x7f {
-			kept = append(kept, c)
+	i := strings.IndexFunc(s, func(r rune) bool { return r < ' ' || r == '\x7f' })
+	if i < 0 {
+		return s
+	}
+	out := make([]byte, 0, len(s))
+	out = append(out, s[:i]...)
+	for _, r := range s[i:] {
+		if r >= ' ' && r != '\x7f' {
+			out = utf8.AppendRune(out, r)
 		}
 	}
-	return string(kept)
+	return string(out)
 }
 
 func trimLeftSlashSpace(s string) string {

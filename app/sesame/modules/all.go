@@ -22,6 +22,7 @@ func All(d engine.Deps) []module.Module {
 		Alerts(d),
 		Clip(d),
 		Followage(d),
+		Uptime(d),
 		Urchin(d),
 		Mcsr(d),
 		Fortnite(d),
@@ -35,6 +36,7 @@ func All(d engine.Deps) []module.Module {
 		Queue(d),
 		Quotes(d),
 		Automod(d),
+		Moderation(d),
 		ChannelPoints(d),
 		Loyalty(d),
 		// The wager games ride the loyalty economy; they register right after

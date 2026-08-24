@@ -103,6 +103,11 @@ type Pipeline struct {
 	// codes at the door so gate options match the pre-learned call shape.
 	adaptiveEnabled bool
 	raidGate        *raidCooldown
+
+	// nuke, when set, receives every chat line into its recent log (the sweep
+	// memory behind !nuke) and answers its overflow escalations through this
+	// pipeline's Shield Mode policy. nil records nothing.
+	nuke *Nuke
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -130,9 +135,16 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		adaptiveEnabled:  cfg.AdaptiveEnabled,
 		raidGate:         newRaidCooldown(raidCooldownTTL),
 		roster:           newChatterRoster(),
+		nuke:             d.Nuke,
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
+	}
+	// The nuke service is built before the pipeline (the modules capture it),
+	// so its Shield Mode policy binds back here once this pipeline's raid gate
+	// exists.
+	if d.Nuke != nil {
+		d.Nuke.setShield(p.shieldDecision)
 	}
 	if d.Stats != nil {
 		// d.Log rides along so the automod detection-flag windows actually
@@ -189,6 +201,13 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
 	p.roster.ObserveEnvelope(broadcasterID, env)
+
+	// Feed the nuke sweep memory before any stage can action the line: a
+	// message the automod times out is exactly the one a following !nuke must
+	// still be able to target (its siblings who landed a second earlier).
+	if p.nuke != nil {
+		p.nuke.recordChat(broadcasterID, env)
+	}
 
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
@@ -375,6 +394,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if isEmptyAction(o) {
 			return
 		}
+		capEmitText(o)
 		if p.floorSuppressed(o) {
 			return
 		}
