@@ -6,7 +6,7 @@
 # OTP 27 introduced the native `:json` module used on the ingress firehose; 28
 # is the newest OTP an official Elixir image is published for, so it is what
 # local, CI and this build all pin to.
-FROM docker.io/library/elixir:1.20-otp-28@sha256:88f1a25b768c94416ca19568eba11316f9958ebc85d465081be48f96871d7352 AS build
+FROM docker.io/library/elixir:1.20-otp-28@sha256:51bdb388db276cbf7d0e9c33b76aaf8093a891a12bb7fb99defe686bfe2fb77d AS build
 
 ENV MIX_ENV=prod
 WORKDIR /src
