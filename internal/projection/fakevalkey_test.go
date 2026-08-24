@@ -51,7 +51,7 @@ type fakeValkey struct {
 	nowFunc func() time.Time
 
 	mu      sync.Mutex
-	hashes  map[string]map[string]string
+	hashes  map[string]fakeHash
 	strs    map[string]string
 	expires map[string]time.Time
 	log     []fakeOp
