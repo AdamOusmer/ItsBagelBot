@@ -65,17 +65,21 @@ type Modules struct {
 	// govee is this service's per-broadcaster Govee API-key sub-store (sealed at
 	// rest). nil when no keyset is provisioned; every use is nil-safe.
 	govee *GoveeCreds
+	// spotify is the spotify twin: the per-broadcaster OAuth refresh-token
+	// sub-store, sealed under the same keyset. nil-safe like govee.
+	spotify *SpotifyCreds
 }
 
 func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
 
 	r := &Modules{
-		client: client,
-		views:  cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL),
-		pub:    pub,
-		app:    app,
-		log:    log,
-		govee:  NewGoveeCredsFromEnv(client, log),
+		client:  client,
+		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL),
+		pub:     pub,
+		app:     app,
+		log:     log,
+		govee:   NewGoveeCredsFromEnv(client, log),
+		spotify: NewSpotifyCredsFromEnv(client, log),
 	}
 
 	r.batcher = batch.New[moduleKey, data.ModuleChangedDTO](flushInterval, flushMaxSize, r.flush, log)
@@ -190,8 +194,10 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	}
 
 	// The govee key lives outside the module rows (sealed in its own table), so
-	// it is swept here too; nil-safe and best-effort.
+	// it is swept here too; nil-safe and best-effort. The spotify token rides
+	// its own table under the same rule.
 	r.sweepGovee(ctx, userID)
+	r.sweepSpotify(ctx, userID)
 
 	r.Invalidate(userID)
 	return nil
@@ -200,6 +206,10 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 // Govee exposes the key sub-store so the RPC layer can wire its custody verbs.
 // nil when govee key custody is disabled.
 func (r *Modules) Govee() *GoveeCreds { return r.govee }
+
+// Spotify exposes the refresh-token sub-store for wireSpotify. nil when
+// spotify token custody is disabled.
+func (r *Modules) Spotify() *SpotifyCreds { return r.spotify }
 
 // sweepGovee removes a deleted user's stored Govee key. nil-safe (custody
 // disabled) and best-effort: a failure is logged, never propagated, since the
@@ -210,6 +220,16 @@ func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
 	}
 	if err := r.govee.ClearKey(ctx, userID); err != nil {
 		r.log.Warn("modules: failed to clear govee key on user delete", zap.Uint64("user_id", userID), zap.Error(err))
+	}
+}
+
+// sweepSpotify is sweepGovee for the connected-account refresh token.
+func (r *Modules) sweepSpotify(ctx context.Context, userID uint64) {
+	if r.spotify == nil {
+		return
+	}
+	if err := r.spotify.ClearToken(ctx, userID); err != nil {
+		r.log.Warn("modules: failed to clear spotify token on user delete", zap.Uint64("user_id", userID), zap.Error(err))
 	}
 }
 
