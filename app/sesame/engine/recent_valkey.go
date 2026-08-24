@@ -77,8 +77,8 @@ func NewValkeyRecent(client valkey.Client, log *zap.Logger) *ValkeyRecent {
 	}
 }
 
-func recentChannelKey(chanID uint64) string {
-	return recentKeyPrefix + strconv.FormatUint(chanID, 10)
+func recentChannelKey(chanID channelID) string {
+	return recentKeyPrefix + strconv.FormatUint(uint64(chanID), 10)
 }
 
 // Start runs the flush loop until ctx is canceled, then best-effort flushes
@@ -100,7 +100,7 @@ func (v *ValkeyRecent) Start(ctx context.Context) {
 // Record buffers one chat envelope for the next flush. It parses and bounds
 // here (the envelope is pooled by the caller) but copies nothing: retained
 // strings alias the payload buffer, which the transport never reuses.
-func (v *ValkeyRecent) Record(chanID uint64, env *lane.Envelope, now time.Time) {
+func (v *ValkeyRecent) Record(chanID channelID, env *lane.Envelope, now time.Time) {
 	if v.client == nil {
 		return
 	}
@@ -110,7 +110,7 @@ func (v *ValkeyRecent) Record(chanID uint64, env *lane.Envelope, now time.Time) 
 	}
 	var early bool
 	v.mu.Lock()
-	v.pending[chanID] = append(v.pending[chanID], entries...)
+	v.pending[uint64(chanID)] = append(v.pending[uint64(chanID)], entries...)
 	v.buffered += len(entries)
 	if v.buffered >= recentFlushMaxBuffer {
 		early = true
@@ -142,8 +142,8 @@ func (v *ValkeyRecent) flush(ctx context.Context) {
 		ttlSec: int64(recentTTL / time.Second),
 	}
 
-	for chanID, entries := range batch {
-		v.flushChannel(ctx, chanID, entries, plan)
+	for id, entries := range batch {
+		v.flushChannel(ctx, channelID(id), entries, plan)
 	}
 }
 
@@ -174,7 +174,7 @@ func newestBufferedAt(batch map[uint64][]recentEntry) stamp {
 // flushChannel writes one channel's buffered lines as a single pipelined
 // DoMulti: add the new members, evict expired ones, enforce the cardinality
 // cap, and slide the key's TTL.
-func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries []recentEntry, plan flushPlan) {
+func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID channelID, entries []recentEntry, plan flushPlan) {
 	key := recentChannelKey(chanID)
 	zadd := v.client.B().Zadd().Key(key).ScoreMember()
 	for i := range entries {
@@ -192,7 +192,7 @@ func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID uint64, entries 
 // Sweep reads the channel's fresh members in one round trip and matches them
 // in-process with the same normalization and word-boundary rules as the
 // in-memory store. Fail-open: any read error yields no hits, never a block.
-func (v *ValkeyRecent) Sweep(ctx context.Context, chanID uint64, phrase string, now time.Time) []RecentHit {
+func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase string, now time.Time) []RecentHit {
 	q := moderation.Normalize(GetBuf(), phrase)
 	defer PutBuf(q)
 	if v.client == nil || utf8.RuneCount(q) == 0 {
@@ -220,10 +220,10 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID uint64, phrase string, 
 			continue // the score carried the age; the member carries only identity
 		}
 		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || seenUID(hits, e.uid) {
+		if !containsPhrase(t, q) || seenUID(hits, channelID(e.uid)) {
 			continue
 		}
-		hits = append(hits, RecentHit{UserID: e.uid, Role: e.role})
+		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
 	}
 	return hits
 }

@@ -220,9 +220,9 @@ func TestValkeyRecentSweepParsesMatchesAndDedupes(t *testing.T) {
 
 	hits := v.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
 	require.Len(t, hits, 2)
-	assert.Equal(t, uint64(111), hits[0].UserID)
+	assert.Equal(t, channelID(111), hits[0].UserID)
 	assert.Equal(t, module.RoleEveryone, hits[0].Role)
-	assert.Equal(t, uint64(222), hits[1].UserID)
+	assert.Equal(t, channelID(222), hits[1].UserID)
 	assert.Equal(t, module.RoleLeadModerator, hits[1].Role)
 
 	cmds := rec.captured() // sweep rides Do (single), so nothing pipelined was captured
@@ -320,6 +320,7 @@ func zaddCarriesMember(cmd []string, substr string) bool {
 			return true
 		}
 	}
+	return false
 }
 
 type failClient struct {
