@@ -124,6 +124,12 @@ jobs:
               "description": "ItsBagelBot Twitch event worker (sesame)"
             },
             {
+              "image": "warp",
+              "context": ".",
+              "containerfile": "app/warp/Containerfile",
+              "description": "Cloudflare WARP client for the gossip untrusted-egress sidecar"
+            },
+            {
               "image": "gossip",
               "context": ".",
               "containerfile": "app/gossip/Containerfile",
@@ -240,6 +246,9 @@ jobs:
                 ;;
               app/gossip/*)
                 add "gossip"
+                ;;
+              app/warp/*)
+                add "warp"
                 ;;
               console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json|console/tsconfig.base.json)
                 add "console-dashboard"

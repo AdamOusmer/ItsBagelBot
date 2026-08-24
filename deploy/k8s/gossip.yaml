@@ -154,16 +154,21 @@ spec:
       # untrusted requests during the enrollment window fail closed
       # (core.ErrWARPDown → "limited"), never unproxied.
       #
-      # Image pin: <ver>@sha256:<digest> is deliberately left as a placeholder.
-      # Pins are hand-applied with kubectl at rollout time per repo convention
-      # (nothing rewrites these manifests): fill BOTH pins in one commit, apply,
-      # and let maxSurge 0 / maxUnavailable 1 roll one replica at a time under
-      # the PDB below — required anti-affinity spreads the three daemons across
-      # nodes. cloudflared/warp image digests are published by Cloudflare;
-      # verify against the official registry before pasting.
+      # Image: our own build (app/warp/Containerfile) because Cloudflare
+      # publishes NO official WARP container — docker.io/cloudflare/* carries
+      # only cloudflared, and every cloudflare-warp repo on Docker Hub 404s
+      # (checked 2026-08-24) — so the deb from pkg.cloudflareclient.com is
+      # wrapped in-repo rather than trusting a community image with an egress
+      # credential. The placeholder tag below follows the youtube-ingress
+      # convention for a not-yet-published image: replace with the real
+      # tag@digest from the first publish-images run at rollout time, then
+      # apply and let maxSurge 0 / maxUnavailable 1 roll one replica at a time
+      # under the PDB below — required anti-affinity spreads the three daemons
+      # across nodes. NOTE: new ghcr packages default to PUBLIC — flip the
+      # "warp" package private right after its first publish.
       initContainers:
         - name: warp
-          image: docker.io/cloudflare/cloudflare-warp:<ver>@sha256:<digest>
+          image: ghcr.io/adamousmer/itsbagelbot/warp:main-0000000000-placeholder
           imagePullPolicy: IfNotPresent
           restartPolicy: Always # native sidecar: runs for the pod's lifetime
           # Bootstrap: start the daemon, switch the client to proxy mode (this
@@ -187,9 +192,14 @@ spec:
             capabilities:
               add: ["NET_ADMIN"]
               drop: ["ALL"]
-            devices:
-              - devicePath: /dev/net/tun # k8s >=1.30 securityContext.devices;
-                # else fall back to a scoped privileged run at rollout
+          # /dev/net/tun rides a hostPath mount: securityContext has no
+          # device field in any shipped k8s (1.33 included), so NET_ADMIN +
+          # the char device mounted in is the standard non-privileged shape.
+          volumeMounts:
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+            - name: warp-state
+              mountPath: /var/lib/cloudflare-warp
           envFrom:
             - secretRef:
                 name: gossip-warp-env # DopplerSecret wired like gossip-env,
@@ -328,6 +338,15 @@ spec:
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
+        # WARP sidecar: the tun char device (type guards against a directory
+        # silently appearing if the node module were missing) and a scratch
+        # home for warp-svc registration state, gone with the pod.
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: warp-state
+          emptyDir: {}
       terminationGracePeriodSeconds: 45
 ---
 apiVersion: policy/v1

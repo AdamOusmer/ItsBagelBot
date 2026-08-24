@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# warp - Cloudflare WARP client image for the gossip untrusted-egress sidecar
+# (deploy/k8s/gossip.yaml). Built here because Cloudflare publishes NO official
+# WARP container image (docker.io/cloudflare/* only carries cloudflared, and
+# every cloudflare-warp repo on Docker Hub 404s as of 2026-08-24 - verified
+# against the Hub API); the deb from pkg.cloudflareclient.com is the only
+# first-party artifact, so we wrap it ourselves rather than trust a community
+# image with an egress credential.
+#
+# Build from the REPO ROOT:
+#   podman build -t itsbagelbot/warp -f app/warp/Containerfile .
+#
+# The image is deliberately inert: no ENTRYPOINT/CMD. The manifest owns the
+# bootstrap (warp-svc, mode proxy, registration, connect) so proxy port and
+# enrollment stay deployment concerns; runtime needs NET_ADMIN and
+# /dev/net/tun, granted by the pod spec, never baked in here.
+
+FROM docker.io/library/debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+
+# Exact version pin per repo dependency policy: bump deliberately, in its own
+# commit, after checking the Cloudflare release notes. 2026.6.880.0 is current
+# in the bookworm channel as of 2026-08-24.
+ARG WARP_VERSION=2026.6.880.0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
+    && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+        | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ bookworm main" \
+        > /etc/apt/sources.list.d/cloudflare-client.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends "cloudflare-warp=${WARP_VERSION}" \
+    && apt-get purge -y curl gnupg \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
