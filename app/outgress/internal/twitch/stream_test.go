@@ -53,6 +53,16 @@ func TestStreamStartedAtOffline(t *testing.T) {
 	}
 }
 
+func TestIsStreamLiveFalseWhenTypeNotLive(t *testing.T) {
+	client := uptimeClient(t, http.StatusOK,
+		`{"data":[{"type":"error","started_at":"2026-08-24T12:00:00Z"}]}`)
+
+	live, err := client.IsStreamLive(context.Background(), "123")
+	if err != nil || live {
+		t.Fatalf("IsStreamLive() = live=%v err=%v, want live=false err=nil", live, err)
+	}
+}
+
 func TestStreamStartedAtSurfacesTwitchFailure(t *testing.T) {
 	client := uptimeClient(t, http.StatusServiceUnavailable, `{"message":"unavailable"}`)
 
