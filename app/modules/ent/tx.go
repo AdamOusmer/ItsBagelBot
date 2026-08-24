@@ -22,6 +22,8 @@ type Tx struct {
 	Modules *ModulesClient
 	// Quote is the client for interacting with the Quote builders.
 	Quote *QuoteClient
+	// SpotifyCredential is the client for interacting with the SpotifyCredential builders.
+	SpotifyCredential *SpotifyCredentialClient
 
 	// lazily loaded.
 	client     *Client
@@ -158,6 +160,7 @@ func (tx *Tx) init() {
 	tx.GoveeCredential = NewGoveeCredentialClient(tx.config)
 	tx.Modules = NewModulesClient(tx.config)
 	tx.Quote = NewQuoteClient(tx.config)
+	tx.SpotifyCredential = NewSpotifyCredentialClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

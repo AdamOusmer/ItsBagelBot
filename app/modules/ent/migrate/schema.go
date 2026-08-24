@@ -103,6 +103,26 @@ var (
 			},
 		},
 	}
+	// SpotifyCredentialsColumns holds the columns for the "spotify_credentials" table.
+	SpotifyCredentialsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "token_enc", Type: field.TypeBytes},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// SpotifyCredentialsTable holds the schema information for the "spotify_credentials" table.
+	SpotifyCredentialsTable = &schema.Table{
+		Name:       "spotify_credentials",
+		Columns:    SpotifyCredentialsColumns,
+		PrimaryKey: []*schema.Column{SpotifyCredentialsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "spotifycredential_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{SpotifyCredentialsColumns[1]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		ChannelFeedCountersTable,
@@ -110,6 +130,7 @@ var (
 		GoveeCredentialsTable,
 		ModulesTable,
 		QuotesTable,
+		SpotifyCredentialsTable,
 	}
 )
 
