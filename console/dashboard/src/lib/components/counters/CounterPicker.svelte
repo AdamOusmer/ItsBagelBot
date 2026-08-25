@@ -6,7 +6,8 @@
   // it. The list lazy-loads from /counters/list on first open; create posts
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
-  import { getI18n, COUNTER_SCOPES, type CounterScope } from '@bagel/shared';
+  import { Icon, getI18n, type CounterScope } from '@bagel/shared';
+  import PickerPanel from '$lib/components/PickerPanel.svelte';
 
   const { t } = getI18n();
 
@@ -17,15 +18,28 @@
   let { onInsert }: { onInsert: (token: string) => void } = $props();
 
   let open = $state(false);
+  let btnEl = $state<HTMLButtonElement>();
   let loaded = $state(false);
   let loading = $state(false);
   let counters = $state<CounterRef[]>([]);
   let newName = $state('');
-  let newScope = $state<CounterScope>('channel');
-  // When set, inserted tokens take the {counter:target:<name>} spelling: the
-  // bump keys on the viewer the command mentions instead of the sender
-  // (issue #479). The counter's scope still decides the bucket shape.
-  let countTarget = $state(false);
+
+  // "Who does this count for?" is one question, so it is one control. It used
+  // to be two: a scope <select> plus a separate "count for the viewer they
+  // mention" checkbox, which split a single decision across two widgets and
+  // left the reader to work out how they combined.
+  //
+  // 'target' is a pseudo-scope. On the wire it is still a viewer-scoped counter
+  // — the difference is only which viewer the bump keys on, which is carried by
+  // the {counter:target:…} token spelling rather than by the counter's own
+  // scope (issue #479). Keeping it in this list is what makes the UI match how
+  // an author thinks about it; the two derived values below put it back onto
+  // the two axes the wire actually has.
+  const COUNTS_FOR = ['channel', 'viewer', 'target', 'command', 'viewer_command'] as const;
+  let countsFor = $state<(typeof COUNTS_FOR)[number]>('channel');
+
+  const newScope = $derived<CounterScope>(countsFor === 'target' ? 'viewer' : countsFor);
+  const countTarget = $derived(countsFor === 'target');
   let creating = $state(false);
   let err = $state('');
 
@@ -35,9 +49,10 @@
     command: t('counters.tagCommand'),
     viewer_command: t('counters.tagViewerCommand')
   };
-  const scopeLabel: Record<CounterScope, string> = {
+  const countsForLabel: Record<(typeof COUNTS_FOR)[number], string> = {
     channel: t('counters.scopeChannel'),
     viewer: t('counters.scopeViewer'),
+    target: t('counters.pickerTarget'),
     command: t('counters.scopeCommand'),
     viewer_command: t('counters.scopeViewerCommand')
   };
@@ -96,19 +111,34 @@
 </script>
 
 <div class="cp">
+  <!-- Labelled as what it does, not as the token it eventually inserts: this
+       opens a menu, so it must not wear the same mono pill as the literals. -->
   <button
     type="button"
-    class="var"
+    class="picker"
     title={t('commandEditor.tokCounter')}
+    aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}
-  >{'{counter:…}'}</button>
+    bind:this={btnEl}
+  >
+    <Icon name="pulse" size={12} />
+    {t('commandEditor.pickCounter')}
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
 
-  {#if open}
-    <div class="panel" role="dialog" aria-label={t('counters.pickerTitle')}>
-      <label class="target" title={countTarget ? '{counter:target:' + (newName || 'name') + '}' : '{counter:' + (newName || 'name') + '}'}>
-        <input type="checkbox" bind:checked={countTarget} />
-        <span>{t('counters.pickerTarget')}</span>
+  <PickerPanel {open} anchor={btnEl} label={t('counters.pickerTitle')} width={280} maxHeight={360} onClose={() => (open = false)}>
+    {#snippet children()}
+      <!-- Sits above both lists because it governs both: it decides the token
+           spelling for whatever you insert, and the scope of anything created
+           below. -->
+      <label class="counts-for">
+        <span class="panel-title">{t('counters.fieldScope')}</span>
+        <select class="search" bind:value={countsFor}>
+          {#each COUNTS_FOR as s (s)}
+            <option value={s}>{countsForLabel[s]}</option>
+          {/each}
+        </select>
       </label>
       {#if countTarget}
         <code class="preview">{'{counter:target:'}{newName || 'name'}{'}'}</code>
@@ -140,56 +170,43 @@
         bind:value={newName}
         onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), create())}
       />
-      <select class="search" bind:value={newScope} aria-label={t('counters.fieldScope')}>
-        {#each COUNTER_SCOPES as s}
-          <option value={s}>{scopeLabel[s]}</option>
-        {/each}
-      </select>
       {#if err}
         <small class="err" role="alert">{err}</small>
       {/if}
       <button type="button" class="create" disabled={creating} onclick={create}>
         {creating ? t('counters.creating') : t('counters.pickerCreate')}
       </button>
-    </div>
-  {/if}
+    {/snippet}
+  </PickerPanel>
 </div>
 
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  /* Chip matches the ResponseEditor palette vars. */
-  .var {
-    font-family: var(--bb-font-mono);
+  /* Menu trigger, not a token chip. Kept identical to FetchSourcePicker's
+     .picker so the two menus read as one group beside the literal pills. */
+  .picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--bb-font-body);
     font-size: 11.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.22);
+    color: var(--bb-muted);
+    background: transparent;
+    border: 1px solid var(--rule, var(--bb-border));
     border-radius: 999px;
     padding: 3px 10px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
   }
-  .var:hover { background: rgba(201, 168, 124, 0.18); color: var(--bb-white); }
-
-  .panel {
-    position: absolute;
-    z-index: 30;
-    top: calc(100% + 6px);
-    left: 0;
-    width: 260px;
-    max-height: 320px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    background: var(--bb-bg-1, #111);
-    border: 1px solid var(--bb-border);
-    border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  .picker:hover,
+  .picker[aria-expanded='true'] {
+    color: var(--bb-white);
+    border-color: var(--bb-border-strong, rgba(255, 255, 255, 0.24));
+    background: rgba(255, 255, 255, 0.04);
   }
-  :global(:root[data-theme="light"]) .panel { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
+  .caret { font-size: 9px; opacity: 0.7; }
+
 
   .panel-title {
     margin: 0;
@@ -224,21 +241,7 @@
   .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
 
   /* First row of the panel: who the counter counts against. */
-  .target {
-    display: flex;
-    align-items: flex-start;
-    gap: 7px;
-    padding: 6px 8px;
-    font-family: var(--bb-font-body);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.06);
-    border: 1px solid rgba(201, 168, 124, 0.22);
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  .target input { margin-top: 1px; accent-color: var(--bb-green-glow, #52b788); }
-  .target:hover { background: rgba(201, 168, 124, 0.12); color: var(--bb-white); }
+  .counts-for { display: flex; flex-direction: column; gap: 5px; }
   .preview {
     margin: -2px 0 2px;
     padding-left: 24px;

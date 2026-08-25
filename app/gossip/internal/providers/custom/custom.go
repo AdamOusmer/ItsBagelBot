@@ -13,7 +13,13 @@
 // egress rides the WARP sidecar (this provider never declares .Trusted()),
 // three rate-limit layers bound channel/definition/host spend, a fleet-wide
 // breaker opens on dead upstreams, and replies carry extracted strings only —
-// callers never see raw bodies.
+// the chat lane never sees raw bodies.
+//
+// The single exception is a DryRun request, which additionally returns the raw
+// body as CustomFetchReply.Sample so the dashboard's field picker can render a
+// clickable tree of the real response. Only the dashboard sets DryRun, only for
+// a definition the requesting broadcaster authored; sesame never does, so chat
+// is unaffected. See sampleFor.
 package custom
 
 import (
@@ -29,6 +35,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
@@ -95,6 +102,16 @@ const (
 	// at the variable boundary — never a substitute for it.
 	maxValues     = 5
 	maxValueRunes = 256
+
+	// maxSampleBytes caps the raw body a DryRun rehearsal hands back for the
+	// dashboard's field picker. Deliberately equal to SAMPLE_MAX_BYTES in
+	// FetchPathPicker.svelte: the client refuses anything larger, so a bigger
+	// ceiling here would only burn a NATS reply and an SSR payload to produce
+	// something the browser throws away. Far below core's customMaxBody (1 MiB)
+	// because that ceiling bounds what we may safely READ into memory as a
+	// gzip-bomb guard — a different question from what is reasonable to ship to
+	// a browser.
+	maxSampleBytes = 128 * 1024
 
 	// authHeaderName is HOW a stored key attaches to a user-defined fetch.
 	// The definition schema carries only key_label (no auth-type field), so
@@ -204,8 +221,10 @@ func (p *api) fetch(ctx context.Context, req gossiprpc.Request) any {
 		return fetchReply(p.classify(err), nil, start)
 	}
 	// Stamp total handler latency onto whatever the cache/build returned. One
-	// small decode/remarshal even on hits — the reply is bounded well under
-	// 4KB, and MS belongs to the whole handler, hit or miss.
+	// decode/remarshal even on hits, because MS belongs to the whole handler,
+	// hit or miss. Chat replies stay well under 4KB; a dry-run rehearsal can
+	// carry up to maxSampleBytes on top, which is why that path is uncached and
+	// rate-limited rather than sharing this budget.
 	var out gossiprpc.CustomFetchReply
 	if uerr := codec.Unmarshal(b, &out); uerr != nil {
 		monitor.TxnLogger(ctx, p.log).Error("custom fetch reply decode failed", zap.String("def", fl.def.Name), zap.Error(uerr))
@@ -231,6 +250,12 @@ type flight struct {
 	host      string
 	path      codec.Path
 	key       string
+	// dryRun mirrors the request flag. It rides on the flight rather than being
+	// threaded into produce separately because it decides two coupled things at
+	// once — that this answer is never cached, and that it may carry the raw
+	// body back as Sample. Keeping them one field makes it impossible to enable
+	// the sample without also taking the uncached path. See dispatch.
+	dryRun bool
 }
 
 // planFlight runs the whole admission preamble — request shape, definition
@@ -341,6 +366,10 @@ func ssrfReason(serr error) string {
 // cache — an unsaved draft can never poison the stored definition's entry
 // under the same name.
 func (p *api) dispatch(ctx context.Context, req gossiprpc.Request, fl *flight) ([]byte, error) {
+	// Set here, next to the branch that acts on it, so the two consequences of a
+	// dry run stay visibly bound together: this answer is not cached, and only
+	// this answer may carry the raw body back for the dashboard's field picker.
+	fl.dryRun = req.DryRun
 	build := func(ctx context.Context) ([]byte, time.Duration, error) {
 		return p.produce(ctx, fl)
 	}
@@ -397,13 +426,53 @@ func (p *api) produce(ctx context.Context, fl *flight) ([]byte, time.Duration, e
 	if err != nil {
 		return p.failureReply(err)
 	}
-	values, xerr := extractValues(body, fl.path)
-	if xerr != nil {
+	return p.shapeFetched(fl, body)
+}
+
+// shapeFetched turns a body that actually arrived into reply bytes. The
+// rehearsal sample rides on BOTH outcomes deliberately: an author whose
+// json_path is still wrong is precisely who needs the clickable tree, and that
+// request answers bad_def, so attaching the sample only to the ok branch would
+// withhold it from the one case that cannot proceed without it.
+//
+// Caching the ok bytes stays safe because sampleFor fires only for a dry run
+// and dispatch routes every dry run down its uncached branch — a stored entry
+// therefore cannot carry a sample, and chat cannot read one out of the cache.
+func (p *api) shapeFetched(fl *flight, body []byte) ([]byte, time.Duration, error) {
+	sample := sampleFor(fl, body)
+	values, err := extractValues(body, fl.path)
+	if err != nil {
 		// A path that names nothing (or a non-scalar leaf) is broken
 		// authoring: stable, so negative-cache it briefly.
-		return marshalReply(gossiprpc.FetchBadDef, nil), negativeTTL, nil
+		return marshalSampled(gossiprpc.FetchBadDef, nil, sample), negativeTTL, nil
 	}
-	return marshalReply(gossiprpc.FetchOK, values), p.positiveTTL, nil
+	return marshalSampled(gossiprpc.FetchOK, values, sample), p.positiveTTL, nil
+}
+
+// sampleFor returns the raw body a rehearsal shows in the dashboard's field
+// picker, or "" for everything else. The dry-run flag is the only gate: the
+// chat lane never sets it, so chat can never receive upstream text through this
+// field.
+//
+// Oversized or non-UTF-8 bodies come back empty rather than truncated. A
+// half-body either fails to parse or — worse — parses as a SHORTER valid
+// document, and a tree built from that resolves paths against a response the
+// real fetch never returns. Empty makes the picker fall back to its paste box,
+// which is honest about what we could not supply.
+func sampleFor(fl *flight, body []byte) string {
+	// One reason per line. These three refusals are unrelated — a chat request,
+	// an oversized body, a body that is not text — and reading them as a single
+	// condition hides that only the first is about permission at all.
+	if !fl.dryRun {
+		return ""
+	}
+	if len(body) > maxSampleBytes {
+		return ""
+	}
+	if !utf8.Valid(body) {
+		return ""
+	}
+	return string(body)
 }
 
 // failureReply shapes a fetch failure into cacheable reply bytes where the
@@ -636,9 +705,17 @@ func resultKey(defID string) string {
 	return "gossip:custom:fetch:" + hex.EncodeToString(sum[:8])
 }
 
-// marshalReply renders one CustomFetchReply to wire bytes.
+// marshalReply renders one CustomFetchReply to wire bytes. Every caller is an
+// error path with no body in hand, so it carries no sample by construction —
+// which is the point of the split: sample-free is the default you get by not
+// asking, not something each error branch has to remember to pass.
 func marshalReply(status gossiprpc.FetchStatus, values []string) []byte {
-	b, err := codec.Marshal(gossiprpc.CustomFetchReply{Status: status, Values: values})
+	return marshalSampled(status, values, "")
+}
+
+// marshalSampled is marshalReply plus the DryRun rehearsal sample.
+func marshalSampled(status gossiprpc.FetchStatus, values []string, sample string) []byte {
+	b, err := codec.Marshal(gossiprpc.CustomFetchReply{Status: status, Values: values, Sample: sample})
 	if err != nil { // cannot happen for these types, but never return nil bytes
 		return []byte(`{"status":"upstream_error","ms":0}`)
 	}
