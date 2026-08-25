@@ -2,10 +2,15 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Shared geometry data for the Encryption scene. Computed once during boot
- * idle time and cached on `window.__itsbagelbotPreload.encryptionData`, so
- * `initEncryption` consumes ready-made TypedArrays instead of regenerating
- * curve samples / Fibonacci sphere positions / particle fields at scroll-in.
+ * Shared geometry data for the Encryption scene. Built once at scene init and
+ * cached on `window.__itsbagelbotPreload.encryptionData` so a later visit can
+ * skip regenerating curve samples / Fibonacci sphere positions / particle
+ * fields. Compact vs desktop is part of the cache key; a mismatch rebuilds.
+ *
+ * Do not move this onto `requestIdleCallback` with a timeout: a 720ms force
+ * ran CatmullRom sampling during the hero intro and Lenis rAF, which showed
+ * up as a dropped-frame hitch. The arrays are cheap next to WebGLRenderer
+ * setup; keep them on the same turn as init.
  *
  * The numbers here are intentionally exported — the Encryption update loop
  * needs `FLOW_CURVE_SAMPLES` to interpret the sample arrays, and the
