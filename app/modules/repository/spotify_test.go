@@ -148,7 +148,7 @@ func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetApp(ctx, 2001, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetApp(ctx, 2001, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 
 	app, err := creds.App(ctx, 2001)
 	require.NoError(t, err)
@@ -179,8 +179,8 @@ func TestSpotifyAppRequiresBothHalves(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	assert.Error(t, creds.SetApp(ctx, 2003, "client-abc", ""))
-	assert.Error(t, creds.SetApp(ctx, 2003, "", "secret-xyz"))
+	assert.Error(t, creds.SetApp(ctx, 2003, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: ""}))
+	assert.Error(t, creds.SetApp(ctx, 2003, repository.SpotifyApp{ClientID: "", ClientSecret: "secret-xyz"}))
 }
 
 // The two flows write the same row from opposite ends: pasting credentials
@@ -189,7 +189,7 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetApp(ctx, 2004, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 	require.NoError(t, creds.SetToken(ctx, 2004, "rt-1"))
 
 	setup, err := creds.Credentials(ctx, 2004)
@@ -199,7 +199,7 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	assert.Equal(t, "rt-1", setup.RefreshToken)
 
 	// Re-pasting the app (rotated secret) keeps the grant.
-	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-rotated"))
+	require.NoError(t, creds.SetApp(ctx, 2004, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-rotated"}))
 	setup, err = creds.Credentials(ctx, 2004)
 	require.NoError(t, err)
 	assert.Equal(t, "secret-rotated", setup.App.ClientSecret)
@@ -212,7 +212,7 @@ func TestSpotifyAppWithoutGrantReadsAsNotConnected(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetApp(ctx, 2005, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetApp(ctx, 2005, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 
 	connected, err := creds.HasToken(ctx, 2005)
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestSpotifyAppAADIsNotInterchangeableWithToken(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetApp(ctx, 2007, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetApp(ctx, 2007, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(2007)).OnlyX(ctx)
 
 	client.SpotifyCredential.UpdateOneID(row.ID).SetTokenEnc(row.ClientSecretEnc).ExecX(ctx)
@@ -257,7 +257,7 @@ func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetApp(ctx, 2008, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetApp(ctx, 2008, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 	require.NoError(t, creds.SetToken(ctx, 2008, "rt-1"))
 	require.NoError(t, creds.ClearApp(ctx, 2008))
 

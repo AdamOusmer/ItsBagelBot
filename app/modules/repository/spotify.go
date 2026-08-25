@@ -130,12 +130,12 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 // credentials must not force a reconnect, and a token minted by a DIFFERENT
 // app fails at the next exchange, which surfaces as the ordinary "connect
 // again" path rather than as a silent wipe here.
-func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, clientID, clientSecret string) error {
+func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp) error {
 	if err := validate.UserID(userID); err != nil {
 		return err
 	}
-	clientID = strings.TrimSpace(clientID)
-	clientSecret = strings.TrimSpace(clientSecret)
+	clientID := strings.TrimSpace(app.ClientID)
+	clientSecret := strings.TrimSpace(app.ClientSecret)
 	if clientID == "" || clientSecret == "" {
 		return errors.New("spotify client id and secret are both required")
 	}
