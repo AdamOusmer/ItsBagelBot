@@ -629,7 +629,6 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'moderation',
     category: 'Moderation',
     defaultEnabled: true,
-    hidden: true,
     // AutoMod is pure configuration: no chat reply lines, only the settings strip.
     replies: [],
     settings: [
@@ -1564,6 +1563,20 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // The generic reply page cannot express key custody + a device picker, so
     // the tile opens a bespoke inspector instead.
     href: '/govee',
+    replies: []
+  },
+  {
+    id: 'songqueue',
+    label: 'Song Requests',
+    tagline: '!sr and a channel-points reward that queue songs from Spotify.',
+    description:
+      'Connect your Spotify account once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query — a name, "artist - song", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. Moderators manage the queue with !sr next, remove and clear.',
+    icon: 'music',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    // The generic reply page cannot express OAuth custody + the reward editor,
+    // so the tile opens the bespoke songqueue page instead.
+    href: '/songqueue',
     replies: []
   }
 ];
