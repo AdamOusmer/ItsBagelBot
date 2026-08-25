@@ -10,8 +10,8 @@ export const MCSR_MODULE: ModuleDef =
   tagline: 'Ranked elo and per-stream session stats for MCSR runners.',
   description:
     'Viewer commands backed by the MCSR Ranked API: !elo shows the current rating and season record; !session shows elo and wins/losses since the stream started, snapshotting your standing the moment you go live. !elo can name any player (e.g. "!elo Feinberg"); !session always tracks your linked account. !lastmatch shows the most recent match; !record compares two players\' head-to-head record; !lb shows the top 5 of the elo, phase-point or record leaderboard; !race shows the weekly race leader and your own time. !elo, !lastmatch, !record and !lb all accept a trailing "season:11" to look at a past season. !pace, !nethers and !lastfort pull live speedrun splits from PaceMan.gg for the same linked account. !pb shows a personal best: daily/weekly/monthly from PaceMan, or "ranked" for the MCSR Ranked season best; a player name can follow any of those, or stand alone for the all-time PaceMan best.',
-  icon: 'gamepad',
-  category: 'Games',
+  icon: 'pickaxe',
+  category: 'Stats',
   defaultEnabled: false,
   replies: [
     {

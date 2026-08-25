@@ -10,8 +10,8 @@ export const QUEUE_MODULE: ModuleDef =
   tagline: 'Let viewers line up to play with you, first come first served.',
   description:
     'Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.',
-  icon: 'list',
-  category: 'Community',
+  icon: 'users',
+  category: 'Play',
   defaultEnabled: false,
   // The conversational replies are customizable per broadcaster; the roster
   // (!list), the status readout and the system/error lines stay fixed (see

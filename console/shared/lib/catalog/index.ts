@@ -59,9 +59,11 @@ export const MOD = {
 } as const;
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
-  // Chat Tools: the bot's viewer-facing chat features, surfaced first. Channel
-  // Points and Timers own bespoke pages (opened via href); Trigger Words uses
-  // the generic reply inspector with its rule editor.
+  // Order here is declaration order, not the directory grouping. The modules
+  // index sorts by MODULE_CATEGORY_ORDER (Moderation → Chat → Channel →
+  // Points → Play → Gear → Stats) so AutoMod is the first row a streamer
+  // sees. Channel Points and Timers own bespoke pages (opened via href);
+  // Trigger Words uses the generic reply inspector with its rule editor.
   CHANNELPOINTS_MODULE,
   TIMERS_MODULE,
   LOYALTY_MODULE,

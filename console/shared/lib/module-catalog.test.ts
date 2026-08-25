@@ -49,7 +49,24 @@ describe('module catalog', () => {
     expect(def?.toggleable).not.toBe(false);
     expect(def?.defaultEnabled).toBe(false);
     expect(def?.replies).toHaveLength(0);
-    expect(def?.icon).toBe('pulse');
+    expect(def?.icon).toBe('smile');
+  });
+
+  test('govee shares Gear with Song Requests', () => {
+    expect(moduleDef('govee')?.category).toBe('Gear');
+    expect(moduleDef('songqueue')?.category).toBe('Gear');
+  });
+
+  test('AutoMod stays a visible Moderation row', () => {
+    const def = moduleDef('automod');
+    expect(def?.hidden).toBeFalsy();
+    expect(def?.category).toBe('Moderation');
+  });
+
+  test('visible modules have unique icons so the directory is scannable', () => {
+    const visible = MODULE_CATALOG.filter((def) => !def.hidden);
+    const icons = visible.map((def) => def.icon);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 
   test('songqueue is a bespoke href module listing !sr, !remove, !next and !clear', () => {

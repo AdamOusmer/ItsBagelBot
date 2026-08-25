@@ -11,7 +11,7 @@ export const QUOTES_MODULE: ModuleDef =
   description:
     'Keep a channel quote book. Someone saves a line with !addquote the text (or !quote "the text") and the bot numbers it and stamps the save date. Anyone replays one with !quote for a random pick, !quote 12 for a specific number, or !quote ferret for a random quote containing that word — the bot answers "Quote #12: the text (2026-07-11)". Choose who is allowed to save and who may rewrite one (!quote edit 12 the fixed text) below; both default to moderators. Mods remove a mistake with !quote remove 12; numbers are never reused, so an old number keeps pointing at the same quote. The replies are fixed system text (localized to your console language).',
   icon: 'quote',
-  category: 'Community',
+  category: 'Chat',
   defaultEnabled: false,
   // Bespoke page: the quote book (list + add/edit/remove) plus the enable
   // and save/edit permission settings live on /quotes, not the generic
