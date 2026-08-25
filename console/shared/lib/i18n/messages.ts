@@ -72,6 +72,26 @@ export function ensureCatalog(locale: Locale): Promise<void> {
       .then((tree) => {
         catalogs[locale] = tree;
       })
+      .catch(() => {
+        // Never reject. Callers await this from a universal root load, so a
+        // rejection fails that load for EVERY route — one translation file
+        // failing to arrive would take the whole app down with a 500, which is
+        // a far worse outcome than showing English.
+        //
+        // The failure modes here have nothing to do with the locale being
+        // wrong: an offline blip, or a client still running a stale HTML shell
+        // after a deploy requesting a hashed chunk that no longer exists.
+        // translate() already resolves `catalogs[locale] ?? catalogs[en]`, so
+        // an absent catalog degrades to English exactly like an absent key.
+        //
+        // The cost is a hydration mismatch when the server registered the
+        // catalog and the client could not: SSR ships translated markup, the
+        // client re-renders English. Accepted deliberately — a page in the
+        // wrong language still works, a 500 does not.
+        //
+        // Not remembered as a failure: `pending` is cleared below either way,
+        // so the next navigation retries the chunk.
+      })
       .finally(() => {
         pending.delete(key);
       });
