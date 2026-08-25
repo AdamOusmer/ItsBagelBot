@@ -6,7 +6,7 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
 import type { Session } from '$lib/server/session';
-import { accountState, notificationsForUser, delegationAccess, type NotificationWire } from '$lib/server/services';
+import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -56,6 +56,22 @@ async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; nam
   }
 }
 
+// loadAccountState resolves the shell's account read, in the same named-loader
+// shape as the two above rather than as a ternary chain inside load().
+//
+// The gates already read account state once per request (hooks.server.ts ->
+// guardSession) and leave the result on locals, so the order here is: demo
+// fixture, then the gate's answer, then a retry. An authoritative ghost answer
+// returns null — the shell renders with no account data instead of re-asking a
+// service that already said the user is gone. Only an unset field (a blipped
+// gate read) reaches the RPC.
+async function loadAccountState(locals: App.Locals, s: Session): Promise<AccountState | null> {
+  if (DEMO) return (await import('$lib/server/demo-data')).demoAccountState;
+  const gateRead = locals.accountState;
+  if (!gateRead) return accountState(s.user_id).catch(() => null);
+  return 'value' in gateRead ? gateRead.value : null;
+}
+
 // Account gates (ban / deleted account / delegation revoke / delegate scope)
 // run in hooks.server.ts for every request — including form actions and API
 // endpoints, which this load never covers. This load only owns the
@@ -71,19 +87,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
   }
 
-  // The gates already read account state once per request (hooks.server.ts ->
-  // guardSession), and the result rides locals. Reuse it; only a blipped gate
-  // read (field unset) retries here, and an authoritative ghost answer renders
-  // the shell with no account data instead of re-asking a service that already
-  // said no.
-  const acc: Awaited<ReturnType<typeof accountState>> | null = DEMO
-    ? await import('$lib/server/demo-data').then((m) => m.demoAccountState)
-    : locals.accountState
-      ? 'value' in locals.accountState
-        ? locals.accountState.value
-        : null
-      : await accountState(s.user_id).catch(() => null);
-
+  const acc = await loadAccountState(locals, s);
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
