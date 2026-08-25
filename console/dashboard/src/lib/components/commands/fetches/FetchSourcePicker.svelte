@@ -31,7 +31,7 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Modal, getI18n, portal, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
+  import { Button, Icon, Modal, getI18n, portal, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
   import JsonTree from './JsonTree.svelte';
 
   const { t } = getI18n();
@@ -265,14 +265,22 @@
 </script>
 
 <div class="fsp">
+  <!-- Labelled as what it does, not as the token it eventually inserts. Wearing
+       the same mono pill as {user}/{args} made a menu look like a literal you
+       could drop into the reply, and put eight identical pills in one row. -->
   <button
     type="button"
-    class="var"
+    class="picker"
     title={t('commandEditor.tokUrlfetch')}
+    aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}
-    bind:this={btnEl}>{'{urlfetch:…}'}</button
+    bind:this={btnEl}
   >
+    <Icon name="link" size={12} />
+    {t('commandEditor.pickDataSource')}
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
 
   {#if open}
     <div
@@ -407,19 +415,29 @@
 <style>
   .fsp { position: relative; display: inline-flex; }
 
-  /* Chip matches the ResponseEditor palette vars. */
-  .var {
-    font-family: var(--bb-font-mono);
+  /* Menu trigger, not a token chip: body font and a caret so it reads as
+     "opens something" next to the literal {user}/{args} pills. */
+  .picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--bb-font-body);
     font-size: 11.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.22);
+    color: var(--bb-muted);
+    background: transparent;
+    border: 1px solid var(--rule, var(--bb-border));
     border-radius: 999px;
     padding: 3px 10px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
   }
-  .var:hover { background: rgba(201, 168, 124, 0.18); color: var(--bb-white); }
+  .picker:hover,
+  .picker[aria-expanded='true'] {
+    color: var(--bb-white);
+    border-color: var(--bb-border-strong, rgba(255, 255, 255, 0.24));
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .caret { font-size: 9px; opacity: 0.7; }
 
   .panel {
     position: fixed;
@@ -510,7 +528,11 @@
   .new:hover { background: rgba(82, 183, 136, 0.14); }
 
   /* --- builder --- */
-  .build { display: flex; flex-direction: column; gap: 12px; min-width: min(460px, 78vw); }
+  /* No min-width: Modal's card is max-width 420px with 28px padding, so
+     anything wider than the ~364px content box overflows it and is clipped
+     rather than widening the card. Fill what the card gives us instead; the
+     tree scrolls inside its own box. */
+  .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; }
   .intro { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
   .fld { display: flex; flex-direction: column; gap: 5px; }
@@ -548,9 +570,17 @@
   .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
 
   .pick-prompt { margin: 0; font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
-  .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .chosen-tag { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
-  .chosen code { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-green-glow, #52b788); }
+  /* A deep path is longer than the card is wide; wrap it rather than let it
+     push the card's content box out from the inside. */
+  .chosen code {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-green-glow, #52b788);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 
   .foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 </style>

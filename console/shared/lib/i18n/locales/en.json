@@ -1051,6 +1051,8 @@
     "done": "Done"
   },
   "commandEditor": {
+    "pickCounter": "Counter",
+    "pickDataSource": "Data source",
     "name": "Name",
     "namePlaceholder": "!command",
     "renameHint": "The trigger viewers type in chat. Renaming keeps the response and settings.",

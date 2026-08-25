@@ -6,7 +6,7 @@
   // it. The list lazy-loads from /counters/list on first open; create posts
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
-  import { getI18n, COUNTER_SCOPES, type CounterScope } from '@bagel/shared';
+  import { Icon, getI18n, COUNTER_SCOPES, type CounterScope } from '@bagel/shared';
 
   const { t } = getI18n();
 
@@ -96,13 +96,20 @@
 </script>
 
 <div class="cp">
+  <!-- Labelled as what it does, not as the token it eventually inserts: this
+       opens a menu, so it must not wear the same mono pill as the literals. -->
   <button
     type="button"
-    class="var"
+    class="picker"
     title={t('commandEditor.tokCounter')}
+    aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}
-  >{'{counter:…}'}</button>
+  >
+    <Icon name="pulse" size={12} />
+    {t('commandEditor.pickCounter')}
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
 
   {#if open}
     <div class="panel" role="dialog" aria-label={t('counters.pickerTitle')}>
@@ -158,19 +165,29 @@
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  /* Chip matches the ResponseEditor palette vars. */
-  .var {
-    font-family: var(--bb-font-mono);
+  /* Menu trigger, not a token chip. Kept identical to FetchSourcePicker's
+     .picker so the two menus read as one group beside the literal pills. */
+  .picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--bb-font-body);
     font-size: 11.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.22);
+    color: var(--bb-muted);
+    background: transparent;
+    border: 1px solid var(--rule, var(--bb-border));
     border-radius: 999px;
     padding: 3px 10px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
   }
-  .var:hover { background: rgba(201, 168, 124, 0.18); color: var(--bb-white); }
+  .picker:hover,
+  .picker[aria-expanded='true'] {
+    color: var(--bb-white);
+    border-color: var(--bb-border-strong, rgba(255, 255, 255, 0.24));
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .caret { font-size: 9px; opacity: 0.7; }
 
   .panel {
     position: absolute;

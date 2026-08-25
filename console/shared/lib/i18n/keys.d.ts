@@ -204,6 +204,8 @@ export type KnownMessageKey =
   | 'commandEditor.name'
   | 'commandEditor.namePlaceholder'
   | 'commandEditor.onlyWhileLive'
+  | 'commandEditor.pickCounter'
+  | 'commandEditor.pickDataSource'
   | 'commandEditor.removeAlias'
   | 'commandEditor.removeLine'
   | 'commandEditor.renameHint'
