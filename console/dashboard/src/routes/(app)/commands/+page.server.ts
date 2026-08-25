@@ -296,11 +296,10 @@ async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDe
 
 export const actions: Actions = {
   // Save a data source from the builder inside the command editor.
-  savefetch: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    if (!DEMO && !locals.session) return notSignedIn();
-    const uid = effectiveId(locals.session);
-    const def = parseDefForm(await request.formData());
+  savefetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const def = parseDefForm(ctx.form);
 
     // Shared validator: the client builder runs these exact checks, so this is
     // the authoritative re-check rather than a duplicate of a different shape.
@@ -311,7 +310,7 @@ export const actions: Actions = {
       path: def.path,
       keyLabel: def.keyLabel
     });
-    await precheckFetchConflicts(uid, def, errors);
+    await precheckFetchConflicts(ctx.uid, def, errors);
     if (Object.keys(errors).length) {
       return fail(400, { ok: false, errors, error: firstError(errors) });
     }
@@ -325,7 +324,7 @@ export const actions: Actions = {
     }
 
     const res = await tryRpc('savefetch', () =>
-      upsertFetchDef(uid, {
+      upsertFetchDef(ctx.uid, {
         name: def.name,
         url: def.url,
         jsonPath: def.path,
@@ -336,17 +335,16 @@ export const actions: Actions = {
     );
     if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, def.isEdit ? 'fetchdef:update' : 'fetchdef:create', def.name);
+    auditDashboardImpersonation(ctx.session, def.isEdit ? 'fetchdef:update' : 'fetchdef:create', def.name);
     return { ok: true, action: 'fetchsaved', name: def.name, defs: res.value.defs, keys: res.value.keys };
   },
 
   // The service refuses while any command response still references
   // `{urlfetch:<name>}`; the client only pre-warns.
-  deletefetch: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    if (!DEMO && !locals.session) return notSignedIn();
-    const uid = effectiveId(locals.session);
-    const name = slugifyName(String((await request.formData()).get('name') ?? ''));
+  deletefetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const name = slugifyName(String(ctx.form.get('name') ?? ''));
 
     if (DEMO) {
       const { demoFetches } = await import('$lib/server/demo-data');
@@ -354,11 +352,11 @@ export const actions: Actions = {
       return { ok: true, action: 'fetchdeleted', name, defs: current.defs.filter((d) => d.name !== name), keys: current.keys };
     }
 
-    const res = await tryRpc('deletefetch', () => deleteFetchDef({ userId: uid, name }));
+    const res = await tryRpc('deletefetch', () => deleteFetchDef({ userId: ctx.uid, name }));
     if (!res.ok) return fail(400, { ok: false });
 
-    auditDashboardImpersonation(locals.session, 'fetchdef:delete', name);
-    const fresh = await tryRpc('deletefetch-refresh', () => listFetches(uid));
+    auditDashboardImpersonation(ctx.session, 'fetchdef:delete', name);
+    const fresh = await tryRpc('deletefetch-refresh', () => listFetches(ctx.uid));
     return {
       ok: true,
       action: 'fetchdeleted',
@@ -373,13 +371,12 @@ export const actions: Actions = {
   // the raw body as `sample` so the builder can render a clickable tree — that
   // is the whole point of the call for a non-technical author, who otherwise
   // has to paste a response by hand. Nothing is persisted.
-  testfetch: async ({ request, locals }) => {
-    gateCommands(locals.session);
-    if (!DEMO && !locals.session) return notSignedIn();
-    const uid = effectiveId(locals.session);
+  testfetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
 
     if (!DEMO) {
-      const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
+      const decision = await fetchTestLimiter.check(`fetchtest:${ctx.uid}`);
       if (!decision.allowed)
         return fail(429, {
           ok: false,
@@ -387,7 +384,7 @@ export const actions: Actions = {
         });
     }
 
-    const def = parseDefForm(await request.formData());
+    const def = parseDefForm(ctx.form);
     const errors = validateFetchDef({
       name: def.name || 'draft',
       url: def.url,
@@ -409,7 +406,7 @@ export const actions: Actions = {
     }
 
     try {
-      const reply = await rehearseFetch(uid, {
+      const reply = await rehearseFetch(ctx.uid, {
         name: def.name || normName(def.keyLabel) || 'draft',
         url: def.url,
         jsonPath: def.path,
