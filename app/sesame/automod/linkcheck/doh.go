@@ -72,40 +72,55 @@ func (d *DoH) Blocked(ctx context.Context, host string) (bool, error) {
 	cctx, cancel := context.WithTimeout(ctx, dohTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(cctx, http.MethodGet,
-		d.endpoint+"?name="+url.QueryEscape(host)+"&type=A", nil)
+	doc, err := d.resolve(cctx, host)
 	if err != nil {
 		return false, err
+	}
+	return sinkholed(doc), nil
+}
+
+// resolve issues the security-DoH query for host and decodes its answer set.
+func (d *DoH) resolve(ctx context.Context, host string) (dohAnswer, error) {
+	var doc dohAnswer
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		d.endpoint+"?name="+url.QueryEscape(host)+"&type=A", nil)
+	if err != nil {
+		return doc, err
 	}
 	req.Header.Set("accept", "application/dns-json")
 
 	res, err := d.client.Do(req)
 	if err != nil {
-		return false, err
+		return doc, err
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, dohBodyLimit))
 		_ = res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("doh %s: status %d", host, res.StatusCode)
+		return doc, fmt.Errorf("doh %s: status %d", host, res.StatusCode)
 	}
-
 	body, err := io.ReadAll(io.LimitReader(res.Body, dohBodyLimit))
 	if err != nil {
-		return false, fmt.Errorf("doh %s: %w", host, err)
+		return doc, fmt.Errorf("doh %s: %w", host, err)
 	}
-	var doc dohAnswer
 	if err := codec.Unmarshal(body, &doc); err != nil {
-		return false, fmt.Errorf("doh %s: %w", host, err)
+		return doc, fmt.Errorf("doh %s: %w", host, err)
 	}
+	return doc, nil
+}
+
+// sinkholed reports whether any A/AAAA record is the resolver's block answer
+// (0.0.0.0 / ::) — the entire detection surface.
+func sinkholed(doc dohAnswer) bool {
 	for _, a := range doc.Answer {
-		if a.Type == 1 || a.Type == 28 { // A, AAAA
-			data := strings.TrimSuffix(a.Data, ".")
-			if data == "0.0.0.0" || data == "::" {
-				return true, nil
-			}
+		if a.Type != 1 && a.Type != 28 { // A, AAAA
+			continue
+		}
+		switch strings.TrimSuffix(a.Data, ".") {
+		case "0.0.0.0", "::":
+			return true
 		}
 	}
-	return false, nil
+	return false
 }

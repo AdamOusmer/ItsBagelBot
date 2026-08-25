@@ -30,29 +30,33 @@ func TestCacheTTLs(t *testing.T) {
 	// +1h: the shortener slot lapses first (destinations rotate server-side);
 	// host slots hold.
 	advance(shortTTL + time.Minute)
-	if _, ok := c.get("bit.ly/abc"); ok {
-		t.Fatal("shortener entry survived shortTTL")
-	}
-	if v, ok := c.get("ok.example"); !ok || v != Clean {
-		t.Fatalf("clean entry expired before cleanTTL: (%v,%v)", v, ok)
-	}
-	if v, ok := c.get("bad.example"); !ok || v != Bad {
-		t.Fatalf("bad entry expired early: (%v,%v)", v, ok)
-	}
+	requireExpired(t, c, "bit.ly/abc", "shortener entry survived shortTTL")
+	requireCached(t, c, "ok.example", Clean, "clean entry expired before cleanTTL")
+	requireCached(t, c, "bad.example", Bad, "bad entry expired early")
 
 	// +6h: clean lapses, bad still holds its day.
 	advance(cleanTTL - shortTTL)
-	if _, ok := c.get("ok.example"); ok {
-		t.Fatal("clean entry survived its TTL")
-	}
-	if v, ok := c.get("bad.example"); !ok || v != Bad {
-		t.Fatalf("bad entry did not survive past cleanTTL: (%v,%v)", v, ok)
-	}
+	requireExpired(t, c, "ok.example", "clean entry survived its TTL")
+	requireCached(t, c, "bad.example", Bad, "bad entry did not survive past cleanTTL")
 
 	// +24h: bad lapses too.
 	advance(badTTL - cleanTTL)
-	if _, ok := c.get("bad.example"); ok {
-		t.Fatal("bad entry outlived badTTL")
+	requireExpired(t, c, "bad.example", "bad entry outlived badTTL")
+}
+
+// requireCached asserts key resolves to want.
+func requireCached(t *testing.T, c *cache, key string, want Verdict, msg string) {
+	t.Helper()
+	if v, ok := c.get(key); !ok || v != want {
+		t.Fatalf("%s: get(%q) = (%v,%v), want (%v,true)", msg, key, v, ok, want)
+	}
+}
+
+// requireExpired asserts key has lapsed out of the cache.
+func requireExpired(t *testing.T, c *cache, key, msg string) {
+	t.Helper()
+	if _, ok := c.get(key); ok {
+		t.Fatalf("%s: get(%q) still cached", msg, key)
 	}
 }
 

@@ -233,12 +233,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// to bail clean - a short "bit.ly/x" line is precisely the shape worth
 	// resolving - while an already-convicted host forces the deep path so the
 	// phish verdict resolves in council order (floor first) below.
-	lk := g.links.Load()
-	linkBad := false
-	if lk != nil && sec.links {
-		linkBad = lk.Evaluate(text, uint64(sc.ch), sc.sender)
-	}
-	if !linkBad && g.cleanPathBail(sig, flags, cfg, text) {
+	if !g.linkConvicted(sec, sc, text) && g.cleanPathBail(sig, flags, cfg, text) {
 		return Verdict{}, Signals{}
 	}
 
@@ -259,7 +254,7 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// duplicate. Same timeout tier as ip_logger/scam - infrastructure class -
 	// but its own rule name so stats and shadow logs separate learned
 	// convictions from the curated floor.
-	if lk != nil && sec.links && lk.Evaluate(text, uint64(sc.ch), sc.sender) {
+	if g.linkConvicted(sec, sc, text) {
 		return Verdict{Action: ActionTimeout, Seconds: 600, Rule: "phish"}, out
 	}
 
@@ -287,6 +282,19 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	}
 
 	return g.heuristicVerdict(styleAttempt{sig: sig, flags: flags, allowed: allowed, text: text}, sc), out
+}
+
+// linkConvicted runs the dynamic link checker for one line and reports whether
+// it carries an already-convicted host. Unknown hosts enqueue as a side effect,
+// so the pre-scan and the deep-path re-run both call this (Evaluate is
+// idempotent). Inert (false) when no checker is armed or the channel's links
+// section is off, folding that arm/enable pair out of Assess's two call sites.
+func (g *Gate) linkConvicted(sec sections, sc assessScope, text string) bool {
+	lk := g.links.Load()
+	if lk == nil || !sec.links {
+		return false
+	}
+	return lk.Evaluate(text, uint64(sc.ch), sc.sender)
 }
 
 // styleAttempt is the style-juror's full view of one line: the resolved flags,

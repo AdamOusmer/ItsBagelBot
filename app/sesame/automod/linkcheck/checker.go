@@ -181,7 +181,7 @@ func (c *Checker) Evaluate(text string, channel uint64, sender string) bool {
 			bad = true
 			return
 		}
-		c.resolveAsync(c.taskFor(token, host, channel, sender))
+		c.resolveAsync(c.keyed(task{token: token, host: host, ch: channel, sender: sender}))
 	})
 	return bad
 }
@@ -204,15 +204,18 @@ func (c *Checker) knownBad(token, host string) bool {
 	return false
 }
 
-// taskFor picks a lookup's identity: shortener tokens key on their full path
-// form (the destination is per-path), plain hosts on the registrable fold so
-// subdomain churn collapses into one cache slot.
-func (c *Checker) taskFor(token, host string, channel uint64, sender string) task {
-	if c.exp.IsShortener(host) {
-		lt := strings.ToLower(token)
-		return task{token: lt, host: host, key: lt, ch: channel, sender: sender}
+// keyed fills t's cache-key identity: shortener tokens key on their full path
+// form (the destination is per-path, and the token is lowercased to match),
+// plain hosts on the registrable fold so subdomain churn collapses into one
+// cache slot.
+func (c *Checker) keyed(t task) task {
+	if c.exp.IsShortener(t.host) {
+		lt := strings.ToLower(t.token)
+		t.token, t.key = lt, lt
+		return t
 	}
-	return task{token: token, host: host, key: foldHost(host), ch: channel, sender: sender}
+	t.key = foldHost(t.host)
+	return t
 }
 
 // resolveAsync schedules one background classification unless its key is

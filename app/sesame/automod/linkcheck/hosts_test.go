@@ -4,6 +4,7 @@
 package linkcheck
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -36,14 +37,8 @@ func TestIterLinkTokens(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			got := collectTokens(t, tt.text)
-			if len(got) != len(tt.want) {
+			if got := collectTokens(t, tt.text); !slices.Equal(got, tt.want) {
 				t.Fatalf("tokens %q = %v, want %v", tt.text, got, tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Fatalf("tokens %q = %v, want %v", tt.text, got, tt.want)
-				}
 			}
 		})
 	}

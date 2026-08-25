@@ -54,23 +54,30 @@ func TestFeedsRefreshAndHas(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("installed %d hosts, want 2", n)
 	}
-	for _, h := range []string{"feedhit.example", "sub.two.example"} {
-		if !f.Has(h) {
-			t.Errorf("Has(%q) = false after refresh", h)
-		}
-	}
+	requireListed(t, f, "feedhit.example", "listed host missing after refresh")
+	requireListed(t, f, "sub.two.example", "listed host missing after refresh")
 	// Parent walk: a QUERY's ancestors match listed entries, so subdomain
 	// rotation of a LISTED host cannot dodge the snapshot. The inverse is
 	// deliberately not true: a bare registrable query does not inherit a
 	// listed subdomain's conviction - the walk goes up, never down.
-	if !f.Has("rotating.feedhit.example") {
-		t.Error("parent walk missed ancestor of listed host")
+	requireListed(t, f, "rotating.feedhit.example", "parent walk missed ancestor of listed host")
+	requireNotListed(t, f, "notfeedhit.example", "suffix collision convicted an unrelated host")
+	requireNotListed(t, f, "example", "tld-only probe convicted")
+}
+
+// requireListed asserts host resolves against the feed snapshot.
+func requireListed(t *testing.T, f *Feeds, host, msg string) {
+	t.Helper()
+	if !f.Has(host) {
+		t.Errorf("%s: Has(%q) = false", msg, host)
 	}
-	if f.Has("notfeedhit.example") {
-		t.Error("suffix collision convicted an unrelated host")
-	}
-	if f.Has("example") {
-		t.Error("tld-only probe convicted")
+}
+
+// requireNotListed asserts host does not resolve against the feed snapshot.
+func requireNotListed(t *testing.T, f *Feeds, host, msg string) {
+	t.Helper()
+	if f.Has(host) {
+		t.Errorf("%s: Has(%q) = true", msg, host)
 	}
 }
 

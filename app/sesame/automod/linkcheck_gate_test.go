@@ -70,8 +70,8 @@ func TestGatePhishVerdictOnFeedListedHost(t *testing.T) {
 
 	line := "see convicted.example ok friends"
 	v := g.InspectWith(module.RoleEveryone, line, nil)
-	if v.Action != ActionTimeout || v.Rule != "phish" || v.Seconds != 600 {
-		t.Fatalf("verdict = %+v, want timeout/600/phish", v)
+	if want := (Verdict{Action: ActionTimeout, Seconds: 600, Rule: "phish"}); v != want {
+		t.Fatalf("verdict = %+v, want %+v", v, want)
 	}
 }
 

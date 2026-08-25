@@ -165,10 +165,17 @@ func (e *Expander) Destination(ctx context.Context, token string) (string, error
 // matches on name alone because httptest binds random ports.
 func (e *Expander) externalHost(u *url.URL) string {
 	host := strings.ToLower(u.Hostname())
-	if e.IsShortener(host) && (e.anyPort || isWebPort(u.Port())) {
+	if e.mayProbe(host, u.Port()) {
 		return ""
 	}
 	return host
+}
+
+// mayProbe reports whether this package may issue a request to host: it must be
+// an allowlisted shortener reached on a web-standard port. anyPort (test mode)
+// waives the port check because httptest binds random ports.
+func (e *Expander) mayProbe(host, port string) bool {
+	return e.IsShortener(host) && (e.anyPort || isWebPort(port))
 }
 
 // nextHop resolves one redirect step: probe the current URL, parse its

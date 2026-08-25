@@ -153,33 +153,34 @@ func parseFeedLine(line []byte, format feedFormat) string {
 	var host string
 	switch format {
 	case FormatLines:
-		s := string(line)
-		// OpenPhish lines are URLs, sometimes scheme-less. Host runs to the
-		// first path marker either way.
-		if k := strings.Index(s, "://"); k >= 0 {
-			s = s[k+3:]
-		}
-		if k := strings.IndexAny(s, "/?#"); k >= 0 {
-			s = s[:k]
-		}
-		if k := strings.LastIndexByte(s, '@'); k >= 0 { // user@host entries
-			s = s[k+1:]
-		}
-		if k := strings.LastIndexByte(s, ':'); k >= 0 && isPortSuffix(s[k+1:]) {
-			s = s[:k]
-		}
-		host = strings.ToLower(strings.TrimSuffix(s, "."))
+		host = hostFromURLLine(string(line))
 	case FormatHosts:
-		fields := strings.Fields(string(line))
-		if len(fields) < 2 {
-			return ""
-		}
-		host = strings.ToLower(fields[1])
+		host = hostFromHostsLine(string(line))
 	}
 	if !validHost(host) {
 		return ""
 	}
 	return host
+}
+
+// hostFromURLLine pulls the host out of an OpenPhish URL line (scheme optional):
+// past the scheme, then hostOf trims path, userinfo and port the same way chat
+// tokens are trimmed.
+func hostFromURLLine(line string) string {
+	if k := strings.Index(line, "://"); k >= 0 {
+		line = line[k+3:]
+	}
+	return strings.ToLower(strings.TrimSuffix(hostOf(line), "."))
+}
+
+// hostFromHostsLine pulls the host out of an /etc/hosts-style line
+// ("0.0.0.0 evil.example"), discarding the leading address column.
+func hostFromHostsLine(line string) string {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return ""
+	}
+	return strings.ToLower(fields[1])
 }
 
 // Has reports whether host (or any parent of it up three labels) sits on the

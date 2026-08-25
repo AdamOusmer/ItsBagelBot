@@ -34,20 +34,28 @@ import (
 // rejects, so this is deliberately a scanner, not a parser.
 func iterLinkTokens(text string, fn func(token string)) {
 	for i := 0; i < len(text); {
-		for i < len(text) && isSpaceByte(text[i]) {
-			i++
-		}
-		start := i
-		for i < len(text) && !isSpaceByte(text[i]) {
-			i++
-		}
-		if start == i {
+		start, end := nextToken(text, i)
+		if start == end {
 			return
 		}
-		if tok := trimLinkToken(text[start:i]); tok != "" && strings.Contains(tok, ".") {
+		if tok := trimLinkToken(text[start:end]); tok != "" && strings.Contains(tok, ".") {
 			fn(tok)
 		}
+		i = end
 	}
+}
+
+// nextToken returns the [start,end) span of the next whitespace-delimited run at
+// or after i. start==end means only trailing whitespace remained.
+func nextToken(text string, i int) (start, end int) {
+	for i < len(text) && isSpaceByte(text[i]) {
+		i++
+	}
+	start = i
+	for i < len(text) && !isSpaceByte(text[i]) {
+		i++
+	}
+	return start, i
 }
 
 func isSpaceByte(b byte) bool {
@@ -61,21 +69,31 @@ func isSpaceByte(b byte) bool {
 // trimLinkToken normalizes one raw token into candidate link form: scheme off,
 // leading www. off, trailing punctuation off. Returns "" when nothing remains.
 func trimLinkToken(tok string) string {
-	// Scheme strip, case-insensitive: "HTTPS://X" arrives from caps-heavy hype.
-	if len(tok) >= 8 && equalFoldASCII(tok[:8], "https://") {
-		tok = tok[8:]
-	} else if len(tok) >= 7 && equalFoldASCII(tok[:7], "http://") {
-		tok = tok[7:]
-	}
+	tok = stripScheme(tok)
 	// www. prefix is presentation, not identity: bit.ly and www.bit.ly must
 	// land on one cache entry.
 	if len(tok) >= 4 && equalFoldASCII(tok[:4], "www.") {
 		tok = tok[4:]
 	}
-	// Trailing punctuation is chat prosody, not the link: "bit.ly/x." ends a
-	// sentence. A run is trimmed because "...", "!?" stack in real chat. The
-	// path may legitimately end in almost anything else; only prose punctuation
-	// is released.
+	return stripTrailingPunct(tok)
+}
+
+// stripScheme removes a leading http:// or https:// (case-insensitive: caps-
+// heavy hype arrives as "HTTPS://X").
+func stripScheme(tok string) string {
+	switch {
+	case len(tok) >= 8 && equalFoldASCII(tok[:8], "https://"):
+		return tok[8:]
+	case len(tok) >= 7 && equalFoldASCII(tok[:7], "http://"):
+		return tok[7:]
+	}
+	return tok
+}
+
+// stripTrailingPunct releases a run of trailing prose punctuation: "bit.ly/x."
+// ends a sentence, and "...", "!?" stack in real chat. The path may legitimately
+// end in almost anything else, so only these prose marks are released.
+func stripTrailingPunct(tok string) string {
 	for len(tok) > 0 {
 		switch tok[len(tok)-1] {
 		case '.', ',', '!', '?', ';', ':', '"', '\'', ')', ']', '>':

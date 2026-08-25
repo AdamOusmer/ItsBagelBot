@@ -86,7 +86,8 @@ func TestEvaluateDoHConvictionLandsAsync(t *testing.T) {
 	}
 	select {
 	case hit := <-h.hits:
-		if hit.Source != SourceDoH || hit.Channel != 7 || hit.Sender != "u2" {
+		got := Hit{Source: hit.Source, Channel: hit.Channel, Sender: hit.Sender}
+		if want := (Hit{Source: SourceDoH, Channel: 7, Sender: "u2"}); got != want {
 			t.Fatalf("hit = %+v, want doh conviction carrying enqueue context", hit)
 		}
 	default:
