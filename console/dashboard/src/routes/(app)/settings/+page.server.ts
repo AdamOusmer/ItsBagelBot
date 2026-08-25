@@ -141,39 +141,72 @@ export const load: PageServerLoad = async ({ locals }) => {
   };
 };
 
+// One reason per line, and the caller renders whichever comes back. The UI has
+// only ever shown a single message, so a field->message map was shape the
+// action carried without anyone reading it.
+function keyEntryError(label: string, value: string): string | null {
+  if (!label) return 'Label is required.';
+  if (label.length > 32) return 'Label must be at most 32 characters.';
+  if (!value.trim()) return 'Key value is required.';
+  if (value.length > KEY_VALUE_MAX) return `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+  return null;
+}
+
+// ownerActor is the guard both key actions share: API keys are account-level
+// secrets, so a delegate may spend one through a data source but never read,
+// rotate or destroy it. Returns the session or the refusal to render, so each
+// caller spends one branch on it instead of two.
+function ownerActor(s: Session | null): { session: Session } | { status: number; error: string } {
+  if (!s) return { status: 401, error: 'Not signed in.' };
+  if (s.delegate_of) return { status: 403, error: 'Only the account owner can do that.' };
+  return { session: s };
+}
+
+async function demoKeySet(label: string, value: string) {
+  const d = await import('$lib/server/demo-data');
+  const current = d.demoFetches();
+  return {
+    ok: true,
+    action: 'fetchkeyset',
+    name: label,
+    fetchKeys: [
+      ...current.keys.filter((k) => k.label !== label),
+      { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
+    ]
+  };
+}
+
+async function demoKeyDelete(label: string) {
+  const d = await import('$lib/server/demo-data');
+  return {
+    ok: true,
+    action: 'fetchkeydeleted',
+    name: label,
+    fetchKeys: d.demoFetches().keys.filter((k) => k.label !== label)
+  };
+}
+
 export const actions: Actions = {
   // Seal (or rotate) an API key under a label. The value crosses here once and
   // is never logged, cached, or echoed back — the reply carries last4 only, and
   // the audit trail names the label alone.
   setfetchkey: async ({ request, locals }) => {
-    const s = locals.session;
     const form = await request.formData();
     const label = slugifyName(String(form.get('label') ?? ''));
     const value = String(form.get('value') ?? '');
 
-    const errors: Record<string, string> = {};
-    if (!label) errors.label = 'Label is required.';
-    else if (label.length > 32) errors.label = 'Label must be at most 32 characters.';
-    if (!value.trim()) errors.value = 'Key value is required.';
-    else if (value.length > KEY_VALUE_MAX) errors.value = `Key value must be at most ${KEY_VALUE_MAX} characters.`;
-    if (Object.keys(errors).length) return fail(400, { ok: false, errors, error: Object.values(errors)[0] });
+    const invalid = keyEntryError(label, value);
+    if (invalid) return fail(400, { ok: false, error: invalid });
 
-    if (DEMO) {
-      const d = await import('$lib/server/demo-data');
-      const current = d.demoFetches();
-      const keys = [
-        ...current.keys.filter((k) => k.label !== label),
-        { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
-      ];
-      return { ok: true, action: 'fetchkeyset', name: label, fetchKeys: keys };
-    }
-    if (!s) return fail(401, { ok: false, error: 'Not signed in.' });
-    if (s.delegate_of) return fail(403, { ok: false, error: 'Only the account owner can do that.' });
+    if (DEMO) return demoKeySet(label, value);
+
+    const actor = ownerActor(locals.session);
+    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
 
     try {
-      const last4 = await setFetchKey({ userId: s.user_id, label, value });
-      const fresh = await listFetches(s.user_id);
-      auditDashboardImpersonation(s, 'fetchkey:set', label);
+      const last4 = await setFetchKey({ userId: actor.session.user_id, label, value });
+      const fresh = await listFetches(actor.session.user_id);
+      auditDashboardImpersonation(actor.session, 'fetchkey:set', label);
       return { ok: true, action: 'fetchkeyset', name: label, last4, fetchKeys: fresh.keys };
     } catch {
       return fail(502, { ok: false, error: 'Could not seal the key.' });
@@ -184,20 +217,17 @@ export const actions: Actions = {
   // label fail closed until relinked, which is the safe direction. No undo —
   // the sealed value is destroyed.
   delfetchkey: async ({ request, locals }) => {
-    const s = locals.session;
     const label = slugifyName(String((await request.formData()).get('label') ?? ''));
 
-    if (DEMO) {
-      const d = await import('$lib/server/demo-data');
-      return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: d.demoFetches().keys.filter((k) => k.label !== label) };
-    }
-    if (!s) return fail(401, { ok: false, error: 'Not signed in.' });
-    if (s.delegate_of) return fail(403, { ok: false, error: 'Only the account owner can do that.' });
+    if (DEMO) return demoKeyDelete(label);
+
+    const actor = ownerActor(locals.session);
+    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
 
     try {
-      await deleteFetchKey({ userId: s.user_id, label });
-      const fresh = await listFetches(s.user_id);
-      auditDashboardImpersonation(s, 'fetchkey:delete', label);
+      await deleteFetchKey({ userId: actor.session.user_id, label });
+      const fresh = await listFetches(actor.session.user_id);
+      auditDashboardImpersonation(actor.session, 'fetchkey:delete', label);
       return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: fresh.keys };
     } catch {
       return fail(502, { ok: false, error: 'Could not delete the key.' });
