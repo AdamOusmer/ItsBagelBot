@@ -7,6 +7,7 @@
     Icon,
     Card,
     PageHead,
+    PageToolbar,
     ConfirmDialog,
     MasterToggle,
     AlertBanner,
@@ -14,7 +15,8 @@
     Button,
     ButtonLink,
     Field,
-    Switch,
+    SettingRow,
+    CommandList,
     toast,
     getI18n,
     SPOTIFY_SR_PERMS,
@@ -52,6 +54,9 @@
     { cmd: '!sr remove <n>', key: 'spotify.cmdRemoveAt', mod: true },
     { cmd: '!sr clear', key: 'spotify.cmdClear', mod: true }
   ];
+  // Resolved through the current locale on every render, same as the rest of
+  // the page's copy, so a language switch updates the descriptions too.
+  const srCommands = $derived(SR_COMMANDS.map((row) => ({ cmd: row.cmd, desc: t(row.key), mod: row.mod })));
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(
     data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null }
@@ -253,16 +258,18 @@
   </Card>
 
   <!-- Master switch -->
-  <div class="toolbar">
-    <MasterToggle
-      action="?/toggle"
-      bind:enabled
-      label={t('spotify.masterLabel')}
-      hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
-      ariaLabel={t('spotify.masterAria')}
-      failMessage={t('spotify.masterFail')}
-    />
-  </div>
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('spotify.masterLabel')}
+        hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
+        ariaLabel={t('spotify.masterAria')}
+        failMessage={t('spotify.masterFail')}
+      />
+    {/snippet}
+  </PageToolbar>
 
   <!-- Path A: chat command -->
   <Card>
@@ -274,33 +281,27 @@
       </div>
     </div>
     <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
-      <div class="setrow" class:on={sr.enabled}>
-        <div class="setrow-text">
-          <span class="setrow-label">{t('spotify.srEnableLabel')}</span>
-          <span class="muted-text" id="spotify-sr-desc">{sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}</span>
-        </div>
-        <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
-      </div>
-      <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
+      <SettingRow
+        label={t('spotify.srEnableLabel')}
+        description={sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}
+        bind:checked={sr.enabled}
+        onchange={srChanged}
+        name="sr_enabled"
+      />
 
       <!-- Same control govee's lights use, down to the inverted flag and the
            warn styling when the gate is lifted: on means requests only queue
            while you are live, which is the default. -->
-      <div class="setrow {liveOnly ? '' : 'warn'}">
-        <div class="setrow-text">
-          <span class="setrow-label">{t('spotify.liveOnlyLabel')}</span>
-          <span class="muted-text" id="spotify-liveonly-desc">
-            {liveOnly ? t('spotify.liveOnlyOn') : t('spotify.liveOnlyOff')}
-          </span>
-        </div>
-        <Switch
-          bind:checked={liveOnly}
-          onchange={srChanged}
-          label={t('spotify.liveOnlyLabel')}
-          describedby="spotify-liveonly-desc"
-        />
-      </div>
-      <input type="hidden" name="allow_offline" value={liveOnly ? '' : 'on'} />
+      <SettingRow
+        label={t('spotify.liveOnlyLabel')}
+        description={liveOnly ? t('spotify.liveOnlyOn') : t('spotify.liveOnlyOff')}
+        warn={!liveOnly}
+        bind:checked={liveOnly}
+        onchange={srChanged}
+        name="allow_offline"
+        onValue=""
+        offValue="on"
+      />
 
       <Field label={t('spotify.srPermLabel')}>
         <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
@@ -312,18 +313,7 @@
 
       <!-- The page documented only the bare add. Every other spelling existed
            in sesame and nowhere in the UI, so nobody could discover them. -->
-      <div class="cmd-help">
-        <p class="cmd-help-title">{t('spotify.cmdsTitle')}</p>
-        <ul class="cmd-list">
-          {#each SR_COMMANDS as row (row.cmd)}
-            <li>
-              <code>{row.cmd}</code>
-              <span class="muted-text">{t(row.key)}</span>
-              {#if row.mod}<span class="cmd-mod">{t('spotify.cmdModOnly')}</span>{/if}
-            </li>
-          {/each}
-        </ul>
-      </div>
+      <CommandList title={t('spotify.cmdsTitle')} modLabel={t('spotify.cmdModOnly')} commands={srCommands} />
     </form>
   </Card>
 
@@ -338,14 +328,13 @@
     </div>
 
     <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
-      <div class="setrow" class:on={redeem.enabled}>
-        <div class="setrow-text">
-          <span class="setrow-label">{t('spotify.redeemEnableLabel')}</span>
-          <span class="muted-text" id="spotify-redeem-desc">{redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}</span>
-        </div>
-        <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
-      </div>
-      <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
+      <SettingRow
+        label={t('spotify.redeemEnableLabel')}
+        description={redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}
+        bind:checked={redeem.enabled}
+        onchange={redeemToggled}
+        name="redeem_enabled"
+      />
     </form>
 
     {#if showEditor}
@@ -388,41 +377,6 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
-  /* Command reference: the page used to document only the bare add, so the
-     mod verbs existed in the bot and nowhere a broadcaster could see them. */
-  .cmd-help { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule, var(--bb-border)); }
-  .cmd-help-title {
-    margin: 0 0 8px;
-    font-family: var(--bb-font-body);
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .cmd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .cmd-list li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .cmd-list code {
-    flex: none;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.22);
-    border-radius: 999px;
-    padding: 2px 9px;
-  }
-  .cmd-list .muted-text { font-size: 12px; }
-  .cmd-mod {
-    font-family: var(--bb-font-body);
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow, #52b788);
-    border: 1px solid rgba(82, 183, 136, 0.35);
-    border-radius: 999px;
-    padding: 1px 7px;
-  }
-
   .back {
     display: inline-flex;
     align-items: center;
@@ -435,8 +389,6 @@
   }
   .back:hover { color: var(--bb-white); }
   .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: 4px; }
-
-  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {
@@ -469,21 +421,16 @@
   .path-title h2 { margin: 0 0 4px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
   .path-title .muted-text { font-size: 12.5px; }
 
-  .setrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    margin-bottom: 14px;
-  }
-  .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
-  .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .setrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-
   .bound-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 12px; border: 1px solid var(--rule); border-radius: 8px; }
   .bound-title { display: inline-flex; align-items: center; gap: 7px; font-family: var(--bb-font-display); font-weight: 700; font-size: 13.5px; color: var(--bb-white); flex: 1; min-width: 0; }
+
+  /* On narrow screens the title would otherwise be squeezed into a sliver
+     between the cost and the button, wrapping one word per line. Stack the
+     three pieces instead. */
+  @media (max-width: 520px) {
+    .bound-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .bound-title { flex: none; }
+  }
 
   .both-note { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 12px; }
 
