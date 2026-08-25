@@ -119,7 +119,7 @@ func TestSkipCommandPromotesHead(t *testing.T) {
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"), "")
+	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
 
 	assert.Contains(t, chatText(t, out), "Human")
 }
@@ -135,11 +135,13 @@ func TestSongQueueDoesNotClaimQueueCommand(t *testing.T) {
 	}
 }
 
-// runSongCmd invokes one standalone command and returns what it emitted.
-func runSongCmd(t *testing.T, m module.Module, name string, c *module.Context, args string) []module.Output {
+// runSongCmd invokes one standalone command, bare, and returns what it
+// emitted. Bare is the only form these three take: !skip and !clear ignore
+// what follows, and !remove's positional form is covered through !sr remove.
+func runSongCmd(t *testing.T, m module.Module, name string, c *module.Context) []module.Output {
 	t.Helper()
 	var col collector
-	require.NoError(t, findCmd(t, m, name).Run(context.Background(), c, args, col.emit))
+	require.NoError(t, findCmd(t, m, name).Run(context.Background(), c, "", col.emit))
 	return col.out
 }
 
@@ -161,7 +163,7 @@ func TestClearCommandEmptiesQueue(t *testing.T) {
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	out := runSongCmd(t, m, "clear", songCtx("9", "mod", "moderator"), "")
+	out := runSongCmd(t, m, "clear", songCtx("9", "mod", "moderator"))
 
 	assert.Empty(t, store.up)
 	assert.Contains(t, chatText(t, out), "cleared")
@@ -173,7 +175,7 @@ func TestRemoveCommandRetractsOwn(t *testing.T) {
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	out := runSongCmd(t, m, "remove", songCtx("42", "alice"), "")
+	out := runSongCmd(t, m, "remove", songCtx("42", "alice"))
 
 	assert.Empty(t, store.up)
 	assert.Contains(t, chatText(t, out), "Mine")
