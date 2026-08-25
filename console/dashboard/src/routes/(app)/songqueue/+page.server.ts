@@ -52,7 +52,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   } catch {
     return {
       enabled: false,
-      sr: { enabled: false, perm: 'everyone' as SpotifySrPerm },
+      sr: { enabled: false, perm: 'everyone' as SpotifySrPerm, allowOffline: false },
       redeem: { enabled: false, rewardId: '', onRedeem: 'fulfill' as RewardOnRedeem, replyMessage: '', reward: null },
       connected: false,
       justConnected: false,
@@ -184,8 +184,15 @@ export const actions: Actions = {
 
   sr: async ({ request, locals }) => {
     const f = await request.formData();
-    const sr = { enabled: f.get('sr_enabled') === 'on', perm: asPerm(f.get('perm')) };
-    return run(locals, { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}` }, (s) => s.saveSr(sr));
+    const sr = {
+      enabled: f.get('sr_enabled') === 'on',
+      perm: asPerm(f.get('perm')),
+      // Posted as the opt-out so the checked state of a "Live only" switch is
+      // the safe one, matching govee's allow_offline field.
+      allowOffline: f.get('allow_offline') === 'on'
+    };
+    const detail = `${sr.enabled}/${sr.perm}/offline:${sr.allowOffline}`;
+    return run(locals, { action: 'spotify:sr', detail }, (s) => s.saveSr(sr));
   },
 
   redeemToggle: async ({ request, locals }) => {

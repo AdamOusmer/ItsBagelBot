@@ -9,7 +9,7 @@
   import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/shared';
+  import { Button, Field, EditorFooter, SettingRow, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/shared';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -145,23 +145,22 @@
     </select>
   </Field>
 
-  <div class="setrow {allowOff ? 'on' : ''}">
-    <div class="setrow-text">
-      <span class="setrow-label">{t('govee.allowOffLabel')}</span>
-      <span class="muted-text" id="govee-allowoff-desc">{t('govee.allowOffHint')}</span>
-    </div>
-    <Switch bind:checked={allowOff} label={t('govee.allowOffLabel')} describedby="govee-allowoff-desc" />
-  </div>
-  <input type="hidden" name="allow_off" value={allowOff ? 'on' : ''} />
+  <SettingRow
+    label={t('govee.allowOffLabel')}
+    description={t('govee.allowOffHint')}
+    bind:checked={allowOff}
+    name="allow_off"
+  />
 
-  <div class="setrow {liveOnly ? '' : 'warn'}">
-    <div class="setrow-text">
-      <span class="setrow-label">{t('govee.liveOnlyLabel')}</span>
-      <span class="muted-text" id="govee-liveonly-desc">{liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}</span>
-    </div>
-    <Switch bind:checked={liveOnly} label={t('govee.liveOnlyLabel')} describedby="govee-liveonly-desc" />
-  </div>
-  <input type="hidden" name="allow_offline" value={liveOnly ? '' : 'on'} />
+  <SettingRow
+    label={t('govee.liveOnlyLabel')}
+    description={liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}
+    warn={!liveOnly}
+    bind:checked={liveOnly}
+    name="allow_offline"
+    onValue=""
+    offValue="on"
+  />
 
   {#if binding}
     <div class="del-row">
@@ -183,8 +182,10 @@
   .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  /* Field owns label + wiring; strip its default bottom margin inside the grid. */
+  /* Field and SettingRow each own a bottom margin for standalone use; strip it
+     inside the grid, which already spaces every child via `gap`. */
   .editor :global(.field) { margin-bottom: 0; }
+  .editor :global(.setrow) { margin-bottom: 0; }
   .input {
     padding: 8px 12px;
     border-radius: 6px;
@@ -218,20 +219,6 @@
     flex: none;
   }
   .color-hex { font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-tan-light); text-transform: uppercase; }
-
-  .setrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-  }
-  .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
-  .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .setrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-  .setrow.warn .setrow-label { color: #d9a441; }
-  .muted-text { margin: 0; font-family: var(--bb-font-body); font-size: 12px; line-height: 1.5; color: var(--bb-muted); }
 
   .del-row { display: flex; }
 

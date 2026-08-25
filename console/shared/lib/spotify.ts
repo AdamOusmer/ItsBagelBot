@@ -19,6 +19,13 @@ export type SpotifySrPerm = (typeof SPOTIFY_SR_PERMS)[number];
 export interface SpotifySrConfig {
   enabled: boolean;
   perm: SpotifySrPerm;
+  /**
+   * Lifts the live-only gate so viewers can queue while the stream is offline.
+   * Stored as the opt-OUT (default false = live-only enforced) to match
+   * sesame's songqueueConfig.allowOffline and govee's flag of the same name;
+   * the dashboard renders its inverse as a "Live only" switch.
+   */
+  allowOffline: boolean;
 }
 
 // SpotifyReward mirrors the Twitch reward settings shown for song requests.
@@ -43,7 +50,7 @@ export interface SpotifyRedeemConfig {
 }
 
 export function blankSpotifySr(): SpotifySrConfig {
-  return { enabled: false, perm: 'everyone' };
+  return { enabled: false, perm: 'everyone', allowOffline: false };
 }
 
 export function blankSpotifyRedeem(): SpotifyRedeemConfig {
