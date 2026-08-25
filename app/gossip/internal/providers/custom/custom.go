@@ -460,7 +460,16 @@ func (p *api) shapeFetched(fl *flight, body []byte) ([]byte, time.Duration, erro
 // real fetch never returns. Empty makes the picker fall back to its paste box,
 // which is honest about what we could not supply.
 func sampleFor(fl *flight, body []byte) string {
-	if !fl.dryRun || len(body) > maxSampleBytes || !utf8.Valid(body) {
+	// One reason per line. These three refusals are unrelated — a chat request,
+	// an oversized body, a body that is not text — and reading them as a single
+	// condition hides that only the first is about permission at all.
+	if !fl.dryRun {
+		return ""
+	}
+	if len(body) > maxSampleBytes {
+		return ""
+	}
+	if !utf8.Valid(body) {
 		return ""
 	}
 	return string(body)

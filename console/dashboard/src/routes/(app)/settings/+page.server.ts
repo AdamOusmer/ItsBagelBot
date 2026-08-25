@@ -60,6 +60,28 @@ function ownerAction<R>(
   };
 }
 
+// readFetchKeys shapes the API-key section out of the one list read.
+//
+// The keys live on this page rather than beside the commands that spend them
+// because they are account-level secrets and this page is already owner-only.
+// Treated like notifications: a failed read shows an empty section instead of
+// flagging the whole page degraded, since every other section still works.
+//
+// fetchKeyRefs answers "what breaks if I delete this key" — the same read
+// supplies it, so naming the affected data sources costs nothing extra.
+function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_label: string }[]; keys: FetchKeyView[] }>): {
+  fetchKeys: FetchKeyView[];
+  fetchKeyRefs: Record<string, string[]>;
+} {
+  if (result.status !== 'fulfilled') return { fetchKeys: [], fetchKeyRefs: {} };
+  const fetchKeyRefs: Record<string, string[]> = {};
+  for (const def of result.value.defs) {
+    if (!def.key_label) continue;
+    (fetchKeyRefs[def.key_label] ??= []).push(def.name);
+  }
+  return { fetchKeys: result.value.keys, fetchKeyRefs };
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
   // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
   // page renders and is exercisable without OAuth + NATS.
@@ -108,21 +130,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
-  // API keys live here rather than beside the commands that use them: they are
-  // account-level secrets, and this page is already owner-only. Treated like
-  // notifications — a failed read shows an empty list instead of flagging the
-  // whole page degraded, since every other section still works without them.
-  const fetchKeys: FetchKeyView[] = fetchKeyResult.status === 'fulfilled' ? fetchKeyResult.value.keys : [];
-  // Which data sources bind each key, so deleting one can say what it breaks.
-  // The same list read supplies both, so this costs nothing extra.
-  const fetchKeyRefs: Record<string, string[]> = {};
-  if (fetchKeyResult.status === 'fulfilled') {
-    for (const d of fetchKeyResult.value.defs) {
-      if (!d.key_label) continue;
-      (fetchKeyRefs[d.key_label] ??= []).push(d.name);
-    }
-  }
-
   return {
     given,
     received,
@@ -130,8 +137,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     notifications,
     savedLocale,
     degraded,
-    fetchKeys,
-    fetchKeyRefs
+    ...readFetchKeys(fetchKeyResult)
   };
 };
 

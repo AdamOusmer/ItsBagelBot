@@ -294,6 +294,72 @@ async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDe
   }
 }
 
+// testRunThrottle returns the refusal message, or null to proceed. Demo never
+// spends the bucket: it dials nothing.
+async function testRunThrottle(uid: string): Promise<string | null> {
+  if (DEMO) return null;
+  const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
+  if (decision.allowed) return null;
+  return 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.';
+}
+
+// Fields that must be sound before we dial a third-party host for real. The
+// slug is not among them: the builder fetches a sample before the author has
+// named anything, so an unnamed draft is expected here and only here.
+const TEST_BLOCKING_FIELDS = ['url', 'path', 'kind', 'key_label'] as const;
+
+function testDraftError(def: DefForm): string | null {
+  const errors = validateFetchDef({
+    name: def.name || 'draft',
+    url: def.url,
+    kind: def.kind,
+    path: def.path,
+    keyLabel: def.keyLabel
+  });
+  if (!TEST_BLOCKING_FIELDS.some((field) => errors[field])) return null;
+  return firstError(errors) ?? 'Fix the highlighted fields first.';
+}
+
+// The token identity falls back to the key label, then to a placeholder, so an
+// unnamed draft still rehearses.
+function rehearsalName(def: DefForm): string {
+  if (def.name) return def.name;
+  const fromKey = normName(def.keyLabel);
+  if (fromKey) return fromKey;
+  return 'draft';
+}
+
+async function demoTestReply() {
+  const { demoFetchTestRun } = await import('$lib/server/demo-data');
+  const demo = demoFetchTestRun();
+  return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
+}
+
+// runRehearsal owns the dial and its error mapping. Returns null when gossip
+// did not answer; the caller turns that into the 502 so ActionData still sees
+// the fail() inside the action.
+async function runRehearsal(uid: string, def: DefForm) {
+  try {
+    const reply = await rehearseFetch(uid, {
+      name: rehearsalName(def),
+      url: def.url,
+      jsonPath: def.path,
+      keyLabel: def.keyLabel
+    });
+    return {
+      ok: true,
+      action: 'fetchtested',
+      status: reply.status,
+      values: reply.values,
+      ms: reply.ms,
+      sample: reply.sample
+    };
+  } catch (e) {
+    logger.error({ err: e }, '[commands] fetch testrun failed');
+    return null;
+  }
+}
+
 export const actions: Actions = {
   // Save a data source from the builder inside the command editor.
   savefetch: async (event) => {
@@ -375,48 +441,21 @@ export const actions: Actions = {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
 
-    if (!DEMO) {
-      const decision = await fetchTestLimiter.check(`fetchtest:${ctx.uid}`);
-      if (!decision.allowed)
-        return fail(429, {
-          ok: false,
-          error: 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.'
-        });
-    }
+    // Each step answers with a message or nothing, and the fail() stays here:
+    // SvelteKit infers ActionData from the fail() calls written inside the
+    // action, so the branching moves out but the refusals cannot.
+    const throttled = await testRunThrottle(ctx.uid);
+    if (throttled) return fail(429, { ok: false, error: throttled });
 
     const def = parseDefForm(ctx.form);
-    const errors = validateFetchDef({
-      name: def.name || 'draft',
-      url: def.url,
-      kind: def.kind,
-      path: def.path,
-      keyLabel: def.keyLabel
-    });
-    // A draft may not have its slug yet — the builder fetches a sample before
-    // the author has named anything. Everything else must be sound, because
-    // this is about to dial a third-party host for real.
-    if (errors.url || errors.path || errors.kind || errors.key_label) {
-      return fail(400, { ok: false, error: firstError(errors) ?? 'Fix the highlighted fields first.' });
-    }
+    const invalid = testDraftError(def);
+    if (invalid) return fail(400, { ok: false, error: invalid });
 
-    if (DEMO) {
-      const { demoFetchTestRun } = await import('$lib/server/demo-data');
-      const demo = demoFetchTestRun();
-      return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
-    }
+    if (DEMO) return demoTestReply();
 
-    try {
-      const reply = await rehearseFetch(ctx.uid, {
-        name: def.name || normName(def.keyLabel) || 'draft',
-        url: def.url,
-        jsonPath: def.path,
-        keyLabel: def.keyLabel
-      });
-      return { ok: true, action: 'fetchtested', status: reply.status, values: reply.values, ms: reply.ms, sample: reply.sample };
-    } catch (e) {
-      logger.error({ err: e }, '[commands] fetch testrun failed');
-      return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
-    }
+    const reply = await runRehearsal(ctx.uid, def);
+    if (!reply) return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
+    return reply;
   },
 
   save: async (event) => {
