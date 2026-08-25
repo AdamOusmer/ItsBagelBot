@@ -23,7 +23,7 @@
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
-  import ModuleCommandRow from '$lib/components/modules/ModuleCommandRow.svelte';
+  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -458,22 +458,14 @@
     </aside>
   </div>
 
-  <!-- Chat-commands reference: the same read-only rows the generic module
-       pages list, fed from the shared catalog def. -->
+  <!-- Chat-commands reference: the same ModuleCommandList the generic module
+       pages render, fed from the shared catalog def. -->
   {#if quoteCommands.length}
-    <section class="block cmd-block" aria-labelledby="quotes-cmds-h">
-      <div class="cmd-head">
-        <h2 id="quotes-cmds-h" class="block-title">{t('modules.commandsTitle')}</h2>
-        <span class="cmd-hint">{t('modules.commandsHint')}</span>
-      </div>
+    <div class="cmd-block">
       <DeckList>
-        <ul class="list" aria-label={t('modules.commandsTitle')}>
-          {#each quoteCommands as command, i (command.trigger)}
-            <li><ModuleCommandRow {command} index={i + 1} /></li>
-          {/each}
-        </ul>
+        <ModuleCommandList commands={quoteCommands} headingId="quotes-cmds-h" />
       </DeckList>
-    </section>
+    </div>
   {/if}
 </section>
 
@@ -531,10 +523,8 @@
     padding: 8px 10px;
   }
 
-  /* Chat-commands reference below the book. */
+  /* Chat-commands reference below the book (same ModuleCommandList as /modules/[id]). */
   .cmd-block { margin-top: 26px; }
-  .cmd-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .cmd-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   .toolbar-search { width: 220px; }
   .toolbar-search .search { width: 100%; }

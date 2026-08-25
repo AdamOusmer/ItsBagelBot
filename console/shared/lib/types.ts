@@ -526,7 +526,16 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     category: 'Community',
     defaultEnabled: false,
     href: '/loyalty',
-    replies: []
+    replies: [],
+    commands: [
+      { trigger: '!points', summary: 'Check your balance and watch time.' },
+      { trigger: '!points give @user 500', summary: "Give some of your own points to another viewer." },
+      { trigger: '!leaderboard', summary: "Show the channel's top standings." },
+      { trigger: '!points set @user 500', summary: "Set a viewer's balance.", perm: 'mod' },
+      { trigger: '!points add @user 500', summary: 'Grant points to a viewer.', perm: 'mod' },
+      { trigger: '!points remove @user 500', summary: 'Remove points from a viewer.', perm: 'mod' },
+      { trigger: '!counter', summary: 'Manage counters (also on the Counters page).', perm: 'mod' }
+    ]
   },
   {
     id: 'counters',
@@ -1583,7 +1592,23 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // The generic reply page cannot express OAuth custody + the reward editor,
     // so the tile opens the bespoke songqueue page instead.
     href: '/songqueue',
-    replies: []
+    replies: [],
+    // The engine registers one command (`sr`, aliases songrequest/songreq) and
+    // routes leading verbs. The ledger shows those verbs the way chat types
+    // them — !sr, !remove, !next, !clear — not the long spellings.
+    commands: [
+      {
+        trigger: '!sr',
+        summary: 'Show now playing, or queue a track by name, artist – song, or Spotify link.'
+      },
+      { trigger: '!remove', summary: 'Take back your queued request, or drop a position as a mod.' },
+      {
+        trigger: '!next',
+        summary: 'Mark the current track played and promote the next.',
+        perm: 'mod'
+      },
+      { trigger: '!clear', summary: 'Empty the queue.', perm: 'mod' }
+    ]
   }
 ];
 
