@@ -119,6 +119,12 @@ export interface ModuleDef {
   // Plain non-reply settings (rendered in the settings strip). Optional; the
   // current modules have none beyond their master enable + per-reply toggles.
   settings?: ModuleField[];
+  // parent is the catalog id this module nests under. Nested modules do not
+  // get their own index tile or an independent master switch: they appear as
+  // compact rows on the parent's page, because they cannot run unless the
+  // parent is on (gamble/duel spend the loyalty ledger). The generic
+  // /modules/[id] inspector still configures their unique knobs and replies.
+  parent?: string;
   // href overrides the tile's link when a module needs a bespoke inspector
   // instead of the generic /modules/[id] reply page (govee's device + reward
   // setup). Absent for the ordinary reply-configured modules.

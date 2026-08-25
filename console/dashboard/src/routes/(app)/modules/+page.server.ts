@@ -3,11 +3,12 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { ModuleState } from '@bagel/shared';
-import { MODULE_CATALOG, moduleDef } from '@bagel/shared';
+import { MODULE_CATALOG, catalogIndexable, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
+import { disableChildren } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -42,7 +43,7 @@ function asConfig(raw: unknown): Record<string, string> {
 // such a tile would only bounce off the route guard. Owners see everything.
 function merge(rows: ModuleView[], session: Session | null | undefined): ModuleState[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
-  return MODULE_CATALOG.filter((def) => !def.hidden && delegateCanOpen(def, session)).map((def) => {
+  return MODULE_CATALOG.filter((def) => catalogIndexable(def) && delegateCanOpen(def, session)).map((def) => {
     const row = byName.get(def.id);
     return {
       def,
@@ -74,7 +75,7 @@ type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
 
 function resolveToggle(name: string, session: Session | null | undefined): ToggleTarget {
   const def = moduleDef(name);
-  if (!def || def.toggleable === false) return { denied: fail(400, { ok: false, error: 'Unknown module.' }) };
+  if (!def || def.toggleable === false || def.parent) return { denied: fail(400, { ok: false, error: 'Unknown module.' }) };
   if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
   return { uid: effectiveId(session) };
 }
@@ -121,6 +122,9 @@ async function flipModule(
     const rows = await listModules(uid);
     const config = rows.find((r) => r.name === name)?.configs;
     await upsertModule(uid, name, enabled, config);
+    // Nested games cannot outlive their parent: flipping loyalty off from
+    // this tile must clear gamble/duel too, matching the loyalty page toggle.
+    if (!enabled) await disableChildren(uid, name);
   } catch (e) {
     logger.error({ err: e }, `[modules] toggle ${name} failed`);
     return fail(400, { ok: false });

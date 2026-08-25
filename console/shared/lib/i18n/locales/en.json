@@ -687,7 +687,12 @@
     "permAdjustHint": "Mods may run !points add/remove @user <amount> to shift a balance up or down.",
     "permTransfers": "Viewer-to-viewer transfers",
     "permTransfersHint": "!points give @user <amount> moves the sender's own points. Applies to mods and viewers alike.",
-    "countersLink": "Manage counters"
+    "countersLink": "Manage counters",
+    "gamesTitle": "Spend games",
+    "gamesHint": "Gamble and duels spend this currency. Odds and chat lines stay on each game’s page — this is just the on-switch.",
+    "gamesNeedsOn": "Turn loyalty on before these games can run.",
+    "gameSetup": "Set up",
+    "toastGameToggleFailed": "Could not update {label}."
   },
   "rewardCounter": {
     "enable": "Keep a counter",
@@ -893,6 +898,8 @@
   },
   "modules": {
     "breadcrumbLabel": "Breadcrumb",
+    "nestedUnder": "This game spends {parent}. Turn it on from there — it cannot run on its own.",
+    "nestedUnderLink": "Open {parent}",
     "moduleStatus": "Module status",
     "disabledNote": "This module is off. The settings and replies below stay editable and take effect as soon as you turn it on.",
     "settingsTitle": "Settings",

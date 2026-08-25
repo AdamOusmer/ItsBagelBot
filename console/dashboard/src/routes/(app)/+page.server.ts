@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { CommandView } from '@bagel/shared/types';
-import { MODULE_CATALOG } from '@bagel/shared/types';
+import { MODULE_CATALOG, catalogIndexable } from '@bagel/shared/types';
 import {
   hasGrant,
   accountState,
@@ -179,7 +179,7 @@ function commandDigest(uid: string): Promise<CommandDigest> {
 }
 
 function moduleDigest(uid: string): Promise<ModuleDigest> {
-  const visibleCatalog = MODULE_CATALOG.filter((m) => !m.hidden);
+  const visibleCatalog = MODULE_CATALOG.filter((m) => catalogIndexable(m));
   return listModules(uid)
     .then((rows) => {
       const byName = new Map(rows.map((row) => [row.name, row]));
