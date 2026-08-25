@@ -31,7 +31,8 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Icon, Modal, getI18n, portal, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
+  import { Button, Icon, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
+  import PickerPanel from '$lib/components/PickerPanel.svelte';
   import JsonTree from './JsonTree.svelte';
 
   const { t } = getI18n();
@@ -55,46 +56,15 @@
   /** Failure text for the popover itself (delete refusals), not the builder. */
   let panelErr = $state('');
 
-  // Fixed coords computed from the trigger rect on open. The chip lives inside
-  // the command editor's InspectorSurface, which sets `overflow: hidden` to clip
-  // its own scroller — an absolutely-positioned panel is silently eaten by it.
-  // Portalling to <body> and positioning fixed is the same escape hatch
-  // InspectorSurface itself uses for its mobile sheet.
-  let pos = $state({ top: 0, left: 0 });
-  const PANEL_W = 300;
-  const PANEL_H = 340;
-  const GAP = 8;
-
-  function place() {
-    if (!btnEl) return;
-    const r = btnEl.getBoundingClientRect();
-    const left = r.right + GAP + PANEL_W <= window.innerWidth ? r.right + GAP : Math.max(GAP, r.left - GAP - PANEL_W);
-    pos = { top: Math.max(GAP, Math.min(r.top, window.innerHeight - GAP - PANEL_H)), left };
-  }
-
   function toggle() {
     open = !open;
     if (!open) return;
-    // Clear on open, not on close: the scroll/resize handler closes without
-    // going through here, so an armed delete could otherwise still be primed
-    // the next time the popover appears.
+    // Clear on open, not on close: PickerPanel closes on scroll/outside-click
+    // without going through here, so an armed delete could otherwise still be
+    // primed the next time the popover appears.
     armedDelete = '';
     panelErr = '';
-    place();
   }
-
-  // Coords are a snapshot, so movement invalidates them. Closing beats
-  // re-placing: the panel is transient and a drifting popover reads as a bug.
-  $effect(() => {
-    if (!open) return;
-    const close = () => (open = false);
-    window.addEventListener('scroll', close, { capture: true, passive: true });
-    window.addEventListener('resize', close, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', close, { capture: true });
-      window.removeEventListener('resize', close);
-    };
-  });
 
   function tokenFor(name: string): string {
     return `{urlfetch:${name}}`;
@@ -282,15 +252,15 @@
     <span class="caret" aria-hidden="true">▾</span>
   </button>
 
-  {#if open}
-    <div
-      class="panel"
-      data-overlay
-      role="dialog"
-      aria-label={t('fetches.pickerExistingTitle')}
-      style="top: {pos.top}px; left: {pos.left}px"
-      use:portal
-    >
+  <PickerPanel
+    {open}
+    anchor={btnEl}
+    label={t('fetches.pickerExistingTitle')}
+    width={300}
+    maxHeight={340}
+    onClose={() => (open = false)}
+  >
+    {#snippet children()}
       <p class="panel-title">{t('fetches.pickerExistingTitle')}</p>
       {#if defs.length === 0}
         <p class="mut">{t('fetches.builderNoneYet')}</p>
@@ -323,8 +293,8 @@
       {:else}
         <button type="button" class="new" onclick={openBuilder}>{t('fetches.builderNew')}</button>
       {/if}
-    </div>
-  {/if}
+    {/snippet}
+  </PickerPanel>
 </div>
 
 <Modal open={building} title={t('fetches.builderTitle')} busy={creating} closeModal={() => (building = false)}>
@@ -439,22 +409,6 @@
   }
   .caret { font-size: 9px; opacity: 0.7; }
 
-  .panel {
-    position: fixed;
-    z-index: 300;
-    width: 300px;
-    max-height: 340px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    background: var(--bb-bg-1, #111);
-    border: 1px solid var(--bb-border);
-    border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  }
-  :global(:root[data-theme='light']) .panel { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
 
   .panel-title {
     margin: 0;

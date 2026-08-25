@@ -694,6 +694,7 @@
     "liveOnlyHint": "Les échanges hors ligne répondent dans le chat, mais ne comptent pas et n’accordent pas de points."
   },
   "counters": {
+    "pickerTarget": "Par utilisateur mentionn\u00e9",
     "increaseAria": "Augmenter {name}",
     "decreaseAria": "Diminuer {name}",
     "deleteAria": "Supprimer {name}",
