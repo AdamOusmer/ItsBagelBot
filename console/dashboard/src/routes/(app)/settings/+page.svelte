@@ -648,7 +648,12 @@
   }
 
   @media (max-width: 760px) {
-    .row { flex-direction: column; align-items: stretch; }
+    /* Stack the label above its control, but keep the control at its natural
+       width: stretching turned the language switch and every action button
+       into a full-row bar. The taller min-height keeps them comfortable to
+       tap without the visual weight of a stretched button. */
+    .row { flex-direction: column; align-items: flex-start; }
+    .row :global(.btn) { min-height: 44px; }
     .grant-top { flex-direction: column; align-items: flex-start; }
     .grant-link { flex-direction: column; align-items: stretch; }
     .grant-link :global(.btn) { justify-content: center; min-height: 44px; }

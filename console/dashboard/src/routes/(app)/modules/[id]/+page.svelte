@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply, MOD } from '@bagel/shared';
+  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, type ModuleField, type ModuleReply, MOD } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -17,6 +17,7 @@
   // A module with no editable replies (its lines are fixed system text, e.g. the
   // play queue) shows only its read-only command list — no builder inspector.
   const hasReplies = $derived(def.replies.length > 0);
+  const parentDef = $derived(def.parent ? moduleDef(def.parent) : undefined);
 
   // Draft: module enable + the flat config map. Seeded from the load and reseeded
   // when navigating to a different module (component reuse across [id] routes).
@@ -511,9 +512,18 @@
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
-  <!-- Module status + master switch. The state is spelled out (On/Off) beside the
-       switch, never colour alone. Toggling keeps main's optimistic field-level
-       patch, so this stays the page's own Switch. -->
+  {#if parentDef}
+    <AlertBanner variant="warn" icon="coin">
+      {t('modules.nestedUnder', { parent: parentDef.label })}
+      {#snippet action()}
+        <ButtonLink href={parentDef.href ?? `/modules/${parentDef.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: parentDef.label })}</ButtonLink>
+      {/snippet}
+    </AlertBanner>
+  {/if}
+
+  <!-- Nested games are armed from the parent page. A second master switch here
+       would reintroduce the independent-on bug this fold exists to close. -->
+  {#if !def.parent}
   <Card style="padding:0" class="settings-card">
     <div class="master-row">
       <div class="tr-text">
@@ -535,6 +545,7 @@
       <p class="disabled-note">{t('modules.disabledNote')}</p>
     {/if}
   </Card>
+  {/if}
 
   <!-- General settings. Each field auto-saves on change through main's field-level
        patch (only the changed key posts under optimistic concurrency). -->

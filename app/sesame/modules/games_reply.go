@@ -4,8 +4,10 @@
 package modules
 
 import (
+	"context"
 	"strings"
 
+	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
@@ -44,6 +46,35 @@ func newGameReplier(c *module.Context, pointsName string) gameReplier {
 		pointsName = "points"
 	}
 	return gameReplier{c: c, points: pointsName}
+}
+
+// loyaltyVoice is the currency word the wager games speak, and the runtime
+// half of "gamble/duel cannot run without loyalty". The dashboard is the
+// authoring half (nested toggles refuse to enable while loyalty is off).
+//
+// A nil projector skips the enable check: every existing game test wires
+// Loyalty/Duel without Proj, and adding a fake projector to each one would
+// only restate this gate. Production always has Proj. When Proj is set, an
+// off or missing loyalty module makes the game inert even if its own row
+// is still enabled (a stale flip, a forged write). The name always comes
+// from loyalty when it is on, so a leftover pointsName on the game blob
+// cannot drift from the ledger word.
+func loyaltyVoice(ctx context.Context, d engine.Deps, c *module.Context, fallback string) (name string, ok bool) {
+	if d.Proj == nil {
+		return firstNonEmpty(strings.TrimSpace(fallback), "points"), true
+	}
+	cfg, on := engine.ReadLoyaltyConfig(ctx, d.Proj, c.BroadcasterID)
+	if !on {
+		return "", false
+	}
+	return cfg.Name(), true
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // reply emits one chat line. override is the broadcaster's customized

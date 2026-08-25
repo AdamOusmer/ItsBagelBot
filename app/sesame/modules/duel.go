@@ -58,7 +58,7 @@ type duelConfig struct {
 	MaxStake         int64  `json:"maxStake"`         // default 1000
 	PotSeconds       int64  `json:"potSeconds"`       // default 60
 	ChallengeSeconds int64  `json:"challengeSeconds"` // default 120
-	PointsName       string `json:"pointsName"`       // currency word in money lines
+	PointsName       string `json:"pointsName"`       // leftover in stored blobs; voice now comes from loyalty
 	OpenedMessage    string `json:"openedMessage"`    // i18n duel.opened
 	JoinMessage      string `json:"joinMessage"`      // i18n duel.joined
 	WonMessage       string `json:"wonMessage"`       // i18n duel.won
@@ -81,15 +81,19 @@ type duelClamps struct {
 }
 
 // newDuelCmd assembles the shared state for one invocation. ok=false means
-// the duel store is absent (module inert).
-func newDuelCmd(d engine.Deps, c *module.Context, log *zap.Logger) (dc duelCmd, ok bool) {
+// the duel store is absent or the loyalty currency is off (module inert).
+func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.Logger) (dc duelCmd, ok bool) {
 	if d.Duel == nil {
 		return duelCmd{}, false
 	}
 	var raw duelConfig
 	_ = c.Decode(&raw)
+	points, on := loyaltyVoice(ctx, d, c, raw.PointsName)
+	if !on {
+		return duelCmd{}, false
+	}
 	dc = duelCmd{
-		gameReplier: newGameReplier(c, raw.PointsName),
+		gameReplier: newGameReplier(c, points),
 		s:           d.Duel,
 		c:           c,
 		cfg: duelClamps{
@@ -122,7 +126,7 @@ func maxOr(maxV, floor, def int64) int64 {
 
 func duelRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		dc, ok := newDuelCmd(d, c, log)
+		dc, ok := newDuelCmd(ctx, d, c, log)
 		if !ok {
 			return nil
 		}
