@@ -19,6 +19,8 @@ import {
   userLocale,
   type NotificationWire
 } from '$lib/server/services';
+import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
+import { KEY_VALUE_MAX, slugifyName } from '@bagel/shared';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/shared/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
@@ -69,7 +71,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: d.demoSavedLocale,
-      degraded: false
+      degraded: false,
+      fetchKeys: d.demoFetches().keys,
+      fetchKeyRefs: { weather_api: ['weather'] }
     };
   }
 
@@ -84,11 +88,12 @@ export const load: PageServerLoad = async ({ locals }) => {
   let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult, notifResult, localeResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
-    userLocale(self)
+    userLocale(self),
+    listFetches(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
@@ -103,10 +108,96 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
-  return { given, received, grantableSections: [...SECTIONS], notifications, savedLocale, degraded };
+  // API keys live here rather than beside the commands that use them: they are
+  // account-level secrets, and this page is already owner-only. Treated like
+  // notifications — a failed read shows an empty list instead of flagging the
+  // whole page degraded, since every other section still works without them.
+  const fetchKeys: FetchKeyView[] = fetchKeyResult.status === 'fulfilled' ? fetchKeyResult.value.keys : [];
+  // Which data sources bind each key, so deleting one can say what it breaks.
+  // The same list read supplies both, so this costs nothing extra.
+  const fetchKeyRefs: Record<string, string[]> = {};
+  if (fetchKeyResult.status === 'fulfilled') {
+    for (const d of fetchKeyResult.value.defs) {
+      if (!d.key_label) continue;
+      (fetchKeyRefs[d.key_label] ??= []).push(d.name);
+    }
+  }
+
+  return {
+    given,
+    received,
+    grantableSections: [...SECTIONS],
+    notifications,
+    savedLocale,
+    degraded,
+    fetchKeys,
+    fetchKeyRefs
+  };
 };
 
 export const actions: Actions = {
+  // Seal (or rotate) an API key under a label. The value crosses here once and
+  // is never logged, cached, or echoed back — the reply carries last4 only, and
+  // the audit trail names the label alone.
+  setfetchkey: async ({ request, locals }) => {
+    const s = locals.session;
+    const form = await request.formData();
+    const label = slugifyName(String(form.get('label') ?? ''));
+    const value = String(form.get('value') ?? '');
+
+    const errors: Record<string, string> = {};
+    if (!label) errors.label = 'Label is required.';
+    else if (label.length > 32) errors.label = 'Label must be at most 32 characters.';
+    if (!value.trim()) errors.value = 'Key value is required.';
+    else if (value.length > KEY_VALUE_MAX) errors.value = `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+    if (Object.keys(errors).length) return fail(400, { ok: false, errors, error: Object.values(errors)[0] });
+
+    if (DEMO) {
+      const d = await import('$lib/server/demo-data');
+      const current = d.demoFetches();
+      const keys = [
+        ...current.keys.filter((k) => k.label !== label),
+        { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
+      ];
+      return { ok: true, action: 'fetchkeyset', name: label, fetchKeys: keys };
+    }
+    if (!s) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (s.delegate_of) return fail(403, { ok: false, error: 'Only the account owner can do that.' });
+
+    try {
+      const last4 = await setFetchKey({ userId: s.user_id, label, value });
+      const fresh = await listFetches(s.user_id);
+      auditDashboardImpersonation(s, 'fetchkey:set', label);
+      return { ok: true, action: 'fetchkeyset', name: label, last4, fetchKeys: fresh.keys };
+    } catch {
+      return fail(502, { ok: false, error: 'Could not seal the key.' });
+    }
+  },
+
+  // Key delete. Always allowed server-side: data sources bound to a dangling
+  // label fail closed until relinked, which is the safe direction. No undo —
+  // the sealed value is destroyed.
+  delfetchkey: async ({ request, locals }) => {
+    const s = locals.session;
+    const label = slugifyName(String((await request.formData()).get('label') ?? ''));
+
+    if (DEMO) {
+      const d = await import('$lib/server/demo-data');
+      return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: d.demoFetches().keys.filter((k) => k.label !== label) };
+    }
+    if (!s) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (s.delegate_of) return fail(403, { ok: false, error: 'Only the account owner can do that.' });
+
+    try {
+      await deleteFetchKey({ userId: s.user_id, label });
+      const fresh = await listFetches(s.user_id);
+      auditDashboardImpersonation(s, 'fetchkey:delete', label);
+      return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: fresh.keys };
+    } catch {
+      return fail(502, { ok: false, error: 'Could not delete the key.' });
+    }
+  },
+
   // markRead lives here (not on a dedicated notifications page) because the
   // bell dropdown and the Settings section are the only notification surfaces.
   markRead: async ({ request, locals }) => {

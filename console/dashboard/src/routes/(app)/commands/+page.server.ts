@@ -12,9 +12,16 @@ import {
   firstError,
   BUILTIN_COMMANDS,
   BUILTIN_NAMES,
-  builtinDef
+  builtinDef,
+  DEFS_PER_BROADCASTER,
+  parseJsonPath,
+  slugifyName,
+  validateFetchDef,
+  type FetchDefErrors
 } from '@bagel/shared';
+import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { listFetches, upsertFetchDef, deleteFetchDef, rehearseFetch } from '$lib/server/fetches-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
@@ -82,16 +89,24 @@ export const load: PageServerLoad = async ({ locals }) => {
   gateCommands(locals.session);
   const uid = effectiveId(locals.session);
   if (DEMO) {
-    const { demoCommandRows } = await import('$lib/server/demo-data');
-    return { commands: mergeCommands(demoCommandRows, []) };
+    const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
+    return { commands: mergeCommands(demoCommandRows, []), ...demoFetches() };
   }
   try {
-    const [custom, modules] = await Promise.all([listCommands(uid), listModules(uid).catch(() => [])]);
-    return { commands: mergeCommands(custom, modules) };
+    // Fetch definitions ride the command list because the data-source picker
+    // lives inside the command editor now; there is no separate page to load
+    // them. Their failure is isolated so a gossip outage costs you the picker,
+    // not the ability to edit commands at all.
+    const [custom, modules, fetches] = await Promise.all([
+      listCommands(uid),
+      listModules(uid).catch(() => []),
+      listFetches(uid).catch(() => ({ defs: [], keys: [] }))
+    ]);
+    return { commands: mergeCommands(custom, modules), ...fetches };
   } catch {
     // Don't show fabricated rows in production; surface a degraded state.
     // Built-ins still render (their defaults) so the list is never empty.
-    return { commands: mergeCommands([], []), degraded: true };
+    return { commands: mergeCommands([], []), defs: [], keys: [], degraded: true };
   }
 };
 
@@ -220,7 +235,193 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
   };
 }
 
+// Each test run dials a third-party host for real, so it gets its own bucket
+// rather than sharing a command-save allowance: 6 back-to-back attempts, then a
+// refill of one per ten seconds. Same numbers the standalone fetches page used;
+// moving the UI into the command editor does not make the upstream cheaper.
+const fetchTestLimiter = new ValkeyRateLimiter({ name: 'fetchtest', capacity: 6, refillPerSec: 0.1 });
+
+interface DefForm {
+  name: string;
+  url: string;
+  kind: 'plain' | 'json';
+  path: string[];
+  keyLabel: string;
+  isEdit: boolean;
+  originalName: string;
+  /** Edit + a distinct non-empty original slug: rename detection rides on the
+   * parsed draft so validator, store call and reply all read one field. */
+  renamed: boolean;
+}
+
+// parseDefForm reads the builder's submission; normalization mirrors the client
+// (slugifyName) so the optimistic UI key agrees with what lands.
+//
+// No is_active is parsed: the pause toggle is gone from the UI, so every
+// definition the builder writes is active. The field still exists in the store
+// and the projection, which is why the write below hard-codes true instead of
+// dropping it — a def saved without it would read back as paused and silently
+// stop resolving.
+function parseDefForm(f: FormData): DefForm {
+  const kindRaw = String(f.get('kind') ?? 'plain');
+  const pathRaw = String(f.get('path') ?? '');
+  const name = slugifyName(String(f.get('name') ?? ''));
+  const originalName = slugifyName(String(f.get('original_name') ?? ''));
+  return {
+    name,
+    url: String(f.get('url') ?? '').trim(),
+    kind: kindRaw === 'json' ? 'json' : 'plain',
+    path: kindRaw === 'json' ? (parseJsonPath(pathRaw.trim()) ?? []) : [],
+    keyLabel: slugifyName(String(f.get('key_label') ?? '')),
+    isEdit: f.get('edit') === '1',
+    originalName,
+    renamed: f.get('edit') === '1' && originalName !== '' && originalName !== name
+  };
+}
+
+// Courtesy pre-read ahead of the service's own synchronous enforcement (COUNT
+// before insert, unique (user_id,name)): our list can be a beat stale, Go owns
+// truth. Assigns onto errors.name so a collision message outranks a field error.
+async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDefErrors): Promise<void> {
+  if (DEMO) return;
+  const fresh = await tryRpc('fetch-pre-check', () => listFetches(uid));
+  if (!fresh.ok) return;
+  const existsElsewhere = fresh.value.defs.some((d) => d.name === def.name && d.name !== def.originalName);
+  if (existsElsewhere) {
+    errors.name = `A data source named "${def.name}" already exists.`;
+  } else if (!fresh.value.defs.some((d) => d.name === def.name) && fresh.value.defs.length >= DEFS_PER_BROADCASTER) {
+    errors.name = `At most ${DEFS_PER_BROADCASTER} data sources per channel.`;
+  }
+}
+
 export const actions: Actions = {
+  // Save a data source from the builder inside the command editor.
+  savefetch: async ({ request, locals }) => {
+    gateCommands(locals.session);
+    if (!DEMO && !locals.session) return notSignedIn();
+    const uid = effectiveId(locals.session);
+    const def = parseDefForm(await request.formData());
+
+    // Shared validator: the client builder runs these exact checks, so this is
+    // the authoritative re-check rather than a duplicate of a different shape.
+    const errors: FetchDefErrors = validateFetchDef({
+      name: def.name,
+      url: def.url,
+      kind: def.kind,
+      path: def.path,
+      keyLabel: def.keyLabel
+    });
+    await precheckFetchConflicts(uid, def, errors);
+    if (Object.keys(errors).length) {
+      return fail(400, { ok: false, errors, error: firstError(errors) });
+    }
+
+    if (DEMO) {
+      const { demoFetches } = await import('$lib/server/demo-data');
+      const current = demoFetches();
+      const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
+      defs.push({ name: def.name, url: def.url, json_path: def.path, is_active: true, key_label: def.keyLabel });
+      return { ok: true, action: 'fetchsaved', name: def.name, defs, keys: current.keys };
+    }
+
+    const res = await tryRpc('savefetch', () =>
+      upsertFetchDef(uid, {
+        name: def.name,
+        url: def.url,
+        jsonPath: def.path,
+        isActive: true,
+        keyLabel: def.keyLabel,
+        originalName: def.renamed ? def.originalName : undefined
+      })
+    );
+    if (!res.ok) return fail(400, { ok: false });
+
+    auditDashboardImpersonation(locals.session, def.isEdit ? 'fetchdef:update' : 'fetchdef:create', def.name);
+    return { ok: true, action: 'fetchsaved', name: def.name, defs: res.value.defs, keys: res.value.keys };
+  },
+
+  // The service refuses while any command response still references
+  // `{urlfetch:<name>}`; the client only pre-warns.
+  deletefetch: async ({ request, locals }) => {
+    gateCommands(locals.session);
+    if (!DEMO && !locals.session) return notSignedIn();
+    const uid = effectiveId(locals.session);
+    const name = slugifyName(String((await request.formData()).get('name') ?? ''));
+
+    if (DEMO) {
+      const { demoFetches } = await import('$lib/server/demo-data');
+      const current = demoFetches();
+      return { ok: true, action: 'fetchdeleted', name, defs: current.defs.filter((d) => d.name !== name), keys: current.keys };
+    }
+
+    const res = await tryRpc('deletefetch', () => deleteFetchDef({ userId: uid, name }));
+    if (!res.ok) return fail(400, { ok: false });
+
+    auditDashboardImpersonation(locals.session, 'fetchdef:delete', name);
+    const fresh = await tryRpc('deletefetch-refresh', () => listFetches(uid));
+    return {
+      ok: true,
+      action: 'fetchdeleted',
+      name,
+      defs: fresh.ok ? fresh.value.defs : [],
+      keys: fresh.ok ? fresh.value.keys : []
+    };
+  },
+
+  // Rehearsal dry-run: executes the REAL chat path (same gossip subject, SSRF
+  // gate, buckets) with DryRun+Fresh and the posted draft inline as Def. Returns
+  // the raw body as `sample` so the builder can render a clickable tree — that
+  // is the whole point of the call for a non-technical author, who otherwise
+  // has to paste a response by hand. Nothing is persisted.
+  testfetch: async ({ request, locals }) => {
+    gateCommands(locals.session);
+    if (!DEMO && !locals.session) return notSignedIn();
+    const uid = effectiveId(locals.session);
+
+    if (!DEMO) {
+      const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
+      if (!decision.allowed)
+        return fail(429, {
+          ok: false,
+          error: 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.'
+        });
+    }
+
+    const def = parseDefForm(await request.formData());
+    const errors = validateFetchDef({
+      name: def.name || 'draft',
+      url: def.url,
+      kind: def.kind,
+      path: def.path,
+      keyLabel: def.keyLabel
+    });
+    // A draft may not have its slug yet — the builder fetches a sample before
+    // the author has named anything. Everything else must be sound, because
+    // this is about to dial a third-party host for real.
+    if (errors.url || errors.path || errors.kind || errors.key_label) {
+      return fail(400, { ok: false, error: firstError(errors) ?? 'Fix the highlighted fields first.' });
+    }
+
+    if (DEMO) {
+      const { demoFetchTestRun } = await import('$lib/server/demo-data');
+      const demo = demoFetchTestRun();
+      return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
+    }
+
+    try {
+      const reply = await rehearseFetch(uid, {
+        name: def.name || normName(def.keyLabel) || 'draft',
+        url: def.url,
+        jsonPath: def.path,
+        keyLabel: def.keyLabel
+      });
+      return { ok: true, action: 'fetchtested', status: reply.status, values: reply.values, ms: reply.ms, sample: reply.sample };
+    } catch (e) {
+      logger.error({ err: e }, '[commands] fetch testrun failed');
+      return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
+    }
+  },
+
   save: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();

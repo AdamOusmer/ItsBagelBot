@@ -33,6 +33,7 @@
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
   import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
+  import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { loadDraft, clearDraft, hasDraft, type CommandDraft } from '$lib/components/commands/drafts';
@@ -57,6 +58,25 @@
     if (data.commands !== seed) {
       seed = data.commands;
       items = data.commands ?? [];
+    }
+  });
+
+  // Data sources for the {urlfetch:…} palette chip. Held locally so the builder
+  // can hand back the server's refreshed list after a create or delete without
+  // invalidating the whole page — the command draft in the open editor would be
+  // lost to a reload, and losing an unsaved reply to add a data source is
+  // exactly the interruption this redesign removes.
+  // Annotated rather than inferred: the load's degraded branch returns a bare
+  // `[]`, which infers as never[] and makes the builder's refreshed list
+  // unassignable on the way back in.
+  // svelte-ignore state_referenced_locally
+  let fetchDefs = $state<SourceDef[]>(data.defs ?? []);
+  // svelte-ignore state_referenced_locally
+  let defsSeed = data.defs;
+  $effect(() => {
+    if (data.defs !== defsSeed) {
+      defsSeed = data.defs;
+      fetchDefs = data.defs ?? [];
     }
   });
 
@@ -695,7 +715,9 @@
         <Icon name="search" size={15} />
         <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
       </label>
-      <ButtonLink href="/commands/fetches" variant="ghost"><Icon name="link" size={14} /> {t('commands.fetchDefs')}</ButtonLink>
+      <!-- No "Fetch definitions" link any more: data sources are created from
+           the {urlfetch:…} chip inside the command editor, where they are used.
+           Their API keys live in Settings. -->
       <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
         <Icon name="plus" size={14} /> {t('commands.newCommand')}
       </button>
@@ -772,6 +794,9 @@
               status={footerStatus()}
               dirty={isDirty}
               canSave={isDirty && editorDraft.name.trim().length > 0}
+              {fetchDefs}
+              fetchKeys={data.keys ?? []}
+              onFetchDefsChanged={(next) => (fetchDefs = next)}
               onCancel={closeEditor}
               onSubmit={saveSubmit}
             />
