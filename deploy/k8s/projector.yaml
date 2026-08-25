@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1787603663-a1c27f889ca7@sha256:9fe036f8a6530a3c544b1038c726430f71a815dc8f32f9985ecc580eb49f6b3b # {"$imagepolicy": "flux-system:projector"}
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1787628494-8c32b708fb7f@sha256:1319da299a30295c03cc050bb239787a4b8acb2480df35e44c3c3d754a704e0b
           imagePullPolicy: IfNotPresent
           env:
             # The lane catalog is partition-gated; the projector reconciles the
