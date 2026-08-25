@@ -261,13 +261,30 @@ type loyaltyCmd struct {
 // repair.
 const pointsAdjustMax = 100_000_000
 
+// boundedAmount parses a grant or transfer amount, bounded by pointsAdjustMax
+// so a typo cannot warp a balance beyond repair. positiveOnly is the transfer
+// rule: a viewer moves points they hold, so a negative "gift" that would debit
+// the recipient is not a transfer. Shared because the grant and transfer verbs
+// were each spelling the parse and the bound out as one four-operand
+// conditional.
+func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
+	v, err := strconv.ParseInt(amount, 10, 64)
+	if err != nil || v > pointsAdjustMax || v < -pointsAdjustMax {
+		return 0, false
+	}
+	if positiveOnly && v <= 0 {
+		return 0, false
+	}
+	return v, true
+}
+
 // pointsAdjust runs one mod grant: "!points set/add @user <n>". The target is
 // addressed by login; the loyalty service resolves it against the balances it
 // has seen, so a viewer with no accrual yet cannot be granted (they get a row
 // the moment they chat while live, sub, or cheer).
 func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, absolute bool) error {
-	value, err := strconv.ParseInt(amount, 10, 64)
-	if err != nil || value > pointsAdjustMax || value < -pointsAdjustMax {
+	value, ok := boundedAmount(amount, false)
+	if !ok {
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
@@ -316,13 +333,13 @@ func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
 func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enabled bool) error {
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
-	value, err := strconv.ParseInt(amount, 10, 64)
-	if err != nil || value <= 0 || value > pointsAdjustMax || !enabled {
-		key := "loyalty.points.give.usage"
-		if !enabled {
-			key = "loyalty.points.disabled"
-		}
-		lc.reply(key, "name", cfg.Name())
+	if !enabled {
+		lc.reply("loyalty.points.disabled", "name", cfg.Name())
+		return nil
+	}
+	value, ok := boundedAmount(amount, true)
+	if !ok {
+		lc.reply("loyalty.points.give.usage", "name", cfg.Name())
 		return nil
 	}
 	login := strings.ToLower(strings.TrimPrefix(target, "@"))
