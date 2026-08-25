@@ -694,6 +694,7 @@
     "liveOnlyHint": "Offline redeems still reply in chat, but don’t count or grant points."
   },
   "counters": {
+    "pickerTarget": "Per user they mention",
     "increaseAria": "Increase {name}",
     "decreaseAria": "Decrease {name}",
     "deleteAria": "Delete {name}",
