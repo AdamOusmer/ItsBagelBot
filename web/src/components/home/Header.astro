@@ -4,6 +4,7 @@
 
 import { getLangFromUrl, useTranslations, defaultLang } from '../../i18n/ui';
 import ScrollCue from './ScrollCue.astro';
+import HomeLightField from './HomeLightField.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -11,6 +12,12 @@ const t = useTranslations(lang);
 
 
 <header>
+
+    <!-- Motes sit under the ring and the orbs, matching the console's /login
+         hero where the same field renders behind its .bg layer. -->
+    <div class="starfield" aria-hidden="true">
+        <HomeLightField />
+    </div>
 
     <div class="bg" aria-hidden="true">
         <div class="bg-ring">
@@ -205,6 +212,20 @@ const t = useTranslations(lang);
        base rules and silently lost the cascade. */
     .split {
         display: contents;
+    }
+
+    /* z-index -1 keeps the field behind .bg (which is z-index auto) without
+       reordering the markup, and the wrapper carries the fade because scoped
+       styles cannot reach into HomeLightField's own canvas rule. Fades on the
+       same curve as .header-material so the motes leave with the hero instead
+       of drifting over the section beneath it. */
+    .starfield {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
+        will-change: var(--hero-content-will-change, opacity);
     }
 
     .bg {
