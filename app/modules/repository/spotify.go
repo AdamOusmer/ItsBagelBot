@@ -102,7 +102,7 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 		return errors.New("empty spotify refresh token")
 	}
 
-	sealed, err := s.packer.Pack([]byte(refreshToken), spotifyAAD(userID))
+	sealed, err := s.packer.Pack([]byte(refreshToken), spotifyAAD(userID, fieldToken))
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp
 		return errors.New("spotify client id and secret are both required")
 	}
 
-	sealed, err := s.packer.Pack([]byte(clientSecret), spotifyAppAAD(userID))
+	sealed, err := s.packer.Pack([]byte(clientSecret), spotifyAAD(userID, fieldApp))
 	if err != nil {
 		return err
 	}
@@ -166,19 +166,6 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp
 // produce confusing 400s at the next exchange.
 func (s *SpotifyCreds) ClearApp(ctx context.Context, userID uint64) error {
 	return s.ClearToken(ctx, userID)
-}
-
-// App unseals the broadcaster's application credentials. Returns
-// ErrNoSpotifyApp when none are on file.
-func (s *SpotifyCreds) App(ctx context.Context, userID uint64) (SpotifyApp, error) {
-	row, err := s.tokenRow(ctx, userID)
-	if errors.Is(err, ErrNoSpotifyToken) {
-		return SpotifyApp{}, ErrNoSpotifyApp
-	}
-	if err != nil {
-		return SpotifyApp{}, err
-	}
-	return appFromRow(s.packer, userID, row)
 }
 
 // AppClientID reports whether the broadcaster has pasted their Spotify
@@ -215,11 +202,11 @@ func (s *SpotifyCreds) Credentials(ctx context.Context, userID uint64) (SpotifyS
 	if err != nil {
 		return SpotifySetup{}, err
 	}
-	app, err := appFromRow(s.packer, userID, row)
+	app, err := s.appFromRow(row)
 	if err != nil {
 		return SpotifySetup{}, err
 	}
-	token, err := s.tokenFromRow(userID, row)
+	token, err := s.tokenFromRow(row)
 	if errors.Is(err, ErrNoSpotifyToken) {
 		return SpotifySetup{App: app}, nil
 	}
@@ -229,16 +216,18 @@ func (s *SpotifyCreds) Credentials(ctx context.Context, userID uint64) (SpotifyS
 	return SpotifySetup{App: app, RefreshToken: token}, nil
 }
 
-// tokenFromRow unseals the refresh token off an already-loaded row. A row that
-// carries an application but no grant yet (credentials pasted, connect flow
-// unfinished) is ErrNoSpotifyToken, not a bad seal.
-func (s *SpotifyCreds) tokenFromRow(userID uint64, row *ent.SpotifyCredential) (string, error) {
+// tokenFromRow unseals the refresh token off an already-loaded row. The row
+// carries its own owner, so the AAD is derived from it rather than from an id
+// passed alongside — one fewer way to unseal against the wrong user. A row
+// that carries an application but no grant yet (credentials pasted, connect
+// flow unfinished) is ErrNoSpotifyToken, not a bad seal.
+func (s *SpotifyCreds) tokenFromRow(row *ent.SpotifyCredential) (string, error) {
 	if len(row.TokenEnc) == 0 {
 		return "", ErrNoSpotifyToken
 	}
 	plain, err := s.packer.Unpack(domaincrypto.SecureEnvelope{
 		Ciphertext:   row.TokenEnc,
-		AttachedData: spotifyAAD(userID),
+		AttachedData: spotifyAAD(row.UserID, fieldToken),
 	})
 	if err != nil {
 		return "", err
@@ -246,15 +235,16 @@ func (s *SpotifyCreds) tokenFromRow(userID uint64, row *ent.SpotifyCredential) (
 	return string(plain), nil
 }
 
-// appFromRow unseals the application secret off an already-loaded row, mapping
-// a row that carries no application to ErrNoSpotifyApp.
-func appFromRow(packer domaincrypto.Packer, userID uint64, row *ent.SpotifyCredential) (SpotifyApp, error) {
+// appFromRow unseals the application off an already-loaded row — same
+// owner-from-the-row rule as tokenFromRow — mapping a row that carries no
+// application to ErrNoSpotifyApp.
+func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error) {
 	if row.ClientID == "" || len(row.ClientSecretEnc) == 0 {
 		return SpotifyApp{}, ErrNoSpotifyApp
 	}
-	plain, err := packer.Unpack(domaincrypto.SecureEnvelope{
+	plain, err := s.packer.Unpack(domaincrypto.SecureEnvelope{
 		Ciphertext:   row.ClientSecretEnc,
-		AttachedData: spotifyAppAAD(userID),
+		AttachedData: spotifyAAD(row.UserID, fieldApp),
 	})
 	if err != nil {
 		return SpotifyApp{}, err
@@ -343,22 +333,26 @@ func (s *SpotifyCreds) Token(ctx context.Context, userID uint64) (string, error)
 	if err != nil {
 		return "", err
 	}
-	return s.tokenFromRow(userID, row)
+	return s.tokenFromRow(row)
 }
 
-// spotifyAppAAD binds the application-secret ciphertext to its owner AND to
-// the column it lives in: the label differs from spotifyAAD so a token
-// envelope copied into client_secret_enc (or the reverse) fails to open.
-func spotifyAppAAD(userID uint64) []byte {
-	aad := make([]byte, 0, 20+len("|spotify_app"))
-	aad = strconv.AppendUint(aad, userID, 10)
-	aad = append(aad, "|spotify_app"...)
-	return aad
-}
+// spotifyField names which of the row's two sealed columns an envelope
+// belongs to. It is a type rather than a bare string so the two labels cannot
+// be passed interchangeably, which is the whole point of them differing.
+type spotifyField string
 
-func spotifyAAD(userID uint64) []byte {
-	aad := make([]byte, 0, 20+len("|spotify_token"))
+const (
+	fieldToken spotifyField = "|spotify_token"
+	fieldApp   spotifyField = "|spotify_app"
+)
+
+// spotifyAAD binds a ciphertext to its owner AND to the column it lives in:
+// the field label is part of the associated data, so an envelope copied
+// between token_enc and client_secret_enc — or onto another user's row — fails
+// to open.
+func spotifyAAD(userID uint64, field spotifyField) []byte {
+	aad := make([]byte, 0, 20+len(field))
 	aad = strconv.AppendUint(aad, userID, 10)
-	aad = append(aad, "|spotify_token"...)
+	aad = append(aad, field...)
 	return aad
 }

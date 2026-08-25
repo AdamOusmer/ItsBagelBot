@@ -19,14 +19,14 @@ import (
 	"ItsBagelBot/pkg/env"
 )
 
-// spotifyWiring bundles what wireSpotify needs beyond the subject prefixes
-// (which it reads from the environment itself): the RPC connection, the token
-// store, the shared queue group, and the New Relic app + logger.
 // spotifyRPCTimeout bounds one custody handler. Every verb here answers from
 // this service's own database with no upstream hop, so the budget is the same
 // on all of them.
 const spotifyRPCTimeout = 3 * time.Second
 
+// spotifyWiring bundles what wireSpotify needs beyond the subject prefixes
+// (which it reads from the environment itself): the RPC connection, the token
+// store, the shared queue group, and the New Relic app + logger.
 type spotifyWiring struct {
 	nc         *nats.Conn
 	creds      *repository.SpotifyCreds
@@ -91,23 +91,23 @@ type spotifyRPC struct {
 // the Twitch id as a string, and anything unparseable is a caller bug.
 const errNumericUserID = "user_id must be numeric"
 
-// userID parses the wire id. The bool, rather than an error, is what lets each
+// spotifyUserID parses the wire id. The bool, rather than an error, is what lets each
 // handler spell its own reply envelope in one line — the four envelopes on
 // these subjects differ, the parse does not.
-func userID(raw string) (uint64, bool) {
+func spotifyUserID(raw string) (uint64, bool) {
 	id, err := strconv.ParseUint(raw, 10, 64)
 	return id, err == nil
 }
 
-// mutate runs one custody write and maps BOTH of its failure modes onto the
+// spotifyMutate runs one custody write and maps BOTH of its failure modes onto the
 // shared ack envelope. Every write verb on these subjects — set, clear, and
 // the two application verbs — is this shape and nothing else, so it is written
 // once here rather than four times with four chances to drift.
 //
 // No error is ever echoed with a secret in it: the writes take their
 // plaintexts as arguments and fail on validation or sealing.
-func mutate(raw string, write func(uint64) error) spotifyrpc.RefreshTokenMutateReply {
-	id, ok := userID(raw)
+func spotifyMutate(raw string, write func(uint64) error) spotifyrpc.RefreshTokenMutateReply {
+	id, ok := spotifyUserID(raw)
 	if !ok {
 		return spotifyrpc.RefreshTokenMutateReply{Error: errNumericUserID}
 	}
@@ -118,15 +118,15 @@ func mutate(raw string, write func(uint64) error) spotifyrpc.RefreshTokenMutateR
 }
 
 func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest) spotifyrpc.RefreshTokenMutateReply {
-	return mutate(req.UserID, func(id uint64) error { return s.creds.SetToken(ctx, id, req.RefreshToken) })
+	return spotifyMutate(req.UserID, func(id uint64) error { return s.creds.SetToken(ctx, id, req.RefreshToken) })
 }
 
 func (s *spotifyRPC) handleClear(ctx context.Context, req spotifyrpc.RefreshTokenClearRequest) spotifyrpc.RefreshTokenMutateReply {
-	return mutate(req.UserID, func(id uint64) error { return s.creds.ClearToken(ctx, id) })
+	return spotifyMutate(req.UserID, func(id uint64) error { return s.creds.ClearToken(ctx, id) })
 }
 
 func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTokenStatusRequest) spotifyrpc.RefreshTokenStatusReply {
-	id, ok := userID(req.UserID)
+	id, ok := spotifyUserID(req.UserID)
 	if !ok {
 		return spotifyrpc.RefreshTokenStatusReply{Error: errNumericUserID}
 	}
@@ -137,26 +137,19 @@ func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTok
 	return spotifyrpc.RefreshTokenStatusReply{Present: present}
 }
 
+// handleRotate persists a refresh token Spotify replaced mid-exchange. Its
+// error never carries a token either: validation, seal or staleness.
 func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTokenRotateRequest) spotifyrpc.RefreshTokenMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := s.creds.RotateToken(ctx, id, req.PrevToken, req.NewToken); err != nil {
-		// Never carries a token: validation, seal or staleness.
-		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
-	}
-	return spotifyrpc.RefreshTokenMutateReply{}
+	return spotifyMutate(req.UserID, func(id uint64) error {
+		return s.creds.RotateToken(ctx, id, req.PrevToken, req.NewToken)
+	})
 }
 
-// handleGet answers gossip with the broadcaster's whole credential set. A
-// broadcaster with no application of their own is an empty reply, not an
-// error: gossip turns that into "set up Spotify in the console".
 // handleGet answers gossip with the broadcaster's whole credential set. A
 // broadcaster with nothing set up is an empty reply, not an error: gossip
 // turns that into "set up Spotify in the console".
 func (s *spotifyRPC) handleGet(ctx context.Context, req spotifyrpc.RefreshTokenGetRequest) spotifyrpc.RefreshTokenGetReply {
-	id, ok := userID(req.UserID)
+	id, ok := spotifyUserID(req.UserID)
 	if !ok {
 		return spotifyrpc.RefreshTokenGetReply{Error: errNumericUserID}
 	}
@@ -175,7 +168,7 @@ func (s *spotifyRPC) handleGet(ctx context.Context, req spotifyrpc.RefreshTokenG
 }
 
 func (s *spotifyRPC) handleAppSet(ctx context.Context, req spotifyrpc.AppSetRequest) spotifyrpc.RefreshTokenMutateReply {
-	return mutate(req.UserID, func(id uint64) error {
+	return spotifyMutate(req.UserID, func(id uint64) error {
 		return s.creds.SetApp(ctx, id, repository.SpotifyApp{
 			ClientID:     req.ClientID,
 			ClientSecret: req.ClientSecret,
@@ -184,14 +177,14 @@ func (s *spotifyRPC) handleAppSet(ctx context.Context, req spotifyrpc.AppSetRequ
 }
 
 func (s *spotifyRPC) handleAppClear(ctx context.Context, req spotifyrpc.AppClearRequest) spotifyrpc.RefreshTokenMutateReply {
-	return mutate(req.UserID, func(id uint64) error { return s.creds.ClearApp(ctx, id) })
+	return spotifyMutate(req.UserID, func(id uint64) error { return s.creds.ClearApp(ctx, id) })
 }
 
 // handleAppStatus reports the application by its client id alone — the store
 // hands back nothing else on this path, so the secret cannot reach a
 // dashboard-facing subject even by mistake.
 func (s *spotifyRPC) handleAppStatus(ctx context.Context, req spotifyrpc.AppStatusRequest) spotifyrpc.AppStatusReply {
-	id, ok := userID(req.UserID)
+	id, ok := spotifyUserID(req.UserID)
 	if !ok {
 		return spotifyrpc.AppStatusReply{Error: errNumericUserID}
 	}

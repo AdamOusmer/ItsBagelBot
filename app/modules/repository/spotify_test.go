@@ -150,10 +150,10 @@ func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
 
 	require.NoError(t, creds.SetApp(ctx, 2001, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
 
-	app, err := creds.App(ctx, 2001)
+	setup, err := creds.Credentials(ctx, 2001)
 	require.NoError(t, err)
-	assert.Equal(t, "client-abc", app.ClientID)
-	assert.Equal(t, "secret-xyz", app.ClientSecret)
+	assert.Equal(t, "client-abc", setup.App.ClientID)
+	assert.Equal(t, "secret-xyz", setup.App.ClientSecret)
 
 	// The client id is public (it rides the authorize URL) and stays readable;
 	// the secret must not sit in the column in the clear.
@@ -167,7 +167,7 @@ func TestSpotifyAppMissing(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	_, err := creds.App(ctx, 2002)
+	_, err := creds.Credentials(ctx, 2002)
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
 
 	clientID, err := creds.AppClientID(ctx, 2002)
