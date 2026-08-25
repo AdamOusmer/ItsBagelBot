@@ -439,6 +439,21 @@
     "fetchDefs": "Fetch definitions"
   },
   "fetches": {
+    "builderNew": "+ New data source",
+    "builderNoneYet": "No data sources yet.",
+    "builderTitle": "Add a data source",
+    "builderIntro": "Point it at any web API, fetch one real response, then click the value you want to show in chat.",
+    "builderUrl": "Web address",
+    "builderFetch": "Fetch a sample",
+    "builderFetching": "Fetching…",
+    "builderNoSample": "We reached the API but could not read its response automatically. Paste one below instead.",
+    "builderPasteInstead": "or paste a response instead",
+    "builderPickPrompt": "Click the value you want to show in chat.",
+    "builderPicked": "Showing",
+    "builderWholeResponse": "Use the whole response instead",
+    "builderWholeSelected": "Showing the whole response.",
+    "builderCreate": "Add source",
+    "builderCreating": "Adding…",
     "eyebrow": "Manage",
     "titlePre": "Fetch ",
     "titleEm": "definitions",
@@ -679,6 +694,7 @@
     "liveOnlyHint": "Offline redeems still reply in chat, but don’t count or grant points."
   },
   "counters": {
+    "pickerTarget": "Per user they mention",
     "increaseAria": "Increase {name}",
     "decreaseAria": "Decrease {name}",
     "deleteAria": "Delete {name}",
@@ -1036,6 +1052,8 @@
     "done": "Done"
   },
   "commandEditor": {
+    "pickCounter": "Counter",
+    "pickDataSource": "Data source",
     "name": "Name",
     "namePlaceholder": "!command",
     "renameHint": "The trigger viewers type in chat. Renaming keeps the response and settings.",
