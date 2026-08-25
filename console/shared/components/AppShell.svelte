@@ -88,7 +88,8 @@
     margin: 0 auto;
   }
 
-  /* impersonation/delegate offset for the fixed banner */
+  /* impersonation/delegate offset for the fixed banner; the pill topbar keeps
+     its own 10px float below the banner. */
   .app.offset { box-sizing: border-box; padding-top: 44px; min-height: 100vh; }
-  .app.offset :global(.topbar) { top: 44px; }
+  .app.offset :global(.topbar) { top: calc(54px + env(safe-area-inset-top, 0px)); }
 </style>

@@ -44,6 +44,19 @@ type LoyaltyModuleConfig struct {
 	CheerPointsPer100 int64 `json:"cheerPointsPer100"`
 	// WatchPointsPerTick per watch tick (see watchTickInterval) while live.
 	WatchPointsPerTick int64 `json:"watchPointsPerTick"`
+	// Granular chat permissions over the mutating loyalty verbs, so a
+	// broadcaster can hand moderators exactly as much power as they want.
+	// Zero keeps the historical default (the capability is on — every mod
+	// could already set/add points before this field existed); a negative
+	// value switches it off, mirroring the rates' negative-means-off
+	// convention. The broadcaster's own commands are never gated by these.
+	// ModSetPoints gates "!points set <user> <n>" (absolute writes).
+	ModSetPoints int `json:"modSetPoints"`
+	// ModAdjustPoints gates "!points add|remove <user> <±n>" (delta writes).
+	ModAdjustPoints int `json:"modAdjustPoints"`
+	// ViewerTransfers gates "!points give @user <n>" — everyone's verb for
+	// moving their OWN points, mods included.
+	ViewerTransfers int `json:"viewerTransfers"`
 }
 
 // maxRate caps any configured points rate. Downstream math multiplies rates
@@ -87,6 +100,14 @@ func (c LoyaltyModuleConfig) EffectiveCheerPointsPer100() int64 {
 func (c LoyaltyModuleConfig) EffectiveWatchPointsPerTick() int64 {
 	return rate(c.WatchPointsPerTick, defaultWatchPointsPerTick)
 }
+
+// capabilityOn applies the toggle convention: zero (or any positive value,
+// for a dashboard that writes 1) means on, a negative means off.
+func capabilityOn(v int) bool { return v >= 0 }
+
+func (c LoyaltyModuleConfig) ModsMaySetPoints() bool    { return capabilityOn(c.ModSetPoints) }
+func (c LoyaltyModuleConfig) ModsMayAdjustPoints() bool { return capabilityOn(c.ModAdjustPoints) }
+func (c LoyaltyModuleConfig) ViewersMayTransfer() bool  { return capabilityOn(c.ViewerTransfers) }
 
 // TierMultiplier scales sub/resub points by the EventSub tier ("1000",
 // "2000", "3000"), mirroring the going rate of a tier's price.

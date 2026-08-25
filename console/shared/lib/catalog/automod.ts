@@ -13,7 +13,6 @@ export const AUTOMOD_MODULE: ModuleDef =
   icon: 'moderation',
   category: 'Moderation',
   defaultEnabled: true,
-  hidden: true,
   // AutoMod is pure configuration: no chat reply lines, only the settings strip.
   replies: [],
   settings: [
@@ -64,6 +63,12 @@ export const AUTOMOD_MODULE: ModuleDef =
       type: 'toggle',
       followsLevel: true,
       help: 'Watches for the same link template posted by many different accounts and removes the wave. Single links are never touched.'
+    },
+    {
+      key: 'clips_only',
+      label: 'Twitch clips only',
+      type: 'toggle',
+      help: 'Removes messages that contain any link other than a Twitch clip (clips.twitch.tv/… or twitch.tv/…/clip/…). Off by default: turn on when chat should only share clips.'
     },
     {
       key: 'block_terms',

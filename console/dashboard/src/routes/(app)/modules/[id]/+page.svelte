@@ -7,7 +7,7 @@
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
-  import ModuleCommandRow from '$lib/components/modules/ModuleCommandRow.svelte';
+  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
 
   let { data } = $props();
@@ -681,17 +681,7 @@
           </ul>
         {/if}
 
-        {#if def.commands?.length}
-          <div class="section-head cmd-head">
-            <h2 class="section-title">{t('modules.commandsTitle')}</h2>
-            <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
-          </div>
-          <ul class="list" aria-label={t('modules.commandsTitle')}>
-            {#each def.commands as command, i (command.trigger)}
-              <li><ModuleCommandRow {command} index={i + 1} /></li>
-            {/each}
-          </ul>
-        {/if}
+        <ModuleCommandList commands={def.commands ?? []} />
       </DeckList>
 
       {#if hasInspector && editing}
@@ -883,7 +873,4 @@
   .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
   .rh-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  /* Read-only command list header stacks its title and hint. */
-  .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 </style>

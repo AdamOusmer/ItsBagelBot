@@ -36,6 +36,7 @@ type loyaltyRPC struct {
 //	<prefix>.balance.set    {user_id, viewer_login, value}  -> {balance, found}
 //	<prefix>.balance.add    {user_id, viewer_login, value}  -> {balance, found}
 //	<prefix>.balance.spend  {user_id, viewer_login, value}  -> {balance, found, spent}
+//	<prefix>.balance.transfer {user_id, viewer_id, viewer_login, value} -> {balance, target_balance, found, spent}
 //	<prefix>.top.get        {user_id, limit}                -> {top}
 //	<prefix>.counter.get    {user_id, name[, viewer_id, command]} -> {counter, found}
 //	<prefix>.counter.create {user_id, name, scope}          -> {counter}
@@ -60,6 +61,7 @@ func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup strin
 		{"balance.set", l.handleBalanceSet},
 		{"balance.add", l.handleBalanceAdd},
 		{"balance.spend", l.handleBalanceSpend},
+		{"balance.transfer", l.handleBalanceTransfer},
 		{"top.get", l.handleTopGet},
 		{"counter.get", l.handleCounterGet},
 		{"counter.create", l.handleCounterCreate},
@@ -185,6 +187,36 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 		return loyaltyrpc.Reply{Found: false}
 	}
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
+}
+
+// handleBalanceTransfer backs "!points give @user <n>": the chatter's own
+// points move to the target. The sender is addressed by id (the chat envelope
+// always carries it) and the recipient by login, mirroring the grant verbs.
+// spent=true means the move happened (Balance = sender after, TargetBalance =
+// recipient after); found=false means the channel never accrued for the
+// target; spent=false with found=true means insufficient points.
+func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, viewerID, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
+	}
+	if viewerID == 0 {
+		return loyaltyrpc.Reply{Error: "invalid viewer_id"}
+	}
+	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, Amount: req.Value})
+	if err != nil {
+		return l.fail("loyalty balance.transfer", err)
+	}
+	if !found || out == nil {
+		return loyaltyrpc.Reply{Found: false}
+	}
+	sent := loyaltyrpc.Reply{Balance: balanceView(out.From)}
+	sent.Found = true
+	sent.Spent = out.To != nil
+	if out.To != nil {
+		sent.TargetBalance = balanceView(out.To)
+	}
+	return sent
 }
 
 func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

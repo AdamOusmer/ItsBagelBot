@@ -5,10 +5,8 @@
 import logoImage from "../../assets/LogoBOT.png";
 import {Image} from "astro:assets";
 
-import Button     from '../ui/Buttons/SecondaryButton.astro';
 import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
-import TextLink   from '../ui/TextLink.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import { getLangFromUrl, useTranslations, localizePath, defaultLang } from '../../i18n/ui';
 
@@ -34,19 +32,25 @@ const isActive = (href: string) =>
 <nav class="site-nav" aria-label={t('nav.primary')}>
     <div class="site-nav__inner">
         <a class="logo" href={homeHref} aria-label={t('nav.home')} data-home-logo>
-            <Image src={logoImage} alt="" width={35} height={35} loading="eager" fetchpriority="high"/>
+            <Image src={logoImage} alt="" width={26} height={26} loading="eager" fetchpriority="high"/>
             <span>ItsBagelBot</span>
         </a>
 
         <ul class="links" aria-label={t('nav.primary')}>
             {links.map((link) => (
-                <li><TextLink href={link.href} label={link.label} active={isActive(link.href)}/></li>
+                <li>
+                    <a
+                        class:list={["nav-link", { "is-active": isActive(link.href) }]}
+                        href={link.href}
+                        aria-current={isActive(link.href) ? "page" : undefined}
+                    >{link.label}</a>
+                </li>
             ))}
         </ul>
 
         <div class="button">
             <LanguageSwitcher />
-            <Button href={cta.href} label={cta.label}/>
+            <a class="cta" href={cta.href}>{cta.label}<span aria-hidden="true"> →</span></a>
         </div>
 
         <Hamburger />
@@ -291,37 +295,77 @@ const isActive = (href: string) =>
 </script>
 
 <style>
+    /* Floating pill (2b): the wrapper is a transparent positioning band that
+       never eats clicks; the pill itself carries the glass. --nav-height and
+       --nav-offset stay as the reserved band other components pad against. */
     .site-nav {
         font-family: var(--font-display, "Syne", sans-serif);
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        /* Grow up into the notch so the blurred bar paints the safe area; the
-           top padding pushes the button row back down to its normal band. */
-        height: calc(var(--nav-height, 76px) + env(safe-area-inset-top, 0px));
-        padding-top: env(safe-area-inset-top, 0px);
-        padding-bottom: 0;
-        padding-inline: max(24px, 4vw, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-        border-bottom: var(--border) 1px solid;
+        padding-top: calc(14px + env(safe-area-inset-top, 0px));
+        padding-inline: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
         z-index: 50;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .site-nav__inner {
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) minmax(0, auto) minmax(150px, 1fr);
+        align-items: center;
+        gap: 24px;
+        width: min(100%, 1000px);
+        padding: 9px 12px 9px 18px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(10, 10, 10, 0.55);
         /* Standard property only, never hand-write -webkit-backdrop-filter:
            Chrome 151 dropped the alias, and the minifier dedupes the pair to
            whichever is last, which shipped prefixed-only CSS and killed the
            blur in every Chromium browser. Lightning CSS re-adds the prefix
            itself when build targets need it. */
-        backdrop-filter: blur(12px);
-        background: rgba(10, 10, 10, 0.7);
+        backdrop-filter: blur(18px);
+        pointer-events: auto;
     }
 
-    .site-nav__inner {
-        display: grid;
-        grid-template-columns: minmax(170px, 1fr) minmax(0, auto) minmax(170px, 1fr);
-        align-items: center;
-        gap: 24px;
-        width: min(100%, 1180px);
-        height: 100%;
-        margin: 0 auto;
+    .nav-link {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        text-decoration: none;
+        color: rgba(240, 236, 228, 0.5);
+        padding: 6px 2px;
+        white-space: nowrap;
+        transition: color 0.2s;
+    }
+
+    .nav-link:hover,
+    .nav-link.is-active {
+        color: var(--white);
+    }
+
+    .cta {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        text-decoration: none;
+        padding: 9px 18px;
+        border-radius: 999px;
+        background: var(--green, #2d6a4f);
+        border: 1px solid #40916c;
+        color: var(--white);
+        white-space: nowrap;
+        transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .cta:hover {
+        background: #40916c;
+        box-shadow: 0 0 24px rgba(82, 183, 136, 0.35);
     }
 
     .logo {
@@ -337,8 +381,8 @@ const isActive = (href: string) =>
     .logo span {
         font-family: var(--font-display, "Syne", sans-serif);
         font-weight: 700;
-        font-size: 1.2rem;
-        letter-spacing: 0;
+        font-size: 0.95rem;
+        letter-spacing: -0.01em;
         color: var(--white);
         white-space: nowrap;
     }
@@ -359,10 +403,6 @@ const isActive = (href: string) =>
         align-items: center;
     }
 
-    ul.links li :global(.text-link) {
-        min-height: 32px;
-    }
-
     .button {
         display: flex;
         justify-content: flex-end;
@@ -376,52 +416,31 @@ const isActive = (href: string) =>
     }
 
     @media (max-width: 1120px) {
-        .site-nav {
-            padding-inline: max(28px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-        }
-
         .site-nav__inner {
-            grid-template-columns: minmax(155px, 1fr) minmax(0, auto) minmax(150px, 1fr);
-            gap: 18px;
+            grid-template-columns: minmax(140px, 1fr) minmax(0, auto) minmax(140px, 1fr);
+            gap: 16px;
         }
 
         ul.links {
-            gap: 20px;
+            gap: 18px;
             padding-inline: 1rem;
         }
 
-        .logo span {
-            font-size: 1.08rem;
-        }
-
-        .button :global(a) {
-            padding-inline: 16px;
+        .cta {
+            padding-inline: 14px;
         }
     }
 
     @media (max-width: 1023px) {
-        .site-nav {
-            padding-inline: max(24px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-        }
-
         .site-nav__inner {
             grid-template-columns: 1fr auto;
             gap: 16px;
+            padding: 7px 10px 7px 16px;
         }
 
         ul.links,
         .button {
             display: none;
-        }
-    }
-
-    @media (max-width: 420px) {
-        .site-nav {
-            padding-inline: max(18px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-        }
-
-        .logo span {
-            font-size: 1rem;
         }
     }
 </style>

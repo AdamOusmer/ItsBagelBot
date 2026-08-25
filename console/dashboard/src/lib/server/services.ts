@@ -41,6 +41,7 @@ export const SUB = {
   gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'bagel.rpc.gossip',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
   goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX || 'bagel.rpc.modules.govee',
+  spotifyKey: process.env.NATS_MODULES_SPOTIFY_SUBJECT_PREFIX || 'bagel.rpc.modules.spotify',
   audit: process.env.NATS_ADMIN_AUDIT_SUBJECT_PREFIX || 'bagel.rpc.admin.user.audit',
   delegation: process.env.NATS_DELEGATION_SUBJECT_PREFIX || 'bagel.rpc.delegation',
   notifications: process.env.NATS_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.notifications',

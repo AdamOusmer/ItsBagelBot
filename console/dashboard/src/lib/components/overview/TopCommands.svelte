@@ -4,7 +4,10 @@
   // Established accounts: the most-used commands, each a compact ledger line. The
   // section owns its <h2>; the card title role is folded into it so the heading
   // order stays h1 -> h2 with no decorative h3 in between.
-  import { Card, Icon, getI18n, type CommandView } from '@bagel/shared';
+  import Card from '@bagel/shared/components/Card.svelte';
+  import Icon from '@bagel/shared/components/Icon.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import type { CommandView } from '@bagel/shared/types';
 
   const { t } = getI18n();
 

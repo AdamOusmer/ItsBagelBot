@@ -8,6 +8,7 @@ import { ClientRouter } from 'astro:transitions';
 import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
+import SocialRail from '../components/layout/SocialRail.astro'
 import Brackets from '../components/ui/Brackets.astro'
 import ReadingProgress from '../components/ui/ReadingProgress.astro'
 import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations } from '../i18n/ui';
@@ -228,6 +229,7 @@ const contentSecurityPolicy = [
         <slot/>
     </main>
     <Nav/>
+    <SocialRail/>
     <ReadingProgress/>
     <Brackets/>
     <Footer/>

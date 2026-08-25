@@ -150,6 +150,17 @@ export interface FetchTestReply {
   status: FetchTestStatus;
   values: string[];
   ms: number;
+  /**
+   * Raw upstream body, present only because this call sets DryRun — gossip
+   * attaches it so the field picker can render a clickable tree of the real
+   * response instead of asking a non-technical author to paste one.
+   *
+   * Empty whenever gossip declined to supply it (body over its cap, or not
+   * valid UTF-8), which is a normal outcome, not an error: the picker falls
+   * back to its paste box. Never assume this is populated just because status
+   * is 'ok'.
+   */
+  sample: string;
 }
 
 // Just over gossip's custom.fetch budget so this RPC never abandons a fetch
@@ -179,6 +190,8 @@ interface RawRehearsalReply {
   values?: string[];
   MS?: number;
   ms?: number;
+  Sample?: string;
+  sample?: string;
   error?: string;
 }
 
@@ -206,5 +219,11 @@ function parsedRehearsalReply(r: RawRehearsalReply): FetchTestReply {
     ? (raw as FetchTestStatus)
     : 'upstream_error';
   const values = r.values ?? r.Values ?? [];
-  return { status, values: Array.isArray(values) ? values.map(String) : [], ms: r.ms ?? r.MS ?? 0 };
+  const sample = r.sample ?? r.Sample ?? '';
+  return {
+    status,
+    values: Array.isArray(values) ? values.map(String) : [],
+    ms: r.ms ?? r.MS ?? 0,
+    sample: typeof sample === 'string' ? sample : ''
+  };
 }

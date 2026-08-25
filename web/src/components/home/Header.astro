@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, defaultLang } from '../../i18n/ui';
 import ScrollCue from './ScrollCue.astro';
+import HomeLightField from './HomeLightField.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -11,6 +12,12 @@ const t = useTranslations(lang);
 
 
 <header>
+
+    <!-- Motes sit under the ring and the orbs, matching the console's /login
+         hero where the same field renders behind its .bg layer. -->
+    <div class="starfield" aria-hidden="true">
+        <HomeLightField />
+    </div>
 
     <div class="bg" aria-hidden="true">
         <div class="bg-ring">
@@ -45,25 +52,44 @@ const t = useTranslations(lang);
             <span class="eyebrow__text">{t('hero.topText')}</span>
         </a>
 
-        <h1>
-            <span class="tan">{t('hero.title1')}</span>
-            <span>{t('hero.title2')}</span>
-            <span class="green">{t('hero.title3')}</span>
-        </h1>
+        <div class="split">
+            {/* Each line is split into glyph spans so the intro can roll them
+                in one by one; the full title lives in aria-label and the
+                visual lines are hidden from AT. */}
+            <h1 aria-label={`${t('hero.title1')} ${t('hero.title2')} ${t('hero.title3')}`} data-hero-title>
+                {[
+                    { text: t('hero.title1'), cls: 'tan' },
+                    { text: t('hero.title2'), cls: '' },
+                    { text: t('hero.title3'), cls: 'green' },
+                ].map((line) => (
+                    <span class:list={['line', line.cls]} aria-hidden="true" data-hero-line>
+                        {Array.from(line.text).map((glyph) => (
+                            <span class="glyph" data-hero-glyph>{glyph === ' ' ? ' ' : glyph}</span>
+                        ))}
+                    </span>
+                ))}
+            </h1>
 
+            <div class="aside">
+                <p>
+                    {t('hero.lede')}
+                </p>
 
-        <p>
-            {t('hero.lede')}
-        </p>
+                <!-- Trust signals as bare mono text, not pills: bordered chips under
+                     the lede competed with the h1, and each fact has a full section
+                     further down anyway. The import line stays a whisper on purpose —
+                     it only needs to tell switchers the door exists. -->
+                <div class="facts">
+                    <span>{t('hero.badge1')}</span>
+                    <span>{t('hero.badge2')}</span>
+                    <span>{t('hero.badge3')}</span>
+                    <span>{t('hero.badge4')}</span>
+                </div>
 
-        <div class="badges">
-
-            <span>{t('hero.badge1')}</span>
-            <span>{t('hero.badge2')}</span>
-            <span>{t('hero.badge3')}</span>
-            <span>{t('hero.badge4')}</span>
-            <span>{t('hero.badge5')}</span>
-
+                <a class="migrate" href={`https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`}>
+                    {t('hero.migrateText')}<span class="migrate__arrow" aria-hidden="true">→</span>
+                </a>
+            </div>
         </div>
     </div>
 
@@ -71,6 +97,78 @@ const t = useTranslations(lang);
 
 </header>
 
+<script>
+    import { animate, stagger, cubicBezier } from "motion";
+
+    // Title intro: each line's glyphs roll up out of a per-line mask with a
+    // slight tilt and a blur that burns off; the trailing period on every line
+    // pops in last with a back-eased overshoot and a one-shot glow. CSS keeps
+    // glyphs hidden pre-intro only under (scripting: enabled) and
+    // (prefers-reduced-motion: no-preference), so no-JS and reduced-motion
+    // visitors get the static headline with zero flash.
+    const LINE_DELAY_BASE = 0.35;
+    const LINE_DELAY_STEP = 0.16;
+    const GLYPH_STAGGER = 0.024;
+    const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
+    const easeBackOut = cubicBezier(0.34, 1.56, 0.64, 1);
+
+    function heroTitleIntro(): void {
+        const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
+        if (!h1 || h1.dataset.heroMotionReady === 'true') return;
+        h1.dataset.heroMotionReady = 'true';
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        h1.querySelectorAll<HTMLElement>('[data-hero-line]').forEach((line, lineIndex) => {
+            const glyphs = Array.from(line.querySelectorAll<HTMLElement>('[data-hero-glyph]'));
+            if (!glyphs.length) return;
+
+            const lineDelay = LINE_DELAY_BASE + lineIndex * LINE_DELAY_STEP;
+            const period = glyphs[glyphs.length - 1];
+            const letters = glyphs.slice(0, -1);
+
+            animate(
+                letters,
+                {
+                    transform: ['translateY(118%) rotate(6deg)', 'translateY(0%) rotate(0deg)'],
+                    opacity: [0, 1],
+                    filter: ['blur(6px)', 'blur(0px)'],
+                },
+                {
+                    delay: stagger(GLYPH_STAGGER, { startDelay: lineDelay }),
+                    duration: 0.8,
+                    ease: easeOutQuint,
+                },
+            );
+
+            // The period lands after its line settles: scale overshoot plus a
+            // brief glow that fades as it seats.
+            const periodDelay = lineDelay + letters.length * GLYPH_STAGGER + 0.18;
+            animate(
+                period,
+                {
+                    transform: ['translateY(0%) scale(0)', 'translateY(0%) scale(1)'],
+                    opacity: [0, 1],
+                },
+                { delay: periodDelay, duration: 0.55, ease: easeBackOut },
+            );
+            animate(
+                period,
+                {
+                    textShadow: [
+                        '0 0 0px rgba(245, 230, 207, 0)',
+                        '0 0 28px rgba(245, 230, 207, 0.85)',
+                        '0 0 0px rgba(245, 230, 207, 0)',
+                    ],
+                },
+                { delay: periodDelay, duration: 0.9, ease: 'easeOut' },
+            );
+        });
+    }
+
+    heroTitleIntro();
+    document.addEventListener('astro:page-load', heroTitleIntro);
+</script>
 
 <style>
 
@@ -102,9 +200,32 @@ const t = useTranslations(lang);
     }
 
     .eyebrow,
+    .migrate,
     .actions a,
     header button {
         pointer-events: var(--hero-ui-pointer-events, auto);
+    }
+
+    /* display:contents keeps the stacked phone layout identical to the old
+       markup; the 2b desktop block at the end of this sheet turns it into the
+       editorial grid. That block stays LAST — an earlier attempt sat above the
+       base rules and silently lost the cascade. */
+    .split {
+        display: contents;
+    }
+
+    /* z-index -1 keeps the field behind .bg (which is z-index auto) without
+       reordering the markup, and the wrapper carries the fade because scoped
+       styles cannot reach into HomeLightField's own canvas rule. Fades on the
+       same curve as .header-material so the motes leave with the hero instead
+       of drifting over the section beneath it. */
+    .starfield {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: max(0, calc(1 - var(--hero-p, 0) * 1.5));
+        will-change: var(--hero-content-will-change, opacity);
     }
 
     .bg {
@@ -114,14 +235,16 @@ const t = useTranslations(lang);
         overflow: hidden;
     }
 
+    /* 2b: the ring drifts off the right edge instead of sitting behind the
+       copy; the max-width 900px block re-centers it for stacked layouts. */
     .bg-ring {
         position: absolute;
-        top: 56%;
-        left: 50%;
-        width: 900px;
-        height: 900px;
+        top: 50%;
+        right: -180px;
+        width: 760px;
+        height: 760px;
         opacity: max(0, calc(0.1 - var(--hero-p, 0) * 0.15));
-        transform: translate(-50%, -50%) scale(calc(1 - var(--hero-p, 0) * 0.15));
+        transform: translateY(-50%) scale(calc(1 - var(--hero-p, 0) * 0.15));
         filter: blur(calc(var(--hero-p, 0) * 12px));
         transform-origin: center;
         will-change: var(--hero-content-will-change, opacity, transform, filter);
@@ -167,16 +290,19 @@ const t = useTranslations(lang);
         will-change: opacity, transform;
     }
 
+    /* 2b: glows trade corners — green rides top-right above the ring, tan
+       warms bottom-left under the headline. Shift math still converges each
+       orb on the viewport center as --hero-p climbs. */
     .orb-1 {
         width: 500px;
         height: 500px;
         background: var(--green);
-        top: -100px;
-        left: -100px;
+        top: -120px;
+        right: -60px;
         --orb-glow-core: rgba(167, 243, 208, 0.85);
         --orb-glow-soft: rgba(82, 183, 136, 0.34);
-        --orb-shift-x: calc(var(--hero-p, 0) * (50vw - 150px));
-        --orb-shift-y: calc(var(--hero-p, 0) * (50vh - 150px));
+        --orb-shift-x: calc(var(--hero-p, 0) * (-50vw + 190px));
+        --orb-shift-y: calc(var(--hero-p, 0) * (50vh - 130px));
     }
 
     .orb-1::before {
@@ -187,12 +313,12 @@ const t = useTranslations(lang);
         width: 400px;
         height: 400px;
         background: var(--tan);
-        bottom: -80px;
-        right: -80px;
+        bottom: -100px;
+        left: -80px;
         --orb-glow-core: rgba(245, 230, 207, 0.78);
         --orb-glow-soft: rgba(201, 168, 124, 0.32);
-        --orb-shift-x: calc(var(--hero-p, 0) * (-50vw + 120px));
-        --orb-shift-y: calc(var(--hero-p, 0) * (-50vh + 120px));
+        --orb-shift-x: calc(var(--hero-p, 0) * (50vw - 120px));
+        --orb-shift-y: calc(var(--hero-p, 0) * (-50vh + 100px));
     }
 
     .orb-2::before {
@@ -278,6 +404,8 @@ const t = useTranslations(lang);
         color: var(--white);
     }
 
+    /* No block-level fadeUp here any more — the intro script rolls the title
+       in glyph by glyph, so the h1 itself stays static. */
     h1 {
         font-family: var(--font-display);
         font-size: clamp(3rem, min(9vw, 15vh), 8rem);
@@ -285,22 +413,40 @@ const t = useTranslations(lang);
         line-height: 0.9;
         letter-spacing: 0;
         margin-bottom: 24px;
-        opacity: 0;
-        animation: fadeUp 900ms 350ms var(--ease-out-expo) forwards;
         position: relative;
     }
 
-    h1 span {
+    h1 .line {
         display: block;
         white-space: nowrap;
+        /* Mask for the glyph roll-in. The padding/margin pair keeps the tight
+           0.9 line-height while giving descenders room inside the clip box. */
+        overflow: hidden;
+        padding-block: 0.12em;
+        margin-block: -0.12em;
     }
 
-    h1 span.tan {
+    h1 .line.tan {
         color: var(--tan);
     }
 
-    h1 span.green {
+    h1 .line.green {
         color: var(--green-glow);
+    }
+
+    h1 .glyph {
+        display: inline-block;
+        transform-origin: 20% 80%;
+    }
+
+    /* Hide glyphs pre-intro only when the script that reveals them can run,
+       and never for reduced-motion users — no-JS and reduced-motion both get
+       the static headline instantly. */
+    @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+        h1 .glyph {
+            opacity: 0;
+            transform: translateY(118%) rotate(6deg);
+        }
     }
 
     .actions {
@@ -319,33 +465,55 @@ const t = useTranslations(lang);
         position: relative;
     }
 
-    .badges {
+    .facts {
         display: flex;
-        gap: 12px;
-        margin-top: 32px;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: center;
+        margin-top: 26px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(201, 168, 124, 0.66);
         opacity: 0;
-        animation: fadeUp 0.9s 0.8s var(--ease-out-expo) forwards;
+        animation: fadeUp 0.9s 0.65s var(--ease-out-expo) forwards;
         position: relative;
     }
 
-    .badges span {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.7rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        padding: 7px 16px;
-        border: 1px solid rgba(201, 168, 124, 0.4);
-        color: var(--tan-light);
-        border-radius: 100px;
-        background: rgba(255, 255, 255, 0.05);
-        transition: border-color 0.2s, color 0.2s;
+    /* Separator via ::after on the leading spans, not ::before on the
+       trailing ones: when the row wraps, the dot then ends the first line
+       instead of orphaning at the start of the second. */
+    .facts span:not(:last-child)::after {
+        content: "·";
+        margin: 0 16px;
+        color: rgba(201, 168, 124, 0.4);
     }
 
-    .badges span:hover {
-        border-color: rgba(201, 168, 124, 1);
+    .migrate {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+        font-size: 0.85rem;
+        color: var(--green-light);
+        text-decoration: none;
+        opacity: 0;
+        animation: fadeUp 0.9s 0.8s var(--ease-out-expo) forwards;
+        position: relative;
+        transition: color 0.2s;
+    }
+
+    .migrate__arrow {
+        transition: transform 0.25s var(--ease-out-expo);
+    }
+
+    .migrate:hover {
         color: var(--white);
+    }
+
+    .migrate:hover .migrate__arrow {
+        transform: translateX(4px);
     }
 
     @keyframes pulse-dot {
@@ -372,7 +540,7 @@ const t = useTranslations(lang);
 
     /* Short viewports (720p laptops) have no spare vertical room: the copy
        already overflows its own padding box, the eyebrow line lands within 1px
-       of the fixed 76px nav, and the ScrollCue needs a gutter under the badges.
+       of the fixed 76px nav, and the ScrollCue needs a gutter under the import line.
        Tightening these two margins by 24px total buys ~12px at each end, since
        the overflow is split evenly above and below by justify-content: center. */
     @media (max-height: 820px) {
@@ -380,8 +548,12 @@ const t = useTranslations(lang);
             margin-bottom: 16px;
         }
 
-        .badges {
+        .facts {
             margin-top: 16px;
+        }
+
+        .migrate {
+            margin-top: 12px;
         }
     }
 
@@ -396,9 +568,12 @@ const t = useTranslations(lang);
 
         .bg-ring {
             top: 53%;
+            left: 50%;
+            right: auto;
             width: clamp(440px, 128vw, 620px);
             height: clamp(440px, 128vw, 620px);
             opacity: max(0, calc(0.08 - var(--hero-p, 0) * 0.13));
+            transform: translate(-50%, -50%) scale(calc(1 - var(--hero-p, 0) * 0.15));
         }
 
         h1 {
@@ -430,22 +605,26 @@ const t = useTranslations(lang);
             font-size: 0.62rem;
         }
 
-        .header-material > p {
+        .aside > p {
             max-width: min(520px, 100%);
             font-size: 0.98rem;
             line-height: 1.58;
             margin-bottom: 18px;
         }
 
-        .badges {
-            gap: 8px;
+        .facts {
             margin-top: 18px;
+            font-size: 0.6rem;
+            letter-spacing: 0.11em;
         }
 
-        .badges span {
-            font-size: 0.62rem;
-            letter-spacing: 0.08em;
-            padding: 6px 11px;
+        .facts span:not(:last-child)::after {
+            margin: 0 11px;
+        }
+
+        .migrate {
+            margin-top: 14px;
+            font-size: 0.8rem;
         }
 
         .actions {
@@ -485,19 +664,24 @@ const t = useTranslations(lang);
             margin-bottom: 16px;
         }
 
-        .header-material > p {
+        .aside > p {
             font-size: 0.92rem;
             line-height: 1.52;
             margin-bottom: 16px;
         }
 
-        .badges {
-            margin-top: 16px;
+        .facts {
+            margin-top: 14px;
+            font-size: 0.56rem;
         }
 
-        .badges span {
-            font-size: 0.58rem;
-            padding: 5px 9px;
+        .facts span:not(:last-child)::after {
+            margin: 0 8px;
+        }
+
+        .migrate {
+            margin-top: 12px;
+            font-size: 0.76rem;
         }
     }
 
@@ -507,14 +691,63 @@ const t = useTranslations(lang);
             padding-bottom: 16px;
         }
 
-        .badges {
-            gap: 7px;
-            margin-top: 14px;
+        .facts {
+            margin-top: 12px;
         }
 
-        .badges span {
-            font-size: 0.55rem;
-            padding: 5px 8px;
+        .migrate {
+            margin-top: 10px;
+        }
+    }
+
+    /* ── 2b "Editorial left" — desktop only. Keep this block last. ── */
+    @media (min-width: 901px) {
+        .header-material {
+            align-items: flex-start;
+            text-align: left;
+            /* The centered hero capped at 1200px; the 88px Syne headline is
+               ~890px alone, so the grid needs the full row for its aside. */
+            width: 100%;
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 56px;
+            align-items: end;
+            width: 100%;
+        }
+
+        .split h1 {
+            margin-bottom: 0;
+            font-size: clamp(3rem, min(6.1vw, 13vh), 5.5rem);
+        }
+
+        .aside {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding-bottom: 10px;
+        }
+
+        .aside p {
+            max-width: 380px;
+            margin-bottom: 24px;
+        }
+
+        .eyebrow {
+            align-self: flex-start;
+            margin-bottom: 36px;
+        }
+
+        .facts {
+            justify-content: flex-start;
+            margin-top: 0;
+            text-align: left;
+        }
+
+        .migrate {
+            margin-top: 16px;
         }
     }
 

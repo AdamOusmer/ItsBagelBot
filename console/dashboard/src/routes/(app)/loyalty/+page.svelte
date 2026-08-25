@@ -7,21 +7,26 @@
   import {
     PageHead,
     MasterToggle,
+    Switch,
     AlertBanner,
     ButtonLink,
     Button,
     Field,
     EmptyState,
     SaveStatus,
+    DeckList,
     toast,
     getI18n,
     LOYALTY_DEFAULTS,
+    moduleDef,
     type LoyaltyConfig
   } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
+  const loyaltyCommands = moduleDef('loyalty')?.commands ?? [];
 
   // Local source of truth, reseeded when a fresh SSR load lands.
   // svelte-ignore state_referenced_locally
@@ -74,6 +79,14 @@
     { key: 'giftSubPoints', label: t('loyalty.fieldGift'), dflt: LOYALTY_DEFAULTS.giftSubPoints },
     { key: 'cheerPointsPer100', label: t('loyalty.fieldCheer'), dflt: LOYALTY_DEFAULTS.cheerPointsPer100 },
     { key: 'watchPointsPerTick', label: t('loyalty.fieldWatch'), dflt: LOYALTY_DEFAULTS.watchPointsPerTick }
+  ] as const);
+
+  // The granular moderator capabilities, same loop shape. checked ⇔ value >= 0
+  // (0 = the default on, -1 = off), matching the rates' convention.
+  const permToggles = $derived([
+    { key: 'modSetPoints', label: t('loyalty.permSet'), hint: t('loyalty.permSetHint') },
+    { key: 'modAdjustPoints', label: t('loyalty.permAdjust'), hint: t('loyalty.permAdjustHint') },
+    { key: 'viewerTransfers', label: t('loyalty.permTransfers'), hint: t('loyalty.permTransfersHint') }
   ] as const);
 
   function hours(seconds: number): string {
@@ -129,6 +142,26 @@
 
         <p class="hint">{t('loyalty.tierHint')}</p>
 
+        <!-- Granular moderator capabilities: each toggle maps 0=on / -1=off in
+             the same blob the chat side reads per invocation. -->
+        <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>
+        <p class="hint">{t('loyalty.permissionsHint')}</p>
+
+        {#each permToggles as pt (pt.key)}
+          <div class="perm">
+            <span class="perm-copy">
+              <span class="perm-label">{pt.label}</span>
+              <span class="perm-hint" id="perm-hint-{pt.key}">{pt.hint}</span>
+            </span>
+            <Switch
+              label={pt.label}
+              describedby="perm-hint-{pt.key}"
+              checked={config[pt.key] >= 0}
+              onchange={(v) => (config[pt.key] = v ? 0 : -1)}
+            />
+          </div>
+        {/each}
+
         <div class="actions">
           <SaveStatus state={saveState} />
           <Button variant="primary" type="submit" icon="check" loading={busy}>{t('loyalty.save')}</Button>
@@ -172,17 +205,13 @@
     </div>
   </section>
 
-  <!-- 4) Supported chat commands: informational reference list. -->
-  <section class="block" aria-labelledby="loy-chat-h">
-    <h2 id="loy-chat-h" class="block-title">{t('loyalty.chatTitle')}</h2>
-    <div class="card">
-      <ul class="cmds">
-        <li><code>!points</code><span>{t('loyalty.chatPoints')}</span></li>
-        <li><code>!points set/add @user 500</code><span>{t('loyalty.chatPointsMod')}</span></li>
-        <li><code>!counter</code><span>{t('loyalty.chatCounter')}</span></li>
-      </ul>
+  {#if loyaltyCommands.length}
+    <div class="cmd-block">
+      <DeckList>
+        <ModuleCommandList commands={loyaltyCommands} headingId="loy-chat-h" />
+      </DeckList>
     </div>
-  </section>
+  {/if}
 </section>
 
 <style>
@@ -214,9 +243,31 @@
 
   .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
+  .perm-title {
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bb-white);
+    margin: 18px 0 6px;
+  }
+  .perm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+  }
+  .perm:last-of-type { border-bottom: none; }
+  .perm-copy { display: flex; flex-direction: column; gap: 1px; }
+  .perm-label { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
+  .perm-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
+
   .rates :global(.num) { max-width: 160px; }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
+
+  .cmd-block { margin-top: 26px; }
 
   /* Table scrolls inside its own box so the page never scrolls sideways at 320px. */
   .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -238,19 +289,6 @@
   .tbl .r { text-align: right; }
   .tbl .rank { color: var(--bb-muted); }
   .tbl .mut { color: var(--bb-muted); }
-
-  .cmds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-  .cmds li { display: flex; flex-direction: column; gap: 2px; }
-  .cmds code {
-    font-size: 12.5px;
-    color: var(--bb-white);
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid var(--bb-border);
-    border-radius: 6px;
-    padding: 3px 8px;
-    width: fit-content;
-  }
-  .cmds span { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }

@@ -23,6 +23,7 @@
 // oauth_nonce cookie vanished fails closed instead of skipping the check.
 import {
   authorizationCodeGrantRequest,
+  ClientSecretBasic,
   ClientSecretPost,
   expectNoNonce,
   generateRandomState,
@@ -71,6 +72,14 @@ export class OAuth2Tokens {
   refreshToken(): string {
     if (typeof this.result.refresh_token === 'string') return this.result.refresh_token;
     throw new Error("Missing or invalid 'refresh_token' field");
+  }
+
+  // refreshTokenOptional is for providers that may legitimately omit the
+  // refresh token on a re-consent whose scopes are unchanged (Spotify does
+  // exactly this — consent is reused). Callers decide whether absence is
+  // acceptable (one already stored server-side) or fatal.
+  refreshTokenOptional(): string | undefined {
+    return typeof this.result.refresh_token === 'string' ? this.result.refresh_token : undefined;
   }
 
   // Claims come back already validated (issuer, audience, expiry, nonce) by
@@ -167,6 +176,62 @@ export class Twitch {
         ...(nonce ? { expectedNonce: nonce } : {})
       }
     );
+    return new OAuth2Tokens(result as unknown as Record<string, unknown>);
+  }
+}
+
+const SPOTIFY_AS: AuthorizationServer = {
+  issuer: 'https://accounts.spotify.com',
+  authorization_endpoint: 'https://accounts.spotify.com/authorize',
+  token_endpoint: 'https://accounts.spotify.com/api/token'
+};
+
+// Spotify OAuth2 client for the song-requests connect flow. Plain OAuth2 —
+// no ID Token (Spotify ships none), so requireIdToken stays off and there is
+// no nonce to bind. Spotify returns scope as an RFC-compliant space-delimited
+// string, so unlike Twitch no response normalization is needed.
+export class Spotify {
+  private readonly client: Client;
+  private readonly clientAuth: ClientAuth;
+
+  constructor(
+    private readonly clientId: string,
+    clientSecret: string,
+    private readonly redirectURI: string
+  ) {
+    this.client = { client_id: clientId };
+    // Spotify's token endpoint documents HTTP Basic (it also accepts post-body
+    // credentials, but Basic is the documented default).
+    this.clientAuth = ClientSecretBasic(clientSecret);
+  }
+
+  createAuthorizationURL(state: string, scopes: string[]): URL {
+    const url = new URL(SPOTIFY_AS.authorization_endpoint!);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', this.clientId);
+    url.searchParams.set('state', state);
+    if (scopes.length > 0) url.searchParams.set('scope', scopes.join(' '));
+    url.searchParams.set('redirect_uri', this.redirectURI);
+    return url;
+  }
+
+  async validateAuthorizationCode(code: string): Promise<OAuth2Tokens> {
+    const callbackParameters = validateAuthResponse(
+      SPOTIFY_AS,
+      this.client,
+      new URLSearchParams({ code }),
+      skipStateCheck
+    );
+    const response = await authorizationCodeGrantRequest(
+      SPOTIFY_AS,
+      this.client,
+      this.clientAuth,
+      callbackParameters,
+      this.redirectURI,
+      nopkce
+    );
+    // No ID Token to validate: process without the requireIdToken assertion.
+    const result = await processAuthorizationCodeResponse(SPOTIFY_AS, this.client, response);
     return new OAuth2Tokens(result as unknown as Record<string, unknown>);
   }
 }
