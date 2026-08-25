@@ -39,13 +39,22 @@ func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	return repo, client
 }
 
-func seedBalance(t *testing.T, client *ent.Client, userID, viewerID uint64, login string, points int64) {
+// seedRow is one balance row to plant. Bundled rather than passed positionally
+// because (userID, viewerID, login, points) reads as four interchangeable
+// scalars at the call site, and two of them are bare uint64s.
+type seedRow struct {
+	UserID, ViewerID uint64
+	Login            string
+	Points           int64
+}
+
+func seedBalance(t *testing.T, client *ent.Client, row seedRow) {
 	t.Helper()
 	err := client.Balance.Create().
-		SetUserID(userID).
-		SetViewerID(viewerID).
-		SetViewerLogin(login).
-		SetPoints(points).
+		SetUserID(row.UserID).
+		SetViewerID(row.ViewerID).
+		SetViewerLogin(row.Login).
+		SetPoints(row.Points).
 		Exec(context.Background())
 	require.NoError(t, err)
 }
@@ -54,8 +63,8 @@ func TestBalanceTransferMovesPoints(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	ctx := context.Background()
 
-	seedBalance(t, client, 2, 7, "sender", 1000)
-	seedBalance(t, client, 2, 8, "receiver", 100)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
 
 	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "@Receiver", 400)
 	require.NoError(t, err)
@@ -73,8 +82,8 @@ func TestBalanceTransferRefusesShortfall(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	ctx := context.Background()
 
-	seedBalance(t, client, 2, 7, "sender", 100)
-	seedBalance(t, client, 2, 8, "receiver", 0)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 0})
 
 	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "receiver", 400)
 	require.NoError(t, err)
@@ -89,7 +98,7 @@ func TestBalanceTransferUnknownTarget(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	ctx := context.Background()
 
-	seedBalance(t, client, 2, 7, "sender", 100)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
 
 	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "ghost", 10)
 	require.NoError(t, err)
@@ -106,7 +115,7 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	ctx := context.Background()
 
-	seedBalance(t, client, 2, 7, "sender", 100)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
 
 	_, _, err := repo.BalanceTransfer(ctx, 2, 7, "sender", 10)
 	require.Error(t, err)
