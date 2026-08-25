@@ -687,7 +687,12 @@
     "permAdjustHint": "Les modérateurs peuvent utiliser !points add/remove @utilisateur <montant> pour ajuster un solde.",
     "permTransfers": "Transferts entre viewers",
     "permTransfersHint": "!points give @utilisateur <montant> transfère les points de l'expéditeur. S'applique aux mods comme aux viewers.",
-    "countersLink": "Gérer les compteurs"
+    "countersLink": "Gérer les compteurs",
+    "gamesTitle": "Jeux de dépense",
+    "gamesHint": "Le pari et les duels dépensent cette monnaie. Les cotes et les lignes de chat restent sur la page de chaque jeu — ici, c’est seulement l’interrupteur.",
+    "gamesNeedsOn": "Activez la fidélité avant de pouvoir lancer ces jeux.",
+    "gameSetup": "Régler",
+    "toastGameToggleFailed": "Impossible de mettre à jour {label}."
   },
   "rewardCounter": {
     "enable": "Tenir un compteur",
@@ -893,6 +898,8 @@
   },
   "modules": {
     "breadcrumbLabel": "Fil d’Ariane",
+    "nestedUnder": "Ce jeu dépense les {parent}. Activez-le depuis cette page — il ne peut pas tourner tout seul.",
+    "nestedUnderLink": "Ouvrir {parent}",
     "moduleStatus": "État du module",
     "disabledNote": "Ce module est désactivé. Les réglages et réponses ci-dessous restent modifiables et prennent effet dès que vous l’activez.",
     "settingsTitle": "Réglages",

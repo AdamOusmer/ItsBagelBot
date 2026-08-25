@@ -4,12 +4,15 @@
 package modules
 
 import (
+	"context"
 	"testing"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,4 +173,57 @@ func TestGambleCustomTemplates(t *testing.T) {
 	out := runGames(t, m, gamesCtx("erin", cfg), "50")
 	require.Len(t, out, 1)
 	assert.Equal(t, "@erin busted 50 crumbs, 1184 left", out[0].Text)
+}
+
+func TestGambleUsesLoyaltyCurrencyNotGameBlob(t *testing.T) {
+	pinRoll(t, 99)
+	fake := &fakeLoyalty{}
+	cfg := `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
+	m := Gamble(engine.Deps{
+		Loyalty: fake,
+		Proj:    loyaltyProj{on: true, name: "bagels"},
+		Log:     zap.NewNop(),
+	})
+
+	out := runGames(t, m, gamesCtx("erin", cfg), "50")
+	require.Len(t, out, 1)
+	assert.Equal(t, "@erin busted 50 bagels, 1184 left", out[0].Text, "loyalty's name wins over the leftover game blob")
+}
+
+func TestGambleInertWhenLoyaltyOff(t *testing.T) {
+	fake := &fakeLoyalty{}
+	m := Gamble(engine.Deps{
+		Loyalty: fake,
+		Proj:    loyaltyProj{on: false},
+		Log:     zap.NewNop(),
+	})
+
+	out := runGames(t, m, gamesCtx("alice", ""), "300")
+	assert.Empty(t, out, "an enabled gamble row still stays silent while loyalty is off")
+	assert.Empty(t, fake.spends)
+}
+
+// loyaltyProj is the projector slice the wager games read for the currency
+// name and the loyalty-on gate. Tests that omit Proj keep the historical
+// fallback (blob pointsName, always on).
+type loyaltyProj struct {
+	on   bool
+	name string
+}
+
+func (p loyaltyProj) User(context.Context, uint64) (projection.User, error) {
+	return projection.User{}, nil
+}
+
+func (p loyaltyProj) Command(context.Context, uint64, string) (projection.Command, bool, error) {
+	return projection.Command{}, false, nil
+}
+
+func (p loyaltyProj) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
+	raw, _ := codec.Marshal(engine.LoyaltyModuleConfig{PointsName: p.name})
+	return []projection.ModuleView{{
+		Name:      engine.LoyaltyModuleName,
+		IsEnabled: p.on,
+		Configs:   raw,
+	}}, nil
 }

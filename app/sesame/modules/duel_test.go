@@ -341,3 +341,9 @@ func TestGambleAndDuelInertWithoutStores(t *testing.T) {
 	require.NoError(t, findCmd(t, dm, "duel").Run(context.Background(), gamesCtx("x", ""), "", col.emit))
 	assert.Empty(t, col.out, "nil stores leave both modules silent, not panicking")
 }
+
+func TestDuelInertWhenLoyaltyOff(t *testing.T) {
+	m := Duel(engine.Deps{Duel: &fakeDuel{}, Proj: loyaltyProj{on: false}, Log: zap.NewNop()})
+	out := runGames(t, m, gamesCtx("alice", ""), "")
+	assert.Empty(t, out, "an enabled duel row still stays silent while loyalty is off")
+}

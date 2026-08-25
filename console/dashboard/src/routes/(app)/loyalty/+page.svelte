@@ -19,10 +19,12 @@
     getI18n,
     LOYALTY_DEFAULTS,
     moduleDef,
+    catalogChildren,
     type LoyaltyConfig
   } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
+  import LoyaltyGameRow from '$lib/components/loyalty/LoyaltyGameRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -33,6 +35,16 @@
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
   let config = $state<LoyaltyConfig>({ ...data.config });
+  // Nested wager games: compact on/off rows, not a second inspector. Seeded
+  // from the load so a refresh after toggling loyalty off shows them off too.
+  function seedGames(src: typeof data) {
+    return catalogChildren('loyalty').map((def) => ({
+      def,
+      enabled: src.games?.find((g) => g.id === def.id)?.enabled ?? false
+    }));
+  }
+  // svelte-ignore state_referenced_locally
+  let games = $state(seedGames(data));
   let busy = $state(false);
   // svelte-ignore state_referenced_locally
   let seed = data;
@@ -41,7 +53,18 @@
       seed = data;
       enabled = data.enabled ?? false;
       config = { ...data.config };
+      games = seedGames(data);
     }
+  });
+
+  // Turning loyalty off also disables the children server-side. Mirror that
+  // here so the nested switches do not stay lit until the next full load.
+  let prevOn = enabled;
+  $effect(() => {
+    if (prevOn && !enabled) {
+      for (const g of games) g.enabled = false;
+    }
+    prevOn = enabled;
   });
 
   const payload = $derived(JSON.stringify(config));
@@ -120,6 +143,20 @@
       <ButtonLink href="/counters" variant="ghost" icon="modules">{t('loyalty.countersLink')}</ButtonLink>
     </div>
   </section>
+
+  <!-- Nested wager games: two rows, not a third settings form. Odds and chat
+       lines stay on each game's inspector so this page does not double in height. -->
+  {#if games.length}
+    <section class="block" aria-labelledby="loy-games-h">
+      <h2 id="loy-games-h" class="block-title">{t('loyalty.gamesTitle')}</h2>
+      <div class="card">
+        <p class="hint">{enabled ? t('loyalty.gamesHint') : t('loyalty.gamesNeedsOn')}</p>
+        {#each games as g (g.def.id)}
+          <LoyaltyGameRow def={g.def} bind:enabled={g.enabled} loyaltyOn={enabled} />
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <!-- 2) Configuration: earning rates, an explicit Save form with Field labels. -->
   <section class="block" aria-labelledby="loy-rates-h">

@@ -88,3 +88,15 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
 export function moduleDef(id: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((m) => m.id === id);
 }
+
+// catalogChildren are the modules nested under parentId, in catalog order.
+export function catalogChildren(parentId: string): ModuleDef[] {
+  return MODULE_CATALOG.filter((def) => def.parent === parentId);
+}
+
+// catalogIndexable is the modules grid's row set: hidden modules stay
+// unreachable, nested children fold into their parent instead of minting a
+// second tile that could be flipped on without it.
+export function catalogIndexable(def: ModuleDef): boolean {
+  return !def.hidden && !def.parent;
+}

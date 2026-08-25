@@ -7,6 +7,7 @@ import { listModules, upsertModule, patchModule } from '$lib/server/commands-sto
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable } from '$lib/server/module-gate';
+import { parentIsEnabled } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -129,6 +130,15 @@ function resolveWrite(id: string, session: Session | null | undefined): WriteTar
   return { def, uid: effectiveId(session) };
 }
 
+// Nested games cannot be enabled while their parent is off. Config writes
+// still go through (odds and replies stay editable); the enable flag is
+// forced off so a settings patch cannot resurrect !gamble against a
+// currency that is not running.
+async function gatedEnabled(uid: string, def: ModuleDef, requested: boolean): Promise<boolean> {
+  if (!requested || !def.parent) return requested;
+  return parentIsEnabled(uid, def.parent);
+}
+
 export const actions: Actions = {
   // One save persists the whole module config (enable + every reply message and
   // per-reply toggle). The client always posts the full draft, so upsertModule's
@@ -139,7 +149,7 @@ export const actions: Actions = {
     const { def, uid } = target;
 
     const f = await request.formData();
-    const enabled = f.get('is_enabled') === 'on';
+    const enabled = DEMO ? f.get('is_enabled') === 'on' : await gatedEnabled(uid, def, f.get('is_enabled') === 'on');
     const config = buildConfig(def, f);
 
     if (DEMO) return { ok: true, enabled };
@@ -168,11 +178,12 @@ export const actions: Actions = {
     const f = await request.formData();
     const partial = parsePartial(f.get('partial'), def);
     if (!partial) return fail(400, { ok: false, error: 'Invalid patch.' });
-    const enabled = f.get('is_enabled') === 'on';
+    const requested = f.get('is_enabled') === 'on';
     const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
 
     if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
 
+    const enabled = await gatedEnabled(uid, def, requested);
     return applyPatch(def, uid, { enabled, expectedRev, partial }, locals.session);
   }
 };
