@@ -301,6 +301,7 @@ func TestFlagBucketClassification(t *testing.T) {
 	}{
 		{"ip_logger", "ip_logger"},
 		{"scam", "scam"},
+		{"phish", "phish"},
 		{"heuristic", "heuristic"},
 		{"block_term", "block_term"},
 		{"council:campaign", "council_campaign"},

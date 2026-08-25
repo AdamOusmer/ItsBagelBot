@@ -66,6 +66,7 @@ type sections struct {
 	profanity  bool // plain profanity (delete)
 	style      bool // caps / symbol / repeat heuristics (delete)
 	links      bool // count link templates across senders (campaign juror)
+	clipsOnly  bool // delete any link that is not a Twitch clip URL (opt-in)
 	capsThresh float64
 }
 
@@ -126,7 +127,7 @@ type Config struct {
 	Disabled bool
 	Level    Level
 
-	harassment, sexual, profanity, style, links triState
+	harassment, sexual, profanity, style, links, clipsOnly triState
 
 	blockTerms [][]byte // channel-added blocked substrings (skeleton space)
 	allowTerms [][]byte // channel-permitted substrings; suppress non-floor flags
@@ -147,6 +148,7 @@ type wireConfig struct {
 	Profanity  string `json:"profanity"`
 	Style      string `json:"style"`
 	Links      string `json:"links"`
+	ClipsOnly  string `json:"clips_only"`
 	BlockTerms string `json:"block_terms"`
 	AllowTerms string `json:"allow_terms"`
 }
@@ -173,6 +175,7 @@ func ParseConfig(raw codec.RawMessage) *Config {
 		profanity:  parseTri(w.Profanity),
 		style:      parseTri(w.Style),
 		links:      parseTri(w.Links),
+		clipsOnly:  parseTri(w.ClipsOnly),
 		blockTerms: normalizeTerms(splitTerms(w.BlockTerms)),
 		allowTerms: normalizeTerms(splitTerms(w.AllowTerms)),
 	}
@@ -194,6 +197,7 @@ func (c *Config) resolved() sections {
 	s.profanity = c.profanity.apply(s.profanity)
 	s.style = c.style.apply(s.style)
 	s.links = c.links.apply(s.links)
+	s.clipsOnly = c.clipsOnly.apply(s.clipsOnly)
 	return s
 }
 
@@ -237,6 +241,14 @@ func (c *Config) disabled() bool { return c != nil && c.Disabled }
 // row's terms are not).
 func (c *Config) hasBlockTerms() bool {
 	return c != nil && !c.Disabled && len(c.blockTerms) > 0
+}
+
+// clipsOnlyOn reports whether the clips-only link filter is active for this
+// channel. Opt-in only: every level defaults it off, so an unset toggle never
+// starts deleting ordinary links. A disabled module row resolves floor-only
+// and therefore returns false here too.
+func (c *Config) clipsOnlyOn() bool {
+	return c.resolved().clipsOnly
 }
 
 // allows reports whether the skeleton contains a channel allow-term, which

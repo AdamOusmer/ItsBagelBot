@@ -121,7 +121,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: notifications
-          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1787603663-a1c27f889ca7@sha256:b865c4cb6e1e51e17c53f38c44e2be346b0b2dcff76af306856cb96b748df751 # {"$imagepolicy": "flux-system:notifications"}
+          image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1787628494-8c32b708fb7f@sha256:6904644374854dee347eaeb54efcc322bf09a8e10c4d3c27f35728ebeb798c66
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -257,7 +257,7 @@ spec:
             seccompProfile: {type: RuntimeDefault}
           containers:
             - name: cleanup
-              image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1787603663-a1c27f889ca7@sha256:b865c4cb6e1e51e17c53f38c44e2be346b0b2dcff76af306856cb96b748df751 # {"$imagepolicy": "flux-system:notifications"}
+              image: ghcr.io/adamousmer/itsbagelbot/notifications:main-1787628494-8c32b708fb7f@sha256:6904644374854dee347eaeb54efcc322bf09a8e10c4d3c27f35728ebeb798c66
               imagePullPolicy: IfNotPresent
               args: ["cleanup"]
               env:

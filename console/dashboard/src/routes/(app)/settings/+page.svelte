@@ -3,7 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { Icon, Button, ButtonLink, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
-  import { enhance } from '$app/forms';
+  import { enhance, deserialize } from '$app/forms';
+  import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import SettingsNav from '$lib/components/settings/SettingsNav.svelte';
@@ -57,8 +58,63 @@
     { href: '#access', label: t('settings.sharedAccess') },
     { href: '#notifications', label: t('settings.notifications') },
     { href: '#preferences', label: t('settings.preferences') },
+    { href: '#api-keys', label: t('fetches.keysTitle') },
     { href: '#danger-zone', label: t('settings.dangerZone') }
   ]);
+
+  // API keys for data sources. They sit in Settings rather than beside the
+  // commands that spend them because they are account-level secrets, and this
+  // page is already owner-only — a delegate with 'commands' access can use a
+  // key through a data source but never read, rotate or destroy one.
+  // Seeded once, then owned locally so a seal/rotate/delete can swap in the
+  // server's refreshed list without a full page invalidation.
+  // svelte-ignore state_referenced_locally
+  let fetchKeys = $state(data.fetchKeys ?? []);
+  // svelte-ignore state_referenced_locally
+  let fetchKeysSeed = data.fetchKeys;
+  $effect(() => {
+    if (data.fetchKeys !== fetchKeysSeed) {
+      fetchKeysSeed = data.fetchKeys;
+      fetchKeys = data.fetchKeys ?? [];
+    }
+  });
+  let keyBusy = $state(false);
+
+  async function postKeyAction(action: string, body: FormData) {
+    keyBusy = true;
+    try {
+      const res = await fetch(`/settings?/${action}`, { method: 'POST', body });
+      const r = deserialize(await res.text());
+      const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
+        | { ok?: boolean; name?: string; fetchKeys?: typeof fetchKeys; error?: string }
+        | undefined;
+      if (d?.ok && d.fetchKeys) {
+        fetchKeys = d.fetchKeys;
+        return d;
+      }
+      toast('err', d?.error ?? t('fetches.keySaveFailed'));
+    } catch {
+      toast('err', t('fetches.keySaveFailed'));
+    } finally {
+      keyBusy = false;
+    }
+    return undefined;
+  }
+
+  async function handleSetKey(label: string, value: string) {
+    const body = new FormData();
+    body.set('label', label);
+    body.set('value', value);
+    const d = await postKeyAction('setfetchkey', body);
+    if (d) toast('ok', t('fetches.keySavedToast', { label, last4: fetchKeys.find((k) => k.label === label)?.last4 ?? '' }));
+  }
+
+  async function handleDeleteKey(label: string) {
+    const body = new FormData();
+    body.set('label', label);
+    const d = await postKeyAction('delfetchkey', body);
+    if (d) toast('ok', t('fetches.keyDeletedToast', { label }));
+  }
 
   // Which grant's access is being edited inline (add/remove sections).
   let editingToken = $state<string | null>(null);
@@ -343,6 +399,20 @@
       </div>
       <CursorSwitch describedby="cursor-hint" />
     </div>
+  </section>
+
+  <!-- API KEYS: account-level secrets for data sources. Owner-only, like the
+       rest of this page. Data sources themselves are created inside the command
+       editor; only the keys they spend are managed here. -->
+  <section id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
+    <h2 id="h-api-keys">{t('fetches.keysTitle')}</h2>
+    <FetchKeyManager
+      keys={fetchKeys}
+      references={data.fetchKeyRefs ?? {}}
+      busy={keyBusy}
+      onSetKey={handleSetKey}
+      onDeleteKey={handleDeleteKey}
+    />
   </section>
 
   <!-- DANGER ZONE: visually separated, last. -->

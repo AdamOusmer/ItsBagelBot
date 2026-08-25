@@ -7,7 +7,7 @@
 // only layers the page's VISUAL tone on top of that kind, so the status panel and
 // its dot/colour never disagree with the word they sit beside. Colour is always
 // decoration on top of the textual state, never the only signal.
-import type { ConnKind } from '@bagel/shared';
+import type { ConnKind } from '@bagel/shared/connection-state';
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'neutral';
 

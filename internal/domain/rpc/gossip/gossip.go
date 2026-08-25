@@ -913,9 +913,23 @@ const (
 type CustomFetchReply struct {
 	Status FetchStatus `json:"status"`
 	// Values are the extracted strings (at most 5, each capped at 256 chars
-	// server-side — callers never see raw bodies). Empty on every failure.
+	// server-side — the chat lane never sees raw bodies). Empty on every
+	// failure.
 	Values []string `json:"values,omitempty"`
 	// MS is the handler's wall-clock cost in milliseconds.
 	MS    int    `json:"ms"`
 	Error string `json:"error,omitempty"`
+	// Sample is the raw upstream body, and is populated ONLY when the request
+	// set DryRun — i.e. the dashboard rehearsing a definition its own
+	// broadcaster authored, over that broadcaster's authenticated session. It
+	// exists so the field picker can render a clickable tree of the real
+	// response instead of making a non-technical author paste one by hand.
+	//
+	// The chat lane never sets DryRun, so this stays empty for sesame; that is
+	// the whole guard against upstream text reaching chat, and it is why the
+	// flag is read straight off the request rather than inferred from anything
+	// mutable further down. Dropped entirely (not truncated) past
+	// maxSampleBytes: a truncated body is invalid JSON, so a tree built from it
+	// would resolve paths against a document the real fetch never returns.
+	Sample string `json:"sample,omitempty"`
 }

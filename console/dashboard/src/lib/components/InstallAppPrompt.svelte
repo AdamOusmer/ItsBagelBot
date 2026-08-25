@@ -12,7 +12,8 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
-  import { Icon, getI18n } from '@bagel/shared';
+  import Icon from '@bagel/shared/components/Icon.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
 
   const { t } = getI18n();
 

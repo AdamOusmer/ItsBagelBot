@@ -27,6 +27,7 @@ import { QUEUE_MODULE } from './queue';
 import { QUOTES_MODULE } from './quotes';
 import { RAFFLE_MODULE } from './raffle';
 import { SHOUTOUT_MODULE } from './shoutout';
+import { SONGQUEUE_MODULE } from './songqueue';
 import { TIMERS_MODULE } from './timers';
 import { TIME_MODULE } from './time';
 import { TRIGGERS_MODULE } from './triggers';
@@ -53,7 +54,8 @@ export const MOD = {
   queue: 'queue',
   raffle: 'raffle',
   quotes: 'quotes',
-  govee: 'govee'
+  govee: 'govee',
+  songqueue: 'songqueue'
 } as const;
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
@@ -79,7 +81,8 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   QUEUE_MODULE,
   RAFFLE_MODULE,
   QUOTES_MODULE,
-  GOVEE_MODULE
+  GOVEE_MODULE,
+  SONGQUEUE_MODULE
 ];
 
 export function moduleDef(id: string): ModuleDef | undefined {

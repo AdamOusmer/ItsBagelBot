@@ -23,6 +23,7 @@
   import CheckButton from '$lib/components/CheckButton.svelte';
   import AliasChips from './AliasChips.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
+  import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { draftKey, type CommandDraft } from './drafts';
 
@@ -32,6 +33,9 @@
     status = 'idle' as 'idle' | 'saving' | 'saved' | 'error' | 'conflict',
     dirty = false,
     canSave = true,
+    fetchDefs = [],
+    fetchKeys = [],
+    onFetchDefsChanged,
     onCancel,
     onSubmit
   }: {
@@ -40,6 +44,10 @@
     status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
     dirty?: boolean;
     canSave?: boolean;
+    /** Saved data sources, for the {urlfetch:…} palette chip. */
+    fetchDefs?: SourceDef[];
+    fetchKeys?: { label: string }[];
+    onFetchDefsChanged?: (defs: SourceDef[]) => void;
     onCancel: () => void;
     onSubmit: SubmitFunction;
   } = $props();
@@ -116,7 +124,13 @@
 
   <label class="field">
     <span>{t('commandEditor.response')}</span>
-    <ResponseEditor bind:value={draft.response} maxLines={RESPONSE_MAX_LINES} />
+    <ResponseEditor
+      bind:value={draft.response}
+      maxLines={RESPONSE_MAX_LINES}
+      {fetchDefs}
+      {fetchKeys}
+      onFetchDefsChanged={onFetchDefsChanged}
+    />
     <FieldError message={errors.response} />
   </label>
 

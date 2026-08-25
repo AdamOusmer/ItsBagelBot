@@ -151,15 +151,18 @@ func main() {
 	drainInflight(weighted, cfg.DrainTimeout, log)
 }
 
-// startRefreshers launches the background automod refreshers that feed the shared
-// gate: the third-party emote sets (caps false-positive suppression) and the
-// optional lexicon override directory.
+// startRefreshers launches the background automod refreshers that feed the
+// shared gate: the third-party emote sets (caps false-positive suppression),
+// the optional lexicon override directory, and the dynamic link-safety checker.
 func startRefreshers(ctx context.Context, guard *automod.Gate, cfg *config.Config, log *zap.Logger) {
 	if cfg.EmotesEnabled {
 		go refreshEmotes(ctx, guard, log)
 	}
 	if dir := env.Get("SESAME_AUTOMOD_LEXICON_DIR", ""); dir != "" {
 		go reloadLexicon(ctx, dir, guard, log)
+	}
+	if cfg.LinkCheckEnabled {
+		go runLinkCheck(ctx, guard, cfg, log)
 	}
 }
 

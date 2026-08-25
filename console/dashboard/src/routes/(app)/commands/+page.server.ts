@@ -12,9 +12,17 @@ import {
   firstError,
   BUILTIN_COMMANDS,
   BUILTIN_NAMES,
-  builtinDef
+  builtinDef,
+  DEFS_PER_BROADCASTER,
+  parseJsonPath,
+  slugifyName,
+  validateFetchDef,
+  type FetchDefErrors
 } from '@bagel/shared';
+import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
+import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
@@ -82,16 +90,24 @@ export const load: PageServerLoad = async ({ locals }) => {
   gateCommands(locals.session);
   const uid = effectiveId(locals.session);
   if (DEMO) {
-    const { demoCommandRows } = await import('$lib/server/demo-data');
-    return { commands: mergeCommands(demoCommandRows, []) };
+    const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
+    return { commands: mergeCommands(demoCommandRows, []), ...demoFetches() };
   }
   try {
-    const [custom, modules] = await Promise.all([listCommands(uid), listModules(uid).catch(() => [])]);
-    return { commands: mergeCommands(custom, modules) };
+    // Fetch definitions ride the command list because the data-source picker
+    // lives inside the command editor now; there is no separate page to load
+    // them. Their failure is isolated so a gossip outage costs you the picker,
+    // not the ability to edit commands at all.
+    const [custom, modules, fetches] = await Promise.all([
+      listCommands(uid),
+      listModules(uid).catch(() => []),
+      listFetches(uid).catch(() => ({ defs: [], keys: [] }))
+    ]);
+    return { commands: mergeCommands(custom, modules), ...fetches };
   } catch {
     // Don't show fabricated rows in production; surface a degraded state.
     // Built-ins still render (their defaults) so the list is never empty.
-    return { commands: mergeCommands([], []), degraded: true };
+    return { commands: mergeCommands([], []), defs: [], keys: [], degraded: true };
   }
 };
 
@@ -221,6 +237,31 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
 }
 
 export const actions: Actions = {
+  // The three data-source actions are hosted here because the builder lives in
+  // the command editor, but they are not about commands: each one delegates to
+  // fetch-def-actions.ts and only translates a refusal into fail(), which has
+  // to be written here for SvelteKit to infer ActionData.
+  savefetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const r = await saveFetchDef(ctx.uid, ctx.session, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
+  },
+
+  deletefetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const r = await removeFetchDef(ctx.uid, ctx.session, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
+  },
+
+  testfetch: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn();
+    const r = await rehearseFetchDef(ctx.uid, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
+  },
+
   save: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();

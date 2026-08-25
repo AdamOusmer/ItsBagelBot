@@ -19,6 +19,8 @@ import {
   userLocale,
   type NotificationWire
 } from '$lib/server/services';
+import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
+import { KEY_VALUE_MAX, slugifyName } from '@bagel/shared';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/shared/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
@@ -55,6 +57,28 @@ function ownerAction<R>(
   };
 }
 
+// readFetchKeys shapes the API-key section out of the one list read.
+//
+// The keys live on this page rather than beside the commands that spend them
+// because they are account-level secrets and this page is already owner-only.
+// Treated like notifications: a failed read shows an empty section instead of
+// flagging the whole page degraded, since every other section still works.
+//
+// fetchKeyRefs answers "what breaks if I delete this key" — the same read
+// supplies it, so naming the affected data sources costs nothing extra.
+function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_label: string }[]; keys: FetchKeyView[] }>): {
+  fetchKeys: FetchKeyView[];
+  fetchKeyRefs: Record<string, string[]>;
+} {
+  if (result.status !== 'fulfilled') return { fetchKeys: [], fetchKeyRefs: {} };
+  const fetchKeyRefs: Record<string, string[]> = {};
+  for (const def of result.value.defs) {
+    if (!def.key_label) continue;
+    (fetchKeyRefs[def.key_label] ??= []).push(def.name);
+  }
+  return { fetchKeys: result.value.keys, fetchKeyRefs };
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
   // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
   // page renders and is exercisable without OAuth + NATS.
@@ -66,7 +90,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: d.demoSavedLocale,
-      degraded: false
+      degraded: false,
+      fetchKeys: d.demoFetches().keys,
+      fetchKeyRefs: { weather_api: ['weather'] }
     };
   }
 
@@ -81,11 +107,12 @@ export const load: PageServerLoad = async ({ locals }) => {
   let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult, notifResult, localeResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
-    userLocale(self)
+    userLocale(self),
+    listFetches(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
@@ -100,10 +127,110 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
-  return { given, received, grantableSections: [...GRANTABLE_SECTIONS], notifications, savedLocale, degraded };
+  return {
+    given,
+    received,
+    grantableSections: [...GRANTABLE_SECTIONS],
+    notifications,
+    savedLocale,
+    degraded,
+    ...readFetchKeys(fetchKeyResult)
+  };
 };
 
+// One reason per line, and the caller renders whichever comes back. The UI has
+// only ever shown a single message, so a field->message map was shape the
+// action carried without anyone reading it.
+function keyEntryError(label: string, value: string): string | null {
+  if (!label) return 'Label is required.';
+  if (label.length > 32) return 'Label must be at most 32 characters.';
+  if (!value.trim()) return 'Key value is required.';
+  if (value.length > KEY_VALUE_MAX) return `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+  return null;
+}
+
+// ownerActor is the guard both key actions share: API keys are account-level
+// secrets, so a delegate may spend one through a data source but never read,
+// rotate or destroy it. Returns the session or the refusal to render, so each
+// caller spends one branch on it instead of two.
+function ownerActor(s: Session | null): { session: Session } | { status: number; error: string } {
+  if (!s) return { status: 401, error: 'Not signed in.' };
+  if (s.delegate_of) return { status: 403, error: 'Only the account owner can do that.' };
+  return { session: s };
+}
+
+async function demoKeySet(label: string, value: string) {
+  const d = await import('$lib/server/demo-data');
+  const current = d.demoFetches();
+  return {
+    ok: true,
+    action: 'fetchkeyset',
+    name: label,
+    fetchKeys: [
+      ...current.keys.filter((k) => k.label !== label),
+      { label, last4: value.slice(-4).replace(/[^0-9a-f]/gi, '').padEnd(4, 'x'), created_at: new Date().toISOString() }
+    ]
+  };
+}
+
+async function demoKeyDelete(label: string) {
+  const d = await import('$lib/server/demo-data');
+  return {
+    ok: true,
+    action: 'fetchkeydeleted',
+    name: label,
+    fetchKeys: d.demoFetches().keys.filter((k) => k.label !== label)
+  };
+}
+
 export const actions: Actions = {
+  // Seal (or rotate) an API key under a label. The value crosses here once and
+  // is never logged, cached, or echoed back — the reply carries last4 only, and
+  // the audit trail names the label alone.
+  setfetchkey: async ({ request, locals }) => {
+    const form = await request.formData();
+    const label = slugifyName(String(form.get('label') ?? ''));
+    const value = String(form.get('value') ?? '');
+
+    const invalid = keyEntryError(label, value);
+    if (invalid) return fail(400, { ok: false, error: invalid });
+
+    if (DEMO) return demoKeySet(label, value);
+
+    const actor = ownerActor(locals.session);
+    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
+
+    try {
+      const last4 = await setFetchKey({ userId: actor.session.user_id, label, value });
+      const fresh = await listFetches(actor.session.user_id);
+      auditDashboardImpersonation(actor.session, 'fetchkey:set', label);
+      return { ok: true, action: 'fetchkeyset', name: label, last4, fetchKeys: fresh.keys };
+    } catch {
+      return fail(502, { ok: false, error: 'Could not seal the key.' });
+    }
+  },
+
+  // Key delete. Always allowed server-side: data sources bound to a dangling
+  // label fail closed until relinked, which is the safe direction. No undo —
+  // the sealed value is destroyed.
+  delfetchkey: async ({ request, locals }) => {
+    const label = slugifyName(String((await request.formData()).get('label') ?? ''));
+
+    if (DEMO) return demoKeyDelete(label);
+
+    const actor = ownerActor(locals.session);
+    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
+
+    try {
+      await deleteFetchKey({ userId: actor.session.user_id, label });
+      const fresh = await listFetches(actor.session.user_id);
+      auditDashboardImpersonation(actor.session, 'fetchkey:delete', label);
+      return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: fresh.keys };
+    } catch {
+      return fail(502, { ok: false, error: 'Could not delete the key.' });
+    }
+  },
+
   // markRead lives here (not on a dedicated notifications page) because the
   // bell dropdown and the Settings section are the only notification surfaces.
   markRead: async ({ request, locals }) => {

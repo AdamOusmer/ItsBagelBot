@@ -37,54 +37,54 @@ const NO_GO_MODULE: Record<string, string> = {
 // Shrinking this list is the point: a module lands in Go, the dashboard owes it
 // a catalog entry, and this test is what remembers.
 const NOT_IN_DASHBOARD: Record<string, string> = {
-  moderation: 'the mod-facing command set, configured through automod rather than its own tile',
-  songqueue: 'catalog entry lands with feat/dashboard-spotify-automod (see PR #688)'
+  moderation: 'the mod-facing command set, configured through automod rather than its own tile'
 };
 
-function goSources(): string[] {
-  const files: string[] = [];
-  for (const dir of GO_DIRS) {
-    const abs = join(SESAME, dir);
-    // A hard failure, not a skip: a moved sesame tree must break this test
-    // rather than let it pass over nothing.
-    if (!existsSync(abs)) throw new Error(`sesame source not found at ${abs} — fix this test's path, do not delete it`);
-    for (const name of readdirSync(abs)) {
-      if (name.endsWith('.go') && !name.endsWith('_test.go')) files.push(readFileSync(join(abs, name), 'utf8'));
-    }
-  }
-  return files;
+// Two regexes for the module package's two declaration shapes, hoisted so the
+// readers below stay a single flat expression each: nested loop-and-branch
+// bodies here are what CodeScene flags as Bumpy Road, and a parser that grows
+// a third shape should become a third named reader rather than another branch.
+const CONST_DECL = /(\w*[Mm]oduleName)\s*=\s*"([a-z]+)"/g;
+const NEW_MODULE = /module\.NewModule\(\s*([^,]+?)\s*,\s*module\.(Kind\w+)\s*\)/g;
+
+function goSourcesIn(dir: string): string[] {
+  const abs = join(SESAME, dir);
+  // A hard failure, not a skip: a moved sesame tree must break this test rather
+  // than let it pass over nothing.
+  if (!existsSync(abs)) throw new Error(`sesame source not found at ${abs} — fix this test's path, do not delete it`);
+  return readdirSync(abs)
+    .filter((name) => name.endsWith('.go') && !name.endsWith('_test.go'))
+    .map((name) => readFileSync(join(abs, name), 'utf8'));
 }
 
-const SOURCES = goSources();
+const SOURCES = GO_DIRS.flatMap(goSourcesIn);
+
+function matches(re: RegExp): RegExpMatchArray[] {
+  return SOURCES.flatMap((src) => [...src.matchAll(re)]);
+}
 
 // Every `<ident>ModuleName = "<name>"` constant, keyed by identifier. These are
 // the ModuleView keys, including the ones no module.NewModule call names —
 // timers is written by the dashboard and read by the engine's Valkey clock, so
 // it has a key without being a module.
 function moduleNameConstants(): Map<string, string> {
-  const consts = new Map<string, string>();
-  for (const src of SOURCES) {
-    for (const m of src.matchAll(/(\w*[Mm]oduleName)\s*=\s*"([a-z]+)"/g)) consts.set(m[1], m[2]);
-  }
-  return consts;
+  return new Map(matches(CONST_DECL).map((m) => [m[1], m[2]]));
 }
 
-// The first argument of every module.NewModule call, resolved through the
-// constants above, paired with its kind. KindCore modules are the always-on
-// built-ins: they carry no ModuleView row and never appear in the catalog.
+// engine.LoyaltyModuleName -> LoyaltyModuleName -> "loyalty"; a quoted literal
+// is already the name.
+function resolveName(arg: string, consts: Map<string, string>): string | undefined {
+  return arg.startsWith('"') ? arg.slice(1, -1) : consts.get(arg.replace(/^\w+\./, ''));
+}
+
+// The modules that own a ModuleView row. KindCore modules are the always-on
+// built-ins: no row, never in the catalog.
 function namedGoModules(consts: Map<string, string>): Set<string> {
-  const named = new Set<string>();
-  for (const src of SOURCES) {
-    for (const m of src.matchAll(/module\.NewModule\(\s*([^,]+?)\s*,\s*module\.(Kind\w+)\s*\)/g)) {
-      const [, rawArg, kind] = m;
-      if (kind === 'KindCore') continue;
-      const name = rawArg.startsWith('"')
-        ? rawArg.slice(1, -1)
-        : consts.get(rawArg.replace(/^\w+\./, '')); // engine.LoyaltyModuleName -> LoyaltyModuleName
-      if (name) named.add(name);
-    }
-  }
-  return named;
+  const names = matches(NEW_MODULE)
+    .filter((m) => m[2] !== 'KindCore')
+    .map((m) => resolveName(m[1], consts))
+    .filter((name): name is string => !!name);
+  return new Set(names);
 }
 
 describe('MOD against the sesame module registry', () => {
