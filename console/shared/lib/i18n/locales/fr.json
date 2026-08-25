@@ -528,6 +528,8 @@
     "keyValueAria": "Nouvelle valeur pour la clé {label}",
     "keySave": "Sceller la clé",
     "keyRotate": "Faire pivoter",
+    "keyRotateAria": "Faire pivoter la clé {label}",
+    "keyDeleteAria": "Supprimer la clé {label}",
     "keyLast4Title": "4 derniers caractères enregistrés",
     "keyNote": "Les valeurs sont chiffrées avant stockage et ne sont plus jamais affichées ni envoyées au chat. La rotation remplace la valeur sous le même libellé.",
     "keyErrLabel": "Donnez d'abord un libellé à la clé.",
