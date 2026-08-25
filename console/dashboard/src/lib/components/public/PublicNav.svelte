@@ -9,7 +9,7 @@
   import { getI18n } from '@bagel/shared';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import NavLink from './NavLink.svelte';
-  import { dashHref, webHome, webHref, type PublicNavLink } from './links';
+  import { dashLoginHref, webHome, webHref, type PublicNavLink } from './links';
 
   let {
     links,
@@ -48,7 +48,7 @@
 
     <div class="nav-cta">
       {#if showLang}<LangSwitch />{/if}
-      <a class="cta-btn" href={dashHref(locale)} target="_blank" rel="noopener noreferrer"
+      <a class="cta-btn" href={dashLoginHref(locale)} target="_blank" rel="noopener noreferrer"
         >{t('public.nav.cta')}</a
       >
     </div>

@@ -205,7 +205,7 @@
         <b>{t('settings.reconnectTwitch')}</b>
         <p class="hint">{t('settings.reconnectTwitchHint')}</p>
       </div>
-      <ButtonLink href="/auth/login" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
+      <ButtonLink href="/auth/login?reauth=1" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
     </div>
   </section>
 

@@ -98,6 +98,24 @@ test.describe('ItsBagelBot site', () => {
         await expect(ignLinks).toHaveCount(2);
     });
 
+    test('Add to Twitch starts dashboard OAuth, not the console origin', async ({ page }) => {
+        await page.goto('/');
+        await expect(page.locator('.site-nav a.cta')).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/auth/login'
+        );
+        await expect(page.locator('.finale__actions a').first()).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/auth/login'
+        );
+
+        await page.goto('/fr/');
+        await expect(page.locator('.site-nav a.cta')).toHaveAttribute(
+            'href',
+            'https://dashboard.itsbagelbot.com/auth/login?lang=fr'
+        );
+    });
+
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
         await page.goto('/pricing');
 
