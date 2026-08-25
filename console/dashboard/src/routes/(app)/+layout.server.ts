@@ -18,10 +18,13 @@ const BELL_PEEK = 5;
 // must never block the shell, so a failed fetch just shows an empty peek.
 // Delegates have no bell.
 async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifications: NotificationWire[] }> {
+  // The peek is hard-capped here, at the source, so the streamed payload stays
+  // bounded no matter how deep the mailbox is.
+  const cap = (list: NotificationWire[]): NotificationWire[] => list.slice(0, BELL_PEEK);
   if (DEMO) {
     const { demoNotifications } = await import('$lib/server/demo-data');
     return {
-      notifications: demoNotifications,
+      notifications: cap(demoNotifications),
       unreadCount: demoNotifications.filter((n) => !n.read).length
     };
   }
@@ -35,7 +38,7 @@ async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifica
       unreadCount = r.unreadCount;
     })
     .catch(() => {});
-  return { unreadCount, notifications };
+  return { unreadCount, notifications: cap(notifications) };
 }
 
 // loadAuthorizedDashboards lists the boards shared with this user, for the
@@ -68,13 +71,18 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
   }
 
-  const [{ unreadCount, notifications }, authorizedDashboards, acc] = await Promise.all([
-    loadBellPeek(s),
-    loadAuthorizedDashboards(s),
-    DEMO
-      ? import('$lib/server/demo-data').then((m) => m.demoAccountState)
-      : accountState(s.user_id).catch(() => null)
-  ]);
+  // The gates already read account state once per request (hooks.server.ts ->
+  // guardSession), and the result rides locals. Reuse it; only a blipped gate
+  // read (field unset) retries here, and an authoritative ghost answer renders
+  // the shell with no account data instead of re-asking a service that already
+  // said no.
+  const acc: Awaited<ReturnType<typeof accountState>> | null = DEMO
+    ? await import('$lib/server/demo-data').then((m) => m.demoAccountState)
+    : locals.accountState
+      ? 'value' in locals.accountState
+        ? locals.accountState.value
+        : null
+      : await accountState(s.user_id).catch(() => null);
 
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
@@ -86,9 +94,12 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     delegateOf: s.delegate_of,
     delegateLogin: s.delegate_of ? s.delegate_login : undefined,
     sections: s.delegate_of ? (s.sections ?? []) : undefined,
-    unreadCount,
-    bellNotifications: notifications.slice(0, BELL_PEEK),
-    authorizedDashboards,
+    // Streamed, not awaited: the bell peek is the shell's one unbounded read
+    // (the full notification list feeds it), and holding first paint on it
+    // stalled every authed page by up to a READ_TIMEOUT when the notifications
+    // service lagged. The layout template awaits `bell` around the component.
+    bell: loadBellPeek(s),
+    authorizedDashboards: await loadAuthorizedDashboards(s),
     isPremium,
     onboarded: acc ? acc.onboarded : false
   };

@@ -28,7 +28,7 @@ import {
 } from '@bagel/shared';
 import { DEFAULT_LOCALE } from '@bagel/shared/i18n';
 import type { Session } from './session';
-import type { BillingState, NotificationWire } from './services';
+import type { AccountState, BillingState, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -90,7 +90,13 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
-export const demoAccountState = { active: true, status: 'vip', onboarded: true, creatorCode: null };
+export const demoAccountState: AccountState = {
+  active: true,
+  status: 'vip',
+  onboarded: true,
+  creatorCode: null,
+  username: 'demo'
+};
 
 // Sample grants covering the full lifecycle (pending + consumed) so the
 // settings page renders and is exercisable without OAuth + NATS.

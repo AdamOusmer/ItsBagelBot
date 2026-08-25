@@ -44,7 +44,15 @@
     "./importer/types": "./lib/importer/types.ts",
     "./importer/validate": "./lib/importer/validate.ts",
     "./importer/streamelements": "./lib/importer/streamelements.ts",
-    "./importer/streamlabs-desktop": "./lib/importer/streamlabs-desktop/index.ts"
+    "./importer/streamlabs-desktop": "./lib/importer/streamlabs-desktop/index.ts",
+    "./i18n/context": "./lib/i18n/context.ts",
+    "./actions": "./lib/actions.ts",
+    "./icons": "./lib/icons.ts",
+    "./cursor": "./lib/cursor.ts",
+    "./toast": "./lib/toast.ts",
+    "./connection-state": "./lib/connection-state.ts",
+    "./overlay-stack": "./lib/overlay-stack.ts",
+    "./types": "./lib/types.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
