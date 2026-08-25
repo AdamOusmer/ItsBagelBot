@@ -23,7 +23,15 @@ export default defineConfig({
   // `pino` stays external so the New Relic agent's require-hook wraps the real
   // module at runtime and local-decorates its log lines (bundling defeats the hook).
   ssr: { noExternal: ['@bagel/shared'], external: ['newrelic', 'iovalkey', 'pino'] },
-  server: { port: 5173 },
+  // fs.allow: the workspace sibling console/shared holds tokens.css and the
+  // woff2 files it @font-faces. Vite rewrites those url()s to /@fs/… and, with
+  // the default allowlist, answered 403 for every one — `document.fonts` showed
+  // all four faces in `error` and Syne 800 fell back to sans-serif, which is
+  // ~40% narrower and silently changed every width-sensitive layout in dev
+  // (the /login hero grid measured a 547px title column against 902px in the
+  // Astro original). Dev-server only; production builds emit the fonts as
+  // hashed assets under _app/immutable/assets.
+  server: { port: 5173, fs: { allow: ['..'] } },
   build: {
     minify: 'terser'
   }
