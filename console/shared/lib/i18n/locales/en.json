@@ -528,6 +528,8 @@
     "keyValueAria": "New value for key {label}",
     "keySave": "Seal key",
     "keyRotate": "Rotate",
+    "keyRotateAria": "Rotate the {label} key",
+    "keyDeleteAria": "Delete the {label} key",
     "keyLast4Title": "Last 4 characters on file",
     "keyNote": "Values are encrypted before storage and never displayed or sent to chat again. Rotation replaces the value under the same label.",
     "keyErrLabel": "Give the key a label first.",
