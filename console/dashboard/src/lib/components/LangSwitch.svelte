@@ -3,15 +3,26 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Compact EN/FR toggle. Posts to /lang (plain form, no fetch) with the current
   // path as `next` so the switch keeps you on the same page in the new language.
+  import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { getI18n, LOCALES, type Locale } from '@bagel/shared';
-  import { localeName } from '@bagel/shared/i18n';
+  import { ensureCatalog, localeName } from '@bagel/shared/i18n';
 
   let { selected }: { selected?: Locale } = $props();
   const i18n = getI18n();
   const active = $derived(selected ?? i18n.locale);
   const next = $derived(page.url.pathname + page.url.search);
   const short = (l: Locale) => l.toUpperCase();
+
+  // Tooltips show each locale's self-name, which lives in its catalog. Catalogs
+  // load lazily now (boot no longer evaluates all of them), so pull them in here
+  // where the names are actually displayed; until one lands the title falls
+  // back to the bare code.
+  let named = $state(false);
+  onMount(async () => {
+    await Promise.all(LOCALES.map((l) => ensureCatalog(l)));
+    named = true;
+  });
 </script>
 
 <form method="POST" action="/lang" class="lang" aria-label={i18n.t('lang.switchAria')}>
@@ -24,7 +35,7 @@
       class="lang-opt"
       class:active={l === active}
       aria-pressed={l === active}
-      title={localeName(l)}
+      title={named ? localeName(l) : l}
     >{short(l)}</button>
   {/each}
 </form>

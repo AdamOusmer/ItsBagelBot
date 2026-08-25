@@ -652,7 +652,6 @@ func TestFetchCapsValues(t *testing.T) {
 }
 
 // --- timeout classification ------------------------------------------------------
-
 func TestFetchSlowUpstreamMapsToTimeout(t *testing.T) {
 	h := newHarness(t)
 	h.routesMu.Lock()

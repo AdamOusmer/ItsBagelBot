@@ -304,6 +304,13 @@ type LoyaltyStore interface {
 	// found=false = login never seen here; spent=false with found=true =
 	// insufficient points (bal carries what they hold).
 	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
+	// BalanceTransfer moves fromViewerID's own points to the target login
+	// ("!points give"): an atomic guarded debit plus credit. found=false =
+	// target login never seen here; moved=false with found=true = the sender
+	// could not cover it (bal carries their standing).
+	BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error)
+	// Top returns the channel's points leaderboard, highest first.
+	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	// CounterCreate/CounterSet/CounterDelete/CounterList are the authoritative
 	// management verbs behind !counter (and the future dashboard).
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)

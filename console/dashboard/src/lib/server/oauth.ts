@@ -4,7 +4,7 @@
 // Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
-import { Twitch } from '@bagel/shared/server/oauth';
+import { Spotify, Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
@@ -36,6 +36,40 @@ export function twitch(): Twitch {
   const redirect = env.TWITCH_REDIRECT_URI;
   if (!id || !secret || !redirect) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
   return new Twitch(id, secret, redirect);
+}
+
+// Spotify connect for song requests (the /songqueue page). Playback state
+// scopes let the bot report what is actually playing and resolve !sr queries;
+// the refresh token itself is handed to the modules service's sealed custody,
+// never stored here.
+export function spotifyScopes(): string[] {
+  return ['user-read-currently-playing', 'user-read-playback-state'];
+}
+
+// spotifyConfig answers "is this deployment wired for Spotify" once, so the
+// three-env check is not spelled out again at every call site. Returning the
+// values rather than a boolean is what lets spotify() below narrow them without
+// a non-null assertion.
+function spotifyConfig(): { id: string; secret: string; redirect: string } | null {
+  const id = env.SPOTIFY_CLIENT_ID;
+  const secret = env.SPOTIFY_CLIENT_SECRET;
+  const redirect = env.SPOTIFY_REDIRECT_URI;
+  return id && secret && redirect ? { id, secret, redirect } : null;
+}
+
+/**
+ * True when the Spotify env is complete. Callers use this to render an
+ * explainer instead of a server error: an unconfigured deployment is a
+ * deployment state, not a fault.
+ */
+export function spotifyConfigured(): boolean {
+  return spotifyConfig() !== null;
+}
+
+export function spotify(): Spotify {
+  const cfg = spotifyConfig();
+  if (!cfg) throw new Error('SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return new Spotify(cfg.id, cfg.secret, cfg.redirect);
 }
 
 // Fetch the account email from Helix with the just-issued user token. The

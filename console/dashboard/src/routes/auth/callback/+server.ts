@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
-import { ResponseBodyError } from '@bagel/shared/server/oauth';
+import { isOAuthProtocolError } from '@bagel/shared/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
@@ -240,7 +240,7 @@ async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: s
   try {
     await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
-    if (!(e instanceof ResponseBodyError)) throw e;
+    if (!isOAuthProtocolError(e)) throw e;
     throw redirect(302, '/login?e=oauth');
   }
 }

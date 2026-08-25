@@ -44,7 +44,15 @@
     "./importer/types": "./lib/importer/types.ts",
     "./importer/validate": "./lib/importer/validate.ts",
     "./importer/streamelements": "./lib/importer/streamelements.ts",
-    "./importer/streamlabs-desktop": "./lib/importer/streamlabs-desktop/index.ts"
+    "./importer/streamlabs-desktop": "./lib/importer/streamlabs-desktop/index.ts",
+    "./i18n/context": "./lib/i18n/context.ts",
+    "./actions": "./lib/actions.ts",
+    "./icons": "./lib/icons.ts",
+    "./cursor": "./lib/cursor.ts",
+    "./toast": "./lib/toast.ts",
+    "./connection-state": "./lib/connection-state.ts",
+    "./overlay-stack": "./lib/overlay-stack.ts",
+    "./types": "./lib/types.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
@@ -52,7 +60,7 @@
     "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",
     "lenis": "^1.3.18",
-    "motion": "^12.0.0",
+    "motion": "^13.0.0",
     "oauth4webapi": "^3.8.7",
     "pino": "^9",
     "three": "^0.185.0",

@@ -4,7 +4,16 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { Button, Card, ButtonLink, Modal, Skeleton, getI18n, connectionUiState, toast, type ConnSignals, type ConnUi } from '@bagel/shared';
+  // Direct imports, not the barrel: this is the authed landing page's boot path
+  // (see routes/+layout.svelte).
+  import Button from '@bagel/shared/components/Button.svelte';
+  import Card from '@bagel/shared/components/Card.svelte';
+  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
+  import Modal from '@bagel/shared/components/Modal.svelte';
+  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
+  import { toast } from '@bagel/shared/toast';
   import type { ActionResult } from '@sveltejs/kit';
   import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
   import OverviewHead from '$lib/components/overview/OverviewHead.svelte';

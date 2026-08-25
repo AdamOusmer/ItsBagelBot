@@ -107,6 +107,26 @@ type Config struct {
 	// gate so the layers soak in shadow logs before anyone trusts them.
 	AdaptiveEnabled bool
 
+	// LinkCheckEnabled arms the dynamic link-safety checker: unknown link hosts
+	// resolve through passive oracles (Cloudflare security DoH, the OpenPhish
+	// blocklist) on background goroutines, and convicted hosts time out on their
+	// next mention under the "phish" rule. Dark launch like the other layers:
+	// off keeps verdicts byte-identical; arm it alongside AutomodEnforce=false
+	// first so Hit logs can soak. The checker never fetches a chat link's
+	// destination - see app/sesame/automod/linkcheck.
+	LinkCheckEnabled bool
+
+	// LinkCheckFeeds pulls the community blocklists (the OpenPhish free feed)
+	// every feed interval. On by default when LinkCheckEnabled is armed.
+	LinkCheckFeeds bool
+
+	// LinkCheckShorteners allows redirect-header walks across the shortener
+	// allowlist (bit.ly et al) so "is this safe?" answers for the destination,
+	// which the chat-visible shortener alone can never give. Requests stop at
+	// the allowlist boundary and never contact destinations. On by default when
+	// LinkCheckEnabled is armed.
+	LinkCheckShorteners bool
+
 	// LiveTTL bounds how long a live key survives without a refresh.
 	LiveTTL time.Duration
 
@@ -207,6 +227,10 @@ func Load() *Config {
 		ShieldEnabled:   env.Get("SESAME_AUTOMOD_SHIELD", "false") == "true",
 		EmotesEnabled:   env.Get("SESAME_AUTOMOD_EMOTES", "true") == "true",
 		AdaptiveEnabled: env.Get("SESAME_AUTOMOD_ADAPTIVE", "false") == "true",
+
+		LinkCheckEnabled:    env.GetBool("SESAME_LINKCHECK", false),
+		LinkCheckFeeds:      env.GetBool("SESAME_LINKCHECK_FEEDS", true),
+		LinkCheckShorteners: env.GetBool("SESAME_LINKCHECK_SHORTENERS", true),
 
 		NukeEnabled: env.Get("SESAME_NUKE", "on") != "off",
 

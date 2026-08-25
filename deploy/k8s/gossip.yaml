@@ -168,7 +168,7 @@ spec:
       # "warp" package private right after its first publish.
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1787597825-d5324cbf57a0@sha256:8b4e50ca01a8137164e8f3f309417c88393c5800d4afae7ea0b0455dd6859ab4
+          image: ghcr.io/adamousmer/itsbagelbot/warp:main-1787603663-a1c27f889ca7@sha256:68baa5313abcb1ea376f99a0aa06faeaa37df3dcb4ab6c1dddc0cc6f13a2d66e
           imagePullPolicy: IfNotPresent
           restartPolicy: Always # native sidecar: runs for the pod's lifetime
           # Bootstrap (consumer WARP, deliberately NO Zero Trust org). Two
@@ -202,13 +202,24 @@ spec:
             - -ec
             - |
               warp-svc &
-              # Proxy mode is MASQUE-only since 2025.8; set it explicitly and
-              # tolerate a no-op on builds where proxy mode already implies it.
-              warp-cli --accept-tos tunnel protocol set MASQUE || true
+              # WAIT for the daemon's IPC socket before any warp-cli call.
+              # Without this the container crashloops on
+              # "Unable to connect to the CloudflareWARP daemon: No such file
+              # or directory" — warp-svc backgrounds instantly but takes ~2s to
+              # bind its socket, so every command raced it and failed. Polling
+              # `status` is the readiness signal (it answers "Registration
+              # Missing" once the daemon is up, which is a live response).
+              for i in $(seq 1 60); do
+                warp-cli --accept-tos status >/dev/null 2>&1 && break
+                sleep 1
+              done
+              # Consumer registration: no organization, no service token, no
+              # seat, no charge. Tolerated on failure because an in-place
+              # container restart reuses the emptyDir state and is already
+              # registered; a genuinely broken registration surfaces at connect.
+              warp-cli --accept-tos registration new || true
               warp-cli --accept-tos mode proxy
               warp-cli --accept-tos proxy port 40000
-              # Consumer registration: no organization, no service token, no seat.
-              warp-cli --accept-tos registration new || true
               warp-cli --accept-tos connect || true
               # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the proxy.
               wait
@@ -217,9 +228,18 @@ spec:
             # (MASQUE) SOCKS proxy, so it needs neither — and withholding them
             # is the hard guarantee that WARP CANNOT create a tunnel interface
             # or rewrite routes in the shared pod netns, which is what would
-            # otherwise blackhole gossip's pod-to-pod traffic. runAsNonRoot
-            # stays false only because warp-svc writes its registration state
-            # as root; it binds loopback:40000 (>1024), needing no privilege.
+            # otherwise blackhole gossip's pod-to-pod traffic.
+            #
+            # runAsUser/runAsGroup 0 must be stated EXPLICITLY: the pod-level
+            # securityContext pins 65532, and runAsNonRoot:false alone does not
+            # replace it — the daemon then dies immediately with
+            # "PermissionDenied" (reproduced: `podman run --user 65532 …
+            # warp-svc` fails exactly this way, `--user 0` comes up in ~2s)
+            # because it cannot create its IPC socket or write its registration
+            # state. Root here buys no network privilege: it still holds no
+            # capabilities and binds only loopback:40000.
+            runAsUser: 0
+            runAsGroup: 0
             runAsNonRoot: false
             capabilities:
               drop: ["ALL"]
@@ -230,15 +250,31 @@ spec:
             - name: warp-socks
               containerPort: 40000
           readinessProbe:
-            # 15 x 2s: generous enough to cover daemon boot, tight enough that
-            # a pod whose tunnel never comes up stops receiving traffic.
-            tcpSocket:
-              port: warp-socks
+            # EXEC, not tcpSocket: warp-svc binds the proxy on 127.0.0.1:40000
+            # only — which is exactly what we want, since nothing outside this
+            # pod should reach the untrusted egress lane — but a tcpSocket
+            # probe dials the POD IP, where nothing is listening, so it can
+            # never pass. Observed as a pod stuck at 1/2 with the tunnel
+            # already Connected and the listener bound. The probe therefore
+            # has to run INSIDE the container's netns and check loopback.
+            #
+            # 45 x 2s = 90s: the listener appears only after daemon boot (~2s)
+            # plus consumer registration, a live call to Cloudflare, and this
+            # is a native sidecar whose readiness gates the whole gossip pod.
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "ss -ltn | grep -q '127.0.0.1:40000'"
             periodSeconds: 2
-            failureThreshold: 15
+            failureThreshold: 45
           livenessProbe:
+            # initialDelaySeconds covers the same boot+registration window:
+            # without it the probe runs `status` against a daemon that is not
+            # listening yet and restarts the container mid-enrollment.
             exec:
               command: ["warp-cli", "--accept-tos", "status"]
+            initialDelaySeconds: 60
             periodSeconds: 30
           resources:
             requests:
@@ -249,7 +285,7 @@ spec:
               memory: 256Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787595359-141d372665a9@sha256:d3df8ccc667e269fde4b5a8210fba1517ccfdab61db88a19dcf8e96d0db4a5a5
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787603663-a1c27f889ca7@sha256:88401dd6400106d5a597227664b168a4ef19dc6a18e5106fb3b6e270a63e798c
           imagePullPolicy: IfNotPresent
           env:
             # gossip is RPC-only: it answers sesame's requests over
