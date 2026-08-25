@@ -1,0 +1,102 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Card atmosphere — a pocket of the header's light, not a cursor tracker.
+ *
+ * Same discs as the hero (green top-right, tan bottom-left, a tan→green arc)
+ * at card scale. They stay static: a `filter: blur` on a still layer is one
+ * paint and a cached bitmap. The hitch was animating them — a ::before that
+ * pulsed `scale(1.1)` on every orb, plus a masked ring spinning on every
+ * tile, which re-rasters the blur at 60fps. Hover only changes opacity
+ * (compositor), never transform or filter. Adjacent tiles flip via
+ * :nth-child(even) so a grid is not a stamp.
+ *
+ * The card itself still owns the border and lift.
+ */
+---
+
+<div class="card-atmo" aria-hidden="true">
+    <span class="card-atmo__ring"></span>
+    <span class="card-atmo__orb card-atmo__orb--green"></span>
+    <span class="card-atmo__orb card-atmo__orb--tan"></span>
+</div>
+
+<style>
+    .card-atmo {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 0;
+        /* Header orbs rest at ~0.16 on a full viewport; cards are smaller so
+           the same number reads as nothing. 0.28 at rest / 0.42 on hover was
+           measured against --card-bg #111110 after the pulse ::before came
+           off: 0.22 (the pulsed rest) went flat without that extra layer. */
+        --card-atmo-orb: 0.28;
+    }
+
+    /* Even siblings flip so neighbouring cards don't share one corner glow.
+       scaleX on this layer only — body copy is a sibling, not a child. */
+    :global(.card:nth-child(even)) .card-atmo,
+    :global(.gcard:nth-child(even)) .card-atmo {
+        transform: scaleX(-1);
+    }
+
+    :global(.card:hover) .card-atmo,
+    :global(.gcard:hover) .card-atmo,
+    :global(.card:focus-visible) .card-atmo,
+    :global(.gcard:focus-visible) .card-atmo {
+        --card-atmo-orb: 0.42;
+    }
+
+    /* Mini of Header's .bg-ring: a 1.5px tan→green arc, not a filled disc.
+       Masked conic so we never mint per-card SVG ids (g1/g2 would collide).
+       Parked half off the right edge the way the hero ring sits off-canvas.
+       No spin — rotating a masked layer on every tile was the other hitch. */
+    .card-atmo__ring {
+        position: absolute;
+        top: 42%;
+        right: -22%;
+        width: 92%;
+        aspect-ratio: 1;
+        translate: 0 -50%;
+        border-radius: 50%;
+        opacity: 0.16;
+        background: conic-gradient(
+            from 210deg,
+            rgba(201, 168, 124, 0.9),
+            rgba(45, 106, 79, 0.14) 30%,
+            rgba(64, 145, 108, 0.75) 55%,
+            rgba(201, 168, 124, 0.2) 80%,
+            rgba(201, 168, 124, 0.9)
+        );
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
+    }
+
+    .card-atmo__orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(42px);
+        opacity: var(--card-atmo-orb);
+        transition: opacity 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .card-atmo__orb--green {
+        width: 240px;
+        height: 240px;
+        background-color: var(--green, #2d6a4f);
+        top: -48px;
+        right: -36px;
+    }
+
+    .card-atmo__orb--tan {
+        width: 200px;
+        height: 200px;
+        background-color: var(--tan, #c9a87c);
+        bottom: -40px;
+        left: -32px;
+    }
+</style>
