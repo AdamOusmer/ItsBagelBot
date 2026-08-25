@@ -91,17 +91,23 @@ func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger) *SpotifyCreds {
 	return NewSpotifyCreds(client, packer)
 }
 
+// write runs one custody mutation for a validated owner. Every write here —
+// the two upserts and the two removals — opens with the same owner check and
+// the same exec wrapper, and only the statement in the middle differs.
+func (s *SpotifyCreds) write(ctx context.Context, userID uint64, stmt func(context.Context) error) error {
+	if err := validate.UserID(userID); err != nil {
+		return err
+	}
+	return db.WithExec(ctx, stmt)
+}
+
 // SetToken seals the broadcaster's refresh token and upserts it. The
 // plaintext never touches the database or logs; the AAD binds the ciphertext
 // to this user id so an envelope copied onto another row fails to open.
 func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken string) error {
-	if err := validate.UserID(userID); err != nil {
-		return err
-	}
 	if refreshToken == "" {
 		return errors.New("empty spotify refresh token")
 	}
-
 	sealed, err := s.packer.Pack([]byte(refreshToken), spotifyAAD(userID, fieldToken))
 	if err != nil {
 		return err
@@ -112,7 +118,7 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 	// carries, defaults included, so it would blank the client_id/
 	// client_secret_enc pair (both defaulted, neither set here) and silently
 	// unregister the broadcaster's Spotify app on every reconnect.
-	return db.WithExec(ctx, func(ctx context.Context) error {
+	return s.write(ctx, userID, func(ctx context.Context) error {
 		return s.client.SpotifyCredential.Create().
 			SetUserID(userID).
 			SetTokenEnc(sealed.Ciphertext).
@@ -131,9 +137,6 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 // app fails at the next exchange, which surfaces as the ordinary "connect
 // again" path rather than as a silent wipe here.
 func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp) error {
-	if err := validate.UserID(userID); err != nil {
-		return err
-	}
 	clientID := strings.TrimSpace(app.ClientID)
 	clientSecret := strings.TrimSpace(app.ClientSecret)
 	if clientID == "" || clientSecret == "" {
@@ -148,7 +151,7 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp
 	// Explicit conflict columns for the same reason as SetToken, mirrored: an
 	// UpdateNewValues here would blank the token_enc of a broadcaster who
 	// rotates their client secret, forcing a reconnect nobody asked for.
-	return db.WithExec(ctx, func(ctx context.Context) error {
+	return s.write(ctx, userID, func(ctx context.Context) error {
 		return s.client.SpotifyCredential.Create().
 			SetUserID(userID).
 			SetClientID(clientID).
@@ -165,10 +168,7 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp
 // token goes with it: a grant is minted BY an application, so a token
 // outliving its app can only produce confusing 400s at the next exchange.
 func (s *SpotifyCreds) ClearApp(ctx context.Context, userID uint64) error {
-	if err := validate.UserID(userID); err != nil {
-		return err
-	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
+	return s.write(ctx, userID, func(ctx context.Context) error {
 		_, err := s.client.SpotifyCredential.Delete().
 			Where(spotifycredential.UserIDEQ(userID)).
 			Exec(ctx)
@@ -268,10 +268,7 @@ func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error
 //
 // A missing row is a no-op: the end state (no token) is the same either way.
 func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
-	if err := validate.UserID(userID); err != nil {
-		return err
-	}
-	return db.WithExec(ctx, func(ctx context.Context) error {
+	return s.write(ctx, userID, func(ctx context.Context) error {
 		_, err := s.client.SpotifyCredential.Update().
 			Where(spotifycredential.UserIDEQ(userID)).
 			ClearTokenEnc().
