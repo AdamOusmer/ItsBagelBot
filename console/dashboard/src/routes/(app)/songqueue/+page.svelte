@@ -1,31 +1,42 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { onMount } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
     Card,
     PageHead,
+    Scroller,
     ConfirmDialog,
+    InspectorSurface,
     MasterToggle,
     AlertBanner,
-    EmptyState,
+    DeckList,
     Button,
     ButtonLink,
     Field,
     Switch,
     toast,
     getI18n,
+    moduleDef,
     SPOTIFY_SR_PERMS,
     type SpotifySrConfig,
     type SpotifyRedeemConfig,
     type SpotifySrPerm
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
+  import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
+  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
+
+  // Chat-commands reference from the shared catalog so this page never drifts
+  // from the generic /modules/[id] ledger (the quotes pattern).
+  const songCommands = moduleDef('songqueue')?.commands ?? [];
 
   // Local mirrors, reseeded on each SSR load (the /events stream re-runs the
   // loader after every confirmed write).
@@ -65,6 +76,10 @@
     unconfigured: 'spotify.errUnconfigured',
     store: 'spotify.errStore'
   };
+
+  onMount(() => {
+    if (data.justConnected) toast('ok', t('spotify.connectedToast'));
+  });
 
   type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
   function payloadOf(result: unknown): ActionResult | undefined {
@@ -108,7 +123,6 @@
         return;
       }
       toast('err', payload?.error ?? t('spotify.srSaveFailed'));
-      // Revert-on-failure: the optimistic mirror above may be wrong now.
       await invalidateAll();
     };
 
@@ -127,12 +141,16 @@
       await invalidateAll();
     };
 
-  // --- Reward editor -----------------------------------------------------------
-  // The editor shows when there is nothing bound yet (create) or when the
-  // broadcaster asked to edit the bound one.
-  let editing = $state(false);
-  const showEditor = $derived(!redeem.rewardId || editing);
+  // --- Inspector (govee deck: one row, docked editor) -----------------------
+  let inspecting = $state(false);
   let busy = $state(false);
+
+  function openReward() {
+    inspecting = !inspecting;
+  }
+  function closeInspector() {
+    inspecting = false;
+  }
 
   const saveSubmit: SubmitFunction = () => {
     busy = true;
@@ -140,7 +158,6 @@
       busy = false;
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
-        editing = false;
         toast('ok', t('spotify.toastSaved'));
         await invalidateAll();
         return;
@@ -165,7 +182,7 @@
       deletePending = false;
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
-        editing = false;
+        closeInspector();
         toast('ok', t('spotify.toastDeleted'));
         await invalidateAll();
         return;
@@ -203,7 +220,6 @@
   {/if}
 
   {#if missingScope}
-    <!-- Unavailable state explained in TEXT with the required Twitch action. -->
     <AlertBanner variant="warn" icon="music">
       {t('spotify.reconnect')}
       {#snippet action()}
@@ -212,29 +228,7 @@
     </AlertBanner>
   {/if}
 
-  <!-- Step 1 (prerequisite): connect the account. The request-path setup below
-       works either way, but requests cannot queue without it. -->
-  <Card>
-    <div class="step">
-      <span class="step-index" aria-hidden="true">1</span>
-      <div class="step-body">
-        <h2>{t('spotify.connectTitle')}</h2>
-        <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
-        {#if connected}
-          <div class="row">
-            <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.connectedPill')}</span>
-            <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
-              <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
-            </form>
-          </div>
-        {:else}
-          <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
-        {/if}
-      </div>
-    </div>
-  </Card>
-
-  <!-- Master switch -->
+  <!-- Master switch first, matching govee: the credential step follows. -->
   <div class="toolbar">
     <MasterToggle
       action="?/toggle"
@@ -246,80 +240,110 @@
     />
   </div>
 
-  <!-- Path A: chat command -->
-  <Card>
-    <div class="path-head">
-      <span class="step-index sm" aria-hidden="true">A</span>
-      <div class="path-title">
-        <h2>{t('spotify.srTitle')}</h2>
-        <p class="muted-text">{t('spotify.srHelp')}</p>
-      </div>
-    </div>
-    <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
-      <div class="setrow" class:on={sr.enabled}>
-        <div class="setrow-text">
-          <span class="setrow-label">{t('spotify.srEnableLabel')}</span>
-          <span class="muted-text" id="spotify-sr-desc">{sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}</span>
+  <!-- Connect is the only prerequisite. Chat and channel-points are sibling
+       paths (either can be on while the other is off), so they share a two-
+       column grid instead of a numbered 2-then-3 wizard that implied sequence. -->
+  <div class="setup">
+    <Card>
+      <h2 class="path-title">{t('spotify.connectTitle')}</h2>
+      <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
+      {#if connected}
+        <div class="row">
+          <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.connectedPill')}</span>
+          <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
+            <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
+          </form>
         </div>
-        <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
-      </div>
-      <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
+      {:else}
+        <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
+      {/if}
+    </Card>
 
-      <Field label={t('spotify.srPermLabel')}>
-        <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
-          {#each SPOTIFY_SR_PERMS as p (p)}
-            <option value={p}>{t(PERM_LABEL_KEYS[p])}</option>
-          {/each}
-        </select>
-      </Field>
-    </form>
-  </Card>
+    {#if connected}
+      <div class="paths" class:inspecting>
+        <Card>
+          <h2 class="path-title">{t('spotify.srTitle')}</h2>
+          <p class="muted-text">{t('spotify.srHelp')}</p>
+          <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
+            <div class="enable-row">
+              <div class="enable-text">
+                <span class="enable-label">{t('spotify.srEnableLabel')}</span>
+                <span class="muted-text" id="spotify-sr-desc">{sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}</span>
+              </div>
+              <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
+            </div>
+            <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
+            {#if sr.enabled}
+              <Field label={t('spotify.srPermLabel')}>
+                <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
+                  {#each SPOTIFY_SR_PERMS as p (p)}
+                    <option value={p}>{t(PERM_LABEL_KEYS[p])}</option>
+                  {/each}
+                </select>
+              </Field>
+            {:else}
+              <input type="hidden" name="perm" value={sr.perm} />
+            {/if}
+          </form>
+        </Card>
 
-  <!-- Path B: channel points -->
-  <Card>
-    <div class="path-head">
-      <span class="step-index sm" aria-hidden="true">B</span>
-      <div class="path-title">
-        <h2>{t('spotify.redeemTitle')}</h2>
-        <p class="muted-text">{t('spotify.redeemHelp')}</p>
-      </div>
-    </div>
+        <div class="redeem-col">
+          <Card>
+            <h2 class="path-title">{t('spotify.redeemTitle')}</h2>
+            <p class="muted-text">{t('spotify.redeemHelp')}</p>
+            <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
+              <div class="enable-row">
+                <div class="enable-text">
+                  <span class="enable-label">{t('spotify.redeemEnableLabel')}</span>
+                  <span class="muted-text" id="spotify-redeem-desc">{redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}</span>
+                </div>
+                <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
+              </div>
+              <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
+            </form>
+            <div class="reward-slot">
+              <SpotifyRewardRow
+                {redeem}
+                expanded={inspecting}
+                onExpand={openReward}
+                onDelete={() => (deletePending = true)}
+              />
+            </div>
+          </Card>
 
-    <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
-      <div class="setrow" class:on={redeem.enabled}>
-        <div class="setrow-text">
-          <span class="setrow-label">{t('spotify.redeemEnableLabel')}</span>
-          <span class="muted-text" id="spotify-redeem-desc">{redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}</span>
+          {#if inspecting}
+            <InspectorSurface
+              open
+              title={redeem.reward?.title || t('spotify.thisReward')}
+              controls="spotify-editor"
+              closeLabel={t('spotify.closeEditor')}
+              onClose={closeInspector}
+            >
+              <Scroller fill padding="16px" data-lenis-prevent>
+                {#key (redeem.rewardId || 'new')}
+                  <SpotifyRewardEditor
+                    {redeem}
+                    {busy}
+                    onSubmit={saveSubmit}
+                    onCancel={closeInspector}
+                    onRequestDelete={() => (deletePending = true)}
+                  />
+                {/key}
+              </Scroller>
+            </InspectorSurface>
+          {/if}
         </div>
-        <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
       </div>
-      <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
-    </form>
-
-    {#if showEditor}
-      <!-- Keyed on the binding identity + mode so switching create↔edit reseeds
-           the editor's local draft state (the govee inspector's {#key} rule). -->
-      {#key (redeem.rewardId || 'new') + String(editing)}
-        <SpotifyRewardEditor
-          redeem={redeem}
-          {busy}
-          onSubmit={saveSubmit}
-          onCancel={() => (editing = false)}
-          onRequestDelete={() => (deletePending = true)}
-        />
-      {/key}
-    {:else if redeem.reward}
-      <div class="bound-row">
-        <span class="bound-title"><Icon name="gem" size={13} /> {redeem.reward.title}</span>
-        <span class="muted-text">{t('spotify.costPts', { n: redeem.reward.cost })}</span>
-        <Button variant="secondary" icon="edit" onclick={() => (editing = true)} disabled={busy}>{t('spotify.editReward')}</Button>
-      </div>
-    {:else}
-      <EmptyState icon="gem" title={t('spotify.noRewardTitle')} body={t('spotify.noRewardBody')} />
     {/if}
-  </Card>
+  </div>
 
-  <p class="both-note muted-text">{t('spotify.bothNote')}</p>
+  {#if songCommands.length}
+    <div class="cmd-block">
+      <DeckList>
+        <ModuleCommandList commands={songCommands} headingId="spotify-cmds-h" />
+      </DeckList>
+    </div>
+  {/if}
 </section>
 
 <ConfirmDialog
@@ -351,54 +375,26 @@
 
   .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
-  .step { display: flex; gap: 14px; align-items: flex-start; }
-  .step-index {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono, "DM Mono", monospace);
-    font-weight: 600;
-    font-size: 14px;
-  }
-  .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: 6px; }
-  .step-body { flex: 1; min-width: 0; }
-  .step-body h2 { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0; }
-  .step-body .muted-text { margin-bottom: 14px; }
-  .step-body .muted-text:only-child { margin-bottom: 0; }
+  /* Gap between the connect card and the two request-path cards; `.screen` is
+     `display: block` so sibling Cards otherwise sit flush. */
+  .setup { display: grid; gap: 16px; }
+
+  .path-title { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
+  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
+  .enable-text .muted-text { margin: 0; font-size: 12px; }
 
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
 
-  /* Request-path sections share the step header shape so A/B read as one system */
-  .path-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
-  .path-title h2 { margin: 0 0 4px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .path-title .muted-text { font-size: 12.5px; }
-
-  .setrow {
+  .enable-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 8px;
     margin-bottom: 14px;
   }
-  .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
-  .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .setrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-
-  .bound-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 12px; border: 1px solid var(--rule); border-radius: 8px; }
-  .bound-title { display: inline-flex; align-items: center; gap: 7px; font-family: var(--bb-font-display); font-weight: 700; font-size: 13.5px; color: var(--bb-white); flex: 1; min-width: 0; }
-
-  .both-note { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 12px; }
+  .enable-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .enable-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
 
   .input {
     padding: 8px 12px;
@@ -412,4 +408,26 @@
     box-sizing: border-box;
   }
   .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
+
+  .paths {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .redeem-col { display: grid; gap: 16px; min-width: 0; }
+  .reward-slot {
+    margin: 0 -4px;
+    border-top: 1px solid var(--rule);
+    padding-top: 4px;
+  }
+  @media (min-width: 1080px) {
+    .paths { grid-template-columns: 1fr 1fr; }
+    /* Inspector docks beside the points card, full width under chat — same
+       list+pane shape as govee, without squeezing the chat card into a third. */
+    .paths.inspecting { grid-template-columns: 1fr; }
+    .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }
+  }
+
+  .cmd-block { margin-top: 32px; }
 </style>
