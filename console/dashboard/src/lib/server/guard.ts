@@ -88,32 +88,45 @@ function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean 
   return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
 
-// assertAccountUsable runs the three gates that judge the session itself,
-// each with the same outage posture: fail open on a transport blip, wipe the
-// cookie only on an authoritative answer.
+// assertAccountUsable runs the three gates that judge the session itself.
+// They fire CONCURRENTLY: each is an independent read (ban via cache fabric,
+// revocation via Valkey, account state via users RPC), and sequential awaits
+// stacked three round trips on every authed request — visible as a stalled
+// first paint on the dashboard. Outcomes keep their priority: ban outranks
+// revocation, which outranks ghost-session; only an authoritative answer wipes
+// the cookie, transport blips fail open exactly as before.
 //   * ban — isBanned serves last-known state through a users-service outage.
 //   * revocation — logout kills this sid; "sign out everywhere" kills every
 //     session issued before that moment. isSessionRevoked never throws.
 //   * ghost session — only an RpcError ("no such user") wipes; anything else
 //     keeps the session and lets pages degrade.
 async function assertAccountUsable(event: RequestEvent, s: Session): Promise<void> {
-  if (await isBanned(s.user_id)) {
+  const [ban, revoked, state] = await Promise.allSettled([
+    isBanned(s.user_id),
+    isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat }),
+    // Exposed on locals so the same read feeds the (app) layout's premium/
+    // onboarded data without a second RPC on cache-miss requests.
+    accountState(s.user_id)
+  ]);
+  // Settled result, never a live rejected promise (a request that never reads
+  // locals must not raise an unhandled rejection): a fulfilled read is reused
+  // by the layout, an RpcError means the user is gone (no retry), and any other
+  // failure leaves the field unset so the layout retries like it used to.
+  if (state.status === 'fulfilled') event.locals.accountState = { value: state.value };
+  else if (state.reason instanceof RpcError) event.locals.accountState = { ghost: true };
+
+  if (ban.status === 'fulfilled' && ban.value) {
     wipe(event);
     throw redirect(303, '/login?e=banned');
   }
 
-  if (await isSessionRevoked({ sid: s.sid, userId: s.user_id, iat: s.iat })) {
+  if (revoked.status === 'fulfilled' && revoked.value) {
     wipe(event);
-    // Not ?e=signedout: that notice tells the visitor their account no longer
-    // exists, which is the ghost-session case below. A revoked session is a
-    // live account the user deliberately signed out.
     throw redirect(303, '/login?e=revoked');
   }
 
-  try {
-    await accountState(s.user_id);
-  } catch (err) {
-    if (err instanceof RpcError) {
+  if (state.status === 'rejected') {
+    if (state.reason instanceof RpcError) {
       wipe(event);
       throw redirect(303, '/login?e=signedout');
     }
