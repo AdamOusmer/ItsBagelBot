@@ -22,14 +22,7 @@ import {
 import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
-import {
-  parseDefForm,
-  precheckFetchConflicts,
-  testRunThrottle,
-  testDraftError,
-  demoTestReply,
-  runRehearsal
-} from '$lib/server/fetch-def-actions';
+import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import type { Session } from '$lib/server/session';
@@ -244,101 +237,29 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
 }
 
 export const actions: Actions = {
-  // Save a data source from the builder inside the command editor.
+  // The three data-source actions are hosted here because the builder lives in
+  // the command editor, but they are not about commands: each one delegates to
+  // fetch-def-actions.ts and only translates a refusal into fail(), which has
+  // to be written here for SvelteKit to infer ActionData.
   savefetch: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
-    const def = parseDefForm(ctx.form);
-
-    // Shared validator: the client builder runs these exact checks, so this is
-    // the authoritative re-check rather than a duplicate of a different shape.
-    const errors: FetchDefErrors = validateFetchDef({
-      name: def.name,
-      url: def.url,
-      kind: def.kind,
-      path: def.path,
-      keyLabel: def.keyLabel
-    });
-    await precheckFetchConflicts(ctx.uid, def, errors);
-    if (Object.keys(errors).length) {
-      return fail(400, { ok: false, errors, error: firstError(errors) });
-    }
-
-    if (DEMO) {
-      const { demoFetches } = await import('$lib/server/demo-data');
-      const current = demoFetches();
-      const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
-      defs.push({ name: def.name, url: def.url, json_path: def.path, is_active: true, key_label: def.keyLabel });
-      return { ok: true, action: 'fetchsaved', name: def.name, defs, keys: current.keys };
-    }
-
-    const res = await tryRpc('savefetch', () =>
-      upsertFetchDef(ctx.uid, {
-        name: def.name,
-        url: def.url,
-        jsonPath: def.path,
-        isActive: true,
-        keyLabel: def.keyLabel,
-        originalName: def.renamed ? def.originalName : undefined
-      })
-    );
-    if (!res.ok) return fail(400, { ok: false });
-
-    auditDashboardImpersonation(ctx.session, def.isEdit ? 'fetchdef:update' : 'fetchdef:create', def.name);
-    return { ok: true, action: 'fetchsaved', name: def.name, defs: res.value.defs, keys: res.value.keys };
+    const r = await saveFetchDef(ctx.uid, ctx.session, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
   },
 
-  // The service refuses while any command response still references
-  // `{urlfetch:<name>}`; the client only pre-warns.
   deletefetch: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
-    const name = slugifyName(String(ctx.form.get('name') ?? ''));
-
-    if (DEMO) {
-      const { demoFetches } = await import('$lib/server/demo-data');
-      const current = demoFetches();
-      return { ok: true, action: 'fetchdeleted', name, defs: current.defs.filter((d) => d.name !== name), keys: current.keys };
-    }
-
-    const res = await tryRpc('deletefetch', () => deleteFetchDef({ userId: ctx.uid, name }));
-    if (!res.ok) return fail(400, { ok: false });
-
-    auditDashboardImpersonation(ctx.session, 'fetchdef:delete', name);
-    const fresh = await tryRpc('deletefetch-refresh', () => listFetches(ctx.uid));
-    return {
-      ok: true,
-      action: 'fetchdeleted',
-      name,
-      defs: fresh.ok ? fresh.value.defs : [],
-      keys: fresh.ok ? fresh.value.keys : []
-    };
+    const r = await removeFetchDef(ctx.uid, ctx.session, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
   },
 
-  // Rehearsal dry-run: executes the REAL chat path (same gossip subject, SSRF
-  // gate, buckets) with DryRun+Fresh and the posted draft inline as Def. Returns
-  // the raw body as `sample` so the builder can render a clickable tree — that
-  // is the whole point of the call for a non-technical author, who otherwise
-  // has to paste a response by hand. Nothing is persisted.
   testfetch: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn();
-
-    // Each step answers with a message or nothing, and the fail() stays here:
-    // SvelteKit infers ActionData from the fail() calls written inside the
-    // action, so the branching moves out but the refusals cannot.
-    const throttled = await testRunThrottle(ctx.uid);
-    if (throttled) return fail(429, { ok: false, error: throttled });
-
-    const def = parseDefForm(ctx.form);
-    const invalid = testDraftError(def);
-    if (invalid) return fail(400, { ok: false, error: invalid });
-
-    if (DEMO) return demoTestReply();
-
-    const reply = await runRehearsal(ctx.uid, def);
-    if (!reply) return fail(502, { ok: false, error: 'The fetch service did not answer. Try again in a moment.' });
-    return reply;
+    const r = await rehearseFetchDef(ctx.uid, ctx.form);
+    return r.ok ? r.data : fail(r.status, r.body);
   },
 
   save: async (event) => {
