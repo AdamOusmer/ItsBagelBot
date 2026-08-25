@@ -14,8 +14,8 @@ export const FORTNITE_MODULE: ModuleDef =
   tagline: 'Fortnite BR stats and the daily item shop in chat.',
   description:
     'One command, four looks: !fn shows a player\'s all-time wins, matches, kills, K/D and win rate with a solo/duo/squad breakdown; !fn season shows the same for the current season (the bot tracks season rollovers automatically); !fn session shows wins, kills and K/D since the stream started, snapshotting your standing the moment you go live; !fn store lists what is in today\'s item shop. The squashed forms !fnstats, !fnseason, !fnsession and !fnstore work too. Link your Epic display name below. Viewers can also name any player, e.g. "!fn Ninja"; !fn session always tracks your linked account. PlayStation and Xbox name lookups are not supported yet.',
-  icon: 'gamepad',
-  category: 'Games',
+  icon: 'parachute',
+  category: 'Stats',
   defaultEnabled: false,
   replies: [
     {

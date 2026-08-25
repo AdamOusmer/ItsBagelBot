@@ -10,8 +10,8 @@ export const COUNTERS_MODULE: ModuleDef =
   tagline: 'Track wins, deaths, hugs, redeems — anything your chat can count.',
   description:
     'Create channel-wide, per-command, or per-viewer tallies. Adjust them from the dashboard or chat, and bump them from command responses and channel-point rewards.',
-  icon: 'list',
-  category: 'Community',
+  icon: 'tally',
+  category: 'Points',
   defaultEnabled: true,
   toggleable: false,
   href: '/counters',

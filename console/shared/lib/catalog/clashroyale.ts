@@ -12,8 +12,8 @@ export const CLASHROYALE_MODULE: ModuleDef =
   tagline: 'Clash Royale profiles, decks and Path of Legends standing in chat.',
   description:
     'One command, four looks: !cr shows a player\'s lifetime profile (level, win/loss record, win rate, three-crown wins, clan); !cr decks lists their current battle deck with the average elixir cost; !cr ranked shows their Path of Legends standing (falling back to legacy league seasons for older accounts); !cr road shows their trophy-road record and arena. The squashed forms !crstats, !crdecks, !crranked and !crroad work too. Link your player tag below — Clash Royale has no name lookup, so a tag like #P2LQ0GR is required. Viewers can also name any tag, e.g. "!cr #P2LQ0GR".',
-  icon: 'gamepad',
-  category: 'Games',
+  icon: 'crown',
+  category: 'Stats',
   defaultEnabled: false,
   replies: [
     {

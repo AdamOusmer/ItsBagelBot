@@ -10,8 +10,8 @@ export const RAFFLE_MODULE: ModuleDef =
   tagline: 'Timed random draws your chat enters with !join.',
   description:
     'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically — winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
-  icon: 'gem',
-  category: 'Community',
+  icon: 'ticket',
+  category: 'Play',
   defaultEnabled: false,
   // The viewer-facing conversational replies are customizable per broadcaster
   // and each rehearses as its command (a viewer types the trigger, the bot

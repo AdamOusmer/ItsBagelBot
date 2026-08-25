@@ -27,6 +27,7 @@ export { default as MobileNav } from '../components/MobileNav.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
 export { default as PageHead } from '../components/PageHead.svelte';
 export { default as PageToolbar } from '../components/PageToolbar.svelte';
+export { default as SectionNav } from '../components/SectionNav.svelte';
 export { default as CardHead } from '../components/CardHead.svelte';
 export { default as AlertBanner } from '../components/AlertBanner.svelte';
 export { default as Chip } from '../components/Chip.svelte';
@@ -70,6 +71,7 @@ export {
   type Locale
 } from './i18n/messages';
 export * from './types';
+export * from './module-index';
 export * from './nav';
 export * from './spotify';
 export * from './toast';

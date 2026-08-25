@@ -17,8 +17,8 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     tagline: 'Let viewers wager their points on a roll with !gamble.',
     description:
       'Give your loyalty points a game: viewers type !gamble <amount> (or half/all of their standing) and the bot rolls 1-100. Landing inside your win chance pays the stake back plus its match; anything else takes it. Set the win odds, bet limits and per-viewer cooldown below, and customize the win/lose lines. Every payout and debit moves real loyalty points through the same ledger as !points. Turned on from the Loyalty page — it cannot run while the currency is off, and it uses the same currency name.',
-    icon: 'gamepad',
-    category: 'Community',
+    icon: 'dice',
+    category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
     // The numeric knobs are plain settings the generic page patches into the
@@ -69,8 +69,8 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     tagline: 'Viewer-vs-viewer point duels: pot free-for-alls and 1v1 challenges.',
     description:
       "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake — when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend — nobody can wager what they do not have. Turned on from the Loyalty page; it uses the same currency name and stays off while loyalty is off.",
-    icon: 'activity',
-    category: 'Community',
+    icon: 'swords',
+    category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
     settings: [

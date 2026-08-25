@@ -14,8 +14,8 @@ export const URCHIN_MODULE: ModuleDef =
   tagline: 'Hypixel Bedwars stats, urchin score and blacklist tags in chat.',
   description:
     'Viewer commands backed by urchin.gg: daily, weekly and monthly Bedwars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. "!daily Technoblade".',
-  icon: 'gamepad',
-  category: 'Games',
+  icon: 'dirt',
+  category: 'Stats',
   defaultEnabled: false,
   replies: [
     {
