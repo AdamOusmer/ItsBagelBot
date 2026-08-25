@@ -52,6 +52,8 @@
   let open = $state(false);
   let building = $state(false);
   let btnEl = $state<HTMLButtonElement>();
+  /** Failure text for the popover itself (delete refusals), not the builder. */
+  let panelErr = $state('');
 
   // Fixed coords computed from the trigger rect on open. The chip lives inside
   // the command editor's InspectorSurface, which sets `overflow: hidden` to clip
@@ -72,7 +74,13 @@
 
   function toggle() {
     open = !open;
-    if (open) place();
+    if (!open) return;
+    // Clear on open, not on close: the scroll/resize handler closes without
+    // going through here, so an armed delete could otherwise still be primed
+    // the next time the popover appears.
+    armedDelete = '';
+    panelErr = '';
+    place();
   }
 
   // Coords are a snapshot, so movement invalidates them. Closing beats
@@ -221,17 +229,37 @@
     creating = false;
   }
 
+  // Delete is two-tap rather than one: the × arms, a second click commits.
+  // There is no undo, and the old page guarded this with a full confirm dialog
+  // listing the commands that quote the source — too heavy for a popover, but
+  // deleting on a single stray click would be worse than either.
+  let armedDelete = $state('');
+
   async function remove(name: string) {
+    if (armedDelete !== name) {
+      armedDelete = name;
+      panelErr = '';
+      return;
+    }
+    armedDelete = '';
+    panelErr = '';
     const f = new FormData();
     f.set('name', name);
     try {
       const r = await post('deletefetch', f);
       const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
-        | { ok?: boolean; defs?: SourceDef[] }
+        | { ok?: boolean; defs?: SourceDef[]; error?: string }
         | undefined;
-      if (d?.ok && d.defs) onDefsChanged?.(d.defs);
+      if (d?.ok && d.defs) {
+        onDefsChanged?.(d.defs);
+        return;
+      }
+      // The service refuses while a command still quotes the source. Saying so
+      // matters more here than anywhere else: the row simply not disappearing
+      // reads as a dead button.
+      panelErr = d?.error ?? t('fetches.toastDeleteFailed', { name });
     } catch {
-      /* the list stays as-is; the next load reconciles */
+      panelErr = t('fetches.toastDeleteFailed', { name });
     }
   }
 </script>
@@ -269,12 +297,18 @@
               <button
                 type="button"
                 class="opt-del"
-                aria-label={t('fetches.deleteAria', { name: d.name })}
-                onclick={() => remove(d.name)}>×</button
+                class:armed={armedDelete === d.name}
+                aria-label={armedDelete === d.name
+                  ? t('fetches.deleteTitle', { name: d.name })
+                  : t('fetches.deleteAria', { name: d.name })}
+                onclick={() => remove(d.name)}>{armedDelete === d.name ? t('common.delete') : '×'}</button
               >
             </li>
           {/each}
         </ul>
+      {/if}
+      {#if panelErr}
+        <small class="err" role="alert">{panelErr}</small>
       {/if}
       {#if atQuota}
         <small class="err">{t('fetches.quotaReached', { max: String(DEFS_PER_BROADCASTER) })}</small>
@@ -443,8 +477,9 @@
   }
   .opt-del {
     flex: none;
-    width: 22px;
+    min-width: 22px;
     height: 22px;
+    padding: 0 6px;
     border: none;
     border-radius: 6px;
     background: transparent;
@@ -454,6 +489,13 @@
     line-height: 1;
   }
   .opt-del:hover { color: var(--bb-status-error, #cf8a78); background: rgba(207, 138, 120, 0.12); }
+  /* Armed state reads as the destructive commit, not a second dismiss. */
+  .opt-del.armed {
+    color: var(--bb-status-error, #cf8a78);
+    background: rgba(207, 138, 120, 0.16);
+    font-family: var(--bb-font-body);
+    font-size: 11px;
+  }
 
   .new {
     font-family: var(--bb-font-body);
