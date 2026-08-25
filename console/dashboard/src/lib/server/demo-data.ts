@@ -92,7 +92,13 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
-export const demoAccountState = { active: true, status: 'vip', onboarded: true, creatorCode: null };
+export const demoAccountState: AccountState = {
+  active: true,
+  status: 'vip',
+  onboarded: true,
+  creatorCode: null,
+  username: 'demo'
+};
 
 // Sample grants covering the full lifecycle (pending + consumed) so the
 // settings page renders and is exercisable without OAuth + NATS.
