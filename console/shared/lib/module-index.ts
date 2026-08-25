@@ -10,7 +10,7 @@
 // jumps are hash links via categoryHref, not a second filter. A query like
 // "!sr" keeps finding Song Requests if the tile copy is rewritten.
 
-import type { ModuleDef, ModuleState } from './types';
+import { catalogChildren, type ModuleDef, type ModuleState } from './types';
 
 export type ModuleStatusFilter = 'all' | 'on' | 'off';
 
@@ -129,6 +129,16 @@ export function moduleCommandChips(def: ModuleDef, limit = 3): ModuleCommandChip
   for (const reply of def.replies) {
     if (reply.command) add(`!${reply.command}`);
   }
+  // Nested games fold into the parent tile, so !gamble must still chip on
+  // Loyalty rather than vanish with the child row.
+  if (!def.parent) {
+    for (const child of catalogChildren(def.id)) {
+      for (const command of child.commands ?? []) add(command.trigger);
+      for (const reply of child.replies) {
+        if (reply.command) add(`!${reply.command}`);
+      }
+    }
+  }
   return { chips: all.slice(0, limit), extra: Math.max(0, all.length - limit) };
 }
 
@@ -140,6 +150,13 @@ export function moduleSearchHaystack(def: ModuleDef): string {
   for (const reply of def.replies) {
     parts.push(reply.label, reply.event);
     if (reply.command) parts.push(`!${reply.command}`);
+  }
+  // Children are hidden from the index, so their haystack has to live on the
+  // parent or "!gamble" would match nothing.
+  if (!def.parent) {
+    for (const child of catalogChildren(def.id)) {
+      parts.push(moduleSearchHaystack(child));
+    }
   }
   return parts.join('\n').toLowerCase();
 }
@@ -163,6 +180,8 @@ export function filterModuleIndex(
   query: ModuleIndexQuery
 ): ModuleState[] {
   return items.filter((item) => {
+    // Nested children (gamble/duel) arm from Loyalty, not a second tile.
+    if (item.def.parent) return false;
     if (query.category && item.def.category !== query.category) return false;
     if (query.status === 'on' && !item.enabled) return false;
     if (query.status === 'off' && item.enabled) return false;

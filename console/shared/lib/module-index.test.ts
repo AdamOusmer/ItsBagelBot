@@ -48,11 +48,11 @@ describe('module index matching', () => {
     expect(moduleMatchesQuery(fn!, 'songrequest')).toBe(false);
   });
 
-  test('finds gamble by its own command, not by burying it under loyalty', () => {
-    const gamble = moduleDef('gamble');
-    expect(gamble).toBeDefined();
-    expect(moduleMatchesQuery(gamble!, '!gamble')).toBe(true);
-    expect(moduleMatchesQuery(moduleDef('duel')!, '!duel')).toBe(true);
+  test('finds loyalty by a nested game command', () => {
+    const loyalty = moduleDef('loyalty');
+    expect(loyalty).toBeDefined();
+    expect(moduleMatchesQuery(loyalty!, '!gamble')).toBe(true);
+    expect(moduleMatchesQuery(loyalty!, '!duel')).toBe(true);
   });
 
   test('blank query matches everything', () => {
@@ -70,6 +70,11 @@ describe('module index filters', () => {
   test('status on keeps only enabled rows', () => {
     const shown = filterModuleIndex(items, query({ status: 'on' })).map((m) => m.def.id);
     expect(shown).toEqual(['timers', 'fortnite']);
+  });
+
+  test('drops nested children so they cannot be armed from the directory', () => {
+    const nested = [state('loyalty'), state('gamble'), state('duel'), state('counters')];
+    expect(filterModuleIndex(nested, query()).map((m) => m.def.id)).toEqual(['loyalty', 'counters']);
   });
 
   test('category and search compose without dropping catalog order', () => {
