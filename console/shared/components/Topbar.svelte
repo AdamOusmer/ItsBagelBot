@@ -174,17 +174,21 @@
 </header>
 
 <style>
+  /* Floating glass pill, matching the marketing site's nav: sticky with a
+     breathing gap instead of a full-bleed ruled strip. The sticky top offset
+     carries the notch inset so the pill never rides into the safe area. */
   .topbar {
-    position: sticky; top: 0; z-index: 40;
+    position: sticky; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 40;
     display: flex; align-items: center; gap: 14px;
-    /* Top padding carries the notch inset so the strip's ink paints the safe
-       area; the row itself stays at its normal height below it. */
-    padding: calc(9px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 9px max(16px, env(safe-area-inset-left, 0px));
-    background: rgba(10, 10, 10, 0.85);
-    border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
+    margin: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+    padding: 7px 12px 7px 8px;
+    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
+    border-radius: 999px;
+    background: rgba(10, 10, 10, 0.55);
+    backdrop-filter: blur(18px);
   }
   @media (min-width: 761px) {
-    .topbar { gap: 20px; padding: calc(9px + env(safe-area-inset-top, 0px)) var(--gutter) 9px; }
+    .topbar { gap: 20px; margin-inline: var(--gutter); padding: 8px 14px 8px 10px; }
   }
 
   .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill, 100px); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }

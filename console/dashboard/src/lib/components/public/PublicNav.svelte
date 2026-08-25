@@ -56,28 +56,33 @@
 </nav>
 
 <style>
+  /* Floating pill nav, mirroring the marketing site's Nav.astro: transparent
+     positioning band that never eats clicks, glass pill inside. */
   .site-nav {
     font-family: var(--bb-font-display);
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: calc(76px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-inline: max(24px, 4vw);
-    border-bottom: 1px solid var(--bb-border);
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-inline: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     z-index: 50;
-    backdrop-filter: blur(12px);
-    background: rgba(10, 10, 10, 0.7);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
   }
   .site-nav__inner {
     display: grid;
-    grid-template-columns: minmax(170px, 1fr) minmax(0, auto) minmax(170px, 1fr);
+    grid-template-columns: minmax(150px, 1fr) minmax(0, auto) minmax(150px, 1fr);
     align-items: center;
     gap: 24px;
-    width: min(100%, 1180px);
-    height: 100%;
-    margin: 0 auto;
+    width: min(100%, 1000px);
+    padding: 9px 12px 9px 18px;
+    border: 1px solid var(--bb-border);
+    border-radius: 999px;
+    background: rgba(10, 10, 10, 0.55);
+    backdrop-filter: blur(18px);
+    pointer-events: auto;
   }
   .logo {
     display: flex;
@@ -88,11 +93,12 @@
     color: var(--bb-white);
     text-decoration: none;
   }
-  .logo img { width: 35px; height: 35px; border-radius: 8px; }
+  .logo img { width: 26px; height: 26px; border-radius: 6px; }
   .logo span {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 1.2rem;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
     color: var(--bb-white);
     white-space: nowrap;
   }
@@ -109,31 +115,34 @@
   ul.links li { display: flex; align-items: center; }
   .nav-cta { display: flex; justify-content: flex-end; align-items: center; gap: 14px; }
 
-  /* CTA — ported from SecondaryButton.astro */
+  /* CTA — the marketing pill nav's green button */
   .cta-btn {
     font-family: var(--bb-font-mono);
-    font-size: 0.78rem;
-    padding: 10px 22px;
-    background: transparent;
-    border: 1px solid var(--bb-tan);
-    color: var(--bb-tan-light);
-    border-radius: 4px;
-    letter-spacing: 0.06em;
+    font-size: 0.7rem;
+    padding: 9px 18px;
+    background: var(--bb-green, #2d6a4f);
+    border: 1px solid #40916c;
+    color: var(--bb-white);
+    border-radius: 999px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     text-decoration: none;
     white-space: nowrap;
     display: inline-block;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, box-shadow 0.2s;
   }
-  .cta-btn:hover { background: var(--bb-tan); color: var(--bb-black); }
+  .cta-btn:hover {
+    background: #40916c;
+    box-shadow: 0 0 24px rgba(82, 183, 136, 0.35);
+  }
 
   @media (max-width: 1120px) {
-    .site-nav__inner { grid-template-columns: minmax(155px, 1fr) minmax(0, auto) minmax(150px, 1fr); gap: 18px; }
-    ul.links { gap: 20px; padding-inline: 1rem; }
-    .logo span { font-size: 1.08rem; }
+    .site-nav__inner { grid-template-columns: minmax(140px, 1fr) minmax(0, auto) minmax(140px, 1fr); gap: 16px; }
+    ul.links { gap: 18px; padding-inline: 1rem; }
+    .cta-btn { padding-inline: 14px; }
   }
   @media (max-width: 900px) {
-    .site-nav__inner { grid-template-columns: 1fr auto; gap: 16px; }
+    .site-nav__inner { grid-template-columns: 1fr auto; gap: 16px; padding: 7px 10px 7px 16px; }
     ul.links { display: none; }
   }
 </style>
