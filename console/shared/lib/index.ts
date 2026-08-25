@@ -63,12 +63,14 @@ export {
   detectLocale,
   isLocale,
   localeName,
+  ensureCatalog,
   LOCALES,
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   type Locale
 } from './i18n/messages';
 export * from './types';
+export * from './spotify';
 export * from './toast';
 export * from './connection-state';
 export * from './overlay-stack';

@@ -6,7 +6,11 @@
   // not just a tick), and links to where it gets done. `receiving` is main's honest
   // "online" (grant + active + enroll ok), so a pending/failing connection does not
   // read as connected here.
-  import { Card, ButtonLink, Icon, getI18n, type IconName } from '@bagel/shared';
+  import Card from '@bagel/shared/components/Card.svelte';
+  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
+  import Icon from '@bagel/shared/components/Icon.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import type { IconName } from '@bagel/shared/icons';
 
   const { t } = getI18n();
 

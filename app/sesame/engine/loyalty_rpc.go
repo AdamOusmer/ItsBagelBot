@@ -110,6 +110,35 @@ func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, broadcasterID uint64, vie
 	return *reply.Balance, true, reply.Spent, nil
 }
 
+// BalanceTransfer moves the sender's own points to a target login ("!points
+// give"). found=false means the target was never seen here; moved=false with
+// found=true means the sender could not cover it (bal carries their standing);
+// moved=true carries both sides' post-move balances.
+func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
+	reply, err := l.call(ctx, "balance.transfer", loyaltyrpc.Request{
+		UserID:      fmtID(broadcasterID),
+		ViewerID:    fmtID(fromViewerID),
+		ViewerLogin: targetLogin,
+		Value:       amount,
+	})
+	if err != nil {
+		return loyaltyrpc.Balance{}, nil, false, false, err
+	}
+	if !reply.Found || reply.Balance == nil {
+		return loyaltyrpc.Balance{}, nil, false, false, nil
+	}
+	return *reply.Balance, reply.TargetBalance, true, reply.Spent && reply.TargetBalance != nil, nil
+}
+
+// Top returns the channel's points leaderboard (highest first).
+func (l *LoyaltyRPC) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
+	reply, err := l.call(ctx, "top.get", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	return reply.Top, nil
+}
+
 // CounterGet resolves one counter; found=false means it does not exist. With a
 // non-zero viewerID the returned Value is that viewer's (for the entry-scoped
 // counters, with command selecting a viewer+command counter's bucket).

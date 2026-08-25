@@ -18,6 +18,8 @@ import {
   MODULE_CATALOG,
   PERM_LABELS,
   blankReward,
+  blankSpotifyRedeem,
+  blankSpotifySr,
   blankTimer,
   type ChannelPointReward,
   type CommandView,
@@ -28,7 +30,7 @@ import {
 } from '@bagel/shared';
 import { DEFAULT_LOCALE } from '@bagel/shared/i18n';
 import type { Session } from './session';
-import type { BillingState, NotificationWire } from './services';
+import type { AccountState, BillingState, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';
 import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
@@ -90,7 +92,13 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
-export const demoAccountState = { active: true, status: 'vip', onboarded: true, creatorCode: null };
+export const demoAccountState: AccountState = {
+  active: true,
+  status: 'vip',
+  onboarded: true,
+  creatorCode: null,
+  username: 'demo'
+};
 
 // Sample grants covering the full lifecycle (pending + consumed) so the
 // settings page renders and is exercisable without OAuth + NATS.
@@ -298,6 +306,22 @@ export function demoGoveeDevices(): GoveeDevice[] {
   ];
 }
 
+// demoSpotifyView seeds the songqueue page in demo mode: module on, both
+// request paths on, and a bound reward so the bound-state row renders.
+export function demoSpotifyView() {
+  return {
+    enabled: true,
+    sr: { ...blankSpotifySr(), enabled: true },
+    redeem: {
+      ...blankSpotifyRedeem(),
+      enabled: true,
+      rewardId: 'demo-reward',
+      replyMessage: '@{user} queued {track}!',
+      reward: { rewardId: 'demo-reward', title: 'Play a song', cost: 500, color: '#1db954', cooldown: 0 }
+    }
+  };
+}
+
 export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
   return {
     defs: [
@@ -321,8 +345,26 @@ export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
   };
 }
 
-export function demoFetchTestRun(): { status: string; values: string[]; ms: number } {
-  return { status: 'ok', values: ['71.2'], ms: 214 };
+// `sample` mirrors what gossip returns for a DryRun: the raw upstream body the
+// builder turns into a clickable field tree. It is shaped to match the demo
+// `weather` definition's json_path (forecast.current.temp_f) so clicking through
+// the demo tree produces the same token the demo def already stores — a demo
+// whose tree disagreed with its own fixtures would teach the wrong thing.
+export function demoFetchTestRun(): { status: string; values: string[]; ms: number; sample: string } {
+  return {
+    status: 'ok',
+    values: ['71.2'],
+    ms: 214,
+    sample: JSON.stringify(
+      {
+        forecast: { current: { temp_f: 71.2, temp_c: 21.8, condition: 'Cloudy' }, updated: '2026-01-01T00:00:00Z' },
+        city: 'London',
+        ok: true
+      },
+      null,
+      2
+    )
+  };
 }
 
 // Sample rows use the STORED key format (no leading "!" — chat adds it), same

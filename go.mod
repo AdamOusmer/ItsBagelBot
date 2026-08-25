@@ -9,7 +9,7 @@ require (
 	github.com/buger/jsonparser v1.6.1
 	github.com/bytedance/sonic v1.15.2
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.50
@@ -18,13 +18,13 @@ require (
 	github.com/newrelic/go-agent/v3 v3.44.2
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
-	github.com/resend/resend-go/v3 v3.14.0
+	github.com/resend/resend-go/v3 v3.17.0
 	github.com/stretchr/testify v1.12.1
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/tink-crypto/tink-go/v2 v2.8.0
 	github.com/valkey-io/valkey-go v1.0.77
 	go.uber.org/zap v1.28.0
-	golang.org/x/net v0.57.0
+	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0

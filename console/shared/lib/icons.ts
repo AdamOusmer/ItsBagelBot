@@ -39,6 +39,8 @@ export const icons = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/>',
   modules:
     '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><line x1="16.5" y1="13.5" x2="16.5" y2="19.5"/><line x1="13.5" y1="16.5" x2="19.5" y2="16.5"/>',
+  music:
+    '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   lanes:
     '<path d="M5 4v16"/><path d="M19 4v16"/><path d="M12 4v3.5"/><path d="M12 10.2v3.6"/><path d="M12 16.5V20"/>',
   audit:

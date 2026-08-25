@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { ResponseBodyError } from '@bagel/shared/server/oauth';
+import { isOAuthProtocolError } from '@bagel/shared/server/oauth';
 import { twitch } from '$lib/server/oauth';
 import { adminCheck } from '$lib/server/services';
 import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
@@ -72,7 +72,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       maxAge: SESSION_TTL_SECONDS
     });
   } catch (e) {
-    if (e instanceof ResponseBodyError) throw redirect(302, '/login?e=oauth');
+    if (isOAuthProtocolError(e)) throw redirect(302, '/login?e=oauth');
     throw e;
   }
 

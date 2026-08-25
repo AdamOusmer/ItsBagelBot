@@ -96,6 +96,7 @@ type ValkeyLoyaltyStore struct {
 	rpc      *LoyaltyRPC
 	reporter *LoyaltyReporter
 	scopes   *cache.Cache[string]
+	top      *cache.Cache[[]loyaltyrpc.Balance]
 	log      *zap.Logger
 }
 
@@ -111,6 +112,7 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 		rpc:      rpc,
 		reporter: reporter,
 		scopes:   cache.New[string](scopeCacheCapacity, scopeCacheTTL),
+		top:      cache.New[[]loyaltyrpc.Balance](topCacheCapacity, topCacheTTL),
 		log:      log,
 	}
 }
@@ -422,6 +424,40 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uin
 	}
 	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
 	return bal, true, spent, nil
+}
+
+// BalanceTransfer passes "!points give" through to the service's atomic
+// move-to-login and drops both sides' cached balances: the sender's id rides
+// every reply, the recipient's only on a completed move (a refused or unknown
+// target changed nothing on their side; their short-TTL entry ages out).
+func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
+	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetLogin, amount)
+	if err != nil || !found {
+		return bal, found, moved, err
+	}
+	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	if moved && target != nil {
+		s.dropBalanceCache(ctx, broadcasterID, target.ViewerID)
+	}
+	return bal, true, moved, nil
+}
+
+// topCacheTTL bounds how stale a !leaderboard answer may be: accruals land
+// through the reporter + flush windows anyway, so a minute keeps spammy
+// invocations off the service without lying about the order of magnitude.
+const topCacheTTL = time.Minute
+
+// topCacheCapacity ceilings the per-(broadcaster, limit) leaderboard cache: a
+// handful per channel, so a few thousand covers the fleet at rest.
+const topCacheCapacity int64 = 4096
+
+// Top returns the channel's points leaderboard through a short-TTL cache in
+// front of the service read.
+func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
+	key := strconv.FormatUint(broadcasterID, 10) + ":" + strconv.Itoa(limit)
+	return s.top.GetOrLoad(ctx, key, func(ctx context.Context) ([]loyaltyrpc.Balance, error) {
+		return s.rpc.Top(ctx, broadcasterID, limit)
+	})
 }
 
 // dropBalanceCache invalidates one viewer's cached balance reply after a

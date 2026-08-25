@@ -56,8 +56,14 @@ function clampRate(raw: unknown): number {
   return Math.min(1_000_000, n);
 }
 
+// toggleValue coerces a permission checkbox into the blob's convention:
+// checked = 0 (the default, capability on), unchecked = -1 (off).
+function toggleValue(raw: FormDataEntryValue | null): number {
+  return raw === 'on' ? 0 : -1;
+}
+
 // parseConfig validates the posted rates JSON into a full LoyaltyConfig.
-function parseConfig(raw: string): LoyaltyConfig | null {
+function parseConfig(raw: string, form: FormData): LoyaltyConfig | null {
   let obj: Partial<LoyaltyConfig>;
   try {
     obj = JSON.parse(raw) as Partial<LoyaltyConfig>;
@@ -73,7 +79,10 @@ function parseConfig(raw: string): LoyaltyConfig | null {
     resubPoints: clampRate(obj.resubPoints),
     giftSubPoints: clampRate(obj.giftSubPoints),
     cheerPointsPer100: clampRate(obj.cheerPointsPer100),
-    watchPointsPerTick: clampRate(obj.watchPointsPerTick)
+    watchPointsPerTick: clampRate(obj.watchPointsPerTick),
+    modSetPoints: toggleValue(form.get('modSetPoints')),
+    modAdjustPoints: toggleValue(form.get('modAdjustPoints')),
+    viewerTransfers: toggleValue(form.get('viewerTransfers'))
   };
 }
 
@@ -105,7 +114,7 @@ export const actions: Actions = {
     const uid = effectiveId(locals.session);
 
     const f = await request.formData();
-    const config = parseConfig(String(f.get('config') ?? ''));
+    const config = parseConfig(String(f.get('config') ?? ''), f);
     if (!config) return fail(400, { ok: false, error: 'Invalid settings.' });
     if (DEMO) return { ok: true };
 

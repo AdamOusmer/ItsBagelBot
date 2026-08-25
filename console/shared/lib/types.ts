@@ -629,7 +629,6 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     icon: 'moderation',
     category: 'Moderation',
     defaultEnabled: true,
-    hidden: true,
     // AutoMod is pure configuration: no chat reply lines, only the settings strip.
     replies: [],
     settings: [
@@ -1565,6 +1564,20 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
     // the tile opens a bespoke inspector instead.
     href: '/govee',
     replies: []
+  },
+  {
+    id: 'songqueue',
+    label: 'Song Requests',
+    tagline: '!sr and a channel-points reward that queue songs from Spotify.',
+    description:
+      'Connect your Spotify account once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query — a name, "artist - song", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. Moderators manage the queue with !sr next, remove and clear.',
+    icon: 'music',
+    category: 'Chat Tools',
+    defaultEnabled: false,
+    // The generic reply page cannot express OAuth custody + the reward editor,
+    // so the tile opens the bespoke songqueue page instead.
+    href: '/songqueue',
+    replies: []
   }
 ];
 
@@ -1742,7 +1755,10 @@ export function blankTimer(): TimerDef {
 // loyalty service (bagel.rpc.loyalty.*).
 
 // LoyaltyConfig mirrors sesame's LoyaltyModuleConfig blob: 0 means "use the
-// default", a negative value switches that source off.
+// default", a negative value switches that source off. The three permission
+// fields gate the mutating chat verbs (0 = on, the historical default;
+// negative = off) so a broadcaster can hand moderators exactly as much
+// power as they want.
 export interface LoyaltyConfig {
   pointsName: string;
   subPoints: number;
@@ -1750,6 +1766,9 @@ export interface LoyaltyConfig {
   giftSubPoints: number;
   cheerPointsPer100: number;
   watchPointsPerTick: number;
+  modSetPoints: number;
+  modAdjustPoints: number;
+  viewerTransfers: number;
 }
 
 // LOYALTY_DEFAULTS are the effective rates behind a zero value, mirrored from
@@ -1760,11 +1779,24 @@ export const LOYALTY_DEFAULTS: LoyaltyConfig = {
   resubPoints: 500,
   giftSubPoints: 100,
   cheerPointsPer100: 50,
-  watchPointsPerTick: 10
+  watchPointsPerTick: 10,
+  modSetPoints: 0,
+  modAdjustPoints: 0,
+  viewerTransfers: 0
 };
 
 export function blankLoyaltyConfig(): LoyaltyConfig {
-  return { pointsName: '', subPoints: 0, resubPoints: 0, giftSubPoints: 0, cheerPointsPer100: 0, watchPointsPerTick: 0 };
+  return {
+    pointsName: '',
+    subPoints: 0,
+    resubPoints: 0,
+    giftSubPoints: 0,
+    cheerPointsPer100: 0,
+    watchPointsPerTick: 0,
+    modSetPoints: 0,
+    modAdjustPoints: 0,
+    viewerTransfers: 0
+  };
 }
 
 // The broadcaster-facing counter scopes. 'command' pools every viewer into

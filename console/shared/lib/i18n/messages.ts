@@ -13,29 +13,92 @@
 // in that directory — no code edit, no registry entry — and their file is parsed
 // as data, never executed. Malformed JSON fails the build; a missing key falls
 // back to English (see translate()).
+//
+// Only the default catalog is bundled eagerly (~53 KB of object literals that
+// every boot otherwise paid for — both catalogs eager cost ~107 KB of eval
+// before first paint). The other catalogs become separate chunks behind
+// ensureCatalog(); routes that know their locale await it in a load function,
+// so SSR and hydration always see the same strings.
 import type { Locale, MessageTree } from './types';
 
 export type { Locale } from './types';
 
-// Eagerly load every locale JSON as its default export (the parsed tree). The
-// glob is resolved at build time, so the shipped locale set is fixed in the
-// bundle rather than read from disk at runtime.
-const modules = import.meta.glob<MessageTree>('./locales/*.json', {
+// Eager default catalog: translate()'s fallback must exist synchronously even
+// in render trees that never ran a load function (the admin app's fallback
+// translator, server helpers).
+const eagerModules = import.meta.glob<MessageTree>('./locales/en.json', {
   eager: true,
+  import: 'default'
+});
+
+// Lazy loaders for every shipped catalog. The KEYS are known at build time with
+// no content loaded, which is what keeps LOCALES/isLocale synchronous.
+const lazyModules = import.meta.glob<MessageTree>('./locales/*.json', {
   import: 'default'
 });
 
 // Key each catalog by its bare filename ("en" from "./locales/en.json").
 const catalogs: Record<string, MessageTree> = {};
-for (const [path, tree] of Object.entries(modules)) {
+for (const [path, tree] of Object.entries(eagerModules)) {
   const match = /([\w-]+)\.json$/.exec(path);
   if (match) catalogs[match[1]] = tree;
 }
 
 // The locale set is exactly the shipped catalogs, sorted so the switcher and any
 // listing render in a stable order across builds.
-export const LOCALES: readonly Locale[] = Object.keys(catalogs).sort();
+export const LOCALES: readonly Locale[] = Object.keys(lazyModules)
+  .map((path) => /([\w-]+)\.json$/.exec(path)?.[1])
+  .filter((v): v is Locale => typeof v === 'string')
+  .sort();
 export const DEFAULT_LOCALE: Locale = 'en';
+
+// Single-flight per locale: several components may ask for the same catalog in
+// one tick (LangSwitch tooltips), the chunk must be fetched once.
+const pending = new Map<string, Promise<void>>();
+
+/**
+ * Register a locale's catalog before any string from it is rendered. Resolves
+ * immediately for the default locale (already registered) or an unknown code.
+ * Await this in a universal load so hydration renders exactly what SSR did.
+ */
+export function ensureCatalog(locale: Locale): Promise<void> {
+  if (Object.prototype.hasOwnProperty.call(catalogs, locale)) return Promise.resolve();
+  const key = `./locales/${locale}.json`;
+  const loader = lazyModules[key];
+  if (!loader) return Promise.resolve();
+  let p = pending.get(key);
+  if (!p) {
+    p = loader()
+      .then((tree) => {
+        catalogs[locale] = tree;
+      })
+      .catch(() => {
+        // Never reject. Callers await this from a universal root load, so a
+        // rejection fails that load for EVERY route — one translation file
+        // failing to arrive would take the whole app down with a 500, which is
+        // a far worse outcome than showing English.
+        //
+        // The failure modes here have nothing to do with the locale being
+        // wrong: an offline blip, or a client still running a stale HTML shell
+        // after a deploy requesting a hashed chunk that no longer exists.
+        // translate() already resolves `catalogs[locale] ?? catalogs[en]`, so
+        // an absent catalog degrades to English exactly like an absent key.
+        //
+        // The cost is a hydration mismatch when the server registered the
+        // catalog and the client could not: SSR ships translated markup, the
+        // client re-renders English. Accepted deliberately — a page in the
+        // wrong language still works, a 500 does not.
+        //
+        // Not remembered as a failure: `pending` is cleared below either way,
+        // so the next navigation retries the chunk.
+      })
+      .finally(() => {
+        pending.delete(key);
+      });
+    pending.set(key, p);
+  }
+  return p;
+}
 
 // The default catalog is the fallback for every missing key and the last resort
 // of detectLocale, so its absence is a build/deploy error, not a silent
@@ -53,11 +116,13 @@ if (!catalogs[DEFAULT_LOCALE]) {
 // never needs the session key, so it rides its own plain cookie.
 export const LOCALE_COOKIE = 'locale';
 
-// Own-property check only: `v in catalogs` would accept inherited names like
-// 'constructor' or 'toString' coming from an attacker-controlled cookie or query
-// value, so test the catalog map's own keys with hasOwnProperty.
+// The locale set comes from build-time filenames, never from request input, so
+// a Set membership test has the same no-inherited-keys guarantee an own-property
+// check gave ('constructor' cannot be a filename).
+const LOCALE_SET: ReadonlySet<string> = new Set(LOCALES);
+
 export function isLocale(v: unknown): v is Locale {
-  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(catalogs, v);
+  return typeof v === 'string' && LOCALE_SET.has(v);
 }
 
 /** Walk a dot-path ("settings.deleteTitle") into a catalog; string leaves only. */

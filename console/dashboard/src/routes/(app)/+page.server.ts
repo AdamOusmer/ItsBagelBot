@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { CommandView } from '@bagel/shared';
-import { MODULE_CATALOG } from '@bagel/shared';
+import type { CommandView } from '@bagel/shared/types';
+import { MODULE_CATALOG } from '@bagel/shared/types';
 import {
   hasGrant,
   accountState,
@@ -19,7 +19,7 @@ import {
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared';
+import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
