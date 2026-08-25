@@ -80,6 +80,28 @@ func SongQueue(d engine.Deps) module.Module {
 	m.Command("sr").Everyone().Cooldown(srAddCooldown).
 		Aliases("songrequest", "songreq").
 		Run(songQueueDispatch(d, log))
+
+	// Standalone spellings for the two things viewers ask for by name. They are
+	// separate commands rather than aliases of !sr because an alias arrives as a
+	// bare invocation, which would make every one of them mean "view" — !skip
+	// has to advance the queue.
+	//
+	// NOT !queue: the viewer queue module (queue.go) already owns that name, and
+	// command precedence is registration order in All(), so claiming it here
+	// would shadow a different feature on any channel running both. !song and
+	// !current say what this one is about anyway.
+	//
+	// No cooldown: a read and a mod action, neither spends the Spotify lookup an
+	// add does.
+	m.Command("song").Everyone().
+		Aliases("current", "nowplaying", "np").
+		Run(songQueueView(d, log))
+
+	// !skip carries its moderator gate on the registration, where the !sr next
+	// sub-verb has to enforce it by hand — a bare word after !sr could also be
+	// a song title, so that path cannot lean on the command's own permission.
+	m.Command("skip").Mod().
+		Run(songQueueSkip(d, log))
 	return m.Build()
 }
 
@@ -123,6 +145,31 @@ var songQueueActions = map[string]songQueueAction{
 	"remove":  (*songQueueCmd).actRemove,
 	"next":    (*songQueueCmd).actNext,
 	"clear":   (*songQueueCmd).actClear,
+}
+
+// songQueueView backs !song / !current / !nowplaying / !np: the same read !sr
+// gives with no arguments.
+func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.view(ctx, emit)
+	}
+}
+
+// songQueueSkip backs !skip: the same advance !sr next performs. The moderator
+// gate rides on the command registration here rather than the hand-rolled check
+// bareModVerb needs, because there is no query for it to be confused with.
+func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.nextTrack(ctx, emit)
+	}
 }
 
 func songQueueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {

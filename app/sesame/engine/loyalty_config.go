@@ -122,6 +122,16 @@ func TierMultiplier(tier string) int64 {
 	}
 }
 
+// ReadLoyaltyConfig resolves a broadcaster's "loyalty" ModuleView, reporting
+// false when the module is missing, disabled or unreadable. An enabled module
+// with an empty blob returns the zero config (all defaults). Wager games
+// call this so they share the currency name and stay inert while loyalty is
+// off, instead of carrying a second copy of the name and running against a
+// ledger nobody is earning on.
+func ReadLoyaltyConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) (LoyaltyModuleConfig, bool) {
+	return loyaltyModuleConfig(ctx, proj, broadcasterID)
+}
+
 // loyaltyModuleConfig resolves a broadcaster's "loyalty" ModuleView, reporting
 // false when the module is missing, disabled or unreadable. An enabled module
 // with an empty blob returns the zero config (all defaults).

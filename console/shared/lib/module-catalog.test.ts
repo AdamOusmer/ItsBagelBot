@@ -59,4 +59,14 @@ describe('module catalog', () => {
     expect(def?.icon).toBe('music');
     expect(def?.commands?.map((c) => c.trigger)).toEqual(['!sr', '!remove', '!next', '!clear']);
   });
+
+  test('gamble and duels nest under loyalty with no second currency name', () => {
+    for (const id of ['gamble', 'duel'] as const) {
+      const def = moduleDef(id);
+      expect(def?.parent).toBe('loyalty');
+      expect(def?.href).toBeUndefined();
+      expect(def?.settings?.some((s) => s.key === 'pointsName')).toBe(false);
+    }
+    expect(moduleDef('loyalty')?.href).toBe('/loyalty');
+  });
 });

@@ -10,6 +10,7 @@
     AlertBanner,
     Button,
     ConfirmDialog,
+    Icon,
     getI18n,
     KEY_LABEL_MAX,
     KEY_VALUE_MAX,
@@ -98,16 +99,31 @@
         <span class="label">{k.label}</span>
         <span class="last4" title={t('fetches.keyLast4Title')}>••••{k.last4}</span>
         <span class="acts">
+          <!-- The same 28px icon buttons every management row uses (timers,
+               rewards, commands), so key rows read as part of the family.
+               Rotation is re-entering the value, which is the edit affordance. -->
           <button
             type="button"
             class="mini"
+            title={t('fetches.keyRotate')}
+            aria-label={t('fetches.keyRotateAria', { label: k.label })}
             onclick={() => {
               rotating = rotating === k.label ? '' : k.label;
               rotateValue = '';
               err = '';
             }}
-          >{t('fetches.keyRotate')}</button>
-          <button type="button" class="mini danger" onclick={() => (deleteTarget = k)}>{t('common.delete')}</button>
+          >
+            <Icon name="edit" size={15} />
+          </button>
+          <button
+            type="button"
+            class="mini"
+            title={t('common.delete')}
+            aria-label={t('fetches.keyDeleteAria', { label: k.label })}
+            onclick={() => (deleteTarget = k)}
+          >
+            <Icon name="trash" size={15} />
+          </button>
         </span>
         {#if rotating === k.label}
           <form class="rotate" onsubmit={submitRotate}>
@@ -194,21 +210,6 @@
   .label { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-white); min-width: 120px; }
   .last4 { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); letter-spacing: 0.08em; }
   .acts { margin-left: auto; display: inline-flex; gap: 8px; }
-
-  .mini {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 11px;
-    color: var(--bb-tan);
-    background: transparent;
-    border: 1px solid var(--glass-border);
-    border-radius: 999px;
-    padding: 4px 10px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) ease;
-  }
-  .mini:hover { color: var(--bb-tan-pale); border-color: var(--bb-border-strong); }
-  .mini.danger:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.5); }
 
   .rotate { display: flex; gap: 8px; width: 100%; }
   .rotate input {

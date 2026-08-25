@@ -3,9 +3,11 @@
 
 // The loyalty wager games' catalog definitions, split out of types.ts to keep
 // that file's declaration count sane: these two are the longest entries in
-// the MODULE_CATALOG (settings + four customizable replies each) and change
-// together with the sesame modules they mirror (app/sesame/modules/gamble.go,
-// duel.go — same config keys, same defaults).
+// the MODULE_CATALOG (settings + customizable replies) and change together
+// with the sesame modules they mirror (app/sesame/modules/gamble.go,
+// duel.go — same config keys, same defaults). They nest under loyalty
+// (`parent: 'loyalty'`): no index tile, no independent master switch, no
+// second currency name. Odds and chat lines stay on /modules/[id].
 import type { ModuleDef } from './types';
 
 export const GAME_MODULE_DEFS: ModuleDef[] = [
@@ -14,15 +16,17 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     label: 'Gamble',
     tagline: 'Let viewers wager their points on a roll with !gamble.',
     description:
-      'Give your loyalty points a game: viewers type !gamble <amount> (or half/all of their standing) and the bot rolls 1-100. Landing inside your win chance pays the stake back plus its match; anything else takes it. Set the win odds, bet limits and per-viewer cooldown below, rename the currency in the replies, and customize the win/lose lines. Every payout and debit moves real loyalty points through the same ledger as !points.',
+      'Give your loyalty points a game: viewers type !gamble <amount> (or half/all of their standing) and the bot rolls 1-100. Landing inside your win chance pays the stake back plus its match; anything else takes it. Set the win odds, bet limits and per-viewer cooldown below, and customize the win/lose lines. Every payout and debit moves real loyalty points through the same ledger as !points. Turned on from the Loyalty page — it cannot run while the currency is off, and it uses the same currency name.',
     icon: 'gamepad',
     category: 'Community',
     defaultEnabled: false,
+    parent: 'loyalty',
     // The numeric knobs are plain settings the generic page patches into the
     // module blob; sesame clamps them server-side (engine.ClampGambleSettings),
-    // so an out-of-range save can never arm an unlimited machine.
+    // so an out-of-range save can never arm an unlimited machine. Currency
+    // name lives on loyalty, not here: a second copy drifted from the ledger
+    // word and let this module look like its own economy.
     settings: [
-      { key: 'pointsName', label: 'Currency name', type: 'text', placeholder: 'points', help: 'The word used in the win/lose lines (defaults to "points").' },
       { key: 'winPercent', label: 'Win chance %', type: 'number', placeholder: '50', help: 'A roll of this number or lower wins. 50 is a fair coin; 1-99 allowed.' },
       { key: 'minBet', label: 'Minimum bet', type: 'number', placeholder: '1' },
       { key: 'maxBet', label: 'Maximum bet', type: 'number', placeholder: '1000' },
@@ -64,12 +68,12 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     label: 'Duels',
     tagline: 'Viewer-vs-viewer point duels: pot free-for-alls and 1v1 challenges.',
     description:
-      "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake — when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend — nobody can wager what they do not have.",
+      "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake — when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend — nobody can wager what they do not have. Turned on from the Loyalty page; it uses the same currency name and stays off while loyalty is off.",
     icon: 'activity',
     category: 'Community',
     defaultEnabled: false,
+    parent: 'loyalty',
     settings: [
-      { key: 'pointsName', label: 'Currency name', type: 'text', placeholder: 'points', help: 'The word used in money lines (defaults to "points").' },
       { key: 'minStake', label: 'Minimum stake', type: 'number', placeholder: '1' },
       { key: 'maxStake', label: 'Maximum stake', type: 'number', placeholder: '1000' },
       { key: 'potSeconds', label: 'Pot window (seconds)', type: 'number', placeholder: '60', help: 'How long a pot duel accepts stakes.' },

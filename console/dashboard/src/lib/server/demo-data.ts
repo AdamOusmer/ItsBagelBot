@@ -16,6 +16,7 @@
 import { dev } from '$app/environment';
 import {
   MODULE_CATALOG,
+  catalogIndexable,
   PERM_LABELS,
   blankReward,
   blankSpotifyRedeem,
@@ -397,7 +398,7 @@ export function demoConn(connectionUiState: (s: ConnData['signals']) => ConnData
 
 export const demoModuleDigest: ModuleDigest = {
   on: 1,
-  total: MODULE_CATALOG.filter((m) => !m.hidden).length,
+  total: MODULE_CATALOG.filter((m) => catalogIndexable(m)).length,
   ok: true
 };
 

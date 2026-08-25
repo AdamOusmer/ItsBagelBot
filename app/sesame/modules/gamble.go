@@ -29,7 +29,8 @@ func gambleCooldownKey(broadcasterID uint64, login string) string {
 // Gamble owns "!gamble <amount|half|all>": a viewer stakes loyalty points on
 // a roll, winning the stake back plus its match when the roll lands inside
 // the channel's win chance. A named opt-in module (KindOptIn): off by
-// default, enabled on the dashboard next to the loyalty module it plays for.
+// default, armed from the loyalty page because it spends that ledger and
+// cannot run while the currency is off.
 //
 //	!gamble           → usage
 //	!gamble <n>       → wager n points
@@ -58,7 +59,7 @@ type gambleConfig struct {
 	MaxBet          int64  `json:"maxBet"`          // default 1000
 	WinPercent      int64  `json:"winPercent"`      // default 50 (a fair coin)
 	CooldownSeconds int64  `json:"cooldownSeconds"` // default 10
-	PointsName      string `json:"pointsName"`      // currency word in the win/lose lines
+	PointsName      string `json:"pointsName"`      // leftover in stored blobs; voice now comes from loyalty
 	WinMessage      string `json:"winMessage"`      // i18n gamble.win
 	LoseMessage     string `json:"loseMessage"`     // i18n gamble.lose
 }
@@ -75,15 +76,20 @@ type gambleCmd struct {
 }
 
 // newGambleCmd decodes the broadcaster's config and reads the chatter's
-// standing. ok=false means the loyalty surface is absent (module inert).
-func newGambleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (gc gambleCmd, ok bool) {
+// standing. ok=false means the loyalty surface is absent or the currency
+// module is off (game inert).
+func newGambleCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.Logger) (gc gambleCmd, ok bool) {
 	if d.Loyalty == nil {
 		return gambleCmd{}, false
 	}
 	var raw gambleConfig
 	_ = c.Decode(&raw)
+	points, on := loyaltyVoice(ctx, d, c, raw.PointsName)
+	if !on {
+		return gambleCmd{}, false
+	}
 	gc = gambleCmd{
-		gameReplier: newGameReplier(c, raw.PointsName),
+		gameReplier: newGameReplier(c, points),
 		d:           d,
 		c:           c,
 		cfg:         engine.ClampGambleSettings(raw.MinBet, raw.MaxBet, raw.WinPercent, raw.CooldownSeconds),
@@ -95,7 +101,7 @@ func newGambleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (gc gambleC
 
 func gambleRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		gc, ok := newGambleCmd(d, c, log)
+		gc, ok := newGambleCmd(ctx, d, c, log)
 		if !ok {
 			return nil
 		}
