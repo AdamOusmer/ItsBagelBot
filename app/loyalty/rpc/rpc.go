@@ -203,7 +203,7 @@ func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.R
 	if viewerID == 0 {
 		return loyaltyrpc.Reply{Error: "invalid viewer_id"}
 	}
-	out, found, err := l.repo.BalanceTransfer(ctx, userID, viewerID, req.ViewerLogin, req.Value)
+	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, Amount: req.Value})
 	if err != nil {
 		return l.fail("loyalty balance.transfer", err)
 	}

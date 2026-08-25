@@ -269,7 +269,10 @@ const pointsAdjustMax = 100_000_000
 // conditional.
 func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
 	v, err := strconv.ParseInt(amount, 10, 64)
-	if err != nil || v > pointsAdjustMax || v < -pointsAdjustMax {
+	if err != nil {
+		return 0, false
+	}
+	if v > pointsAdjustMax || v < -pointsAdjustMax {
 		return 0, false
 	}
 	if positiveOnly && v <= 0 {

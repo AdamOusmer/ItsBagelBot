@@ -5,6 +5,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,6 +22,17 @@ import (
 // maxCounterName mirrors the schema's MaxLen; enforced at the trust boundary
 // so a hostile RPC can never hit the column constraint as a DB error.
 const maxCounterName = 64
+
+// defaultTopLimit bounds a leaderboard read when the caller sent no (or a
+// silly) limit.
+const (
+	defaultTopLimit = 10
+	maxTopLimit     = 100
+)
+
+// ErrInvalidInput marks trust-boundary rejections; the RPC layer maps it to a
+// "bad request" reply instead of a generic failure.
+var ErrInvalidInput = errors.New("invalid input")
 
 // ValidCounterName reports the normalized name, or an error when it is empty,
 // oversized, or contains ':' — reserved so the worker's "{counter:bot:name}"
@@ -79,6 +91,123 @@ func entryScoped(scope string) bool {
 // bucketed reports whether a scope keys entries by command bucket.
 func bucketed(scope string) bool {
 	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
+}
+
+// BalanceGet returns one viewer's standing. A missing row is (zero, false, nil).
+func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent.Balance, bool, error) {
+	return getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerIDEQ(viewerID)).
+			Only(ctx)
+	})
+}
+
+// Top returns the channel's top standings by points.
+func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Balance, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID)).
+			Order(balance.ByPoints(entsql.OrderDesc()), balance.ByViewerID()).
+			Limit(clampLimit(limit)).
+			All(ctx)
+	})
+}
+
+// BalanceAdjust writes a viewer's points by login (a mod's "!points set/add
+// @user" — chat knows the target's login, not their id). absolute sets the
+// value; otherwise value is a delta. The row must already exist (any accrual
+// creates it); an unseen login is (nil, false, nil) so the caller can answer
+// "haven't seen them yet" instead of inventing an id-less row. Renames can
+// leave several rows carrying one old login; the freshest wins.
+func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin string, value int64, absolute bool) (*ent.Balance, bool, error) {
+	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	if login == "" {
+		return nil, false, fmt.Errorf("%w: viewer_login", ErrInvalidInput)
+	}
+	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
+			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
+			First(ctx)
+	})
+	if err != nil || !found {
+		return nil, found, err
+	}
+	return row, true, db.WithExec(ctx, func(ctx context.Context) error {
+		upd := r.client.Balance.UpdateOneID(row.ID)
+		if absolute {
+			row.Points = value
+			upd.SetPoints(value)
+		} else {
+			row.Points += value
+			upd.AddPoints(value)
+		}
+		return upd.Exec(ctx)
+	})
+}
+
+// BalanceSpend conditionally debits amount points from a viewer, addressed by
+// login (chat wagers know the target's login, not their id). The guard lives
+// in the UPDATE's WHERE clause — points >= amount — not in a prior read, so a
+// concurrent second spend racing the same row can never drive points
+// negative: whichever UPDATE lands second no longer matches and is refused.
+// spent=false with found=false means the channel never accrued for that
+// login; spent=false with found=true means insufficient points (Balance then
+// carries what they actually hold). amount must be positive: a zero or
+// negative "spend" is a caller bug, not a refund path.
+func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
+	login, err := normalizeSpendTarget(viewerLogin, amount)
+	if err != nil {
+		return nil, false, false, err
+	}
+	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
+			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
+			First(ctx)
+	})
+	if err != nil || !found {
+		return nil, false, found, err
+	}
+	n, err := r.client.Balance.Update().
+		Where(balance.IDEQ(row.ID), balance.PointsGTE(amount)).
+		AddPoints(-amount).
+		Save(ctx)
+	if err != nil {
+		return nil, true, false, err
+	}
+	if n == 0 {
+		// Refused: another write moved the balance after our read, so the
+		// snapshot above is stale. Report what the row holds now.
+		fresh, ferr := r.client.Balance.Get(ctx, row.ID)
+		if ferr != nil {
+			return nil, true, false, ferr
+		}
+		return fresh, true, false, nil
+	}
+	spent, err := r.client.Balance.Get(ctx, row.ID)
+	if err != nil {
+		return nil, true, true, err
+	}
+	return spent, true, true, nil
+}
+
+// normalizeSpendTarget validates a spend request and returns the lower-cased
+// login the ledger addresses.
+func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
+	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
+	if login == "" || amount <= 0 {
+		return "", fmt.Errorf("%w: viewer_login/amount", ErrInvalidInput)
+	}
+	return login, nil
+}
+
+// clampLimit bounds a caller-provided page size, defaulting a missing one.
+func clampLimit(limit int) int {
+	if limit <= 0 {
+		return defaultTopLimit
+	}
+	return min(limit, maxTopLimit)
 }
 
 // CounterEntries lists an entry-scoped counter's stored buckets, highest
@@ -286,6 +415,16 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	})
 }
 
+// SetTarget addresses one stored bucket of an entry-scoped counter (a viewer
+// for the viewer scopes, a command bucket for command scope). ViewerLogin
+// optionally stamps the bucket's display identity — the dashboard's manual
+// add knows the typed username; a later bump refreshes it like any other.
+type SetTarget struct {
+	ViewerID    uint64
+	Command     string
+	ViewerLogin string
+}
+
 // CounterSet writes an absolute value. Channel/bot scope sets the row value.
 // For the entry scopes, a targeted set upserts that bucket; an untargeted set
 // resets the whole counter (deletes every entry), the "!counter reset"
@@ -419,6 +558,20 @@ func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newNam
 	return renamed, err
 }
 
+// withTx runs fn inside one ent transaction, committing on success and
+// rolling back on error.
+func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
+	tx, err := client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
 // CounterDelete removes a counter and its viewer entries.
 func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string) error {
 	n, err := writableCounterName(userID, name)
@@ -436,4 +589,31 @@ func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string)
 			Exec(ctx)
 		return err
 	})
+}
+
+// DeleteAllForUser removes every loyalty row of a deleted broadcaster account.
+func (r *Loyalty) DeleteAllForUser(ctx context.Context, userID uint64) error {
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		if _, err := r.client.Balance.Delete().Where(balance.UserIDEQ(userID)).Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := r.client.CounterEntry.Delete().Where(counterentry.UserIDEQ(userID)).Exec(ctx); err != nil {
+			return err
+		}
+		_, err := r.client.Counter.Delete().Where(counter.UserIDEQ(userID)).Exec(ctx)
+		return err
+	})
+}
+
+// getOptional runs one Only-style query through the DB gate and maps ent's
+// not-found to (zero, false, nil).
+func getOptional[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, bool, error) {
+	row, err := db.WithQuery(ctx, fn)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return row, true, nil
 }

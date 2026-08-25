@@ -66,7 +66,7 @@ func TestBalanceTransferMovesPoints(t *testing.T) {
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
 
-	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "@Receiver", 400)
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "@Receiver", Amount: 400})
 	require.NoError(t, err)
 	assert.True(t, found)
 	require.NotNil(t, out)
@@ -85,7 +85,7 @@ func TestBalanceTransferRefusesShortfall(t *testing.T) {
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 0})
 
-	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "receiver", 400)
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "receiver", Amount: 400})
 	require.NoError(t, err)
 	assert.True(t, found)
 	require.NotNil(t, out)
@@ -100,7 +100,7 @@ func TestBalanceTransferUnknownTarget(t *testing.T) {
 
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
 
-	out, found, err := repo.BalanceTransfer(ctx, 2, 7, "ghost", 10)
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "ghost", Amount: 10})
 	require.NoError(t, err)
 	assert.False(t, found)
 	assert.Nil(t, out)
@@ -117,7 +117,7 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
 
-	_, _, err := repo.BalanceTransfer(ctx, 2, 7, "sender", 10)
+	_, _, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "sender", Amount: 10})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
 
@@ -129,12 +129,12 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 		{"receiver", 0},
 		{"receiver", -5},
 	} {
-		_, _, err := repo.BalanceTransfer(ctx, 2, 7, tc.login, tc.amount)
+		_, _, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: tc.login, Amount: tc.amount})
 		assert.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput, "login=%q amount=%d", tc.login, tc.amount)
 	}
 
 	// A sender with no row is "never seen here".
-	out, found, err := repo.BalanceTransfer(ctx, 2, 99, "sender", 10)
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 99, TargetLogin: "sender", Amount: 10})
 	assert.False(t, found)
 	assert.Nil(t, out)
 	assert.NoError(t, err)
