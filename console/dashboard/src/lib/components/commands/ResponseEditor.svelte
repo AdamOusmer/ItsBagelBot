@@ -11,7 +11,7 @@
   // (module replies); there pasted newlines collapse to spaces.
   import { RESPONSE_MAX, getI18n } from '@bagel/shared';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
-  import FetchPathPicker from '$lib/components/commands/fetches/FetchPathPicker.svelte';
+  import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
   const i18n = getI18n();
 
@@ -37,17 +37,21 @@
     tokens = DEFAULT_TOKENS,
     placeholder,
     maxLines = 1,
-    fetchPickerName = ''
+    fetchDefs = [],
+    fetchKeys = [],
+    onFetchDefsChanged
   }: {
     value: string;
     name?: string;
     tokens?: PaletteToken[];
     placeholder?: string;
     maxLines?: number;
-    // When set, the palette grows the urlfetch path picker (paste a sample,
-    // click a leaf, `{urlfetch:<name>.<path>}` inserts at the caret). Empty on
-    // every other surface — module replies and rewards have no defs to pick.
-    fetchPickerName?: string;
+    // The channel's saved data sources. Supplied only on the command surface —
+    // module replies and rewards have no defs to pick, and the chip hides
+    // itself there via pickerOn rather than rendering an empty menu.
+    fetchDefs?: SourceDef[];
+    fetchKeys?: { label: string }[];
+    onFetchDefsChanged?: (defs: SourceDef[]) => void;
   } = $props();
 
   const chipTitle = (tk: PaletteToken) => (tk.hint ? i18n.t(tk.hint) : (tk.label ?? tk.token));
@@ -199,8 +203,8 @@
   {#if pickerOn}
     <CounterPicker onInsert={insert} />
   {/if}
-  {#if pickerOn && fetchPickerName.trim() !== ''}
-    <FetchPathPicker name={fetchPickerName} onInsert={insert} />
+  {#if pickerOn}
+    <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
   {/if}
 </div>
 

@@ -92,13 +92,7 @@ export const demoAuthorizedDashboards = [
   { href: '/delegate/enter?owner=77', name: 'bagel_queen' }
 ];
 
-export const demoAccountState: AccountState = {
-  active: true,
-  status: 'vip',
-  onboarded: true,
-  creatorCode: null,
-  username: 'demo'
-};
+export const demoAccountState = { active: true, status: 'vip', onboarded: true, creatorCode: null };
 
 // Sample grants covering the full lifecycle (pending + consumed) so the
 // settings page renders and is exercisable without OAuth + NATS.
@@ -345,8 +339,26 @@ export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
   };
 }
 
-export function demoFetchTestRun(): { status: string; values: string[]; ms: number } {
-  return { status: 'ok', values: ['71.2'], ms: 214 };
+// `sample` mirrors what gossip returns for a DryRun: the raw upstream body the
+// builder turns into a clickable field tree. It is shaped to match the demo
+// `weather` definition's json_path (forecast.current.temp_f) so clicking through
+// the demo tree produces the same token the demo def already stores — a demo
+// whose tree disagreed with its own fixtures would teach the wrong thing.
+export function demoFetchTestRun(): { status: string; values: string[]; ms: number; sample: string } {
+  return {
+    status: 'ok',
+    values: ['71.2'],
+    ms: 214,
+    sample: JSON.stringify(
+      {
+        forecast: { current: { temp_f: 71.2, temp_c: 21.8, condition: 'Cloudy' }, updated: '2026-01-01T00:00:00Z' },
+        city: 'London',
+        ok: true
+      },
+      null,
+      2
+    )
+  };
 }
 
 // Sample rows use the STORED key format (no leading "!" — chat adds it), same
