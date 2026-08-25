@@ -22,16 +22,15 @@ import {
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/shared/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
+// The delegatable sections are the shared registry's grant set; the "what is
+// grantable and why" rationale lives on that constant in @bagel/shared/nav.
+import { GRANTABLE_SECTIONS } from '@bagel/shared';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
-
-// The delegatable sections are the shared registry's grant set; the "what is
-// grantable and why" rationale lives on that constant in @bagel/shared/nav.
-import { GRANTABLE_SECTIONS } from '@bagel/shared';
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;

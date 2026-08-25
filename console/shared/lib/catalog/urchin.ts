@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
-import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './tokens';
+import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 
 export const URCHIN_MODULE: ModuleDef = 
 // External-stats modules: chat commands answered through the gossip service
