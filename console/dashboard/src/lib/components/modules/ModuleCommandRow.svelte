@@ -16,7 +16,7 @@
 </script>
 
 <div class="row-shell" style="--i: {index - 1}">
-  <div class="trow">
+  <div class="crow">
     <span class="idx" aria-hidden="true">{idx}</span>
     <span class="cmd">
       <span class="cmd-name"><code>{command.trigger}</code></span>
@@ -34,7 +34,9 @@
   .row-shell {
     border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
   }
-  .trow {
+  /* Named `crow` rather than `trow`: shared app.css hides `.trow .resp` under
+     761px (old table columns). This row's summary lives on the same cell. */
+  .crow {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
@@ -49,7 +51,7 @@
     font-family: var(--bb-font-mono);
     font-weight: 600;
     font-size: 13px;
-    color: var(--bb-white);
+    color: var(--bb-tan-light);
   }
   .resp {
     font-family: var(--bb-font-body);
@@ -75,7 +77,7 @@
   .mini-spacer { width: 0; }
 
   @media (max-width: 760px) {
-    .trow { grid-template-columns: minmax(0, 1fr) auto; }
+    .crow { grid-template-columns: minmax(0, 1fr) auto; }
     .idx { display: none; }
   }
 </style>

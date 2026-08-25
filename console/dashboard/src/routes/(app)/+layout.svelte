@@ -72,6 +72,7 @@
           path.startsWith('/counters') ||
           path.startsWith('/quotes') ||
           path.startsWith('/govee') ||
+          path.startsWith('/songqueue') ||
           path.startsWith('/channelpoints') ||
           path.startsWith('/timers') ||
           path.startsWith('/loyalty')

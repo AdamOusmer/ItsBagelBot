@@ -32,4 +32,12 @@ describe('module catalog', () => {
     expect(def?.replies).toHaveLength(0);
     expect(def?.icon).toBe('pulse');
   });
+
+  test('songqueue is a bespoke href module listing !sr, !remove, !next and !clear', () => {
+    const def = moduleDef('songqueue');
+    expect(def).toBeDefined();
+    expect(def?.href).toBe('/songqueue');
+    expect(def?.icon).toBe('music');
+    expect(def?.commands?.map((c) => c.trigger)).toEqual(['!sr', '!remove', '!next', '!clear']);
+  });
 });

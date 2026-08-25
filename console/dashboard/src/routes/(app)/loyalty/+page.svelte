@@ -14,15 +14,19 @@
     Field,
     EmptyState,
     SaveStatus,
+    DeckList,
     toast,
     getI18n,
     LOYALTY_DEFAULTS,
+    moduleDef,
     type LoyaltyConfig
   } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
+  const loyaltyCommands = moduleDef('loyalty')?.commands ?? [];
 
   // Local source of truth, reseeded when a fresh SSR load lands.
   // svelte-ignore state_referenced_locally
@@ -201,19 +205,13 @@
     </div>
   </section>
 
-  <!-- 4) Supported chat commands: informational reference list. -->
-  <section class="block" aria-labelledby="loy-chat-h">
-    <h2 id="loy-chat-h" class="block-title">{t('loyalty.chatTitle')}</h2>
-    <div class="card">
-      <ul class="cmds">
-        <li><code>!points</code><span>{t('loyalty.chatPoints')}</span></li>
-        <li><code>!points give @user 500</code><span>{t('loyalty.chatGive')}</span></li>
-        <li><code>!leaderboard</code><span>{t('loyalty.chatLeaderboard')}</span></li>
-        <li><code>!points set/add/remove @user 500</code><span>{t('loyalty.chatPointsMod')}</span></li>
-        <li><code>!counter</code><span>{t('loyalty.chatCounter')}</span></li>
-      </ul>
+  {#if loyaltyCommands.length}
+    <div class="cmd-block">
+      <DeckList>
+        <ModuleCommandList commands={loyaltyCommands} headingId="loy-chat-h" />
+      </DeckList>
     </div>
-  </section>
+  {/if}
 </section>
 
 <style>
@@ -269,6 +267,8 @@
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 
+  .cmd-block { margin-top: 26px; }
+
   /* Table scrolls inside its own box so the page never scrolls sideways at 320px. */
   .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
@@ -289,19 +289,6 @@
   .tbl .r { text-align: right; }
   .tbl .rank { color: var(--bb-muted); }
   .tbl .mut { color: var(--bb-muted); }
-
-  .cmds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-  .cmds li { display: flex; flex-direction: column; gap: 2px; }
-  .cmds code {
-    font-size: 12.5px;
-    color: var(--bb-white);
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid var(--bb-border);
-    border-radius: 6px;
-    padding: 3px 8px;
-    width: fit-content;
-  }
-  .cmds span { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }
