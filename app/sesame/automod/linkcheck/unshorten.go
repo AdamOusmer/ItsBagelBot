@@ -125,8 +125,8 @@ func (e *Expander) IsShortener(host string) bool {
 // the allowlist — contacted by nobody. An input host that is not a shortener
 // returns immediately with itself (the caller classified plain hosts directly);
 // chains that stay inside the allowlist through maxRedirectHops return an
-// error rather than a guess. The chain travels as parsed *url.Values so each
-// hop's hostname comes from the parser, not from token slicing — hostOf is
+// error rather than a guess. The chain travels as parsed URLs so each hop's
+// hostname comes from the parser, not from token slicing — hostOf is
 // token-shaped and would misread a full URL's scheme as its host.
 func (e *Expander) Destination(ctx context.Context, token string) (string, error) {
 	current, err := url.Parse(e.scheme + "://" + strings.ToLower(token))
@@ -138,37 +138,56 @@ func (e *Expander) Destination(ctx context.Context, token string) (string, error
 	defer cancel()
 
 	for hop := 0; ; hop++ {
-		host := strings.ToLower(current.Hostname())
-		// Egress gate: the hostname must sit on the allowlist AND the port
-		// must be web-standard - "bit.ly:8443" cannot inherit "bit.ly"'s
-		// permission and is returned as a destination, contacted by nobody.
-		// anyPort (test mode, riding the same constructor switch as plain
-		// http) matches on name alone because httptest binds random ports.
-		if !e.IsShortener(host) || (!e.anyPort && !isWebPort(current.Port())) {
+		if host := e.externalHost(current); host != "" {
 			return host, nil // the destination: returned, never requested
 		}
 		if hop >= maxRedirectHops {
 			return "", fmt.Errorf("expand %s: exceeded %d hops", token, maxRedirectHops)
 		}
-
-		loc, err := e.probe(ctx, current.String())
+		next, err := e.nextHop(ctx, current)
 		if err != nil {
 			return "", fmt.Errorf("expand %s: %w", token, err)
 		}
-		if loc == "" {
-			// The shortener served a non-redirect (landing page, interstitial,
-			// bot wall). Its own host is what we can honestly report.
-			return host, nil
+		if next == nil {
+			// Non-redirect response (landing page, interstitial, bot wall):
+			// the shortener's own host is what we can honestly report.
+			return strings.ToLower(current.Hostname()), nil
 		}
-		ref, err := current.Parse(loc) // relative Locations resolve against current
-		if err != nil {
-			return "", fmt.Errorf("expand %s: bad location: %w", token, err)
-		}
-		if ref.Scheme != "https" && ref.Scheme != "http" {
-			return "", fmt.Errorf("expand %s: scheme %q refused", token, ref.Scheme)
-		}
-		current = ref
+		current = next
 	}
+}
+
+// externalHost reports the destination hostname when u sits outside the
+// expansion envelope, or "" when u is a shortener this package may probe.
+// The hostname must sit on the allowlist AND the port must be web-standard —
+// "bit.ly:8443" cannot inherit "bit.ly"'s permission and travels nowhere.
+// anyPort (test mode, riding the same constructor switch as plain http)
+// matches on name alone because httptest binds random ports.
+func (e *Expander) externalHost(u *url.URL) string {
+	host := strings.ToLower(u.Hostname())
+	if e.IsShortener(host) && (e.anyPort || isWebPort(u.Port())) {
+		return ""
+	}
+	return host
+}
+
+// nextHop resolves one redirect step: probe the current URL, parse its
+// Location relative to it, refuse exotic schemes. A nil URL with a nil error
+// means the response was not a redirect. Callers only reach here for hosts
+// externalHost cleared.
+func (e *Expander) nextHop(ctx context.Context, current *url.URL) (*url.URL, error) {
+	loc, err := e.probe(ctx, current.String())
+	if err != nil || loc == "" {
+		return nil, err
+	}
+	ref, err := current.Parse(loc)
+	if err != nil {
+		return nil, fmt.Errorf("bad location: %w", err)
+	}
+	if ref.Scheme != "https" && ref.Scheme != "http" {
+		return nil, fmt.Errorf("scheme %q refused", ref.Scheme)
+	}
+	return ref, nil
 }
 
 // probe issues one capped GET and returns the next Location header value (""

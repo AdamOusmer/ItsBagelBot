@@ -148,33 +148,46 @@ func isPortSuffix(s string) bool {
 // those behind their own homograph warnings, so the marginal recall is not
 // worth feeding confusable hosts to the oracles.
 func validHost(h string) bool {
-	if len(h) < 4 || len(h) > 253 {
-		return false
-	}
-	labels := 1
-	last := byte('.')
-	labelStart := 0
+	return len(h) >= 4 && len(h) <= 253 && hostBytesOK(h) && hostLabelsOK(h)
+}
+
+// hostBytesOK reports whether every byte sits in the accepted host alphabet.
+func hostBytesOK(h string) bool {
 	for i := 0; i < len(h); i++ {
 		c := h[i]
 		switch {
-		case c == '.':
+		case c == '.' || c == '-' || c == '_':
+			// separators and wildcard-ish junk (harmless to carry)
+		case 'a' <= c && c <= 'z', '0' <= c && c <= '9':
+			// ok; uppercase was already lowered, anything else is out
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// hostLabelsOK reports a dot-separated shape with no empty label, two or more
+// labels total, and a plausible TLD at the end.
+func hostLabelsOK(h string) bool {
+	labels := 1
+	last := byte('.')
+	for i := 0; i < len(h); i++ {
+		if h[i] == '.' {
 			if last == '.' { // empty label ("a..b")
 				return false
 			}
 			labels++
-			labelStart = i + 1
-		case c == '-' || c == '_' ||
-			('a' <= c && c <= 'z') || ('0' <= c && c <= '9'):
-			// ok (underscore appears in wildcard-ish junk; harmless to carry)
-		default:
-			return false // uppercase was already lowered; anything else is out
 		}
-		last = c
+		last = h[i]
 	}
-	if labels < 2 || last == '.' {
-		return false
-	}
-	tld := h[labelStart:]
+	return labels >= 2 && last != '.' && hostTLDOK(h)
+}
+
+// hostTLDOK reports whether h's final label is an alphabetic name of two to
+// sixty-three characters.
+func hostTLDOK(h string) bool {
+	tld := h[strings.LastIndexByte(h, '.')+1:]
 	if len(tld) < 2 || len(tld) > 63 {
 		return false
 	}

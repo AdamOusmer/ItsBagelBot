@@ -181,7 +181,7 @@ func (c *Checker) Evaluate(text string, channel uint64, sender string) bool {
 			bad = true
 			return
 		}
-		c.enqueue(token, host, channel, sender)
+		c.resolveAsync(c.taskFor(token, host, channel, sender))
 	})
 	return bad
 }
@@ -204,30 +204,32 @@ func (c *Checker) knownBad(token, host string) bool {
 	return false
 }
 
-// enqueue schedules background classification unless the key is cached, still
-// in flight, cooling down from an error, or the queue is full (counted drop).
-func (c *Checker) enqueue(token, host string, channel uint64, sender string) {
-	t := c.buildTask(token, host, channel, sender)
+// taskFor picks a lookup's identity: shortener tokens key on their full path
+// form (the destination is per-path), plain hosts on the registrable fold so
+// subdomain churn collapses into one cache slot.
+func (c *Checker) taskFor(token, host string, channel uint64, sender string) task {
+	if c.exp.IsShortener(host) {
+		lt := strings.ToLower(token)
+		return task{token: lt, host: host, key: lt, ch: channel, sender: sender}
+	}
+	return task{token: token, host: host, key: foldHost(host), ch: channel, sender: sender}
+}
 
-	if _, ok := c.cache.get(t.key); ok {
+// resolveAsync schedules one background classification unless its key is
+// cached, still in flight, cooling down from an error, or the queue is full
+// (a counted drop — the next mention re-enqueues).
+func (c *Checker) resolveAsync(t task) {
+	if _, done := c.cache.get(t.key); done {
 		return
 	}
-	now := nowNanos()
-	c.mu.Lock()
-	cooled := c.cooldown[t.key] > now
-	_, busy := c.inflight[t.key]
-	if !cooled && !busy {
-		c.inflight[t.key] = struct{}{}
-	}
-	c.mu.Unlock()
-	if cooled || busy {
+	if !c.claim(t.key) {
 		return
 	}
 
 	select {
 	case c.queue <- t:
 	default:
-		c.unmark(t.key)
+		c.release(t.key)
 		n := c.dropped.Add(1)
 		if n%128 == 1 {
 			c.log.Warn("linkcheck queue full, dropping lookups", zap.Int64("dropped", n))
@@ -235,18 +237,23 @@ func (c *Checker) enqueue(token, host string, channel uint64, sender string) {
 	}
 }
 
-// buildTask picks the task identity: shortener tokens key on their full path
-// form, plain hosts on the registrable fold so subdomain churn collapses.
-func (c *Checker) buildTask(token, host string, channel uint64, sender string) task {
-	if c.exp.IsShortener(host) {
-		lt := strings.ToLower(token)
-		return task{token: lt, host: host, key: lt, ch: channel, sender: sender}
+// claim reserves key for a worker, refusing keys that are already in flight
+// or inside their post-error cooldown window.
+func (c *Checker) claim(key string) bool {
+	now := nowNanos()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, busy := c.inflight[key]; busy {
+		return false
 	}
-	key := foldHost(host)
-	return task{token: token, host: host, key: key, ch: channel, sender: sender}
+	if c.cooldown[key] > now {
+		return false
+	}
+	c.inflight[key] = struct{}{}
+	return true
 }
 
-func (c *Checker) unmark(key string) {
+func (c *Checker) release(key string) {
 	c.mu.Lock()
 	delete(c.inflight, key)
 	c.mu.Unlock()
@@ -262,7 +269,7 @@ func (c *Checker) work(ctx context.Context) {
 			return
 		case t := <-c.queue:
 			c.handle(ctx, t)
-			c.unmark(t.key)
+			c.release(t.key)
 		}
 	}
 }
@@ -273,17 +280,17 @@ func (c *Checker) handle(ctx context.Context, t task) {
 		c.handleExpansion(ctx, t)
 		return
 	}
-	v, src, err := c.classifyHost(ctx, t.host)
-	if err != nil {
+	res := c.classifyHost(ctx, t.host)
+	if res.err != nil {
 		// An unanswered question must not cache as either answer: cool the
 		// key down so the next mention retries instead of whitelisting a
 		// possibly-hostile host for a Clean TTL.
 		c.coolDown(t.key)
 		return
 	}
-	c.remember(t.host, t.key, v)
-	if v == Bad {
-		c.fire(Hit{Host: t.host, Token: t.token, Source: src, Channel: t.ch, Sender: t.sender})
+	c.remember(t.host, t.key, res.verdict)
+	if res.verdict == Bad {
+		c.fire(Hit{Host: t.host, Token: t.token, Source: res.source, Channel: t.ch, Sender: t.sender})
 	}
 }
 
@@ -297,15 +304,15 @@ func (c *Checker) handleExpansion(ctx context.Context, t task) {
 		c.log.Debug("linkcheck expansion failed", zap.String("token", t.token), zap.Error(err))
 		return
 	}
-	v, src, err := c.classifyHost(ctx, destHost)
-	if err != nil {
+	res := c.classifyHost(ctx, destHost)
+	if res.err != nil {
 		c.coolDown(t.key)
 		return
 	}
-	c.remember(destHost, destHost, v)
-	c.cache.put(t.key, v, true)
-	if v == Bad {
-		c.fire(Hit{Host: destHost, Token: t.token, Via: t.host, Source: src, Channel: t.ch, Sender: t.sender})
+	c.remember(destHost, destHost, res.verdict)
+	c.cache.put(t.key, res.verdict, true)
+	if res.verdict == Bad {
+		c.fire(Hit{Host: destHost, Token: t.token, Via: t.host, Source: res.source, Channel: t.ch, Sender: t.sender})
 	}
 }
 
@@ -318,31 +325,40 @@ func (c *Checker) remember(host, key string, v Verdict) {
 	}
 }
 
+// classification is one host's verdict plus which oracle produced it. A
+// non-nil err means "no answer" — callers cool down rather than caching, so
+// verdict/source are only meaningful when err is nil.
+type classification struct {
+	verdict Verdict
+	source  Source
+	err     error
+}
+
 // classifyHost runs the passive oracles in cost order: memory-resident feed
 // snapshot, allocation-free floor terms, then the network resolver (rate-
-// limited). A non-nil error means "no answer" — callers cool down rather than
+// limited). A non-nil err means "no answer" — callers cool down rather than
 // caching.
-func (c *Checker) classifyHost(ctx context.Context, host string) (Verdict, Source, error) {
+func (c *Checker) classifyHost(ctx context.Context, host string) classification {
 	if c.feeds.Has(host) {
-		return Bad, SourceFeed, nil
+		return classification{verdict: Bad, source: SourceFeed}
 	}
 	if kind, _ := moderation.MatchFloor(moderation.Normalize(nil, host)); kind != moderation.FloorNone {
 		// The floor list also convicts dynamically here so ops additions to
 		// IPLoggerDomains reach hosts that only surface wrapped in a shortener.
-		return Bad, SourceFloor, nil
+		return classification{verdict: Bad, source: SourceFloor}
 	}
 	if err := c.limiter.Wait(ctx); err != nil {
-		return Clean, "", err // ctx cancelled mid-shutdown
+		return classification{verdict: Clean, err: err} // ctx cancelled mid-shutdown
 	}
 	blocked, err := c.doh.Blocked(ctx, host)
 	if err != nil {
 		c.log.Debug("linkcheck oracle error", zap.String("host", host), zap.Error(err))
-		return Clean, "", err
+		return classification{verdict: Clean, err: err}
 	}
 	if blocked {
-		return Bad, SourceDoH, nil
+		return classification{verdict: Bad, source: SourceDoH}
 	}
-	return Clean, "", nil
+	return classification{verdict: Clean}
 }
 
 // coolDown blocks retries for key until errCooldown elapses.

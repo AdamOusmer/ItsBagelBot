@@ -113,15 +113,27 @@ func (c *cache) put(key string, v Verdict, short bool) {
 	c.m[key] = entry{v: v, exp: nowNanos() + int64(ttl)}
 }
 
-// sweepLocked drops expired entries; if the cap still binds, arbitrary live
-// entries go too (see maxEntries for why arbitrary is acceptable here).
+// sweepLocked makes room under the hard cap: expired entries go first, and
+// only if the cap still binds do arbitrary live entries go too (see
+// maxEntries for why arbitrary is acceptable here).
 func (c *cache) sweepLocked() {
-	now := nowNanos()
+	c.dropExpired(nowNanos())
+	if len(c.m) >= maxEntries {
+		c.evictArbitrary()
+	}
+}
+
+// dropExpired deletes every entry past its TTL.
+func (c *cache) dropExpired(now int64) {
 	for k, e := range c.m {
 		if now > e.exp {
 			delete(c.m, k)
 		}
 	}
+}
+
+// evictArbitrary deletes live entries until the cap holds.
+func (c *cache) evictArbitrary() {
 	for k := range c.m {
 		if len(c.m) < maxEntries {
 			return
