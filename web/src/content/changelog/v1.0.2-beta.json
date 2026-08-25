@@ -1,0 +1,14 @@
+{
+  "tag": "beta",
+  "version": "v1.0.2-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "Loyalty Leaderboards & Song Requests",
+    "fr": "Classements de fidélité et demandes de chansons"
+  },
+  "description": {
+    "en": "Loyalty gains a per-channel leaderboard page, granular moderator grants, and viewer-to-viewer point transfers. Song requests get their own console page alongside standalone !song and !skip. AutoMod adds a dynamic link-safety checker and an opt-in clips-only filter, and the console boots faster behind a rebuilt login.",
+    "fr": "La fidélité gagne une page de classement par chaîne, des permissions de modération granulaires et des transferts de points entre spectateurs. Les demandes de chansons ont leur propre page de console, avec les commandes !song et !skip. L'AutoMod ajoute un vérificateur de liens dynamique et un filtre « clips uniquement » optionnel, et la console démarre plus vite derrière une connexion repensée."
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.2-beta"
+}
