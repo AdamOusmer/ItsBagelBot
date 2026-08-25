@@ -34,8 +34,6 @@ export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
 export { default as LightField } from '../components/LightField.svelte';
 export { default as Field } from '../components/Field.svelte';
-export { default as SettingRow } from '../components/SettingRow.svelte';
-export { default as CommandList } from '../components/CommandList.svelte';
 export { default as ToastHost } from '../components/ToastHost.svelte';
 export { default as SaveStatus } from '../components/SaveStatus.svelte';
 export { default as EditorFooter } from '../components/EditorFooter.svelte';

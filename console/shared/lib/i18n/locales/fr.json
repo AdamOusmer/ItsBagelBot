@@ -1134,17 +1134,6 @@
     "saveReply": "Enregistrer"
   },
   "spotify": {
-    "liveOnlyLabel": "En live uniquement",
-    "liveOnlyOn": "Les demandes ne sont accept\u00e9es que pendant votre live (recommand\u00e9).",
-    "liveOnlyOff": "D\u00e9sactiv\u00e9 : les viewers peuvent demander des musiques m\u00eame hors ligne.",
-    "cmdsTitle": "Commandes du chat",
-    "cmdModOnly": "mods",
-    "cmdAdd": "Demander une musique par nom, \u00ab artiste - titre \u00bb, ou un lien Spotify.",
-    "cmdView": "Afficher la musique en cours et les prochaines demandes.",
-    "cmdRetract": "Retirer votre propre demande.",
-    "cmdSkip": "Passer \u00e0 la musique suivante.",
-    "cmdRemoveAt": "Retirer la demande d'une autre personne \u00e0 cette position.",
-    "cmdClear": "Vider toute la file.",
     "back": "Tous les modules",
     "eyebrow": "Demandes de musiques",
     "description": "Laissez vos spectateurs mettre des musiques de Spotify en file : la commande !sr et une récompense de points de chaîne dont le texte tapé est la chanson.",

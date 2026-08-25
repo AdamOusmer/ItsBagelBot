@@ -49,11 +49,6 @@ type songqueueConfig struct {
 	AddMessage     string `json:"addMessage"`     // i18n songqueue.add.ok   {user} {title} {artist} {pos}
 	PlayingMessage string `json:"playingMessage"` // i18n songqueue.playing  {title} {artist} {req}
 	RetractMessage string `json:"retractMessage"` // i18n songqueue.retract.ok {user} {title}
-	// AllowOffline opts out of the live-only gate so viewers can queue songs
-	// while the stream is offline. Defaults to false (live-only enforced), the
-	// same polarity and default as govee's flag of the same name — the
-	// dashboard shows the inverse as a "Live only" switch.
-	AllowOffline bool `json:"allowOffline"`
 }
 
 // SongQueue owns the viewer song-request queue, resolved against the
@@ -85,28 +80,6 @@ func SongQueue(d engine.Deps) module.Module {
 	m.Command("sr").Everyone().Cooldown(srAddCooldown).
 		Aliases("songrequest", "songreq").
 		Run(songQueueDispatch(d, log))
-
-	// Standalone spellings for the two things viewers ask for by name. They are
-	// separate commands rather than aliases of !sr because an alias arrives as a
-	// bare invocation, which would make every one of them mean "view" — !skip
-	// has to advance the queue.
-	//
-	// NOT !queue: the viewer queue module (queue.go) already owns that name, and
-	// command precedence is registration order in All(), so claiming it here
-	// would shadow a different feature on any channel running both. !song and
-	// !current say what this one is about anyway.
-	//
-	// No cooldown: a read and a mod action, neither spends the Spotify lookup an
-	// add does.
-	m.Command("song").Everyone().
-		Aliases("current", "nowplaying", "np").
-		Run(songQueueView(d, log))
-
-	// !skip carries its moderator gate on the registration, where the !sr next
-	// sub-verb has to enforce it by hand — a bare word after !sr could also be
-	// a song title, so that path cannot lean on the command's own permission.
-	m.Command("skip").Mod().
-		Run(songQueueSkip(d, log))
 	return m.Build()
 }
 
@@ -115,7 +88,6 @@ func SongQueue(d engine.Deps) module.Module {
 type songQueueCmd struct {
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
-	live     engine.IsLiveChecker
 	c        *module.Context
 	cfg      songqueueConfig
 	log      *zap.Logger
@@ -126,7 +98,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, live: d.Live, c: c, log: log}
+	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, c: c, log: log}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -151,31 +123,6 @@ var songQueueActions = map[string]songQueueAction{
 	"remove":  (*songQueueCmd).actRemove,
 	"next":    (*songQueueCmd).actNext,
 	"clear":   (*songQueueCmd).actClear,
-}
-
-// songQueueView backs !queue / !current / !nowplaying: the same read !sr gives
-// with no arguments.
-func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
-		if !ok {
-			return nil
-		}
-		return qc.view(ctx, emit)
-	}
-}
-
-// songQueueSkip backs !skip: the same advance !sr next performs. The moderator
-// gate rides on the command registration here rather than the hand-rolled check
-// bareModVerb needs, because there is no query for it to be confused with.
-func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
-		if !ok {
-			return nil
-		}
-		return qc.nextTrack(ctx, emit)
-	}
 }
 
 func songQueueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
@@ -239,10 +186,6 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	if !qc.canRequest() {
 		return nil
 	}
-	if !qc.livePermits(ctx) {
-		qc.reply(emit, "", "songqueue.offline")
-		return nil
-	}
 	track, failure := qc.resolveTrack(ctx, query)
 	if failure != "" {
 		qc.emitChat(emit, failure)
@@ -256,31 +199,6 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 // user id being on file; without either there is nothing to resolve against.
 func (qc songQueueCmd) canRequest() bool {
 	return qc.gossip != nil && qc.c.Env.ChatterUserID != ""
-}
-
-// livePermits answers whether an add may proceed right now. Mirrors
-// goveeLivePermits, including its posture: a failed live check REFUSES rather
-// than assumes. The flag exists to keep the queue empty while the broadcaster
-// is away, so a check that errored open would defeat the only thing it does.
-//
-// Only adds are gated. Reading the queue, retracting or clearing it while
-// offline costs nothing and is how a broadcaster tidies up before going live.
-func (qc songQueueCmd) livePermits(ctx context.Context) bool {
-	if qc.cfg.AllowOffline {
-		return true
-	}
-	// No live store wired (tests, a partial deployment) means there is nothing
-	// authoritative to ask; refusing every request on that basis would break the
-	// feature outright, which is worse than honouring the request.
-	if qc.live == nil {
-		return true
-	}
-	live, err := qc.live.IsLive(ctx, qc.c.BroadcasterID)
-	if err != nil {
-		qc.log.Warn("songqueue: live check failed, refusing add", qc.bid(), zap.Error(err))
-		return false
-	}
-	return live
 }
 
 // reportAdd answers the queue outcome: duplicate and full get their localized

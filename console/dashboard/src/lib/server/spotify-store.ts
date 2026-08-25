@@ -90,11 +90,8 @@ function coerceOnRedeem(v: unknown): RewardOnRedeem {
 // inline all of it, which meant the song-request half and the channel-point
 // half — which share no fields and no rules — had to be read as one unit.
 
-// allowOffline is read from the TOP of the blob, not from `raw`: sesame's
-// songqueueConfig is flat, so that is where the bot looks for it.
-function readSr(raw: Partial<SpotifySrConfig> | undefined, allowOffline: unknown): SpotifySrConfig {
+function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
   const sr = blankSpotifySr();
-  sr.allowOffline = allowOffline === true;
   if (!raw || typeof raw !== 'object') return sr;
   sr.enabled = raw.enabled === true;
   sr.perm = coercePerm(raw.perm);
@@ -142,11 +139,10 @@ function readRedeem(
 
 function readView(configs: unknown): SpotifyView {
   const c = (configs ?? {}) as {
-    allowOffline?: unknown;
     sr?: Partial<SpotifySrConfig>;
     redeem?: Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null };
   };
-  return { enabled: false, sr: readSr(c.sr, c.allowOffline), redeem: readRedeem(c.redeem) };
+  return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem) };
 }
 
 interface RewardWire {
@@ -252,11 +248,6 @@ export function spotifyStore(userId: string): SpotifyStore {
     const base = await rawConfigs();
     await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
       ...base,
-      // Top level, NOT inside `sr`: sesame's songqueueConfig is flat and reads
-      // `allowOffline` alongside maxDepth. Nesting it under `sr` would store a
-      // switch the bot never sees, and the page would report a live-only gate
-      // that does not exist.
-      allowOffline: sr.allowOffline,
       sr: { enabled: sr.enabled, perm: sr.perm },
       redeem: {
         enabled: redeem.enabled,
