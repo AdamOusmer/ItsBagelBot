@@ -5,13 +5,14 @@ package linkcheck
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 // DefaultDoHEndpoint is Cloudflare's security-filtering resolver (1.1.1.2's
@@ -90,8 +91,12 @@ func (d *DoH) Blocked(ctx context.Context, host string) (bool, error) {
 		return false, fmt.Errorf("doh %s: status %d", host, res.StatusCode)
 	}
 
+	body, err := io.ReadAll(io.LimitReader(res.Body, dohBodyLimit))
+	if err != nil {
+		return false, fmt.Errorf("doh %s: %w", host, err)
+	}
 	var doc dohAnswer
-	if err := json.NewDecoder(io.LimitReader(res.Body, dohBodyLimit)).Decode(&doc); err != nil {
+	if err := codec.Unmarshal(body, &doc); err != nil {
 		return false, fmt.Errorf("doh %s: %w", host, err)
 	}
 	for _, a := range doc.Answer {

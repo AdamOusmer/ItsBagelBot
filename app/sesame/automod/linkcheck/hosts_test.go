@@ -60,7 +60,7 @@ func TestHostOfAndValidHost(t *testing.T) {
 		{token: "SUB.Evil.Example", host: "sub.evil.example", valid: true, folded: "evil.example"},
 		{token: "foo.co.uk/a", host: "foo.co.uk", valid: true, folded: "foo.co.uk"},
 		{token: "deep.a.b.evil.example", host: "deep.a.b.evil.example", valid: true, folded: "evil.example"},
-		{token: "xn--80ak6aa92e.tk", host: "xn--80ak6aa92e.tk", valid: true, folded: "xn--80ak6aa92e.tk"},
+		{token: "xn--80ak6aa92e.tk", host: "xn--80ak6aa92e.tk", valid: true, folded: "xn--80ak6aa92e.tk"}, //gitleaks:allow punycode host fixture, not a secret
 		{token: "10.0.0.1", host: "10.0.0.1", valid: false},
 		{token: "notahost", host: "notahost", valid: false},
 		{token: "a.b", host: "a.b", valid: false},
