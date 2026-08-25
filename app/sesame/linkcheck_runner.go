@@ -32,19 +32,9 @@ const linkCheckFeedInterval = 30 * time.Minute
 // rule fires on the next line carrying that host), so this hook stays the
 // shadow-mode paper trail: who posted what where, per source.
 func runLinkCheck(ctx context.Context, guard *automod.Gate, cfg *config.Config, log *zap.Logger) {
-	sources := linkcheck.DefaultFeedSources
-	if cfg.URLHausAuthKey != "" {
-		sources = append(sources, linkcheck.FeedSource{
-			Name:    "urlhaus",
-			URL:     "https://urlhaus.abuse.ch/downloads/hostfile/",
-			AuthKey: cfg.URLHausAuthKey,
-			Format:  linkcheck.FormatHosts,
-		})
-	}
-
 	checker := linkcheck.NewChecker(linkcheck.Options{
 		ExpandShorteners: cfg.LinkCheckShorteners,
-		Feeds:            linkcheck.NewFeeds(sources, nil),
+		Feeds:            linkcheck.NewFeeds(linkcheck.DefaultFeedSources, nil),
 		Log:              log,
 	})
 	checker.OnBad = func(h linkcheck.Hit) {
