@@ -334,3 +334,130 @@ func TestSRIsInertWithoutStoreOrGossip(t *testing.T) {
 	out = runSR(t, m2, songCtx("42", "alice"), "anything")
 	assert.Empty(t, out)
 }
+
+// The two request-path switches: a closed chat path swallows adds without
+// spending a Spotify lookup, and the live gate is govee-shaped — live-only by
+// default, allowOffline as the opt-out.
+func TestSRDisabledPathIgnoresAdds(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	m := SongQueue(songDeps(store, g))
+	c := songCtx("42", "alice")
+	c.Config = []byte(`{"sr":{"enabled":false,"perm":"everyone"}}`)
+
+	out := runSR(t, m, c, "brightside")
+	assert.Empty(t, out)
+	assert.Empty(t, store.up)
+	assert.Empty(t, g.calls)
+}
+
+func TestSRLiveOnlyBlocksOfflineAdds(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	d := engine.Deps{SongQueue: store, Gossip: g, Live: &fakeLive{live: false}, Log: zap.NewNop()}
+	m := SongQueue(d)
+	c := songCtx("42", "alice")
+	c.Config = []byte(`{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`)
+
+	out := runSR(t, m, c, "brightside")
+	assert.Empty(t, out)
+	assert.Empty(t, store.up)
+	assert.Empty(t, g.calls)
+}
+
+func TestSRAllowOfflineQueuesWhileOffline(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	d := engine.Deps{SongQueue: store, Gossip: g, Live: &fakeLive{live: false}, Log: zap.NewNop()}
+	m := SongQueue(d)
+	c := songCtx("42", "alice")
+	c.Config = []byte(`{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`)
+
+	out := runSR(t, m, c, "brightside")
+	require.Len(t, store.up, 1)
+	assert.Contains(t, chatText(t, out), "Mr. Brightside")
+}
+
+// A legacy blob — written before the switches existed — carries neither key
+// and must keep queueing, live or not, or enabling the module would have
+// silently stopped working for the channels already using it.
+func TestSRLegacyConfigKeepsQueueing(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	d := engine.Deps{SongQueue: store, Gossip: g, Live: &fakeLive{live: false}, Log: zap.NewNop()}
+	m := SongQueue(d)
+	c := songCtx("42", "alice")
+	c.Config = []byte(`{"maxDepth":10}`)
+
+	out := runSR(t, m, c, "brightside")
+	require.Len(t, store.up, 1)
+	assert.Contains(t, chatText(t, out), "Mr. Brightside")
+}
+
+const songRedeemJSON = `{"id":"redeem-1","broadcaster_user_id":"100","user_id":"42","user_name":"Alice","user_login":"alice","user_input":"brightside","reward":{"id":"rw-sr","title":"Song request","cost":500}}`
+
+func songRedeemHandler(t *testing.T, d engine.Deps) module.EventHandler {
+	t.Helper()
+	m := SongQueue(d)
+	h := m.Events[redemptionAddType]
+	require.NotNil(t, h)
+	return h
+}
+
+func songRedeemCtx(payload, config string) *module.Context {
+	c := &module.Context{
+		Env:           lane.Envelope{Type: redemptionAddType, Event: []byte(payload)},
+		BroadcasterID: 100,
+		Log:           zap.NewNop(),
+	}
+	if config != "" {
+		c.Config = []byte(config)
+	}
+	return c
+}
+
+// Every refusal on the channel-points path refunds: a viewer who spent points
+// and got no song back is the one outcome worse than no feature at all.
+func TestSongRedeemOfflineRefunds(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	d := engine.Deps{SongQueue: &fakeSongQueue{}, Gossip: g, Live: &fakeLive{live: false}, Log: zap.NewNop()}
+	cfg := `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill"}}`
+	var col collector
+	require.NoError(t, songRedeemHandler(t, d)(context.Background(), songRedeemCtx(songRedeemJSON, cfg), col.emit))
+	assert.Empty(t, g.calls)
+	assertRefund(t, col.out)
+}
+
+func TestSongRedeemAllowOfflineQueues(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	d := engine.Deps{SongQueue: store, Gossip: g, Live: &fakeLive{live: false}, Log: zap.NewNop()}
+	cfg := `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","allowOffline":true}}`
+	var col collector
+	require.NoError(t, songRedeemHandler(t, d)(context.Background(), songRedeemCtx(songRedeemJSON, cfg), col.emit))
+	require.Len(t, store.up, 1)
+	require.GreaterOrEqual(t, len(col.out), 2)
+	assert.Equal(t, outgress.RedemptionFulfilled, col.out[len(col.out)-1].Status)
+}
+
+func TestSongRedeemDisabledRefunds(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	d := engine.Deps{SongQueue: &fakeSongQueue{}, Gossip: g, Live: &fakeLive{live: true}, Log: zap.NewNop()}
+	cfg := `{"redeem":{"enabled":false,"rewardId":"rw-sr","onRedeem":"fulfill"}}`
+	var col collector
+	require.NoError(t, songRedeemHandler(t, d)(context.Background(), songRedeemCtx(songRedeemJSON, cfg), col.emit))
+	assert.Empty(t, g.calls)
+	assertRefund(t, col.out)
+}
+
+// An unrelated reward redemption is not this module's business.
+func TestSongRedeemIgnoresOtherRewards(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	store := &fakeSongQueue{}
+	d := engine.Deps{SongQueue: store, Gossip: g, Live: &fakeLive{live: true}, Log: zap.NewNop()}
+	cfg := `{"redeem":{"enabled":true,"rewardId":"rw-other","onRedeem":"fulfill"}}`
+	var col collector
+	require.NoError(t, songRedeemHandler(t, d)(context.Background(), songRedeemCtx(songRedeemJSON, cfg), col.emit))
+	assert.Empty(t, col.out)
+	assert.Empty(t, store.up)
+}

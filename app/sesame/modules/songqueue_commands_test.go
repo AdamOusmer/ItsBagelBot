@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The standalone !song / !current / !skip spellings. Kept out of
+// The standalone !song / !current / !skip / !next / !clear / !remove spellings. Kept out of
 // songqueue_test.go, which already carries the add, retract, remove and view
 // behaviour of !sr itself.
 
@@ -141,4 +141,56 @@ func TestSongQueueDoesNotClaimQueueCommand(t *testing.T) {
 		assert.NotEqual(t, "queue", c.Name, "!queue belongs to the viewer queue module")
 		assert.NotContains(t, c.Aliases, "queue", "!queue belongs to the viewer queue module")
 	}
+}
+
+func TestSkipCommandCarriesNextAlias(t *testing.T) {
+	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
+	assert.Contains(t, findCmd(t, m, "skip").Aliases, "next")
+}
+
+func TestClearCommandIsModeratorOnly(t *testing.T) {
+	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
+	assert.Equal(t, module.RoleModerator, findCmd(t, m, "clear").Perm)
+}
+
+func TestClearCommandEmptiesQueue(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "One", RequesterID: "1", RequesterName: "a"},
+		{TrackID: "t2", Title: "Two", RequesterID: "2", RequesterName: "b"},
+	}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+
+	cmd := findCmd(t, m, "clear")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), songCtx("9", "mod", "moderator"), "", col.emit))
+
+	assert.Empty(t, store.up)
+	assert.Contains(t, chatText(t, col.out), "cleared")
+}
+
+// !remove with no argument is the caller taking back their OWN request, which
+// is why the command itself is Everyone: the positional form inside actRemove
+// carries the moderator check.
+func TestRemoveCommandRetractsOwn(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Mine", RequesterID: "42", RequesterName: "alice"},
+	}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+
+	cmd := findCmd(t, m, "remove")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), songCtx("42", "alice"), "", col.emit))
+
+	assert.Empty(t, store.up)
+	assert.Contains(t, chatText(t, col.out), "Mine")
+}
+
+func TestSRSkipVerbPromotesHead(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
+	}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+
+	out := runSR(t, m, songCtx("7", "modder", "moderator"), "skip")
+	assert.Contains(t, chatText(t, out), "Human")
 }

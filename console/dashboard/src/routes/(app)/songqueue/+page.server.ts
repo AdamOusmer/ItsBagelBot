@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
 import type { Actions, PageServerLoad } from './$types';
-import { SPOTIFY_SR_PERMS } from '@bagel/shared';
+import { SPOTIFY_SR_PERMS, blankSpotifySr, blankSpotifyRedeem } from '@bagel/shared';
 import type {
   RewardDraft,
   RewardOnRedeem,
@@ -65,8 +65,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   } catch {
     return {
       enabled: false,
-      sr: { enabled: false, perm: 'everyone' as SpotifySrPerm },
-      redeem: { enabled: false, rewardId: '', onRedeem: 'fulfill' as RewardOnRedeem, replyMessage: '', reward: null },
+      sr: blankSpotifySr(),
+      redeem: blankSpotifyRedeem(),
       connected: false,
       app: { present: false, clientId: '' },
       redirectUri: '',
@@ -215,14 +215,28 @@ export const actions: Actions = {
 
   sr: async ({ request, locals }) => {
     const f = await request.formData();
-    const sr = { enabled: f.get('sr_enabled') === 'on', perm: asPerm(f.get('perm')) };
-    return run(locals, { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}` }, (s) => s.saveSr(sr));
+    const sr = {
+      enabled: f.get('sr_enabled') === 'on',
+      perm: asPerm(f.get('perm')),
+      allowOffline: f.get('sr_allow_offline') === 'on'
+    };
+    return run(
+      locals,
+      { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}/off=${sr.allowOffline}` },
+      (s) => s.saveSr(sr)
+    );
   },
 
   redeemToggle: async ({ request, locals }) => {
-    const enabled = (await request.formData()).get('redeem_enabled') === 'on';
-    return run(locals, { action: 'spotify:redeem_toggle', detail: String(enabled) }, (s) =>
-      s.setRedeemEnabled(enabled)
+    const f = await request.formData();
+    const path = {
+      enabled: f.get('redeem_enabled') === 'on',
+      allowOffline: f.get('redeem_allow_offline') === 'on'
+    };
+    return run(
+      locals,
+      { action: 'spotify:redeem_toggle', detail: `${path.enabled}/off=${path.allowOffline}` },
+      (s) => s.setRedeemPath(path)
     );
   },
 

@@ -25,7 +25,9 @@
     SPOTIFY_SR_PERMS,
     type SpotifySrConfig,
     type SpotifyRedeemConfig,
-    type SpotifySrPerm
+    type SpotifySrPerm,
+    blankSpotifySr,
+    blankSpotifyRedeem
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -45,11 +47,9 @@
   // svelte-ignore state_referenced_locally
   let connected = $state<boolean>(data.connected ?? false);
   // svelte-ignore state_referenced_locally
-  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone' });
+  let sr = $state<SpotifySrConfig>(data.sr ?? blankSpotifySr());
   // svelte-ignore state_referenced_locally
-  let redeem = $state<SpotifyRedeemConfig>(
-    data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null }
-  );
+  let redeem = $state<SpotifyRedeemConfig>(data.redeem ?? blankSpotifyRedeem());
   // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
@@ -58,8 +58,8 @@
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
       app = data.app ?? { present: false, clientId: '' };
-      sr = data.sr ?? { enabled: false, perm: 'everyone' };
-      redeem = data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
+      sr = data.sr ?? blankSpotifySr();
+      redeem = data.redeem ?? blankSpotifyRedeem();
     }
   });
 
@@ -147,8 +147,14 @@
   let missingScope = $state(false);
 
   // --- Command path (!sr): switch + permission tier post together on change ---
-  const srSubmit: SubmitFunction = () =>
-    async ({ result }) => {
+  // The switches submit their own form the moment they flip, and the hidden
+  // inputs mirroring them have not re-rendered yet at that point — so the
+  // current values are stamped onto the payload here rather than read out of
+  // stale DOM. (Both fields ride this form; perm comes from the select.)
+  const srSubmit: SubmitFunction = ({ formData }) => {
+    formData.set('sr_enabled', sr.enabled ? 'on' : '');
+    formData.set('sr_allow_offline', sr.allowOffline ? 'on' : '');
+    return async ({ result }) => {
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.srSaved'));
@@ -162,9 +168,12 @@
       toast('err', payload?.error ?? t('spotify.srSaveFailed'));
       await invalidateAll();
     };
+  };
 
-  const redeemToggleSubmit: SubmitFunction = () =>
-    async ({ result }) => {
+  const redeemToggleSubmit: SubmitFunction = ({ formData }) => {
+    formData.set('redeem_enabled', redeem.enabled ? 'on' : '');
+    formData.set('redeem_allow_offline', redeem.allowOffline ? 'on' : '');
+    return async ({ result }) => {
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
         await invalidateAll();
@@ -177,6 +186,7 @@
       toast('err', payload?.error ?? t('spotify.masterFail'));
       await invalidateAll();
     };
+  };
 
   // --- Inspector (govee deck: one row, docked editor) -----------------------
   let inspecting = $state(false);
@@ -370,6 +380,22 @@
               <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
             </div>
             <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
+            <!-- The switch reads as "live only", the stored field is its
+                 inverse (allowOffline) — the config keeps govee's polarity so
+                 both modules mean the same thing by the same key. -->
+            <div class="enable-row">
+              <div class="enable-text">
+                <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
+                <span class="muted-text" id="spotify-sr-live-desc">{sr.allowOffline ? t('spotify.srLiveOnlyOff') : t('spotify.srLiveOnlyOn')}</span>
+              </div>
+              <Switch
+                checked={!sr.allowOffline}
+                onchange={(liveOnly: boolean) => { sr.allowOffline = !liveOnly; srChanged(); }}
+                label={t('spotify.liveOnlyLabel')}
+                describedby="spotify-sr-live-desc"
+              />
+            </div>
+            <input type="hidden" name="sr_allow_offline" value={sr.allowOffline ? 'on' : ''} />
             {#if sr.enabled}
               <Field label={t('spotify.srPermLabel')}>
                 <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
@@ -397,6 +423,21 @@
                 <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
               </div>
               <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
+              {#if redeem.enabled}
+                <div class="enable-row">
+                  <div class="enable-text">
+                    <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
+                    <span class="muted-text" id="spotify-redeem-live-desc">{redeem.allowOffline ? t('spotify.redeemLiveOnlyOff') : t('spotify.redeemLiveOnlyOn')}</span>
+                  </div>
+                  <Switch
+                    checked={!redeem.allowOffline}
+                    onchange={(liveOnly: boolean) => { redeem.allowOffline = !liveOnly; redeemToggled(); }}
+                    label={t('spotify.liveOnlyLabel')}
+                    describedby="spotify-redeem-live-desc"
+                  />
+                </div>
+              {/if}
+              <input type="hidden" name="redeem_allow_offline" value={redeem.allowOffline ? 'on' : ''} />
             </form>
             <div class="reward-slot">
               <SpotifyRewardRow

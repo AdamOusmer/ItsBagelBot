@@ -38,13 +38,22 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
-// Spotify connect for song requests (the /songqueue page). Playback state
-// scopes let the bot report what is actually playing and resolve !sr queries;
-// the refresh token itself is handed to the modules service's sealed custody,
-// never stored here, and the app it authorizes against is the broadcaster's
-// own (see spotifyAuthorizeURL).
+// Spotify connect for song requests (the /songqueue page). The refresh token
+// itself is handed to the modules service's sealed custody, never stored
+// here, and the app it authorizes against is the broadcaster's own (see
+// spotifyAuthorizeURL).
+//
+// Search rides any user token; now-playing needs user-read-currently-playing
+// (user-read-playback-state is the documented fallback); player control —
+// !skip and queueing a track onto the active device — needs
+// user-modify-playback-state. Without the modify grant Spotify answers 403 on
+// next/queue/play, so queue control looks broken even though chat still
+// replies. DASHBOARD_SPOTIFY_SCOPES overrides the whole set, mirroring
+// DASHBOARD_LOGIN_SCOPES above.
 export function spotifyScopes(): string[] {
-  return ['user-read-currently-playing', 'user-read-playback-state'];
+  const override = (env.DASHBOARD_SPOTIFY_SCOPES ?? '').split(/\s+/).filter(Boolean);
+  if (override.length) return override;
+  return ['user-read-currently-playing', 'user-read-playback-state', 'user-modify-playback-state'];
 }
 
 /**
