@@ -70,6 +70,7 @@ type flagRule string
 const (
 	ruleIPLogger       flagRule = "ip_logger"
 	ruleScam           flagRule = "scam"
+	rulePhish          flagRule = "phish"
 	ruleHeuristic      flagRule = "heuristic"
 	ruleBlockTerm      flagRule = "block_term"
 	ruleLexHate        flagRule = "lex:hate:"
@@ -91,6 +92,7 @@ type flagRuleBucket int
 const (
 	bktIPLogger flagRuleBucket = iota
 	bktScam
+	bktPhish
 	bktHeuristic
 	bktBlockTerm
 	bktLexHate
@@ -106,6 +108,7 @@ const (
 var flagRuleNames = [bktCount]flagRule{
 	bktIPLogger:      ruleIPLogger,
 	bktScam:          ruleScam,
+	bktPhish:         rulePhish,
 	bktHeuristic:     ruleHeuristic,
 	bktBlockTerm:     ruleBlockTerm,
 	bktLexHate:       "lex_hate",
@@ -152,6 +155,7 @@ func stripRuleSuffixes(rule flagRule) flagRule {
 var baseRuleBuckets = map[flagRule]flagRuleBucket{
 	ruleIPLogger:   bktIPLogger,
 	ruleScam:       bktScam,
+	rulePhish:      bktPhish,
 	ruleHeuristic:  bktHeuristic,
 	ruleBlockTerm:  bktBlockTerm,
 	ruleCouncil:    bktCouncil,

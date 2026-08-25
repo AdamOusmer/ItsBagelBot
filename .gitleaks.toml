@@ -1,0 +1,12 @@
+title = "ItsBagelBot gitleaks config"
+
+# Keep every default gitleaks rule; only extend the allowlist below.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives: link-safety test fixtures use punycode host strings (xn--…) that the generic-api-key heuristic misreads as secrets."
+regexTarget = "match"
+regexes = [
+  '''xn--[a-z0-9-]+''',
+]
