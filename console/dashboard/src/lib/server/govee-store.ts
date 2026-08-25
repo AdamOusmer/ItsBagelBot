@@ -22,7 +22,7 @@
 // as an argument. A redemption is driven by sesame; this store only sets up.
 import { rpc } from '@bagel/shared/server/nats';
 import { POLICY } from '@bagel/shared/server/cache-keys';
-import type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding } from '@bagel/shared';
+import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/shared';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
 
@@ -30,7 +30,7 @@ import { listModules, upsertModule } from './commands-store';
 // working; the definitions live in @bagel/shared for the client components too.
 export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
 
-const GOVEE_MODULE = 'govee';
+const GOVEE_MODULE = MOD.govee;
 
 // Cache key for the one slow govee read: the third-party device list. Flushed
 // when the broadcaster's key changes (a new key can front a different Govee

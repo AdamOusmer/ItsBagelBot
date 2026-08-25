@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { moduleDef, type ModuleDef } from '@bagel/shared';
+import { moduleDef, type ModuleDef, MOD } from '@bagel/shared';
 import { listModules, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
@@ -86,7 +86,7 @@ function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
   }
   // Triggers persists its whole rule list as one "rules" string (one rule per
   // line); the sesame module parses it (app/sesame/modules/triggers.go).
-  const rules = def.id === 'triggers' ? get('rules') : '';
+  const rules = def.id === MOD.triggers ? get('rules') : '';
   if (rules) config.rules = rules;
   return config;
 }
@@ -105,7 +105,7 @@ function allowedConfigKeys(def: ModuleDef): Set<string> {
     if (reply.enableKey) keys.add(reply.enableKey);
   }
   for (const field of def.settings ?? []) keys.add(field.key);
-  if (def.id === 'triggers') keys.add('rules');
+  if (def.id === MOD.triggers) keys.add('rules');
   return keys;
 }
 
