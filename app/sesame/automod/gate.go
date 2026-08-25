@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"ItsBagelBot/app/sesame/automod/linkcheck"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/moderation"
 )
@@ -50,8 +51,8 @@ type styleLimits struct {
 }
 
 // Gate is the inline automod. Safe for concurrent use: categories are read-only
-// after New, the emote set and lexicon are swapped atomically, and skeleton
-// buffers come from a pool.
+// after New, the emote set, lexicon, baseline and link checker are swapped
+// atomically, and skeleton buffers come from a pool.
 type Gate struct {
 	cats     []category
 	buf      sync.Pool
@@ -59,6 +60,7 @@ type Gate struct {
 	lexicon  atomic.Pointer[moderation.Lexicon]
 	extra    atomic.Pointer[extraBox]
 	baseline atomic.Pointer[Baseline]
+	links    atomic.Pointer[linkcheck.Checker]
 }
 
 // New builds a Gate with the default curated blocklists and the embedded
@@ -91,6 +93,13 @@ func (g *Gate) SetLexicon(l *moderation.Lexicon) {
 // the static ceilings, so installing or removing it can never mint a verdict
 // that would not have existed before. Safe to call at any time.
 func (g *Gate) SetBaseline(b *Baseline) { g.baseline.Store(b) }
+
+// SetLinkChecker arms the dynamic link-safety layer (nil, the default, keeps
+// verdicts byte-identical to the unarmed gate). The checker's Evaluate is
+// read-only on the hot path - cache and feed-snapshot lookups - with unknown
+// hosts resolved on its own goroutines; see the linkcheck package for why it
+// never fetches chat links. Safe to call at any time.
+func (g *Gate) SetLinkChecker(c *linkcheck.Checker) { g.links.Store(c) }
 
 // Signals is the council evidence Assess gathers alongside the verdict, for the
 // jurors that live outside the gate (the valkey campaign tracker and the
@@ -161,14 +170,18 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config, opts ...A
 // normalization and the scans. Both floor halves are still pre-scanned on the
 // clean path - allocation-free folded passes over the hate lexicon and the
 // infrastructure blocklists - so an immovable-floor hit there routes onto the
-// deep path instead of bailing clean.
+// deep path instead of bailing clean. The link checker (when armed) adds the
+// third bounded clean-path scan, gated on the line containing a dot: its
+// Evaluate is allocation-light token walking over cache/feed-snapshot reads,
+// and a known-bad host routes onto the deep path exactly like a floor hit.
 //
 // Council order on the deep path: immovable floor (infrastructure blocklist +
-// hate lexicon; every profile, never suppressed by allow-terms) -> language
-// juror (reliably non-latin text is never judged by the English word lists) ->
-// lexicon categories gated by profile -> channel block-terms -> heuristics with
-// emote and allow-term suppression. In shadow mode the caller logs the verdict
-// and takes no action.
+// hate lexicon; every profile, never suppressed by allow-terms) -> dynamic
+// link verdicts ("phish", armed via SetLinkChecker; judged from the checker's
+// cache and feed snapshot only) -> language juror (reliably non-latin text is
+// never judged by the English word lists) -> lexicon categories gated by
+// profile -> channel block-terms -> heuristics with emote and allow-term
+// suppression. In shadow mode the caller logs the verdict and takes no action.
 // assessScope is the resolved option set Assess acts on.
 type assessScope struct {
 	msgCodes map[string]struct{}
@@ -215,7 +228,17 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	g.observeLearned(uint64(sc.ch), sc.sender, text, sig)
 	flags := g.resolveStyle(sig, sec, sc.ch, text)
 
-	if g.cleanPathBail(sig, flags, cfg, text) {
+	// Link checker pre-scan (armed only; see Assess's doc comment): unknown
+	// hosts enqueue for background classification even when this line goes on
+	// to bail clean - a short "bit.ly/x" line is precisely the shape worth
+	// resolving - while an already-convicted host forces the deep path so the
+	// phish verdict resolves in council order (floor first) below.
+	lk := g.links.Load()
+	linkBad := false
+	if lk != nil && sec.links {
+		linkBad = lk.Evaluate(text, uint64(sc.ch), sc.sender)
+	}
+	if !linkBad && g.cleanPathBail(sig, flags, cfg, text) {
 		return Verdict{}, Signals{}
 	}
 
@@ -229,6 +252,15 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 
 	if v, hit := g.floorInfra(skel); hit {
 		return v, out
+	}
+
+	// Dynamic link verdicts: the checker's Evaluate re-run here is idempotent
+	// (in-flight and cached keys skip), so the pre-scan's side effects do not
+	// duplicate. Same timeout tier as ip_logger/scam - infrastructure class -
+	// but its own rule name so stats and shadow logs separate learned
+	// convictions from the curated floor.
+	if lk != nil && sec.links && lk.Evaluate(text, uint64(sc.ch), sc.sender) {
+		return Verdict{Action: ActionTimeout, Seconds: 600, Rule: "phish"}, out
 	}
 
 	cat, term := g.lexiconScan(sig, text, skel)
