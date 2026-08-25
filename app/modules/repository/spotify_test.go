@@ -269,3 +269,42 @@ func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, connected)
 }
+
+// Disconnecting an account clears the grant and nothing else. Deleting the row
+// here would take the broadcaster's registered application with it, so the
+// reconnect they were about to do would demand their client id and secret
+// again — for no reason they could see.
+func TestSpotifyClearTokenKeepsTheApp(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2009, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
+	require.NoError(t, creds.SetToken(ctx, 2009, "rt-1"))
+	require.NoError(t, creds.ClearToken(ctx, 2009))
+
+	connected, err := creds.HasToken(ctx, 2009)
+	require.NoError(t, err)
+	assert.False(t, connected)
+
+	setup, err := creds.Credentials(ctx, 2009)
+	require.NoError(t, err)
+	assert.Equal(t, "client-abc", setup.App.ClientID)
+	assert.Equal(t, "secret-xyz", setup.App.ClientSecret)
+	assert.Empty(t, setup.RefreshToken)
+}
+
+// And reconnecting after that disconnect works without re-pasting the app.
+func TestSpotifyReconnectAfterDisconnectNeedsNoRepaste(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2010, repository.SpotifyApp{ClientID: "client-abc", ClientSecret: "secret-xyz"}))
+	require.NoError(t, creds.SetToken(ctx, 2010, "rt-1"))
+	require.NoError(t, creds.ClearToken(ctx, 2010))
+	require.NoError(t, creds.SetToken(ctx, 2010, "rt-2"))
+
+	setup, err := creds.Credentials(ctx, 2010)
+	require.NoError(t, err)
+	assert.Equal(t, "client-abc", setup.App.ClientID)
+	assert.Equal(t, "rt-2", setup.RefreshToken)
+}

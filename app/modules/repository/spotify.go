@@ -161,11 +161,19 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, app SpotifyApp
 	})
 }
 
-// ClearApp drops the stored application. The refresh token goes with it: a
-// grant is minted BY an application, so a token outliving its app can only
-// produce confusing 400s at the next exchange.
+// ClearApp drops the stored application, deleting the whole row. The refresh
+// token goes with it: a grant is minted BY an application, so a token
+// outliving its app can only produce confusing 400s at the next exchange.
 func (s *SpotifyCreds) ClearApp(ctx context.Context, userID uint64) error {
-	return s.ClearToken(ctx, userID)
+	if err := validate.UserID(userID); err != nil {
+		return err
+	}
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		_, err := s.client.SpotifyCredential.Delete().
+			Where(spotifycredential.UserIDEQ(userID)).
+			Exec(ctx)
+		return err
+	})
 }
 
 // AppClientID reports whether the broadcaster has pasted their Spotify
@@ -252,16 +260,22 @@ func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error
 	return SpotifyApp{ClientID: row.ClientID, ClientSecret: string(plain)}, nil
 }
 
-// ClearToken removes the broadcaster's stored refresh token ("disconnect"). A
-// missing row is a no-op: the end state (no token) is the same either way.
+// ClearToken removes the broadcaster's stored refresh token ("disconnect").
+// It clears the column rather than deleting the row: the row also holds the
+// application the broadcaster registered, and disconnecting an account must
+// not quietly unregister the app they would reconnect with. Removing the app
+// is a separate, louder act — see ClearApp.
+//
+// A missing row is a no-op: the end state (no token) is the same either way.
 func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
 	if err := validate.UserID(userID); err != nil {
 		return err
 	}
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := s.client.SpotifyCredential.Delete().
+		_, err := s.client.SpotifyCredential.Update().
 			Where(spotifycredential.UserIDEQ(userID)).
-			Exec(ctx)
+			ClearTokenEnc().
+			Save(ctx)
 		return err
 	})
 }
