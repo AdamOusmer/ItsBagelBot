@@ -119,9 +119,17 @@ function checkTitle(f: FormData): Checked<string> {
   return { value: title };
 }
 
+// Twitch's own bounds for a channel-point reward.
+const COST_MIN = 1;
+const COST_MAX = 10_000_000;
+
 function checkCost(f: FormData): Checked<number> {
   const cost = Math.trunc(Number(f.get('cost')));
-  if (!Number.isFinite(cost) || cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
+  // One reason per line. The three ways a cost can be unusable share a message
+  // but not a test, and folding them into one condition only hides that.
+  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
+  if (cost < COST_MIN) return { error: 'Enter a valid point cost.' };
+  if (cost > COST_MAX) return { error: 'Enter a valid point cost.' };
   return { value: cost };
 }
 

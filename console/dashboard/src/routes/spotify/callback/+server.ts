@@ -61,6 +61,24 @@ async function requireStoredToken(uid: string): Promise<void> {
   if (!present) songqueueFail('notoken');
 }
 
+// verifiedCode is the CSRF check, returning the code it vouched for rather than
+// a boolean so the caller gets a non-null value out of the same test.
+//
+// One reason per line: a missing code, a missing state, a missing cookie and a
+// state that does not match are four different ways to be replayed at, even
+// though the broadcaster sees one explainer.
+function verifiedCode(
+  code: string | null,
+  state: string | null,
+  storedState: string | undefined
+): string | null {
+  if (!code) return null;
+  if (!state) return null;
+  if (!storedState) return null;
+  if (state !== storedState) return null;
+  return code;
+}
+
 export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const uid = requireSongqueueActor(locals);
 
@@ -69,9 +87,10 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const storedState = cookies.get(SPOTIFY_STATE_COOKIE);
   cookies.delete(SPOTIFY_STATE_COOKIE, { path: '/' });
 
-  if (!code || !state || state !== storedState) songqueueFail('state');
+  const accepted = verifiedCode(code, state, storedState);
+  if (!accepted) songqueueFail('state');
 
-  const refreshToken = await exchangeCode(code);
+  const refreshToken = await exchangeCode(accepted);
   if (refreshToken) await storeRefreshToken(uid, refreshToken);
   else await requireStoredToken(uid);
 

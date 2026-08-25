@@ -102,16 +102,24 @@ function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
 //
 // A reward id without its snapshot still means bound: the caller keeps the id
 // so edit/delete target the right Twitch reward even if the mirror was lost.
+// Sequential guards rather than one compound test: each line rejects for its
+// own reason, so the shape of a usable snapshot is readable top to bottom.
+function mirroredReward(raw: Partial<SpotifyReward> | null | undefined): SpotifyReward | null {
+  if (!raw) return null;
+  if (typeof raw !== 'object') return null;
+  if (!raw.rewardId) return null;
+  return {
+    rewardId: String(raw.rewardId),
+    title: String(raw.title ?? ''),
+    cost: Number(raw.cost ?? 0),
+    color: String(raw.color ?? ''),
+    cooldown: Number(raw.cooldown ?? 0)
+  };
+}
+
 function readReward(raw: Partial<SpotifyReward> | null | undefined, rewardId: string): SpotifyReward | null {
-  if (raw && typeof raw === 'object' && raw.rewardId) {
-    return {
-      rewardId: String(raw.rewardId),
-      title: String(raw.title ?? ''),
-      cost: Number(raw.cost ?? 0),
-      color: String(raw.color ?? ''),
-      cooldown: Number(raw.cooldown ?? 0)
-    };
-  }
+  const mirrored = mirroredReward(raw);
+  if (mirrored) return mirrored;
   if (rewardId) return { rewardId, title: '', cost: 0, color: '', cooldown: 0 };
   return null;
 }
