@@ -108,33 +108,62 @@ function asOnRedeem(v: FormDataEntryValue | null): RewardOnRedeem {
 
 // parseRewardDraft validates the reward + behaviour fields into a draft, or a
 // user-facing error message.
-function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
+// Each field states its own rule and returns either the value or the message
+// the form shows. Collected below, so parseRewardDraft reads as the list of
+// fields rather than as an interleaving of parsing and validation.
+type Checked<T> = { value: T } | { error: string };
+
+function checkTitle(f: FormData): Checked<string> {
   const title = String(f.get('title') ?? '').trim();
   if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
+  return { value: title };
+}
 
+function checkCost(f: FormData): Checked<number> {
   const cost = Math.trunc(Number(f.get('cost')));
-  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
-  if (cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
+  if (!Number.isFinite(cost) || cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
+  return { value: cost };
+}
 
-  // Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
+// Reward tile colour: a "#rrggbb" hex, or blank for Twitch's default.
+function checkColor(f: FormData): Checked<string> {
   const color = String(f.get('color') ?? '').trim();
   if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return { error: 'Pick a valid colour.' };
+  return { value: color };
+}
 
+function checkReply(f: FormData): Checked<string> {
   const replyMessage = String(f.get('replyMessage') ?? '').trim();
   if (replyMessage.length > 200) return { error: 'Reply is too long (max 200 characters).' };
+  return { value: replyMessage };
+}
 
-  // Global cooldown in seconds; 0 disables. Twitch caps it at 604800s (one week).
-  const rawCooldown = Math.trunc(Number(f.get('cooldown') ?? 0));
-  const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
+// Global cooldown in seconds; 0 disables. Twitch caps it at 604800s (one week).
+// Clamped rather than rejected: any number the form can produce has a sensible
+// nearest legal value, so there is nothing to tell the author about.
+function readCooldown(f: FormData): number {
+  const raw = Math.trunc(Number(f.get('cooldown') ?? 0));
+  return Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 604_800) : 0;
+}
+
+function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
+  const title = checkTitle(f);
+  if ('error' in title) return title;
+  const cost = checkCost(f);
+  if ('error' in cost) return cost;
+  const color = checkColor(f);
+  if ('error' in color) return color;
+  const replyMessage = checkReply(f);
+  if ('error' in replyMessage) return replyMessage;
 
   return {
     draft: {
-      title,
-      cost,
+      title: title.value,
+      cost: cost.value,
       onRedeem: asOnRedeem(f.get('onRedeem')),
-      color,
-      cooldown,
-      replyMessage
+      color: color.value,
+      cooldown: readCooldown(f),
+      replyMessage: replyMessage.value
     }
   };
 }
