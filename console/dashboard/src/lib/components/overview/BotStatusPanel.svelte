@@ -14,7 +14,12 @@
   // for a delegate session server-side.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, ButtonLink, Icon, Skeleton, getI18n, type ConnUi } from '@bagel/shared';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
+  import Icon from '@bagel/shared/components/Icon.svelte';
+  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import type { ConnUi } from '@bagel/shared/connection-state';
   import { statusTone } from './status';
 
   const { t } = getI18n();

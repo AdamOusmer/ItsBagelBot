@@ -63,6 +63,7 @@ export {
   detectLocale,
   isLocale,
   localeName,
+  ensureCatalog,
   LOCALES,
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
