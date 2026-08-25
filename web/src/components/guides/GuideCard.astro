@@ -6,8 +6,11 @@
  * GuideCard — one entry on the guides hub. A numbered chapter card in the
  * site's warm-card language: mono index, display title, body teaser, and a
  * meta strip (reading time · section count) so readers can budget attention
- * before committing — the hub is a menu, not a maze.
+ * before committing — the hub is a menu, not a maze. Atmosphere matches the
+ * shared Card (header orbs, no pointer tracking).
  */
+import CardAtmosphere from '../ui/CardAtmosphere.astro';
+
 interface Props {
     index: string;
     href: string;
@@ -23,6 +26,7 @@ const { index, href, title, description, meta, chips = [], revealIndex = 0 } = A
 ---
 
 <a class="gcard" href={href} data-reveal style={`--reveal-i: ${revealIndex}`}>
+    <CardAtmosphere />
     <span class="gcard__index" aria-hidden="true">{index}</span>
     <span class="gcard__body">
         <b class="gcard__title">{title}</b>
@@ -54,22 +58,17 @@ const { index, href, title, description, meta, chips = [], revealIndex = 0 } = A
         transition: border-color 220ms ease, background 220ms ease, transform 260ms var(--ease-out-expo);
     }
 
-    .gcard::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(420px 180px at 12% 0%, rgba(201, 168, 124, 0.07), transparent 70%);
-        opacity: 0;
-        transition: opacity 260ms ease;
-        pointer-events: none;
-    }
-
     .gcard:hover {
         border-color: rgba(201, 168, 124, 0.4);
         transform: translateY(-3px);
     }
 
-    .gcard:hover::before { opacity: 1; }
+    .gcard__index,
+    .gcard__body,
+    .gcard__meta {
+        position: relative;
+        z-index: 1;
+    }
 
     .gcard__index {
         display: grid;
