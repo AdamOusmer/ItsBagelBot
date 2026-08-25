@@ -167,7 +167,6 @@
   "songqueue.cleared": "The song queue has been cleared.",
   "songqueue.err.upstream": "@{user} the music lookup is down right now, try again in a bit.",
   "songqueue.next.empty": "The song queue is empty.",
-  "songqueue.offline": "@{user} song requests are open only while the stream is live.",
   "songqueue.playing": "Now playing: {title} by {artist} (asked by {req})",
   "songqueue.remove.not_found": "There is no song at position #{pos}.",
   "songqueue.remove.ok": "Removed #{pos}: {title} (by {req}).",

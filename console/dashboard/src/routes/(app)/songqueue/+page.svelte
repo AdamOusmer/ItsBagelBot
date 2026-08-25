@@ -7,7 +7,6 @@
     Icon,
     Card,
     PageHead,
-    PageToolbar,
     ConfirmDialog,
     MasterToggle,
     AlertBanner,
@@ -15,8 +14,7 @@
     Button,
     ButtonLink,
     Field,
-    SettingRow,
-    CommandList,
+    Switch,
     toast,
     getI18n,
     SPOTIFY_SR_PERMS,
@@ -36,27 +34,7 @@
   // svelte-ignore state_referenced_locally
   let connected = $state<boolean>(data.connected ?? false);
   // svelte-ignore state_referenced_locally
-  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone', allowOffline: false });
-
-  // liveOnly is the inverse of the stored allowOffline flag, on by default —
-  // the same shape govee's lights use, so the two switches read identically.
-  // svelte-ignore state_referenced_locally
-  let liveOnly = $state(!(data.sr?.allowOffline ?? false));
-
-  // The chat commands this module answers. Sourced from the module's own
-  // registration rather than written from memory: the page previously
-  // documented only the bare add, so every other spelling was undiscoverable.
-  const SR_COMMANDS: { cmd: string; key: string; mod?: boolean }[] = [
-    { cmd: '!sr <song>', key: 'spotify.cmdAdd' },
-    { cmd: '!song', key: 'spotify.cmdView' },
-    { cmd: '!sr remove', key: 'spotify.cmdRetract' },
-    { cmd: '!skip', key: 'spotify.cmdSkip', mod: true },
-    { cmd: '!sr remove <n>', key: 'spotify.cmdRemoveAt', mod: true },
-    { cmd: '!sr clear', key: 'spotify.cmdClear', mod: true }
-  ];
-  // Resolved through the current locale on every render, same as the rest of
-  // the page's copy, so a language switch updates the descriptions too.
-  const srCommands = $derived(SR_COMMANDS.map((row) => ({ cmd: row.cmd, desc: t(row.key), mod: row.mod })));
+  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone' });
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(
     data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null }
@@ -68,8 +46,7 @@
       seed = data;
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
-      sr = data.sr ?? { enabled: false, perm: 'everyone', allowOffline: false };
-      liveOnly = !(data.sr?.allowOffline ?? false);
+      sr = data.sr ?? { enabled: false, perm: 'everyone' };
       redeem = data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
     }
   });
@@ -258,18 +235,16 @@
   </Card>
 
   <!-- Master switch -->
-  <PageToolbar>
-    {#snippet lead()}
-      <MasterToggle
-        action="?/toggle"
-        bind:enabled
-        label={t('spotify.masterLabel')}
-        hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
-        ariaLabel={t('spotify.masterAria')}
-        failMessage={t('spotify.masterFail')}
-      />
-    {/snippet}
-  </PageToolbar>
+  <div class="toolbar">
+    <MasterToggle
+      action="?/toggle"
+      bind:enabled
+      label={t('spotify.masterLabel')}
+      hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
+      ariaLabel={t('spotify.masterAria')}
+      failMessage={t('spotify.masterFail')}
+    />
+  </div>
 
   <!-- Path A: chat command -->
   <Card>
@@ -281,27 +256,14 @@
       </div>
     </div>
     <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
-      <SettingRow
-        label={t('spotify.srEnableLabel')}
-        description={sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}
-        bind:checked={sr.enabled}
-        onchange={srChanged}
-        name="sr_enabled"
-      />
-
-      <!-- Same control govee's lights use, down to the inverted flag and the
-           warn styling when the gate is lifted: on means requests only queue
-           while you are live, which is the default. -->
-      <SettingRow
-        label={t('spotify.liveOnlyLabel')}
-        description={liveOnly ? t('spotify.liveOnlyOn') : t('spotify.liveOnlyOff')}
-        warn={!liveOnly}
-        bind:checked={liveOnly}
-        onchange={srChanged}
-        name="allow_offline"
-        onValue=""
-        offValue="on"
-      />
+      <div class="setrow" class:on={sr.enabled}>
+        <div class="setrow-text">
+          <span class="setrow-label">{t('spotify.srEnableLabel')}</span>
+          <span class="muted-text" id="spotify-sr-desc">{sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}</span>
+        </div>
+        <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
+      </div>
+      <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
 
       <Field label={t('spotify.srPermLabel')}>
         <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
@@ -310,10 +272,6 @@
           {/each}
         </select>
       </Field>
-
-      <!-- The page documented only the bare add. Every other spelling existed
-           in sesame and nowhere in the UI, so nobody could discover them. -->
-      <CommandList title={t('spotify.cmdsTitle')} modLabel={t('spotify.cmdModOnly')} commands={srCommands} />
     </form>
   </Card>
 
@@ -328,13 +286,14 @@
     </div>
 
     <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
-      <SettingRow
-        label={t('spotify.redeemEnableLabel')}
-        description={redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}
-        bind:checked={redeem.enabled}
-        onchange={redeemToggled}
-        name="redeem_enabled"
-      />
+      <div class="setrow" class:on={redeem.enabled}>
+        <div class="setrow-text">
+          <span class="setrow-label">{t('spotify.redeemEnableLabel')}</span>
+          <span class="muted-text" id="spotify-redeem-desc">{redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}</span>
+        </div>
+        <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
+      </div>
+      <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
     </form>
 
     {#if showEditor}
@@ -390,6 +349,8 @@
   .back:hover { color: var(--bb-white); }
   .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: 4px; }
 
+  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {
     flex: none;
@@ -421,16 +382,21 @@
   .path-title h2 { margin: 0 0 4px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
   .path-title .muted-text { font-size: 12.5px; }
 
+  .setrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    margin-bottom: 14px;
+  }
+  .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
+  .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .setrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
+
   .bound-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 12px; border: 1px solid var(--rule); border-radius: 8px; }
   .bound-title { display: inline-flex; align-items: center; gap: 7px; font-family: var(--bb-font-display); font-weight: 700; font-size: 13.5px; color: var(--bb-white); flex: 1; min-width: 0; }
-
-  /* On narrow screens the title would otherwise be squeezed into a sliver
-     between the cost and the button, wrapping one word per line. Stack the
-     three pieces instead. */
-  @media (max-width: 520px) {
-    .bound-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .bound-title { flex: none; }
-  }
 
   .both-note { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 12px; }
 
