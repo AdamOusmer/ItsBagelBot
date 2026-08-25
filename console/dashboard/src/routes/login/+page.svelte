@@ -81,12 +81,21 @@
     }
 
     // Chunk stalled or blocked: show the headline rather than an empty hero.
-    const watchdog = window.setTimeout(() => revealGlyphs(h1), 1800);
+    let revealed = false;
+    const watchdog = window.setTimeout(() => {
+      revealed = true;
+      revealGlyphs(h1);
+    }, 1800);
 
     // motion touches the DOM; load it only on the client so SSR of /login
     // does not pull the animation runtime into the server module graph.
     void import('motion').then(({ animate, stagger, cubicBezier }) => {
       window.clearTimeout(watchdog);
+      // A chunk that arrives after the watchdog fired must not animate: every
+      // track starts at opacity 0, so the headline the watchdog just revealed
+      // would blink out and roll in a second time.
+      if (revealed) return;
+
       const LINE_DELAY_BASE = 0.35;
       const LINE_DELAY_STEP = 0.16;
       const GLYPH_STAGGER = 0.024;
@@ -270,8 +279,15 @@
     overflow: hidden;
   }
 
-  /* Login paints its own orbs; the shell's ambient pair would muddy them. */
-  :global(.bg-orb) {
+  /* Login paints its own orbs; the shell's ambient pair would muddy them. The
+     orbs live in app.html, so hiding them takes a :global rule — but route CSS
+     stays in the document after a client-side navigation, and an unqualified
+     :global(.bg-orb) kept them hidden on every page visited afterwards (reach
+     /login from the error page's sign-in link, then go Back). Gating on the
+     hero's presence unscopes the rule the moment this page unmounts, and
+     unlike a body class toggled from onMount it also holds during SSR, so the
+     shell orbs never flash in before hydration. */
+  :global(body:has([data-hero-title]) .bg-orb) {
     display: none;
   }
 
