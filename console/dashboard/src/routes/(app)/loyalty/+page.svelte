@@ -7,6 +7,7 @@
   import {
     PageHead,
     MasterToggle,
+    Switch,
     AlertBanner,
     ButtonLink,
     Button,
@@ -143,17 +144,18 @@
         <p class="hint">{t('loyalty.permissionsHint')}</p>
 
         {#each permToggles as pt (pt.key)}
-          <label class="perm">
-            <input
-              type="checkbox"
-              checked={config[pt.key] >= 0}
-              onchange={(e) => (config[pt.key] = e.currentTarget.checked ? 0 : -1)}
-            />
+          <div class="perm">
             <span class="perm-copy">
               <span class="perm-label">{pt.label}</span>
-              <span class="perm-hint">{pt.hint}</span>
+              <span class="perm-hint" id="perm-hint-{pt.key}">{pt.hint}</span>
             </span>
-          </label>
+            <Switch
+              label={pt.label}
+              describedby="perm-hint-{pt.key}"
+              checked={config[pt.key] >= 0}
+              onchange={(v) => (config[pt.key] = v ? 0 : -1)}
+            />
+          </div>
         {/each}
 
         <div class="actions">
@@ -252,14 +254,13 @@
   }
   .perm {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
     gap: 10px;
     padding: 9px 0;
     border-bottom: 1px solid rgba(240, 236, 228, 0.05);
-    cursor: pointer;
   }
   .perm:last-of-type { border-bottom: none; }
-  .perm input { margin-top: 2px; accent-color: var(--bb-green); width: 16px; height: 16px; }
   .perm-copy { display: flex; flex-direction: column; gap: 1px; }
   .perm-label { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
   .perm-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
