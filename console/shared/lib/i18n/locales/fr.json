@@ -654,8 +654,18 @@
     "hoursShort": "{n} h",
     "chatTitle": "Commandes de chat",
     "chatPoints": "Les viewers consultent leur solde et leur temps de visionnage.",
-    "chatPointsMod": "Les modérateurs définissent ou accordent des points à un viewer.",
+    "chatGive": "Tout le monde peut donner ses PROPRES points à un autre viewer (interrupteur ci-dessus).",
+    "chatLeaderboard": "Afficher le top de la chaîne.",
+    "chatPointsMod": "Les modérateurs définissent, accordent ou retirent des points — chaque capacité est désactivable ci-dessus.",
     "chatCounter": "Les modérateurs gèrent les compteurs (aussi sur la page Compteurs).",
+    "permissionsTitle": "Permissions des modérateurs",
+    "permissionsHint": "Choisissez précisément ce que les modérateurs peuvent faire avec les points depuis le chat. Le propriétaire garde toujours le contrôle total.",
+    "permSet": "Définir le solde d'un viewer",
+    "permSetHint": "Les modérateurs peuvent utiliser !points set @utilisateur <montant> pour fixer un solde exact.",
+    "permAdjust": "Accorder ou retirer des points",
+    "permAdjustHint": "Les modérateurs peuvent utiliser !points add/remove @utilisateur <montant> pour ajuster un solde.",
+    "permTransfers": "Transferts entre viewers",
+    "permTransfersHint": "!points give @utilisateur <montant> transfère les points de l'expéditeur. S'applique aux mods comme aux viewers.",
     "countersLink": "Gérer les compteurs"
   },
   "rewardCounter": {
@@ -1293,6 +1303,11 @@
     "emptyTitle": "Pas encore de légendes",
     "emptyBody": "Ce classement se remplit à mesure que la communauté de {channel} regarde en direct, s'abonne, offre des cadeaux et envoie des cheers. Connectez-vous et prenez la première place.",
     "degraded": "Le classement en direct est temporairement indisponible. Il se remettra à jour de lui-même.",
-    "earnNote": "Gagné en regardant en direct · abonnements · cadeaux · cheers"
+    "earnNote": "Gagné en regardant en direct · abonnements · cadeaux · cheers",
+    "commandsLabel": "Commandes de chat",
+    "commandsTitle": "Commandes de chat",
+    "colCommand": "Commande",
+    "colResponse": "Réponse",
+    "colPerm": "Qui"
   }
 }

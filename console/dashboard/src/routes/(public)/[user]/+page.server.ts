@@ -6,6 +6,8 @@ import { dev } from '$app/environment';
 import type { PageServerLoad } from './$types';
 import { resolveLogin } from '$lib/server/services';
 import { readLoyalty, topStandings } from '$lib/server/loyalty-store';
+import { listCommands, listModules } from '$lib/server/commands-store';
+import { publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
 
 // The root-level [user] segment exists for exactly one surface: the
 // leaderboard.itsbagelbot.com/<user> host. Every other hostname keeps its old
@@ -60,6 +62,17 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	requireLeaderboardHost(url);
 
 	const channel = await requireChannel(requireLogin(params.user ?? ''));
+	// Commands degrade to empty alongside the board: an outage in one store
+	// must not blank the whole page.
+	let commands: PublicCommand[] = [];
+	let modules: PublicModule[] = [];
+	try {
+		const [rows, mods] = await Promise.all([listCommands(channel.userId), listModules(channel.userId)]);
+		commands = publicCommands(rows);
+		modules = publicModules(mods);
+	} catch {
+		/* the leaderboard itself still renders */
+	}
 	const board = await standings(channel.userId);
 
 	return {
@@ -67,6 +80,8 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		channelName: channel.channelName,
 		currencyName: board.currencyName,
 		top: board.top,
-		degraded: board.degraded
+		degraded: board.degraded,
+		commands,
+		modules
 	};
 };
