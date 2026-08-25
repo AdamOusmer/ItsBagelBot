@@ -30,6 +30,21 @@ type Request struct {
 	// the provider to consume from the reserved premium rate limit bucket.
 	IsPremium bool `json:"is_premium,omitempty"`
 
+	// --- spotify (broadcaster-owned application) ----------------------------
+	// Each broadcaster registers their own Spotify app, so the console cannot
+	// redeem an authorization code itself: the client secret lives sealed in
+	// modules custody and is handed only to gossip. These two carry the
+	// console's half of that redemption to spotify.exchange, and are zero on
+	// every other request.
+
+	// Code is the one-time OAuth authorization code the browser returned to
+	// the console's callback.
+	Code string `json:"code,omitempty"`
+	// RedirectURI is the callback URL the authorize step used. Spotify
+	// validates it byte-for-byte, so it rides from the console that built it
+	// rather than being re-derived here.
+	RedirectURI string `json:"redirect_uri,omitempty"`
+
 	// --- govee (per-broadcaster smart-light control) ------------------------
 	// The govee provider authenticates with the broadcaster's own stored key
 	// (resolved from ChannelID), so these carry only which device to act on and
@@ -423,6 +438,15 @@ type SpotifyNowPlayingReply struct {
 	ProgressMS int64         `json:"progress_ms,omitempty"`
 	Track      *SpotifyTrack `json:"track,omitempty"`
 	Error      string        `json:"error,omitempty"`
+}
+
+// SpotifyExchangeReply is the answer to spotify.exchange: the refresh token
+// minted from the console's authorization code, or empty when Spotify reused
+// an existing consent and issued none (an answer, not an error — see the
+// handler). Error carries a chat/console-safe reason.
+type SpotifyExchangeReply struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
+	Error        string `json:"error,omitempty"`
 }
 
 // McsrSessionReply is the answer to mcsr.session: the change in a player's

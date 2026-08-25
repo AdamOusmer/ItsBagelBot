@@ -31,7 +31,22 @@ func (SpotifyCredential) Fields() []ent.Field {
 		// touches the database or logs; the associated data binds the
 		// ciphertext to the owning user id so an envelope copied onto another
 		// row fails to open.
-		field.Bytes("token_enc").Sensitive(),
+		// Optional because the two halves of a Spotify setup are written by
+		// two different flows: pasting the app credentials creates the row,
+		// finishing the OAuth round trip fills this in (and vice versa — a
+		// broadcaster who re-pastes credentials keeps their existing grant
+		// until it stops working).
+		field.Bytes("token_enc").Sensitive().Optional(),
+
+		// The broadcaster's OWN Spotify application. There is no fleet-wide
+		// app any more: each broadcaster registers one and pastes its
+		// credentials into the console. The client id is public by
+		// construction (it rides the authorize URL through the browser) so it
+		// is stored in the clear and echoed back to the console; the secret
+		// gets the same Tink AEAD sealing as the token, under its own AAD
+		// label so a ciphertext cannot be swapped between the two columns.
+		field.String("client_id").Optional().Default(""),
+		field.Bytes("client_secret_enc").Sensitive().Optional(),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

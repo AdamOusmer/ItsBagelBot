@@ -49,6 +49,10 @@ type songqueueConfig struct {
 	AddMessage     string `json:"addMessage"`     // i18n songqueue.add.ok   {user} {title} {artist} {pos}
 	PlayingMessage string `json:"playingMessage"` // i18n songqueue.playing  {title} {artist} {req}
 	RetractMessage string `json:"retractMessage"` // i18n songqueue.retract.ok {user} {title}
+	// CurrentMessage overrides both !current lines. {req} only expands when
+	// the playing track is the one at the head of the queue — a track the
+	// broadcaster started themselves has no requester to credit.
+	CurrentMessage string `json:"currentMessage"` // i18n songqueue.current.ok {title} {artist} {url} {req}
 }
 
 // SongQueue owns the viewer song-request queue, resolved against the
@@ -56,6 +60,7 @@ type songqueueConfig struct {
 // provider. It is opt-in like the player queue; on channels that never enable
 // it the !sr spelling falls through to custom commands untouched.
 //
+//	!current                              → what Spotify is playing RIGHT NOW
 //	!sr <song|artist - song|spotify link> → resolve + queue (one per viewer)
 //	!sr                                   → now playing + the next few
 //	!sr remove / retract / cancel         → take back YOUR queued request
@@ -147,16 +152,89 @@ var songQueueActions = map[string]songQueueAction{
 	"clear":   (*songQueueCmd).actClear,
 }
 
-// songQueueView backs !song / !current / !nowplaying / !np: the same read !sr
-// gives with no arguments.
+// songQueueView backs !song / !current / !nowplaying / !np.
 func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		qc, ok := newSongQueueCmd(d, c, log)
 		if !ok {
 			return nil
 		}
+		return qc.current(ctx, emit)
+	}
+}
+
+// current answers !current from the broadcaster's LIVE Spotify player rather
+// than from the queue. Chat asks "what is this song" about whatever is
+// actually audible, and on most channels that is the broadcaster's own
+// playlist — a queue read answers "nothing queued" while a song is plainly
+// playing, which reads as the bot being broken.
+//
+// An idle player (paused, private session, nothing loaded) degrades to the
+// queue view: with nothing playing, what is waiting is the only thing left
+// worth saying. Bare !sr keeps the queue view unconditionally — that command
+// is about the queue.
+func (qc songQueueCmd) current(ctx context.Context, emit module.Emit) error {
+	track, failure := qc.livePlayer(ctx)
+	if failure != "" {
+		qc.emitChat(emit, failure)
+		return nil
+	}
+	if track == nil {
 		return qc.view(ctx, emit)
 	}
+	kv := []string{
+		"title", track.Name,
+		"artist", strings.Join(track.Artists, ", "),
+		"url", track.URL,
+	}
+	key := "songqueue.current.ok"
+	if req := qc.requesterOf(ctx, track.ID); req != "" {
+		kv = append(kv, "req", req)
+		key = "songqueue.current.req"
+	}
+	qc.reply(emit, qc.cfg.CurrentMessage, key, kv...)
+	return nil
+}
+
+// livePlayer reads the broadcaster's currently-playing track, or the
+// user-facing line explaining why it could not. A nil track with no failure
+// means "nothing is playing", which is an answer rather than an error: a
+// paused player, a private listening session and an idle account are
+// indistinguishable here and all mean the same thing to chat.
+func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack, string) {
+	if qc.gossip == nil {
+		return nil, ""
+	}
+	var reply gossiprpc.SpotifyNowPlayingReply
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
+	if reply.Error != "" {
+		// Chat-safe already (no Spotify app set up for this channel, the
+		// connection needs redoing): surfaced verbatim, like the search path.
+		return nil, reply.Error
+	}
+	if err != nil {
+		qc.log.Warn("songqueue: nowplaying rpc failed", qc.bid(), zap.Error(err))
+		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	if !reply.IsPlaying {
+		return nil, ""
+	}
+	return reply.Track, ""
+}
+
+// requesterOf credits the viewer who asked for the playing track, and only
+// them: the credit is dropped unless the live track IS the queue head, so a
+// song the broadcaster started themselves never gets attributed to whoever
+// happens to be next in line. A snapshot failure costs the credit, not the
+// answer.
+func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
+	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)
+	if err != nil || snap.Current == nil || snap.Current.TrackID != trackID {
+		return ""
+	}
+	return snap.Current.RequesterName
 }
 
 // songQueueSkip backs !skip: the same advance !sr next performs. The moderator

@@ -10,6 +10,7 @@ import type {
   SpotifySrPerm
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
+import { spotifyRedirectURI } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -34,27 +35,41 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   if (DEMO) {
     const { demoSpotifyView } = await import('$lib/server/demo-data');
-    return { ...demoSpotifyView(), connected: true, justConnected: false, errorSlug: '' };
+    return {
+      ...demoSpotifyView(),
+      connected: true,
+      app: { present: true, clientId: 'demo-client-id' },
+      redirectUri: 'https://console.example/spotify/callback',
+      justConnected: false,
+      errorSlug: ''
+    };
   }
 
   // OAuth round-trip notices ride query params (?connected=1 / ?e=slug); read
   // and drop them into data so the page can show a one-shot banner.
   const justConnected = url.searchParams.get('connected') === '1';
   const rawSlug = url.searchParams.get('e') ?? '';
-  const errorSlug = ['state', 'oauth', 'notoken', 'unconfigured', 'store'].includes(rawSlug) ? rawSlug : '';
+  const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store'].includes(rawSlug)
+    ? rawSlug
+    : '';
 
   try {
     const store = spotifyStore(uid);
     // The module blob and the connection presence are independent reads; run
     // them together so SSR is one round trip deep.
-    const [view, connected] = await Promise.all([store.read(), store.connected()]);
-    return { ...view, connected, justConnected, errorSlug };
+    const [view, connected, app] = await Promise.all([store.read(), store.connected(), store.app()]);
+    // The callback URL is fleet-wide and not a secret: the page shows it so a
+    // broadcaster can register it on their own Spotify app, which Spotify then
+    // matches byte-for-byte at both ends of the flow.
+    return { ...view, connected, app, redirectUri: spotifyRedirectURI(), justConnected, errorSlug };
   } catch {
     return {
       enabled: false,
       sr: { enabled: false, perm: 'everyone' as SpotifySrPerm },
       redeem: { enabled: false, rewardId: '', onRedeem: 'fulfill' as RewardOnRedeem, replyMessage: '', reward: null },
       connected: false,
+      app: { present: false, clientId: '' },
+      redirectUri: '',
       justConnected: false,
       errorSlug: '',
       degraded: true
@@ -177,6 +192,22 @@ function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string
 }
 
 export const actions: Actions = {
+  // saveApp takes the broadcaster's OWN Spotify application. The secret is
+  // write-only from here: it goes straight into sealed custody and is never
+  // read back into the console (see spotify-store's SpotifyApp).
+  saveApp: async ({ request, locals }) => {
+    const f = await request.formData();
+    const clientId = String(f.get('client_id') ?? '').trim();
+    const clientSecret = String(f.get('client_secret') ?? '').trim();
+    if (!clientId || !clientSecret) {
+      return fail(400, { ok: false, error: 'Both the client ID and the client secret are required.' });
+    }
+    // The audit detail records WHICH app, never the secret.
+    return run(locals, { action: 'spotify:app', detail: clientId }, (s) => s.saveApp(clientId, clientSecret));
+  },
+
+  clearApp: ({ locals }) => run(locals, { action: 'spotify:app_clear', detail: '' }, (s) => s.clearApp()),
+
   toggle: async ({ request, locals }) => {
     const enabled = (await request.formData()).get('is_enabled') === 'on';
     return run(locals, { action: 'spotify:toggle', detail: String(enabled) }, (s) => s.setEnabled(enabled));

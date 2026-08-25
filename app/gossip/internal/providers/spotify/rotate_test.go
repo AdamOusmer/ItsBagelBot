@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"ItsBagelBot/app/gossip/internal/core"
+
 	"github.com/stretchr/testify/assert"
 
 	"go.uber.org/zap"
@@ -23,7 +25,9 @@ type rotatingKeys struct {
 
 type rotateCall struct{ broadcaster, prev, next string }
 
-func (f *rotatingKeys) Key(context.Context, string) (string, error) { return "", nil }
+func (f *rotatingKeys) Credentials(context.Context, string) (core.SpotifyCredentials, error) {
+	return core.SpotifyCredentials{}, nil
+}
 
 func (f *rotatingKeys) Rotate(_ context.Context, broadcaster, prev, next string) error {
 	f.calls = append(f.calls, rotateCall{broadcaster, prev, next})
@@ -33,7 +37,9 @@ func (f *rotatingKeys) Rotate(_ context.Context, broadcaster, prev, next string)
 // readOnlyKeys fakes a resolver with no write-back half.
 type readOnlyKeys struct{}
 
-func (readOnlyKeys) Key(context.Context, string) (string, error) { return "", nil }
+func (readOnlyKeys) Credentials(context.Context, string) (core.SpotifyCredentials, error) {
+	return core.SpotifyCredentials{}, nil
+}
 
 func TestPersistRotationWritesBack(t *testing.T) {
 	keys := &rotatingKeys{}

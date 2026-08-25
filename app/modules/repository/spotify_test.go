@@ -141,3 +141,132 @@ func TestSpotifyRotateTokenEmptyNextRefused(t *testing.T) {
 	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
 	require.Error(t, creds.RotateToken(ctx, 1001, "first", ""))
 }
+
+// --- broadcaster-owned application -------------------------------------------
+
+func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
+	client, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2001, "client-abc", "secret-xyz"))
+
+	id, secret, err := creds.App(ctx, 2001)
+	require.NoError(t, err)
+	assert.Equal(t, "client-abc", id)
+	assert.Equal(t, "secret-xyz", secret)
+
+	// The client id is public (it rides the authorize URL) and stays readable;
+	// the secret must not sit in the column in the clear.
+	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(2001)).OnlyX(ctx)
+	assert.Equal(t, "client-abc", row.ClientID)
+	assert.NotEmpty(t, row.ClientSecretEnc)
+	assert.NotContains(t, string(row.ClientSecretEnc), "secret-xyz", "client secret must be sealed at rest")
+}
+
+func TestSpotifyAppMissing(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	_, _, err := creds.App(ctx, 2002)
+	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
+
+	present, id, err := creds.HasApp(ctx, 2002)
+	require.NoError(t, err)
+	assert.False(t, present)
+	assert.Empty(t, id)
+}
+
+func TestSpotifyAppRequiresBothHalves(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	assert.Error(t, creds.SetApp(ctx, 2003, "client-abc", ""))
+	assert.Error(t, creds.SetApp(ctx, 2003, "", "secret-xyz"))
+}
+
+// The two flows write the same row from opposite ends: pasting credentials
+// must not wipe an existing grant, and reconnecting must not wipe the app.
+func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetToken(ctx, 2004, "rt-1"))
+
+	id, secret, token, err := creds.Credentials(ctx, 2004)
+	require.NoError(t, err)
+	assert.Equal(t, "client-abc", id)
+	assert.Equal(t, "secret-xyz", secret)
+	assert.Equal(t, "rt-1", token)
+
+	// Re-pasting the app (rotated secret) keeps the grant.
+	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-rotated"))
+	_, secret, token, err = creds.Credentials(ctx, 2004)
+	require.NoError(t, err)
+	assert.Equal(t, "secret-rotated", secret)
+	assert.Equal(t, "rt-1", token)
+}
+
+// A broadcaster who pasted credentials but never finished the connect flow is
+// "app, no grant" — not a connection, and not a seal failure either.
+func TestSpotifyAppWithoutGrantReadsAsNotConnected(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2005, "client-abc", "secret-xyz"))
+
+	connected, err := creds.HasToken(ctx, 2005)
+	require.NoError(t, err)
+	assert.False(t, connected)
+
+	_, err = creds.Token(ctx, 2005)
+	assert.ErrorIs(t, err, repository.ErrNoSpotifyToken)
+
+	id, secret, token, err := creds.Credentials(ctx, 2005)
+	require.NoError(t, err)
+	assert.Equal(t, "client-abc", id)
+	assert.Equal(t, "secret-xyz", secret)
+	assert.Empty(t, token)
+}
+
+func TestSpotifyCredentialsWithoutAppRefuses(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetToken(ctx, 2006, "rt-1"))
+
+	_, _, _, err := creds.Credentials(ctx, 2006)
+	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
+}
+
+// The app secret and the refresh token are sealed under different AAD labels,
+// so a ciphertext moved between the two columns must fail to open.
+func TestSpotifyAppAADIsNotInterchangeableWithToken(t *testing.T) {
+	client, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2007, "client-abc", "secret-xyz"))
+	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(2007)).OnlyX(ctx)
+
+	client.SpotifyCredential.UpdateOneID(row.ID).SetTokenEnc(row.ClientSecretEnc).ExecX(ctx)
+
+	_, err := creds.Token(ctx, 2007)
+	assert.Error(t, err, "an app-secret envelope must not open as a refresh token")
+}
+
+func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+
+	require.NoError(t, creds.SetApp(ctx, 2008, "client-abc", "secret-xyz"))
+	require.NoError(t, creds.SetToken(ctx, 2008, "rt-1"))
+	require.NoError(t, creds.ClearApp(ctx, 2008))
+
+	present, _, err := creds.HasApp(ctx, 2008)
+	require.NoError(t, err)
+	assert.False(t, present)
+
+	connected, err := creds.HasToken(ctx, 2008)
+	require.NoError(t, err)
+	assert.False(t, connected)
+}

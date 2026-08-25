@@ -59,12 +59,32 @@ func wireSpotify(w spotifyWiring) error {
 		w.nc, internal+".get", w.queueGroup, 3*time.Second, w.app, w.log, s.handleGet); err != nil {
 		return err
 	}
+	if err := wireSpotifyApp(w, dash, s); err != nil {
+		return err
+	}
 	if err := bus.QueueSubscribeJSON[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](
 		w.nc, internal+".rotate", w.queueGroup, 3*time.Second, w.app, w.log, s.handleRotate); err != nil {
 		return err
 	}
 	w.log.Info("spotify token custody enabled", zap.String("dashboard_prefix", dash))
 	return nil
+}
+
+// wireSpotifyApp subscribes the broadcaster-owned application verbs. They sit
+// on the dashboard prefix beside set/clear/status because the console is what
+// collects them; the secret only ever comes back out on the internal key.get
+// subject gossip imports, never here.
+func wireSpotifyApp(w spotifyWiring, dash string, s *spotifyRPC) error {
+	if err := bus.QueueSubscribeJSON[spotifyrpc.AppSetRequest, spotifyrpc.RefreshTokenMutateReply](
+		w.nc, dash+".app.set", w.queueGroup, 3*time.Second, w.app, w.log, s.handleAppSet); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[spotifyrpc.AppClearRequest, spotifyrpc.RefreshTokenMutateReply](
+		w.nc, dash+".app.clear", w.queueGroup, 3*time.Second, w.app, w.log, s.handleAppClear); err != nil {
+		return err
+	}
+	return bus.QueueSubscribeJSON[spotifyrpc.AppStatusRequest, spotifyrpc.AppStatusReply](
+		w.nc, dash+".app.status", w.queueGroup, 3*time.Second, w.app, w.log, s.handleAppStatus)
 }
 
 type spotifyRPC struct {
@@ -119,17 +139,55 @@ func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTok
 	return spotifyrpc.RefreshTokenMutateReply{}
 }
 
+// handleGet answers gossip with the broadcaster's whole credential set. A
+// broadcaster with no application of their own is an empty reply, not an
+// error: gossip turns that into "set up Spotify in the console".
 func (s *spotifyRPC) handleGet(ctx context.Context, req spotifyrpc.RefreshTokenGetRequest) spotifyrpc.RefreshTokenGetReply {
 	id, err := strconv.ParseUint(req.UserID, 10, 64)
 	if err != nil {
 		return spotifyrpc.RefreshTokenGetReply{Error: "user_id must be numeric"}
 	}
-	token, err := s.creds.Token(ctx, id)
+	clientID, clientSecret, token, err := s.creds.Credentials(ctx, id)
 	switch {
-	case errors.Is(err, repository.ErrNoSpotifyToken):
+	case errors.Is(err, repository.ErrNoSpotifyApp), errors.Is(err, repository.ErrNoSpotifyToken):
 		return spotifyrpc.RefreshTokenGetReply{}
 	case err != nil:
 		return spotifyrpc.RefreshTokenGetReply{Error: err.Error()}
 	}
-	return spotifyrpc.RefreshTokenGetReply{RefreshToken: token}
+	return spotifyrpc.RefreshTokenGetReply{RefreshToken: token, ClientID: clientID, ClientSecret: clientSecret}
+}
+
+func (s *spotifyRPC) handleAppSet(ctx context.Context, req spotifyrpc.AppSetRequest) spotifyrpc.RefreshTokenMutateReply {
+	id, err := strconv.ParseUint(req.UserID, 10, 64)
+	if err != nil {
+		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
+	}
+	if err := s.creds.SetApp(ctx, id, req.ClientID, req.ClientSecret); err != nil {
+		// Never echoes the secret; this is a validation or seal failure.
+		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
+	}
+	return spotifyrpc.RefreshTokenMutateReply{}
+}
+
+func (s *spotifyRPC) handleAppClear(ctx context.Context, req spotifyrpc.AppClearRequest) spotifyrpc.RefreshTokenMutateReply {
+	id, err := strconv.ParseUint(req.UserID, 10, 64)
+	if err != nil {
+		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
+	}
+	if err := s.creds.ClearApp(ctx, id); err != nil {
+		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
+	}
+	return spotifyrpc.RefreshTokenMutateReply{}
+}
+
+func (s *spotifyRPC) handleAppStatus(ctx context.Context, req spotifyrpc.AppStatusRequest) spotifyrpc.AppStatusReply {
+	id, err := strconv.ParseUint(req.UserID, 10, 64)
+	if err != nil {
+		return spotifyrpc.AppStatusReply{Error: "user_id must be numeric"}
+	}
+	present, clientID, err := s.creds.HasApp(ctx, id)
+	if err != nil {
+		return spotifyrpc.AppStatusReply{Error: err.Error()}
+	}
+	return spotifyrpc.AppStatusReply{Present: present, ClientID: clientID}
 }

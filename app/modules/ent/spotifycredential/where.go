@@ -64,6 +64,16 @@ func TokenEnc(v []byte) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldTokenEnc, v))
 }
 
+// ClientID applies equality check predicate on the "client_id" field. It's identical to ClientIDEQ.
+func ClientID(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldClientID, v))
+}
+
+// ClientSecretEnc applies equality check predicate on the "client_secret_enc" field. It's identical to ClientSecretEncEQ.
+func ClientSecretEnc(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldClientSecretEnc, v))
+}
+
 // UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
 func UpdatedAt(v time.Time) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldUpdatedAt, v))
@@ -147,6 +157,141 @@ func TokenEncLT(v []byte) predicate.SpotifyCredential {
 // TokenEncLTE applies the LTE predicate on the "token_enc" field.
 func TokenEncLTE(v []byte) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldLTE(FieldTokenEnc, v))
+}
+
+// TokenEncIsNil applies the IsNil predicate on the "token_enc" field.
+func TokenEncIsNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIsNull(FieldTokenEnc))
+}
+
+// TokenEncNotNil applies the NotNil predicate on the "token_enc" field.
+func TokenEncNotNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotNull(FieldTokenEnc))
+}
+
+// ClientIDEQ applies the EQ predicate on the "client_id" field.
+func ClientIDEQ(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldClientID, v))
+}
+
+// ClientIDNEQ applies the NEQ predicate on the "client_id" field.
+func ClientIDNEQ(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNEQ(FieldClientID, v))
+}
+
+// ClientIDIn applies the In predicate on the "client_id" field.
+func ClientIDIn(vs ...string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIn(FieldClientID, vs...))
+}
+
+// ClientIDNotIn applies the NotIn predicate on the "client_id" field.
+func ClientIDNotIn(vs ...string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotIn(FieldClientID, vs...))
+}
+
+// ClientIDGT applies the GT predicate on the "client_id" field.
+func ClientIDGT(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGT(FieldClientID, v))
+}
+
+// ClientIDGTE applies the GTE predicate on the "client_id" field.
+func ClientIDGTE(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGTE(FieldClientID, v))
+}
+
+// ClientIDLT applies the LT predicate on the "client_id" field.
+func ClientIDLT(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLT(FieldClientID, v))
+}
+
+// ClientIDLTE applies the LTE predicate on the "client_id" field.
+func ClientIDLTE(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLTE(FieldClientID, v))
+}
+
+// ClientIDContains applies the Contains predicate on the "client_id" field.
+func ClientIDContains(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldContains(FieldClientID, v))
+}
+
+// ClientIDHasPrefix applies the HasPrefix predicate on the "client_id" field.
+func ClientIDHasPrefix(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldHasPrefix(FieldClientID, v))
+}
+
+// ClientIDHasSuffix applies the HasSuffix predicate on the "client_id" field.
+func ClientIDHasSuffix(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldHasSuffix(FieldClientID, v))
+}
+
+// ClientIDIsNil applies the IsNil predicate on the "client_id" field.
+func ClientIDIsNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIsNull(FieldClientID))
+}
+
+// ClientIDNotNil applies the NotNil predicate on the "client_id" field.
+func ClientIDNotNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotNull(FieldClientID))
+}
+
+// ClientIDEqualFold applies the EqualFold predicate on the "client_id" field.
+func ClientIDEqualFold(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEqualFold(FieldClientID, v))
+}
+
+// ClientIDContainsFold applies the ContainsFold predicate on the "client_id" field.
+func ClientIDContainsFold(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldContainsFold(FieldClientID, v))
+}
+
+// ClientSecretEncEQ applies the EQ predicate on the "client_secret_enc" field.
+func ClientSecretEncEQ(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncNEQ applies the NEQ predicate on the "client_secret_enc" field.
+func ClientSecretEncNEQ(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNEQ(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncIn applies the In predicate on the "client_secret_enc" field.
+func ClientSecretEncIn(vs ...[]byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIn(FieldClientSecretEnc, vs...))
+}
+
+// ClientSecretEncNotIn applies the NotIn predicate on the "client_secret_enc" field.
+func ClientSecretEncNotIn(vs ...[]byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotIn(FieldClientSecretEnc, vs...))
+}
+
+// ClientSecretEncGT applies the GT predicate on the "client_secret_enc" field.
+func ClientSecretEncGT(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGT(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncGTE applies the GTE predicate on the "client_secret_enc" field.
+func ClientSecretEncGTE(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGTE(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncLT applies the LT predicate on the "client_secret_enc" field.
+func ClientSecretEncLT(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLT(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncLTE applies the LTE predicate on the "client_secret_enc" field.
+func ClientSecretEncLTE(v []byte) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLTE(FieldClientSecretEnc, v))
+}
+
+// ClientSecretEncIsNil applies the IsNil predicate on the "client_secret_enc" field.
+func ClientSecretEncIsNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIsNull(FieldClientSecretEnc))
+}
+
+// ClientSecretEncNotNil applies the NotNil predicate on the "client_secret_enc" field.
+func ClientSecretEncNotNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotNull(FieldClientSecretEnc))
 }
 
 // UpdatedAtEQ applies the EQ predicate on the "updated_at" field.

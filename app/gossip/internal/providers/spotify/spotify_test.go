@@ -63,12 +63,27 @@ func (s *memStore) SetNX(_ context.Context, key string, val []byte, _ time.Durat
 
 // fakeKeys is a canned credential resolver: key by broadcaster id, err
 // short-circuits.
+// fakeKeys stands in for the modules-side credential resolver. The
+// application half is fixed ("cid"/"csecret", what the fake accounts server
+// asserts on) so existing cases keep reading as "this broadcaster's refresh
+// token is X"; noApp models the broadcaster who has not registered a Spotify
+// application yet, which is the first setup step now that the fleet ships no
+// shared app.
 type fakeKeys struct {
-	key string
-	err error
+	key   string
+	noApp bool
+	err   error
 }
 
-func (f fakeKeys) Key(context.Context, string) (string, error) { return f.key, f.err }
+func (f fakeKeys) Credentials(context.Context, string) (core.SpotifyCredentials, error) {
+	if f.err != nil {
+		return core.SpotifyCredentials{}, f.err
+	}
+	if f.noApp {
+		return core.SpotifyCredentials{RefreshToken: f.key}, nil
+	}
+	return core.SpotifyCredentials{ClientID: "cid", ClientSecret: "csecret", RefreshToken: f.key}, nil
+}
 
 // newMintServer stands in for accounts.spotify.com: it answers the refresh
 // grant, asserts the app credentials rode the form, counts mints and echoes
@@ -90,17 +105,15 @@ func newMintServer(t *testing.T, tok string) (http.Handler, *atomic.Int32) {
 	}), &mints
 }
 
-func newTestProvider(t *testing.T, keys provider.BroadcasterKeyResolver, api, accounts http.Handler) provider.Provider {
+func newTestProvider(t *testing.T, keys provider.SpotifyCredResolver, api, accounts http.Handler) provider.Provider {
 	t.Helper()
 	apiSrv := httptest.NewServer(api)
 	t.Cleanup(apiSrv.Close)
 	authSrv := httptest.NewServer(accounts)
 	t.Cleanup(authSrv.Close)
 	return New(Config{
-		BaseURL:      apiSrv.URL,
-		AccountsURL:  authSrv.URL,
-		ClientID:     "cid",
-		ClientSecret: "csecret",
+		BaseURL:     apiSrv.URL,
+		AccountsURL: authSrv.URL,
 	}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), SpotifyKeys: keys})
 }
 
@@ -263,3 +276,87 @@ func TestSearchMissingQuery(t *testing.T) {
 // These tests stage plain-http loopback upstreams the gate rightly refuses;
 // production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }
+
+// --- broadcaster-owned application -------------------------------------------
+
+func TestNoApplicationOnFile(t *testing.T) {
+	mint, _ := newMintServer(t, "unused")
+	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("must not dial Spotify without the broadcaster's own application")
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1", noApp: true}, api, mint)
+
+	reply := asReply[gossiprpc.SpotifyNowPlayingReply](t,
+		endpoint(t, p, "nowplaying")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
+	assert.Contains(t, reply.Error, "no Spotify app set up")
+}
+
+// newExchangeServer answers the authorization-code half of /api/token,
+// asserting the broadcaster's OWN client credentials and the console's exact
+// redirect_uri ride the form — Spotify rejects the exchange otherwise.
+func newExchangeServer(t *testing.T, refresh string) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		assert.Equal(t, "authorization_code", r.FormValue("grant_type"))
+		assert.Equal(t, "code-abc", r.FormValue("code"))
+		assert.Equal(t, "https://console.example/spotify/callback", r.FormValue("redirect_uri"))
+		assert.Equal(t, "cid", r.FormValue("client_id"))
+		assert.Equal(t, "csecret", r.FormValue("client_secret"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"access_token":"tok","token_type":"Bearer","expires_in":3600,"refresh_token":%q}`, refresh)
+	})
+}
+
+func exchangeRequest() gossiprpc.Request {
+	return gossiprpc.Request{
+		ChannelID:   "2",
+		Code:        "code-abc",
+		RedirectURI: "https://console.example/spotify/callback",
+	}
+}
+
+func TestExchangeMintsRefreshToken(t *testing.T) {
+	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
+	p := newTestProvider(t, fakeKeys{key: ""}, api, newExchangeServer(t, "rt-new"))
+
+	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
+		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "rt-new", reply.RefreshToken)
+}
+
+// Spotify reuses consent: a reconnect with unchanged scopes issues no refresh
+// token. That is an empty answer, never an error — the console keeps whatever
+// is already in custody.
+func TestExchangeConsentReuseIsNotAnError(t *testing.T) {
+	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, newExchangeServer(t, ""))
+
+	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
+		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
+	require.Empty(t, reply.Error)
+	assert.Empty(t, reply.RefreshToken)
+}
+
+func TestExchangeWithoutApplicationRefuses(t *testing.T) {
+	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
+	accounts := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("must not redeem a code without the broadcaster's own application")
+	})
+	p := newTestProvider(t, fakeKeys{noApp: true}, api, accounts)
+
+	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
+		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
+	assert.Contains(t, reply.Error, "no Spotify app set up")
+}
+
+func TestExchangeRequiresCodeAndRedirect(t *testing.T) {
+	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
+	accounts := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("must not redeem an empty code") })
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, accounts)
+
+	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
+		endpoint(t, p, "exchange")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
+	assert.Contains(t, reply.Error, "missing authorization code")
+}

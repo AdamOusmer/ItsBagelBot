@@ -95,8 +95,12 @@ func init() {
 	quote.DefaultCreatedAt = quoteDescCreatedAt.Default.(func() time.Time)
 	spotifycredentialFields := schema.SpotifyCredential{}.Fields()
 	_ = spotifycredentialFields
+	// spotifycredentialDescClientID is the schema descriptor for client_id field.
+	spotifycredentialDescClientID := spotifycredentialFields[2].Descriptor()
+	// spotifycredential.DefaultClientID holds the default value on creation for the client_id field.
+	spotifycredential.DefaultClientID = spotifycredentialDescClientID.Default.(string)
 	// spotifycredentialDescUpdatedAt is the schema descriptor for updated_at field.
-	spotifycredentialDescUpdatedAt := spotifycredentialFields[2].Descriptor()
+	spotifycredentialDescUpdatedAt := spotifycredentialFields[4].Descriptor()
 	// spotifycredential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	spotifycredential.DefaultUpdatedAt = spotifycredentialDescUpdatedAt.Default.(func() time.Time)
 	// spotifycredential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

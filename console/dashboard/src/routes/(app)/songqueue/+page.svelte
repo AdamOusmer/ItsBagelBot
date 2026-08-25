@@ -57,6 +57,7 @@
       seed = data;
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
+      app = data.app ?? { present: false, clientId: '' };
       sr = data.sr ?? { enabled: false, perm: 'everyone' };
       redeem = data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
     }
@@ -73,9 +74,45 @@
     state: 'spotify.errState',
     oauth: 'spotify.errOauth',
     notoken: 'spotify.errNoToken',
+    noapp: 'spotify.errNoApp',
     unconfigured: 'spotify.errUnconfigured',
     store: 'spotify.errStore'
   };
+
+  // --- The broadcaster's own Spotify application -----------------------------
+  // Step one of two: there is no fleet-wide Spotify app, so a channel supplies
+  // its own credentials before anything can be authorized. The secret is
+  // write-only — it is posted once and never comes back — so the field is
+  // always blank on load, including when an app is already stored.
+  // svelte-ignore state_referenced_locally
+  let app = $state<{ present: boolean; clientId: string }>(data.app ?? { present: false, clientId: '' });
+  let editingApp = $state(false);
+  let clientId = $state('');
+  let clientSecret = $state('');
+
+  const appSubmit: SubmitFunction = () =>
+    async ({ result }) => {
+      const payload = payloadOf(result);
+      if (result.type === 'success' && payload?.ok !== false) {
+        clientSecret = '';
+        editingApp = false;
+        toast('ok', t('spotify.appSaved'));
+        await invalidateAll();
+        return;
+      }
+      toast('err', payload?.error ?? t('spotify.appSaveFailed'));
+    };
+
+  async function copyRedirect() {
+    try {
+      await navigator.clipboard.writeText(data.redirectUri ?? '');
+      toast('ok', t('spotify.redirectCopied'));
+    } catch {
+      // Clipboard permission is the only realistic failure and the URL is on
+      // screen anyway, so this degrades to "select it yourself".
+      toast('err', t('spotify.redirectCopyFailed'));
+    }
+  }
 
   onMount(() => {
     if (data.justConnected) toast('ok', t('spotify.connectedToast'));
@@ -244,6 +281,63 @@
        paths (either can be on while the other is off), so they share a two-
        column grid instead of a numbered 2-then-3 wizard that implied sequence. -->
   <div class="setup">
+    <!-- Step 1. Every channel brings its OWN Spotify application: we hold no
+         shared one, so this card comes before the account connect and gates
+         it. The client id is shown back (it is public); the secret is
+         write-only and its field stays blank even when one is stored. -->
+    <Card>
+      <h2 class="path-title">{t('spotify.appTitle')}</h2>
+      <p class="muted-text">{app.present ? t('spotify.appSetHelp') : t('spotify.appHelp')}</p>
+
+      <ol class="steps">
+        <li>
+          {t('spotify.appStepCreate')}
+          <a class="ext" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">
+            developer.spotify.com/dashboard <Icon name="link" size={12} />
+          </a>
+        </li>
+        <li>
+          {t('spotify.appStepRedirect')}
+          <span class="redirect">
+            <code>{data.redirectUri}</code>
+            <Button variant="ghost" type="button" onclick={copyRedirect}>{t('spotify.redirectCopy')}</Button>
+          </span>
+        </li>
+        <li>{t('spotify.appStepPaste')}</li>
+      </ol>
+
+      {#if app.present && !editingApp}
+        <div class="row">
+          <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.appPill')}</span>
+          <code class="client-id">{app.clientId}</code>
+          <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
+          <form method="POST" action="?/clearApp" use:enhance={formResult(t('spotify.appRemoved'), t('spotify.appRemoveFailed'), () => { app = { present: false, clientId: '' }; connected = false; })}>
+            <Button variant="destructive" type="submit">{t('spotify.appRemove')}</Button>
+          </form>
+        </div>
+        <p class="muted-text small">{t('spotify.appRemoveWarning')}</p>
+      {:else}
+        <form method="POST" action="?/saveApp" use:enhance={appSubmit}>
+          <Field label={t('spotify.appClientIdLabel')}>
+            <input class="input" name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
+          </Field>
+          <p class="muted-text small field-hint">{t('spotify.appClientIdHint')}</p>
+          <Field label={t('spotify.appClientSecretLabel')}>
+            <input class="input" name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required />
+          </Field>
+          <p class="muted-text small field-hint">{t('spotify.appClientSecretHint')}</p>
+          <div class="row">
+            <Button variant="primary" type="submit">{t('spotify.appSave')}</Button>
+            {#if app.present}
+              <Button variant="ghost" type="button" onclick={() => { editingApp = false; clientSecret = ''; }}>{t('spotify.appCancel')}</Button>
+            {/if}
+          </div>
+        </form>
+      {/if}
+    </Card>
+
+    <!-- Step 2. Connecting authorizes against the app above, so it stays out
+         of reach until one is on file. -->
     <Card>
       <h2 class="path-title">{t('spotify.connectTitle')}</h2>
       <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
@@ -254,8 +348,11 @@
             <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
           </form>
         </div>
-      {:else}
+      {:else if app.present}
         <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
+      {:else}
+        <p class="muted-text">{t('spotify.connectNeedsApp')}</p>
+        <Button variant="primary" disabled type="button">{t('spotify.connectCta')}</Button>
       {/if}
     </Card>
 
@@ -386,6 +483,21 @@
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
+
+  /* Setup steps for the broadcaster's own Spotify app. Numbered because the
+     order matters on Spotify's side: the redirect URI has to be registered
+     before the first authorize attempt, or consent fails with a URI mismatch
+     that reads like a bug in our console. */
+  .steps { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; }
+  .steps a.ext { color: var(--bb-green-glow); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .steps a.ext:hover { text-decoration: underline; }
+  .redirect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .redirect code, .client-id { background: var(--bb-surface-2); border: 1px solid var(--bb-border); border-radius: 6px; padding: 4px 8px; font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-white); word-break: break-all; }
+  .muted-text.small { font-size: 12px; margin: 10px 0 0; }
+  /* Field wraps its control in a <label>, so a sentence-long hint sits after
+     the field rather than inside it (a paragraph inside a label reads oddly to
+     screen readers and is not valid content there). */
+  .field-hint { margin: -8px 0 14px; }
 
   .enable-row {
     display: flex;

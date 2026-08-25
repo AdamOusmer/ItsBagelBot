@@ -107,7 +107,9 @@ var (
 	SpotifyCredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "user_id", Type: field.TypeUint64},
-		{Name: "token_enc", Type: field.TypeBytes},
+		{Name: "token_enc", Type: field.TypeBytes, Nullable: true},
+		{Name: "client_id", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "client_secret_enc", Type: field.TypeBytes, Nullable: true},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
 	// SpotifyCredentialsTable holds the schema information for the "spotify_credentials" table.

@@ -4,7 +4,7 @@
 // Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
-import { Spotify, Twitch } from '@bagel/shared/server/oauth';
+import { Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
@@ -41,35 +41,53 @@ export function twitch(): Twitch {
 // Spotify connect for song requests (the /songqueue page). Playback state
 // scopes let the bot report what is actually playing and resolve !sr queries;
 // the refresh token itself is handed to the modules service's sealed custody,
-// never stored here.
+// never stored here, and the app it authorizes against is the broadcaster's
+// own (see spotifyAuthorizeURL).
 export function spotifyScopes(): string[] {
   return ['user-read-currently-playing', 'user-read-playback-state'];
 }
 
-// spotifyConfig answers "is this deployment wired for Spotify" once, so the
-// three-env check is not spelled out again at every call site. Returning the
-// values rather than a boolean is what lets spotify() below narrow them without
-// a non-null assertion.
-function spotifyConfig(): { id: string; secret: string; redirect: string } | null {
-  const id = env.SPOTIFY_CLIENT_ID;
-  const secret = env.SPOTIFY_CLIENT_SECRET;
-  const redirect = env.SPOTIFY_REDIRECT_URI;
-  return id && secret && redirect ? { id, secret, redirect } : null;
-}
-
 /**
- * True when the Spotify env is complete. Callers use this to render an
- * explainer instead of a server error: an unconfigured deployment is a
- * deployment state, not a fault.
+ * True when the deployment is wired for Spotify. The fleet no longer holds a
+ * Spotify application — each broadcaster registers their own — so the only
+ * env left is the callback URL every one of those apps must register.
+ * Callers use this to render an explainer instead of a server error: an
+ * unconfigured deployment is a deployment state, not a fault.
  */
 export function spotifyConfigured(): boolean {
-  return spotifyConfig() !== null;
+  return !!env.SPOTIFY_REDIRECT_URI;
 }
 
-export function spotify(): Spotify {
-  const cfg = spotifyConfig();
-  if (!cfg) throw new Error('SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI not set');
-  return new Spotify(cfg.id, cfg.secret, cfg.redirect);
+// spotifyRedirectURI is that callback URL. It is not a secret, and it is the
+// one Spotify value still shared by every broadcaster: they each register it
+// on their own app, and Spotify matches it byte-for-byte at both the authorize
+// and the exchange step. The console shows it on the setup card for exactly
+// that reason.
+export function spotifyRedirectURI(): string {
+  const redirect = env.SPOTIFY_REDIRECT_URI;
+  if (!redirect) throw new Error('SPOTIFY_REDIRECT_URI not set');
+  return redirect;
+}
+
+// spotifyAuthorizeURL builds the consent redirect for ONE broadcaster's own
+// Spotify application. Only the client id rides it — the authorize step is
+// public by design — which is why the console can build this while the client
+// secret stays sealed in the modules service and known to gossip alone.
+//
+// It is assembled here rather than through the shared Spotify client because
+// that client is built around a confidential-client token exchange the console
+// no longer performs: the callback forwards its code to gossip instead, so
+// keeping a secret-less client around would only invite someone to call
+// validateAuthorizationCode on it later.
+export function spotifyAuthorizeURL(clientId: string, state: string): string {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: spotifyRedirectURI(),
+    state,
+    scope: spotifyScopes().join(' ')
+  });
+  return `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
 // Fetch the account email from Helix with the just-issued user token. The

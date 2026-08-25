@@ -4,10 +4,17 @@
 //
 // Four homes, one page:
 //
-//   - The Spotify account is connected through OAuth (routes/spotify/connect +
-//     callback): the browser never sees a token, and the refresh token is
-//     sealed by the modules service (bagel.rpc.modules.spotify.*) exactly like
-//     the Govee key. This store only reads/writes presence.
+//   - The broadcaster's OWN Spotify application (client id + secret) is pasted
+//     here and sealed by the modules service. There is no fleet-wide app any
+//     more, so this is the FIRST setup step: without it there is nothing to
+//     authorize against. The secret is write-only from the console's side —
+//     status echoes the (public) client id and nothing else.
+//   - The Spotify account is connected through OAuth against that application
+//     (routes/spotify/connect + callback): the browser never sees a token, the
+//     code is redeemed by gossip (the only service holding the client secret),
+//     and the refresh token is sealed by the modules service
+//     (bagel.rpc.modules.spotify.*) exactly like the Govee key. This store only
+//     reads/writes presence.
 //   - The two request paths — chat (!sr) and channel points — are switches and
 //     settings inside the "songqueue" module blob (the ModuleView key sesame's
 //     songqueue module registers). They are independent halves: either can be
@@ -199,9 +206,22 @@ function callReward(userId: string, verb: string, req: Record<string, unknown>):
 }
 
 // SpotifyStore is the per-broadcaster operation set returned by spotifyStore.
+// SpotifyApp is the presence of a broadcaster's OWN registered Spotify
+// application. The client id is public by construction (it rides the authorize
+// URL through the browser) so it is echoed back for display; the secret never
+// leaves the modules service's sealed custody, so there is nothing else to
+// show.
+export interface SpotifyApp {
+  present: boolean;
+  clientId: string;
+}
+
 export interface SpotifyStore {
   read(): Promise<SpotifyView>;
   connected(): Promise<boolean>;
+  app(): Promise<SpotifyApp>;
+  saveApp(clientId: string, clientSecret: string): Promise<SpotifyResult>;
+  clearApp(): Promise<SpotifyResult>;
   setEnabled(enabled: boolean): Promise<SpotifyResult>;
   saveSr(sr: SpotifySrConfig): Promise<SpotifyResult>;
   setRedeemEnabled(enabled: boolean): Promise<SpotifyResult>;
@@ -239,6 +259,41 @@ export function spotifyStore(userId: string): SpotifyStore {
     } catch {
       return false;
     }
+  }
+
+  // app is a presence read like connected(): cheap, authoritative, and safe on
+  // every load. A blip degrades to "no app", which shows the setup card rather
+  // than a connect button that could only fail.
+  async function app(): Promise<SpotifyApp> {
+    try {
+      const r = await rpc<{ present?: boolean; client_id?: string }>(
+        `${SUB.spotifyKey}.app.status`,
+        { user_id: userId },
+        3000
+      );
+      return { present: !!r.present, clientId: r.client_id ?? '' };
+    } catch {
+      return { present: false, clientId: '' };
+    }
+  }
+
+  async function saveApp(clientId: string, clientSecret: string): Promise<SpotifyResult> {
+    const r = await rpc<{ error?: string }>(
+      `${SUB.spotifyKey}.app.set`,
+      { user_id: userId, client_id: clientId, client_secret: clientSecret },
+      5000
+    );
+    if (r.error) return { ok: false, error: r.error };
+    return { ok: true };
+  }
+
+  // clearApp drops the grant with the application: a refresh token outlives
+  // nothing useful once the app that minted it is gone (see the modules-side
+  // ClearApp), and leaving one behind would only fail confusingly later.
+  async function clearApp(): Promise<SpotifyResult> {
+    const r = await rpc<{ error?: string }>(`${SUB.spotifyKey}.app.clear`, { user_id: userId }, 5000);
+    if (r.error) return { ok: false, error: r.error };
+    return { ok: true };
   }
 
   // writeBlob persists both halves under one blob, spreading whatever is
@@ -323,5 +378,17 @@ export function spotifyStore(userId: string): SpotifyStore {
     return { ok: true };
   }
 
-  return { read, connected, setEnabled, saveSr, setRedeemEnabled, saveReward, deleteReward, disconnect };
+  return {
+    read,
+    connected,
+    app,
+    saveApp,
+    clearApp,
+    setEnabled,
+    saveSr,
+    setRedeemEnabled,
+    saveReward,
+    deleteReward,
+    disconnect
+  };
 }

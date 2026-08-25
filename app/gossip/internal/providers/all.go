@@ -165,26 +165,19 @@ func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps
 }
 
 // appendSpotify adds the Spotify music provider. Like govee it needs no
-// service key of its own — each broadcaster connects their own account — but
-// it needs BOTH halves of the credential chain before any endpoint can
-// authenticate: the modules-side resolver that hands over a broadcaster's
-// stored OAuth refresh token, and the fleet's one Spotify app that token is
-// exchanged against. Whichever half is missing skips the whole provider.
+// service key of its own, and since the fleet retired its shared Spotify
+// application there is no fleet credential to check either: every broadcaster
+// registers their own app and connects their own account. What remains is the
+// modules-side resolver that hands both over per call; without it the provider
+// can authenticate nothing, so it is skipped.
 func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	disabled, reason := false, ""
-	switch {
-	case d.SpotifyKeys == nil:
-		disabled, reason = true, "spotify provider disabled: no refresh-token resolver (modules spotify RPC unwired)"
-	case cfg.SpotifyClientID == "" || cfg.SpotifyClientSecret == "":
-		disabled, reason = true, "spotify provider disabled: SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET not set"
-	}
-	return gated(out, log, disabled, reason, spotify.New, spotify.Config{
-		BaseURL:      cfg.SpotifyBaseURL,
-		AccountsURL:  cfg.SpotifyAccountsURL,
-		ClientID:     cfg.SpotifyClientID,
-		ClientSecret: cfg.SpotifyClientSecret,
-		RateLimit:    cfg.SpotifyRateLimit,
-	}, d)
+	return gated(out, log, d.SpotifyKeys == nil,
+		"spotify provider disabled: no credential resolver (modules spotify RPC unwired)",
+		spotify.New, spotify.Config{
+			BaseURL:     cfg.SpotifyBaseURL,
+			AccountsURL: cfg.SpotifyAccountsURL,
+			RateLimit:   cfg.SpotifyRateLimit,
+		}, d)
 }
 
 // appendCustom adds the urlfetch provider behind its definition source: with

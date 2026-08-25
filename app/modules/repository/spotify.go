@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"ItsBagelBot/app/modules/ent"
 	"ItsBagelBot/app/modules/ent/spotifycredential"
@@ -22,6 +24,13 @@ import (
 
 // ErrNoSpotifyToken marks a broadcaster with no connected Spotify account.
 var ErrNoSpotifyToken = errors.New("no spotify refresh token on record")
+
+// ErrNoSpotifyApp marks a broadcaster who has not registered their own Spotify
+// application yet. It is distinct from ErrNoSpotifyToken on purpose: the
+// console has to tell "paste your app credentials" apart from "now connect
+// your account", and after the fleet-wide app was retired the first step is
+// the one broadcasters land on.
+var ErrNoSpotifyApp = errors.New("no spotify application on record")
 
 // SpotifyCreds is the custody store for broadcaster Spotify OAuth refresh
 // tokens, sealed at rest with the modules service's own AEAD keyset — the
@@ -79,14 +88,154 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 		return err
 	}
 
+	// The conflict update names its columns explicitly rather than using
+	// UpdateNewValues: that helper writes back every column the INSERT
+	// carries, defaults included, so it would blank the client_id/
+	// client_secret_enc pair (both defaulted, neither set here) and silently
+	// unregister the broadcaster's Spotify app on every reconnect.
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return s.client.SpotifyCredential.Create().
 			SetUserID(userID).
 			SetTokenEnc(sealed.Ciphertext).
 			OnConflictColumns(spotifycredential.FieldUserID).
-			UpdateNewValues().
+			Update(func(u *ent.SpotifyCredentialUpsert) {
+				u.SetTokenEnc(sealed.Ciphertext).SetUpdatedAt(time.Now())
+			}).
 			Exec(ctx)
 	})
+}
+
+// SetApp seals the broadcaster's own Spotify application secret and upserts it
+// alongside the (public) client id. Replacing the application deliberately
+// leaves any existing refresh token in place: a re-paste of the same app's
+// credentials must not force a reconnect, and a token minted by a DIFFERENT
+// app fails at the next exchange, which surfaces as the ordinary "connect
+// again" path rather than as a silent wipe here.
+func (s *SpotifyCreds) SetApp(ctx context.Context, userID uint64, clientID, clientSecret string) error {
+	if err := validate.UserID(userID); err != nil {
+		return err
+	}
+	clientID = strings.TrimSpace(clientID)
+	clientSecret = strings.TrimSpace(clientSecret)
+	if clientID == "" || clientSecret == "" {
+		return errors.New("spotify client id and secret are both required")
+	}
+
+	sealed, err := s.packer.Pack([]byte(clientSecret), spotifyAppAAD(userID))
+	if err != nil {
+		return err
+	}
+
+	// Explicit conflict columns for the same reason as SetToken, mirrored: an
+	// UpdateNewValues here would blank the token_enc of a broadcaster who
+	// rotates their client secret, forcing a reconnect nobody asked for.
+	return db.WithExec(ctx, func(ctx context.Context) error {
+		return s.client.SpotifyCredential.Create().
+			SetUserID(userID).
+			SetClientID(clientID).
+			SetClientSecretEnc(sealed.Ciphertext).
+			OnConflictColumns(spotifycredential.FieldUserID).
+			Update(func(u *ent.SpotifyCredentialUpsert) {
+				u.SetClientID(clientID).SetClientSecretEnc(sealed.Ciphertext).SetUpdatedAt(time.Now())
+			}).
+			Exec(ctx)
+	})
+}
+
+// ClearApp drops the stored application. The refresh token goes with it: a
+// grant is minted BY an application, so a token outliving its app can only
+// produce confusing 400s at the next exchange.
+func (s *SpotifyCreds) ClearApp(ctx context.Context, userID uint64) error {
+	return s.ClearToken(ctx, userID)
+}
+
+// App unseals the broadcaster's application credentials. Returns
+// ErrNoSpotifyApp when none are on file.
+func (s *SpotifyCreds) App(ctx context.Context, userID uint64) (clientID, clientSecret string, err error) {
+	row, err := s.tokenRow(ctx, userID)
+	if errors.Is(err, ErrNoSpotifyToken) {
+		return "", "", ErrNoSpotifyApp
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return appFromRow(s.packer, userID, row)
+}
+
+// HasApp reports whether the broadcaster has pasted their Spotify application
+// credentials — the first of the two console steps.
+func (s *SpotifyCreds) HasApp(ctx context.Context, userID uint64) (bool, string, error) {
+	row, err := s.tokenRow(ctx, userID)
+	switch {
+	case errors.Is(err, ErrNoSpotifyToken):
+		return false, "", nil
+	case err != nil:
+		return false, "", err
+	}
+	if row.ClientID == "" || len(row.ClientSecretEnc) == 0 {
+		return false, "", nil
+	}
+	return true, row.ClientID, nil
+}
+
+// Credentials returns everything gossip needs to authenticate one broadcaster
+// in a single read: their application plus the grant minted against it. A
+// broadcaster with no application gets ErrNoSpotifyApp — there is nothing to
+// authenticate against — while an application with no grant yet comes back
+// with an empty refresh token, which the caller reports as "not connected".
+func (s *SpotifyCreds) Credentials(ctx context.Context, userID uint64) (clientID, clientSecret, refreshToken string, err error) {
+	row, err := s.tokenRow(ctx, userID)
+	if errors.Is(err, ErrNoSpotifyToken) {
+		return "", "", "", ErrNoSpotifyApp
+	}
+	if err != nil {
+		return "", "", "", err
+	}
+	clientID, clientSecret, err = appFromRow(s.packer, userID, row)
+	if err != nil {
+		return "", "", "", err
+	}
+	refreshToken, err = s.tokenFromRow(userID, row)
+	if errors.Is(err, ErrNoSpotifyToken) {
+		return clientID, clientSecret, "", nil
+	}
+	if err != nil {
+		return "", "", "", err
+	}
+	return clientID, clientSecret, refreshToken, nil
+}
+
+// tokenFromRow unseals the refresh token off an already-loaded row. A row that
+// carries an application but no grant yet (credentials pasted, connect flow
+// unfinished) is ErrNoSpotifyToken, not a bad seal.
+func (s *SpotifyCreds) tokenFromRow(userID uint64, row *ent.SpotifyCredential) (string, error) {
+	if len(row.TokenEnc) == 0 {
+		return "", ErrNoSpotifyToken
+	}
+	plain, err := s.packer.Unpack(domaincrypto.SecureEnvelope{
+		Ciphertext:   row.TokenEnc,
+		AttachedData: spotifyAAD(userID),
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
+}
+
+// appFromRow unseals the application secret off an already-loaded row, mapping
+// a row that carries no application to ErrNoSpotifyApp.
+func appFromRow(packer domaincrypto.Packer, userID uint64, row *ent.SpotifyCredential) (string, string, error) {
+	if row.ClientID == "" || len(row.ClientSecretEnc) == 0 {
+		return "", "", ErrNoSpotifyApp
+	}
+	plain, err := packer.Unpack(domaincrypto.SecureEnvelope{
+		Ciphertext:   row.ClientSecretEnc,
+		AttachedData: spotifyAppAAD(userID),
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return row.ClientID, string(plain), nil
 }
 
 // ClearToken removes the broadcaster's stored refresh token ("disconnect"). A
@@ -150,14 +299,14 @@ func (s *SpotifyCreds) tokenRow(ctx context.Context, userID uint64) (*ent.Spotif
 // HasToken reports whether the broadcaster has a Spotify connection on file —
 // the status the dashboard shows ("connected"), never the value.
 func (s *SpotifyCreds) HasToken(ctx context.Context, userID uint64) (bool, error) {
-	_, err := s.tokenRow(ctx, userID)
+	row, err := s.tokenRow(ctx, userID)
 	switch {
 	case errors.Is(err, ErrNoSpotifyToken):
 		return false, nil
 	case err != nil:
 		return false, err
 	default:
-		return true, nil
+		return len(row.TokenEnc) > 0, nil
 	}
 }
 
@@ -170,14 +319,17 @@ func (s *SpotifyCreds) Token(ctx context.Context, userID uint64) (string, error)
 	if err != nil {
 		return "", err
 	}
-	plain, err := s.packer.Unpack(domaincrypto.SecureEnvelope{
-		Ciphertext:   row.TokenEnc,
-		AttachedData: spotifyAAD(userID),
-	})
-	if err != nil {
-		return "", err
-	}
-	return string(plain), nil
+	return s.tokenFromRow(userID, row)
+}
+
+// spotifyAppAAD binds the application-secret ciphertext to its owner AND to
+// the column it lives in: the label differs from spotifyAAD so a token
+// envelope copied into client_secret_enc (or the reverse) fails to open.
+func spotifyAppAAD(userID uint64) []byte {
+	aad := make([]byte, 0, 20+len("|spotify_app"))
+	aad = strconv.AppendUint(aad, userID, 10)
+	aad = append(aad, "|spotify_app"...)
+	return aad
 }
 
 func spotifyAAD(userID uint64) []byte {

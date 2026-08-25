@@ -34,6 +34,44 @@ func (_u *SpotifyCredentialUpdate) SetTokenEnc(v []byte) *SpotifyCredentialUpdat
 	return _u
 }
 
+// ClearTokenEnc clears the value of the "token_enc" field.
+func (_u *SpotifyCredentialUpdate) ClearTokenEnc() *SpotifyCredentialUpdate {
+	_u.mutation.ClearTokenEnc()
+	return _u
+}
+
+// SetClientID sets the "client_id" field.
+func (_u *SpotifyCredentialUpdate) SetClientID(v string) *SpotifyCredentialUpdate {
+	_u.mutation.SetClientID(v)
+	return _u
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdate) SetNillableClientID(v *string) *SpotifyCredentialUpdate {
+	if v != nil {
+		_u.SetClientID(*v)
+	}
+	return _u
+}
+
+// ClearClientID clears the value of the "client_id" field.
+func (_u *SpotifyCredentialUpdate) ClearClientID() *SpotifyCredentialUpdate {
+	_u.mutation.ClearClientID()
+	return _u
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (_u *SpotifyCredentialUpdate) SetClientSecretEnc(v []byte) *SpotifyCredentialUpdate {
+	_u.mutation.SetClientSecretEnc(v)
+	return _u
+}
+
+// ClearClientSecretEnc clears the value of the "client_secret_enc" field.
+func (_u *SpotifyCredentialUpdate) ClearClientSecretEnc() *SpotifyCredentialUpdate {
+	_u.mutation.ClearClientSecretEnc()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *SpotifyCredentialUpdate) SetUpdatedAt(v time.Time) *SpotifyCredentialUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -93,6 +131,21 @@ func (_u *SpotifyCredentialUpdate) sqlSave(ctx context.Context) (_node int, err 
 	if value, ok := _u.mutation.TokenEnc(); ok {
 		_spec.SetField(spotifycredential.FieldTokenEnc, field.TypeBytes, value)
 	}
+	if _u.mutation.TokenEncCleared() {
+		_spec.ClearField(spotifycredential.FieldTokenEnc, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.ClientID(); ok {
+		_spec.SetField(spotifycredential.FieldClientID, field.TypeString, value)
+	}
+	if _u.mutation.ClientIDCleared() {
+		_spec.ClearField(spotifycredential.FieldClientID, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClientSecretEnc(); ok {
+		_spec.SetField(spotifycredential.FieldClientSecretEnc, field.TypeBytes, value)
+	}
+	if _u.mutation.ClientSecretEncCleared() {
+		_spec.ClearField(spotifycredential.FieldClientSecretEnc, field.TypeBytes)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -119,6 +172,44 @@ type SpotifyCredentialUpdateOne struct {
 // SetTokenEnc sets the "token_enc" field.
 func (_u *SpotifyCredentialUpdateOne) SetTokenEnc(v []byte) *SpotifyCredentialUpdateOne {
 	_u.mutation.SetTokenEnc(v)
+	return _u
+}
+
+// ClearTokenEnc clears the value of the "token_enc" field.
+func (_u *SpotifyCredentialUpdateOne) ClearTokenEnc() *SpotifyCredentialUpdateOne {
+	_u.mutation.ClearTokenEnc()
+	return _u
+}
+
+// SetClientID sets the "client_id" field.
+func (_u *SpotifyCredentialUpdateOne) SetClientID(v string) *SpotifyCredentialUpdateOne {
+	_u.mutation.SetClientID(v)
+	return _u
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdateOne) SetNillableClientID(v *string) *SpotifyCredentialUpdateOne {
+	if v != nil {
+		_u.SetClientID(*v)
+	}
+	return _u
+}
+
+// ClearClientID clears the value of the "client_id" field.
+func (_u *SpotifyCredentialUpdateOne) ClearClientID() *SpotifyCredentialUpdateOne {
+	_u.mutation.ClearClientID()
+	return _u
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (_u *SpotifyCredentialUpdateOne) SetClientSecretEnc(v []byte) *SpotifyCredentialUpdateOne {
+	_u.mutation.SetClientSecretEnc(v)
+	return _u
+}
+
+// ClearClientSecretEnc clears the value of the "client_secret_enc" field.
+func (_u *SpotifyCredentialUpdateOne) ClearClientSecretEnc() *SpotifyCredentialUpdateOne {
+	_u.mutation.ClearClientSecretEnc()
 	return _u
 }
 
@@ -210,6 +301,21 @@ func (_u *SpotifyCredentialUpdateOne) sqlSave(ctx context.Context) (_node *Spoti
 	}
 	if value, ok := _u.mutation.TokenEnc(); ok {
 		_spec.SetField(spotifycredential.FieldTokenEnc, field.TypeBytes, value)
+	}
+	if _u.mutation.TokenEncCleared() {
+		_spec.ClearField(spotifycredential.FieldTokenEnc, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.ClientID(); ok {
+		_spec.SetField(spotifycredential.FieldClientID, field.TypeString, value)
+	}
+	if _u.mutation.ClientIDCleared() {
+		_spec.ClearField(spotifycredential.FieldClientID, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClientSecretEnc(); ok {
+		_spec.SetField(spotifycredential.FieldClientSecretEnc, field.TypeBytes, value)
+	}
+	if _u.mutation.ClientSecretEncCleared() {
+		_spec.ClearField(spotifycredential.FieldClientSecretEnc, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)

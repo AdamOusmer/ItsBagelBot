@@ -165,6 +165,8 @@
   "songqueue.add.full": "@{user} la file de chansons est pleine pour le moment.",
   "songqueue.add.ok": "@{user} « {title} » de {artist} ajouté(e) — position #{pos}.",
   "songqueue.cleared": "La file de chansons a été vidée.",
+  "songqueue.current.ok": "Sur Spotify en ce moment : {title} par {artist}",
+  "songqueue.current.req": "Sur Spotify en ce moment : {title} par {artist} (demandé par {req})",
   "songqueue.err.upstream": "@{user} la recherche musicale est en panne pour le moment, réessaie dans un instant.",
   "songqueue.next.empty": "La file de chansons est vide.",
   "songqueue.playing": "Lecture en cours : {title} par {artist} (demandée par {req})",
