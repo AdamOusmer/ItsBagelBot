@@ -60,24 +60,33 @@ function callLoyalty(verb: string, req: Record<string, unknown>): Promise<Loyalt
 }
 
 // readLoyalty loads the module blob (enable flag + rates).
+// RATE_KEYS are the numeric loyalty config fields. Listed once because every
+// one of them is read the same way, and spelling out nine `Number(x ?? 0) || 0`
+// expressions inline made a plain projection read as branching logic.
+const RATE_KEYS = [
+  'subPoints',
+  'resubPoints',
+  'giftSubPoints',
+  'cheerPointsPer100',
+  'watchPointsPerTick',
+  'modSetPoints',
+  'modAdjustPoints',
+  'viewerTransfers'
+] as const satisfies readonly (keyof LoyaltyConfig)[];
+
+// A missing, null or unparseable value is 0 — the config blob is broadcaster
+// data round-tripped through JSON, so any field can be absent or the wrong type.
+function rate(v: unknown): number {
+  return Number(v ?? 0) || 0;
+}
+
 export async function readLoyalty(userId: string): Promise<LoyaltyView> {
   const rows = await listModules(userId);
   const row = rows.find((r) => r.name === LOYALTY_MODULE);
-  const enabled = row ? row.is_enabled : false;
   const raw = (row?.configs ?? {}) as Partial<LoyaltyConfig>;
-  const config: LoyaltyConfig = {
-    ...blankLoyaltyConfig(),
-    pointsName: String(raw.pointsName ?? ''),
-    subPoints: Number(raw.subPoints ?? 0) || 0,
-    resubPoints: Number(raw.resubPoints ?? 0) || 0,
-    giftSubPoints: Number(raw.giftSubPoints ?? 0) || 0,
-    cheerPointsPer100: Number(raw.cheerPointsPer100 ?? 0) || 0,
-    watchPointsPerTick: Number(raw.watchPointsPerTick ?? 0) || 0,
-    modSetPoints: Number(raw.modSetPoints ?? 0) || 0,
-    modAdjustPoints: Number(raw.modAdjustPoints ?? 0) || 0,
-    viewerTransfers: Number(raw.viewerTransfers ?? 0) || 0
-  };
-  return { enabled, config };
+  const config: LoyaltyConfig = { ...blankLoyaltyConfig(), pointsName: String(raw.pointsName ?? '') };
+  for (const key of RATE_KEYS) config[key] = rate(raw[key]);
+  return { enabled: row ? row.is_enabled : false, config };
 }
 
 export async function writeLoyalty(userId: string, enabled: boolean, config: LoyaltyConfig): Promise<void> {

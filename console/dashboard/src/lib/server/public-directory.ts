@@ -71,59 +71,58 @@ export function publicCommands(rows: CommandView[]): PublicCommand[] {
 }
 
 /** The channel's active modules and built-ins with their chat surfaces. */
-export function publicModules(rows: ModuleView[]): PublicModule[] {
-  const byName = new Map(rows.map((row) => [row.name, row]));
+// activeModule resolves a module's on/off state: the stored row wins, and a
+// module the broadcaster never touched falls back to its catalog default.
+function activeModule(byName: Map<string, ModuleView>, id: string, fallback: boolean): boolean {
+  const row = byName.get(id);
+  return row ? row.is_enabled : fallback;
+}
 
-  const catalogModules = MODULE_CATALOG.filter((def) => !def.hidden && def.toggleable !== false).flatMap((def): PublicModule[] => {
-    const row = byName.get(def.id);
-    const active = row ? row.is_enabled : def.defaultEnabled;
-    if (!active) return [];
-
-    const config = asConfig(row?.configs);
-    const commands = def.replies
-      .filter((reply) => reply.command && activeReply(config, reply.enableKey))
-      .map((reply) => ({
-        label: `!${reply.command}`,
-        meta: reply.tagline
-      }));
-    const events = def.replies
-      .filter((reply) => !reply.command && activeReply(config, reply.enableKey))
-      .map((reply) => ({
-        label: reply.label,
-        meta: reply.event
-      }));
-
-    return [{
+// catalogEntry shapes one catalog module, splitting its replies into the
+// commands a viewer can type and the events that fire on their own.
+function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, ModuleView>): PublicModule[] {
+  if (!activeModule(byName, def.id, def.defaultEnabled)) return [];
+  const config = asConfig(byName.get(def.id)?.configs);
+  const live = def.replies.filter((reply) => activeReply(config, reply.enableKey));
+  return [
+    {
       id: def.id,
       label: def.label,
       // Catalog modules share one bucket; built-ins get their own 'Built-in'
       // category below. ModuleDef itself carries no category field.
       category: 'Module',
       tagline: def.tagline,
-      commands,
-      events
-    }];
-  });
+      commands: live
+        .filter((reply) => reply.command)
+        .map((reply) => ({ label: `!${reply.command}`, meta: reply.tagline })),
+      events: live
+        .filter((reply) => !reply.command)
+        .map((reply) => ({ label: reply.label, meta: reply.event }))
+    }
+  ];
+}
 
-  const builtinModules = BUILTIN_COMMANDS.flatMap((def): PublicModule[] => {
-    const row = byName.get(def.id);
-    const active = row ? row.is_enabled : def.defaultActive;
-    if (!active) return [];
-    return [{
+// builtinEntry shapes one built-in command, which is always a single command
+// and never carries events.
+function builtinEntry(def: (typeof BUILTIN_COMMANDS)[number], byName: Map<string, ModuleView>): PublicModule[] {
+  if (!activeModule(byName, def.id, def.defaultActive)) return [];
+  return [
+    {
       id: def.id,
       label: def.label,
       category: 'Built-in',
       tagline: def.summary,
-      commands: [{
-        label: `!${def.id}`,
-        meta: def.usage.join(' / ')
-      }],
+      commands: [{ label: `!${def.id}`, meta: def.usage.join(' / ') }],
       events: []
-    }];
-  });
+    }
+  ];
+}
 
-  return [...catalogModules, ...builtinModules].sort((a, b) => {
-    const byCategory = a.category.localeCompare(b.category);
-    return byCategory || a.label.localeCompare(b.label);
-  });
+export function publicModules(rows: ModuleView[]): PublicModule[] {
+  const byName = new Map(rows.map((row) => [row.name, row]));
+  const catalog = MODULE_CATALOG.filter((def) => !def.hidden && def.toggleable !== false);
+  return [
+    ...catalog.flatMap((def) => catalogEntry(def, byName)),
+    ...BUILTIN_COMMANDS.flatMap((def) => builtinEntry(def, byName))
+  ].sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
 }
