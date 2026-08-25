@@ -47,11 +47,14 @@ type spendCall struct {
 
 // fakeLoyalty records calls and serves canned counters.
 type fakeLoyalty struct {
-	earns    []earnCall
-	bumps    []bumpCall
-	adjusts  []adjustCall
-	spends   []spendCall
-	spendBad bool // force the insufficient-points outcome on every spend
+	earns       []earnCall
+	bumps       []bumpCall
+	adjusts     []adjustCall
+	spends      []spendCall
+	transfers   []transferCall
+	spendBad    bool // force the insufficient-points outcome on every spend
+	transferBad bool // force the insufficient-points outcome on every transfer
+	topViewers  []topViewer
 	// balances threads one running total per login across the verbs, so a
 	// debit followed by a credit reads like the service's own ledger.
 	balances map[string]int64
@@ -108,6 +111,45 @@ func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin stri
 	bal.Points -= amount
 	f.balances[viewerLogin] = bal.Points
 	return bal, true, true, nil
+}
+
+type transferCall struct {
+	fromID uint64
+	login  string
+	amount int64
+}
+
+func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	f.transfers = append(f.transfers, transferCall{fromViewerID, targetLogin, amount})
+	if targetLogin == "ghost" {
+		return loyaltyrpc.Balance{}, false, false, nil
+	}
+	bal := f.standing(targetLogin)
+	sender := f.standing("sender")
+	if f.transferBad || amount > sender.Points {
+		return sender, true, false, nil
+	}
+	sender.Points -= amount
+	bal.Points += amount
+	f.balances["sender"] = sender.Points
+	f.balances[targetLogin] = bal.Points
+	return sender, true, true, nil
+}
+
+func (f *fakeLoyalty) Top(_ context.Context, _ uint64, limit int) ([]loyaltyrpc.Balance, error) {
+	rows := make([]loyaltyrpc.Balance, 0, len(f.topViewers))
+	for _, v := range f.topViewers {
+		if len(rows) >= limit {
+			break
+		}
+		rows = append(rows, loyaltyrpc.Balance{ViewerID: v.id, ViewerName: v.name, ViewerLogin: v.login, Points: v.points})
+	}
+	return rows, nil
+}
+
+type topViewer struct {
+	id, login, name string
+	points          int64
 }
 
 // standing is the canned reply every balance verb serves; the games' tests

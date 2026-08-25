@@ -7,6 +7,7 @@
   import {
     PageHead,
     MasterToggle,
+    Switch,
     AlertBanner,
     ButtonLink,
     Button,
@@ -76,6 +77,14 @@
     { key: 'watchPointsPerTick', label: t('loyalty.fieldWatch'), dflt: LOYALTY_DEFAULTS.watchPointsPerTick }
   ] as const);
 
+  // The granular moderator capabilities, same loop shape. checked ⇔ value >= 0
+  // (0 = the default on, -1 = off), matching the rates' convention.
+  const permToggles = $derived([
+    { key: 'modSetPoints', label: t('loyalty.permSet'), hint: t('loyalty.permSetHint') },
+    { key: 'modAdjustPoints', label: t('loyalty.permAdjust'), hint: t('loyalty.permAdjustHint') },
+    { key: 'viewerTransfers', label: t('loyalty.permTransfers'), hint: t('loyalty.permTransfersHint') }
+  ] as const);
+
   function hours(seconds: number): string {
     return t('loyalty.hoursShort', { n: (seconds / 3600).toFixed(1) });
   }
@@ -129,6 +138,26 @@
 
         <p class="hint">{t('loyalty.tierHint')}</p>
 
+        <!-- Granular moderator capabilities: each toggle maps 0=on / -1=off in
+             the same blob the chat side reads per invocation. -->
+        <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>
+        <p class="hint">{t('loyalty.permissionsHint')}</p>
+
+        {#each permToggles as pt (pt.key)}
+          <div class="perm">
+            <span class="perm-copy">
+              <span class="perm-label">{pt.label}</span>
+              <span class="perm-hint" id="perm-hint-{pt.key}">{pt.hint}</span>
+            </span>
+            <Switch
+              label={pt.label}
+              describedby="perm-hint-{pt.key}"
+              checked={config[pt.key] >= 0}
+              onchange={(v) => (config[pt.key] = v ? 0 : -1)}
+            />
+          </div>
+        {/each}
+
         <div class="actions">
           <SaveStatus state={saveState} />
           <Button variant="primary" type="submit" icon="check" loading={busy}>{t('loyalty.save')}</Button>
@@ -178,7 +207,9 @@
     <div class="card">
       <ul class="cmds">
         <li><code>!points</code><span>{t('loyalty.chatPoints')}</span></li>
-        <li><code>!points set/add @user 500</code><span>{t('loyalty.chatPointsMod')}</span></li>
+        <li><code>!points give @user 500</code><span>{t('loyalty.chatGive')}</span></li>
+        <li><code>!leaderboard</code><span>{t('loyalty.chatLeaderboard')}</span></li>
+        <li><code>!points set/add/remove @user 500</code><span>{t('loyalty.chatPointsMod')}</span></li>
         <li><code>!counter</code><span>{t('loyalty.chatCounter')}</span></li>
       </ul>
     </div>
@@ -213,6 +244,26 @@
   }
 
   .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+
+  .perm-title {
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bb-white);
+    margin: 18px 0 6px;
+  }
+  .perm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+  }
+  .perm:last-of-type { border-bottom: none; }
+  .perm-copy { display: flex; flex-direction: column; gap: 1px; }
+  .perm-label { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
+  .perm-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
 
   .rates :global(.num) { max-width: 160px; }
 
