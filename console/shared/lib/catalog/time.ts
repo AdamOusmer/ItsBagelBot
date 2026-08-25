@@ -11,7 +11,7 @@ export const TIME_MODULE: ModuleDef =
   description:
     'Viewers type !time and the bot answers with your current local time. Pick your timezone below — the page suggests the one your browser reports, computed on your device only (nothing is read or stored until you save it). Choose a 12- or 24-hour clock and customize the reply.',
   icon: 'globe',
-  category: 'Chat Tools',
+  category: 'Chat',
   defaultEnabled: false,
   replies: [
     {

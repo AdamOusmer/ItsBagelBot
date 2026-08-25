@@ -10,7 +10,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   description:
     'Connect your Spotify account once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query — a name, "artist - song", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. Moderators manage the queue with !sr next, remove and clear.',
   icon: 'music',
-  category: 'Chat Tools',
+  category: 'Gear',
   defaultEnabled: false,
   // The generic reply page cannot express OAuth custody + the reward editor,
   // so the tile opens the bespoke songqueue page instead.

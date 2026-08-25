@@ -54,7 +54,39 @@ export const icons = {
   gamepad: '<rect x="2" y="8" width="20" height="9" rx="4.5"/><line x1="6" y1="11" x2="6" y2="14"/><line x1="4.5" y1="12.5" x2="7.5" y2="12.5"/><circle cx="16.5" cy="11.5" r="1.1"/><circle cx="18.5" cy="14" r="1.1"/>',
   coin: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><line x1="12" y1="9.5" x2="12" y2="14.5"/>',
   globe:
-    '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.8 13.8 0 0 1 3.6 9 13.8 13.8 0 0 1-3.6 9 13.8 13.8 0 0 1-3.6-9A13.8 13.8 0 0 1 12 3z"/>'
+    '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13.8 13.8 0 0 1 3.6 9 13.8 13.8 0 0 1-3.6 9 13.8 13.8 0 0 1-3.6-9A13.8 13.8 0 0 1 12 3z"/>',
+  // Module-index glyphs: one shape per job so five stats packs are not the
+  // same gamepad and Channel Points is not the same gem as Raffle.
+  hex: '<path d="M12 2.5 20 7v10l-8 4.5L4 17V7z"/>',
+  tally:
+    '<line x1="6" y1="4" x2="6" y2="20"/><line x1="11" y1="4" x2="11" y2="20"/><line x1="16" y1="4" x2="16" y2="20"/><line x1="3.5" y1="8" x2="20.5" y2="16"/>',
+  dice:
+    '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2"/><circle cx="15" cy="9" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="9" cy="15" r="1.2"/><circle cx="15" cy="15" r="1.2"/>',
+  swords:
+    '<polyline points="6 20 14 4 18 8"/><polyline points="18 20 10 4 6 8"/>',
+  chat:
+    '<path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 4V7a2 2 0 0 1 2-2z"/><line x1="8" y1="9.5" x2="16" y2="9.5"/><line x1="8" y1="13" x2="13" y2="13"/>',
+  smile:
+    '<circle cx="12" cy="12" r="9"/><path d="M8 14.5s1.6 2.2 4 2.2 4-2.2 4-2.2"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/>',
+  megaphone:
+    '<path d="M4 10v4a1 1 0 0 0 1 1h1.4L12 19V5L6.4 9H5a1 1 0 0 0-1 1z"/><path d="M16.4 8.2a5.4 5.4 0 0 1 0 7.6"/>',
+  // Isometric voxel, not furniture: a bed next to the other stats glyphs
+  // looked like a hotel, not Hypixel Bedwars. 2×2 on the top face is what
+  // makes an 18px stroke cube read as a Minecraft dirt block rather than a
+  // shipping box; side faces get one split so they match without filling in.
+  dirt:
+    '<path d="M12 3.5 21 8 12 12.5 3 8z"/><path d="M3 8v8l9 4.5V12.5z"/><path d="M21 8v8l-9 4.5V12.5z"/><line x1="7.5" y1="5.75" x2="16.5" y2="10.25"/><line x1="16.5" y1="5.75" x2="7.5" y2="10.25"/><line x1="3" y1="12" x2="12" y2="16.5"/><line x1="21" y1="12" x2="12" y2="16.5"/>',
+  pickaxe:
+    '<path d="M14 3.5 21 9l-2.2 1.3-5.2-4.2z"/><line x1="12.5" y1="8" x2="5" y2="20"/>',
+  parachute:
+    '<path d="M4 11c0-4.4 3.6-8 8-8s8 3.6 8 8"/><line x1="4" y1="11" x2="12" y2="18"/><line x1="20" y1="11" x2="12" y2="18"/><line x1="12" y1="11" x2="12" y2="18"/><circle cx="12" cy="20" r="1.4"/>',
+  crown:
+    '<path d="M3 16 6 7l6 5 6-5 3 9"/><line x1="3" y1="16" x2="21" y2="16"/><line x1="5" y1="19" x2="19" y2="19"/>',
+  crosshair:
+    '<circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="2" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="22" y2="12"/>',
+  ticket:
+    '<path d="M3 9a2.4 2.4 0 0 0 0 6v4h18v-4a2.4 2.4 0 0 0 0-6V5H3z"/><line x1="13" y1="5" x2="13" y2="8"/><line x1="13" y1="16" x2="13" y2="19"/>',
+  bulb: '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6.4 6.4 0 0 1 4.4 11V16H7.6v-2A6.4 6.4 0 0 1 12 3z"/>'
 } as const;
 
 export type IconName = keyof typeof icons;

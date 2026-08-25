@@ -1,11 +1,36 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  // The whole catalog is on the page. A Chat/Community/Games menu hid Song
+  // Requests behind a folder nobody can guess; streamers had to know the
+  // taxonomy before they could see the list. Search is the only filter.
+  // Category jumps are shared SectionNav hash links (not a desktop-only
+  // scrollspy). Enabled rows sort to the top of their group so "what is on"
+  // does not need a second place to click.
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
+  import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Card, Switch, PageHead, SaveStatus, AlertBanner, EmptyState, toast, getI18n, type ModuleState } from '@bagel/shared';
+  import {
+    Icon,
+    PageHead,
+    AlertBanner,
+    EmptyState,
+    toast,
+    getI18n,
+    filterModuleIndex,
+    groupModulesByCategory,
+    readModuleIndexQuery,
+    writeModuleIndexQuery,
+    MODULE_CATEGORY_I18N,
+    SectionNav,
+    categoryAnchorId,
+    categoryHref,
+    type ModuleState
+  } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import ModuleIndexRow from '$lib/components/modules/ModuleIndexRow.svelte';
+
   let { data } = $props();
 
   const { t } = getI18n();
@@ -21,9 +46,61 @@
     }
   });
 
-  const activeCount = $derived(items.filter((m) => m.enabled).length);
+  // svelte-ignore state_referenced_locally
+  const initial = readModuleIndexQuery(
+    page.url.searchParams,
+    [...new Set((data.modules ?? []).map((m) => m.def.category))]
+  );
 
-  // Per-tile save indicator for the quick toggle.
+  let searchQuery = $state(initial.q);
+
+  const activeCount = $derived(items.filter((m) => m.enabled).length);
+  const filtered = $derived(filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }));
+  const groups = $derived(
+    groupModulesByCategory(filtered).map((group) => ({
+      ...group,
+      modules: [
+        ...group.modules.filter((m) => m.enabled),
+        ...group.modules.filter((m) => !m.enabled)
+      ]
+    }))
+  );
+
+  function catLabel(name: string): string {
+    const keys = MODULE_CATEGORY_I18N[name];
+    return keys ? t(keys.label) : name;
+  }
+  function catHint(name: string): string {
+    const keys = MODULE_CATEGORY_I18N[name];
+    return keys ? t(keys.hint) : '';
+  }
+
+  const navItems = $derived(
+    groups.map((group) => ({
+      href: categoryHref(group.name),
+      label: catLabel(group.name),
+      count: group.modules.length
+    }))
+  );
+
+  function clearSearch() {
+    searchQuery = '';
+  }
+
+  let urlReady = $state(false);
+  onMount(() => {
+    urlReady = true;
+  });
+  $effect(() => {
+    if (!urlReady) return;
+    const url = new URL(page.url);
+    // Drop cat/status left over from the folder-menu layout so a shared
+    // ?cat=community link cannot hide the rest of the catalog again.
+    writeModuleIndexQuery(url, { q: searchQuery, category: '', status: 'all' });
+    const next = url.pathname + url.search;
+    if (next !== page.url.pathname + page.url.search) replaceState(url, {});
+  });
+
   let modStatus = $state<Record<string, SaveState>>({});
   const timers = new Map<string, ReturnType<typeof setTimeout>[]>();
   function setStatus(id: string, s: SaveState) {
@@ -39,8 +116,6 @@
     ]);
   }
 
-  // Quick on/off straight from the tile (no need to open the module). Optimistic
-  // flip with rollback; the config rides along so the toggle never wipes it.
   const toggleSubmit =
     (m: ModuleState): SubmitFunction =>
     () => {
@@ -63,75 +138,28 @@
       };
     };
 
-  // Search and Categorization
-  let searchQuery = $state('');
-
-  const allCategories = $derived(
-    Array.from(new Set(items.map(m => m.def.category)))
-  );
-
-  const filteredItems = $derived(
-    items.filter(m => {
-      const q = searchQuery.toLowerCase();
-      return m.def.label.toLowerCase().includes(q) || 
-             m.def.tagline.toLowerCase().includes(q) || 
-             m.def.description.toLowerCase().includes(q);
-    })
-  );
-
-  const itemsByCategory = $derived(
-    allCategories.map(cat => ({
-      name: cat,
-      id: 'cat-' + cat.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      modules: filteredItems.filter(m => m.def.category === cat)
-    })).filter(c => c.modules.length > 0)
-  );
-
-  // Scrollspy logic
-  let root = $state<HTMLElement | null>(null);
-  let currentCategoryId = $state('');
-
-  onMount(() => {
-    if (!root) return;
-    
-    function update() {
-      if (!root) return;
-      const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-category-section]'));
-      if (sections.length === 0) return;
-      
-      let currentId = sections[0].id;
-      for (const section of sections) {
-        if (section.getBoundingClientRect().top < window.innerHeight * 0.35) {
-          currentId = section.id;
-        }
-      }
-      currentCategoryId = currentId;
+  let searchInput = $state<HTMLInputElement | null>(null);
+  function isTyping(e: KeyboardEvent): boolean {
+    const el = e.target as HTMLElement | null;
+    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+  }
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && document.activeElement === searchInput && searchQuery) {
+      e.preventDefault();
+      searchQuery = '';
+      return;
     }
-
-    let ticking = false;
-    function onScroll() {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        update();
-        ticking = false;
-      });
+    if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') {
+      e.preventDefault();
+      searchInput?.focus();
     }
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    
-    // Initial call after elements are likely rendered
-    setTimeout(update, 50);
-
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-    };
-  });
+  }
 </script>
 
-<section class="screen active" bind:this={root}>
+<svelte:window onkeydown={onKey} />
+
+<section class="screen active">
   <PageHead
     eyebrow={t('modules.eyebrow')}
     description={t('modules.description', { active: activeCount, total: items.length })}
@@ -141,304 +169,150 @@
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
-  <div class="search-bar">
-    <Icon name="search" size={16} />
-    <input
-      type="text"
-      bind:value={searchQuery}
-      placeholder="Search modules..."
-      aria-label="Search modules"
-    />
-    {#if searchQuery}
-      <button type="button" class="clear" aria-label="Clear search" onclick={() => (searchQuery = '')}>
-        <Icon name="x" size={12} />
-      </button>
-    {/if}
-  </div>
-
-  <div class="layout-grid">
-    <nav class="sidebar" aria-label="Module categories">
-      <span class="sidebar-label">Categories</span>
-      <ul>
-        {#each itemsByCategory as cat (cat.id)}
-          <li>
-            <a 
-              href="#{cat.id}" 
-              class={currentCategoryId === cat.id ? 'is-current' : ''}
-              onclick={(e) => {
-                currentCategoryId = cat.id;
-                // Let the native smooth scroll handle the jump
-              }}
-            >
-              {cat.name}
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </nav>
-
-    <div class="content">
-      {#each itemsByCategory as cat (cat.id)}
-        <div class="category-section" id={cat.id} data-category-section>
-          <h2 class="category-title">{cat.name}</h2>
-          <div class="grid">
-            {#each cat.modules as m (m.def.id)}
-              <div class="tile {m.enabled ? 'on' : 'off'}">
-                <div class="tile-head">
-                  <span class="tile-icon"><Icon name={m.def.icon} size={20} /></span>
-                  <div class="tile-heading">
-                    <h3 class="tile-label">{m.def.label}</h3>
-                    <p class="tile-cat">{m.def.category}</p>
-                  </div>
-                </div>
-                <p class="tile-purpose">{m.def.tagline}</p>
-                <div class="tile-foot">
-                  <a class="configure" href={m.def.href ?? `/modules/${m.def.id}`}><Icon name="settings" size={13} /> {t('modules.configure')}</a>
-                  <span class="grow"></span>
-                  {#if m.def.toggleable !== false}
-                    <SaveStatus state={modStatus[m.def.id] ?? 'idle'} />
-                    <form method="POST" action="?/toggle" use:enhance={toggleSubmit(m)}>
-                      <input type="hidden" name="name" value={m.def.id} />
-                      <input type="hidden" name="is_enabled" value={m.enabled ? '' : 'on'} />
-                      <Switch
-                        type="submit"
-                        checked={m.enabled}
-                        label={m.enabled ? t('modules.disableAria', { label: m.def.label }) : t('modules.enableAria', { label: m.def.label })}
-                        pending={(modStatus[m.def.id] ?? 'idle') === 'saving'}
-                      />
-                    </form>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/each}
-
-      {#if itemsByCategory.length === 0}
-        <Card style="padding:0"><EmptyState icon="search" title="No modules match your search." /></Card>
+  <div class="deck">
+    <label class="search find">
+      <Icon name="search" size={15} />
+      <span class="sr-only">{t('modules.searchLabel')}</span>
+      <input
+        type="search"
+        bind:value={searchQuery}
+        bind:this={searchInput}
+        placeholder={t('modules.searchPlaceholder')}
+        autocomplete="off"
+        enterkeyhint="search"
+      />
+      {#if searchQuery}
+        <button type="button" class="clear" aria-label={t('modules.searchClear')} onclick={clearSearch}>
+          <Icon name="x" size={12} />
+        </button>
+      {:else}
+        <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd></span>
       {/if}
-    </div>
+    </label>
   </div>
+
+  <p class="sr-only" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
+
+  {#if groups.length === 0}
+    <EmptyState icon="search" title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
+      <button type="button" class="btn" onclick={clearSearch}>{t('modules.searchClear')}</button>
+    </EmptyState>
+  {:else}
+    <div class="index">
+      <SectionNav label={t('modules.catNav')} items={navItems} />
+      <div class="families">
+        {#each groups as group (group.name)}
+          <section
+            class="family"
+            id={categoryAnchorId(group.name)}
+            tabindex="-1"
+            aria-labelledby="family-{categoryAnchorId(group.name)}"
+          >
+            <header class="family-head">
+              <h2 id="family-{categoryAnchorId(group.name)}">{catLabel(group.name)}</h2>
+              {#if catHint(group.name)}
+                <p>{catHint(group.name)}</p>
+              {/if}
+            </header>
+            <div class="family-list">
+              {#each group.modules as m (m.def.id)}
+                <ModuleIndexRow module={m} status={modStatus[m.def.id] ?? 'idle'} toggleSubmit={toggleSubmit(m)} />
+              {/each}
+            </div>
+          </section>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </section>
 
 <style>
-  .search-bar {
-    position: relative;
-    margin-bottom: 32px;
-    max-width: 400px;
-    display: flex;
-    align-items: center;
+  .deck {
+    position: sticky;
+    top: calc(58px + env(safe-area-inset-top, 0px));
+    z-index: 5;
+    padding: 10px 0 14px;
+    margin: 0 0 22px;
+    background: var(--bb-bg-0);
+    border-bottom: 1px solid var(--rule);
   }
-
-  .search-bar > :global(svg) {
-    position: absolute;
-    left: 14px;
+  .find { width: 100%; min-width: 0; }
+  .find input[type="search"]::-webkit-search-cancel-button { display: none; }
+  .keys {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
     color: var(--bb-muted);
-    pointer-events: none;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
   }
-
-  .search-bar input {
-    width: 100%;
-    padding: 12px 40px 12px 42px;
-    border-radius: 8px;
-    border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.08));
-    background: rgba(240, 236, 228, 0.03);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    transition: border-color var(--bb-dur-fast, 140ms) ease, box-shadow var(--bb-dur-fast, 140ms) ease;
-  }
-
-  .search-bar input:focus {
-    outline: none;
-    border-color: var(--bb-tan, #c9a87c);
-    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.1);
-  }
-
-  .search-bar input::placeholder {
-    color: var(--bb-muted);
-  }
-
-  .search-bar .clear {
-    position: absolute;
-    right: 6px;
+  .clear {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 22px;
     height: 22px;
+    flex: none;
     border: none;
     background: transparent;
     color: var(--bb-muted);
     cursor: pointer;
     border-radius: 8px;
-    transition: color var(--bb-dur-fast, 140ms) ease;
   }
+  .clear:hover { color: var(--bb-white); }
 
-  .search-bar .clear:hover {
+  .index {
+    display: grid;
+    gap: 18px 32px;
+    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+  }
+  /* One column on a phone (chips above the list). Two columns when there is
+     room for a ~10rem rail — reflow, not display:none. The old sidebar hid
+     itself below 980px so only a wide desktop could jump. */
+  @media (min-width: 761px) {
+    .index {
+      grid-template-columns: 10rem minmax(0, 1fr);
+    }
+  }
+  .families { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+  .family {
+    /* Hash + programmatic focus land below the sticky topbar and search. */
+    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 72px);
+  }
+  .family:focus { outline: none; }
+  .family:target .family-head h2 { color: var(--bb-tan-pale, var(--bb-tan-light)); }
+  .family-head { margin-bottom: 10px; }
+  .family-head h2 {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
     color: var(--bb-white);
-  }
-
-  .layout-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 48px;
-  }
-
-  @media (min-width: 980px) {
-    .layout-grid {
-      grid-template-columns: 220px minmax(0, 1fr);
-      gap: 72px;
-    }
-  }
-
-  .sidebar { display: none; }
-
-  @media (min-width: 980px) {
-    .sidebar {
-      display: block;
-      position: sticky;
-      top: calc(var(--nav-offset, 76px) + 32px);
-      align-self: start;
-    }
-  }
-
-  .sidebar-label {
-    display: block;
-    font-family: var(--bb-font-mono, "DM Mono", monospace);
-    font-size: 0.64rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--bb-muted, #888077);
-    margin-bottom: 16px;
-  }
-
-  .sidebar ul {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    border-left: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    list-style: none;
-    padding: 0;
     margin: 0;
   }
-
-  .sidebar a {
-    position: relative;
-    display: block;
-    padding: 7px 0 7px 16px;
-    font-family: var(--bb-font-body, "DM Sans", sans-serif);
-    font-size: 0.82rem;
-    color: var(--bb-muted, #888077);
-    text-decoration: none;
-    transition: color 200ms ease, padding-left 300ms var(--ease-out-expo, cubic-bezier(0.19, 1, 0.22, 1));
-  }
-
-  .sidebar a::before {
-    content: "";
-    position: absolute;
-    left: -1px;
-    top: 20%;
-    bottom: 20%;
-    width: 1px;
-    background: var(--bb-tan, #c9a87c);
-    transform: scaleY(0);
-    transition: transform 300ms var(--ease-out-expo, cubic-bezier(0.19, 1, 0.22, 1));
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .sidebar a:hover { color: var(--bb-tan-light, #e0c49a); }
-  }
-
-  .sidebar a.is-current {
-    color: var(--bb-tan-light, #e0c49a);
-    padding-left: 20px;
-  }
-
-  .sidebar a.is-current::before { transform: scaleY(1); }
-
-  .content {
-    display: flex;
-    flex-direction: column;
-    gap: 48px;
-  }
-
-  .category-section {
-    scroll-margin-top: calc(var(--nav-offset, 76px) + 24px);
-  }
-
-  .category-title {
-    font-family: var(--bb-font-display, "Syne", sans-serif);
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--bb-white, #f0ece4);
-    letter-spacing: -0.01em;
-    margin: 0 0 20px 0;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 14px;
-  }
-
-  .tile {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 18px;
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
-  }
-  .tile:hover { border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); }
-
-  .tile-head { display: flex; align-items: flex-start; gap: 12px; }
-  .tile-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex: none;
-    border-radius: 8px;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-  }
-  .tile-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; }
-  .tile-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 16px; color: var(--bb-white); margin: 0; }
-  .tile-cat { font-family: var(--bb-font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bb-muted); margin: 0; }
-
-  .tile-purpose {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
+  .family-head p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
     color: var(--bb-muted);
-    margin: 0;
-    flex: 1;
+    max-width: 52ch;
+  }
+  .family-list {
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: rgba(240, 236, 228, 0.018);
+    overflow: hidden;
   }
 
-  .tile-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; }
-  .grow { flex: 1; }
-  .configure {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-pill, 999px);
-    background: rgba(255, 255, 255, 0.03);
-    text-decoration: none;
-    transition: color var(--bb-dur-fast, 140ms) ease, border-color var(--bb-dur-fast, 140ms) ease, background var(--bb-dur-fast, 140ms) ease;
+  @media (max-width: 760px) {
+    .deck {
+      top: calc(52px + env(safe-area-inset-top, 0px));
+    }
+    .index {
+      --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
+    }
+    .family {
+      scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 72px);
+    }
+    .keys { display: none; }
   }
-  .configure:hover { color: var(--bb-tan-pale); border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); background: rgba(201, 168, 124, 0.08); }
-  .configure :global(svg) { stroke: currentColor; fill: none; }
 </style>

@@ -1,16 +1,15 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Compact nested-game row on the loyalty page: name, one-liner, command
-  // chips, a "Set up" link to the inspector, and a switch gated on loyalty.
-  // Odds, limits and chat lines stay on /modules/[id] so this page does not
-  // grow a second inspector.
+  // Compact nested-game row on the loyalty page: the name/purpose/commands
+  // are a real link (open the inspector), the switch is a sibling so it is
+  // never nested inside that link. Odds, limits and chat lines stay on
+  // /modules/[id] so this page does not grow a second inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
     Switch,
-    ButtonLink,
     toast,
     getI18n,
     type ModuleDef
@@ -59,20 +58,24 @@
 </script>
 
 <article class="game" class:on={enabled} id={def.id}>
-  <span class="icon" aria-hidden="true"><Icon name={def.icon} size={18} /></span>
-  <div class="copy">
-    <span class="name">{def.label}</span>
-    <span class="tagline">{def.tagline}</span>
-    {#if chips.length}
-      <span class="cmds">
-        {#each chips as chip (chip)}
-          <span class="cmd">{chip}</span>
-        {/each}
-      </span>
-    {/if}
-  </div>
+  <!-- data-cursor="off": a row is a reading surface, not a control. The
+       custom cursor morphs onto any <a>, and filling this whole card with a
+       tan box covered the switch and read against the dock. -->
+  <a class="main" {href} data-cursor="off">
+    <span class="icon" aria-hidden="true"><Icon name={def.icon} size={18} /></span>
+    <span class="copy">
+      <span class="name">{def.label}</span>
+      <span class="tagline">{def.tagline}</span>
+      {#if chips.length}
+        <span class="cmds">
+          {#each chips as chip (chip)}
+            <span class="cmd">{chip}</span>
+          {/each}
+        </span>
+      {/if}
+    </span>
+  </a>
   <div class="side">
-    <ButtonLink {href} variant="ghost">{t('loyalty.gameSetup')}</ButtonLink>
     <form method="POST" action="?/toggleGame" use:enhance={submit}>
       <input type="hidden" name="name" value={def.id} />
       <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
@@ -89,19 +92,34 @@
 
 <style>
   .game {
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 0;
+    display: flex;
+    align-items: stretch;
     border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+    isolation: isolate;
   }
-  .game:last-child { border-bottom: none; padding-bottom: 0; }
-  .game:first-child { padding-top: 0; }
+  .game:last-child { border-bottom: none; }
   .game.on .icon {
     background: rgba(82, 183, 136, 0.12);
     border-color: rgba(82, 183, 136, 0.3);
     color: var(--bb-green-glow);
+  }
+
+  .main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+    padding: 12px 8px 12px 0;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 8px;
+  }
+  .main:hover { background: rgba(201, 168, 124, 0.05); }
+  .main:focus-visible {
+    outline: 2px solid var(--bb-tan);
+    outline-offset: -2px;
   }
 
   .icon {
@@ -154,10 +172,11 @@
     align-items: center;
     gap: 10px;
     flex: none;
+    padding: 0 0 0 8px;
   }
 
   @media (max-width: 560px) {
-    .game { grid-template-columns: 40px minmax(0, 1fr); }
-    .side { grid-column: 1 / -1; justify-content: flex-end; padding-top: 4px; }
+    .game { flex-wrap: wrap; }
+    .side { margin-left: auto; padding: 0 0 8px; }
   }
 </style>

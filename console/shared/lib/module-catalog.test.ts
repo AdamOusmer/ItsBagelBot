@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { MOD, MODULE_CATALOG, moduleDef, moduleDelegateSections } from './types';
+import { MOD, MODULE_CATALOG, catalogIndexable, moduleDef, moduleDelegateSections } from './types';
 
 describe('module catalog', () => {
   test('has unique ids', () => {
@@ -49,7 +49,24 @@ describe('module catalog', () => {
     expect(def?.toggleable).not.toBe(false);
     expect(def?.defaultEnabled).toBe(false);
     expect(def?.replies).toHaveLength(0);
-    expect(def?.icon).toBe('pulse');
+    expect(def?.icon).toBe('smile');
+  });
+
+  test('govee shares Gear with Song Requests', () => {
+    expect(moduleDef('govee')?.category).toBe('Gear');
+    expect(moduleDef('songqueue')?.category).toBe('Gear');
+  });
+
+  test('AutoMod stays a visible Moderation row', () => {
+    const def = moduleDef('automod');
+    expect(def?.hidden).toBeFalsy();
+    expect(def?.category).toBe('Moderation');
+  });
+
+  test('indexable modules have unique icons so the directory is scannable', () => {
+    const visible = MODULE_CATALOG.filter((def) => catalogIndexable(def));
+    const icons = visible.map((def) => def.icon);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 
   test('songqueue is a bespoke href module listing !sr, !remove, !next and !clear', () => {
