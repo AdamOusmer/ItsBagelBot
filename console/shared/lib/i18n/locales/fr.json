@@ -1178,7 +1178,7 @@
     "errState": "Le lien de connexion a expiré ou a été rejoué. Relancez la connexion.",
     "errOauth": "Spotify a refusé la connexion. Réessayez.",
     "errNoToken": "Spotify a réutilisé votre consentement, aucun nouveau jeton n'a été émis. Révoquez cette application sur la page de votre compte Spotify, puis reconnectez-vous.",
-    "errUnconfigured": "Les demandes de musiques ne sont pas configurées sur ce déploiement — aucun identifiant d'application Spotify n'est défini. Contactez l'opérateur.",
+    "errUnconfigured": "Les demandes de musiques ne sont pas configurées sur ce déploiement — l'URL de callback Spotify est absente. Demandez à l'opérateur de définir SPOTIFY_REDIRECT_URI.",
     "errNoApp": "Ajoutez votre application Spotify avant de connecter votre compte.",
     "errStore": "Le jeton n'a pas pu être stocké. Réessayez dans un instant.",
     "reconnect": "L'autorisation Spotify ne porte pas une permission nécessaire aux demandes de musiques.",

@@ -10,7 +10,7 @@ import type {
   SpotifySrPerm
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
-import { spotifyRedirectURI } from '$lib/server/oauth';
+import { spotifyRedirectURI, spotifyConfigured } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -60,8 +60,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const [view, connected, app] = await Promise.all([store.read(), store.connected(), store.app()]);
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
-    // matches byte-for-byte at both ends of the flow.
-    return { ...view, connected, app, redirectUri: spotifyRedirectURI(), justConnected, errorSlug };
+    // matches byte-for-byte at both ends of the flow. A missing
+    // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage — surface it
+    // as unconfigured rather than collapsing the page behind the degraded
+    // banner (that is how a forgotten Doppler key looked like "could not
+    // reach the backend" on first ship of BYO Spotify apps).
+    const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
+    const slug = errorSlug || (!redirectUri ? 'unconfigured' : '');
+    return { ...view, connected, app, redirectUri, justConnected, errorSlug: slug };
   } catch {
     return {
       enabled: false,

@@ -1178,7 +1178,7 @@
     "errState": "The sign-in link expired or was replayed. Start the connect again.",
     "errOauth": "Spotify refused the sign-in. Try connecting again.",
     "errNoToken": "Spotify reused your consent, so no fresh token was issued. Revoke this app in your Spotify account page, then connect again.",
-    "errUnconfigured": "Song requests are not configured on this deployment yet — no Spotify app credentials are set. Ask the operator to set them.",
+    "errUnconfigured": "Song requests are not configured on this deployment yet — the Spotify callback URL is missing. Ask the operator to set SPOTIFY_REDIRECT_URI.",
     "errNoApp": "Add your Spotify app before connecting your account.",
     "errStore": "The token could not be stored. Try again in a moment.",
     "reconnect": "Your Spotify grant is missing a permission song requests needs.",
