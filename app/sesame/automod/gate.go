@@ -180,8 +180,9 @@ func (g *Gate) InspectWith(role module.Role, text string, cfg *Config, opts ...A
 // link verdicts ("phish", armed via SetLinkChecker; judged from the checker's
 // cache and feed snapshot only) -> language juror (reliably non-latin text is
 // never judged by the English word lists) -> lexicon categories gated by
-// profile -> channel block-terms -> heuristics with emote and allow-term
-// suppression. In shadow mode the caller logs the verdict and takes no action.
+// profile -> channel block-terms -> clips-only link filter -> heuristics with
+// emote and allow-term suppression. In shadow mode the caller logs the verdict
+// and takes no action.
 // assessScope is the resolved option set Assess acts on.
 type assessScope struct {
 	msgCodes map[string]struct{}
@@ -278,6 +279,11 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 		if v, ok := cfg.blockTermVerdict(skel); ok {
 			g.purgeLearned(uint64(sc.ch), text)
 			return v, out
+		}
+		// clips_only is a channel preference (not the immovable floor): allow
+		// terms suppress it the same way they suppress heuristics / block terms.
+		if sec.clipsOnly && hasNonClipLink(text) {
+			return Verdict{Action: ActionDelete, Rule: "clips_only"}, out
 		}
 	}
 
@@ -404,6 +410,11 @@ func (f *styleFlags) restripe(adj signals, sec sections, lim styleLimits) {
 // bait). The pre-scans only ever route; they never produce verdicts.
 func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text string) bool {
 	if flags.any() || cfg.hasBlockTerms() {
+		return false
+	}
+	// clips_only needs the deep path only when the line might carry a host:
+	// otherwise the clean zero-alloc bail still holds for ordinary short chat.
+	if cfg.clipsOnlyOn() && maybeLinkText(text) {
 		return false
 	}
 	if sig.hasNonASCII || sig.runes > shortLen {

@@ -681,6 +681,12 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
         help: 'Watches for the same link template posted by many different accounts and removes the wave. Single links are never touched.'
       },
       {
+        key: 'clips_only',
+        label: 'Twitch clips only',
+        type: 'toggle',
+        help: 'Removes messages that contain any link other than a Twitch clip (clips.twitch.tv/… or twitch.tv/…/clip/…). Off by default: turn on when chat should only share clips.'
+      },
+      {
         key: 'block_terms',
         label: 'Blocked terms',
         type: 'textarea',
