@@ -285,7 +285,7 @@ spec:
               memory: 256Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787603663-a1c27f889ca7@sha256:88401dd6400106d5a597227664b168a4ef19dc6a18e5106fb3b6e270a63e798c
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1787628494-8c32b708fb7f@sha256:5180685a104b3ca7cb94d2862f5155a19f7f5532a084ccee9bb5be8b37d69fdc
           imagePullPolicy: IfNotPresent
           env:
             # gossip is RPC-only: it answers sesame's requests over
