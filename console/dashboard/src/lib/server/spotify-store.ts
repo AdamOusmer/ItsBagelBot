@@ -85,39 +85,56 @@ function coerceOnRedeem(v: unknown): RewardOnRedeem {
 
 // readView coerces the stored "spotify" blob into both request-path configs,
 // filling blanks for anything missing so a partial or legacy blob renders.
+// The three readers below mirror coercePerm/coerceOnRedeem above: one function
+// per thing being coerced out of the opaque config blob. readView used to
+// inline all of it, which meant the song-request half and the channel-point
+// half — which share no fields and no rules — had to be read as one unit.
+
+function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
+  const sr = blankSpotifySr();
+  if (!raw || typeof raw !== 'object') return sr;
+  sr.enabled = raw.enabled === true;
+  sr.perm = coercePerm(raw.perm);
+  return sr;
+}
+
+// readReward returns the mirrored snapshot of the Twitch reward, or null.
+//
+// A reward id without its snapshot still means bound: the caller keeps the id
+// so edit/delete target the right Twitch reward even if the mirror was lost.
+function readReward(raw: Partial<SpotifyReward> | null | undefined, rewardId: string): SpotifyReward | null {
+  if (raw && typeof raw === 'object' && raw.rewardId) {
+    return {
+      rewardId: String(raw.rewardId),
+      title: String(raw.title ?? ''),
+      cost: Number(raw.cost ?? 0),
+      color: String(raw.color ?? ''),
+      cooldown: Number(raw.cooldown ?? 0)
+    };
+  }
+  if (rewardId) return { rewardId, title: '', cost: 0, color: '', cooldown: 0 };
+  return null;
+}
+
+function readRedeem(
+  raw: (Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null }) | undefined
+): SpotifyRedeemConfig {
+  const redeem = blankSpotifyRedeem();
+  if (!raw || typeof raw !== 'object') return redeem;
+  redeem.enabled = raw.enabled === true;
+  redeem.rewardId = String(raw.rewardId ?? '');
+  redeem.onRedeem = coerceOnRedeem(raw.onRedeem);
+  redeem.replyMessage = String(raw.replyMessage ?? '');
+  redeem.reward = readReward(raw.reward, redeem.rewardId);
+  return redeem;
+}
+
 function readView(configs: unknown): SpotifyView {
   const c = (configs ?? {}) as {
     sr?: Partial<SpotifySrConfig>;
     redeem?: Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null };
   };
-  const sr = blankSpotifySr();
-  if (c.sr && typeof c.sr === 'object') {
-    sr.enabled = c.sr.enabled === true;
-    sr.perm = coercePerm(c.sr.perm);
-  }
-  const redeem = blankSpotifyRedeem();
-  if (c.redeem && typeof c.redeem === 'object') {
-    redeem.enabled = c.redeem.enabled === true;
-    redeem.rewardId = String(c.redeem.rewardId ?? '');
-    redeem.onRedeem = coerceOnRedeem(c.redeem.onRedeem);
-    redeem.replyMessage = String(c.redeem.replyMessage ?? '');
-    const r = c.redeem.reward;
-    if (r && typeof r === 'object' && r.rewardId) {
-      redeem.reward = {
-        rewardId: String(r.rewardId),
-        title: String(r.title ?? ''),
-        cost: Number(r.cost ?? 0),
-        color: String(r.color ?? ''),
-        cooldown: Number(r.cooldown ?? 0)
-      };
-    }
-    // A reward id without its mirrored snapshot still means bound: keep the id
-    // so edit/delete target the right Twitch reward even if the mirror was lost.
-    if (!redeem.reward && redeem.rewardId) {
-      redeem.reward = { rewardId: redeem.rewardId, title: '', cost: 0, color: '', cooldown: 0 };
-    }
-  }
-  return { enabled: false, sr, redeem };
+  return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem) };
 }
 
 interface RewardWire {

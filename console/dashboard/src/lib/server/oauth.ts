@@ -46,12 +46,30 @@ export function spotifyScopes(): string[] {
   return ['user-read-currently-playing', 'user-read-playback-state'];
 }
 
-export function spotify(): Spotify {
+// spotifyConfig answers "is this deployment wired for Spotify" once, so the
+// three-env check is not spelled out again at every call site. Returning the
+// values rather than a boolean is what lets spotify() below narrow them without
+// a non-null assertion.
+function spotifyConfig(): { id: string; secret: string; redirect: string } | null {
   const id = env.SPOTIFY_CLIENT_ID;
   const secret = env.SPOTIFY_CLIENT_SECRET;
   const redirect = env.SPOTIFY_REDIRECT_URI;
-  if (!id || !secret || !redirect) throw new Error('SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI not set');
-  return new Spotify(id, secret, redirect);
+  return id && secret && redirect ? { id, secret, redirect } : null;
+}
+
+/**
+ * True when the Spotify env is complete. Callers use this to render an
+ * explainer instead of a server error: an unconfigured deployment is a
+ * deployment state, not a fault.
+ */
+export function spotifyConfigured(): boolean {
+  return spotifyConfig() !== null;
+}
+
+export function spotify(): Spotify {
+  const cfg = spotifyConfig();
+  if (!cfg) throw new Error('SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return new Spotify(cfg.id, cfg.secret, cfg.redirect);
 }
 
 // Fetch the account email from Helix with the just-issued user token. The
