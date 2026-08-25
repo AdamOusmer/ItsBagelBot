@@ -34,7 +34,24 @@
   // svelte-ignore state_referenced_locally
   let connected = $state<boolean>(data.connected ?? false);
   // svelte-ignore state_referenced_locally
-  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone' });
+  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone', allowOffline: false });
+
+  // liveOnly is the inverse of the stored allowOffline flag, on by default —
+  // the same shape govee's lights use, so the two switches read identically.
+  // svelte-ignore state_referenced_locally
+  let liveOnly = $state(!(data.sr?.allowOffline ?? false));
+
+  // The chat commands this module answers. Sourced from the module's own
+  // registration rather than written from memory: the page previously
+  // documented only the bare add, so every other spelling was undiscoverable.
+  const SR_COMMANDS: { cmd: string; key: string; mod?: boolean }[] = [
+    { cmd: '!sr <song>', key: 'spotify.cmdAdd' },
+    { cmd: '!song', key: 'spotify.cmdView' },
+    { cmd: '!sr remove', key: 'spotify.cmdRetract' },
+    { cmd: '!skip', key: 'spotify.cmdSkip', mod: true },
+    { cmd: '!sr remove <n>', key: 'spotify.cmdRemoveAt', mod: true },
+    { cmd: '!sr clear', key: 'spotify.cmdClear', mod: true }
+  ];
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(
     data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null }
@@ -46,7 +63,8 @@
       seed = data;
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
-      sr = data.sr ?? { enabled: false, perm: 'everyone' };
+      sr = data.sr ?? { enabled: false, perm: 'everyone', allowOffline: false };
+      liveOnly = !(data.sr?.allowOffline ?? false);
       redeem = data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
     }
   });
@@ -265,6 +283,25 @@
       </div>
       <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
 
+      <!-- Same control govee's lights use, down to the inverted flag and the
+           warn styling when the gate is lifted: on means requests only queue
+           while you are live, which is the default. -->
+      <div class="setrow {liveOnly ? '' : 'warn'}">
+        <div class="setrow-text">
+          <span class="setrow-label">{t('spotify.liveOnlyLabel')}</span>
+          <span class="muted-text" id="spotify-liveonly-desc">
+            {liveOnly ? t('spotify.liveOnlyOn') : t('spotify.liveOnlyOff')}
+          </span>
+        </div>
+        <Switch
+          bind:checked={liveOnly}
+          onchange={srChanged}
+          label={t('spotify.liveOnlyLabel')}
+          describedby="spotify-liveonly-desc"
+        />
+      </div>
+      <input type="hidden" name="allow_offline" value={liveOnly ? '' : 'on'} />
+
       <Field label={t('spotify.srPermLabel')}>
         <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
           {#each SPOTIFY_SR_PERMS as p (p)}
@@ -272,6 +309,21 @@
           {/each}
         </select>
       </Field>
+
+      <!-- The page documented only the bare add. Every other spelling existed
+           in sesame and nowhere in the UI, so nobody could discover them. -->
+      <div class="cmd-help">
+        <p class="cmd-help-title">{t('spotify.cmdsTitle')}</p>
+        <ul class="cmd-list">
+          {#each SR_COMMANDS as row (row.cmd)}
+            <li>
+              <code>{row.cmd}</code>
+              <span class="muted-text">{t(row.key)}</span>
+              {#if row.mod}<span class="cmd-mod">{t('spotify.cmdModOnly')}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+      </div>
     </form>
   </Card>
 
@@ -336,6 +388,41 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
+  /* Command reference: the page used to document only the bare add, so the
+     mod verbs existed in the bot and nowhere a broadcaster could see them. */
+  .cmd-help { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule, var(--bb-border)); }
+  .cmd-help-title {
+    margin: 0 0 8px;
+    font-family: var(--bb-font-body);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .cmd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .cmd-list li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .cmd-list code {
+    flex: none;
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-tan-light);
+    background: rgba(201, 168, 124, 0.08);
+    border: 1px solid rgba(201, 168, 124, 0.22);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .cmd-list .muted-text { font-size: 12px; }
+  .cmd-mod {
+    font-family: var(--bb-font-body);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bb-green-glow, #52b788);
+    border: 1px solid rgba(82, 183, 136, 0.35);
+    border-radius: 999px;
+    padding: 1px 7px;
+  }
+
   .back {
     display: inline-flex;
     align-items: center;

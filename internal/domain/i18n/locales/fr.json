@@ -159,6 +159,7 @@
   "songqueue.cleared": "La file de chansons a été vidée.",
   "songqueue.err.upstream": "@{user} la recherche musicale est en panne pour le moment, réessaie dans un instant.",
   "songqueue.next.empty": "La file de chansons est vide.",
+  "songqueue.offline": "@{user} les demandes de musique ne sont ouvertes que pendant le live.",
   "songqueue.playing": "Lecture en cours : {title} par {artist} (demandée par {req})",
   "songqueue.remove.not_found": "Aucune chanson à la position #{pos}.",
   "songqueue.remove.ok": "Retiré #{pos} : {title} (par {req}).",

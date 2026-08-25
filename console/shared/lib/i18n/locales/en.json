@@ -1124,6 +1124,17 @@
     "saveReply": "Save reply"
   },
   "spotify": {
+    "liveOnlyLabel": "Live only",
+    "liveOnlyOn": "Requests are only accepted while your stream is live (recommended).",
+    "liveOnlyOff": "Off: viewers can queue songs even when you are offline.",
+    "cmdsTitle": "Chat commands",
+    "cmdModOnly": "mods",
+    "cmdAdd": "Queue a song by name, \"artist - song\", or a Spotify link.",
+    "cmdView": "Show what is playing and the next few requests.",
+    "cmdRetract": "Take back your own request.",
+    "cmdSkip": "Play the next song in the queue.",
+    "cmdRemoveAt": "Remove someone else's request at that position.",
+    "cmdClear": "Empty the whole queue.",
     "back": "All modules",
     "eyebrow": "Song requests",
     "description": "Let viewers queue music from Spotify: the !sr chat command and a channel-points reward whose typed input is the song.",
