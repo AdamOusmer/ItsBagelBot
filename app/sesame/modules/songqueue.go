@@ -41,6 +41,12 @@ const (
 // broadcaster's token quota for junk entries.
 const srAddCooldown = 5 * time.Second
 
+// currentCooldown paces !current. Every miss is a live read of the
+// broadcaster's Spotify player against THEIR token allowance, and gossip
+// caches the answer for a few seconds — a shorter cooldown would only spend
+// chat's patience re-reading a cached line.
+const currentCooldown = 5 * time.Second
+
 // songqueueConfig holds the broadcaster's overrides. MaxDepth caps the
 // pending line; the message fields are dashboard-editable templates whose
 // empty value falls back to the localized default next to each.
@@ -53,6 +59,33 @@ type songqueueConfig struct {
 	// the playing track is the one at the head of the queue — a track the
 	// broadcaster started themselves has no requester to credit.
 	CurrentMessage string `json:"currentMessage"` // i18n songqueue.current.ok {title} {artist} {url} {req}
+	// Sr and Redeem are the two request-path switches the dashboard writes.
+	// Pointers on purpose: a blob written before the switches shipped has
+	// neither key, and nil means "pre-switch behaviour" — chat open, no live
+	// gate — so enabling the module never stopped working under a viewer.
+	Sr     *songqueueSr     `json:"sr"`
+	Redeem *songqueueRedeem `json:"redeem"`
+}
+
+// songqueueSr is the chat (!sr) request path. Enabled gates adds; Perm is a
+// module.ParsePerm string; AllowOffline opts out of the live-only gate the
+// same way govee's allowOffline does (default false = live-only).
+type songqueueSr struct {
+	Enabled      bool   `json:"enabled"`
+	Perm         string `json:"perm"`
+	AllowOffline bool   `json:"allowOffline"`
+}
+
+// songqueueRedeem is the channel-points request path. RewardID binds the
+// Twitch custom reward the redemption handler answers to; OnRedeem is what to
+// do with the redemption after a successful queue (fulfill/cancel/leave);
+// AllowOffline mirrors the chat path's live gate polarity.
+type songqueueRedeem struct {
+	Enabled      bool   `json:"enabled"`
+	RewardID     string `json:"rewardId"`
+	OnRedeem     string `json:"onRedeem"`
+	ReplyMessage string `json:"replyMessage"`
+	AllowOffline bool   `json:"allowOffline"`
 }
 
 // SongQueue owns the viewer song-request queue, resolved against the
@@ -98,7 +131,7 @@ func SongQueue(d engine.Deps) module.Module {
 	//
 	// No cooldown: a read and a mod action, neither spends the Spotify lookup an
 	// add does.
-	m.Command("song").Everyone().
+	m.Command("song").Everyone().Cooldown(currentCooldown).
 		Aliases("current", "nowplaying", "np").
 		Run(songQueueView(d, log))
 
@@ -106,7 +139,24 @@ func SongQueue(d engine.Deps) module.Module {
 	// sub-verb has to enforce it by hand — a bare word after !sr could also be
 	// a song title, so that path cannot lean on the command's own permission.
 	m.Command("skip").Mod().
+		Aliases("next").
 		Run(songQueueSkip(d, log))
+
+	// !clear and !remove are the standalone spellings of the two !sr verbs
+	// chat reaches for by name. Without them the trigger falls through to a
+	// custom command, which replies without ever touching the queue — the
+	// failure mode that reads as "the bot ignored me". !remove is Everyone
+	// because it retracts the caller's OWN request; the positional form
+	// inside actRemove is what carries the moderator check.
+	m.Command("clear").Mod().
+		Run(songQueueClear(d, log))
+	m.Command("remove").Everyone().
+		Run(songQueueRemove(d, log))
+
+	// Channel-points path: the redemption of the bound reward queues a track.
+	// Registered unconditionally — the handler answers only to the reward id
+	// in this channel's config and no-ops for every other redemption.
+	m.On(redemptionAddType, songqueueRedemption(d, log))
 	return m.Build()
 }
 
@@ -115,6 +165,7 @@ func SongQueue(d engine.Deps) module.Module {
 type songQueueCmd struct {
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
+	live     engine.IsLiveChecker
 	c        *module.Context
 	cfg      songqueueConfig
 	log      *zap.Logger
@@ -125,7 +176,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, c: c, log: log}
+	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, live: d.Live, c: c, log: log}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -149,6 +200,7 @@ var songQueueActions = map[string]songQueueAction{
 	"cancel":  (*songQueueCmd).actRetract,
 	"remove":  (*songQueueCmd).actRemove,
 	"next":    (*songQueueCmd).actNext,
+	"skip":    (*songQueueCmd).actNext,
 	"clear":   (*songQueueCmd).actClear,
 }
 
@@ -243,7 +295,7 @@ func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 	return snap.Current.RequesterName
 }
 
-// songQueueSkip backs !skip: the same advance !sr next performs. The moderator
+// songQueueSkip backs !skip / !next: the same advance !sr next performs. The moderator
 // gate rides on the command registration here rather than the hand-rolled check
 // bareModVerb needs, because there is no query for it to be confused with.
 func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
@@ -253,6 +305,30 @@ func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return nil
 		}
 		return qc.nextTrack(ctx, emit)
+	}
+}
+
+// songQueueClear backs standalone !clear (mod grant on registration).
+func songQueueClear(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.clearAll(ctx, emit)
+	}
+}
+
+// songQueueRemove backs standalone !remove: retract your own request, or drop
+// a position when a mod supplies a number — the same rules as !sr remove, so
+// both spellings answer identically.
+func songQueueRemove(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.actRemove(ctx, args, strings.TrimSpace(args), emit)
 	}
 }
 
@@ -317,6 +393,12 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	if !qc.canRequest() {
 		return nil
 	}
+	if !qc.srPathOpen() {
+		return nil
+	}
+	if !qc.chatLiveOK(ctx) {
+		return nil
+	}
 	track, failure := qc.resolveTrack(ctx, query)
 	if failure != "" {
 		qc.emitChat(emit, failure)
@@ -324,6 +406,50 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	}
 	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth)
 	return qc.reportAdd(emit, *track, pos, err)
+}
+
+// srPathOpen reports whether the chat request path accepts adds. A missing
+// sr block (a blob from before the path switches shipped) stays open so
+// channels that only ever flipped the master toggle keep working; an explicit
+// false closes adds while the view and the mod verbs still run.
+func (qc songQueueCmd) srPathOpen() bool {
+	if qc.cfg.Sr == nil {
+		return true
+	}
+	if !qc.cfg.Sr.Enabled {
+		return false
+	}
+	return qc.c.Chatter().Allows(module.ParsePerm(qc.cfg.Sr.Perm))
+}
+
+// chatLiveOK is the live gate for chat adds, shaped exactly like govee's:
+// legacy blobs with no sr block skip it, and once the dashboard has written
+// sr, live-only is the default with AllowOffline as the opt-out.
+func (qc songQueueCmd) chatLiveOK(ctx context.Context) bool {
+	if qc.cfg.Sr == nil {
+		return true
+	}
+	return qc.livePermits(ctx, qc.cfg.Sr.AllowOffline)
+}
+
+// livePermits mirrors goveeLivePermits: live-only by default, AllowOffline
+// opts out, and a live-check error fails CLOSED — a queue that fills while the
+// stream is down is worse than an add that did not land. It hangs off the
+// command struct because both request paths already hold one, and the checker,
+// the logger and the broadcaster id all come from it.
+func (qc songQueueCmd) livePermits(ctx context.Context, allowOffline bool) bool {
+	if allowOffline {
+		return true
+	}
+	if qc.live == nil {
+		return true
+	}
+	ok, err := qc.live.IsLive(ctx, qc.c.BroadcasterID)
+	if err != nil {
+		qc.log.Warn("songqueue: live check failed, denying", qc.bid(), zap.Error(err))
+		return false
+	}
+	return ok
 }
 
 // canRequest gates adds on a gossip connection and the broadcaster's twitch

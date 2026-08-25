@@ -16,9 +16,13 @@ export const SPOTIFY_SR_PERMS = ['everyone', 'sub', 'vip', 'mod', 'broadcaster']
 export type SpotifySrPerm = (typeof SPOTIFY_SR_PERMS)[number];
 
 // SpotifySrConfig is the chat-command half: on/off plus the permission tier.
+// allowOffline opts out of the live-only gate, exactly like govee's: the
+// default (false) means requests are only taken while the stream is up, which
+// is what a broadcaster expects from a queue they have to play through.
 export interface SpotifySrConfig {
   enabled: boolean;
   perm: SpotifySrPerm;
+  allowOffline: boolean;
 }
 
 // SpotifyReward mirrors the Twitch reward settings shown for song requests.
@@ -40,12 +44,23 @@ export interface SpotifyRedeemConfig {
   onRedeem: RewardOnRedeem;
   replyMessage: string;
   reward: SpotifyReward | null;
+  // Same live gate as the chat path, tracked separately: a channel can take
+  // points requests around the clock while keeping !sr live-only, or vice
+  // versa. Points spent while the gate is closed are refunded, never eaten.
+  allowOffline: boolean;
 }
 
 export function blankSpotifySr(): SpotifySrConfig {
-  return { enabled: false, perm: 'everyone' };
+  return { enabled: false, perm: 'everyone', allowOffline: false };
 }
 
 export function blankSpotifyRedeem(): SpotifyRedeemConfig {
-  return { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
+  return {
+    enabled: false,
+    rewardId: '',
+    onRedeem: 'fulfill',
+    replyMessage: '',
+    reward: null,
+    allowOffline: false
+  };
 }

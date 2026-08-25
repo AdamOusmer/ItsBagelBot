@@ -26,9 +26,11 @@
 # Secrets: uses the Doppler-synced `dashboard-env` secret (project dashboard /
 # config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
 # SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
-# DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). Only TWITCH_REDIRECT_URI
-# was added to that config for the new OAuth callback. Billing links are also
-# read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
+# DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). OAuth callbacks that
+# must also live in that config: TWITCH_REDIRECT_URI and SPOTIFY_REDIRECT_URI
+# (https://dashboard.itsbagelbot.com/spotify/callback — fleet-wide; each
+# broadcaster pastes the same URL into their own Spotify app). Billing links
+# are also read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
 # hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -386,11 +388,13 @@ spec:
     # Unauthenticated brute-force surface: OAuth redirects/callbacks and
     # session escalation. Humans hit these a handful of times, so the auth
     # tier is far tighter than the general one. Longer rule out-prioritizes
-    # the host-only catch-all below.
+    # the host-only catch-all below. /spotify/ is the BYO-app connect +
+    # callback (the fleet redirect URI); without it those hits would share the
+    # general rate limit with every HTML and asset request.
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
-        (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`))
+        (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
       kind: Rule
       middlewares: [{name: dashboard-auth-ratelimit}]
       services:

@@ -334,3 +334,103 @@ func TestSRIsInertWithoutStoreOrGossip(t *testing.T) {
 	out = runSR(t, m2, songCtx("42", "alice"), "anything")
 	assert.Empty(t, out)
 }
+
+// songDepsLive is songDeps with the live-state stub the gate cases need.
+func songDepsLive(store engine.SongQueueStore, g engine.GossipCaller, live bool) engine.Deps {
+	d := songDeps(store, g)
+	d.Live = &fakeLive{live: live}
+	return d
+}
+
+// The chat path's two switches: the enable/perm gate, and the govee-shaped
+// live gate. A legacy blob carries neither key and must keep queueing, or
+// enabling the module would have silently stopped working under the channels
+// already using it.
+func TestSRPathGates(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		live   bool
+		queued bool
+	}{
+		{"disabled path swallows the add", `{"sr":{"enabled":false,"perm":"everyone"}}`, true, false},
+		{"live-only refuses while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false},
+		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true},
+		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+			store := &fakeSongQueue{}
+			c := songCtx("42", "alice")
+			c.Config = []byte(tc.config)
+
+			out := runSR(t, SongQueue(songDepsLive(store, g, tc.live)), c, "brightside")
+			if !tc.queued {
+				assert.Empty(t, out)
+				assert.Empty(t, store.up)
+				// A closed gate must not spend a Spotify lookup either.
+				assert.Empty(t, g.calls)
+				return
+			}
+			require.Len(t, store.up, 1)
+			assert.Contains(t, chatText(t, out), "Mr. Brightside")
+		})
+	}
+}
+
+const songRedeemJSON = `{"id":"redeem-1","broadcaster_user_id":"100","user_id":"42","user_name":"Alice","user_login":"alice","user_input":"brightside","reward":{"id":"rw-sr","title":"Song request","cost":500}}`
+
+func songRedeemCtx(config string) *module.Context {
+	return &module.Context{
+		Env:           lane.Envelope{Type: redemptionAddType, Event: []byte(songRedeemJSON)},
+		BroadcasterID: 100,
+		Config:        []byte(config),
+		Log:           zap.NewNop(),
+	}
+}
+
+// The channel-points path. Every refusal refunds: a viewer who spent points
+// and got no song back is the one outcome worse than not having the feature.
+// A redemption of any other reward is not this module's business at all.
+func TestSongRedeemGates(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		live   bool
+		want   string // queued | refund | ignored
+	}{
+		{"offline refunds", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, false, "refund"},
+		{"allowOffline queues", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","allowOffline":true}}`, false, "queued"},
+		{"disabled path refunds", `{"redeem":{"enabled":false,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, true, "refund"},
+		{"another reward is ignored", `{"redeem":{"enabled":true,"rewardId":"rw-other","onRedeem":"fulfill"}}`, true, "ignored"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeSongQueue{}
+			m := SongQueue(songDepsLive(store, srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers")), tc.live))
+			h := m.Events[redemptionAddType]
+			require.NotNil(t, h)
+
+			var col collector
+			require.NoError(t, h(context.Background(), songRedeemCtx(tc.config), col.emit))
+			assertSongRedeem(t, tc.want, store, col.out)
+		})
+	}
+}
+
+func assertSongRedeem(t *testing.T, want string, store *fakeSongQueue, out []module.Output) {
+	t.Helper()
+	switch want {
+	case "queued":
+		require.Len(t, store.up, 1)
+		require.NotEmpty(t, out)
+		assert.Equal(t, outgress.RedemptionFulfilled, out[len(out)-1].Status)
+	case "refund":
+		assert.Empty(t, store.up)
+		assertRefund(t, out)
+	default:
+		assert.Empty(t, out)
+		assert.Empty(t, store.up)
+	}
+}

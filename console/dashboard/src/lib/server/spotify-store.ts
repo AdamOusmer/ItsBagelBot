@@ -102,6 +102,7 @@ function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
   if (!raw || typeof raw !== 'object') return sr;
   sr.enabled = raw.enabled === true;
   sr.perm = coercePerm(raw.perm);
+  sr.allowOffline = raw.allowOffline === true;
   return sr;
 }
 
@@ -140,6 +141,7 @@ function readRedeem(
   redeem.rewardId = String(raw.rewardId ?? '');
   redeem.onRedeem = coerceOnRedeem(raw.onRedeem);
   redeem.replyMessage = String(raw.replyMessage ?? '');
+  redeem.allowOffline = raw.allowOffline === true;
   redeem.reward = readReward(raw.reward, redeem.rewardId);
   return redeem;
 }
@@ -224,7 +226,7 @@ export interface SpotifyStore {
   clearApp(): Promise<SpotifyResult>;
   setEnabled(enabled: boolean): Promise<SpotifyResult>;
   saveSr(sr: SpotifySrConfig): Promise<SpotifyResult>;
-  setRedeemEnabled(enabled: boolean): Promise<SpotifyResult>;
+  setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult>;
   saveReward(draft: RewardDraft): Promise<SpotifyResult>;
   deleteReward(): Promise<SpotifyResult>;
   disconnect(): Promise<SpotifyResult>;
@@ -303,12 +305,13 @@ export function spotifyStore(userId: string): SpotifyStore {
     const base = await rawConfigs();
     await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
       ...base,
-      sr: { enabled: sr.enabled, perm: sr.perm },
+      sr: { enabled: sr.enabled, perm: sr.perm, allowOffline: sr.allowOffline },
       redeem: {
         enabled: redeem.enabled,
         rewardId: redeem.rewardId,
         onRedeem: redeem.onRedeem,
         replyMessage: redeem.replyMessage,
+        allowOffline: redeem.allowOffline,
         ...(redeem.reward ? { reward: redeem.reward } : {})
       }
     } as unknown as Record<string, unknown>);
@@ -326,9 +329,12 @@ export function spotifyStore(userId: string): SpotifyStore {
     return { ok: true };
   }
 
-  async function setRedeemEnabled(enabled: boolean): Promise<SpotifyResult> {
+  // The redeem toggle row carries the live gate as well as the on/off switch,
+  // so both travel in one write: two separate writes would let a save of one
+  // clobber a concurrent save of the other through the read-modify-write.
+  async function setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult> {
     const cur = await read();
-    await writeBlob(cur.enabled, cur.sr, { ...cur.redeem, enabled });
+    await writeBlob(cur.enabled, cur.sr, { ...cur.redeem, ...path });
     return { ok: true };
   }
 
@@ -386,7 +392,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     clearApp,
     setEnabled,
     saveSr,
-    setRedeemEnabled,
+    setRedeemPath,
     saveReward,
     deleteReward,
     disconnect
