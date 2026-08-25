@@ -29,6 +29,7 @@
   "nav": {
     "lockedBroadcaster": "Broadcaster only",
     "ariaMain": "Main navigation",
+    "subsectionsAria": "Show or hide the {label} subsections",
     "manage": "Manage",
     "overview": "Overview",
     "commands": "Commands",
@@ -41,7 +42,6 @@
     "stats": "Stats",
     "status": "Status",
     "settings": "Settings",
-    "preferences": "Preferences",
     "delegates": "Delegates",
     "importSettings": "Import settings"
   },

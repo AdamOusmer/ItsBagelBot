@@ -106,7 +106,15 @@
       display: grid;
       grid-template-columns: var(--sidebar-w, 248px) minmax(0, 1fr);
       grid-template-rows: auto 1fr;
+      /* The rail's sticky pin line, consumed by Sidebar's top/height. 55px is
+         measured, not derived: 9px padding + the 36px operator chip + the 1px
+         rule at desktop gutters. The topbar has no height token of its own —
+         if its padding or the chip grows, re-measure and move this. */
+      --topbar-h: 55px;
     }
+    /* The delegate/impersonation banner stacks 44px above the topbar, so the
+       pin line drops by exactly that. */
+    .app.offset { --topbar-h: 99px; }
     .app :global(.topbar) { grid-column: 1 / -1; }
     .main { grid-column: 2; }
     /* The dock's 110px bottom reserve is dead weight once the dock is hidden. */

@@ -29,6 +29,7 @@
   "nav": {
     "lockedBroadcaster": "Réservé au diffuseur",
     "ariaMain": "Navigation principale",
+    "subsectionsAria": "Afficher ou masquer les sous-sections de {label}",
     "manage": "Gérer",
     "overview": "Aperçu",
     "commands": "Commandes",
@@ -41,7 +42,6 @@
     "stats": "Stats",
     "status": "Statut",
     "settings": "Paramètres",
-    "preferences": "Préférences",
     "delegates": "Délégués",
     "importSettings": "Paramètres d'import"
   },

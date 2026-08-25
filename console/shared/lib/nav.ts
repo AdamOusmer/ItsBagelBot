@@ -139,7 +139,10 @@ export function sectionForPath(path: string): SectionId {
 
 // Subsection children of the registry sections. They never carry grant logic
 // of their own — they are built only for parents that survived the visibility
-// filter above, so they render exactly when their parent does.
+// filter above, so they render exactly when their parent does. A child never
+// repeats its parent's href: the sidebar's parent row IS the link to the hub
+// page, so a self-pointing child would render the same destination twice and
+// put two candidates up for aria-current.
 
 interface NavChildDef {
   href: string;
@@ -148,12 +151,10 @@ interface NavChildDef {
 }
 
 const COMMAND_CHILDREN: readonly NavChildDef[] = [
-  { href: '/commands', icon: 'commands', labelKey: 'nav.commands' },
   { href: '/commands/fetches', icon: 'link', labelKey: 'nav.fetches' }
 ];
 
 const SETTINGS_CHILDREN: readonly NavChildDef[] = [
-  { href: '/settings', icon: 'settings', labelKey: 'settings.preferences' },
   { href: '/access', icon: 'users', labelKey: 'nav.delegates' },
   { href: '/settings/import', icon: 'globe', labelKey: 'nav.importSettings' }
 ];

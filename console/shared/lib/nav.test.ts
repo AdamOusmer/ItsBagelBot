@@ -112,8 +112,8 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
+    // No child repeats its parent's href — the parent row is the hub link.
     expect(full.find((i) => i.href === '/commands')!.children!.map((c) => c.href)).toEqual([
-      '/commands',
       '/commands/fetches'
     ]);
     expect(full.find((i) => i.href === '/modules')!.children).toHaveLength(3);
@@ -142,7 +142,6 @@ describe('nav registry', () => {
       path: '/access'
     });
     expect(access.find((i) => i.href === '/settings')!.children!.map((c) => !!c.active)).toEqual([
-      false,
       true,
       false
     ]);
