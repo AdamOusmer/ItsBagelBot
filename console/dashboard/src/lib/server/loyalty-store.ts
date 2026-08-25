@@ -72,7 +72,10 @@ export async function readLoyalty(userId: string): Promise<LoyaltyView> {
     resubPoints: Number(raw.resubPoints ?? 0) || 0,
     giftSubPoints: Number(raw.giftSubPoints ?? 0) || 0,
     cheerPointsPer100: Number(raw.cheerPointsPer100 ?? 0) || 0,
-    watchPointsPerTick: Number(raw.watchPointsPerTick ?? 0) || 0
+    watchPointsPerTick: Number(raw.watchPointsPerTick ?? 0) || 0,
+    modSetPoints: Number(raw.modSetPoints ?? 0) || 0,
+    modAdjustPoints: Number(raw.modAdjustPoints ?? 0) || 0,
+    viewerTransfers: Number(raw.viewerTransfers ?? 0) || 0
   };
   return { enabled, config };
 }

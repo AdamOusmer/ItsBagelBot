@@ -25,6 +25,14 @@
   const podium = $derived(data.top.slice(0, 3));
   const rest = $derived(data.top.slice(3));
 
+  // Module and built-in command triggers, flattened to bare chips — the
+  // custom commands above them carry the detail.
+  const commandTriggers = $derived(
+    (data.modules ?? [])
+      .flatMap((m) => m.commands.map((c) => c.label))
+      .sort((a, b) => a.localeCompare(b))
+  );
+
   // The hero's channel name links to its public command page, which lives on
   // the static /user/<login> route — reachable on this host like any other.
   const channelHref = $derived(`/user/${data.login}`);
@@ -133,6 +141,53 @@
             </table>
           </div>
           <p class="ranked-note">{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length) })}</p>
+        {/if}
+      </Card>
+    </section>
+  {/if}
+
+  {#if data.commands.length > 0 || commandTriggers.length > 0}
+    <section class="cmds-wrap reveal" style="--i:6" aria-label={t('leaderboard.commandsLabel')}>
+      <Card class="cmds-card">
+        <header class="cmds-head">
+          <span class="ico" aria-hidden="true"><Icon name="commands" size={16} /></span>
+          <h2>{t('leaderboard.commandsTitle')}</h2>
+        </header>
+
+        {#if data.commands.length > 0}
+          <div class="table-scroll">
+            <table class="cmd-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('leaderboard.colCommand')}</th>
+                  <th scope="col">{t('leaderboard.colResponse')}</th>
+                  <th scope="col" class="n">{t('leaderboard.colPerm')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each data.commands as cmd (cmd.trigger)}
+                  <tr>
+                    <td>
+                      <code>{cmd.trigger}</code>
+                      {#if cmd.aliases.length > 0}
+                        <span class="aliases">{cmd.aliases.join(' ')}</span>
+                      {/if}
+                    </td>
+                    <td class="response">{cmd.response}</td>
+                    <td class="n perm-cell">{cmd.perm}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+
+        {#if commandTriggers.length > 0}
+          <div class="chip-row">
+            {#each commandTriggers as trig (trig)}
+              <code class="chip">{trig}</code>
+            {/each}
+          </div>
         {/if}
       </Card>
     </section>
@@ -536,6 +591,65 @@
     letter-spacing: 0.08em;
     color: var(--bb-muted);
     margin: 0;
+  }
+
+  /* Commands section: the same table grammar as the standings, plus a chip
+     row for the module/built-in triggers that need no per-row detail. */
+  .cmds-head {
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    margin-bottom: var(--bb-space-3);
+  }
+  .cmds-head h2 {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+  }
+  .cmd-table { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
+  .cmd-table th[scope='col'] {
+    text-align: left;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--bb-border);
+    font-weight: 600;
+  }
+  .cmd-table th.n { text-align: right; }
+  .cmd-table td {
+    padding: 8px;
+    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+    color: var(--bb-tan);
+    vertical-align: top;
+  }
+  .cmd-table td.n { text-align: right; white-space: nowrap; }
+  .cmd-table code {
+    font-family: var(--bb-font-mono);
+    font-size: 12.5px;
+    color: var(--bb-green);
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--bb-border);
+    border-radius: 6px;
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+  .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+  .response { overflow-wrap: anywhere; }
+  .perm-cell { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-muted); }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
+  .chip {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-tan);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--bb-border);
+    border-radius: 999px;
+    padding: 2px 10px;
   }
 
   .foot {

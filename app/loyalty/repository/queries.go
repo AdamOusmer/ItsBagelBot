@@ -202,6 +202,96 @@ func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
 	return login, nil
 }
 
+// errInsufficient marks the guarded debit that matched no row — an internal
+// sentinel unwound out of the transaction, never surfaced as itself.
+var errInsufficient = errors.New("insufficient points")
+
+// TransferOutcome is one balance.transfer's result: the sender's and
+// recipient's standings after the move (To is non-nil only when moved).
+type TransferOutcome struct {
+	From, To *ent.Balance
+}
+
+// BalanceTransfer moves amount points from one viewer to another in one
+// transaction: the debit is guarded by points >= amount (same shape as
+// BalanceSpend, so a concurrent second spend can never drive the sender
+// negative), and the credit lands on the recipient row resolved by login —
+// which must already exist, exactly like a mod grant. found=false means the
+// channel never accrued for sender or target; moved=false with found=true
+// means the sender could not cover it (From then carries their actual
+// standing). A self-transfer is refused up front: the net-zero move has no
+// caller story, so it is input, not ledger state.
+func (r *Loyalty) BalanceTransfer(ctx context.Context, userID, fromViewerID uint64, targetLogin string, amount int64) (*TransferOutcome, bool, error) {
+	login, err := normalizeSpendTarget(targetLogin, amount)
+	if err != nil {
+		return nil, false, err
+	}
+	if fromViewerID == 0 {
+		return nil, false, fmt.Errorf("%w: from_viewer_id", ErrInvalidInput)
+	}
+
+	sender, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerIDEQ(fromViewerID)).
+			Only(ctx)
+	})
+	if err != nil || !found {
+		return nil, found, err
+	}
+	recipient, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+		return r.client.Balance.Query().
+			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
+			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
+			First(ctx)
+	})
+	if err != nil || !found {
+		return nil, found, err
+	}
+	if recipient.ID == sender.ID {
+		return nil, true, fmt.Errorf("%w: self transfer", ErrInvalidInput)
+	}
+
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return withTx(ctx, r.client, func(tx *ent.Tx) error {
+			updated, err := tx.Balance.Update().
+				Where(balance.IDEQ(sender.ID), balance.PointsGTE(amount)).
+				AddPoints(-amount).
+				Save(ctx)
+			if err != nil {
+				return err
+			}
+			if updated == 0 {
+				return errInsufficient
+			}
+			_, err = tx.Balance.Update().
+				Where(balance.IDEQ(recipient.ID)).
+				AddPoints(amount).
+				Save(ctx)
+			return err
+		})
+	})
+	if err != nil {
+		if errors.Is(err, errInsufficient) {
+			fresh, ferr := r.client.Balance.Get(ctx, sender.ID)
+			if ferr != nil {
+				return nil, true, ferr
+			}
+			return &TransferOutcome{From: fresh}, true, nil
+		}
+		return nil, true, err
+	}
+
+	from, err := r.client.Balance.Get(ctx, sender.ID)
+	if err != nil {
+		return nil, true, err
+	}
+	to, err := r.client.Balance.Get(ctx, recipient.ID)
+	if err != nil {
+		return nil, true, err
+	}
+	return &TransferOutcome{From: from, To: to}, true, nil
+}
+
 // clampLimit bounds a caller-provided page size, defaulting a missing one.
 func clampLimit(limit int) int {
 	if limit <= 0 {

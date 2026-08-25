@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,13 @@ const loyaltyTickTimeout = 5 * time.Second
 // counterAddMax bounds one !counter add step so a typo cannot warp a counter
 // beyond repair (set remains the unbounded escape hatch).
 const counterAddMax = 1_000_000
+
+// Leaderboard sizes for "!leaderboard [n]": five by default, ten at most —
+// chat lines are short, and the web page carries the long form.
+const (
+	defaultLeaderboardLimit = 5
+	maxLeaderboardLimit     = 10
+)
 
 // Event subsets. Only the fields the accrual math needs; the broadcaster id
 // comes from the Context.
@@ -61,9 +69,10 @@ type loyaltyCheerEvent struct {
 // chat. Storage lives in the loyalty service; every accrual here is a
 // fire-and-forget hand-off to the worker-side reporter.
 //
-// It owns two commands: !points (a viewer's own standing) and !counter (mod
-// management of the named counters the {counter:...} response token and the
-// channel-points bindings bump).
+// It owns three commands: !points (a viewer's own standing, plus the
+// broadcaster-configurable grant and transfer verbs), !leaderboard (the
+// channel's top standings) and !counter (mod management of the named counters
+// the {counter:...} response token and the channel-points bindings bump).
 func Loyalty(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -108,18 +117,55 @@ func Loyalty(d engine.Deps) module.Module {
 				return nil
 			}
 			lc := loyaltyCmd{d, c, emit, log}
-			// Mod grants: "!points set @user 500" / "!points add @user -100".
-			// Gated here (not on the command) so plain "!points" stays open to
-			// everyone while the mutating verbs need at least moderator.
-			if fields := strings.Fields(args); len(fields) == 3 && c.Chatter().Allows(module.RoleModerator) {
-				switch strings.ToLower(fields[0]) {
-				case "set":
-					return lc.pointsAdjust(ctx, fields[1], fields[2], true)
-				case "add", "give":
-					return lc.pointsAdjust(ctx, fields[1], fields[2], false)
+			// Verb routing. "!points give" moves the chatter's OWN points and
+			// belongs to everyone; set/add/remove are mod grants, gated here
+			// (not on the command) so plain "!points" stays open to everyone
+			// — with per-verb toggles from the module config so a broadcaster
+			// can hand moderators exactly as much power as they want.
+			fields := strings.Fields(args)
+			if len(fields) != 3 {
+				return lc.pointsShow(ctx)
+			}
+			var cfg engine.LoyaltyModuleConfig
+			_ = c.Decode(&cfg)
+			isMod := c.Chatter().Allows(module.RoleModerator)
+			// The channel owner outranks every toggle: these gate what the
+			// owner delegates to moderators, never what the owner can do.
+			owner := c.Env.ChatterUserID == c.Env.BroadcasterUserID
+			switch strings.ToLower(fields[0]) {
+			case "give":
+				return lc.pointsGive(ctx, fields[1], fields[2], cfg.ViewersMayTransfer() || owner)
+			case "set":
+				if isMod {
+					return lc.grantVerb(cfg.ModsMaySetPoints() || owner, func() error {
+						return lc.pointsAdjust(ctx, fields[1], fields[2], true)
+					})
+				}
+			case "add":
+				if isMod {
+					return lc.grantVerb(cfg.ModsMayAdjustPoints() || owner, func() error {
+						return lc.pointsAdjust(ctx, fields[1], fields[2], false)
+					})
+				}
+			case "remove":
+				if isMod {
+					return lc.grantVerb(cfg.ModsMayAdjustPoints() || owner, func() error {
+						return lc.pointsRemove(ctx, fields[1], fields[2])
+					})
 				}
 			}
+			// A non-mod typing a grant verb (or anything unparseable) just
+			// gets their own standing — never an error, never a hint of a
+			// gate.
 			return lc.pointsShow(ctx)
+		})
+
+	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Run(
+		func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+			if d.Loyalty == nil {
+				return nil
+			}
+			return loyaltyCmd{d, c, emit, log}.leaderboardShow(ctx, args)
 		})
 
 	m.Command("counter").Mod().Run(
@@ -232,6 +278,125 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)
+	return nil
+}
+
+// grantVerb runs one enabled mod grant; a moderator whose channel switched
+// this capability off gets the denial line instead. (A non-mod never gets
+// here — the dispatcher routes them to their own standing.)
+func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
+	if !enabled {
+		lc.reply("loyalty.points.disabled")
+		return nil
+	}
+	return run()
+}
+
+// pointsGive moves the chatter's OWN points to someone else ("!points give
+// @user 500" — StreamElements-parity transfers, available to mods and viewers
+// alike while the channel keeps them enabled). The service debits the sender
+// under a points >= amount guard and credits the recipient in the same
+// transaction, so a refused move leaves both balances untouched.
+func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enabled bool) error {
+	var cfg engine.LoyaltyModuleConfig
+	_ = lc.c.Decode(&cfg)
+	value, err := strconv.ParseInt(amount, 10, 64)
+	if err != nil || value <= 0 || value > pointsAdjustMax || !enabled {
+		key := "loyalty.points.give.usage"
+		if !enabled {
+			key = "loyalty.points.disabled"
+		}
+		lc.reply(key, "name", cfg.Name())
+		return nil
+	}
+	login := strings.ToLower(strings.TrimPrefix(target, "@"))
+	senderID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
+	if login == "" || senderID == 0 {
+		lc.reply("loyalty.points.give.usage", "name", cfg.Name())
+		return nil
+	}
+	if login == strings.ToLower(lc.c.Env.ChatterUserLogin) {
+		lc.reply("loyalty.points.self", "name", cfg.Name())
+		return nil
+	}
+	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, senderID, login, value)
+	if err != nil {
+		lc.log.Warn("loyalty: balance transfer failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.reply("loyalty.counter.err")
+		return nil
+	}
+	if !found {
+		lc.reply("loyalty.points.unknown", "target", login)
+		return nil
+	}
+	if !moved {
+		lc.reply("loyalty.points.insufficient",
+			"points", strconv.FormatInt(bal.Points, 10),
+			"name", cfg.Name(),
+		)
+		return nil
+	}
+	lc.reply("loyalty.points.gave",
+		"target", login,
+		"amount", strconv.FormatInt(value, 10),
+		"points", strconv.FormatInt(bal.Points, 10),
+		"name", cfg.Name(),
+	)
+	return nil
+}
+
+// pointsRemove subtracts from a viewer's balance ("!points remove @user 100"),
+// the positive-amount spelling of "!points add @user -100". The negation of a
+// MinInt64-sized typo wraps to itself, which pointsAdjust's bound then
+// rejects as usage — so the overflow never reaches the ledger.
+func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) error {
+	value, err := strconv.ParseInt(amount, 10, 64)
+	if err != nil {
+		lc.reply("loyalty.points.usage")
+		return nil
+	}
+	if value > 0 {
+		value = -value
+	}
+	return lc.pointsAdjust(ctx, target, strconv.FormatInt(value, 10), false)
+}
+
+// leaderboardShow answers "!leaderboard [n]": the channel's top standings by
+// {name}, names bare so a spammy invocation cannot ping half the roster.
+func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
+	limit := defaultLeaderboardLimit
+	if args = strings.TrimSpace(args); args != "" {
+		n, err := strconv.Atoi(args)
+		if err != nil || n < 1 || n > maxLeaderboardLimit {
+			lc.reply("loyalty.leaderboard.usage")
+			return nil
+		}
+		limit = n
+	}
+	top, err := lc.d.Loyalty.Top(ctx, lc.c.BroadcasterID, limit)
+	if err != nil {
+		lc.log.Warn("loyalty: top read failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.reply("loyalty.counter.err")
+		return nil
+	}
+	if len(top) == 0 {
+		lc.reply("loyalty.leaderboard.empty")
+		return nil
+	}
+	var b strings.Builder
+	for i, row := range top {
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		name := row.ViewerName
+		if name == "" {
+			name = row.ViewerLogin
+		}
+		fmt.Fprintf(&b, "%d. %s %d", i+1, name, row.Points)
+	}
+	var cfg engine.LoyaltyModuleConfig
+	_ = lc.c.Decode(&cfg)
+	lc.reply("loyalty.leaderboard", "list", b.String(), "name", cfg.Name())
 	return nil
 }
 
