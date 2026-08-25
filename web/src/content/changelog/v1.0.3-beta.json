@@ -1,0 +1,14 @@
+{
+  "tag": "beta",
+  "version": "v1.0.3-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "BYO Spotify Apps & Modules Directory",
+    "fr": "Apps Spotify personnelles et annuaire des modules"
+  },
+  "description": {
+    "en": "Each broadcaster registers their own Spotify app and connects against it, and !current reads the live player instead of the queue. The modules page is a searchable directory, Add to Twitch jumps straight into dashboard OAuth, and marketing cards match the header orbs.",
+    "fr": "Chaque diffuseur enregistre sa propre application Spotify et s'y connecte, et !current lit le lecteur en direct plutôt que la file. La page modules devient un annuaire avec recherche, Ajouter à Twitch ouvre directement l'OAuth du dashboard, et les cartes du site reprennent les orbes de l'en-tête."
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.3-beta"
+}
