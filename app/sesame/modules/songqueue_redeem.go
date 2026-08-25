@@ -32,7 +32,7 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 			r.refund("song requests via channel points are turned off, your points were refunded")
 			return nil
 		}
-		if !songqueueLivePermits(ctx, d.Live, cfg.AllowOffline, c.BroadcasterID, log) {
+		if !qc.livePermits(ctx, cfg.AllowOffline) {
 			r.refund("song requests only work while live, your points were refunded")
 			return nil
 		}
@@ -42,19 +42,51 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 
 // decodeSongqueueRedemption pulls the redeem binding and the redemption event,
 // returning ok=false for anything that is not this module's configured reward.
+// One guard per reason, in the order they can fail: no store, no binding, an
+// unreadable event, someone else's reward.
 func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger) (songQueueCmd, songqueueRedeem, redemptionEvent, bool) {
+	var none songQueueCmd
 	qc, ok := newSongQueueCmd(d, c, log)
-	if !ok || qc.cfg.Redeem == nil || qc.cfg.Redeem.RewardID == "" || len(c.Env.Event) == 0 {
-		return songQueueCmd{}, songqueueRedeem{}, redemptionEvent{}, false
+	if !ok {
+		return none, songqueueRedeem{}, redemptionEvent{}, false
+	}
+	cfg, bound := qc.redeemBinding()
+	if !bound {
+		return none, songqueueRedeem{}, redemptionEvent{}, false
+	}
+	ev, read := redemptionOf(c)
+	if !read {
+		return none, songqueueRedeem{}, ev, false
+	}
+	if ev.Reward.ID != cfg.RewardID {
+		return none, songqueueRedeem{}, ev, false
+	}
+	return qc, cfg, ev, true
+}
+
+// redeemBinding is the channel-points path's config, and whether it names a
+// reward at all: an unbound path has nothing a redemption could match.
+func (qc songQueueCmd) redeemBinding() (songqueueRedeem, bool) {
+	if qc.cfg.Redeem == nil {
+		return songqueueRedeem{}, false
+	}
+	if qc.cfg.Redeem.RewardID == "" {
+		return songqueueRedeem{}, false
+	}
+	return *qc.cfg.Redeem, true
+}
+
+// redemptionOf reads the redemption off the envelope. An empty or unreadable
+// payload is not this module's business either way.
+func redemptionOf(c *module.Context) (redemptionEvent, bool) {
+	if len(c.Env.Event) == 0 {
+		return redemptionEvent{}, false
 	}
 	var ev redemptionEvent
 	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-		return songQueueCmd{}, songqueueRedeem{}, ev, false
+		return ev, false
 	}
-	if ev.Reward.ID != qc.cfg.Redeem.RewardID {
-		return songQueueCmd{}, songqueueRedeem{}, ev, false
-	}
-	return qc, *qc.cfg.Redeem, ev, true
+	return ev, true
 }
 
 // songqueueRedeemRun is one redemption in flight.

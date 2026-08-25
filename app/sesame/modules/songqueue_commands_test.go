@@ -113,23 +113,15 @@ func TestSongCommandCarriesTheSpokenAliases(t *testing.T) {
 
 // !skip carries the moderator gate on the command itself, where !sr next has to
 // enforce it by hand because a bare word there could also be a song title.
-func TestSkipCommandIsModeratorOnly(t *testing.T) {
-	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
-	cmd := findCmd(t, m, "skip")
-	assert.Equal(t, module.RoleModerator, cmd.Perm)
-}
-
 func TestSkipCommandPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	cmd := findCmd(t, m, "skip")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), songCtx("9", "mod", "moderator"), "", col.emit))
+	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"), "")
 
-	assert.Contains(t, chatText(t, col.out), "Human")
+	assert.Contains(t, chatText(t, out), "Human")
 }
 
 // The viewer queue module owns !queue, and command precedence is registration
@@ -143,14 +135,23 @@ func TestSongQueueDoesNotClaimQueueCommand(t *testing.T) {
 	}
 }
 
-func TestSkipCommandCarriesNextAlias(t *testing.T) {
-	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
-	assert.Contains(t, findCmd(t, m, "skip").Aliases, "next")
+// runSongCmd invokes one standalone command and returns what it emitted.
+func runSongCmd(t *testing.T, m module.Module, name string, c *module.Context, args string) []module.Output {
+	t.Helper()
+	var col collector
+	require.NoError(t, findCmd(t, m, name).Run(context.Background(), c, args, col.emit))
+	return col.out
 }
 
-func TestClearCommandIsModeratorOnly(t *testing.T) {
+// The mod verbs carry their grant on the registration; !remove is Everyone
+// because bare it retracts the caller's OWN request (the positional form
+// inside actRemove is what checks for a moderator).
+func TestStandaloneCommandPerms(t *testing.T) {
 	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
+	assert.Equal(t, module.RoleModerator, findCmd(t, m, "skip").Perm)
+	assert.Contains(t, findCmd(t, m, "skip").Aliases, "next")
 	assert.Equal(t, module.RoleModerator, findCmd(t, m, "clear").Perm)
+	assert.Equal(t, module.RoleEveryone, findCmd(t, m, "remove").Perm)
 }
 
 func TestClearCommandEmptiesQueue(t *testing.T) {
@@ -160,31 +161,25 @@ func TestClearCommandEmptiesQueue(t *testing.T) {
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	cmd := findCmd(t, m, "clear")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), songCtx("9", "mod", "moderator"), "", col.emit))
+	out := runSongCmd(t, m, "clear", songCtx("9", "mod", "moderator"), "")
 
 	assert.Empty(t, store.up)
-	assert.Contains(t, chatText(t, col.out), "cleared")
+	assert.Contains(t, chatText(t, out), "cleared")
 }
 
-// !remove with no argument is the caller taking back their OWN request, which
-// is why the command itself is Everyone: the positional form inside actRemove
-// carries the moderator check.
 func TestRemoveCommandRetractsOwn(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Mine", RequesterID: "42", RequesterName: "alice"},
 	}}
 	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	cmd := findCmd(t, m, "remove")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), songCtx("42", "alice"), "", col.emit))
+	out := runSongCmd(t, m, "remove", songCtx("42", "alice"), "")
 
 	assert.Empty(t, store.up)
-	assert.Contains(t, chatText(t, col.out), "Mine")
+	assert.Contains(t, chatText(t, out), "Mine")
 }
 
+// !sr skip is the same advance as the standalone spelling.
 func TestSRSkipVerbPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},

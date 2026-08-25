@@ -429,24 +429,24 @@ func (qc songQueueCmd) chatLiveOK(ctx context.Context) bool {
 	if qc.cfg.Sr == nil {
 		return true
 	}
-	return songqueueLivePermits(ctx, qc.live, qc.cfg.Sr.AllowOffline, qc.c.BroadcasterID, qc.log)
+	return qc.livePermits(ctx, qc.cfg.Sr.AllowOffline)
 }
 
-// songqueueLivePermits mirrors goveeLivePermits: live-only by default,
-// AllowOffline opts out, and a live-check error fails CLOSED — a queue that
-// fills while the stream is down is worse than an add that did not land.
-func songqueueLivePermits(ctx context.Context, live engine.IsLiveChecker, allowOffline bool, broadcasterID uint64, log *zap.Logger) bool {
+// livePermits mirrors goveeLivePermits: live-only by default, AllowOffline
+// opts out, and a live-check error fails CLOSED — a queue that fills while the
+// stream is down is worse than an add that did not land. It hangs off the
+// command struct because both request paths already hold one, and the checker,
+// the logger and the broadcaster id all come from it.
+func (qc songQueueCmd) livePermits(ctx context.Context, allowOffline bool) bool {
 	if allowOffline {
 		return true
 	}
-	if live == nil {
+	if qc.live == nil {
 		return true
 	}
-	ok, err := live.IsLive(ctx, broadcasterID)
+	ok, err := qc.live.IsLive(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		if log != nil {
-			log.Warn("songqueue: live check failed, denying", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		}
+		qc.log.Warn("songqueue: live check failed, denying", qc.bid(), zap.Error(err))
 		return false
 	}
 	return ok
