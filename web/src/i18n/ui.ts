@@ -101,6 +101,18 @@ export function languageName(lang: Lang): string {
   return catalog[lang]?.['lang.name'] ?? lang;
 }
 
+// Add to Twitch must hit the dashboard OAuth *start*, not the console origin.
+// /auth/login sets the host-only state/nonce cookies, 302s to Twitch, and the
+// callback lands the visitor in the console. Linking the origin instead showed
+// /login first (an extra click) and never bound CSRF to the dashboard host if
+// we ever built the authorize URL on this site. Footer "Dashboard" still uses
+// the origin; only the CTA uses this.
+const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
+
+export function dashLoginHref(lang: Lang): string {
+  return lang === defaultLang ? DASHBOARD_LOGIN : `${DASHBOARD_LOGIN}?lang=${lang}`;
+}
+
 // Build-time parity warning: for every non-English locale, list the keys it is
 // missing (rendered in English) or carries in excess (typos / stale keys). Runs
 // once at module init during `astro build`; never fails the build.

@@ -8,6 +8,7 @@ import { env } from '$env/dynamic/private';
 import { generateState } from '@bagel/shared/server/oauth';
 import { randomBytes } from 'node:crypto';
 import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
+import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
 
 // Gated on the build-time `dev` constant first, so Rollup erases the demo
 // branch from production builds.
@@ -22,11 +23,23 @@ const DEMO = dev && env.DEMO === '1';
 // callback (CSRF protection for OAuth). Nonce is also generated and stored:
 // the shared Twitch client does not accept a nonce arg, so we append it
 // directly to the URL and verify claims.nonce in the callback.
-export const load: PageServerLoad = ({ cookies, url }) => {
+export const load: PageServerLoad = ({ cookies, url, locals }) => {
   // DEMO has no Twitch app credentials and already synthesizes a session in
   // (app)/+layout.server.ts. Sending the visitor to Twitch would 500; send
   // them into the demo console instead, honouring ?next= when it is safe.
   if (DEMO) {
+    throw redirect(302, safeNextPath(url.searchParams.get('next')) ?? '/');
+  }
+
+  // Signed-in marketing CTA: land in the console. Reconnect and delegate-accept
+  // opt out of this skip (see skipAuthorizeIfSignedIn).
+  if (
+    skipAuthorizeIfSignedIn({
+      hasSession: !!locals.session,
+      pendingDelegation: cookies.get('pending_delegation'),
+      reauth: url.searchParams.get('reauth')
+    })
+  ) {
     throw redirect(302, safeNextPath(url.searchParams.get('next')) ?? '/');
   }
 

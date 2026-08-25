@@ -9,8 +9,10 @@ import { DEFAULT_LOCALE, type Locale } from '@bagel/shared/i18n';
 
 /** The live marketing site. */
 export const WEB = 'https://itsbagelbot.com';
-/** This app's own public origin, used by the nav CTA and the footer. */
+/** This app's own public origin, used by the footer Dashboard link. */
 export const DASH = 'https://dashboard.itsbagelbot.com';
+/** OAuth start. Add to Twitch hits this so Twitch redirects into the console. */
+export const DASH_LOGIN = `${DASH}/auth/login`;
 
 /** One entry in the public nav's link row. */
 export interface PublicNavLink {
@@ -35,10 +37,14 @@ export function webHome(locale: Locale): string {
 }
 
 /**
- * The dashboard entry point. The dashboard has no /<locale> routes — it reads
- * ?lang= — so a non-default locale rides over as a query, exactly as the
- * marketing nav's CTA builds it.
+ * The dashboard origin. The dashboard has no /<locale> routes — it reads
+ * ?lang= — so a non-default locale rides over as a query. Footer "Dashboard"
+ * uses this; Add to Twitch uses dashLoginHref so the click starts OAuth.
  */
 export function dashHref(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? DASH : `${DASH}?lang=${locale}`;
+}
+
+export function dashLoginHref(locale: Locale): string {
+  return locale === DEFAULT_LOCALE ? DASH_LOGIN : `${DASH_LOGIN}?lang=${locale}`;
 }
