@@ -73,6 +73,17 @@ export class OAuth2Tokens {
     throw new Error("Missing or invalid 'refresh_token' field");
   }
 
+  // For providers where a missing refresh token has a defined meaning (Google
+  // re-consent) instead of being a protocol violation: absence is a value the
+  // caller decides on, not an error.
+  refreshTokenOptional(): string | undefined {
+    return typeof this.result.refresh_token === 'string' ? this.result.refresh_token : undefined;
+  }
+
+  expiresIn(): number | undefined {
+    return typeof this.result.expires_in === 'number' ? this.result.expires_in : undefined;
+  }
+
   // Claims come back already validated (issuer, audience, expiry, nonce) by
   // processAuthorizationCodeResponse's ID Token processing.
   claims(): IDToken {
@@ -167,6 +178,67 @@ export class Twitch {
         ...(nonce ? { expectedNonce: nonce } : {})
       }
     );
+    return new OAuth2Tokens(result as unknown as Record<string, unknown>);
+  }
+}
+
+// Same pinned-metadata trust model as Twitch above. Google is plain OAuth2 for
+// this flow (no openid scope -> no id_token to validate), so the exchange runs
+// the OAuth2-only response path and carries no nonce handling. CSRF stays with
+// the routes' state cookie; PKCE stays off exactly like the Twitch flow.
+const GOOGLE_AS: AuthorizationServer = {
+  issuer: 'https://accounts.google.com',
+  authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  token_endpoint: 'https://oauth2.googleapis.com/token'
+};
+
+export class Google {
+  private readonly client: Client;
+  private readonly clientAuth: ClientAuth;
+
+  constructor(
+    private readonly clientId: string,
+    clientSecret: string,
+    private readonly redirectURI: string
+  ) {
+    this.client = { client_id: clientId };
+    // Google accepts client_secret_post (credentials in the form body), which
+    // keeps both providers on the same auth method.
+    this.clientAuth = ClientSecretPost(clientSecret);
+  }
+
+  createAuthorizationURL(state: string, scopes: string[]): URL {
+    const url = new URL(GOOGLE_AS.authorization_endpoint!);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', this.clientId);
+    url.searchParams.set('state', state);
+    if (scopes.length > 0) url.searchParams.set('scope', scopes.join(' '));
+    url.searchParams.set('redirect_uri', this.redirectURI);
+    // access_type=offline asks for a refresh token at all; without
+    // prompt=consent Google issues one only on the very first consent for a
+    // given scope set, so every connect forces the consent screen to keep
+    // re-connects from silently returning access-token-only responses.
+    url.searchParams.set('access_type', 'offline');
+    url.searchParams.set('prompt', 'consent');
+    return url;
+  }
+
+  async validateAuthorizationCode(code: string): Promise<OAuth2Tokens> {
+    const callbackParameters = validateAuthResponse(
+      GOOGLE_AS,
+      this.client,
+      new URLSearchParams({ code }),
+      skipStateCheck
+    );
+    const response = await authorizationCodeGrantRequest(
+      GOOGLE_AS,
+      this.client,
+      this.clientAuth,
+      callbackParameters,
+      this.redirectURI,
+      nopkce
+    );
+    const result = await processAuthorizationCodeResponse(GOOGLE_AS, this.client, response);
     return new OAuth2Tokens(result as unknown as Record<string, unknown>);
   }
 }

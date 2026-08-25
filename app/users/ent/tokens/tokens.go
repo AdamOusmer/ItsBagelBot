@@ -22,6 +22,8 @@ const (
 	FieldRefreshToken = "refresh_token"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldYoutubeChannelID holds the string denoting the youtube_channel_id field in the database.
+	FieldYoutubeChannelID = "youtube_channel_id"
 	// FieldAccessTokenExpiresAt holds the string denoting the access_token_expires_at field in the database.
 	FieldAccessTokenExpiresAt = "access_token_expires_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldToken,
 	FieldRefreshToken,
 	FieldPlatform,
+	FieldYoutubeChannelID,
 	FieldAccessTokenExpiresAt,
 }
 
@@ -102,7 +105,8 @@ const DefaultPlatform = PlatformTwitch
 
 // Platform values.
 const (
-	PlatformTwitch Platform = "twitch"
+	PlatformTwitch  Platform = "twitch"
+	PlatformYoutube Platform = "youtube"
 )
 
 func (pl Platform) String() string {
@@ -112,7 +116,7 @@ func (pl Platform) String() string {
 // PlatformValidator is a validator for the "platform" field enum values. It is called by the builders before save.
 func PlatformValidator(pl Platform) error {
 	switch pl {
-	case PlatformTwitch:
+	case PlatformTwitch, PlatformYoutube:
 		return nil
 	default:
 		return fmt.Errorf("tokens: invalid enum value for platform field: %q", pl)
@@ -135,6 +139,11 @@ func ByType(opts ...sql.OrderTermOption) OrderOption {
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByYoutubeChannelID orders the results by the youtube_channel_id field.
+func ByYoutubeChannelID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldYoutubeChannelID, opts...).ToFunc()
 }
 
 // ByAccessTokenExpiresAt orders the results by the access_token_expires_at field.

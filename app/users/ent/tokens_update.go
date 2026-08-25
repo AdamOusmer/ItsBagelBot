@@ -75,6 +75,26 @@ func (_u *TokensUpdate) SetNillablePlatform(v *tokens.Platform) *TokensUpdate {
 	return _u
 }
 
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (_u *TokensUpdate) SetYoutubeChannelID(v string) *TokensUpdate {
+	_u.mutation.SetYoutubeChannelID(v)
+	return _u
+}
+
+// SetNillableYoutubeChannelID sets the "youtube_channel_id" field if the given value is not nil.
+func (_u *TokensUpdate) SetNillableYoutubeChannelID(v *string) *TokensUpdate {
+	if v != nil {
+		_u.SetYoutubeChannelID(*v)
+	}
+	return _u
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (_u *TokensUpdate) ClearYoutubeChannelID() *TokensUpdate {
+	_u.mutation.ClearYoutubeChannelID()
+	return _u
+}
+
 // SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
 func (_u *TokensUpdate) SetAccessTokenExpiresAt(v time.Time) *TokensUpdate {
 	_u.mutation.SetAccessTokenExpiresAt(v)
@@ -189,6 +209,12 @@ func (_u *TokensUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.YoutubeChannelID(); ok {
+		_spec.SetField(tokens.FieldYoutubeChannelID, field.TypeString, value)
+	}
+	if _u.mutation.YoutubeChannelIDCleared() {
+		_spec.ClearField(tokens.FieldYoutubeChannelID, field.TypeString)
+	}
 	if value, ok := _u.mutation.AccessTokenExpiresAt(); ok {
 		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)
 	}
@@ -287,6 +313,26 @@ func (_u *TokensUpdateOne) SetNillablePlatform(v *tokens.Platform) *TokensUpdate
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (_u *TokensUpdateOne) SetYoutubeChannelID(v string) *TokensUpdateOne {
+	_u.mutation.SetYoutubeChannelID(v)
+	return _u
+}
+
+// SetNillableYoutubeChannelID sets the "youtube_channel_id" field if the given value is not nil.
+func (_u *TokensUpdateOne) SetNillableYoutubeChannelID(v *string) *TokensUpdateOne {
+	if v != nil {
+		_u.SetYoutubeChannelID(*v)
+	}
+	return _u
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (_u *TokensUpdateOne) ClearYoutubeChannelID() *TokensUpdateOne {
+	_u.mutation.ClearYoutubeChannelID()
 	return _u
 }
 
@@ -433,6 +479,12 @@ func (_u *TokensUpdateOne) sqlSave(ctx context.Context) (_node *Tokens, err erro
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.YoutubeChannelID(); ok {
+		_spec.SetField(tokens.FieldYoutubeChannelID, field.TypeString, value)
+	}
+	if _u.mutation.YoutubeChannelIDCleared() {
+		_spec.ClearField(tokens.FieldYoutubeChannelID, field.TypeString)
 	}
 	if value, ok := _u.mutation.AccessTokenExpiresAt(); ok {
 		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)

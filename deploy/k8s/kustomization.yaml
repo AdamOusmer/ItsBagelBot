@@ -33,6 +33,12 @@ resources:
   - sesame.yaml
   - status-routes.yaml
   - twitch-ingress.yaml
+  # youtube-ingress mirrors twitch-ingress (BEAM cluster via headless svc,
+  # PDB, status Service). Its image pin is still the placeholder tag, so an
+  # apply here stays ImagePullBackOff until a real build digest replaces it —
+  # listed anyway so the NATS authz (YOUTUBE_INGRESS_RPC), network policies and
+  # this manifest land as one reviewable unit.
+  - youtube-ingress.yaml
   - network-policies.yaml
   # Edge error pages: unrouted hosts + dead-backend 5xx get web/'s coded
   # 404/500 instead of traefik's plain-text defaults.

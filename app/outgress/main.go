@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/tokenstore"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/app/outgress/internal/worker"
+	"ItsBagelBot/app/outgress/internal/youtube"
 	"ItsBagelBot/app/outgress/rpc"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
@@ -93,7 +94,14 @@ func main() {
 	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
 	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
 	// EventSub enroll survives a rollout gap instead of being purged.
-	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
+	//
+	// The YouTube pair rides along under the same guarantee: YOUTUBE_OUTGRESS
+	// because its work-queue subjects are perishable commands like Twitch's,
+	// YOUTUBE_INGRESS because outgress is the stream's only consumer today (it
+	// feeds the live-chat directory) and yt-ingress publishes without ever
+	// provisioning — a missing stream would silently degrade every publish to
+	// at-most-once core NATS and starve the directory of lifecycle events.
+	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream, bus.YouTubeOutgressStream, bus.YouTubeIngressStream}, log),
 		"failed to provision outgress streams")
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
@@ -125,14 +133,17 @@ func main() {
 	limiter, closeLimiter := d.newLeaseLimiter(ctx)
 	defer closeLimiter()
 
-	premium, standard, system, closeWorkers := d.newLaneWorkers(tw, limiter, registry)
+	premium, standard, system, closeWorkers := d.newLaneWorkers(ctx, tw, limiter, registry)
 	defer closeWorkers()
+
+	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
+	defer closeSubs()
 
 	closeTokenWarm := d.startTokenWarmListener(system)
 	defer closeTokenWarm()
 
-	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
-	defer closeSubs()
+	ytPremiumSub, ytStandardSub, closeYTSubs := d.youTubeLaneSubscribers()
+	defer closeYTSubs()
 
 	// Streamer-facing messaging attaches before ANY consumer that can reach it.
 	// The system lane needs it for the go-live beacon and the authz consumers;
@@ -152,6 +163,11 @@ func main() {
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
 		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
+		// YouTube chat volume sits orders of magnitude below Twitch's (see
+		// YouTubeOutgressStream's MaxBytes note), so both lanes ride the same
+		// central weighted consumer with no premium reserve of their own.
+		{Sub: ytPremiumSub, Subject: cfg.YouTubePremiumSubject, Handle: premium.Process},
+		{Sub: ytStandardSub, Subject: cfg.YouTubeStandardSubject, Handle: standard.Process},
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
@@ -411,7 +427,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 // traffic for the general budget. It also resolves live re-checks
 // (stream_status jobs) and writes the result back into the live projection for
 // the worker fleet.
-func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry) (premium, standard, system *worker.Worker, cleanup func()) {
+func (d *deps) newLaneWorkers(ctx context.Context, tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry) (premium, standard, system *worker.Worker, cleanup func()) {
 	batch := worker.NewValkeyBatchStore(d.valkey)
 	base := worker.Config{
 		Limiter:  limiter,
@@ -438,6 +454,27 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
 	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
+
+	// Guard buckets ride a direct central limiter, never the lease manager —
+	// see internal/worker/guards.go for why the coordinator must not be able
+	// to shrink them during an incident.
+	guards := ratelimit.New(d.valkey)
+	premium.SetGuardLimiter(guards)
+	standard.SetGuardLimiter(guards)
+	system.SetGuardLimiter(guards)
+
+	// YouTube attaches to the two chat lanes (the system lane stays
+	// Twitch-only): one client, one fleet-shared quota budget and one chat
+	// directory serve both lanes. The pacing knob is retuned once here, before
+	// any consumer starts.
+	ytDirectory := youtube.NewChatDirectory()
+	ytClient := youtube.NewClient(d.newYouTubeTokens())
+	ytBudget := youtube.NewBudget(d.valkey, d.cfg.YouTubeQuotaDailyUnits)
+	premium.SetYouTube(ytClient, ytBudget, ytDirectory)
+	standard.SetYouTube(ytClient, ytBudget, ytDirectory)
+	worker.SetYouTubePacing(d.cfg.YouTubeChatMinInterval)
+
+	d.startYTLifecycleLane(ctx, ytDirectory)
 
 	return premium, standard, system, modVerifier.Close
 }
@@ -468,6 +505,30 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscri
 		_ = systemSub.Close()
 		_ = standardSub.Close()
 		_ = premiumSub.Close()
+	}
+}
+
+// youTubeLaneSubscribers binds the two YouTube chat lanes on YOUTUBE_OUTGRESS.
+// Same redelivery budget as their Twitch twins — both streams share the 5s
+// work-queue MaxAge, so a message that exhausts its budget dies of age either
+// way and a longer local budget would only spin against expired messages.
+func (d *deps) youTubeLaneSubscribers() (ytPremiumSub, ytStandardSub bus.Subscriber, closeAll func()) {
+	var err error
+	ytPremiumSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.YouTubeOutgressStream.Name, Subject: d.cfg.YouTubePremiumSubject,
+		Group: "outgress-youtube-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
+	fatalIf(d.log, err, "failed to connect youtube premium subscriber")
+
+	ytStandardSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.YouTubeOutgressStream.Name, Subject: d.cfg.YouTubeStandardSubject,
+		Group: "outgress-youtube-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
+	fatalIf(d.log, err, "failed to connect youtube standard subscriber")
+
+	return ytPremiumSub, ytStandardSub, func() {
+		_ = ytStandardSub.Close()
+		_ = ytPremiumSub.Close()
 	}
 }
 

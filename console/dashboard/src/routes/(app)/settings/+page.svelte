@@ -144,14 +144,32 @@
   <!-- ACCOUNT -->
   <section id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
     <h2 id="h-account">{t('settings.account')}</h2>
-    <div class="row">
-      <div>
-        <b>{t('settings.reconnectTwitch')}</b>
-        <p class="hint">{t('settings.reconnectTwitchHint')}</p>
+      <div class="row">
+        <div>
+          <b>{t('settings.reconnectTwitch')}</b>
+          <p class="hint">{t('settings.reconnectTwitchHint')}</p>
+        </div>
+        <ButtonLink href="/auth/login" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
       </div>
-      <ButtonLink href="/auth/login" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
-    </div>
-  </section>
+      <div class="row">
+        <div>
+          <b>{t('settings.connectYouTube')}</b>
+          <p class="hint">{t('settings.connectYouTubeHint')}</p>
+        </div>
+        {#if data.youtubeConnected}
+          <span>{t('settings.youTubeConnectedPill')}</span>
+        {:else}
+          <ButtonLink href="/youtube/connect" variant="ghost" icon="link">{t('common.connect')}</ButtonLink>
+        {/if}
+      </div>
+      {#if data.youtubeNotice && data.youtubeNotice !== 'connected'}
+        <p class="hint">
+          {data.youtubeNotice === 'nochannel'
+            ? t('settings.youTubeNoChannel')
+            : t('settings.youTubeFailed')}
+        </p>
+      {/if}
+    </section>
 
   <!-- IMPORT: prominent entry to the config-import flow (/settings/import).
        Kept as its own section so the section nav and the onboarding CTA have

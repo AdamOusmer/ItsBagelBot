@@ -7,13 +7,20 @@
 // on every login. These tests run the REAL library parser over Twitch-shaped
 // bodies, so a future oauth4webapi bump that changes strictness — or a future
 // Twitch fix that removes the quirk — surfaces here instead of at login.
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, test } from 'bun:test';
 import {
   processAuthorizationCodeResponse,
   type AuthorizationServer,
   type Client
 } from 'oauth4webapi';
-import { __normalizeTwitchScopeForTests as normalizeTwitchScope } from './oauth';
+import {
+  __normalizeTwitchScopeForTests as normalizeTwitchScope,
+  Google,
+  OAuth2Tokens,
+  ResponseBodyError
+} from './oauth';
+
+const GOOGLE = new Google('go-id', 'go-secret', 'https://dash.example/youtube/callback');
 
 const AS: AuthorizationServer = {
   issuer: 'https://id.twitch.tv/oauth2',
@@ -85,5 +92,100 @@ describe('normalizeTwitchScope', () => {
     const resp = new Response('gateway timeout', { status: 200 });
     const out = await normalizeTwitchScope(resp);
     expect(out).toBe(resp);
+  });
+});
+
+function fakeFetch(status: number, body: unknown, capture?: Request[]): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const req = input instanceof Request ? input : new Request(input, init);
+    capture?.push(req);
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }) as typeof fetch;
+}
+
+describe('OAuth2Tokens', () => {
+  test('refuses to hand out missing token fields', () => {
+    const tokens = new OAuth2Tokens({});
+    expect(() => tokens.accessToken()).toThrow('access_token');
+    expect(() => tokens.refreshToken()).toThrow('refresh_token');
+    expect(() => tokens.claims()).toThrow('no ID Token');
+  });
+});
+
+describe('Google', () => {
+  test('authorize URL carries offline access + forced consent, byte-for-byte', () => {
+    const url = GOOGLE.createAuthorizationURL('st123', ['https://www.googleapis.com/auth/youtube.force-ssl']);
+    expect(url.toString()).toBe(
+      'https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=go-id' +
+        '&state=st123&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.force-ssl' +
+        '&redirect_uri=https%3A%2F%2Fdash.example%2Fyoutube%2Fcallback' +
+        '&access_type=offline&prompt=consent'
+    );
+  });
+
+  test('exchanges with client_secret_post credentials and keeps expires_in', async () => {
+    const captured: Request[] = [];
+    const original = global.fetch;
+    global.fetch = fakeFetch(
+      200,
+      {
+        access_token: 'at',
+        refresh_token: 'rt',
+        token_type: 'bearer',
+        expires_in: 3599,
+        scope: 'https://www.googleapis.com/auth/youtube.force-ssl'
+      },
+      captured
+    );
+    try {
+      const tokens = await GOOGLE.validateAuthorizationCode('auth-code');
+      expect(tokens.accessToken()).toBe('at');
+      expect(tokens.refreshToken()).toBe('rt');
+      expect(tokens.expiresIn()).toBe(3599);
+    } finally {
+      global.fetch = original;
+    }
+
+    expect(captured).toHaveLength(1);
+    const req = captured[0];
+    expect(req.method).toBe('POST');
+    expect(req.url).toBe('https://oauth2.googleapis.com/token');
+    // Same secret-in-body auth method as Twitch; parameter order is
+    // oauth4webapi's own, pinned so any drift is a deliberate change.
+    expect(await req.text()).toBe(
+      'redirect_uri=https%3A%2F%2Fdash.example%2Fyoutube%2Fcallback' +
+        '&code=auth-code&grant_type=authorization_code' +
+        '&client_id=go-id&client_secret=go-secret'
+    );
+  });
+
+  test('a missing refresh token is a value, not an error', async () => {
+    const original = global.fetch;
+    global.fetch = fakeFetch(200, { access_token: 'at', token_type: 'bearer', expires_in: 3599 });
+    try {
+      const tokens = await GOOGLE.validateAuthorizationCode('auth-code');
+      expect(tokens.refreshTokenOptional()).toBeUndefined();
+    } finally {
+      global.fetch = original;
+    }
+  });
+
+  test('maps a 400 OAuth error body to ResponseBodyError', async () => {
+    const original = global.fetch;
+    global.fetch = fakeFetch(400, { error: 'invalid_grant', error_description: 'code expired' });
+    try {
+      let caught: unknown;
+      try {
+        await GOOGLE.validateAuthorizationCode('bad-code');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ResponseBodyError);
+    } finally {
+      global.fetch = original;
+    }
   });
 });

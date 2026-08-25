@@ -707,3 +707,41 @@ export async function deleteSelf(userId: string): Promise<void> {
 export function startInvalidationListener(): void {
   fabric.start();
 }
+
+// YouTube rides the same grant_has/grant_save verbs as twitch: the users side
+// routes on an optional platform discriminator ("" == twitch), so a separate
+// verb pair would fork one handler into two copies of itself. platform is
+// what selects the Google row; youtube_channel_id binds it to the UC id the
+// token lease RPC (bagel.rpc.youtube.token.get) is addressed by, and
+// access_token_expires_at carries Google's expires_in converted to an
+// absolute time.
+export const youtubeGrantHas = defineRead({
+  subject: `${SUB.dashboard}.grant_has`,
+  request: (userId: string) => ({ broadcaster_user_id: userId, platform: 'youtube' }),
+  map: (r: { has_grant: boolean }) => !!r.has_grant,
+  timeoutMs: READ_TIMEOUT_MS,
+  cache: {
+    fabric,
+    key: (userId: string) => `youtube-grant:${userId}`,
+    policy: POLICY.entity
+  }
+});
+
+export const saveYoutubeGrant = defineWrite({
+  subject: `${SUB.dashboard}.grant_save`,
+  request: (
+    userId: string,
+    accessToken: string,
+    refreshToken: string,
+    youtubeChannelId: string,
+    accessTokenExpiresAt?: string
+  ) => ({
+    broadcaster_user_id: userId,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    platform: 'youtube',
+    youtube_channel_id: youtubeChannelId,
+    ...(accessTokenExpiresAt ? { access_token_expires_at: accessTokenExpiresAt } : {})
+  }),
+  after: (_result: unknown, userId: string) => invalidate(`youtube-grant:${userId}`)
+});

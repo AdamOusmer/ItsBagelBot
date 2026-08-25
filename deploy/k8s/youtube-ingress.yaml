@@ -1,0 +1,248 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# YouTube Ingress (Elixir/BEAM). Secrets sync from Doppler project
+# `youtube-ingress` (config prd) via the operator; the token secret
+# `youtube-ingress-doppler-token` is created out-of-band, never committed.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: youtube-ingress-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: youtube-ingress-doppler-token
+  managedSecret:
+    name: youtube-ingress-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+# Headless service: libcluster (Kubernetes.DNS strategy) resolves it to pod
+# IPs to form the BEAM cluster. publishNotReadyAddresses lets nodes find each
+# other before readiness, which is required for initial cluster formation.
+apiVersion: v1
+kind: Service
+metadata:
+  name: yt-ingress-headless
+  namespace: app
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: youtube-ingress
+  ports:
+    - name: epmd
+      port: 4369
+    - name: erlang-dist
+      port: 9100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: youtube-ingress
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  # Two replicas to start: YouTube coverage is a handful of linked channels,
+  # and every replica burns discovery quota (liveBroadcasts.list per channel
+  # per tick). Scale with the watch list, not preemptively.
+  replicas: 2
+  revisionHistoryLimit: 3
+  # On SIGTERM each pod hands its chat sessions off make-before-break
+  # (YtIngress.Drain): the successor connects on a peer before the local
+  # channel closes, so a rollout leaves no discovery gap.
+  minReadySeconds: 60
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: youtube-ingress
+  template:
+    metadata:
+      labels:
+        app: youtube-ingress
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      topologySpreadConstraints:
+        # Same shape as twitch-ingress: matchLabelKeys scopes the skew to the
+        # current ReplicaSet so every roll re-spreads one-per-node.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: youtube-ingress
+      # Same resolver posture as twitch-ingress: external names (here also
+      # googleapis.com for the streamList gRPC dial) must not fan out through
+      # the cluster search domains, and A/AAAA races are dodged by reopening.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 999 # the image's `ingress` user; numeric so kubelet can verify
+        runAsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: ingress
+          image: ghcr.io/adamousmer/itsbagelbot/youtube-ingress:main-0000000000-placeholder
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: youtube-ingress-env
+          env:
+            # Serve HTTPS on 8080 with the cert-manager youtube-ingress-tls cert
+            # so the traefik hop to /status is TLS end-to-end. Both or neither;
+            # a half-set pair fails the boot.
+            - name: TLS_CERT_FILE
+              value: /etc/yt-ingress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/yt-ingress/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager).
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NATS_HOST
+              value: nats.messaging.svc.cluster.local
+            # RPC plane on the leaf, BUS firehose direct to the hub — same
+            # two-account split as twitch-ingress.
+            - name: NATS_LEAF_HOST
+              value: nats-leaf.messaging.svc.cluster.local
+            - name: NATS_HUB_HOST
+              value: nats.messaging.svc.cluster.local
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: RELEASE_DISTRIBUTION
+              value: name
+            # Must match BAGELBOT_K8S_APP_NAME below: that is the prefix
+            # libcluster's Kubernetes DNS strategy builds peer node names from.
+            - name: RELEASE_NODE
+              value: yt-ingress@$(POD_IP)
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: youtube-ingress-env
+                  key: BAGELBOT_ERLANG_COOKIE
+            - name: NEW_RELIC_APP_NAME
+              value: "ItsBagelBot-YoutubeIngress"
+            - name: NEW_RELIC_LOGS_IN_CONTEXT
+              value: "forwarder"
+            # Match schedulers to the CPU limit like twitch-ingress.
+            - name: ERL_FLAGS
+              value: >-
+                +S 2:2 +SDcpu 2:2 +SDio 2 +sbwt short +sbwtdcpu none +sbwtdio none -kernel inet_dist_listen_min 9100 -kernel inet_dist_listen_max 9110
+          resources:
+            requests:
+              # Chat volume per session is tiny next to the Twitch firehose;
+              # the budget is dominated by the idle BEAM plus one HTTP/2
+              # connection per active live chat.
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/yt-ingress/tls, readOnly: true}
+          ports:
+            - name: status
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              # Delay SIGTERM so cluster membership settles before the drain
+              # runs in prep_stop (successor connects on a peer, then the
+              # local channel closes). Drain (~12s worst case) + this sleep
+              # must stay inside terminationGracePeriodSeconds.
+              sleep:
+                seconds: 10
+          livenessProbe:
+            exec:
+              command: ["/app/bin/yt_ingress", "pid"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["/app/bin/yt_ingress", "pid"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: youtube-ingress-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: youtube-ingress
+  namespace: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: youtube-ingress
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yt-ingress-status
+  namespace: app
+spec:
+  trafficDistribution: PreferSameNode
+  selector:
+    app: youtube-ingress
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080

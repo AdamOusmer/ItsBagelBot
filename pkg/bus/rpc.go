@@ -109,11 +109,50 @@ func QueueSubscribeJSON[Req any, Resp any](
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
+	err := QueueSubscribeRPC(nc, subject, queueGroup,
+		jsonRPCHandler[Req, Resp](subject, timeout, app, log, handle))
+	if err != nil {
+		return fmt.Errorf("subscribe %s: %w", subject, err)
+	}
+	if err := nc.Flush(); err != nil {
+		return fmt.Errorf("flush subscription %s: %w", subject, err)
+	}
+	return nil
+}
+
+// QueueSubscribeJSONConcurrent is QueueSubscribeJSON with the handler moved onto
+// an RPCPool, for handlers that are safe to run concurrently with themselves
+// (see RPCPool for what that means and why it is opt-in). The pipeline — decode,
+// transaction, handler, respond — runs whole on the worker goroutine, because a
+// newrelic.Transaction has goroutine affinity and a trace split across
+// goroutines describes nothing.
+func QueueSubscribeJSONConcurrent[Req any, Resp any](
+	nc *nats.Conn,
+	sub RPCSubscription,
+	timeout time.Duration,
+	app *newrelic.Application,
+	log *zap.Logger,
+	handle func(context.Context, Req) Resp,
+) (*RPCPool, error) {
+	return QueueSubscribeRPCConcurrent(nc, sub,
+		jsonRPCHandler[Req, Resp](sub.Subject, timeout, app, log, handle))
+}
+
+// jsonRPCHandler adapts one typed JSON handler into the raw nats.MsgHandler the
+// registration paths share: New Relic transaction joined to the caller's trace,
+// decode with a bad-request envelope, panic recovery that still answers the
+// requester, bounded context, and the common respond/log tail.
+func jsonRPCHandler[Req any, Resp any](
+	subject string,
+	timeout time.Duration,
+	app *newrelic.Application,
+	log *zap.Logger,
+	handle func(context.Context, Req) Resp,
+) nats.MsgHandler {
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
-
-	err := QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
+	return func(msg *nats.Msg) {
 		start := time.Now()
 
 		txn := app.StartTransaction("rpc " + normalizedDestination(subject))
@@ -158,14 +197,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		reply := handle(ctx, req)
 		handleSegment.End()
 		respondAndLog(msg, subject, start, log, txn, reply)
-	})
-	if err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
 	}
-	if err := nc.Flush(); err != nil {
-		return fmt.Errorf("flush subscription %s: %w", subject, err)
-	}
-	return nil
 }
 
 func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {

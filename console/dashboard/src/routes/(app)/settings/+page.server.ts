@@ -17,6 +17,7 @@ import {
   notificationMarkRead,
   notificationMarkPeeked,
   userLocale,
+  youtubeGrantHas,
   type NotificationWire
 } from '$lib/server/services';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
@@ -58,7 +59,11 @@ function ownerAction<R>(
   };
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+// OAuth round-trip notices ride ?youtube=<slug>; anything outside the set the
+// callback can send is dropped so a hand-typed param renders as nothing.
+const YOUTUBE_SLUGS = ['connected', 'state', 'oauth', 'notoken', 'nochannel', 'store', 'unconfigured'];
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
   // page renders and is exercisable without OAuth + NATS.
   if (DEMO) {
@@ -84,11 +89,12 @@ export const load: PageServerLoad = async ({ locals }) => {
   let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult, notifResult, localeResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, youtubeResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
-    userLocale(self)
+    userLocale(self),
+    youtubeGrantHas(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
@@ -103,7 +109,22 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
-  return { given, received, grantableSections: [...SECTIONS], notifications, savedLocale, degraded };
+  // YouTube connect state is a nice-to-have like notifications: a failed
+  // lookup renders as not-connected, never degrades the page.
+  const youtubeConnected = youtubeResult.status === 'fulfilled' && youtubeResult.value;
+  const rawNotice = url.searchParams.get('youtube') ?? '';
+  const youtubeNotice = YOUTUBE_SLUGS.includes(rawNotice) ? rawNotice : '';
+
+  return {
+    given,
+    received,
+    grantableSections: [...SECTIONS],
+    notifications,
+    savedLocale,
+    degraded,
+    youtubeConnected,
+    youtubeNotice
+  };
 };
 
 export const actions: Actions = {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -202,13 +203,34 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	d.writeThenInvalidate(ctx, msg, "grant", req.BroadcasterUserID, "grant_save",
 		func(ctx context.Context) error {
-			// Expiry unknown here: the dashboard's OAuth callback doesn't
-			// forward Twitch's expires_in through GrantSaveRequest today, so
-			// nil (see UpsertToken's doc) is correct -- outgress's
-			// stored-token refresh path fills it in on the token's first
-			// rotation through that path.
-			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken), nil)
+			return d.saveGrant(ctx, id, req)
 		})
+}
+
+// saveGrant routes one console-posted OAuth grant to its credential row. The
+// twitch branch is byte-for-byte today's behaviour (empty Platform included);
+// youtube is the Google mirror: the console exchanges the authorization code
+// against Google itself -- exactly where Twitch's exchange lives today, via
+// validateAuthorizationCode -- then posts the resulting tokens here.
+//
+// Expiry handling differs by necessity: Twitch's callback doesn't forward
+// expires_in (nil stays correct there), while Google's token response does
+// and the lease RPC's expires_at contract needs it from the first save.
+func (d *dashboardRPC) saveGrant(ctx context.Context, id uint64, req usersrpc.GrantSaveRequest) error {
+	switch strings.ToLower(req.Platform) {
+	case "", "twitch":
+		return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
+			[]byte(req.AccessToken), []byte(req.RefreshToken), nil)
+	case "youtube":
+		if req.YouTubeChannelID == "" {
+			return repository.ErrYouTubeChannelInvalid
+		}
+		return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformYoutube,
+			[]byte(req.AccessToken), []byte(req.RefreshToken), req.AccessTokenExpiresAt,
+			repository.WithYouTubeChannelID(req.YouTubeChannelID))
+	default:
+		return fmt.Errorf("unsupported platform %q", req.Platform)
+	}
 }
 
 func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
@@ -224,7 +246,15 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	accessToken, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
+	platform := tokens.PlatformTwitch
+	if strings.EqualFold(req.Platform, "youtube") {
+		platform = tokens.PlatformYoutube
+	} else if req.Platform != "" && !strings.EqualFold(req.Platform, "twitch") {
+		respondErr(msg, "unsupported platform")
+		return
+	}
+
+	accessToken, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, platform)
 	hasGrant := err == nil && len(accessToken) > 0
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }

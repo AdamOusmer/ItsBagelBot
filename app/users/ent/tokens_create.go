@@ -63,6 +63,20 @@ func (_c *TokensCreate) SetNillablePlatform(v *tokens.Platform) *TokensCreate {
 	return _c
 }
 
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (_c *TokensCreate) SetYoutubeChannelID(v string) *TokensCreate {
+	_c.mutation.SetYoutubeChannelID(v)
+	return _c
+}
+
+// SetNillableYoutubeChannelID sets the "youtube_channel_id" field if the given value is not nil.
+func (_c *TokensCreate) SetNillableYoutubeChannelID(v *string) *TokensCreate {
+	if v != nil {
+		_c.SetYoutubeChannelID(*v)
+	}
+	return _c
+}
+
 // SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
 func (_c *TokensCreate) SetAccessTokenExpiresAt(v time.Time) *TokensCreate {
 	_c.mutation.SetAccessTokenExpiresAt(v)
@@ -200,6 +214,10 @@ func (_c *TokensCreate) createSpec() (*Tokens, *sqlgraph.CreateSpec) {
 		_spec.SetField(tokens.FieldPlatform, field.TypeEnum, value)
 		_node.Platform = value
 	}
+	if value, ok := _c.mutation.YoutubeChannelID(); ok {
+		_spec.SetField(tokens.FieldYoutubeChannelID, field.TypeString, value)
+		_node.YoutubeChannelID = value
+	}
 	if value, ok := _c.mutation.AccessTokenExpiresAt(); ok {
 		_spec.SetField(tokens.FieldAccessTokenExpiresAt, field.TypeTime, value)
 		_node.AccessTokenExpiresAt = &value
@@ -327,6 +345,24 @@ func (u *TokensUpsert) UpdatePlatform() *TokensUpsert {
 	return u
 }
 
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (u *TokensUpsert) SetYoutubeChannelID(v string) *TokensUpsert {
+	u.Set(tokens.FieldYoutubeChannelID, v)
+	return u
+}
+
+// UpdateYoutubeChannelID sets the "youtube_channel_id" field to the value that was provided on create.
+func (u *TokensUpsert) UpdateYoutubeChannelID() *TokensUpsert {
+	u.SetExcluded(tokens.FieldYoutubeChannelID)
+	return u
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (u *TokensUpsert) ClearYoutubeChannelID() *TokensUpsert {
+	u.SetNull(tokens.FieldYoutubeChannelID)
+	return u
+}
+
 // SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
 func (u *TokensUpsert) SetAccessTokenExpiresAt(v time.Time) *TokensUpsert {
 	u.Set(tokens.FieldAccessTokenExpiresAt, v)
@@ -445,6 +481,27 @@ func (u *TokensUpsertOne) SetPlatform(v tokens.Platform) *TokensUpsertOne {
 func (u *TokensUpsertOne) UpdatePlatform() *TokensUpsertOne {
 	return u.Update(func(s *TokensUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (u *TokensUpsertOne) SetYoutubeChannelID(v string) *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetYoutubeChannelID(v)
+	})
+}
+
+// UpdateYoutubeChannelID sets the "youtube_channel_id" field to the value that was provided on create.
+func (u *TokensUpsertOne) UpdateYoutubeChannelID() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateYoutubeChannelID()
+	})
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (u *TokensUpsertOne) ClearYoutubeChannelID() *TokensUpsertOne {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearYoutubeChannelID()
 	})
 }
 
@@ -733,6 +790,27 @@ func (u *TokensUpsertBulk) SetPlatform(v tokens.Platform) *TokensUpsertBulk {
 func (u *TokensUpsertBulk) UpdatePlatform() *TokensUpsertBulk {
 	return u.Update(func(s *TokensUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (u *TokensUpsertBulk) SetYoutubeChannelID(v string) *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.SetYoutubeChannelID(v)
+	})
+}
+
+// UpdateYoutubeChannelID sets the "youtube_channel_id" field to the value that was provided on create.
+func (u *TokensUpsertBulk) UpdateYoutubeChannelID() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.UpdateYoutubeChannelID()
+	})
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (u *TokensUpsertBulk) ClearYoutubeChannelID() *TokensUpsertBulk {
+	return u.Update(func(s *TokensUpsert) {
+		s.ClearYoutubeChannelID()
 	})
 }
 
