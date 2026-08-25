@@ -1051,6 +1051,8 @@
     "done": "Terminé"
   },
   "commandEditor": {
+    "pickCounter": "Compteur",
+    "pickDataSource": "Source de donn\u00e9es",
     "name": "Nom",
     "namePlaceholder": "!commande",
     "renameHint": "Le déclencheur que les spectateurs tapent dans le chat. Le renommage conserve la réponse et les réglages.",

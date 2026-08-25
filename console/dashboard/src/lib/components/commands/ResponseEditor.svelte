@@ -201,9 +201,11 @@
     <button type="button" class="var" title={chipTitle(tk)} onclick={() => insert(tk.token)}>{tk.token}</button>
   {/each}
   {#if pickerOn}
+    <!-- Separated from the literals above: these two open a menu instead of
+         inserting what their label says, so they get their own group rather
+         than adding two more identical-looking pills to the same run. -->
+    <span class="palette-sep" aria-hidden="true"></span>
     <CounterPicker onInsert={insert} />
-  {/if}
-  {#if pickerOn}
     <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
   {/if}
 </div>
@@ -315,7 +317,17 @@
     opacity: 0.7;
   }
 
-  .palette { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  /* Hairline between "literals you insert" and "menus you open". Collapses to
+     nothing when the row wraps, so it never leaves a rule dangling on its own
+     line. */
+  .palette-sep {
+    width: 1px;
+    align-self: stretch;
+    min-height: 16px;
+    margin: 0 2px;
+    background: var(--rule, var(--bb-border));
+  }
   .var {
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
