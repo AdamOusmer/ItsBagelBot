@@ -10,8 +10,8 @@ package loyaltyrpc
 // Request covers every loyalty verb; unused fields are zero-valued.
 type Request struct {
 	UserID      string `json:"user_id"`                // broadcaster Twitch id
-	ViewerID    string `json:"viewer_id,omitempty"`    // chatter Twitch id
-	ViewerLogin string `json:"viewer_login,omitempty"` // chatter login (balance.set/add target; counter.set identity stamp)
+	ViewerID    string `json:"viewer_id,omitempty"`    // chatter Twitch id (balance.transfer sender)
+	ViewerLogin string `json:"viewer_login,omitempty"` // chatter login (balance.set/add/transfer target; counter.set identity stamp)
 	Name        string `json:"name,omitempty"`         // counter name
 	NewName     string `json:"new_name,omitempty"`     // rename target (counter.rename)
 	Scope       string `json:"scope,omitempty"`        // data.CounterScope* (create)
@@ -65,13 +65,17 @@ type CounterRank struct {
 // counter.get sets Found=false so the caller can distinguish "0" from "no such
 // counter".
 type Reply struct {
-	Balance  *Balance       `json:"balance,omitempty"`
-	Top      []Balance      `json:"top,omitempty"`
-	Counter  *Counter       `json:"counter,omitempty"`
-	Counters []Counter      `json:"counters,omitempty"`
-	Entries  []CounterEntry `json:"entries,omitempty"`
-	Board    []CounterRank  `json:"board,omitempty"`
-	Found    bool           `json:"found,omitempty"`
+	Balance *Balance `json:"balance,omitempty"`
+	// TargetBalance rides balance.transfer: the recipient's standing after
+	// the credit, next to the sender's in Balance. Two fields because both
+	// sides of the move are interesting to the caller's reply.
+	TargetBalance *Balance       `json:"target_balance,omitempty"`
+	Top           []Balance      `json:"top,omitempty"`
+	Counter       *Counter       `json:"counter,omitempty"`
+	Counters      []Counter      `json:"counters,omitempty"`
+	Entries       []CounterEntry `json:"entries,omitempty"`
+	Board         []CounterRank  `json:"board,omitempty"`
+	Found         bool           `json:"found,omitempty"`
 	// Spent reports the conditional outcome of balance.spend: the debit
 	// applied (true) or was refused for insufficient points (false, with
 	// Found carrying whether the viewer exists at all and Balance what they

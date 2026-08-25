@@ -669,8 +669,18 @@
     "hoursShort": "{n}h",
     "chatTitle": "Chat commands",
     "chatPoints": "Viewers check their balance and watch time.",
-    "chatPointsMod": "Mods set or grant points to a viewer.",
+    "chatGive": "Anyone can give their OWN points to another viewer (toggle below).",
+    "chatLeaderboard": "Show the channel's top standings.",
+    "chatPointsMod": "Mods set, grant or remove a viewer's points — each capability toggleable above.",
     "chatCounter": "Mods manage counters (also on the Counters page).",
+    "permissionsTitle": "Moderator permissions",
+    "permissionsHint": "Choose exactly what moderators may do with points from chat. The channel owner always keeps full control.",
+    "permSet": "Set a viewer's balance",
+    "permSetHint": "Mods may run !points set @user <amount> to write an exact balance.",
+    "permAdjust": "Grant or remove points",
+    "permAdjustHint": "Mods may run !points add/remove @user <amount> to shift a balance up or down.",
+    "permTransfers": "Viewer-to-viewer transfers",
+    "permTransfersHint": "!points give @user <amount> moves the sender's own points. Applies to mods and viewers alike.",
     "countersLink": "Manage counters"
   },
   "rewardCounter": {
@@ -1311,6 +1321,11 @@
     "emptyTitle": "No legends yet",
     "emptyBody": "This board fills up as {channel}'s community watches live, subscribes, gifts and cheers. Tune in and claim the top spot.",
     "degraded": "Live standings are temporarily unavailable. They will catch up on their own.",
-    "earnNote": "Earned by watching live · subs · gifts · cheers"
+    "earnNote": "Earned by watching live · subs · gifts · cheers",
+    "commandsLabel": "Chat commands",
+    "commandsTitle": "Chat commands",
+    "colCommand": "Command",
+    "colResponse": "Response",
+    "colPerm": "Who"
   }
 }
