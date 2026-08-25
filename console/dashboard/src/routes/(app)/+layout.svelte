@@ -5,8 +5,14 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
-  import { AppShell, ImpersonationBanner, NotificationBell, ToastHost, getI18n } from '@bagel/shared';
-  import type { NavGroupDef, NavLink } from '@bagel/shared';
+  // Direct imports, not the barrel: this layout is on every authed page's boot
+  // path (see routes/+layout.svelte).
+  import AppShell from '@bagel/shared/components/AppShell.svelte';
+  import ImpersonationBanner from '@bagel/shared/components/ImpersonationBanner.svelte';
+  import NotificationBell from '@bagel/shared/components/NotificationBell.svelte';
+  import ToastHost from '@bagel/shared/components/ToastHost.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import type { NavGroupDef, NavLink } from '@bagel/shared/types';
   let { data, children } = $props();
 
   const i18n = getI18n();
@@ -173,17 +179,21 @@
   {#snippet topActions()}
     <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">{t('nav.status')}</a>
     {#if !isDelegate}
-      <NotificationBell
-        notifications={(data.bellNotifications ?? [])}
-        unreadCount={data.unreadCount ?? 0}
-        viewAllHref="/settings#notifications"
-        onMarkRead={markRead}
-        onOpen={peek}
-        title={t('bell.title')}
-        viewAllLabel={t('bell.viewAll')}
-        emptyLabel={t('bell.empty')}
-        readLabel={t('bell.read')}
-      />
+      <!-- The bell peek is streamed (layout.server.ts): render the topbar as
+           soon as the shell lands and fill the bell when its promise does. -->
+      {#await data.bell then bell}
+        <NotificationBell
+          notifications={bell.notifications}
+          unreadCount={bell.unreadCount}
+          viewAllHref="/settings#notifications"
+          onMarkRead={markRead}
+          onOpen={peek}
+          title={t('bell.title')}
+          viewAllLabel={t('bell.viewAll')}
+          emptyLabel={t('bell.empty')}
+          readLabel={t('bell.read')}
+        />
+      {/await}
     {/if}
   {/snippet}
   {@render children()}
