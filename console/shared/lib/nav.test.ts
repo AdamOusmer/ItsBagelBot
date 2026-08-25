@@ -66,7 +66,7 @@ describe('nav registry', () => {
 
   test('groups wrap items under the single Manage group', () => {
     const groups = dashboardNavGroups(
-      dashboardNavItems({ isDelegate: false, sections: [], section: '/' }),
+      dashboardNavItems({ isDelegate: false, sections: [], section: 'overview' }),
       (key) => `en:${key}`
     );
     expect(groups).toHaveLength(1);

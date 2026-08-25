@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
-import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKENS } from './tokens';
+import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKENS } from './rehearsal-tokens';
 
 export const FORTNITE_MODULE: ModuleDef = 
 {

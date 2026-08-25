@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply } from '@bagel/shared';
+  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, type ModuleField, type ModuleReply, MOD } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
@@ -32,7 +32,7 @@
   // author grows: it renders trigger rules as add/removable ReplyRows and reads
   // the whole list out of one "rules" config string (see the trigger block
   // below). Every other module keeps its fixed def.replies.
-  const isTriggers = $derived(def.id === 'triggers');
+  const isTriggers = $derived(def.id === MOD.triggers);
   // svelte-ignore state_referenced_locally
   let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
   // The inspector column exists for any module that has an editable ledger —

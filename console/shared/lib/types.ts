@@ -144,7 +144,7 @@ export interface DashboardLink {
 // remains only so existing consumers keep importing from '@bagel/shared'
 // unchanged (`export * from './types'` in index.ts); new code should import
 // from the specific modules instead. The BW/FN preview token palettes moved to
-// catalog/tokens.ts and are deliberately NOT re-exported here: they were
+// catalog/rehearsal-tokens.ts and are deliberately NOT re-exported here: they were
 // module-private before and stay that way.
 export * from './catalog/builtin-commands';
 export * from './catalog/module-def';
