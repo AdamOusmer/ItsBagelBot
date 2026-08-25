@@ -231,7 +231,13 @@ func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack,
 // answer.
 func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)
-	if err != nil || snap.Current == nil || snap.Current.TrackID != trackID {
+	if err != nil {
+		return ""
+	}
+	if snap.Current == nil {
+		return ""
+	}
+	if snap.Current.TrackID != trackID {
 		return ""
 	}
 	return snap.Current.RequesterName

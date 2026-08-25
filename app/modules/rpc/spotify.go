@@ -92,33 +92,48 @@ type spotifyRPC struct {
 	log   *zap.Logger
 }
 
-func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest) spotifyrpc.RefreshTokenMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
+// errNumericUserID is the one refusal every verb here shares: the wire carries
+// the Twitch id as a string, and anything unparseable is a caller bug.
+const errNumericUserID = "user_id must be numeric"
+
+// userID parses the wire id. The bool, rather than an error, is what lets each
+// handler spell its own reply envelope in one line — the four envelopes on
+// these subjects differ, the parse does not.
+func userID(raw string) (uint64, bool) {
+	id, err := strconv.ParseUint(raw, 10, 64)
+	return id, err == nil
+}
+
+// mutate runs one custody write and maps BOTH of its failure modes onto the
+// shared ack envelope. Every write verb on these subjects — set, clear, and
+// the two application verbs — is this shape and nothing else, so it is written
+// once here rather than four times with four chances to drift.
+//
+// No error is ever echoed with a secret in it: the writes take their
+// plaintexts as arguments and fail on validation or sealing.
+func mutate(raw string, write func(uint64) error) spotifyrpc.RefreshTokenMutateReply {
+	id, ok := userID(raw)
+	if !ok {
+		return spotifyrpc.RefreshTokenMutateReply{Error: errNumericUserID}
 	}
-	if err := s.creds.SetToken(ctx, id, req.RefreshToken); err != nil {
-		// The error never carries the token; it is a validation or seal failure.
+	if err := write(id); err != nil {
 		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
 	}
 	return spotifyrpc.RefreshTokenMutateReply{}
+}
+
+func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest) spotifyrpc.RefreshTokenMutateReply {
+	return mutate(req.UserID, func(id uint64) error { return s.creds.SetToken(ctx, id, req.RefreshToken) })
 }
 
 func (s *spotifyRPC) handleClear(ctx context.Context, req spotifyrpc.RefreshTokenClearRequest) spotifyrpc.RefreshTokenMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := s.creds.ClearToken(ctx, id); err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
-	}
-	return spotifyrpc.RefreshTokenMutateReply{}
+	return mutate(req.UserID, func(id uint64) error { return s.creds.ClearToken(ctx, id) })
 }
 
 func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTokenStatusRequest) spotifyrpc.RefreshTokenStatusReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenStatusReply{Error: "user_id must be numeric"}
+	id, ok := userID(req.UserID)
+	if !ok {
+		return spotifyrpc.RefreshTokenStatusReply{Error: errNumericUserID}
 	}
 	present, err := s.creds.HasToken(ctx, id)
 	if err != nil {
@@ -142,52 +157,49 @@ func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTok
 // handleGet answers gossip with the broadcaster's whole credential set. A
 // broadcaster with no application of their own is an empty reply, not an
 // error: gossip turns that into "set up Spotify in the console".
+// handleGet answers gossip with the broadcaster's whole credential set. A
+// broadcaster with nothing set up is an empty reply, not an error: gossip
+// turns that into "set up Spotify in the console".
 func (s *spotifyRPC) handleGet(ctx context.Context, req spotifyrpc.RefreshTokenGetRequest) spotifyrpc.RefreshTokenGetReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenGetReply{Error: "user_id must be numeric"}
+	id, ok := userID(req.UserID)
+	if !ok {
+		return spotifyrpc.RefreshTokenGetReply{Error: errNumericUserID}
 	}
-	clientID, clientSecret, token, err := s.creds.Credentials(ctx, id)
+	setup, err := s.creds.Credentials(ctx, id)
 	switch {
 	case errors.Is(err, repository.ErrNoSpotifyApp), errors.Is(err, repository.ErrNoSpotifyToken):
 		return spotifyrpc.RefreshTokenGetReply{}
 	case err != nil:
 		return spotifyrpc.RefreshTokenGetReply{Error: err.Error()}
 	}
-	return spotifyrpc.RefreshTokenGetReply{RefreshToken: token, ClientID: clientID, ClientSecret: clientSecret}
+	return spotifyrpc.RefreshTokenGetReply{
+		RefreshToken: setup.RefreshToken,
+		ClientID:     setup.App.ClientID,
+		ClientSecret: setup.App.ClientSecret,
+	}
 }
 
 func (s *spotifyRPC) handleAppSet(ctx context.Context, req spotifyrpc.AppSetRequest) spotifyrpc.RefreshTokenMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := s.creds.SetApp(ctx, id, req.ClientID, req.ClientSecret); err != nil {
-		// Never echoes the secret; this is a validation or seal failure.
-		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
-	}
-	return spotifyrpc.RefreshTokenMutateReply{}
+	return mutate(req.UserID, func(id uint64) error {
+		return s.creds.SetApp(ctx, id, req.ClientID, req.ClientSecret)
+	})
 }
 
 func (s *spotifyRPC) handleAppClear(ctx context.Context, req spotifyrpc.AppClearRequest) spotifyrpc.RefreshTokenMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := s.creds.ClearApp(ctx, id); err != nil {
-		return spotifyrpc.RefreshTokenMutateReply{Error: err.Error()}
-	}
-	return spotifyrpc.RefreshTokenMutateReply{}
+	return mutate(req.UserID, func(id uint64) error { return s.creds.ClearApp(ctx, id) })
 }
 
+// handleAppStatus reports the application by its client id alone — the store
+// hands back nothing else on this path, so the secret cannot reach a
+// dashboard-facing subject even by mistake.
 func (s *spotifyRPC) handleAppStatus(ctx context.Context, req spotifyrpc.AppStatusRequest) spotifyrpc.AppStatusReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return spotifyrpc.AppStatusReply{Error: "user_id must be numeric"}
+	id, ok := userID(req.UserID)
+	if !ok {
+		return spotifyrpc.AppStatusReply{Error: errNumericUserID}
 	}
-	present, clientID, err := s.creds.HasApp(ctx, id)
+	clientID, err := s.creds.AppClientID(ctx, id)
 	if err != nil {
 		return spotifyrpc.AppStatusReply{Error: err.Error()}
 	}
-	return spotifyrpc.AppStatusReply{Present: present, ClientID: clientID}
+	return spotifyrpc.AppStatusReply{Present: clientID != "", ClientID: clientID}
 }

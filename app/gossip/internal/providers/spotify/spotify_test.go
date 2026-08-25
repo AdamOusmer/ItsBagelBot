@@ -281,10 +281,7 @@ func init() { core.SetSSRFCheckForTests(false) }
 
 func TestNoApplicationOnFile(t *testing.T) {
 	mint, _ := newMintServer(t, "unused")
-	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("must not dial Spotify without the broadcaster's own application")
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1", noApp: true}, api, mint)
+	p := newTestProvider(t, fakeKeys{key: "rt-1", noApp: true}, denyAll(t), mint)
 
 	reply := asReply[gossiprpc.SpotifyNowPlayingReply](t,
 		endpoint(t, p, "nowplaying")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
@@ -308,6 +305,17 @@ func newExchangeServer(t *testing.T, refresh string) http.Handler {
 	})
 }
 
+// runExchange drives the exchange endpoint with the console's request shape.
+// Every case here shares it, and every case denies the data API: redeeming a
+// code is an accounts.spotify.com conversation and must never touch
+// api.spotify.com, so that assertion belongs in the helper rather than being
+// re-typed (and eventually forgotten) per test.
+func runExchange(t *testing.T, keys fakeKeys, accounts http.Handler, req gossiprpc.Request) gossiprpc.SpotifyExchangeReply {
+	t.Helper()
+	p := newTestProvider(t, keys, denyAll(t), accounts)
+	return asReply[gossiprpc.SpotifyExchangeReply](t, endpoint(t, p, "exchange")(context.Background(), req))
+}
+
 func exchangeRequest() gossiprpc.Request {
 	return gossiprpc.Request{
 		ChannelID:   "2",
@@ -317,11 +325,8 @@ func exchangeRequest() gossiprpc.Request {
 }
 
 func TestExchangeMintsRefreshToken(t *testing.T) {
-	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
-	p := newTestProvider(t, fakeKeys{key: ""}, api, newExchangeServer(t, "rt-new"))
+	reply := runExchange(t, fakeKeys{key: ""}, newExchangeServer(t, "rt-new"), exchangeRequest())
 
-	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
-		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "rt-new", reply.RefreshToken)
 }
@@ -330,33 +335,20 @@ func TestExchangeMintsRefreshToken(t *testing.T) {
 // token. That is an empty answer, never an error — the console keeps whatever
 // is already in custody.
 func TestExchangeConsentReuseIsNotAnError(t *testing.T) {
-	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, newExchangeServer(t, ""))
+	reply := runExchange(t, fakeKeys{key: "rt-1"}, newExchangeServer(t, ""), exchangeRequest())
 
-	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
-		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
 	require.Empty(t, reply.Error)
 	assert.Empty(t, reply.RefreshToken)
 }
 
 func TestExchangeWithoutApplicationRefuses(t *testing.T) {
-	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
-	accounts := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("must not redeem a code without the broadcaster's own application")
-	})
-	p := newTestProvider(t, fakeKeys{noApp: true}, api, accounts)
+	reply := runExchange(t, fakeKeys{noApp: true}, denyAll(t), exchangeRequest())
 
-	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
-		endpoint(t, p, "exchange")(context.Background(), exchangeRequest()))
 	assert.Contains(t, reply.Error, "no Spotify app set up")
 }
 
 func TestExchangeRequiresCodeAndRedirect(t *testing.T) {
-	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("exchange must not touch the data API") })
-	accounts := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("must not redeem an empty code") })
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, accounts)
+	reply := runExchange(t, fakeKeys{key: "rt-1"}, denyAll(t), gossiprpc.Request{ChannelID: "2"})
 
-	reply := asReply[gossiprpc.SpotifyExchangeReply](t,
-		endpoint(t, p, "exchange")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
 	assert.Contains(t, reply.Error, "missing authorization code")
 }

@@ -150,10 +150,10 @@ func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
 
 	require.NoError(t, creds.SetApp(ctx, 2001, "client-abc", "secret-xyz"))
 
-	id, secret, err := creds.App(ctx, 2001)
+	app, err := creds.App(ctx, 2001)
 	require.NoError(t, err)
-	assert.Equal(t, "client-abc", id)
-	assert.Equal(t, "secret-xyz", secret)
+	assert.Equal(t, "client-abc", app.ClientID)
+	assert.Equal(t, "secret-xyz", app.ClientSecret)
 
 	// The client id is public (it rides the authorize URL) and stays readable;
 	// the secret must not sit in the column in the clear.
@@ -167,13 +167,12 @@ func TestSpotifyAppMissing(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	_, _, err := creds.App(ctx, 2002)
+	_, err := creds.App(ctx, 2002)
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
 
-	present, id, err := creds.HasApp(ctx, 2002)
+	clientID, err := creds.AppClientID(ctx, 2002)
 	require.NoError(t, err)
-	assert.False(t, present)
-	assert.Empty(t, id)
+	assert.Empty(t, clientID)
 }
 
 func TestSpotifyAppRequiresBothHalves(t *testing.T) {
@@ -193,18 +192,18 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-xyz"))
 	require.NoError(t, creds.SetToken(ctx, 2004, "rt-1"))
 
-	id, secret, token, err := creds.Credentials(ctx, 2004)
+	setup, err := creds.Credentials(ctx, 2004)
 	require.NoError(t, err)
-	assert.Equal(t, "client-abc", id)
-	assert.Equal(t, "secret-xyz", secret)
-	assert.Equal(t, "rt-1", token)
+	assert.Equal(t, "client-abc", setup.App.ClientID)
+	assert.Equal(t, "secret-xyz", setup.App.ClientSecret)
+	assert.Equal(t, "rt-1", setup.RefreshToken)
 
 	// Re-pasting the app (rotated secret) keeps the grant.
 	require.NoError(t, creds.SetApp(ctx, 2004, "client-abc", "secret-rotated"))
-	_, secret, token, err = creds.Credentials(ctx, 2004)
+	setup, err = creds.Credentials(ctx, 2004)
 	require.NoError(t, err)
-	assert.Equal(t, "secret-rotated", secret)
-	assert.Equal(t, "rt-1", token)
+	assert.Equal(t, "secret-rotated", setup.App.ClientSecret)
+	assert.Equal(t, "rt-1", setup.RefreshToken)
 }
 
 // A broadcaster who pasted credentials but never finished the connect flow is
@@ -222,11 +221,11 @@ func TestSpotifyAppWithoutGrantReadsAsNotConnected(t *testing.T) {
 	_, err = creds.Token(ctx, 2005)
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyToken)
 
-	id, secret, token, err := creds.Credentials(ctx, 2005)
+	setup, err := creds.Credentials(ctx, 2005)
 	require.NoError(t, err)
-	assert.Equal(t, "client-abc", id)
-	assert.Equal(t, "secret-xyz", secret)
-	assert.Empty(t, token)
+	assert.Equal(t, "client-abc", setup.App.ClientID)
+	assert.Equal(t, "secret-xyz", setup.App.ClientSecret)
+	assert.Empty(t, setup.RefreshToken)
 }
 
 func TestSpotifyCredentialsWithoutAppRefuses(t *testing.T) {
@@ -235,7 +234,7 @@ func TestSpotifyCredentialsWithoutAppRefuses(t *testing.T) {
 
 	require.NoError(t, creds.SetToken(ctx, 2006, "rt-1"))
 
-	_, _, _, err := creds.Credentials(ctx, 2006)
+	_, err := creds.Credentials(ctx, 2006)
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
 }
 
@@ -262,9 +261,9 @@ func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
 	require.NoError(t, creds.SetToken(ctx, 2008, "rt-1"))
 	require.NoError(t, creds.ClearApp(ctx, 2008))
 
-	present, _, err := creds.HasApp(ctx, 2008)
+	clientID, err := creds.AppClientID(ctx, 2008)
 	require.NoError(t, err)
-	assert.False(t, present)
+	assert.Empty(t, clientID)
 
 	connected, err := creds.HasToken(ctx, 2008)
 	require.NoError(t, err)
