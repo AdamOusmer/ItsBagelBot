@@ -53,6 +53,17 @@ export function assertConfigSane(env: Env): void {
     origin,
     callbackPath: '/auth/callback'
   });
+  // The YouTube connect flow is optional at boot: any GOOGLE_* var present
+  // requires all three, and the callback must point at /youtube/callback.
+  if (env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_SECRET || env.GOOGLE_REDIRECT_URI) {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
+      throw new Error('GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI must be set together');
+    }
+    assertCallback('GOOGLE_REDIRECT_URI', env.GOOGLE_REDIRECT_URI, {
+      origin,
+      callbackPath: '/youtube/callback'
+    });
+  }
   assertOptionalHTTPSURL('TEBEX_PREMIUM_CHECKOUT_URL', env.TEBEX_PREMIUM_CHECKOUT_URL);
   assertOptionalHTTPSURL('TEBEX_CANCEL_URL', env.TEBEX_CANCEL_URL);
   dashboardL1CacheCapacity(env);

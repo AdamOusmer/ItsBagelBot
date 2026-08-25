@@ -186,6 +186,7 @@ type rpcSubjects struct {
 	admin      string
 	billing    string
 	projection string
+	youtube    string
 }
 
 func (s rpcSubjects) logReady(log *zap.Logger) {
@@ -193,7 +194,8 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("dashboard_prefix", s.dashboard),
 		zap.String("admin_prefix", s.admin),
 		zap.String("billing_subject", s.billing),
-		zap.String("projection_subject", s.projection))
+		zap.String("projection_subject", s.projection),
+		zap.String("youtube_token_subject", s.youtube))
 }
 
 // subscribeRPCs binds every RPC surface the users service serves and seeds the
@@ -206,6 +208,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
 		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
 		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
+		youtube:    env.Get("NATS_YOUTUBE_TOKEN_SUBJECT", "bagel.rpc.youtube.token.get"),
 	}
 
 	fatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
@@ -225,6 +228,17 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 		"failed to subscribe email rpc")
 	fatalIf(log, rpc.SubscribeTokens(wiring, env.Get("NATS_INTERNAL_TOKENS_SUBJECT_PREFIX", "bagel.rpc.internal.tokens")),
 		"failed to subscribe tokens rpc")
+
+	// YouTube identity side (ADR 0011): the per-channel access-token lease
+	// yt-ingress and outgress consume. GOOGLE_CLIENT_ID/SECRET are the same
+	// OAuth client the console drives the authorization-code exchange with
+	// (naming mirrors TWITCH_CLIENT_ID/SECRET); only the refresh grant runs
+	// here, exactly where Twitch's renewal counterpart lives.
+	youtubeSubject := env.Get("NATS_YOUTUBE_TOKEN_SUBJECT", "bagel.rpc.youtube.token.get")
+	fatalIf(log, rpc.SubscribeYouTubeTokens(wiring, youtubeSubject, rpc.GoogleCredentials{
+		ClientID:     env.Get("GOOGLE_CLIENT_ID", ""),
+		ClientSecret: env.Get("GOOGLE_CLIENT_SECRET", ""),
+	}), "failed to subscribe youtube token rpc")
 	fatalIf(log, rpc.SubscribeDelegation(wiring, env.Get("NATS_DELEGATION_SUBJECT_PREFIX", "bagel.rpc.delegation"), invalidationPrefix),
 		"failed to subscribe delegation rpc")
 

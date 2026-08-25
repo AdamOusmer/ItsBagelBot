@@ -4,7 +4,7 @@
 // Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
-import { Twitch } from '@bagel/shared/server/oauth';
+import { Google, Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
 import { scopeGap } from '@bagel/shared';
 
@@ -117,6 +117,23 @@ export function spotifyAuthorizeURL(clientId: string, state: string): string {
 // is complete is what leaves a broadcaster hitting 403s with no explanation.
 export function spotifyScopeGap(granted: readonly string[]): string[] {
   return scopeGap(spotifyScopes(), granted);
+}
+
+// The YouTube connect flow (chat send + moderation for the streamer's
+// channel). force-ssl is the one scope that covers liveChatMessages and
+// liveChatBans together; DASHBOARD_YOUTUBE_SCOPES can override the whole set.
+export function youtubeScopes(): string[] {
+  const raw = env.DASHBOARD_YOUTUBE_SCOPES;
+  if (raw && raw.trim()) return raw.split(/[\s,]+/).filter(Boolean);
+  return ['https://www.googleapis.com/auth/youtube.force-ssl'];
+}
+
+export function google(): Google {
+  const id = env.GOOGLE_CLIENT_ID;
+  const secret = env.GOOGLE_CLIENT_SECRET;
+  const redirect = env.GOOGLE_REDIRECT_URI;
+  if (!id || !secret || !redirect) throw new Error('GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return new Google(id, secret, redirect);
 }
 
 // Fetch the account email from Helix with the just-issued user token. The

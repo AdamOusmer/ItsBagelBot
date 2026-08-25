@@ -26,6 +26,8 @@ type Tokens struct {
 	RefreshToken []byte `json:"-"`
 	// Platform holds the value of the "platform" field.
 	Platform tokens.Platform `json:"platform,omitempty"`
+	// YoutubeChannelID holds the value of the "youtube_channel_id" field.
+	YoutubeChannelID string `json:"youtube_channel_id,omitempty"`
 	// AccessTokenExpiresAt holds the value of the "access_token_expires_at" field.
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -64,7 +66,7 @@ func (*Tokens) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case tokens.FieldID:
 			values[i] = new(sql.NullInt64)
-		case tokens.FieldType, tokens.FieldPlatform:
+		case tokens.FieldType, tokens.FieldPlatform, tokens.FieldYoutubeChannelID:
 			values[i] = new(sql.NullString)
 		case tokens.FieldAccessTokenExpiresAt:
 			values[i] = new(sql.NullTime)
@@ -114,6 +116,12 @@ func (_m *Tokens) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field platform", values[i])
 			} else if value.Valid {
 				_m.Platform = tokens.Platform(value.String)
+			}
+		case tokens.FieldYoutubeChannelID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field youtube_channel_id", values[i])
+			} else if value.Valid {
+				_m.YoutubeChannelID = value.String
 			}
 		case tokens.FieldAccessTokenExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -179,6 +187,9 @@ func (_m *Tokens) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("platform=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Platform))
+	builder.WriteString(", ")
+	builder.WriteString("youtube_channel_id=")
+	builder.WriteString(_m.YoutubeChannelID)
 	builder.WriteString(", ")
 	if v := _m.AccessTokenExpiresAt; v != nil {
 		builder.WriteString("access_token_expires_at=")

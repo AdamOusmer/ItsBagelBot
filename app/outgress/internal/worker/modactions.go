@@ -96,6 +96,16 @@ func (w *Worker) processAnnounce(ctx context.Context, payload *outgress.Message)
 		return nil
 	}
 
+	// The per-channel guard sits ABOVE Twitch's own announcement ceiling (see
+	// guards.go): a legitimate volume always passes and gets its verdict from
+	// Twitch, while a flood is cut locally before any shared Helix budget is
+	// spent or viewer-facing spam is produced.
+	if !w.takeAnnouncePerChannel(ctx, payload.BroadcasterID) {
+		w.log.Warn("dropping announce: per-channel guard exhausted",
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
+
 	// Announcements always execute on the app token; normalize before paying
 	// the rate bucket so accounting matches the token the call runs under.
 	payload.As = outgress.AsApp
@@ -174,6 +184,15 @@ func (w *Worker) processShoutout(ctx context.Context, payload *outgress.Message)
 
 	mod, ok := w.botIdentity("shoutout", payload)
 	if !ok {
+		return nil
+	}
+
+	// Guard before target resolution: a shoutout loop must not spend a Helix
+	// Get Users lookup (let alone the shoutout itself) per attempt while it is
+	// being cut (see guards.go for the 2×-platform-ceiling shape).
+	if !w.takeShoutoutPerChannel(ctx, payload.BroadcasterID) {
+		w.log.Warn("dropping shoutout: per-channel guard exhausted",
+			zap.String("broadcaster_id", payload.BroadcasterID))
 		return nil
 	}
 

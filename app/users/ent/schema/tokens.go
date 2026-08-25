@@ -27,9 +27,26 @@ func (Tokens) Fields() []ent.Field {
 
 		field.Bytes("refresh_token").Optional().Sensitive(),
 
+		// platform widens per identity provider; existing rows are all twitch
+		// and the default keeps every pre-youtube writer correct without a
+		// backfill. MySQL ALTER appends enum members in place, so the widening
+		// is metadata-only on the live table.
 		field.Enum("platform").
-			Values("twitch").
+			Values("twitch", "youtube").
 			Default("twitch"),
+
+		// YoutubeChannelID pins which channel this Google grant speaks for
+		// ("UC..." as returned by channels.list?mine=true at connect time).
+		// The token lease RPC (bagel.rpc.youtube.token.get) is addressed by
+		// channel id -- the ingress and outgress never learn our internal
+		// user ids -- so this column is the only UC->row resolver there is.
+		// Optional because twitch rows (the overwhelming majority) have no
+		// channel id; Unique so one channel can be bound to at most one
+		// grant row (MySQL unique indexes admit many NULLs, so twitch rows
+		// coexist untouched). Set only through WithYouTubeChannelID.
+		field.String("youtube_channel_id").
+			Optional().
+			Unique(),
 
 		// AccessTokenExpiresAt is Twitch's expires_in (an OAuth response
 		// field, ~4h for a user token) converted to an absolute UTC time by

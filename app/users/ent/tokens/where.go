@@ -65,6 +65,11 @@ func RefreshToken(v []byte) predicate.Tokens {
 	return predicate.Tokens(sql.FieldEQ(FieldRefreshToken, v))
 }
 
+// YoutubeChannelID applies equality check predicate on the "youtube_channel_id" field. It's identical to YoutubeChannelIDEQ.
+func YoutubeChannelID(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldEQ(FieldYoutubeChannelID, v))
+}
+
 // AccessTokenExpiresAt applies equality check predicate on the "access_token_expires_at" field. It's identical to AccessTokenExpiresAtEQ.
 func AccessTokenExpiresAt(v time.Time) predicate.Tokens {
 	return predicate.Tokens(sql.FieldEQ(FieldAccessTokenExpiresAt, v))
@@ -198,6 +203,81 @@ func PlatformIn(vs ...Platform) predicate.Tokens {
 // PlatformNotIn applies the NotIn predicate on the "platform" field.
 func PlatformNotIn(vs ...Platform) predicate.Tokens {
 	return predicate.Tokens(sql.FieldNotIn(FieldPlatform, vs...))
+}
+
+// YoutubeChannelIDEQ applies the EQ predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDEQ(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldEQ(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDNEQ applies the NEQ predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDNEQ(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldNEQ(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDIn applies the In predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDIn(vs ...string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldIn(FieldYoutubeChannelID, vs...))
+}
+
+// YoutubeChannelIDNotIn applies the NotIn predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDNotIn(vs ...string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldNotIn(FieldYoutubeChannelID, vs...))
+}
+
+// YoutubeChannelIDGT applies the GT predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDGT(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldGT(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDGTE applies the GTE predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDGTE(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldGTE(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDLT applies the LT predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDLT(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldLT(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDLTE applies the LTE predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDLTE(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldLTE(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDContains applies the Contains predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDContains(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldContains(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDHasPrefix applies the HasPrefix predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDHasPrefix(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldHasPrefix(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDHasSuffix applies the HasSuffix predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDHasSuffix(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldHasSuffix(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDIsNil applies the IsNil predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDIsNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldIsNull(FieldYoutubeChannelID))
+}
+
+// YoutubeChannelIDNotNil applies the NotNil predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDNotNil() predicate.Tokens {
+	return predicate.Tokens(sql.FieldNotNull(FieldYoutubeChannelID))
+}
+
+// YoutubeChannelIDEqualFold applies the EqualFold predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDEqualFold(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldEqualFold(FieldYoutubeChannelID, v))
+}
+
+// YoutubeChannelIDContainsFold applies the ContainsFold predicate on the "youtube_channel_id" field.
+func YoutubeChannelIDContainsFold(v string) predicate.Tokens {
+	return predicate.Tokens(sql.FieldContainsFold(FieldYoutubeChannelID, v))
 }
 
 // AccessTokenExpiresAtEQ applies the EQ predicate on the "access_token_expires_at" field.

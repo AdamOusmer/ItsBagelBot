@@ -2460,6 +2460,7 @@ type TokensMutation struct {
 	token                   *[]byte
 	refresh_token           *[]byte
 	platform                *tokens.Platform
+	youtube_channel_id      *string
 	access_token_expires_at *time.Time
 	clearedFields           map[string]struct{}
 	user                    *uint64
@@ -2724,6 +2725,55 @@ func (m *TokensMutation) ResetPlatform() {
 	m.platform = nil
 }
 
+// SetYoutubeChannelID sets the "youtube_channel_id" field.
+func (m *TokensMutation) SetYoutubeChannelID(s string) {
+	m.youtube_channel_id = &s
+}
+
+// YoutubeChannelID returns the value of the "youtube_channel_id" field in the mutation.
+func (m *TokensMutation) YoutubeChannelID() (r string, exists bool) {
+	v := m.youtube_channel_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldYoutubeChannelID returns the old "youtube_channel_id" field's value of the Tokens entity.
+// If the Tokens object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TokensMutation) OldYoutubeChannelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldYoutubeChannelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldYoutubeChannelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldYoutubeChannelID: %w", err)
+	}
+	return oldValue.YoutubeChannelID, nil
+}
+
+// ClearYoutubeChannelID clears the value of the "youtube_channel_id" field.
+func (m *TokensMutation) ClearYoutubeChannelID() {
+	m.youtube_channel_id = nil
+	m.clearedFields[tokens.FieldYoutubeChannelID] = struct{}{}
+}
+
+// YoutubeChannelIDCleared returns if the "youtube_channel_id" field was cleared in this mutation.
+func (m *TokensMutation) YoutubeChannelIDCleared() bool {
+	_, ok := m.clearedFields[tokens.FieldYoutubeChannelID]
+	return ok
+}
+
+// ResetYoutubeChannelID resets all changes to the "youtube_channel_id" field.
+func (m *TokensMutation) ResetYoutubeChannelID() {
+	m.youtube_channel_id = nil
+	delete(m.clearedFields, tokens.FieldYoutubeChannelID)
+}
+
 // SetAccessTokenExpiresAt sets the "access_token_expires_at" field.
 func (m *TokensMutation) SetAccessTokenExpiresAt(t time.Time) {
 	m.access_token_expires_at = &t
@@ -2846,7 +2896,7 @@ func (m *TokensMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TokensMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m._type != nil {
 		fields = append(fields, tokens.FieldType)
 	}
@@ -2858,6 +2908,9 @@ func (m *TokensMutation) Fields() []string {
 	}
 	if m.platform != nil {
 		fields = append(fields, tokens.FieldPlatform)
+	}
+	if m.youtube_channel_id != nil {
+		fields = append(fields, tokens.FieldYoutubeChannelID)
 	}
 	if m.access_token_expires_at != nil {
 		fields = append(fields, tokens.FieldAccessTokenExpiresAt)
@@ -2878,6 +2931,8 @@ func (m *TokensMutation) Field(name string) (ent.Value, bool) {
 		return m.RefreshToken()
 	case tokens.FieldPlatform:
 		return m.Platform()
+	case tokens.FieldYoutubeChannelID:
+		return m.YoutubeChannelID()
 	case tokens.FieldAccessTokenExpiresAt:
 		return m.AccessTokenExpiresAt()
 	}
@@ -2897,6 +2952,8 @@ func (m *TokensMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldRefreshToken(ctx)
 	case tokens.FieldPlatform:
 		return m.OldPlatform(ctx)
+	case tokens.FieldYoutubeChannelID:
+		return m.OldYoutubeChannelID(ctx)
 	case tokens.FieldAccessTokenExpiresAt:
 		return m.OldAccessTokenExpiresAt(ctx)
 	}
@@ -2935,6 +2992,13 @@ func (m *TokensMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPlatform(v)
+		return nil
+	case tokens.FieldYoutubeChannelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetYoutubeChannelID(v)
 		return nil
 	case tokens.FieldAccessTokenExpiresAt:
 		v, ok := value.(time.Time)
@@ -2976,6 +3040,9 @@ func (m *TokensMutation) ClearedFields() []string {
 	if m.FieldCleared(tokens.FieldRefreshToken) {
 		fields = append(fields, tokens.FieldRefreshToken)
 	}
+	if m.FieldCleared(tokens.FieldYoutubeChannelID) {
+		fields = append(fields, tokens.FieldYoutubeChannelID)
+	}
 	if m.FieldCleared(tokens.FieldAccessTokenExpiresAt) {
 		fields = append(fields, tokens.FieldAccessTokenExpiresAt)
 	}
@@ -2995,6 +3062,9 @@ func (m *TokensMutation) ClearField(name string) error {
 	switch name {
 	case tokens.FieldRefreshToken:
 		m.ClearRefreshToken()
+		return nil
+	case tokens.FieldYoutubeChannelID:
+		m.ClearYoutubeChannelID()
 		return nil
 	case tokens.FieldAccessTokenExpiresAt:
 		m.ClearAccessTokenExpiresAt()
@@ -3018,6 +3088,9 @@ func (m *TokensMutation) ResetField(name string) error {
 		return nil
 	case tokens.FieldPlatform:
 		m.ResetPlatform()
+		return nil
+	case tokens.FieldYoutubeChannelID:
+		m.ResetYoutubeChannelID()
 		return nil
 	case tokens.FieldAccessTokenExpiresAt:
 		m.ResetAccessTokenExpiresAt()

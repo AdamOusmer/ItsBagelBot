@@ -99,6 +99,46 @@ type Config struct {
 	NotifySendSubject string
 	UsersStateSubject string
 
+	// YouTube lane subjects on the YOUTUBE_OUTGRESS work-queue stream (5s
+	// MaxAge, mirroring the Twitch lanes' perishability — a chat line nobody
+	// reads within seconds is not worth its 50 quota units).
+	YouTubePremiumSubject  string
+	YouTubeStandardSubject string
+
+	// YouTubeStreamSubject is the yt-ingress lifecycle lane carrying
+	// stream.online / stream.offline for watched channels; outgress binds a
+	// queue-grouped consumer here to feed the live-chat directory. Defaults to
+	// youtube.ingress.event.stream.
+	YouTubeStreamSubject string
+
+	// YouTubeTokenSubject is the users-service lease RPC resolving one
+	// channel's OAuth access token. The request/reply JSON contract is fixed
+	// by the Elixir consumer (app/yt-ingress token_source.ex); do not rename
+	// fields unilaterally. Defaults to bagel.rpc.youtube.token.get.
+	YouTubeTokenSubject string
+
+	// YouTubeChatMinInterval is the minimum spacing between two bot messages
+	// in the same live chat. Google throttles per-chat bot inserts far harder
+	// than Twitch's 20/30s; six seconds keeps commands readable and never
+	// trips it (see internal/worker/youtube.go).
+	YouTubeChatMinInterval time.Duration
+
+	// YouTubeQuotaDailyUnits caps what THIS consumer may charge against the
+	// project's daily quota ledger (Valkey, fleet-shared by the replicas).
+	// The project total is 10,000 units/day; every liveChatMessages.insert /
+	// delete and liveChatBans.insert costs a flat 50. Lower it if other
+	// consumers share the project's credential budget.
+	YouTubeQuotaDailyUnits int64
+
+	// YouTube OAuth client credentials plus an optional bot refresh token.
+	// With the refresh token set (development), sends mint one bot-identity
+	// access token directly from Google instead of leasing per-channel tokens
+	// over NATS; production leaves it unset so credentials stay owned by the
+	// users service.
+	YouTubeClientID        string
+	YouTubeClientSecret    string
+	YouTubeBotRefreshToken string
+
 	RateRegion          string
 	LeaseEpoch          time.Duration
 	LeaseGuard          time.Duration
@@ -133,6 +173,15 @@ func Load() *Config {
 		AuthzSubRevokedSubject: env.Get("NATS_SUBJECT_AUTHZ_SUBREVOKED", "twitch.ingress.status.authz.subrevoked"),
 		NotifySendSubject:      env.Get("NATS_NOTIFY_SEND_SUBJECT", "bagel.rpc.admin.notifications.send"),
 		UsersStateSubject:      env.Get("NATS_USERS_STATE_SUBJECT", "bagel.rpc.dashboard.state_get"),
+		YouTubePremiumSubject:  env.Get("NATS_YOUTUBE_OUTGRESS_PREMIUM_SUBJECT", "youtube.outgress.premium"),
+		YouTubeStandardSubject: env.Get("NATS_YOUTUBE_OUTGRESS_STANDARD_SUBJECT", "youtube.outgress.standard"),
+		YouTubeStreamSubject:   env.Get("NATS_YT_SUBJECT_LANE_STREAM", "youtube.ingress.event.stream"),
+		YouTubeTokenSubject:    env.Get("NATS_YT_TOKEN_SUBJECT", "bagel.rpc.youtube.token.get"),
+		YouTubeChatMinInterval: time.Duration(env.GetInt("YOUTUBE_CHAT_MIN_INTERVAL_MS", 6000)) * time.Millisecond,
+		YouTubeQuotaDailyUnits: int64(env.GetInt("YOUTUBE_QUOTA_DAILY_UNITS", 10000)),
+		YouTubeClientID:        env.Get("YOUTUBE_CLIENT_ID", ""),
+		YouTubeClientSecret:    env.Get("YOUTUBE_CLIENT_SECRET", ""),
+		YouTubeBotRefreshToken: env.Get("YOUTUBE_BOT_REFRESH_TOKEN", ""),
 		MinRoutines:            env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:            env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:           env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

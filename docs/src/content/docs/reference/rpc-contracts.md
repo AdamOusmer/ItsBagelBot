@@ -34,6 +34,7 @@ but the defaults below are what ships.
 | `bagel.rpc.internal.projection.modules.get` | modules | request-reply |
 | `bagel.rpc.internal.projection.commands.get` | commands | request-reply |
 | `bagel.rpc.internal.tokens.*` | users | request-reply |
+| `bagel.rpc.youtube.token.get` | users | request-reply |
 | `bagel.rpc.outgress.{channel,system}.*` | outgress | request-reply |
 | `twitch.ingress.admin.shards.get` | ingress | request-reply |
 | `bagel.cache.invalidate.broadcaster` | users (pub) | event (fire-and-forget) |
@@ -141,6 +142,26 @@ subscribe. Owner users, queue group `users-rpc`, handler timeout **3s**.
 |---|---|---|
 | `get` | `{user_id}` | `{access_token, refresh_token, error}` |
 | `save` | `{user_id, access_token, refresh_token}` | `{}` or `{error}` |
+
+## YouTube token lease — `bagel.rpc.youtube.token.get`
+
+Short-lived Google OAuth **access** tokens for one linked YouTube channel.
+Served by the users service (queue group `users-rpc`); consumed by yt-ingress
+(per-channel credential for `liveChatMessages.streamList` reads and broadcast
+discovery) and outgress (per-channel credential for chat sends). The ingress
+and outgress never hold Google refresh tokens — those live in users, which
+leases access tokens out on demand. Handler timeout **2s**.
+
+Plaintext access tokens transit this subject, so it is import-gated in NATS
+authorization exactly like `bagel.rpc.internal.tokens.*`: only yt-ingress and
+outgress may call it.
+
+| Request | Reply |
+|---|---|
+| `{channel_id}` (YouTube `UC…` id) | `{channel_id, access_token, expires_at}` where `expires_at` is unix seconds |
+
+Callers cache until `expires_at - margin` and re-request once on a mid-stream
+auth failure; a reply without a non-empty `access_token` is an error.
 
 ## Outgress management — `bagel.rpc.outgress.*`
 

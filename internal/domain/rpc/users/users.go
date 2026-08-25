@@ -199,15 +199,34 @@ type EmailGetReply struct {
 }
 
 // GrantSaveRequest is the payload for the dashboard grant_save verb.
+//
+// Platform selects which credential row the grant lands on. Empty means
+// "twitch" so every pre-youtube caller keeps its exact wire shape and
+// behaviour; "youtube" selects the Google grant row instead.
 type GrantSaveRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	AccessToken       string `json:"access_token"`
 	RefreshToken      string `json:"refresh_token"`
+	// Platform is the identity provider: "" / "twitch" (default) or
+	// "youtube". Anything else is rejected, never defaulted.
+	Platform string `json:"platform,omitempty"`
+	// YouTube-only: the channel this Google grant speaks for ("UC..." from
+	// channels.list?mine=true). Required for platform=youtube because the
+	// token lease RPC is addressed by channel id; ignored for twitch.
+	YouTubeChannelID string `json:"youtube_channel_id,omitempty"`
+	// AccessTokenExpiresAt is optional on twitch (unknown there today) and
+	// expected on youtube: Google's token response carries expires_in and
+	// the console converts it to an absolute time before posting. The lease
+	// RPC cannot serve sensible expires_at values without it until the first
+	// mint refreshes the grant.
+	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
 }
 
 // GrantHasRequest is the payload for the dashboard grant_has verb.
+// Platform follows GrantSaveRequest.Platform's semantics ("" == twitch).
 type GrantHasRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
+	Platform          string `json:"platform,omitempty"`
 }
 
 // ActiveSetRequest is the payload for the dashboard active_set verb.
@@ -337,4 +356,30 @@ type TokensReply struct {
 	RefreshToken         string     `json:"refresh_token,omitempty"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
 	Error                string     `json:"error,omitempty"`
+}
+
+// YouTubeTokenGetRequest is the payload for the per-channel Google access
+// token lease (bagel.rpc.youtube.token.get). The wire shape is fixed by the
+// Elixir consumer app/yt-ingress/lib/yt_ingress/token_source.ex, which sends:
+//
+//	{"channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw"}
+type YouTubeTokenGetRequest struct {
+	// ChannelID is the YouTube channel the credential must act for.
+	ChannelID string `json:"channel_id"`
+}
+
+// YouTubeTokenGetReply mirrors token_source.ex's documented reply shape:
+//
+//	{"channel_id": "...", "access_token": "...", "expires_at": 1755880000}
+//
+// ExpiresAt is unix SECONDS (not RFC3339 like TokensReply) and is what the
+// ingress caches against: entries live until expires_at minus its refresh
+// margin. Its decode pattern requires both "access_token" and "expires_at"
+// to be present on success; any other body is treated as a fetch error, so
+// failures here answer with Error set and no partial success fields.
+type YouTubeTokenGetReply struct {
+	ChannelID   string `json:"channel_id,omitempty"`
+	AccessToken string `json:"access_token,omitempty"`
+	ExpiresAt   int64  `json:"expires_at,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
