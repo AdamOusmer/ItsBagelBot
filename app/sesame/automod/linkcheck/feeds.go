@@ -107,14 +107,7 @@ func (f *Feeds) Refresh(ctx context.Context) (int, error) {
 
 // fetchSource downloads one source into merged, returning its contribution.
 func (f *Feeds) fetchSource(ctx context.Context, src FeedSource, merged map[string]struct{}) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src.URL, nil)
-	if err != nil {
-		return 0, err
-	}
-	if src.AuthKey != "" {
-		req.Header.Set("Auth-Key", src.AuthKey)
-	}
-	res, err := f.client.Do(req)
+	res, err := f.get(ctx, src)
 	if err != nil {
 		return 0, err
 	}
@@ -125,12 +118,30 @@ func (f *Feeds) fetchSource(ctx context.Context, src FeedSource, merged map[stri
 	if res.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s: status %d", src.Name, res.StatusCode)
 	}
+	return mergeFeed(res.Body, src.Format, merged)
+}
 
+// get issues the source request, attaching the abuse.ch Auth-Key header when
+// the source carries one.
+func (f *Feeds) get(ctx context.Context, src FeedSource) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if src.AuthKey != "" {
+		req.Header.Set("Auth-Key", src.AuthKey)
+	}
+	return f.client.Do(req)
+}
+
+// mergeFeed scans a feed body line by line, adding each new host to merged until
+// the entry cap binds, and returns how many it added.
+func mergeFeed(body io.Reader, format feedFormat, merged map[string]struct{}) (int, error) {
 	added := 0
-	sc := bufio.NewScanner(io.LimitReader(res.Body, 32<<20))
+	sc := bufio.NewScanner(io.LimitReader(body, 32<<20))
 	sc.Buffer(make([]byte, 0, 64*1024), 64*1024)
 	for sc.Scan() {
-		host := parseFeedLine(sc.Bytes(), src.Format)
+		host := parseFeedLine(sc.Bytes(), format)
 		if host == "" || len(merged) >= maxFeedEntries {
 			continue
 		}
