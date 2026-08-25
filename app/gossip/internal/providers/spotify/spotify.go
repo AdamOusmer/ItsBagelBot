@@ -2,21 +2,23 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package spotify is the gossip provider for the Spotify Web API
-// (api.spotify.com). Like govee it holds no per-broadcaster secret of its
-// own: every call authenticates as a broadcaster, whose OAuth refresh token
-// is resolved just-in-time from the modules service
+// (api.spotify.com). It holds no Spotify credential of its own — not even an
+// application. Every broadcaster registers their OWN Spotify app and connects
+// their own account to it, so the client id, client secret and OAuth refresh
+// token are all resolved just-in-time from the modules service
 // (provider.Deps.SpotifyKeys) by the broadcaster id the caller passes as
-// Request.ChannelID. Gossip holds only the fleet's own Spotify app
-// credentials (Config.ClientID/ClientSecret) and exchanges each
-// broadcaster's refresh token for a short-lived access token, cached per
-// broadcaster until shortly before Spotify expires it. The plaintext refresh
-// token lives only inside one token mint and is never cached or logged.
+// Request.ChannelID. That credential set is exchanged for a short-lived
+// access token, cached per broadcaster until shortly before Spotify expires
+// it; the plaintexts live only inside one token mint and are never cached or
+// logged.
 //
-// Four endpoints back the music module: "search" resolves free text to
-// tracks, "track" and "artist" look up bare catalog ids, and "nowplaying"
-// reads the broadcaster's currently-playing track. Search and the lookups
-// ride any valid user token; nowplaying additionally requires
-// user-read-currently-playing (or user-read-playback-state) on the
+// Five endpoints: "search" resolves free text to tracks, "track" and "artist"
+// look up bare catalog ids, "nowplaying" reads the broadcaster's
+// currently-playing track, and "exchange" redeems the console's OAuth
+// authorization code — that one lives here, rather than in the console,
+// because the client secret it needs is imported by this service alone.
+// Search and the lookups ride any valid user token; nowplaying additionally
+// requires user-read-currently-playing (or user-read-playback-state) on the
 // broadcaster's grant.
 package spotify
 
@@ -90,16 +92,15 @@ const (
 	minTokenTTL = 30 * time.Second
 )
 
-// Config carries the provider's environment: the two Spotify hosts, the
-// fleet's one Spotify app credentials, and the per-broadcaster request
-// ceiling. There is no broadcaster credential here — those are per caller,
-// resolved just-in-time.
+// Config carries the provider's environment: the two Spotify hosts and the
+// per-broadcaster request ceiling. There are no app credentials here — the
+// fleet no longer owns a Spotify application. Every broadcaster registers
+// their own and every credential, app included, is resolved per caller
+// just-in-time.
 type Config struct {
-	BaseURL      string
-	AccountsURL  string
-	ClientID     string
-	ClientSecret string
-	RateLimit    float64
+	BaseURL     string
+	AccountsURL string
+	RateLimit   float64
 }
 
 // providerName is the subject token this provider answers under.
@@ -118,21 +119,19 @@ type api struct {
 	// ride the form body, not a baked header.
 	auth    *core.HTTPClient
 	cache   *core.Cache
-	keys    provider.BroadcasterKeyResolver
+	keys    provider.SpotifyCredResolver
 	log     *zap.Logger
 	limiter *ratelimit.Limiter
 
 	// buckets is the per-broadcaster budget template: the derived specs are
 	// computed once here and re-keyed per caller (see rateAdmit).
 	buckets core.Buckets
-
-	clientID     string
-	clientSecret string
 }
 
-// New builds the spotify provider. d.SpotifyKeys and the app credentials must
-// all be present (providers.All skips the provider otherwise, since with no
-// resolver or no app to exchange against it can authenticate nothing).
+// New builds the spotify provider. d.SpotifyKeys must be present
+// (providers.All skips the provider otherwise, since with no resolver it can
+// authenticate nothing — the applications it exchanges against are the
+// broadcasters' own, resolved through that same resolver).
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
@@ -140,6 +139,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("track").Timeout(lookupTimeout).Handle(p.track)
 	b.Endpoint("artist").Timeout(lookupTimeout).Handle(p.artist)
 	b.Endpoint("nowplaying").Timeout(nowplayingTimeout).Handle(p.nowPlaying)
+	b.Endpoint("exchange").Timeout(lookupTimeout).Handle(p.exchange)
 	return b.Build()
 }
 
@@ -156,15 +156,13 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:         b.Client(base, nil, httpTimeout),
-		auth:         b.Client(accounts, nil, httpTimeout),
-		cache:        d.Cache,
-		keys:         d.SpotifyKeys,
-		log:          d.Logger(),
-		limiter:      d.Limiter,
-		buckets:      core.NewBuckets("ratelimit:gossip:spotify", cfg.RateLimit, rateWindowSeconds),
-		clientID:     cfg.ClientID,
-		clientSecret: cfg.ClientSecret,
+		http:    b.Client(base, nil, httpTimeout),
+		auth:    b.Client(accounts, nil, httpTimeout),
+		cache:   d.Cache,
+		keys:    d.SpotifyKeys,
+		log:     d.Logger(),
+		limiter: d.Limiter,
+		buckets: core.NewBuckets("ratelimit:gossip:spotify", cfg.RateLimit, rateWindowSeconds),
 	}
 }
 
@@ -192,10 +190,10 @@ type accessToken string
 
 // accessToken returns a live access token for the broadcaster: minted from
 // their refresh token, or served from the short-lived per-broadcaster cache.
-func (p *api) accessToken(ctx context.Context, broadcaster, refreshToken string) (accessToken, error) {
+func (p *api) accessToken(ctx context.Context, broadcaster string, creds core.SpotifyCredentials) (accessToken, error) {
 	cacheKey := core.Key(providerName, "token", broadcaster)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
-		tok, err := p.mintToken(ctx, broadcaster, refreshToken)
+		tok, err := p.mintToken(ctx, broadcaster, creds)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -222,19 +220,32 @@ func tokenCacheTTL(expiresIn int) time.Duration {
 }
 
 // mintToken exchanges the broadcaster's refresh token for an access token
-// using the fleet's own app credentials (confidential-client form flow).
+// using THEIR OWN app credentials (confidential-client form flow). The app is
+// the one that issued the grant: Spotify rejects a refresh token presented by
+// any other client id, which is why the credential set travels together.
 //
 // Spotify MAY rotate the refresh token on this exchange. Custody of the
 // stored token belongs to the modules service, so the replacement is written
 // back through its compare-and-swap rotate verb (see persistRotation) —
 // best-effort, never blocking the mint that already succeeded.
-func (p *api) mintToken(ctx context.Context, broadcaster, refreshToken string) (tokenResponse, error) {
-	form := url.Values{
+func (p *api) mintToken(ctx context.Context, broadcaster string, creds core.SpotifyCredentials) (tokenResponse, error) {
+	tok, err := p.postToken(ctx, url.Values{
 		"grant_type":    {"refresh_token"},
-		"refresh_token": {refreshToken},
-		"client_id":     {p.clientID},
-		"client_secret": {p.clientSecret},
+		"refresh_token": {creds.RefreshToken},
+		"client_id":     {creds.ClientID},
+		"client_secret": {creds.ClientSecret},
+	})
+	if err != nil {
+		return tok, err
 	}
+	p.persistRotation(ctx, broadcaster, creds.RefreshToken, tok.RefreshToken)
+	return tok, nil
+}
+
+// postToken runs one accounts.spotify.com token exchange, shared by the
+// refresh-token mint and the console's authorization-code exchange — the two
+// differ only in the form body.
+func (p *api) postToken(ctx context.Context, form url.Values) (tokenResponse, error) {
 	var tok tokenResponse
 	req := core.Request{
 		Method: http.MethodPost,
@@ -251,27 +262,41 @@ func (p *api) mintToken(ctx context.Context, broadcaster, refreshToken string) (
 	if tok.AccessToken == "" {
 		return tok, fmt.Errorf("spotify token mint: empty access_token")
 	}
-	p.persistRotation(ctx, broadcaster, refreshToken, tok.RefreshToken)
 	return tok, nil
 }
 
 // accessTokenFor resolves the broadcaster's refresh token and returns a live
 // access token, or ("", msg) with a reply-safe reason when it cannot.
 func (p *api) accessTokenFor(ctx context.Context, broadcaster string) (tok accessToken, msg string) {
-	refresh, err := p.keys.Key(ctx, broadcaster)
-	if err != nil {
-		p.log.Warn("spotify refresh-token resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
-		return "", "could not read your Spotify connection"
+	creds, msg := p.credentials(ctx, broadcaster)
+	if msg != "" {
+		return "", msg
 	}
-	if refresh == "" {
+	if creds.RefreshToken == "" {
 		return "", "no Spotify connection on file"
 	}
-	tok, err = p.accessToken(ctx, broadcaster, refresh)
+	tok, err := p.accessToken(ctx, broadcaster, creds)
 	if err != nil {
 		p.log.Warn("spotify token mint failed", zap.String("broadcaster", broadcaster), zap.Error(err))
 		return "", friendlyAuthError(err)
 	}
 	return tok, ""
+}
+
+// credentials resolves the broadcaster's own application and grant, or
+// ("", msg) with a reply-safe reason. A broadcaster who has not pasted their
+// Spotify application yet is told so plainly: since the fleet retired its
+// shared app, that is the first setup step and the most common miss.
+func (p *api) credentials(ctx context.Context, broadcaster string) (core.SpotifyCredentials, string) {
+	creds, err := p.keys.Credentials(ctx, broadcaster)
+	if err != nil {
+		p.log.Warn("spotify credential resolve failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		return core.SpotifyCredentials{}, "could not read your Spotify connection"
+	}
+	if creds.ClientID == "" || creds.ClientSecret == "" {
+		return core.SpotifyCredentials{}, "no Spotify app set up for this channel"
+	}
+	return creds, ""
 }
 
 // deadCredential reports the token-endpoint statuses that mean the stored
@@ -821,4 +846,52 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.SpotifyNowPlayingReply{Error: p.fetchFailed("spotify now-playing fetch failed", "could not reach Spotify", err)}
 	}
 	return codec.RawMessage(b)
+}
+
+// --- authorization-code exchange ---------------------------------------------
+
+// exchange completes the console's Spotify connect flow: the browser hands the
+// console an authorization code, and the console forwards it here rather than
+// redeeming it itself. Gossip is the only service holding a broadcaster's
+// client secret in plaintext (it already needs it to refresh their token), so
+// routing the redemption through this endpoint keeps the secret out of the
+// browser-facing app entirely — the console only ever sees the refresh token,
+// which it already stores through the modules custody RPC.
+//
+// The redirect_uri travels from the caller because Spotify validates it
+// against the exact value used in the authorize step; the console owns that
+// URL, and a mismatched one fails at Spotify rather than here.
+func (p *api) exchange(ctx context.Context, req gossiprpc.Request) any {
+	broadcaster := strings.TrimSpace(req.ChannelID)
+	if broadcaster == "" {
+		return gossiprpc.SpotifyExchangeReply{Error: "missing channel"}
+	}
+	code := strings.TrimSpace(req.Code)
+	redirect := strings.TrimSpace(req.RedirectURI)
+	if code == "" || redirect == "" {
+		return gossiprpc.SpotifyExchangeReply{Error: "missing authorization code"}
+	}
+
+	creds, msg := p.credentials(ctx, broadcaster)
+	if msg != "" {
+		return gossiprpc.SpotifyExchangeReply{Error: msg}
+	}
+
+	tok, err := p.postToken(ctx, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {redirect},
+		"client_id":     {creds.ClientID},
+		"client_secret": {creds.ClientSecret},
+	})
+	if err != nil {
+		p.log.Warn("spotify code exchange failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		return gossiprpc.SpotifyExchangeReply{Error: friendlyAuthError(err)}
+	}
+
+	// Spotify reuses consent: a re-connect with unchanged scopes comes back
+	// with no refresh token. That is not an error — the caller keeps whatever
+	// is already on file — so it is reported as an empty token, and the
+	// console decides whether a stored one makes it a success.
+	return gossiprpc.SpotifyExchangeReply{RefreshToken: tok.RefreshToken}
 }

@@ -165,6 +165,8 @@
   "songqueue.add.full": "@{user} the song queue is full right now.",
   "songqueue.add.ok": "@{user} queued \"{title}\" by {artist} — position #{pos}.",
   "songqueue.cleared": "The song queue has been cleared.",
+  "songqueue.current.ok": "Now playing on Spotify: {title} by {artist}",
+  "songqueue.current.req": "Now playing on Spotify: {title} by {artist} (asked by {req})",
   "songqueue.err.upstream": "@{user} the music lookup is down right now, try again in a bit.",
   "songqueue.next.empty": "The song queue is empty.",
   "songqueue.playing": "Now playing: {title} by {artist} (asked by {req})",

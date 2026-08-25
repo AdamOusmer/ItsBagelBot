@@ -69,11 +69,61 @@ type RefreshTokenGetRequest struct {
 	UserID string `json:"user_id"`
 }
 
-// RefreshTokenGetReply carries the decrypted refresh token or a terminal
-// error. An empty RefreshToken with empty Error means the broadcaster has not
-// connected Spotify yet (the caller treats that as "not set up", not a
-// failure).
+// RefreshTokenGetReply carries the broadcaster's whole decrypted Spotify
+// credential set — their own application plus the grant minted against it — or
+// a terminal error. Gossip needs all three on the same call (it authenticates
+// the refresh exchange with the app that issued the grant), so they ride one
+// reply rather than costing two round trips per chat command.
+//
+// Empty fields with an empty Error mean "not set up", which the caller treats
+// as a state, not a failure. The two halves are set independently: an app with
+// no RefreshToken is a broadcaster who pasted credentials but never finished
+// the connect flow.
 type RefreshTokenGetReply struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
 	Error        string `json:"error,omitempty"`
+}
+
+// --- broadcaster-owned Spotify application ----------------------------------
+//
+// Every broadcaster registers their OWN Spotify application and pastes its
+// client id and client secret into the console; the fleet no longer ships a
+// global app. The client id is public by construction (it rides the authorize
+// URL in the browser) so it is stored and echoed in the clear; the client
+// secret is a third-party secret and gets the same sealed-at-rest treatment as
+// the refresh token, under its own AAD label.
+//
+// The secret leaves the modules service on exactly one subject — the internal
+// key.get above, imported by gossip alone — because gossip is the only service
+// that talks to accounts.spotify.com (both the refresh-token exchange and the
+// console's authorization-code exchange, which the console forwards rather
+// than performing itself so the secret never reaches a browser-facing app).
+
+// AppSetRequest stores (or replaces) the broadcaster's own Spotify application
+// credentials. Both fields are required: half an app cannot authenticate.
+type AppSetRequest struct {
+	UserID       string `json:"user_id"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
+// AppClearRequest removes the stored application credentials.
+type AppClearRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// AppStatusRequest asks whether an application is on file.
+type AppStatusRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// AppStatusReply reports presence plus the client id — public by construction,
+// and the console shows it so a broadcaster can tell WHICH of their Spotify
+// apps is wired up. The secret is never echoed.
+type AppStatusReply struct {
+	Present  bool   `json:"present"`
+	ClientID string `json:"client_id,omitempty"`
+	Error    string `json:"error,omitempty"`
 }

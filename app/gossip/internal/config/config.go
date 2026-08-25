@@ -100,18 +100,15 @@ type Config struct {
 	GoveeRateLimit        float64
 	GoveeKeySubjectPrefix string
 
-	// Spotify music provider (search / track / artist / now-playing). Like
-	// govee it holds no per-broadcaster secret itself: each broadcaster
-	// connects their own account and SpotifyKeys — the modules service's
-	// internal RPC named by SpotifyKeySubjectPrefix, empty = provider
-	// disabled — hands over the stored OAuth refresh token. Gossip exchanges
-	// that token for short-lived access tokens using the fleet's ONE Spotify
-	// app (SPOTIFY_CLIENT_ID/SECRET): the app every broadcaster consents to.
-	// Both halves must be present or the whole provider skips at boot.
+	// Spotify music provider (search / track / artist / now-playing, plus the
+	// console's authorization-code exchange). Like govee it holds no secret
+	// itself, and unlike its first shape it holds no fleet Spotify app either:
+	// each broadcaster registers their OWN application and connects their own
+	// account, so the client id, client secret and refresh token all arrive
+	// per call from SpotifyKeys — the modules service's internal RPC named by
+	// SpotifyKeySubjectPrefix, empty = provider disabled.
 	SpotifyBaseURL          string
 	SpotifyAccountsURL      string
-	SpotifyClientID         string
-	SpotifyClientSecret     string
 	SpotifyRateLimit        float64
 	SpotifyKeySubjectPrefix string
 
@@ -223,8 +220,6 @@ func Load() *Config {
 
 		SpotifyBaseURL:          env.Get("SPOTIFY_BASE_URL", "https://api.spotify.com"),
 		SpotifyAccountsURL:      env.Get("SPOTIFY_ACCOUNTS_URL", "https://accounts.spotify.com"),
-		SpotifyClientID:         env.Get("SPOTIFY_CLIENT_ID", ""),
-		SpotifyClientSecret:     env.Get("SPOTIFY_CLIENT_SECRET", ""),
 		SpotifyRateLimit:        env.GetFloat("SPOTIFY_RATE_LIMIT", 30.0),
 		SpotifyKeySubjectPrefix: env.Get("NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.spotify.key"),
 

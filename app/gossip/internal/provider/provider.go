@@ -65,6 +65,17 @@ type BroadcasterKeyResolver interface {
 	Key(ctx context.Context, broadcasterID string) (string, error)
 }
 
+// SpotifyCredResolver hands the spotify provider one broadcaster's whole
+// credential set, resolved just-in-time from the modules service over the
+// internal RPC — the same custody posture as BroadcasterKeyResolver, widened
+// because Spotify needs three values rather than one and a second round trip
+// per chat command is not worth the narrower signature. The credential struct
+// lives in core because the resolver that implements this does too, and core
+// cannot import this package.
+type SpotifyCredResolver interface {
+	Credentials(ctx context.Context, broadcasterID string) (core.SpotifyCredentials, error)
+}
+
 // FetchKeyResolver resolves a broadcaster's stored API key BY LABEL for the
 // custom urlfetch provider — the commands-service twin of GoveeKeyClient.
 // Same custody rules: the plaintext rides one fetch and is never cached,
@@ -99,9 +110,11 @@ type Deps struct {
 	// nil disables that provider (providers.All skips it), the same degrade as a
 	// missing service API key.
 	GoveeKeys BroadcasterKeyResolver
-	// SpotifyKeys resolves per-broadcaster Spotify OAuth refresh tokens for
-	// the spotify provider, under the same custody split as GoveeKeys.
-	SpotifyKeys BroadcasterKeyResolver
+	// SpotifyKeys resolves per-broadcaster Spotify credentials for the spotify
+	// provider, under the same custody split as GoveeKeys. It resolves more
+	// than a key because a broadcaster now owns the whole chain: their own
+	// registered application AND the grant minted against it.
+	SpotifyKeys SpotifyCredResolver
 	// FetchKeys resolves per-broadcaster API keys by label for the custom
 	// urlfetch provider. Optional: keyless definitions still work when nil —
 	// only defs carrying a key_label then answer bad_def (fail closed).

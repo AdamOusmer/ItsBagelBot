@@ -17,6 +17,10 @@ const (
 	FieldUserID = "user_id"
 	// FieldTokenEnc holds the string denoting the token_enc field in the database.
 	FieldTokenEnc = "token_enc"
+	// FieldClientID holds the string denoting the client_id field in the database.
+	FieldClientID = "client_id"
+	// FieldClientSecretEnc holds the string denoting the client_secret_enc field in the database.
+	FieldClientSecretEnc = "client_secret_enc"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// Table holds the table name of the spotifycredential in the database.
@@ -28,6 +32,8 @@ var Columns = []string{
 	FieldID,
 	FieldUserID,
 	FieldTokenEnc,
+	FieldClientID,
+	FieldClientSecretEnc,
 	FieldUpdatedAt,
 }
 
@@ -42,6 +48,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultClientID holds the default value on creation for the "client_id" field.
+	DefaultClientID string
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
 	DefaultUpdatedAt func() time.Time
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
@@ -59,6 +67,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByUserID orders the results by the user_id field.
 func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByClientID orders the results by the client_id field.
+func ByClientID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldClientID, opts...).ToFunc()
 }
 
 // ByUpdatedAt orders the results by the updated_at field.

@@ -69,12 +69,18 @@ describe('module catalog', () => {
     expect(new Set(icons).size).toBe(icons.length);
   });
 
-  test('songqueue is a bespoke href module listing !sr, !remove, !next and !clear', () => {
+  test('songqueue is a bespoke href module listing !sr, !remove, !next, !clear and !current', () => {
     const def = moduleDef('songqueue');
     expect(def).toBeDefined();
     expect(def?.href).toBe('/songqueue');
     expect(def?.icon).toBe('music');
-    expect(def?.commands?.map((c) => c.trigger)).toEqual(['!sr', '!remove', '!next', '!clear']);
+    expect(def?.commands?.map((c) => c.trigger)).toEqual([
+      '!sr',
+      '!remove',
+      '!next',
+      '!clear',
+      '!current'
+    ]);
   });
 
   test('gamble and duels nest under loyalty with no second currency name', () => {

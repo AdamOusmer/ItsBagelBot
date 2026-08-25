@@ -34,6 +34,26 @@ func (_c *SpotifyCredentialCreate) SetTokenEnc(v []byte) *SpotifyCredentialCreat
 	return _c
 }
 
+// SetClientID sets the "client_id" field.
+func (_c *SpotifyCredentialCreate) SetClientID(v string) *SpotifyCredentialCreate {
+	_c.mutation.SetClientID(v)
+	return _c
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_c *SpotifyCredentialCreate) SetNillableClientID(v *string) *SpotifyCredentialCreate {
+	if v != nil {
+		_c.SetClientID(*v)
+	}
+	return _c
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (_c *SpotifyCredentialCreate) SetClientSecretEnc(v []byte) *SpotifyCredentialCreate {
+	_c.mutation.SetClientSecretEnc(v)
+	return _c
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_c *SpotifyCredentialCreate) SetUpdatedAt(v time.Time) *SpotifyCredentialCreate {
 	_c.mutation.SetUpdatedAt(v)
@@ -83,6 +103,10 @@ func (_c *SpotifyCredentialCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *SpotifyCredentialCreate) defaults() {
+	if _, ok := _c.mutation.ClientID(); !ok {
+		v := spotifycredential.DefaultClientID
+		_c.mutation.SetClientID(v)
+	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		v := spotifycredential.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
@@ -93,9 +117,6 @@ func (_c *SpotifyCredentialCreate) defaults() {
 func (_c *SpotifyCredentialCreate) check() error {
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "SpotifyCredential.user_id"`)}
-	}
-	if _, ok := _c.mutation.TokenEnc(); !ok {
-		return &ValidationError{Name: "token_enc", err: errors.New(`ent: missing required field "SpotifyCredential.token_enc"`)}
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "SpotifyCredential.updated_at"`)}
@@ -134,6 +155,14 @@ func (_c *SpotifyCredentialCreate) createSpec() (*SpotifyCredential, *sqlgraph.C
 	if value, ok := _c.mutation.TokenEnc(); ok {
 		_spec.SetField(spotifycredential.FieldTokenEnc, field.TypeBytes, value)
 		_node.TokenEnc = value
+	}
+	if value, ok := _c.mutation.ClientID(); ok {
+		_spec.SetField(spotifycredential.FieldClientID, field.TypeString, value)
+		_node.ClientID = value
+	}
+	if value, ok := _c.mutation.ClientSecretEnc(); ok {
+		_spec.SetField(spotifycredential.FieldClientSecretEnc, field.TypeBytes, value)
+		_node.ClientSecretEnc = value
 	}
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
@@ -200,6 +229,48 @@ func (u *SpotifyCredentialUpsert) SetTokenEnc(v []byte) *SpotifyCredentialUpsert
 // UpdateTokenEnc sets the "token_enc" field to the value that was provided on create.
 func (u *SpotifyCredentialUpsert) UpdateTokenEnc() *SpotifyCredentialUpsert {
 	u.SetExcluded(spotifycredential.FieldTokenEnc)
+	return u
+}
+
+// ClearTokenEnc clears the value of the "token_enc" field.
+func (u *SpotifyCredentialUpsert) ClearTokenEnc() *SpotifyCredentialUpsert {
+	u.SetNull(spotifycredential.FieldTokenEnc)
+	return u
+}
+
+// SetClientID sets the "client_id" field.
+func (u *SpotifyCredentialUpsert) SetClientID(v string) *SpotifyCredentialUpsert {
+	u.Set(spotifycredential.FieldClientID, v)
+	return u
+}
+
+// UpdateClientID sets the "client_id" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsert) UpdateClientID() *SpotifyCredentialUpsert {
+	u.SetExcluded(spotifycredential.FieldClientID)
+	return u
+}
+
+// ClearClientID clears the value of the "client_id" field.
+func (u *SpotifyCredentialUpsert) ClearClientID() *SpotifyCredentialUpsert {
+	u.SetNull(spotifycredential.FieldClientID)
+	return u
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsert) SetClientSecretEnc(v []byte) *SpotifyCredentialUpsert {
+	u.Set(spotifycredential.FieldClientSecretEnc, v)
+	return u
+}
+
+// UpdateClientSecretEnc sets the "client_secret_enc" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsert) UpdateClientSecretEnc() *SpotifyCredentialUpsert {
+	u.SetExcluded(spotifycredential.FieldClientSecretEnc)
+	return u
+}
+
+// ClearClientSecretEnc clears the value of the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsert) ClearClientSecretEnc() *SpotifyCredentialUpsert {
+	u.SetNull(spotifycredential.FieldClientSecretEnc)
 	return u
 }
 
@@ -271,6 +342,55 @@ func (u *SpotifyCredentialUpsertOne) SetTokenEnc(v []byte) *SpotifyCredentialUps
 func (u *SpotifyCredentialUpsertOne) UpdateTokenEnc() *SpotifyCredentialUpsertOne {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.UpdateTokenEnc()
+	})
+}
+
+// ClearTokenEnc clears the value of the "token_enc" field.
+func (u *SpotifyCredentialUpsertOne) ClearTokenEnc() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearTokenEnc()
+	})
+}
+
+// SetClientID sets the "client_id" field.
+func (u *SpotifyCredentialUpsertOne) SetClientID(v string) *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetClientID(v)
+	})
+}
+
+// UpdateClientID sets the "client_id" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertOne) UpdateClientID() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateClientID()
+	})
+}
+
+// ClearClientID clears the value of the "client_id" field.
+func (u *SpotifyCredentialUpsertOne) ClearClientID() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearClientID()
+	})
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsertOne) SetClientSecretEnc(v []byte) *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetClientSecretEnc(v)
+	})
+}
+
+// UpdateClientSecretEnc sets the "client_secret_enc" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertOne) UpdateClientSecretEnc() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateClientSecretEnc()
+	})
+}
+
+// ClearClientSecretEnc clears the value of the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsertOne) ClearClientSecretEnc() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearClientSecretEnc()
 	})
 }
 
@@ -510,6 +630,55 @@ func (u *SpotifyCredentialUpsertBulk) SetTokenEnc(v []byte) *SpotifyCredentialUp
 func (u *SpotifyCredentialUpsertBulk) UpdateTokenEnc() *SpotifyCredentialUpsertBulk {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.UpdateTokenEnc()
+	})
+}
+
+// ClearTokenEnc clears the value of the "token_enc" field.
+func (u *SpotifyCredentialUpsertBulk) ClearTokenEnc() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearTokenEnc()
+	})
+}
+
+// SetClientID sets the "client_id" field.
+func (u *SpotifyCredentialUpsertBulk) SetClientID(v string) *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetClientID(v)
+	})
+}
+
+// UpdateClientID sets the "client_id" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertBulk) UpdateClientID() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateClientID()
+	})
+}
+
+// ClearClientID clears the value of the "client_id" field.
+func (u *SpotifyCredentialUpsertBulk) ClearClientID() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearClientID()
+	})
+}
+
+// SetClientSecretEnc sets the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsertBulk) SetClientSecretEnc(v []byte) *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetClientSecretEnc(v)
+	})
+}
+
+// UpdateClientSecretEnc sets the "client_secret_enc" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertBulk) UpdateClientSecretEnc() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateClientSecretEnc()
+	})
+}
+
+// ClearClientSecretEnc clears the value of the "client_secret_enc" field.
+func (u *SpotifyCredentialUpsertBulk) ClearClientSecretEnc() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearClientSecretEnc()
 	})
 }
 

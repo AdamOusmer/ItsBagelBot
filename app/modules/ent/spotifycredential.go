@@ -21,6 +21,10 @@ type SpotifyCredential struct {
 	UserID uint64 `json:"user_id,omitempty"`
 	// TokenEnc holds the value of the "token_enc" field.
 	TokenEnc []byte `json:"-"`
+	// ClientID holds the value of the "client_id" field.
+	ClientID string `json:"client_id,omitempty"`
+	// ClientSecretEnc holds the value of the "client_secret_enc" field.
+	ClientSecretEnc []byte `json:"-"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 	selectValues sql.SelectValues
@@ -31,10 +35,12 @@ func (*SpotifyCredential) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case spotifycredential.FieldTokenEnc:
+		case spotifycredential.FieldTokenEnc, spotifycredential.FieldClientSecretEnc:
 			values[i] = new([]byte)
 		case spotifycredential.FieldID, spotifycredential.FieldUserID:
 			values[i] = new(sql.NullInt64)
+		case spotifycredential.FieldClientID:
+			values[i] = new(sql.NullString)
 		case spotifycredential.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
@@ -69,6 +75,18 @@ func (_m *SpotifyCredential) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field token_enc", values[i])
 			} else if value != nil {
 				_m.TokenEnc = *value
+			}
+		case spotifycredential.FieldClientID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field client_id", values[i])
+			} else if value.Valid {
+				_m.ClientID = value.String
+			}
+		case spotifycredential.FieldClientSecretEnc:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field client_secret_enc", values[i])
+			} else if value != nil {
+				_m.ClientSecretEnc = *value
 			}
 		case spotifycredential.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -116,6 +134,11 @@ func (_m *SpotifyCredential) String() string {
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
 	builder.WriteString(", ")
 	builder.WriteString("token_enc=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("client_id=")
+	builder.WriteString(_m.ClientID)
+	builder.WriteString(", ")
+	builder.WriteString("client_secret_enc=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))
