@@ -21,7 +21,7 @@
 // importing the dynamic-env proxy there deadlocks server.init (exit 13).
 import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
+import { GRANTABLE_SECTIONS, MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
 import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
@@ -52,7 +52,12 @@ function wipe(event: RequestEvent): void {
 // a new module page needs no edit here). The read-only counter name list also
 // opens to the commands grant so commands-only delegates can use the picker.
 function delegateAllowedPaths(sections: readonly string[]): string[] {
-  const allowed = sections.map((sec) => `/${sec}`);
+  // Only registry-known sections earn their own path candidate; the filter
+  // keeps each delegate's own grant order, so the bounce target (allowed[0])
+  // stays the first thing that delegate was actually granted.
+  const allowed = sections
+    .filter((sec) => (GRANTABLE_SECTIONS as readonly string[]).includes(sec))
+    .map((sec) => `/${sec}`);
   for (const def of MODULE_CATALOG) {
     if (def.href && moduleDelegateSections(def).some((sec) => sections.includes(sec))) {
       allowed.push(def.href);

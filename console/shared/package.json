@@ -52,7 +52,8 @@
     "./toast": "./lib/toast.ts",
     "./connection-state": "./lib/connection-state.ts",
     "./overlay-stack": "./lib/overlay-stack.ts",
-    "./types": "./lib/types.ts"
+    "./types": "./lib/types.ts",
+    "./nav": "./lib/nav.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",

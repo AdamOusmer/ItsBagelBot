@@ -19,12 +19,12 @@
 // the channel starts receiving redemption events.
 import { rpc } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
-import type { ChannelPointReward } from '@bagel/shared';
+import { type ChannelPointReward, MOD } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
 import { createCounter } from './loyalty-store';
 
-const CP_MODULE = 'channelpoints';
+const CP_MODULE = MOD.channelpoints;
 
 // RewardWire is the snake_case mirror of the Go manage.Reward RPC contract.
 interface RewardWire {
