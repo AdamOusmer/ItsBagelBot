@@ -12,7 +12,7 @@ import (
 )
 
 // SpotifyCredential holds one broadcaster's Spotify OAuth refresh token,
-// sealed at rest — the spotify twin of GoveeCredential. The token is a
+// sealed at rest: the spotify twin of GoveeCredential. The token is a
 // third-party secret, so it never lands in the projected module configs blob
 // (which is cached and fanned out in cleartext); it lives here as Tink AEAD
 // ciphertext instead, and only gossip ever receives it decrypted, over an
@@ -33,7 +33,7 @@ func (SpotifyCredential) Fields() []ent.Field {
 		// row fails to open.
 		// Optional because the two halves of a Spotify setup are written by
 		// two different flows: pasting the app credentials creates the row,
-		// finishing the OAuth round trip fills this in (and vice versa — a
+		// finishing the OAuth round trip fills this in (and vice versa: a
 		// broadcaster who re-pastes credentials keeps their existing grant
 		// until it stops working).
 		field.Bytes("token_enc").Sensitive().Optional(),
@@ -47,6 +47,15 @@ func (SpotifyCredential) Fields() []ent.Field {
 		// label so a ciphertext cannot be swapped between the two columns.
 		field.String("client_id").Optional().Default(""),
 		field.Bytes("client_secret_enc").Sensitive().Optional(),
+
+		// The scopes Spotify GRANTED with the stored token, space-delimited
+		// exactly as Spotify returns them. Not a secret: it is a list of
+		// capability names, useless without the token, so it stays in the
+		// clear, which is what lets the console diff it against what the
+		// current connect flow asks for and prompt for a reconnect. Empty
+		// means "unknown": a grant recorded before this column existed, which
+		// callers must treat as stale rather than as complete.
+		field.String("scopes").Optional().Default(""),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

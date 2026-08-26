@@ -230,7 +230,7 @@ func TestSRRetractTouchesOnlyOwnLatest(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "don't have a queued song")
 }
 
-// A viewer typing a number must never remove someone else's entry — it falls
+// A viewer typing a number must never remove someone else's entry: it falls
 // back to their own retract; only mods get positional reach.
 func TestSRRemoveNumberIsModOnlyPositional(t *testing.T) {
 	g := srSearchGossip(
@@ -352,11 +352,17 @@ func TestSRPathGates(t *testing.T) {
 		config string
 		live   bool
 		queued bool
+		says   string // the refusal chat says why; empty when the add lands
 	}{
-		{"disabled path swallows the add", `{"sr":{"enabled":false,"perm":"everyone"}}`, true, false},
-		{"live-only refuses while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false},
-		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true},
-		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true},
+		{"disabled path says it is off", `{"sr":{"enabled":false,"perm":"everyone"}}`, true, false, "turned off"},
+		{"perm tier says it is limited", `{"sr":{"enabled":true,"perm":"mod"}}`, true, false, "smaller group"},
+		{"live-only says it is offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false, "while the stream is live"},
+		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true, ""},
+		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true, ""},
+		// An sr object written without the enabled key never decided the
+		// switch, so it must not read as off. The live gate still applies
+		// (this one runs live), because a written block HAS decided that.
+		{"partial sr record keeps queueing", `{"sr":{"perm":"everyone"}}`, true, true, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -367,10 +373,11 @@ func TestSRPathGates(t *testing.T) {
 
 			out := runSR(t, SongQueue(songDepsLive(store, g, tc.live)), c, "brightside")
 			if !tc.queued {
-				assert.Empty(t, out)
 				assert.Empty(t, store.up)
 				// A closed gate must not spend a Spotify lookup either.
 				assert.Empty(t, g.calls)
+				// ...but it must say why: silence reads as a broken bot.
+				assert.Contains(t, chatText(t, out), tc.says)
 				return
 			}
 			require.Len(t, store.up, 1)

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package spotify is the gossip provider for the Spotify Web API
-// (api.spotify.com). It holds no Spotify credential of its own — not even an
+// (api.spotify.com). It holds no Spotify credential of its own, not even an
 // application. Every broadcaster registers their OWN Spotify app and connects
 // their own account to it, so the client id, client secret and OAuth refresh
 // token are all resolved just-in-time from the modules service
@@ -15,8 +15,8 @@
 // Five endpoints: "search" resolves free text to tracks, "track" and "artist"
 // look up bare catalog ids, "nowplaying" reads the broadcaster's
 // currently-playing track, and "exchange" redeems the console's OAuth
-// authorization code — that one lives here, rather than in the console,
-// because the client secret it needs is imported by this service alone.
+// authorization code. That one lives here rather than in the console because
+// the client secret it needs is imported by this service alone.
 // Search and the lookups ride any valid user token; nowplaying additionally
 // requires user-read-currently-playing (or user-read-playback-state) on the
 // broadcaster's grant.
@@ -93,7 +93,7 @@ const (
 )
 
 // Config carries the provider's environment: the two Spotify hosts and the
-// per-broadcaster request ceiling. There are no app credentials here — the
+// per-broadcaster request ceiling. There are no app credentials here: the
 // fleet no longer owns a Spotify application. Every broadcaster registers
 // their own and every credential, app included, is resolved per caller
 // just-in-time.
@@ -109,7 +109,7 @@ const providerName = "spotify"
 // api holds the provider's runtime pieces; the declared endpoints capture it.
 // Every endpoint stays a bespoke handler: they must resolve the broadcaster's
 // credential (and possibly mint a token) before any cache or upstream work,
-// which the shared byte-flow skeleton deliberately does not model — a cached
+// which the shared byte-flow skeleton deliberately does not model: a cached
 // reply must never bypass the credential checks.
 type api struct {
 	// http dials api.spotify.com. No baked auth header: the access token is
@@ -130,7 +130,7 @@ type api struct {
 
 // New builds the spotify provider. d.SpotifyKeys must be present
 // (providers.All skips the provider otherwise, since with no resolver it can
-// authenticate nothing — the applications it exchanges against are the
+// authenticate nothing: the applications it exchanges against are the
 // broadcasters' own, resolved through that same resolver).
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
@@ -177,6 +177,11 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
+	// Scope is the space-delimited set Spotify actually granted. It rides
+	// both the code exchange and every refresh, and it is the only place the
+	// truth lives: nothing else in the fleet can tell what an existing grant
+	// covers.
+	Scope string `json:"scope"`
 	// RefreshToken appears only when Spotify ROTATES the refresh token; it
 	// is written back to custody best-effort (see persistRotation).
 	RefreshToken string `json:"refresh_token"`
@@ -208,7 +213,7 @@ func (p *api) accessToken(ctx context.Context, broadcaster string, creds core.Sp
 // tokenCacheTTL shrinks Spotify's expires_in into a safe cache window. The
 // byte-flow cache retains an entry for TWICE its fresh window (stale-while-
 // revalidate), and serving an access token past Spotify's own expiry would
-// 401 every call until the background refill lands — so the skew margin is
+// 401 every call until the background refill lands, so the skew margin is
 // subtracted BEFORE halving, which keeps fresh + retained at most at
 // expiresIn - skew, strictly inside the token's real life.
 func tokenCacheTTL(expiresIn int) time.Duration {
@@ -226,7 +231,7 @@ func tokenCacheTTL(expiresIn int) time.Duration {
 //
 // Spotify MAY rotate the refresh token on this exchange. Custody of the
 // stored token belongs to the modules service, so the replacement is written
-// back through its compare-and-swap rotate verb (see persistRotation) —
+// back through its compare-and-swap rotate verb (see persistRotation),
 // best-effort, never blocking the mint that already succeeded.
 func (p *api) mintToken(ctx context.Context, broadcaster string, creds core.SpotifyCredentials) (tokenResponse, error) {
 	tok, err := p.postToken(ctx, url.Values{
@@ -243,7 +248,7 @@ func (p *api) mintToken(ctx context.Context, broadcaster string, creds core.Spot
 }
 
 // postToken runs one accounts.spotify.com token exchange, shared by the
-// refresh-token mint and the console's authorization-code exchange — the two
+// refresh-token mint and the console's authorization-code exchange: the two
 // differ only in the form body.
 func (p *api) postToken(ctx context.Context, form url.Values) (tokenResponse, error) {
 	var tok tokenResponse
@@ -300,7 +305,7 @@ func (p *api) credentials(ctx context.Context, broadcaster string) (core.Spotify
 }
 
 // deadCredential reports the token-endpoint statuses that mean the stored
-// grant itself is gone — revoked, expired, disconnected — rather than
+// grant itself is gone (revoked, expired, disconnected) rather than
 // Spotify being unreachable. Recovery is a console reconnect, not a retry.
 func deadCredential(status int) bool {
 	switch status {
@@ -423,7 +428,7 @@ func shapeArtist(id string, it artistItem) *gossiprpc.SpotifyArtist {
 // validCatalogID reports whether id is a bare Spotify base62 catalog id. The
 // id is concatenated into the request path, so anything outside [A-Za-z0-9]
 // (full URIs, open.spotify.com links, traversal) is rejected rather than
-// escaped — callers resolve URIs down to ids themselves.
+// escaped: callers resolve URIs down to ids themselves.
 func validCatalogID(id string) bool {
 	if id == "" || len(id) > 22 {
 		return false
@@ -460,8 +465,8 @@ type topTracksResponse struct {
 }
 
 // albumResponse is the subset of GET /v1/albums/{id} we read. Its track items
-// are the slim variant — names, artists, durations, links, but no album
-// object and no artwork — so both are filled in from the album itself.
+// are the slim variant: names, artists, durations, links, but no album
+// object and no artwork, so both are filled in from the album itself.
 type albumResponse struct {
 	Name   string `json:"name"`
 	Images []struct {
@@ -550,9 +555,9 @@ func clampSearchLimit(limit int) int {
 }
 
 // searchScope bundles everything one classified branch needs to key and
-// window its cache entry — broadcaster scoping, result cap, canonical input
-// identity, freshness — so the cache wrapper takes two arguments instead of
-// six loose primitives.
+// window its cache entry: broadcaster scoping, result cap, canonical input
+// identity and freshness. The cache wrapper then takes two arguments instead
+// of six loose primitives.
 type searchScope struct {
 	broadcaster string
 	limit       int
@@ -640,7 +645,7 @@ func (p *api) textFetch(tok accessToken, raw string, limit int) searchFetch {
 // searchText walks the plan in order: the first candidate returning tracks
 // wins, an upstream failure aborts outright (infrastructure is not answered
 // by quietly degrading further down the plan), and a plan exhausted without a
-// hit returns the final empty reply — no result is an answer, not an error.
+// hit returns the final empty reply: no result is an answer, not an error.
 func (p *api) searchText(ctx context.Context, tok accessToken, plan []searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
 	var last gossiprpc.SpotifySearchReply
 	for _, c := range plan {
@@ -801,7 +806,7 @@ func (p *api) artist(ctx context.Context, req gossiprpc.Request) any {
 // nowPlayingResponse is the subset of GET /v1/me/player/currently-playing we
 // read. Spotify answers 204 with no body when playback is idle or private;
 // core decodes that as a zero value, which reads back here as IsPlaying false
-// with no item — exactly the right shape for "nothing playing".
+// with no item, exactly the right shape for "nothing playing".
 type nowPlayingResponse struct {
 	IsPlaying  bool      `json:"is_playing"`
 	ProgressMS int64     `json:"progress_ms"`
@@ -819,8 +824,8 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.SpotifyNowPlayingReply{Error: msg}
 	}
 
-	// Unlike the catalog reads this endpoint is polled — chat asks many times
-	// a minute against ONE broadcaster's token allowance — so its miss path
+	// Unlike the catalog reads this endpoint is polled: chat asks many times
+	// a minute against ONE broadcaster's token allowance, so its miss path
 	// admits through their bucket: a flood degrades to the friendly busy
 	// message instead of burning the token Spotify throttles.
 	b, err := core.CachedBytes(ctx, p.cache, core.Key(providerName, "nowplaying", broadcaster), p.rateAdmit(broadcaster),
@@ -855,7 +860,7 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 // redeeming it itself. Gossip is the only service holding a broadcaster's
 // client secret in plaintext (it already needs it to refresh their token), so
 // routing the redemption through this endpoint keeps the secret out of the
-// browser-facing app entirely — the console only ever sees the refresh token,
+// browser-facing app entirely: the console only ever sees the refresh token,
 // which it already stores through the modules custody RPC.
 //
 // The redirect_uri travels from the caller because Spotify validates it
@@ -890,8 +895,19 @@ func (p *api) exchange(ctx context.Context, req gossiprpc.Request) any {
 	}
 
 	// Spotify reuses consent: a re-connect with unchanged scopes comes back
-	// with no refresh token. That is not an error — the caller keeps whatever
-	// is already on file — so it is reported as an empty token, and the
+	// with no refresh token. That is not an error: the caller keeps whatever
+	// is already on file, so it is reported as an empty token, and the
 	// console decides whether a stored one makes it a success.
-	return gossiprpc.SpotifyExchangeReply{RefreshToken: tok.RefreshToken}
+	return gossiprpc.SpotifyExchangeReply{RefreshToken: tok.RefreshToken, Scopes: splitScopes(tok.Scope)}
+}
+
+// splitScopes turns Spotify's space-delimited scope string into the list the
+// console stores. Spotify has also been seen answering with a comma in the
+// middle of an otherwise space-delimited string, so both separate.
+func splitScopes(raw string) []string {
+	fields := strings.FieldsFunc(raw, func(r rune) bool { return r == ' ' || r == ',' })
+	if len(fields) == 0 {
+		return nil
+	}
+	return fields
 }

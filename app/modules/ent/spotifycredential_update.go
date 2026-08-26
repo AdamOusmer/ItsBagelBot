@@ -72,6 +72,26 @@ func (_u *SpotifyCredentialUpdate) ClearClientSecretEnc() *SpotifyCredentialUpda
 	return _u
 }
 
+// SetScopes sets the "scopes" field.
+func (_u *SpotifyCredentialUpdate) SetScopes(v string) *SpotifyCredentialUpdate {
+	_u.mutation.SetScopes(v)
+	return _u
+}
+
+// SetNillableScopes sets the "scopes" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdate) SetNillableScopes(v *string) *SpotifyCredentialUpdate {
+	if v != nil {
+		_u.SetScopes(*v)
+	}
+	return _u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (_u *SpotifyCredentialUpdate) ClearScopes() *SpotifyCredentialUpdate {
+	_u.mutation.ClearScopes()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *SpotifyCredentialUpdate) SetUpdatedAt(v time.Time) *SpotifyCredentialUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -146,6 +166,12 @@ func (_u *SpotifyCredentialUpdate) sqlSave(ctx context.Context) (_node int, err 
 	if _u.mutation.ClientSecretEncCleared() {
 		_spec.ClearField(spotifycredential.FieldClientSecretEnc, field.TypeBytes)
 	}
+	if value, ok := _u.mutation.Scopes(); ok {
+		_spec.SetField(spotifycredential.FieldScopes, field.TypeString, value)
+	}
+	if _u.mutation.ScopesCleared() {
+		_spec.ClearField(spotifycredential.FieldScopes, field.TypeString)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -210,6 +236,26 @@ func (_u *SpotifyCredentialUpdateOne) SetClientSecretEnc(v []byte) *SpotifyCrede
 // ClearClientSecretEnc clears the value of the "client_secret_enc" field.
 func (_u *SpotifyCredentialUpdateOne) ClearClientSecretEnc() *SpotifyCredentialUpdateOne {
 	_u.mutation.ClearClientSecretEnc()
+	return _u
+}
+
+// SetScopes sets the "scopes" field.
+func (_u *SpotifyCredentialUpdateOne) SetScopes(v string) *SpotifyCredentialUpdateOne {
+	_u.mutation.SetScopes(v)
+	return _u
+}
+
+// SetNillableScopes sets the "scopes" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdateOne) SetNillableScopes(v *string) *SpotifyCredentialUpdateOne {
+	if v != nil {
+		_u.SetScopes(*v)
+	}
+	return _u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (_u *SpotifyCredentialUpdateOne) ClearScopes() *SpotifyCredentialUpdateOne {
+	_u.mutation.ClearScopes()
 	return _u
 }
 
@@ -316,6 +362,12 @@ func (_u *SpotifyCredentialUpdateOne) sqlSave(ctx context.Context) (_node *Spoti
 	}
 	if _u.mutation.ClientSecretEncCleared() {
 		_spec.ClearField(spotifycredential.FieldClientSecretEnc, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.Scopes(); ok {
+		_spec.SetField(spotifycredential.FieldScopes, field.TypeString, value)
+	}
+	if _u.mutation.ScopesCleared() {
+		_spec.ClearField(spotifycredential.FieldScopes, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)

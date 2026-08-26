@@ -145,7 +145,7 @@ func (r songqueueRedeemRun) chat(text string) {
 	})
 }
 
-const defaultSongqueueRedeemReply = "@{user} queued {track} — position #{pos}."
+const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 
 // renderSongqueueRedeemReply fills {user}/{track}/{input}/{pos} from the
 // redemption, falling back to defaultSongqueueRedeemReply when blank.

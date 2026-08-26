@@ -7,7 +7,7 @@
 //   - The broadcaster's OWN Spotify application (client id + secret) is pasted
 //     here and sealed by the modules service. There is no fleet-wide app any
 //     more, so this is the FIRST setup step: without it there is nothing to
-//     authorize against. The secret is write-only from the console's side —
+//     authorize against. The secret is write-only from the console's side,
 //     status echoes the (public) client id and nothing else.
 //   - The Spotify account is connected through OAuth against that application
 //     (routes/spotify/connect + callback): the browser never sees a token, the
@@ -15,15 +15,15 @@
 //     and the refresh token is sealed by the modules service
 //     (bagel.rpc.modules.spotify.*) exactly like the Govee key. This store only
 //     reads/writes presence.
-//   - The two request paths — chat (!sr) and channel points — are switches and
+//   - The two request paths (chat (!sr) and channel points) are switches and
 //     settings inside the "songqueue" module blob (the ModuleView key sesame's
 //     songqueue module registers). They are independent halves: either can be
 //     on while the other is off, or both at once. The blob shape:
 //
-//       { // songqueueConfig fields — already read by app/sesame/modules/songqueue.go:
+//       { // songqueueConfig fields: already read by app/sesame/modules/songqueue.go:
 //         "maxDepth": number,
 //         "addMessage" | "playingMessage" | "retractMessage": string,
-//         // request-path switches — written here, consumed by the wiring that
+//         // request-path switches: written here, consumed by the wiring that
 //         // lands with the redemption path:
 //         "sr": { "enabled": bool, "perm": "everyone"|"sub"|"vip"|"mod"|"broadcaster" },
 //         "redeem": { "enabled": bool, "rewardId": string, "onRedeem":
@@ -36,7 +36,7 @@
 //     command gate can read them straight from the blob.
 //   - The channel-points reward itself is a Twitch entity owned by outgress
 //     (same RPC the Channel Points tab uses), created under the broadcaster's
-//     token with user input REQUIRED — the typed input is the song query.
+//     token with user input REQUIRED: the typed input is the song query.
 //   - The enable row rides the standard modules service (listModules /
 //     upsertModule), so the tile toggle, the projection and cache invalidation
 //     all behave like every other named module.
@@ -64,6 +64,13 @@ export interface SpotifyView {
   enabled: boolean;
   sr: SpotifySrConfig;
   redeem: SpotifyRedeemConfig;
+}
+
+// SpotifyGrant is the connection half of the page: whether a refresh token is
+// on file, and which scopes the consent behind it actually granted.
+export interface SpotifyGrant {
+  connected: boolean;
+  scopes: string[];
 }
 
 // RewardDraft is one save's worth of reward + behaviour: title/cost/color/
@@ -95,12 +102,22 @@ function coerceOnRedeem(v: unknown): RewardOnRedeem {
 // The three readers below mirror coercePerm/coerceOnRedeem above: one function
 // per thing being coerced out of the opaque config blob. readView used to
 // inline all of it, which meant the song-request half and the channel-point
-// half — which share no fields and no rules — had to be read as one unit.
+// half (which share no fields and no rules) had to be read as one unit.
 
+// readSr coerces the chat half. A blob with NO sr key at all reads back as
+// OPEN, matching what sesame does with a missing block: the switch shipped
+// after the module did, and a channel that only ever flipped the master
+// toggle must keep working. Only an explicit false closes the path, which
+// also stops this page from writing a silent `enabled: false` on the first
+// save a broadcaster makes for some unrelated reason.
 function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
   const sr = blankSpotifySr();
-  if (!raw || typeof raw !== 'object') return sr;
-  sr.enabled = raw.enabled === true;
+  if (!raw || typeof raw !== 'object') return { ...sr, enabled: true };
+  // Only an explicit false closes it. A partial record (an sr object written
+  // without the key) is the same "never decided" state as no record at all,
+  // and reading it as off is what silently disabled !sr on channels that had
+  // simply never opened this page.
+  sr.enabled = raw.enabled !== false;
   sr.perm = coercePerm(raw.perm);
   sr.allowOffline = raw.allowOffline === true;
   return sr;
@@ -220,7 +237,7 @@ export interface SpotifyApp {
 
 export interface SpotifyStore {
   read(): Promise<SpotifyView>;
-  connected(): Promise<boolean>;
+  grant(): Promise<SpotifyGrant>;
   app(): Promise<SpotifyApp>;
   saveApp(clientId: string, clientSecret: string): Promise<SpotifyResult>;
   clearApp(): Promise<SpotifyResult>;
@@ -251,15 +268,23 @@ export function spotifyStore(userId: string): SpotifyStore {
     return view;
   }
 
-  // connected is a direct (uncached) presence read: cheap, always
-  // authoritative, and safe to run on every load. A blip degrades to false,
+  // grant is a direct (uncached) presence read: cheap, always authoritative,
+  // and safe to run on every load. A blip degrades to "not connected",
   // exactly like the Govee key-presence flag.
-  async function connected(): Promise<boolean> {
+  //
+  // scopes is what custody recorded at the last consent. Empty on a present
+  // grant means it predates scope recording, and the caller treats that as
+  // stale rather than complete (see spotifyScopeGap).
+  async function grant(): Promise<SpotifyGrant> {
     try {
-      const r = await rpc<{ present?: boolean }>(`${SUB.spotifyKey}.status`, { user_id: userId }, 3000);
-      return !!r.present;
+      const r = await rpc<{ present?: boolean; scopes?: string[] }>(
+        `${SUB.spotifyKey}.status`,
+        { user_id: userId },
+        3000
+      );
+      return { connected: !!r.present, scopes: Array.isArray(r.scopes) ? r.scopes : [] };
     } catch {
-      return false;
+      return { connected: false, scopes: [] };
     }
   }
 
@@ -386,7 +411,7 @@ export function spotifyStore(userId: string): SpotifyStore {
 
   return {
     read,
-    connected,
+    grant,
     app,
     saveApp,
     clearApp,

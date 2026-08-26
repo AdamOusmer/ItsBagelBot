@@ -122,7 +122,7 @@
     <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
   </Field>
   <!-- kind="reply" + dynamic={false}: the spotify reply is a bare
-       {user}/{track}/{input} string replacer — nothing else ever expands. -->
+       {user}/{track}/{input} string replacer: nothing else ever expands. -->
   <ChatPreview kind="reply" dynamic={false} response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
 
   <Field label={t('spotify.afterTitle')}>

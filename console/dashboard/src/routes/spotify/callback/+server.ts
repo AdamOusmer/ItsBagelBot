@@ -7,13 +7,13 @@
 // The redemption itself happens in gossip (spotify.exchange), not here. Every
 // broadcaster authorizes against their OWN Spotify application, and that
 // application's client secret is sealed in modules custody and imported by
-// gossip alone — the service that already talks to accounts.spotify.com to
+// gossip alone: the service that already talks to accounts.spotify.com to
 // refresh tokens. Forwarding the code keeps the console out of that secret's
 // blast radius; it still handles the refresh token, exactly as before.
 //
 // Spotify reuses consent: a re-connect with unchanged scopes can come back
 // WITHOUT a refresh token. That is only a success when one is already on file
-// — otherwise the broadcaster must revoke the app on Spotify's side so the
+//: otherwise the broadcaster must revoke the app on Spotify's side so the
 // next grant issues a fresh one.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
@@ -31,8 +31,15 @@ import { SPOTIFY_STATE_COOKIE, requireSongqueueActor, songqueueFail } from '$lib
 // The reply-level check sits OUTSIDE the try for the reason spelled out on
 // songqueueFail: a redirect thrown inside would be caught by this function's
 // own catch and rewritten, losing the reason it was thrown for.
-async function exchangeCode(uid: string, code: string): Promise<string | undefined> {
-  let reply: { refresh_token?: string; error?: string };
+// SpotifyGrantReply is what gossip hands back: the refresh token, plus the
+// scopes Spotify actually granted so custody can record them next to it.
+interface SpotifyGrantReply {
+  refreshToken?: string;
+  scopes: string[];
+}
+
+async function exchangeCode(uid: string, code: string): Promise<SpotifyGrantReply> {
+  let reply: { refresh_token?: string; scopes?: string[]; error?: string };
   try {
     reply = await rpc(
       `${SUB.gossip}.spotify.exchange`,
@@ -48,14 +55,21 @@ async function exchangeCode(uid: string, code: string): Promise<string | undefin
     logger.warn({ err: reply.error }, '[spotify-callback] code exchange refused');
     songqueueFail('oauth');
   }
-  return reply.refresh_token || undefined;
+  return {
+    refreshToken: reply.refresh_token || undefined,
+    scopes: Array.isArray(reply.scopes) ? reply.scopes : []
+  };
 }
 
 // storeRefreshToken hands the token to sealed custody. Failure is fatal to the
 // flow: silently continuing would report a connection that cannot resolve.
-async function storeRefreshToken(uid: string, refreshToken: string): Promise<void> {
+async function storeRefreshToken(uid: string, grant: SpotifyGrantReply): Promise<void> {
   try {
-    await rpc<{ error?: string }>(`${SUB.spotifyKey}.set`, { user_id: uid, refresh_token: refreshToken }, 5000);
+    await rpc<{ error?: string }>(
+      `${SUB.spotifyKey}.set`,
+      { user_id: uid, refresh_token: grant.refreshToken, scopes: grant.scopes },
+      5000
+    );
   } catch (err) {
     logger.error({ err }, '[spotify-callback] token store failed');
     songqueueFail('store');
@@ -109,8 +123,8 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const accepted = verifiedCode(code, state, storedState);
   if (!accepted) songqueueFail('state');
 
-  const refreshToken = await exchangeCode(uid, accepted);
-  if (refreshToken) await storeRefreshToken(uid, refreshToken);
+  const grant = await exchangeCode(uid, accepted);
+  if (grant.refreshToken) await storeRefreshToken(uid, grant);
   else await requireStoredToken(uid);
 
   auditDashboardImpersonation(locals.session, 'spotify:connect', '');
