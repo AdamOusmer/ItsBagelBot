@@ -54,6 +54,20 @@ func (_c *SpotifyCredentialCreate) SetClientSecretEnc(v []byte) *SpotifyCredenti
 	return _c
 }
 
+// SetScopes sets the "scopes" field.
+func (_c *SpotifyCredentialCreate) SetScopes(v string) *SpotifyCredentialCreate {
+	_c.mutation.SetScopes(v)
+	return _c
+}
+
+// SetNillableScopes sets the "scopes" field if the given value is not nil.
+func (_c *SpotifyCredentialCreate) SetNillableScopes(v *string) *SpotifyCredentialCreate {
+	if v != nil {
+		_c.SetScopes(*v)
+	}
+	return _c
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_c *SpotifyCredentialCreate) SetUpdatedAt(v time.Time) *SpotifyCredentialCreate {
 	_c.mutation.SetUpdatedAt(v)
@@ -106,6 +120,10 @@ func (_c *SpotifyCredentialCreate) defaults() {
 	if _, ok := _c.mutation.ClientID(); !ok {
 		v := spotifycredential.DefaultClientID
 		_c.mutation.SetClientID(v)
+	}
+	if _, ok := _c.mutation.Scopes(); !ok {
+		v := spotifycredential.DefaultScopes
+		_c.mutation.SetScopes(v)
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		v := spotifycredential.DefaultUpdatedAt()
@@ -163,6 +181,10 @@ func (_c *SpotifyCredentialCreate) createSpec() (*SpotifyCredential, *sqlgraph.C
 	if value, ok := _c.mutation.ClientSecretEnc(); ok {
 		_spec.SetField(spotifycredential.FieldClientSecretEnc, field.TypeBytes, value)
 		_node.ClientSecretEnc = value
+	}
+	if value, ok := _c.mutation.Scopes(); ok {
+		_spec.SetField(spotifycredential.FieldScopes, field.TypeString, value)
+		_node.Scopes = value
 	}
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
@@ -271,6 +293,24 @@ func (u *SpotifyCredentialUpsert) UpdateClientSecretEnc() *SpotifyCredentialUpse
 // ClearClientSecretEnc clears the value of the "client_secret_enc" field.
 func (u *SpotifyCredentialUpsert) ClearClientSecretEnc() *SpotifyCredentialUpsert {
 	u.SetNull(spotifycredential.FieldClientSecretEnc)
+	return u
+}
+
+// SetScopes sets the "scopes" field.
+func (u *SpotifyCredentialUpsert) SetScopes(v string) *SpotifyCredentialUpsert {
+	u.Set(spotifycredential.FieldScopes, v)
+	return u
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsert) UpdateScopes() *SpotifyCredentialUpsert {
+	u.SetExcluded(spotifycredential.FieldScopes)
+	return u
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *SpotifyCredentialUpsert) ClearScopes() *SpotifyCredentialUpsert {
+	u.SetNull(spotifycredential.FieldScopes)
 	return u
 }
 
@@ -391,6 +431,27 @@ func (u *SpotifyCredentialUpsertOne) UpdateClientSecretEnc() *SpotifyCredentialU
 func (u *SpotifyCredentialUpsertOne) ClearClientSecretEnc() *SpotifyCredentialUpsertOne {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.ClearClientSecretEnc()
+	})
+}
+
+// SetScopes sets the "scopes" field.
+func (u *SpotifyCredentialUpsertOne) SetScopes(v string) *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetScopes(v)
+	})
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertOne) UpdateScopes() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateScopes()
+	})
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *SpotifyCredentialUpsertOne) ClearScopes() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearScopes()
 	})
 }
 
@@ -679,6 +740,27 @@ func (u *SpotifyCredentialUpsertBulk) UpdateClientSecretEnc() *SpotifyCredential
 func (u *SpotifyCredentialUpsertBulk) ClearClientSecretEnc() *SpotifyCredentialUpsertBulk {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.ClearClientSecretEnc()
+	})
+}
+
+// SetScopes sets the "scopes" field.
+func (u *SpotifyCredentialUpsertBulk) SetScopes(v string) *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetScopes(v)
+	})
+}
+
+// UpdateScopes sets the "scopes" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertBulk) UpdateScopes() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateScopes()
+	})
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (u *SpotifyCredentialUpsertBulk) ClearScopes() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearScopes()
 	})
 }
 

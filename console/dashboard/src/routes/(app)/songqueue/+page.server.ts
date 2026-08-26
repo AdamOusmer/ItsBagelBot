@@ -10,7 +10,7 @@ import type {
   SpotifySrPerm
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
-import { spotifyRedirectURI } from '$lib/server/oauth';
+import { spotifyRedirectURI, spotifyScopeGap } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
@@ -38,6 +38,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     return {
       ...demoSpotifyView(),
       connected: true,
+      scopeGap: [] as string[],
       app: { present: true, clientId: 'demo-client-id' },
       redirectUri: 'https://console.example/spotify/callback',
       justConnected: false,
@@ -57,17 +58,30 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const store = spotifyStore(uid);
     // The module blob and the connection presence are independent reads; run
     // them together so SSR is one round trip deep.
-    const [view, connected, app] = await Promise.all([store.read(), store.connected(), store.app()]);
+    const [view, grant, app] = await Promise.all([store.read(), store.grant(), store.app()]);
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
     // matches byte-for-byte at both ends of the flow.
-    return { ...view, connected, app, redirectUri: spotifyRedirectURI(), justConnected, errorSlug };
+    //
+    // scopeGap is resolved here rather than in the browser: the scope set the
+    // flow asks for is server config (DASHBOARD_SPOTIFY_SCOPES), and the page
+    // only needs the answer: is this grant short, and of what.
+    return {
+      ...view,
+      connected: grant.connected,
+      scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
+      app,
+      redirectUri: spotifyRedirectURI(),
+      justConnected,
+      errorSlug
+    };
   } catch {
     return {
       enabled: false,
       sr: blankSpotifySr(),
       redeem: blankSpotifyRedeem(),
       connected: false,
+      scopeGap: [] as string[],
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,

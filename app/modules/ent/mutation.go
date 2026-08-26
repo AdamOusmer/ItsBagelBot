@@ -2623,6 +2623,7 @@ type SpotifyCredentialMutation struct {
 	token_enc         *[]byte
 	client_id         *string
 	client_secret_enc *[]byte
+	scopes            *string
 	updated_at        *time.Time
 	clearedFields     map[string]struct{}
 	done              bool
@@ -2931,6 +2932,55 @@ func (m *SpotifyCredentialMutation) ResetClientSecretEnc() {
 	delete(m.clearedFields, spotifycredential.FieldClientSecretEnc)
 }
 
+// SetScopes sets the "scopes" field.
+func (m *SpotifyCredentialMutation) SetScopes(s string) {
+	m.scopes = &s
+}
+
+// Scopes returns the value of the "scopes" field in the mutation.
+func (m *SpotifyCredentialMutation) Scopes() (r string, exists bool) {
+	v := m.scopes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopes returns the old "scopes" field's value of the SpotifyCredential entity.
+// If the SpotifyCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SpotifyCredentialMutation) OldScopes(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopes: %w", err)
+	}
+	return oldValue.Scopes, nil
+}
+
+// ClearScopes clears the value of the "scopes" field.
+func (m *SpotifyCredentialMutation) ClearScopes() {
+	m.scopes = nil
+	m.clearedFields[spotifycredential.FieldScopes] = struct{}{}
+}
+
+// ScopesCleared returns if the "scopes" field was cleared in this mutation.
+func (m *SpotifyCredentialMutation) ScopesCleared() bool {
+	_, ok := m.clearedFields[spotifycredential.FieldScopes]
+	return ok
+}
+
+// ResetScopes resets all changes to the "scopes" field.
+func (m *SpotifyCredentialMutation) ResetScopes() {
+	m.scopes = nil
+	delete(m.clearedFields, spotifycredential.FieldScopes)
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (m *SpotifyCredentialMutation) SetUpdatedAt(t time.Time) {
 	m.updated_at = &t
@@ -3001,7 +3051,7 @@ func (m *SpotifyCredentialMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SpotifyCredentialMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.user_id != nil {
 		fields = append(fields, spotifycredential.FieldUserID)
 	}
@@ -3013,6 +3063,9 @@ func (m *SpotifyCredentialMutation) Fields() []string {
 	}
 	if m.client_secret_enc != nil {
 		fields = append(fields, spotifycredential.FieldClientSecretEnc)
+	}
+	if m.scopes != nil {
+		fields = append(fields, spotifycredential.FieldScopes)
 	}
 	if m.updated_at != nil {
 		fields = append(fields, spotifycredential.FieldUpdatedAt)
@@ -3033,6 +3086,8 @@ func (m *SpotifyCredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientID()
 	case spotifycredential.FieldClientSecretEnc:
 		return m.ClientSecretEnc()
+	case spotifycredential.FieldScopes:
+		return m.Scopes()
 	case spotifycredential.FieldUpdatedAt:
 		return m.UpdatedAt()
 	}
@@ -3052,6 +3107,8 @@ func (m *SpotifyCredentialMutation) OldField(ctx context.Context, name string) (
 		return m.OldClientID(ctx)
 	case spotifycredential.FieldClientSecretEnc:
 		return m.OldClientSecretEnc(ctx)
+	case spotifycredential.FieldScopes:
+		return m.OldScopes(ctx)
 	case spotifycredential.FieldUpdatedAt:
 		return m.OldUpdatedAt(ctx)
 	}
@@ -3090,6 +3147,13 @@ func (m *SpotifyCredentialMutation) SetField(name string, value ent.Value) error
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClientSecretEnc(v)
+		return nil
+	case spotifycredential.FieldScopes:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopes(v)
 		return nil
 	case spotifycredential.FieldUpdatedAt:
 		v, ok := value.(time.Time)
@@ -3152,6 +3216,9 @@ func (m *SpotifyCredentialMutation) ClearedFields() []string {
 	if m.FieldCleared(spotifycredential.FieldClientSecretEnc) {
 		fields = append(fields, spotifycredential.FieldClientSecretEnc)
 	}
+	if m.FieldCleared(spotifycredential.FieldScopes) {
+		fields = append(fields, spotifycredential.FieldScopes)
+	}
 	return fields
 }
 
@@ -3175,6 +3242,9 @@ func (m *SpotifyCredentialMutation) ClearField(name string) error {
 	case spotifycredential.FieldClientSecretEnc:
 		m.ClearClientSecretEnc()
 		return nil
+	case spotifycredential.FieldScopes:
+		m.ClearScopes()
+		return nil
 	}
 	return fmt.Errorf("unknown SpotifyCredential nullable field %s", name)
 }
@@ -3194,6 +3264,9 @@ func (m *SpotifyCredentialMutation) ResetField(name string) error {
 		return nil
 	case spotifycredential.FieldClientSecretEnc:
 		m.ResetClientSecretEnc()
+		return nil
+	case spotifycredential.FieldScopes:
+		m.ResetScopes()
 		return nil
 	case spotifycredential.FieldUpdatedAt:
 		m.ResetUpdatedAt()

@@ -13,7 +13,7 @@
 //   - Dashboard verbs under a public-ish prefix (default
 //     "bagel.rpc.modules.spotify"): "set" stores a token, "clear" removes it,
 //     "status" reports only whether one is on file. None ever echoes the
-//     token back — the console shows "connected", never the value.
+//     token back: the console shows "connected", never the value.
 //   - Internal verbs under "bagel.rpc.internal.spotify.key",
 //     export/import-scoped at the NATS account level to the gateway alone,
 //     mirroring the users service's token/email RPCs. "get" returns the
@@ -28,6 +28,10 @@ package spotifyrpc
 type RefreshTokenSetRequest struct {
 	UserID       string `json:"user_id"`
 	RefreshToken string `json:"refresh_token"`
+	// Scopes is what Spotify granted with this token (see the gossip exchange
+	// reply). Omitted on a write that is not a fresh grant, which leaves the
+	// recorded set untouched.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // RefreshTokenClearRequest removes a broadcaster's stored refresh token
@@ -43,8 +47,12 @@ type RefreshTokenStatusRequest struct {
 
 // RefreshTokenStatusReply reports only presence, never the token itself.
 type RefreshTokenStatusReply struct {
-	Present bool   `json:"present"`
-	Error   string `json:"error,omitempty"`
+	Present bool `json:"present"`
+	// Scopes is what the stored grant covers. Empty with Present true means a
+	// grant that predates scope recording: unknown, and to be treated as
+	// missing whatever the caller needs.
+	Scopes []string `json:"scopes,omitempty"`
+	Error  string   `json:"error,omitempty"`
 }
 
 // RefreshTokenMutateReply is the ack for set/clear: a bare error envelope.
@@ -70,7 +78,7 @@ type RefreshTokenGetRequest struct {
 }
 
 // RefreshTokenGetReply carries the broadcaster's whole decrypted Spotify
-// credential set — their own application plus the grant minted against it — or
+// credential set (their own application plus the grant minted against it) or
 // a terminal error. Gossip needs all three on the same call (it authenticates
 // the refresh exchange with the app that issued the grant), so they ride one
 // reply rather than costing two round trips per chat command.
@@ -95,8 +103,8 @@ type RefreshTokenGetReply struct {
 // secret is a third-party secret and gets the same sealed-at-rest treatment as
 // the refresh token, under its own AAD label.
 //
-// The secret leaves the modules service on exactly one subject — the internal
-// key.get above, imported by gossip alone — because gossip is the only service
+// The secret leaves the modules service on exactly one subject: the internal
+// key.get above, imported by gossip alone: because gossip is the only service
 // that talks to accounts.spotify.com (both the refresh-token exchange and the
 // console's authorization-code exchange, which the console forwards rather
 // than performing itself so the secret never reaches a browser-facing app).
@@ -119,7 +127,7 @@ type AppStatusRequest struct {
 	UserID string `json:"user_id"`
 }
 
-// AppStatusReply reports presence plus the client id — public by construction,
+// AppStatusReply reports presence plus the client id: public by construction,
 // and the console shows it so a broadcaster can tell WHICH of their Spotify
 // apps is wired up. The secret is never echoed.
 type AppStatusReply struct {

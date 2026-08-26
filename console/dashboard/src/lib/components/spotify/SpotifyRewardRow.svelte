@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The one channel-points reward in the songqueue deck, on the shared
-  // ManagementRow — the static twin of GoveeLightRow. Selecting it loads the
+  // ManagementRow: the static twin of GoveeLightRow. Selecting it loads the
   // reward into the page's inspector. One reward for the whole module.
   import { Icon, ManagementRow, MiniButton, getI18n, type SpotifyRedeemConfig } from '@bagel/shared';
 

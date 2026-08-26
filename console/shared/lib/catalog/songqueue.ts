@@ -8,7 +8,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   label: 'Song Requests',
   tagline: '!sr and a channel-points reward that queue songs from Spotify.',
   description:
-    'Register your own Spotify app and connect your account to it once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query — a name, "artist - song", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. !current reads your Spotify player directly, so it answers even for tracks nobody requested. Moderators manage the queue with !sr next, remove and clear.',
+    'Register your own Spotify app and connect your account to it once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query: a name, "artist - song", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. !current reads your Spotify player directly, so it answers even for tracks nobody requested. Moderators manage the queue with !sr next, remove and clear.',
   icon: 'music',
   category: 'Gear',
   defaultEnabled: false,
@@ -26,7 +26,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   // `skip` (alias next), `clear` and `remove`. The standalones matter: without
   // them !skip and !clear fall through to a custom command that replies
   // without ever touching the queue. The ledger shows the spellings chat
-  // types — !sr, !remove, !skip, !clear — not the long forms.
+  // types (!sr, !remove, !skip, !clear), not the long forms.
   commands: [
     {
       trigger: '!sr',

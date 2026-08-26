@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.10",
-  "workspaces": ["shared", "dashboard", "admin"],
+  "workspaces": [
+    "shared",
+    "dashboard",
+    "admin"
+  ],
   "scripts": {
     "build": "bun run --filter dashboard build && bun run --filter admin build",
     "dev:dashboard": "bun run --filter dashboard dev",

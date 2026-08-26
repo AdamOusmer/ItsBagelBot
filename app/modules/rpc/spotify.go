@@ -35,7 +35,7 @@ type spotifyWiring struct {
 	log        *zap.Logger
 }
 
-// wireSpotify subscribes the Spotify refresh-token custody RPCs — the spotify
+// wireSpotify subscribes the Spotify refresh-token custody RPCs: the spotify
 // twin of wireGovee. The dashboard verbs (set/clear/status) never echo the
 // token; the internal decrypt verb is account-scoped to gossip, the one
 // service that exchanges the token against accounts.spotify.com. It is a
@@ -92,7 +92,7 @@ type spotifyRPC struct {
 const errNumericUserID = "user_id must be numeric"
 
 // spotifyUserID parses the wire id. The bool, rather than an error, is what lets each
-// handler spell its own reply envelope in one line — the four envelopes on
+// handler spell its own reply envelope in one line: the four envelopes on
 // these subjects differ, the parse does not.
 func spotifyUserID(raw string) (uint64, bool) {
 	id, err := strconv.ParseUint(raw, 10, 64)
@@ -100,8 +100,8 @@ func spotifyUserID(raw string) (uint64, bool) {
 }
 
 // spotifyMutate runs one custody write and maps BOTH of its failure modes onto the
-// shared ack envelope. Every write verb on these subjects — set, clear, and
-// the two application verbs — is this shape and nothing else, so it is written
+// shared ack envelope. Every write verb on these subjects: set, clear, and
+// the two application verbs: is this shape and nothing else, so it is written
 // once here rather than four times with four chances to drift.
 //
 // No error is ever echoed with a secret in it: the writes take their
@@ -118,7 +118,9 @@ func spotifyMutate(raw string, write func(uint64) error) spotifyrpc.RefreshToken
 }
 
 func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest) spotifyrpc.RefreshTokenMutateReply {
-	return spotifyMutate(req.UserID, func(id uint64) error { return s.creds.SetToken(ctx, id, req.RefreshToken) })
+	return spotifyMutate(req.UserID, func(id uint64) error {
+		return s.creds.SetToken(ctx, id, req.RefreshToken, req.Scopes)
+	})
 }
 
 func (s *spotifyRPC) handleClear(ctx context.Context, req spotifyrpc.RefreshTokenClearRequest) spotifyrpc.RefreshTokenMutateReply {
@@ -128,7 +130,7 @@ func (s *spotifyRPC) handleClear(ctx context.Context, req spotifyrpc.RefreshToke
 // spotifyRead is the read twin of spotifyMutate: parse the wire id, refuse a
 // bad one, run the read, and map a store failure onto an error envelope. The
 // three read verbs differ only in their reply type, and a generic cannot fill
-// in a field it does not know about — so the caller passes the one thing that
+// in a field it does not know about, so the caller passes the one thing that
 // is genuinely per-verb, a constructor for its own envelope.
 func spotifyRead[Reply any](raw string, envelope func(msg string) Reply, read func(uint64) (Reply, error)) Reply {
 	id, ok := spotifyUserID(raw)
@@ -148,8 +150,8 @@ func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTok
 			return spotifyrpc.RefreshTokenStatusReply{Error: msg}
 		},
 		func(id uint64) (spotifyrpc.RefreshTokenStatusReply, error) {
-			present, err := s.creds.HasToken(ctx, id)
-			return spotifyrpc.RefreshTokenStatusReply{Present: present}, err
+			present, scopes, err := s.creds.TokenStatus(ctx, id)
+			return spotifyrpc.RefreshTokenStatusReply{Present: present, Scopes: scopes}, err
 		})
 }
 
@@ -197,7 +199,7 @@ func (s *spotifyRPC) handleAppClear(ctx context.Context, req spotifyrpc.AppClear
 	return spotifyMutate(req.UserID, func(id uint64) error { return s.creds.ClearApp(ctx, id) })
 }
 
-// handleAppStatus reports the application by its client id alone — the store
+// handleAppStatus reports the application by its client id alone: the store
 // hands back nothing else on this path, so the secret cannot reach a
 // dashboard-facing subject even by mistake.
 func (s *spotifyRPC) handleAppStatus(ctx context.Context, req spotifyrpc.AppStatusRequest) spotifyrpc.AppStatusReply {

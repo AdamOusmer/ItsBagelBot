@@ -44,7 +44,7 @@ type SpotifyApp struct {
 
 // SpotifySetup is everything one broadcaster has on file: the application they
 // registered and the grant minted against it. RefreshToken is empty for a
-// broadcaster who pasted credentials but never finished the connect flow —
+// broadcaster who pasted credentials but never finished the connect flow,
 // an ordinary state, not a failure.
 type SpotifySetup struct {
 	App          SpotifyApp
@@ -52,7 +52,7 @@ type SpotifySetup struct {
 }
 
 // SpotifyCreds is the custody store for broadcaster Spotify OAuth refresh
-// tokens, sealed at rest with the modules service's own AEAD keyset — the
+// tokens, sealed at rest with the modules service's own AEAD keyset: the
 // spotify twin of GoveeCreds. It shares the service's ent client but is its
 // own type so the general module store stays free of any crypto dependency:
 // only this narrow surface touches plaintext tokens, and it never caches or
@@ -68,7 +68,7 @@ func NewSpotifyCreds(client *ent.Client, packer domaincrypto.Packer) *SpotifyCre
 }
 
 // NewSpotifyCredsFromEnv builds the token store from the service's Tink
-// keyset (TINK_KEYSET_PATH) — the SAME keyset and the same best-effort rules
+// keyset (TINK_KEYSET_PATH), the SAME keyset and the same best-effort rules
 // as NewGoveeCredsFromEnv, since both custody stores seal under one keyset.
 func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger) *SpotifyCreds {
 	path := env.Get("TINK_KEYSET_PATH", "")
@@ -91,8 +91,8 @@ func NewSpotifyCredsFromEnv(client *ent.Client, log *zap.Logger) *SpotifyCreds {
 	return NewSpotifyCreds(client, packer)
 }
 
-// write runs one custody mutation for a validated owner. Every write here —
-// the two upserts and the two removals — opens with the same owner check and
+// write runs one custody mutation for a validated owner. Every write here,
+// the two upserts and the two removals: opens with the same owner check and
 // the same exec wrapper, and only the statement in the middle differs.
 func (s *SpotifyCreds) write(ctx context.Context, userID uint64, stmt func(context.Context) error) error {
 	if err := validate.UserID(userID); err != nil {
@@ -104,7 +104,13 @@ func (s *SpotifyCreds) write(ctx context.Context, userID uint64, stmt func(conte
 // SetToken seals the broadcaster's refresh token and upserts it. The
 // plaintext never touches the database or logs; the AAD binds the ciphertext
 // to this user id so an envelope copied onto another row fails to open.
-func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken string) error {
+//
+// scopes is what Spotify granted with THIS token. A nil slice means "not a
+// fresh grant": a rotation carries the same consent as the token it
+// replaces, and leaves the recorded set alone. Passing an empty non-nil
+// slice would be a grant that genuinely covers nothing, which Spotify does
+// not issue, so nil is the only no-op.
+func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken string, scopes []string) error {
 	if refreshToken == "" {
 		return errors.New("empty spotify refresh token")
 	}
@@ -118,13 +124,21 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 	// carries, defaults included, so it would blank the client_id/
 	// client_secret_enc pair (both defaulted, neither set here) and silently
 	// unregister the broadcaster's Spotify app on every reconnect.
+	joined := strings.Join(scopes, " ")
 	return s.write(ctx, userID, func(ctx context.Context) error {
-		return s.client.SpotifyCredential.Create().
+		create := s.client.SpotifyCredential.Create().
 			SetUserID(userID).
-			SetTokenEnc(sealed.Ciphertext).
+			SetTokenEnc(sealed.Ciphertext)
+		if scopes != nil {
+			create = create.SetScopes(joined)
+		}
+		return create.
 			OnConflictColumns(spotifycredential.FieldUserID).
 			Update(func(u *ent.SpotifyCredentialUpsert) {
 				u.SetTokenEnc(sealed.Ciphertext).SetUpdatedAt(time.Now())
+				if scopes != nil {
+					u.SetScopes(joined)
+				}
 			}).
 			Exec(ctx)
 	})
@@ -177,7 +191,7 @@ func (s *SpotifyCreds) ClearApp(ctx context.Context, userID uint64) error {
 }
 
 // AppClientID reports whether the broadcaster has pasted their Spotify
-// application credentials — the first of the two console steps — by returning
+// application credentials (the first of the two console steps) by returning
 // the client id, or "" when they have not.
 //
 // It deliberately returns the id rather than a SpotifyApp: this backs the
@@ -199,8 +213,8 @@ func (s *SpotifyCreds) AppClientID(ctx context.Context, userID uint64) (string, 
 
 // Credentials returns everything gossip needs to authenticate one broadcaster
 // in a single read: their application plus the grant minted against it. A
-// broadcaster with no application gets ErrNoSpotifyApp — there is nothing to
-// authenticate against — while an application with no grant yet comes back
+// broadcaster with no application gets ErrNoSpotifyApp, there is nothing to
+// authenticate against: while an application with no grant yet comes back
 // with an empty refresh token, which the caller reports as "not connected".
 func (s *SpotifyCreds) Credentials(ctx context.Context, userID uint64) (SpotifySetup, error) {
 	row, err := s.tokenRow(ctx, userID)
@@ -226,7 +240,7 @@ func (s *SpotifyCreds) Credentials(ctx context.Context, userID uint64) (SpotifyS
 
 // tokenFromRow unseals the refresh token off an already-loaded row. The row
 // carries its own owner, so the AAD is derived from it rather than from an id
-// passed alongside — one fewer way to unseal against the wrong user. A row
+// passed alongside, one fewer way to unseal against the wrong user. A row
 // that carries an application but no grant yet (credentials pasted, connect
 // flow unfinished) is ErrNoSpotifyToken, not a bad seal.
 func (s *SpotifyCreds) tokenFromRow(row *ent.SpotifyCredential) (string, error) {
@@ -243,8 +257,8 @@ func (s *SpotifyCreds) tokenFromRow(row *ent.SpotifyCredential) (string, error) 
 	return string(plain), nil
 }
 
-// appFromRow unseals the application off an already-loaded row — same
-// owner-from-the-row rule as tokenFromRow — mapping a row that carries no
+// appFromRow unseals the application off an already-loaded row: same
+// owner-from-the-row rule as tokenFromRow: mapping a row that carries no
 // application to ErrNoSpotifyApp.
 func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error) {
 	if row.ClientID == "" || len(row.ClientSecretEnc) == 0 {
@@ -264,7 +278,7 @@ func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error
 // It clears the column rather than deleting the row: the row also holds the
 // application the broadcaster registered, and disconnecting an account must
 // not quietly unregister the app they would reconnect with. Removing the app
-// is a separate, louder act — see ClearApp.
+// is a separate, louder act: see ClearApp.
 //
 // A missing row is a no-op: the end state (no token) is the same either way.
 func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
@@ -278,13 +292,13 @@ func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
 }
 
 // ErrRotateStale marks a rotation whose prev token no longer matches the
-// stored one — another writer got there first (a concurrent mint's rotation,
+// stored one: another writer got there first (a concurrent mint's rotation,
 // or a fresh console reconnect). The store keeps the newer value.
 var ErrRotateStale = errors.New("spotify refresh token changed since this rotation was minted")
 
 // RotateToken compare-and-swaps the broadcaster's stored refresh token after
 // Spotify rotated it on exchange: the new token is stored only while prev
-// still matches what is on file. The match runs on the unsealed value — AEAD
+// still matches what is on file. The match runs on the unsealed value: AEAD
 // ciphertexts are non-deterministic, so comparing envelopes in SQL cannot
 // work, which is also why this is read-compare-write rather than a
 // conditional UPDATE. The unguarded window between read and upsert is
@@ -301,7 +315,8 @@ func (s *SpotifyCreds) RotateToken(ctx context.Context, userID uint64, prev, nex
 	if current != prev {
 		return ErrRotateStale
 	}
-	return s.SetToken(ctx, userID, next)
+	// nil scopes: a rotation is the same consent, re-issued.
+	return s.SetToken(ctx, userID, next, nil)
 }
 
 // tokenRow loads the (validated) broadcaster's sealed credential row, mapping
@@ -321,23 +336,34 @@ func (s *SpotifyCreds) tokenRow(ctx context.Context, userID uint64) (*ent.Spotif
 	return row, err
 }
 
-// HasToken reports whether the broadcaster has a Spotify connection on file —
+// HasToken reports whether the broadcaster has a Spotify connection on file,
 // the status the dashboard shows ("connected"), never the value.
 func (s *SpotifyCreds) HasToken(ctx context.Context, userID uint64) (bool, error) {
+	present, _, err := s.TokenStatus(ctx, userID)
+	return present, err
+}
+
+// TokenStatus reports whether a grant is on file and what it covers, in one
+// read: the console asks both questions together on every songqueue page
+// load. An empty scope list on a present token is a grant recorded before the
+// column existed: unknown, not complete.
+func (s *SpotifyCreds) TokenStatus(ctx context.Context, userID uint64) (bool, []string, error) {
 	row, err := s.tokenRow(ctx, userID)
 	switch {
 	case errors.Is(err, ErrNoSpotifyToken):
-		return false, nil
+		return false, nil, nil
 	case err != nil:
-		return false, err
+		return false, nil, err
+	case len(row.TokenEnc) == 0:
+		return false, nil, nil
 	default:
-		return len(row.TokenEnc) > 0, nil
+		return true, strings.Fields(row.Scopes), nil
 	}
 }
 
 // Token unseals and returns the stored OAuth refresh token. Returns
 // ErrNoSpotifyToken when the broadcaster has none. The plaintext is returned
-// to the caller (gossip) and deliberately never cached — gossip derives a
+// to the caller (gossip) and deliberately never cached: gossip derives a
 // short-lived access token from it per call window and holds nothing else.
 func (s *SpotifyCreds) Token(ctx context.Context, userID uint64) (string, error) {
 	row, err := s.tokenRow(ctx, userID)
@@ -359,7 +385,7 @@ const (
 
 // spotifyAAD binds a ciphertext to its owner AND to the column it lives in:
 // the field label is part of the associated data, so an envelope copied
-// between token_enc and client_secret_enc — or onto another user's row — fails
+// between token_enc and client_secret_enc (or onto another user's row) fails
 // to open.
 func spotifyAAD(userID uint64, field spotifyField) []byte {
 	aad := make([]byte, 0, 20+len(field))

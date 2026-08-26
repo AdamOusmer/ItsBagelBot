@@ -47,6 +47,8 @@
   // svelte-ignore state_referenced_locally
   let connected = $state<boolean>(data.connected ?? false);
   // svelte-ignore state_referenced_locally
+  let scopeGap = $state<string[]>(data.scopeGap ?? []);
+  // svelte-ignore state_referenced_locally
   let sr = $state<SpotifySrConfig>(data.sr ?? blankSpotifySr());
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(data.redeem ?? blankSpotifyRedeem());
@@ -57,6 +59,7 @@
       seed = data;
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
+      scopeGap = data.scopeGap ?? [];
       app = data.app ?? { present: false, clientId: '' };
       sr = data.sr ?? blankSpotifySr();
       redeem = data.redeem ?? blankSpotifyRedeem();
@@ -82,7 +85,7 @@
   // --- The broadcaster's own Spotify application -----------------------------
   // Step one of two: there is no fleet-wide Spotify app, so a channel supplies
   // its own credentials before anything can be authorized. The secret is
-  // write-only — it is posted once and never comes back — so the field is
+  // write-only (it is posted once and never comes back) so the field is
   // always blank on load, including when an app is already stored.
   // svelte-ignore state_referenced_locally
   let app = $state<{ present: boolean; clientId: string }>(data.app ?? { present: false, clientId: '' });
@@ -148,7 +151,7 @@
 
   // --- Command path (!sr): switch + permission tier post together on change ---
   // The switches submit their own form the moment they flip, and the hidden
-  // inputs mirroring them have not re-rendered yet at that point — so the
+  // inputs mirroring them have not re-rendered yet at that point, so the
   // current values are stamped onto the payload here rather than read out of
   // stale DOM. (Both fields ride this form; perm comes from the select.)
   const srSubmit: SubmitFunction = ({ formData }) => {
@@ -354,10 +357,24 @@
       {#if connected}
         <div class="row">
           <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.connectedPill')}</span>
+          <!-- Reconnect is a plain re-run of the consent flow, NOT a disconnect
+               first: the stored token stays usable until a new one replaces it,
+               and a broadcaster who backs out of Spotify's screen keeps working.
+               It has to be reachable while connected, because a grant that
+               predates a scope the bot now needs looks perfectly connected. -->
+          <ButtonLink variant="secondary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
           <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
             <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
           </form>
         </div>
+        {#if scopeGap.length}
+          <AlertBanner variant="warn" icon="music">
+            {t('spotify.scopeGap')}
+            {#snippet action()}
+              <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
+            {/snippet}
+          </AlertBanner>
+        {/if}
       {:else if app.present}
         <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
       {:else}
@@ -381,7 +398,7 @@
             </div>
             <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
             <!-- The switch reads as "live only", the stored field is its
-                 inverse (allowOffline) — the config keeps govee's polarity so
+                 inverse (allowOffline). The config keeps govee's polarity so
                  both modules mean the same thing by the same key. -->
             <div class="enable-row">
               <div class="enable-text">
@@ -576,7 +593,7 @@
   }
   @media (min-width: 1080px) {
     .paths { grid-template-columns: 1fr 1fr; }
-    /* Inspector docks beside the points card, full width under chat — same
+    /* Inspector docks beside the points card, full width under chat: same
        list+pane shape as govee, without squeezing the chat card into a third. */
     .paths.inspecting { grid-template-columns: 1fr; }
     .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }

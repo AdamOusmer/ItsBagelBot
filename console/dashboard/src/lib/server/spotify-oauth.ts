@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
-// Shared bits of the Spotify connect flow. Both ends of it — /spotify/connect
-// and /spotify/callback — opened with the same three-step preamble (module
+// Shared bits of the Spotify connect flow. Both ends of it: /spotify/connect
+// and /spotify/callback: opened with the same three-step preamble (module
 // gate, session or login redirect, demo short-circuit) and each carried its own
 // copy of the state cookie name and the failure redirect. Two spellings of one
 // contract in two files is how the pair drifts: a cookie renamed on one side

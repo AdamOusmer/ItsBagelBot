@@ -444,9 +444,16 @@ type SpotifyNowPlayingReply struct {
 // minted from the console's authorization code, or empty when Spotify reused
 // an existing consent and issued none (an answer, not an error — see the
 // handler). Error carries a chat/console-safe reason.
+//
+// Scopes is what Spotify actually GRANTED, which is not always what was
+// asked for: a consent screen the user partially approves, or an old grant
+// replayed, comes back narrower. The console records it beside the token so
+// it can tell a broadcaster to reconnect instead of leaving them to discover
+// a missing scope as a 403 mid-stream.
 type SpotifyExchangeReply struct {
-	RefreshToken string `json:"refresh_token,omitempty"`
-	Error        string `json:"error,omitempty"`
+	RefreshToken string   `json:"refresh_token,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+	Error        string   `json:"error,omitempty"`
 }
 
 // McsrSessionReply is the answer to mcsr.session: the change in a player's

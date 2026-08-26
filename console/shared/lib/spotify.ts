@@ -64,3 +64,18 @@ export function blankSpotifyRedeem(): SpotifyRedeemConfig {
     allowOffline: false
   };
 }
+
+/**
+ * scopeGap is what a stored Spotify grant is missing against what the connect
+ * flow asks for today, in the order the flow asks for them. The dashboard
+ * owns the "asks for" half (it comes from env); this owns what short means.
+ *
+ * An empty granted list is treated as missing everything on purpose: it means
+ * a grant recorded before custody kept scopes, and assuming those older grants
+ * are complete is exactly what leaves a broadcaster hitting 403s on !skip with
+ * nothing in the console saying why.
+ */
+export function scopeGap(required: readonly string[], granted: readonly string[]): string[] {
+  const have = new Set(granted);
+  return required.filter((scope) => !have.has(scope));
+}
