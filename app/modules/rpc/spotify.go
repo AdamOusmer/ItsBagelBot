@@ -119,7 +119,10 @@ func spotifyMutate(raw string, write func(uint64) error) spotifyrpc.RefreshToken
 
 func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest) spotifyrpc.RefreshTokenMutateReply {
 	return spotifyMutate(req.UserID, func(id uint64) error {
-		return s.creds.SetToken(ctx, id, req.RefreshToken, req.Scopes)
+		return s.creds.SetToken(ctx, id, repository.SpotifyGrant{
+			RefreshToken: req.RefreshToken,
+			Scopes:       req.Scopes,
+		})
 	})
 }
 
@@ -150,8 +153,8 @@ func (s *spotifyRPC) handleStatus(ctx context.Context, req spotifyrpc.RefreshTok
 			return spotifyrpc.RefreshTokenStatusReply{Error: msg}
 		},
 		func(id uint64) (spotifyrpc.RefreshTokenStatusReply, error) {
-			present, scopes, err := s.creds.TokenStatus(ctx, id)
-			return spotifyrpc.RefreshTokenStatusReply{Present: present, Scopes: scopes}, err
+			status, err := s.creds.TokenStatus(ctx, id)
+			return spotifyrpc.RefreshTokenStatusReply{Present: status.Present, Scopes: status.Scopes}, err
 		})
 }
 

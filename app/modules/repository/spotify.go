@@ -51,6 +51,28 @@ type SpotifySetup struct {
 	RefreshToken string
 }
 
+// SpotifyGrant is one broadcaster's consent as it goes INTO custody: the
+// refresh token and the scopes Spotify granted with it. They travel as one
+// value because they describe the same consent, and writing one without the
+// other is how a store ends up claiming a capability it does not have.
+//
+// Scopes nil means "not a fresh grant". A rotation re-issues the same consent,
+// so it leaves whatever is recorded alone. An empty non-nil slice would be a
+// consent covering nothing, which Spotify does not issue, so nil is the only
+// no-op.
+type SpotifyGrant struct {
+	RefreshToken string
+	Scopes       []string
+}
+
+// SpotifyGrantStatus is that same consent coming OUT: whether one is on file,
+// and what it covers. Empty scopes on a present grant means it predates scope
+// recording, which callers treat as stale rather than complete.
+type SpotifyGrantStatus struct {
+	Present bool
+	Scopes  []string
+}
+
 // SpotifyCreds is the custody store for broadcaster Spotify OAuth refresh
 // tokens, sealed at rest with the modules service's own AEAD keyset: the
 // spotify twin of GoveeCreds. It shares the service's ent client but is its
@@ -105,16 +127,12 @@ func (s *SpotifyCreds) write(ctx context.Context, userID uint64, stmt func(conte
 // plaintext never touches the database or logs; the AAD binds the ciphertext
 // to this user id so an envelope copied onto another row fails to open.
 //
-// scopes is what Spotify granted with THIS token. A nil slice means "not a
-// fresh grant": a rotation carries the same consent as the token it
-// replaces, and leaves the recorded set alone. Passing an empty non-nil
-// slice would be a grant that genuinely covers nothing, which Spotify does
-// not issue, so nil is the only no-op.
-func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken string, scopes []string) error {
-	if refreshToken == "" {
+// See SpotifyGrant for what a nil scope list means.
+func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, grant SpotifyGrant) error {
+	if grant.RefreshToken == "" {
 		return errors.New("empty spotify refresh token")
 	}
-	sealed, err := s.packer.Pack([]byte(refreshToken), spotifyAAD(userID, fieldToken))
+	sealed, err := s.packer.Pack([]byte(grant.RefreshToken), spotifyAAD(userID, fieldToken))
 	if err != nil {
 		return err
 	}
@@ -124,19 +142,19 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, refreshToken
 	// carries, defaults included, so it would blank the client_id/
 	// client_secret_enc pair (both defaulted, neither set here) and silently
 	// unregister the broadcaster's Spotify app on every reconnect.
-	joined := strings.Join(scopes, " ")
+	joined := strings.Join(grant.Scopes, " ")
 	return s.write(ctx, userID, func(ctx context.Context) error {
 		create := s.client.SpotifyCredential.Create().
 			SetUserID(userID).
 			SetTokenEnc(sealed.Ciphertext)
-		if scopes != nil {
+		if grant.Scopes != nil {
 			create = create.SetScopes(joined)
 		}
 		return create.
 			OnConflictColumns(spotifycredential.FieldUserID).
 			Update(func(u *ent.SpotifyCredentialUpsert) {
 				u.SetTokenEnc(sealed.Ciphertext).SetUpdatedAt(time.Now())
-				if scopes != nil {
+				if grant.Scopes != nil {
 					u.SetScopes(joined)
 				}
 			}).
@@ -315,8 +333,8 @@ func (s *SpotifyCreds) RotateToken(ctx context.Context, userID uint64, prev, nex
 	if current != prev {
 		return ErrRotateStale
 	}
-	// nil scopes: a rotation is the same consent, re-issued.
-	return s.SetToken(ctx, userID, next, nil)
+	// Nil scopes: a rotation is the same consent, re-issued.
+	return s.SetToken(ctx, userID, SpotifyGrant{RefreshToken: next})
 }
 
 // tokenRow loads the (validated) broadcaster's sealed credential row, mapping
@@ -339,25 +357,25 @@ func (s *SpotifyCreds) tokenRow(ctx context.Context, userID uint64) (*ent.Spotif
 // HasToken reports whether the broadcaster has a Spotify connection on file,
 // the status the dashboard shows ("connected"), never the value.
 func (s *SpotifyCreds) HasToken(ctx context.Context, userID uint64) (bool, error) {
-	present, _, err := s.TokenStatus(ctx, userID)
-	return present, err
+	status, err := s.TokenStatus(ctx, userID)
+	return status.Present, err
 }
 
 // TokenStatus reports whether a grant is on file and what it covers, in one
 // read: the console asks both questions together on every songqueue page
 // load. An empty scope list on a present token is a grant recorded before the
 // column existed: unknown, not complete.
-func (s *SpotifyCreds) TokenStatus(ctx context.Context, userID uint64) (bool, []string, error) {
+func (s *SpotifyCreds) TokenStatus(ctx context.Context, userID uint64) (SpotifyGrantStatus, error) {
 	row, err := s.tokenRow(ctx, userID)
 	switch {
 	case errors.Is(err, ErrNoSpotifyToken):
-		return false, nil, nil
+		return SpotifyGrantStatus{}, nil
 	case err != nil:
-		return false, nil, err
+		return SpotifyGrantStatus{}, err
 	case len(row.TokenEnc) == 0:
-		return false, nil, nil
+		return SpotifyGrantStatus{}, nil
 	default:
-		return true, strings.Fields(row.Scopes), nil
+		return SpotifyGrantStatus{Present: true, Scopes: strings.Fields(row.Scopes)}, nil
 	}
 }
 
