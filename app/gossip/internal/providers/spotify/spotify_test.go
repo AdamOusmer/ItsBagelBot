@@ -290,7 +290,7 @@ func TestNoApplicationOnFile(t *testing.T) {
 
 // newExchangeServer answers the authorization-code half of /api/token,
 // asserting the broadcaster's OWN client credentials and the console's exact
-// redirect_uri ride the form — Spotify rejects the exchange otherwise.
+// redirect_uri ride the form: Spotify rejects the exchange otherwise.
 func newExchangeServer(t *testing.T, refresh string) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +332,7 @@ func TestExchangeMintsRefreshToken(t *testing.T) {
 }
 
 // Spotify reuses consent: a reconnect with unchanged scopes issues no refresh
-// token. That is an empty answer, never an error — the console keeps whatever
+// token. That is an empty answer, never an error: the console keeps whatever
 // is already in custody.
 func TestExchangeConsentReuseIsNotAnError(t *testing.T) {
 	reply := runExchange(t, fakeKeys{key: "rt-1"}, newExchangeServer(t, ""), exchangeRequest())

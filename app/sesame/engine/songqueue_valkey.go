@@ -18,7 +18,7 @@ import (
 
 // Sentinel failures the songqueue module maps onto friendly chat lines. The
 // contended error means the compare-and-set retry budget ran out against a
-// hot channel — rare by construction (chat-paced writes), and safe to surface
+// hot channel: rare by construction (chat-paced writes), and safe to surface
 // as a generic retry hint rather than a specific one.
 var (
 	ErrSongAlreadyQueued = errors.New("song already queued by this requester")
@@ -27,7 +27,7 @@ var (
 )
 
 // SongEntry is one requested track in a channel's song queue. RequesterID is
-// the Twitch user id captured at request time — retract authorization keys on
+// the Twitch user id captured at request time: retract authorization keys on
 // it, never on the display name (names collide and change).
 type SongEntry struct {
 	TrackID       string   `json:"tid"`
@@ -58,7 +58,7 @@ type SongQueueStore interface {
 	// pending (one live request per viewer keeps retract unambiguous) or the
 	// line is at maxDepth. It returns the requester-facing 1-based position.
 	Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth int) (pos int, err error)
-	// RetractOwn removes the requester's most recent pending entry — the one
+	// RetractOwn removes the requester's most recent pending entry: the one
 	// thing a viewer may do to anyone's requests. The currently-playing track
 	// is intentionally out of reach: it is already playing.
 	RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error)
@@ -197,7 +197,7 @@ func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64,
 
 // loadDoc reads the channel's document and decodes it. A corrupt or
 // foreign-format payload resets to an empty queue rather than bricking the
-// channel forever — the log line is the audit trail for that decision.
+// channel forever: the log line is the audit trail for that decision.
 func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, broadcasterID uint64) (docState, error) {
 	st := docState{key: songQueueDocKey(broadcasterID)}
 	raw, err := s.readDoc(ctx, st.key)
