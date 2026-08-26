@@ -113,7 +113,11 @@ function coerceOnRedeem(v: unknown): RewardOnRedeem {
 function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
   const sr = blankSpotifySr();
   if (!raw || typeof raw !== 'object') return { ...sr, enabled: true };
-  sr.enabled = raw.enabled === true;
+  // Only an explicit false closes it. A partial record (an sr object written
+  // without the key) is the same "never decided" state as no record at all,
+  // and reading it as off is what silently disabled !sr on channels that had
+  // simply never opened this page.
+  sr.enabled = raw.enabled !== false;
   sr.perm = coercePerm(raw.perm);
   sr.allowOffline = raw.allowOffline === true;
   return sr;

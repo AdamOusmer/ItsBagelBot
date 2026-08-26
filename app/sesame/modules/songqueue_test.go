@@ -359,6 +359,10 @@ func TestSRPathGates(t *testing.T) {
 		{"live-only says it is offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false, "while the stream is live"},
 		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true, ""},
 		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true, ""},
+		// An sr object written without the enabled key never decided the
+		// switch, so it must not read as off. The live gate still applies
+		// (this one runs live), because a written block HAS decided that.
+		{"partial sr record keeps queueing", `{"sr":{"perm":"everyone"}}`, true, true, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

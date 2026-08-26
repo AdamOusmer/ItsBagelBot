@@ -70,8 +70,12 @@ type songqueueConfig struct {
 // songqueueSr is the chat (!sr) request path. Enabled gates adds; Perm is a
 // module.ParsePerm string; AllowOffline opts out of the live-only gate the
 // same way govee's allowOffline does (default false = live-only).
+// Enabled is a POINTER so the three states stay distinct: absent (the console
+// never decided, path open), true, and an explicit false. A plain bool folds
+// absent into false, which is what closed !sr under channels whose blob was
+// written before the switch existed.
 type songqueueSr struct {
-	Enabled      bool   `json:"enabled"`
+	Enabled      *bool  `json:"enabled"`
 	Perm         string `json:"perm"`
 	AllowOffline bool   `json:"allowOffline"`
 }
@@ -423,7 +427,7 @@ func (qc songQueueCmd) srRefusal() string {
 	if qc.cfg.Sr == nil {
 		return ""
 	}
-	if !qc.cfg.Sr.Enabled {
+	if qc.cfg.Sr.Enabled != nil && !*qc.cfg.Sr.Enabled {
 		return "songqueue.sr.off"
 	}
 	if !qc.c.Chatter().Allows(module.ParsePerm(qc.cfg.Sr.Perm)) {
