@@ -110,9 +110,16 @@ spec:
         - port: 443
           protocol: TCP
 ---
-# Data owners reach the managed HeatWave endpoint over the routed OCI private
-# subnet. projector is deliberately absent: it reads projections over NATS RPC
-# and owns no schema (data-and-state rules).
+# Data owners reach the managed HeatWave endpoint. projector is deliberately
+# absent: it reads projections over NATS RPC and owns no schema
+# (data-and-state rules).
+#
+# Two egress blocks, one per path. 204.216.107.73/32 is nlb-mysql, the public
+# OCI Network LB in front of HeatWave (2026-08-27): services dial it via
+# DB_ADDR so the DB path no longer rides the witness1 tailscale subnet route
+# (SPOF). 10.0.2.0/24-era 10.0.0.0/16 stays because the NLB health path and
+# any direct-VCN fallback (backup restores, DB_ADDR rollback) still use it;
+# removing it turns a Doppler rollback into an outage.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -130,6 +137,8 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.0.0.0/16
+        - ipBlock:
+            cidr: 204.216.107.73/32
       ports:
         - port: 3306
           protocol: TCP

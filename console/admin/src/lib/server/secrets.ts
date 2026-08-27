@@ -393,6 +393,8 @@ interface DbAdminTarget {
   user: string;
   password: string;
   ca: string;
+  clientCert: string;
+  clientKey: string;
 }
 
 // envFirst returns the first non-empty value among the named env keys.
@@ -415,14 +417,21 @@ function adminDbTarget(): DbAdminTarget {
     port: Number(envFirst('DB_ADMIN_PORT') || addrPort || 3306),
     user: adminDbUser(),
     password: envFirst('DB_ADMIN_PASS', 'DB_ADMIN_PASSWORD'),
-    // mysql2 verifies the chain but cannot verify identity for the endpoint's
-    // no-SAN certificate, so this must be its dedicated HeatWave CA rather than
-    // a broad/shared trust bundle such as the internal fleet CA.
-    ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT')
+    // This must be the dedicated HeatWave CA rather than a broad/shared trust
+    // bundle such as the internal fleet CA: anything that CA signed could
+    // otherwise impersonate the DB endpoint.
+    ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT'),
+    // mTLS identity for REQUIRE X509 accounts (2026-08-27, issued by the
+    // ItsBagelBot HeatWave Root CA in OCI Certificates). Optional as a pair so
+    // the change deploys before the account flip; half-configured fails below.
+    clientCert: envFirst('DB_ADMIN_CLIENT_CERT'),
+    clientKey: envFirst('DB_ADMIN_CLIENT_KEY')
   };
   const missing = REQUIRED_TARGET_FIELDS.some((field) => !target[field]);
   if (missing) throw new Error('DB admin credential is not configured');
   if (!target.ca) throw new Error('DB admin CA certificate is not configured');
+  if (!target.clientCert !== !target.clientKey)
+    throw new Error('DB_ADMIN_CLIENT_CERT and DB_ADMIN_CLIENT_KEY must be set together');
   return target;
 }
 
@@ -433,7 +442,12 @@ async function adminConnection(): Promise<mysql.Connection> {
     port: target.port,
     user: target.user,
     password: target.password,
-    ssl: { ca: target.ca, rejectUnauthorized: true, minVersion: 'TLSv1.2' },
+    ssl: {
+      ca: target.ca,
+      rejectUnauthorized: true,
+      minVersion: 'TLSv1.2',
+      ...(target.clientCert ? { cert: target.clientCert, key: target.clientKey } : {})
+    },
     connectTimeout: 5000,
     multipleStatements: false
   });
