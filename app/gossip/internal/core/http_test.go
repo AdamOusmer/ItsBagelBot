@@ -4,7 +4,9 @@
 package core
 
 import (
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,4 +125,61 @@ func TestNewHTTPClientUsesSharedTransport(t *testing.T) {
 	c := newHTTPClient(LaneDirect, "https://example.invalid", nil, 0)
 	assert.Same(t, sharedTransport, c.hc.Transport)
 	assert.Equal(t, 10*time.Second, c.hc.Timeout, "a non-positive timeout falls back to 10s")
+}
+
+// A nil out means "I only care whether this succeeded" (the player-write
+// endpoints: a write that "hits" is a write that did not happen, so there is
+// no reply shape to hold). Before this, any 2xx that was not EXACTLY 204 fell
+// through to json.Unmarshal(body, nil), which always fails with
+// "json: Unmarshal(nil)" no matter what the upstream actually answered: a
+// real Spotify queue success (200 with a body) was reported as a failure,
+// and the caller rolled back a request that had already reached Spotify.
+func TestDecodeJSONNilOutSucceedsOnAny2xx(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		code int
+		body string
+	}{
+		{"204 empty, the documented shape", http.StatusNoContent, ""},
+		{"200 with an empty body", http.StatusOK, ""},
+		{"200 with a body Spotify was observed sending", http.StatusOK, `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &http.Response{StatusCode: tc.code, Body: io.NopCloser(strings.NewReader(tc.body))}
+			assert.NoError(t, decodeJSON(resp, nil))
+		})
+	}
+}
+
+// A non-2xx with a nil out still reports the upstream failure: nil only
+// short-circuits the decode of a successful body, never the error mapping.
+func TestDecodeJSONNilOutStillReportsUpstreamError(t *testing.T) {
+	resp := &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader(`{"error":"not found"}`))}
+	err := decodeJSON(resp, nil)
+	require.Error(t, err)
+	var ue *UpstreamError
+	require.ErrorAs(t, err, &ue)
+	assert.Equal(t, http.StatusNotFound, ue.Status)
+}
+
+// upstreamMessage must read both error shapes the fleet's upstreams answer
+// with: the flat {"error":"..."} the fleet's own convention and Govee use,
+// and Spotify's nested {"error":{"message":"..."}} envelope. A flat string
+// field cannot also bind a nested object, so this is two parse attempts
+// sharing one return, not one struct handling both.
+func TestUpstreamMessageReadsFlatAndNestedShapes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{"fleet flat error field", `{"error":"player not found"}`, "player not found"},
+		{"govee flat message field", `{"message":"invalid device"}`, "invalid device"},
+		{"spotify nested error.message", `{"error":{"status":403,"message":"Insufficient client scope"}}`, "Insufficient client scope"},
+		{"unrecognized shape yields empty, not a decode error", `{"status":403}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, upstreamMessage([]byte(tc.body)))
+		})
+	}
 }

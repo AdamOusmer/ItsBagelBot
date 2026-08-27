@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,13 +28,19 @@ type fakeSongQueue struct {
 	up      []engine.SongEntry
 }
 
-func (f *fakeSongQueue) Add(_ context.Context, _ uint64, e engine.SongEntry, maxDepth int) (int, error) {
-	for i := range f.up {
-		if f.up[i].RequesterID == e.RequesterID {
-			return 0, engine.ErrSongAlreadyQueued
+func (f *fakeSongQueue) Add(_ context.Context, _ uint64, e engine.SongEntry, limits engine.SongQueueLimits) (int, error) {
+	if limits.PerRequester > 0 {
+		mine := 0
+		for i := range f.up {
+			if f.up[i].RequesterID == e.RequesterID {
+				mine++
+			}
+		}
+		if mine >= limits.PerRequester {
+			return 0, engine.ErrSongQuotaReached
 		}
 	}
-	if len(f.up) >= maxDepth {
+	if limits.MaxDepth > 0 && len(f.up) >= limits.MaxDepth {
 		return 0, engine.ErrSongQueueFull
 	}
 	e.EnqueuedAt = time.Now().UnixMilli()
@@ -129,9 +136,15 @@ func srTrack(id, name, artist string) gossiprpc.SpotifyTrack {
 	return gossiprpc.SpotifyTrack{ID: id, Name: name, Artists: []string{artist}, DurationMS: 222000}
 }
 
+// srSearchGossip fakes the whole request path: the search resolve plus the two
+// player writes every accepted add and skip now perform. The player answers
+// success so tests about queue policy stay about queue policy; the
+// player-refusal tests override these keys.
 func srSearchGossip(tracks ...gossiprpc.SpotifyTrack) *fakeGossip {
 	return &fakeGossip{replies: map[string]any{
 		"spotify.search": gossiprpc.SpotifySearchReply{Tracks: tracks, ResolvedAs: "text"},
+		"spotify.queue":  gossiprpc.SpotifyPlayerReply{},
+		"spotify.next":   gossiprpc.SpotifyPlayerReply{},
 	}}
 }
 
@@ -149,12 +162,18 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 
 	out := runSR(t, m, songCtx("42", "alice"), "brightside by the killers")
 
-	call := g.lastCall(t)
-	assert.Equal(t, "spotify", call.provider)
-	assert.Equal(t, "search", call.endpoint)
-	assert.Equal(t, "100", call.req.ChannelID, "the broadcaster id scopes gossip's per-channel credential")
-	assert.Equal(t, "brightside by the killers", call.req.Query)
-	assert.Equal(t, 1, call.req.Limit)
+	// One resolve, then one push onto the live player: the push is what makes
+	// the request audible, and it addresses the track the search resolved.
+	require.Len(t, g.calls, 2)
+	search, push := g.calls[0], g.calls[1]
+	assert.Equal(t, "spotify", search.provider)
+	assert.Equal(t, "search", search.endpoint)
+	assert.Equal(t, "100", search.req.ChannelID, "the broadcaster id scopes gossip's per-channel credential")
+	assert.Equal(t, "brightside by the killers", search.req.Query)
+	assert.Equal(t, 1, search.req.Limit)
+	assert.Equal(t, "queue", push.endpoint)
+	assert.Equal(t, "t1", push.req.TrackID)
+	assert.Equal(t, "100", push.req.ChannelID)
 
 	require.Len(t, store.up, 1)
 	entry := store.up[0]
@@ -171,7 +190,9 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 	assert.Contains(t, text, "#1")
 }
 
-func TestSRAlreadyQueuedRejectsSecondRequest(t *testing.T) {
+// The old hard rule was one pending request per viewer. The default is now
+// UNLIMITED, and any cap is the broadcaster's per-tier quota config.
+func TestSRSecondRequestQueuesByDefault(t *testing.T) {
 	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
 	store := &fakeSongQueue{}
 	m := SongQueue(songDeps(store, g))
@@ -180,8 +201,107 @@ func TestSRAlreadyQueuedRejectsSecondRequest(t *testing.T) {
 	runSR(t, m, c, "human")
 	out := runSR(t, m, c, "another one")
 
-	assert.Len(t, store.up, 1, "a second live request must not displace the first")
-	assert.Contains(t, chatText(t, out), "!sr remove")
+	assert.Len(t, store.up, 2, "no per-viewer cap unless the broadcaster set one")
+	assert.Contains(t, chatText(t, out), "#2")
+}
+
+// Per-tier quotas: the chatter's highest role picks the cap, an absent tier is
+// unlimited, and the refusal names the limit.
+func TestSRQuotaPerTier(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		badges []string
+		adds   int
+		queued int
+		says   string
+	}{
+		{"everyone capped at 1", `{"quotas":{"everyone":1}}`, nil, 2, 1, "limit (1"},
+		{"sub tier caps subs", `{"quotas":{"everyone":1,"sub":2}}`, []string{"subscriber"}, 3, 2, "limit (2"},
+		{"mod tier absent means unlimited", `{"quotas":{"everyone":1}}`, []string{"moderator"}, 3, 3, ""},
+		{"broadcaster is never capped", `{"quotas":{"everyone":1,"mod":1}}`, []string{"broadcaster"}, 3, 3, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeSongQueue{}
+			m := SongQueue(songDeps(store, srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))))
+			c := songCtx("42", "alice", tc.badges...)
+			if tc.badges != nil && tc.badges[0] == "broadcaster" {
+				c.Env.ChatterUserID = c.Env.BroadcasterUserID
+			}
+			c.Config = []byte(tc.config)
+
+			var out []module.Output
+			for i := 0; i < tc.adds; i++ {
+				out = runSR(t, m, c, "song number "+strconv.Itoa(i))
+			}
+			assert.Len(t, store.up, tc.queued)
+			if tc.says != "" {
+				assert.Contains(t, chatText(t, out), tc.says)
+			}
+		})
+	}
+}
+
+// A refused player push must not leave a phantom entry: the list only claims
+// songs the player accepted, and chat hears Spotify's reason, not "queued".
+func TestSRPlayerRefusalRollsBackTheAdd(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	g.replies["spotify.queue"] = gossiprpc.SpotifyPlayerReply{Error: "no active Spotify device, start playing something first"}
+	store := &fakeSongQueue{}
+	m := SongQueue(songDeps(store, g))
+
+	out := runSR(t, m, songCtx("42", "alice"), "brightside")
+
+	assert.Empty(t, store.up, "the rolled-back entry must not linger")
+	assert.Contains(t, chatText(t, out), "no active Spotify device")
+}
+
+// A player push that never reached gossip is a refusal too: an unanswered
+// write must not be reported as an add.
+func TestSRPlayerTransportFailureRollsBackTheAdd(t *testing.T) {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	delete(g.replies, "spotify.queue")
+	store := &fakeSongQueue{}
+	m := SongQueue(songDeps(store, g))
+
+	out := runSR(t, m, songCtx("42", "alice"), "brightside")
+
+	assert.Empty(t, store.up)
+	text := chatText(t, out)
+	assert.NotContains(t, text, "#1", "no position claim without a confirmed push")
+}
+
+// !skip drives the real player, and only advances the request list when the
+// player actually moved: a refusal is spoken and changes nothing.
+func TestSkipDrivesThePlayer(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
+	}}
+	g := srSearchGossip()
+	m := SongQueue(songDeps(store, g))
+
+	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
+
+	require.NotEmpty(t, g.calls)
+	assert.Equal(t, "next", g.calls[len(g.calls)-1].endpoint)
+	assert.Contains(t, chatText(t, out), "Human")
+	require.NotNil(t, store.current)
+}
+
+func TestSkipRefusalLeavesTheListAlone(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
+	}}
+	g := srSearchGossip()
+	g.replies["spotify.next"] = gossiprpc.SpotifyPlayerReply{Error: "Spotify Premium is required for queue control"}
+	m := SongQueue(songDeps(store, g))
+
+	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
+
+	assert.Contains(t, chatText(t, out), "Premium")
+	assert.Nil(t, store.current, "nothing may be marked played while the music kept playing")
+	assert.Len(t, store.up, 1)
 }
 
 func TestSRProviderErrorSurfacesVerbatim(t *testing.T) {

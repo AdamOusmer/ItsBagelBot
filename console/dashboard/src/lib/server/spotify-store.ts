@@ -43,16 +43,24 @@
 import { rpc } from '@bagel/shared/server/nats';
 import type {
   SpotifySrConfig,
+  SpotifyQuotas,
   SpotifyRedeemConfig,
   SpotifyReward,
   RewardOnRedeem,
   SpotifySrPerm
 } from '@bagel/shared';
-import { blankSpotifyRedeem, blankSpotifySr } from '@bagel/shared';
+import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { listModules, upsertModule } from './commands-store';
 
-export type { SpotifySrConfig, SpotifyRedeemConfig, SpotifyReward, RewardOnRedeem, SpotifySrPerm };
+export type {
+  SpotifySrConfig,
+  SpotifyRedeemConfig,
+  SpotifyReward,
+  RewardOnRedeem,
+  SpotifySrPerm,
+  SpotifyQuotas
+};
 
 const SONGQUEUE_MODULE = 'songqueue';
 
@@ -64,6 +72,7 @@ export interface SpotifyView {
   enabled: boolean;
   sr: SpotifySrConfig;
   redeem: SpotifyRedeemConfig;
+  quotas: SpotifyQuotas;
 }
 
 // SpotifyGrant is the connection half of the page: whether a refresh token is
@@ -163,12 +172,26 @@ function readRedeem(
   return redeem;
 }
 
+// readQuotas coerces the per-tier caps. Anything that is not a positive
+// number reads back as null (unlimited): zero and negatives cannot mean
+// "nobody may request", the sr switch owns that.
+function readQuotas(raw: Partial<SpotifyQuotas> | undefined): SpotifyQuotas {
+  const q = blankSpotifyQuotas();
+  if (!raw || typeof raw !== 'object') return q;
+  for (const tier of ['everyone', 'sub', 'vip', 'mod'] as const) {
+    const v = raw[tier];
+    q[tier] = typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : null;
+  }
+  return q;
+}
+
 function readView(configs: unknown): SpotifyView {
   const c = (configs ?? {}) as {
     sr?: Partial<SpotifySrConfig>;
     redeem?: Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null };
+    quotas?: Partial<SpotifyQuotas>;
   };
-  return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem) };
+  return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem), quotas: readQuotas(c.quotas) };
 }
 
 interface RewardWire {
@@ -243,6 +266,7 @@ export interface SpotifyStore {
   clearApp(): Promise<SpotifyResult>;
   setEnabled(enabled: boolean): Promise<SpotifyResult>;
   saveSr(sr: SpotifySrConfig): Promise<SpotifyResult>;
+  saveQuotas(quotas: SpotifyQuotas): Promise<SpotifyResult>;
   setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult>;
   saveReward(draft: RewardDraft): Promise<SpotifyResult>;
   deleteReward(): Promise<SpotifyResult>;
@@ -326,10 +350,16 @@ export function spotifyStore(userId: string): SpotifyStore {
   // writeBlob persists both halves under one blob, spreading whatever is
   // stored first (upsert replaces the whole configs value, so the overlay
   // keeps the songqueueConfig keys alive).
-  async function writeBlob(enabled: boolean, sr: SpotifySrConfig, redeem: SpotifyRedeemConfig): Promise<void> {
+  async function writeBlob(
+    enabled: boolean,
+    sr: SpotifySrConfig,
+    redeem: SpotifyRedeemConfig,
+    quotas: SpotifyQuotas
+  ): Promise<void> {
     const base = await rawConfigs();
     await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
       ...base,
+      quotas,
       sr: { enabled: sr.enabled, perm: sr.perm, allowOffline: sr.allowOffline },
       redeem: {
         enabled: redeem.enabled,
@@ -344,13 +374,19 @@ export function spotifyStore(userId: string): SpotifyStore {
 
   async function setEnabled(enabled: boolean): Promise<SpotifyResult> {
     const cur = await read();
-    await writeBlob(enabled, cur.sr, cur.redeem);
+    await writeBlob(enabled, cur.sr, cur.redeem, cur.quotas);
+    return { ok: true };
+  }
+
+  async function saveQuotas(quotas: SpotifyQuotas): Promise<SpotifyResult> {
+    const cur = await read();
+    await writeBlob(cur.enabled, cur.sr, cur.redeem, quotas);
     return { ok: true };
   }
 
   async function saveSr(sr: SpotifySrConfig): Promise<SpotifyResult> {
     const cur = await read();
-    await writeBlob(cur.enabled, sr, cur.redeem);
+    await writeBlob(cur.enabled, sr, cur.redeem, cur.quotas);
     return { ok: true };
   }
 
@@ -359,7 +395,7 @@ export function spotifyStore(userId: string): SpotifyStore {
   // clobber a concurrent save of the other through the read-modify-write.
   async function setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult> {
     const cur = await read();
-    await writeBlob(cur.enabled, cur.sr, { ...cur.redeem, ...path });
+    await writeBlob(cur.enabled, cur.sr, { ...cur.redeem, ...path }, cur.quotas);
     return { ok: true };
   }
 
@@ -388,7 +424,7 @@ export function spotifyStore(userId: string): SpotifyStore {
         cooldown: reply.reward.global_cooldown_enabled ? reply.reward.global_cooldown_seconds : 0
       }
     };
-    await writeBlob(cur.enabled, cur.sr, redeem);
+    await writeBlob(cur.enabled, cur.sr, redeem, cur.quotas);
     if (!existingId) await publishEventSubEnsureOptional(userId);
     return { ok: true };
   }
@@ -399,7 +435,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     const reply = await callReward(userId, 'delete', { reward_id: cur.redeem.rewardId });
     if (reply.missing_scope) return { ok: false, missingScope: true };
     if (reply.error) return { ok: false, error: reply.error };
-    await writeBlob(cur.enabled, cur.sr, { ...blankSpotifyRedeem() });
+    await writeBlob(cur.enabled, cur.sr, { ...blankSpotifyRedeem() }, cur.quotas);
     return { ok: true };
   }
 
@@ -417,6 +453,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     clearApp,
     setEnabled,
     saveSr,
+    saveQuotas,
     setRedeemPath,
     saveReward,
     deleteReward,

@@ -77,6 +77,8 @@ const (
 	artistPath     = "/v1/artists/"
 	albumPath      = "/v1/albums/"
 	nowPlayingPath = "/v1/me/player/currently-playing"
+	queuePath      = "/v1/me/player/queue"
+	nextPath       = "/v1/me/player/next"
 
 	bearerTokenType = "Bearer"
 
@@ -140,6 +142,11 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("artist").Timeout(lookupTimeout).Handle(p.artist)
 	b.Endpoint("nowplaying").Timeout(nowplayingTimeout).Handle(p.nowPlaying)
 	b.Endpoint("exchange").Timeout(lookupTimeout).Handle(p.exchange)
+	// Player writes: what makes !sr audible. Everything above only READS the
+	// account; these two act on it, and they are what user-modify-playback-state
+	// is for.
+	b.Endpoint("queue").Timeout(nowplayingTimeout).Handle(p.queueTrack)
+	b.Endpoint("next").Timeout(nowplayingTimeout).Handle(p.next)
 	return b.Build()
 }
 
@@ -910,4 +917,85 @@ func splitScopes(raw string) []string {
 		return nil
 	}
 	return fields
+}
+
+// --- player control ----------------------------------------------------------
+
+// playerWrite runs one player mutation for a broadcaster: resolve their token,
+// admit through their rate bucket, POST, and map the failure onto a chat-safe
+// reason. No cache on purpose: a write that "hits" is a write that did not
+// happen.
+func (p *api) playerWrite(ctx context.Context, req gossiprpc.Request, do func(context.Context, accessToken) error) any {
+	broadcaster := strings.TrimSpace(req.ChannelID)
+	if broadcaster == "" {
+		return gossiprpc.SpotifyPlayerReply{Error: "missing channel"}
+	}
+	tok, msg := p.accessTokenFor(ctx, broadcaster)
+	if msg != "" {
+		return gossiprpc.SpotifyPlayerReply{Error: msg}
+	}
+	if err := p.rateAdmit(broadcaster)(ctx); err != nil {
+		return gossiprpc.SpotifyPlayerReply{Error: p.fetchFailed("spotify player write denied", "Spotify is busy right now, try again in a moment", err)}
+	}
+	if err := do(ctx, tok); err != nil {
+		return gossiprpc.SpotifyPlayerReply{Error: p.playerFailed(err)}
+	}
+	return gossiprpc.SpotifyPlayerReply{}
+}
+
+// playerFailed maps a player-write failure onto the reason chat can act on.
+// The three statuses below are the three real-world states a broadcaster can
+// fix themselves; anything else stays generic so an outage leaks no detail.
+func (p *api) playerFailed(err error) string {
+	var ue *core.UpstreamError
+	if errors.As(err, &ue) {
+		switch ue.Status {
+		case http.StatusNotFound:
+			// Spotify's NO_ACTIVE_DEVICE: the account is fine, nothing is
+			// listening. Playing anything on any device fixes it.
+			return "no active Spotify device, start playing something first"
+		case http.StatusForbidden:
+			// Spotify answers 403 for more than one reason: a free account
+			// (player control is Premium-only upstream), a grant minted
+			// before playback control was requested (Spotify's own
+			// "Insufficient client scope" text), and, distinctly, a
+			// development-mode app whose caller is not on its user
+			// allowlist. Only the first two are things reconnecting on the
+			// dashboard fixes; mapping every 403 to that message would tell
+			// an allowlist-blocked broadcaster to redo a step that was never
+			// broken.
+			msg := strings.ToUpper(ue.Message)
+			switch {
+			case strings.Contains(msg, "PREMIUM"):
+				return "Spotify Premium is required for queue control"
+			case strings.Contains(msg, "SCOPE"):
+				return "the Spotify connection is missing playback control, reconnect it on the dashboard"
+			}
+		case http.StatusUnauthorized:
+			return "your Spotify connection needs to be set up again"
+		}
+	}
+	return p.fetchFailed("spotify player write failed", "could not reach Spotify", err)
+}
+
+// queueTrack backs spotify.queue: append one track to whatever device the
+// broadcaster is playing on. Spotify addresses the track by full URI.
+func (p *api) queueTrack(ctx context.Context, req gossiprpc.Request) any {
+	id := strings.TrimSpace(req.TrackID)
+	if id == "" {
+		return gossiprpc.SpotifyPlayerReply{Error: "missing track"}
+	}
+	return p.playerWrite(ctx, req, func(ctx context.Context, tok accessToken) error {
+		q := url.Values{"uri": {"spotify:track:" + id}}
+		return p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: queuePath, Query: q, Headers: bearerHeader(tok)}, nil)
+	})
+}
+
+// next backs spotify.next: skip the playing track. The queue head Spotify
+// promotes is its own (which includes everything queueTrack pushed), so the
+// caller advancing its request list in step stays truthful.
+func (p *api) next(ctx context.Context, req gossiprpc.Request) any {
+	return p.playerWrite(ctx, req, func(ctx context.Context, tok accessToken) error {
+		return p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: nextPath, Headers: bearerHeader(tok)}, nil)
+	})
 }

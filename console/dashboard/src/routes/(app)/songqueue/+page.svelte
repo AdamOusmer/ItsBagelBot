@@ -27,7 +27,10 @@
     type SpotifyRedeemConfig,
     type SpotifySrPerm,
     blankSpotifySr,
-    blankSpotifyRedeem
+    blankSpotifyRedeem,
+    blankSpotifyQuotas,
+    SPOTIFY_QUOTA_TIERS,
+    type SpotifyQuotas
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -53,6 +56,8 @@
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(data.redeem ?? blankSpotifyRedeem());
   // svelte-ignore state_referenced_locally
+  let quotas = $state<SpotifyQuotas>(data.quotas ?? blankSpotifyQuotas());
+  // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
     if (data !== seed) {
@@ -63,6 +68,7 @@
       app = data.app ?? { present: false, clientId: '' };
       sr = data.sr ?? blankSpotifySr();
       redeem = data.redeem ?? blankSpotifyRedeem();
+      quotas = data.quotas ?? blankSpotifyQuotas();
     }
   });
 
@@ -172,6 +178,25 @@
       await invalidateAll();
     };
   };
+
+  const QUOTA_LABEL_KEYS: Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string> = {
+    everyone: 'spotify.quotaEveryone',
+    sub: 'spotify.quotaSub',
+    vip: 'spotify.quotaVip',
+    mod: 'spotify.quotaMod'
+  };
+
+  const quotasSubmit: SubmitFunction = () =>
+    async ({ result }) => {
+      const payload = payloadOf(result);
+      if (result.type === 'success' && payload?.ok !== false) {
+        toast('ok', t('spotify.quotaSaved'));
+        await invalidateAll();
+        return;
+      }
+      toast('err', payload?.error ?? t('spotify.quotaSaveFailed'));
+      await invalidateAll();
+    };
 
   const redeemToggleSubmit: SubmitFunction = ({ formData }) => {
     formData.set('redeem_enabled', redeem.enabled ? 'on' : '');
@@ -425,6 +450,31 @@
               <input type="hidden" name="perm" value={sr.perm} />
             {/if}
           </form>
+
+          <!-- Per-viewer limits apply to BOTH request paths (chat and channel
+               points): they cap how many pending songs one viewer may hold.
+               Blank means unlimited, which is the default; the broadcaster is
+               never capped. Saved as a whole set on submit. -->
+          <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
+            <h3 class="path-title quota-title">{t('spotify.quotaTitle')}</h3>
+            <p class="muted-text">{t('spotify.quotaHelp')}</p>
+            <div class="quota-grid">
+              {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
+                <Field label={t(QUOTA_LABEL_KEYS[tier])}>
+                  <input
+                    class="input"
+                    name={`quota_${tier}`}
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder={t('spotify.quotaUnlimited')}
+                    value={quotas[tier] ?? ''}
+                  />
+                </Field>
+              {/each}
+            </div>
+            <Button variant="secondary" type="submit">{t('spotify.quotaSave')}</Button>
+          </form>
         </Card>
 
         <div class="redeem-col">
@@ -515,6 +565,16 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
+  .quota-title {
+    margin-top: 18px;
+  }
+  .quota-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
   .back {
     display: inline-flex;
     align-items: center;

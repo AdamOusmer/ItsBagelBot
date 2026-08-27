@@ -113,17 +113,30 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund(failure + ", your points were refunded")
 		return nil
 	}
-	pos, err := r.qc.store.Add(ctx, r.qc.c.BroadcasterID, r.qc.entry(*track), r.qc.maxDepth)
+	// A redemption event carries no badges, so the quota tier resolves from
+	// what the context knows: the broadcaster shortcut still applies, everyone
+	// else redeems under the everyone tier.
+	pos, err := r.qc.store.Add(ctx, r.qc.c.BroadcasterID, r.qc.entry(*track), engine.SongQueueLimits{MaxDepth: r.qc.maxDepth, PerRequester: r.qc.quotaFor()})
 	if err != nil {
 		switch {
-		case errors.Is(err, engine.ErrSongAlreadyQueued):
-			r.refund("you already have a song in the queue, your points were refunded")
+		case errors.Is(err, engine.ErrSongQuotaReached):
+			r.refund("you are at your song limit for now, your points were refunded")
 		case errors.Is(err, engine.ErrSongQueueFull):
 			r.refund("the song queue is full, your points were refunded")
 		default:
 			r.qc.log.Warn("songqueue: redeem add failed", r.qc.bid(), zap.Error(err))
 			r.refund("could not queue that track, your points were refunded")
 		}
+		return nil
+	}
+	// Same contract as the chat path: the redemption only fulfils when the
+	// track is audibly queued. A player refusal rolls the entry back and
+	// refunds, since points for an inaudible request are points eaten.
+	if failure := r.qc.pushToPlayer(ctx, track.ID); failure != "" {
+		if _, _, rbErr := r.qc.store.RetractOwn(ctx, r.qc.c.BroadcasterID, r.ev.UserID); rbErr != nil {
+			r.qc.log.Warn("songqueue: redeem rollback after player refusal failed", r.qc.bid(), zap.Error(rbErr))
+		}
+		r.refund(failure + ", your points were refunded")
 		return nil
 	}
 	r.chat(renderSongqueueRedeemReply(r.cfg.ReplyMessage, r.ev, track.Name, pos))
