@@ -116,7 +116,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 	// A redemption event carries no badges, so the quota tier resolves from
 	// what the context knows: the broadcaster shortcut still applies, everyone
 	// else redeems under the everyone tier.
-	pos, err := r.qc.store.Add(ctx, r.qc.c.BroadcasterID, r.qc.entry(*track), r.qc.maxDepth, r.qc.quotaFor())
+	pos, err := r.qc.store.Add(ctx, r.qc.c.BroadcasterID, r.qc.entry(*track), engine.SongQueueLimits{MaxDepth: r.qc.maxDepth, PerRequester: r.qc.quotaFor()})
 	if err != nil {
 		switch {
 		case errors.Is(err, engine.ErrSongQuotaReached):

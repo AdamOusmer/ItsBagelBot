@@ -28,19 +28,19 @@ type fakeSongQueue struct {
 	up      []engine.SongEntry
 }
 
-func (f *fakeSongQueue) Add(_ context.Context, _ uint64, e engine.SongEntry, maxDepth, perRequester int) (int, error) {
-	if perRequester > 0 {
+func (f *fakeSongQueue) Add(_ context.Context, _ uint64, e engine.SongEntry, limits engine.SongQueueLimits) (int, error) {
+	if limits.PerRequester > 0 {
 		mine := 0
 		for i := range f.up {
 			if f.up[i].RequesterID == e.RequesterID {
 				mine++
 			}
 		}
-		if mine >= perRequester {
+		if mine >= limits.PerRequester {
 			return 0, engine.ErrSongQuotaReached
 		}
 	}
-	if len(f.up) >= maxDepth {
+	if limits.MaxDepth > 0 && len(f.up) >= limits.MaxDepth {
 		return 0, engine.ErrSongQueueFull
 	}
 	e.EnqueuedAt = time.Now().UnixMilli()

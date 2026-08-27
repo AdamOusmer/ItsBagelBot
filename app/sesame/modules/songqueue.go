@@ -431,7 +431,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		qc.emitChat(emit, failure)
 		return nil
 	}
-	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth, qc.quotaFor())
+	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), engine.SongQueueLimits{MaxDepth: qc.maxDepth, PerRequester: qc.quotaFor()})
 	if err != nil {
 		return qc.reportAdd(emit, *track, pos, err)
 	}
