@@ -462,6 +462,7 @@ func TestQueueMapsScope403ToReconnect(t *testing.T) {
 // must not tell an unrelated broadcaster to reconnect on the dashboard.
 func TestQueueDoesNotMapUnrecognized403ToReconnect(t *testing.T) {
 	reply := runQueue(t, spotify403("User not registered in the Developer Dashboard"))
+	assert.NotEmpty(t, reply.Error, "a 403 is still a refusal, not a silent success")
 	assert.NotContains(t, reply.Error, "reconnect it on the dashboard",
 		"an allowlist or otherwise-unrecognized 403 is not a reconnect problem")
 }
