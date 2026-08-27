@@ -58,16 +58,6 @@ const revocationBreaker = new CircuitBreaker({
  * caller's miss sentinel) on a disabled store, an open circuit, a timeout, or
  * any error — never throws into SSR.
  */
-/**
- * withValkey runs one read against the node-local pool with the store's
- * breaker, timeout and degrade-to-fallback semantics. Exported so sibling
- * read modules (the songqueue panel) share the pool and the failure policy
- * instead of growing their own client.
- */
-export function withValkey<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
-	return op(run, fallback);
-}
-
 async function op<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
   const c = get();
   if (!c) return fallback;
