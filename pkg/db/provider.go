@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -300,8 +301,15 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 	}
 	warnIfPinnedCANearExpiry(pinned)
 
+	clientCerts, err := loadClientKeyPair()
+	if err != nil {
+		return nil, err
+	}
+
 	if mode != tlsModeVerifyIdentity {
-		return verifyCATLSConfig(pinned), nil
+		cfg := verifyCATLSConfig(pinned)
+		cfg.Certificates = clientCerts
+		return cfg, nil
 	}
 
 	host, _, err := net.SplitHostPort(addr)
@@ -311,10 +319,47 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 	roots := x509.NewCertPool()
 	roots.AddCert(pinned)
 	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    roots,
-		ServerName: host,
+		MinVersion:   tls.VersionTLS12,
+		RootCAs:      roots,
+		ServerName:   host,
+		Certificates: clientCerts,
 	}, nil
+}
+
+const (
+	clientCertEnvVar = "DB_CLIENT_CERT"
+	clientKeyEnvVar  = "DB_CLIENT_KEY"
+)
+
+// loadClientKeyPair reads the optional mTLS client identity presented to the
+// server. The MySQL accounts are moving to REQUIRE X509 (2026-08-27, client
+// certificates issued by the ItsBagelBot HeatWave Root CA in the OCI
+// Certificates service), so a service without a client certificate will be
+// refused by the server even with the right password once its account is
+// flipped. Both variables unset is still accepted deliberately: it keeps this
+// change deployable before the account flip, and keeps dev environments
+// against permissive local MySQL working.
+//
+// Half-configured (one of the two set) fails closed instead of silently
+// connecting certificate-less: that state is always a Doppler mistake, and
+// the server-side REQUIRE X509 refusal it would otherwise surface as is far
+// harder to diagnose than this error.
+func loadClientKeyPair() ([]tls.Certificate, error) {
+	certPEM := strings.TrimSpace(env.Get(clientCertEnvVar, ""))
+	keyPEM := strings.TrimSpace(env.Get(clientKeyEnvVar, ""))
+	if certPEM == "" && keyPEM == "" {
+		return nil, nil
+	}
+	if certPEM == "" || keyPEM == "" {
+		return nil, fmt.Errorf("db: %s and %s must both be set or both be empty",
+			clientCertEnvVar, clientKeyEnvVar)
+	}
+	pair, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
+	if err != nil {
+		return nil, fmt.Errorf("db: parsing %s/%s client key pair: %w",
+			clientCertEnvVar, clientKeyEnvVar, err)
+	}
+	return []tls.Certificate{pair}, nil
 }
 
 func parsePinnedCA(caPEM []byte) (*x509.Certificate, error) {

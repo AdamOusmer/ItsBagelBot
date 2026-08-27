@@ -393,6 +393,8 @@ interface DbAdminTarget {
   user: string;
   password: string;
   ca: string;
+  clientCert: string;
+  clientKey: string;
 }
 
 // envFirst returns the first non-empty value among the named env keys.
@@ -406,19 +408,42 @@ function envFirst(...keys: string[]): string {
 
 const REQUIRED_TARGET_FIELDS = ['host', 'user', 'password'] as const;
 
+// adminDbEndpoint resolves host/port, preferring the explicit DB_ADMIN_HOST /
+// DB_ADMIN_PORT overrides over the combined host:port DB_ADMIN_ADDR fallback
+// shared with the Go services' DB_ADDR convention.
+function adminDbEndpoint(): { host: string; port: number } {
+  const [addrHost = '', addrPort = ''] = envFirst('DB_ADMIN_ADDR', 'DB_ADDR').split(':');
+  return {
+    host: envFirst('DB_ADMIN_HOST') || addrHost,
+    port: Number(envFirst('DB_ADMIN_PORT') || addrPort || 3306)
+  };
+}
+
+// adminClientIdentity reads the optional mTLS identity for REQUIRE X509
+// accounts (2026-08-27, issued by the ItsBagelBot HeatWave Root CA in OCI
+// Certificates). Optional as a pair so the change deploys before the account
+// flip; half-configured is always a Doppler mistake and fails here rather
+// than as an opaque server-side refusal.
+function adminClientIdentity(): { clientCert: string; clientKey: string } {
+  const clientCert = envFirst('DB_ADMIN_CLIENT_CERT');
+  const clientKey = envFirst('DB_ADMIN_CLIENT_KEY');
+  if (!clientCert !== !clientKey)
+    throw new Error('DB_ADMIN_CLIENT_CERT and DB_ADMIN_CLIENT_KEY must be set together');
+  return { clientCert, clientKey };
+}
+
 // adminDbTarget resolves the privileged MySQL endpoint from env, in one place,
 // and fails with one clear message when any required part is missing.
 function adminDbTarget(): DbAdminTarget {
-  const [addrHost = '', addrPort = ''] = envFirst('DB_ADMIN_ADDR', 'DB_ADDR').split(':');
   const target: DbAdminTarget = {
-    host: envFirst('DB_ADMIN_HOST') || addrHost,
-    port: Number(envFirst('DB_ADMIN_PORT') || addrPort || 3306),
+    ...adminDbEndpoint(),
     user: adminDbUser(),
     password: envFirst('DB_ADMIN_PASS', 'DB_ADMIN_PASSWORD'),
-    // mysql2 verifies the chain but cannot verify identity for the endpoint's
-    // no-SAN certificate, so this must be its dedicated HeatWave CA rather than
-    // a broad/shared trust bundle such as the internal fleet CA.
-    ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT')
+    // This must be the dedicated HeatWave CA rather than a broad/shared trust
+    // bundle such as the internal fleet CA: anything that CA signed could
+    // otherwise impersonate the DB endpoint.
+    ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT'),
+    ...adminClientIdentity()
   };
   const missing = REQUIRED_TARGET_FIELDS.some((field) => !target[field]);
   if (missing) throw new Error('DB admin credential is not configured');
@@ -433,7 +458,12 @@ async function adminConnection(): Promise<mysql.Connection> {
     port: target.port,
     user: target.user,
     password: target.password,
-    ssl: { ca: target.ca, rejectUnauthorized: true, minVersion: 'TLSv1.2' },
+    ssl: {
+      ca: target.ca,
+      rejectUnauthorized: true,
+      minVersion: 'TLSv1.2',
+      ...(target.clientCert ? { cert: target.clientCert, key: target.clientKey } : {})
+    },
     connectTimeout: 5000,
     multipleStatements: false
   });

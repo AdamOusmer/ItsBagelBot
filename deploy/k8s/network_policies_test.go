@@ -134,11 +134,19 @@ func TestHeatWaveEgressAllowlist(t *testing.T) {
 	if len(heatwave.Spec.Egress) != 1 {
 		t.Fatal("HeatWave policy must have exactly one egress rule")
 	}
-	if len(heatwave.Spec.Egress[0].To) != 1 {
-		t.Fatal("HeatWave rule must have exactly one destination")
+	// Two pinned destinations since 2026-08-27: the routed OCI private subnet
+	// (direct-VCN fallback) and the nlb-mysql public IP the services actually
+	// dial. Anything beyond these two turns 3306 into an exfiltration path,
+	// so the set is exact, not a minimum.
+	var got []string
+	for _, to := range heatwave.Spec.Egress[0].To {
+		if to.IPBlock == nil {
+			t.Fatal("HeatWave egress destinations must all be ipBlocks")
+		}
+		got = append(got, to.IPBlock.CIDR)
 	}
-	ipBlock := heatwave.Spec.Egress[0].To[0].IPBlock
-	if ipBlock == nil || ipBlock.CIDR != "10.0.0.0/16" {
-		t.Fatal("HeatWave egress must stay confined to the routed OCI private subnet")
+	want := sorted("10.0.0.0/16", "204.216.107.73/32")
+	if !slices.Equal(sorted(got...), want) {
+		t.Fatalf("HeatWave egress CIDRs = %v, want %v", got, want)
 	}
 }
