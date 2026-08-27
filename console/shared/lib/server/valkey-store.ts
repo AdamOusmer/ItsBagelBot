@@ -58,6 +58,16 @@ const revocationBreaker = new CircuitBreaker({
  * caller's miss sentinel) on a disabled store, an open circuit, a timeout, or
  * any error — never throws into SSR.
  */
+/**
+ * withValkey runs one read against the node-local pool with the store's
+ * breaker, timeout and degrade-to-fallback semantics. Exported so sibling
+ * read modules (the songqueue panel) share the pool and the failure policy
+ * instead of growing their own client.
+ */
+export function withValkey<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
+	return op(run, fallback);
+}
+
 async function op<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
   const c = get();
   if (!c) return fallback;
@@ -271,46 +281,4 @@ function safeJson(value: string): unknown {
   } catch {
     return undefined;
   }
-}
-
-// --- songqueue ---------------------------------------------------------------
-
-// SongQueueEntry mirrors the wire shape sesame's ValkeySongQueueStore writes
-// (app/sesame/engine/songqueue_valkey.go, songQueueDoc): short JSON keys, one
-// doc per broadcaster under songqueue:doc:<id>. Read-only here: the console
-// displays the queue, chat owns it.
-export interface SongQueueEntry {
-  tid: string;
-  title: string;
-  artists?: string[];
-  dur: number;
-  art?: string;
-  url?: string;
-  req_id: string;
-  req_name: string;
-  at: number;
-}
-
-export interface SongQueueDoc {
-  current?: SongQueueEntry;
-  up?: SongQueueEntry[];
-}
-
-/**
- * getSongQueue reads one broadcaster's live song-request queue. A miss, an
- * unparseable doc, or an unreachable Valkey all read back as the empty queue:
- * this backs a display panel, and "nothing waiting" is the honest degradation
- * for every one of those states. The node-local replica may lag a write by a
- * moment, which a queue display tolerates by construction.
- */
-export function getSongQueue(broadcasterId: string): Promise<SongQueueDoc> {
-  return op(async (c) => {
-    const raw = await c.get(`songqueue:doc:${broadcasterId}`);
-    if (!raw) return {};
-    try {
-      return JSON.parse(raw) as SongQueueDoc;
-    } catch {
-      return {};
-    }
-  }, {});
 }

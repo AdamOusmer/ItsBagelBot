@@ -13,7 +13,7 @@ import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/valkey-store';
+import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
