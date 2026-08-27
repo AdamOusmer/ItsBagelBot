@@ -955,13 +955,22 @@ func (p *api) playerFailed(err error) string {
 			// listening. Playing anything on any device fixes it.
 			return "no active Spotify device, start playing something first"
 		case http.StatusForbidden:
-			// Both flavours of 403 are permission states on the broadcaster's
-			// side: a free account (player control is Premium-only upstream)
-			// or a grant minted before playback control was requested.
-			if strings.Contains(strings.ToUpper(ue.Message), "PREMIUM") {
+			// Spotify answers 403 for more than one reason: a free account
+			// (player control is Premium-only upstream), a grant minted
+			// before playback control was requested (Spotify's own
+			// "Insufficient client scope" text), and, distinctly, a
+			// development-mode app whose caller is not on its user
+			// allowlist. Only the first two are things reconnecting on the
+			// dashboard fixes; mapping every 403 to that message would tell
+			// an allowlist-blocked broadcaster to redo a step that was never
+			// broken.
+			msg := strings.ToUpper(ue.Message)
+			switch {
+			case strings.Contains(msg, "PREMIUM"):
 				return "Spotify Premium is required for queue control"
+			case strings.Contains(msg, "SCOPE"):
+				return "the Spotify connection is missing playback control, reconnect it on the dashboard"
 			}
-			return "the Spotify connection is missing playback control, reconnect it on the dashboard"
 		case http.StatusUnauthorized:
 			return "your Spotify connection needs to be set up again"
 		}

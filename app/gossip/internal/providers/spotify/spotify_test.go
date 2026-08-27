@@ -438,3 +438,36 @@ func TestNextSkipsWithNoBody(t *testing.T) {
 		endpoint(t, p, "next")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
 	assert.Empty(t, reply.Error)
 }
+
+// TestQueueMapsScope403ToReconnect confirms Spotify's own "Insufficient
+// client scope" wording still maps to the reconnect message.
+func TestQueueMapsScope403ToReconnect(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, `{"error":{"status":403,"message":"Insufficient client scope"}}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+
+	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
+		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	assert.Contains(t, reply.Error, "reconnect it on the dashboard")
+}
+
+// TestQueueDoesNotMapUnrecognized403ToReconnect is the regression test for
+// the allowlist gap: a 403 with no "PREMIUM" or "SCOPE" wording (Spotify's
+// development-mode "user not on the app's allowlist" answer, among others)
+// must not tell an unrelated broadcaster to reconnect on the dashboard.
+func TestQueueDoesNotMapUnrecognized403ToReconnect(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, `{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+
+	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
+		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	assert.NotContains(t, reply.Error, "reconnect it on the dashboard",
+		"an allowlist or otherwise-unrecognized 403 is not a reconnect problem")
+}

@@ -888,15 +888,28 @@ func decodeJSON(resp *http.Response, out any) error {
 }
 
 // upstreamMessage pulls the upstream's own error text from a JSON error body,
-// tolerating either the fleet's "error" field or Govee's "message" field.
+// tolerating the fleet's flat "error" field, Govee's flat "message" field, or
+// Spotify's nested {"error":{"status":...,"message":"..."}} envelope. The flat
+// and nested shapes cannot share one struct (a string field cannot also bind
+// an object), so a flat miss retries against the nested one; a caller that
+// only ever inspects the returned string never needs to know which one hit.
 func upstreamMessage(body []byte) string {
-	var envelope struct {
+	var flat struct {
 		Error   string `json:"error"`
 		Message string `json:"message"`
 	}
-	_ = codec.Unmarshal(body, &envelope)
-	if envelope.Error != "" {
-		return envelope.Error
+	_ = codec.Unmarshal(body, &flat)
+	if flat.Error != "" {
+		return flat.Error
 	}
-	return envelope.Message
+	if flat.Message != "" {
+		return flat.Message
+	}
+	var nested struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = codec.Unmarshal(body, &nested)
+	return nested.Error.Message
 }

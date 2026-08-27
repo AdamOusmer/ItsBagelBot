@@ -161,3 +161,25 @@ func TestDecodeJSONNilOutStillReportsUpstreamError(t *testing.T) {
 	require.ErrorAs(t, err, &ue)
 	assert.Equal(t, http.StatusNotFound, ue.Status)
 }
+
+// upstreamMessage must read both error shapes the fleet's upstreams answer
+// with: the flat {"error":"..."} the fleet's own convention and Govee use,
+// and Spotify's nested {"error":{"message":"..."}} envelope. A flat string
+// field cannot also bind a nested object, so this is two parse attempts
+// sharing one return, not one struct handling both.
+func TestUpstreamMessageReadsFlatAndNestedShapes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{"fleet flat error field", `{"error":"player not found"}`, "player not found"},
+		{"govee flat message field", `{"message":"invalid device"}`, "invalid device"},
+		{"spotify nested error.message", `{"error":{"status":403,"message":"Insufficient client scope"}}`, "Insufficient client scope"},
+		{"unrecognized shape yields empty, not a decode error", `{"status":403}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, upstreamMessage([]byte(tc.body)))
+		})
+	}
+}

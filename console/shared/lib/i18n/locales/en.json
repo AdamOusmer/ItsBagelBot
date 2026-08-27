@@ -1237,7 +1237,7 @@
     "srSaveFailed": "Could not save the command settings.",
     "srPermLabel": "Who may queue",
     "quotaTitle": "Per-viewer limits",
-    "quotaHelp": "How many pending songs one viewer may hold, by their highest role. Blank means unlimited; you are never capped.",
+    "quotaHelp": "How many pending songs one viewer may hold. Chat requests use their highest role; channel point redemptions always use the Everyone limit. Blank means unlimited; you are never capped.",
     "quotaEveryone": "Everyone",
     "quotaSub": "Subscribers",
     "quotaVip": "VIPs",

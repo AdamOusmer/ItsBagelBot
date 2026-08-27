@@ -1237,7 +1237,7 @@
     "srSaveFailed": "Impossible d'enregistrer les réglages de la commande.",
     "srPermLabel": "Qui peut demander",
     "quotaTitle": "Limites par spectateur",
-    "quotaHelp": "Nombre de chansons en attente qu'un spectateur peut avoir, selon son rôle le plus élevé. Vide signifie illimité ; vous n'êtes jamais limité.",
+    "quotaHelp": "Nombre de chansons en attente qu'un spectateur peut avoir. Pour les demandes du chat, la limite dépend de son rôle le plus élevé. Les échanges de points de chaîne utilisent toujours la limite Tout le monde. Vide signifie illimité ; vous n'êtes jamais limité.",
     "quotaEveryone": "Tout le monde",
     "quotaSub": "Abonnés",
     "quotaVip": "VIP",

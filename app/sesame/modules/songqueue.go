@@ -531,7 +531,12 @@ func (qc songQueueCmd) quotaFor() int {
 // else is the chat-safe reason gossip mapped.
 func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string {
 	if qc.gossip == nil {
-		return ""
+		// No gossip connection means no Spotify call was ever made: an empty
+		// return here reads as success and the caller keeps a request the
+		// player never received. That is worse than refusing, since nothing
+		// downstream can tell the difference between "played" and "silently
+		// skipped".
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	}
 	var reply gossiprpc.SpotifyPlayerReply
 	err := qc.gossip.Call(ctx,
@@ -551,7 +556,11 @@ func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string 
 // pushToPlayer: empty means the music actually moved.
 func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 	if qc.gossip == nil {
-		return ""
+		// Same reasoning as pushToPlayer: an empty return here would let
+		// !skip advance the local queue while Spotify keeps playing the
+		// current track, so refuse instead of claiming a skip that never
+		// reached the player.
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	}
 	var reply gossiprpc.SpotifyPlayerReply
 	err := qc.gossip.Call(ctx,
