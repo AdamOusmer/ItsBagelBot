@@ -12,7 +12,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, youtube-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -63,17 +63,8 @@ spec:
 ---
 # Every long-running application currently exports APM directly to New Relic
 # over HTTPS. Product integrations also use HTTPS from gossip, ingress,
-# outgress, sesame, transactions and the consoles — for youtube-ingress and
-# outgress those integrations are the Google APIs (www.googleapis.com YouTube
-# Data API v3, oauth2.googleapis.com token exchange). This file's convention
-# for external HTTPS is destination-unrestricted 443 scoped by explicit pod
-# label, not pinned provider CIDRs: Google publishes its service ranges as two
-# large, periodically-reshuffled JSON sets (goog.json/cloud.json), so a pinned
-# ipBlock list here would silently break on Google's next reshuffle and a
-# domain-based rule is not expressible in NetworkPolicy. The exfiltration-grade
-# destinations (HeatWave 3306) are the ones that get CIDR pinning instead. Keep
-# this grant explicit so a workload cannot silently inherit it merely by
-# joining default-deny-apps.
+# outgress, sesame, transactions and the consoles. Keep this grant explicit so
+# a workload cannot silently inherit it merely by joining default-deny-apps.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -84,7 +75,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, youtube-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications]
   policyTypes:
     - Egress
   egress:
@@ -92,15 +83,46 @@ spec:
         - port: 443
           protocol: TCP
 ---
+# gossip's WARP sidecar needs UDP/443 on top of the TCP/443 above, and nothing
+# else in the fleet does. Proxy mode speaks MASQUE — HTTP/3 over QUIC, which is
+# UDP — and it is the ONLY protocol proxy mode supports since client 2025.8, so
+# there is no TCP fallback to lean on: without this rule the daemon sits in
+# "Performing happy eyeballs to 162.159.198.2:443" forever, the SOCKS listener
+# never binds, and the sidecar never reports ready (observed exactly that on
+# the first rollout).
+#
+# Scoped to app=gossip alone rather than widening allow-public-https, because
+# UDP egress to the whole Internet is a materially different exfiltration
+# surface from TCP/443 and only one workload has any use for it. The dial
+# targets are Cloudflare's WARP edge; they are not enumerable as a stable IP
+# list (anycast, and the client picks endpoints dynamically), so the rule is
+# port-scoped rather than destination-scoped.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-warp-masque
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: gossip
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 443
+          protocol: UDP
+---
 # Data owners reach the managed HeatWave endpoint. Restricting both the
 # workloads and destination prevents port 3306 from becoming a generic
 # public-Internet exfiltration path. console-admin is included for its
 # explicit schema-credential administration workflow.
 #
-# 204.216.107.73/32 is nlb-mysql, the public OCI Network LB in front of
-# HeatWave (2026-08-27): DB_ADMIN_ADDR dials it so the DB path no longer
-# rides the witness1 tailscale subnet route (SPOF). 10.0.0.0/16 stays for
-# direct-VCN fallback; removing it turns a Doppler rollback into an outage.
+# Two destinations, one per path. 204.216.107.73/32 is nlb-mysql, the public
+# OCI Network LB in front of HeatWave (2026-08-27): DB_ADMIN_ADDR dials it so
+# the DB path no longer rides the witness1 tailscale subnet route (SPOF).
+# 10.0.0.0/16 stays for direct-VCN fallback; removing it turns a Doppler
+# rollback into an outage.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -142,7 +164,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, youtube-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
   ingress:
