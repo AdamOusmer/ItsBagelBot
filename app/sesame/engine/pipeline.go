@@ -48,6 +48,12 @@ type Config struct {
 	// community vocabulary, ingress emote spans). Off keeps gate verdicts
 	// byte-identical to the pre-learned gate; see internal/config.
 	AdaptiveEnabled bool
+
+	// AutoRefundChannel names the one channel (Twitch user id or login, from
+	// the TWITCH_AUTOREFUND_CHANNEL Doppler secret) where special-user
+	// channel-points redemptions are auto-cancelled — refunded — ahead of every
+	// module. Empty (the default) disables the gate everywhere else.
+	AutoRefundChannel string
 }
 
 // Pipeline is the per-message stage the consumer hands each decoded message to.
@@ -108,6 +114,12 @@ type Pipeline struct {
 	// memory behind !nuke) and answers its overflow escalations through this
 	// pipeline's Shield Mode policy. nil records nothing.
 	nuke *Nuke
+
+	// special + autoRefundChannel feed the special-redemption auto-refund gate
+	// (autorefund.go): on that one channel, a special user's redemption is
+	// cancelled before any module runs.
+	special           *SpecialSet
+	autoRefundChannel string
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -115,27 +127,29 @@ type Pipeline struct {
 // store, publisher and logger from d, so main constructs those once.
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	p := &Pipeline{
-		log:              d.Log,
-		pub:              d.Pub,
-		proj:             d.Proj,
-		registry:         registry,
-		live:             d.Live,
-		cooldown:         d.Cooldown,
-		loyalty:          d.Loyalty,
-		dedup:            d.Dedup,
-		customFetch:      d.CustomFetch,
-		botID:            cfg.BotID,
-		outgressPremium:  cfg.OutgressPremium,
-		outgressStandard: cfg.OutgressStandard,
-		automod:          d.Automod,
-		automodEnforce:   cfg.AutomodEnforce,
-		reputation:       d.Reputation,
-		campaign:         d.Campaign,
-		shieldEnabled:    cfg.ShieldEnabled,
-		adaptiveEnabled:  cfg.AdaptiveEnabled,
-		raidGate:         newRaidCooldown(raidCooldownTTL),
-		roster:           newChatterRoster(),
-		nuke:             d.Nuke,
+		log:               d.Log,
+		pub:               d.Pub,
+		proj:              d.Proj,
+		registry:          registry,
+		live:              d.Live,
+		cooldown:          d.Cooldown,
+		loyalty:           d.Loyalty,
+		dedup:             d.Dedup,
+		customFetch:       d.CustomFetch,
+		botID:             cfg.BotID,
+		outgressPremium:   cfg.OutgressPremium,
+		outgressStandard:  cfg.OutgressStandard,
+		automod:           d.Automod,
+		automodEnforce:    cfg.AutomodEnforce,
+		reputation:        d.Reputation,
+		campaign:          d.Campaign,
+		shieldEnabled:     cfg.ShieldEnabled,
+		adaptiveEnabled:   cfg.AdaptiveEnabled,
+		raidGate:          newRaidCooldown(raidCooldownTTL),
+		roster:            newChatterRoster(),
+		nuke:              d.Nuke,
+		special:           d.Special,
+		autoRefundChannel: cfg.AutoRefundChannel,
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
@@ -412,17 +426,19 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 
 // runStages executes the moderation gate, command dispatch and the event
 // handlers under the shared skip rules: an actioned line (the chatter is being
-// moderated) skips dispatch and handlers, and a folded duplicate cohort
-// (Senders present) never dispatches a command.
+// moderated) skips dispatch and handlers, a refunded special redemption skips
+// the handlers (the event is consumed by the auto-refund gate), and a folded
+// duplicate cohort (Senders present) never dispatches a command.
 func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
 
 	actioned := p.moderateChat(ctx, mctx, views, emit)
+	refunded := p.refundSpecialRedemption(mctx, emit)
 	if soloChat && !actioned {
 		p.dispatch(ctx, mctx, views, emit)
 	}
-	if len(p.registry.For(env.Type)) > 0 && !actioned {
+	if len(p.registry.For(env.Type)) > 0 && !actioned && !refunded {
 		// Event handlers can emit localized system text too (for example the
 		// stream-online bagel announcement). Command dispatch resolves locale for
 		// baked commands, but non-command events never pass through that path.

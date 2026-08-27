@@ -276,12 +276,13 @@ func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLive
 
 func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config) *engine.Pipeline {
 	return engine.NewPipeline(deps, registry, engine.Config{
-		BotID:            cfg.BotUserID,
-		OutgressPremium:  cfg.OutgressPremiumSubject,
-		OutgressStandard: cfg.OutgressStandardSubject,
-		CountUses:        true,
-		AutomodEnforce:   cfg.AutomodEnforce,
-		ShieldEnabled:    cfg.ShieldEnabled,
+		BotID:             cfg.BotUserID,
+		OutgressPremium:   cfg.OutgressPremiumSubject,
+		OutgressStandard:  cfg.OutgressStandardSubject,
+		CountUses:         true,
+		AutomodEnforce:    cfg.AutomodEnforce,
+		ShieldEnabled:     cfg.ShieldEnabled,
+		AutoRefundChannel: cfg.AutoRefundChannel,
 	})
 }
 
