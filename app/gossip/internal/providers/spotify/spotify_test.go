@@ -353,24 +353,49 @@ func TestExchangeRequiresCodeAndRedirect(t *testing.T) {
 	assert.Contains(t, reply.Error, "missing authorization code")
 }
 
+// runQueue drives the queue endpoint against a fixed broadcaster/track pair,
+// the shape every case below shares (only the fake Spotify handler and the
+// assertion on the reply differ).
+func runQueue(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
+	t.Helper()
+	mint, _ := newMintServer(t, "tok-1")
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+	return asReply[gossiprpc.SpotifyPlayerReply](t,
+		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+}
+
+// runNext is runQueue's next-endpoint twin; next carries no track id.
+func runNext(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
+	t.Helper()
+	mint, _ := newMintServer(t, "tok-1")
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+	return asReply[gossiprpc.SpotifyPlayerReply](t,
+		endpoint(t, p, "next")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
+}
+
+// spotify403 answers one player-write call with a 403 shaped exactly as
+// Spotify's real API answers it: a nested {"error":{"status":...,"message":
+// "..."}} envelope, never the fleet's flat convention.
+func spotify403(message string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = fmt.Fprintf(w, `{"error":{"status":403,"message":%q}}`, message)
+	})
+}
+
 // TestQueueSendsURIAsQueryParam pins the write contract queueTrack has with
 // Spotify: the track rides the "uri" QUERY parameter on a POST with no body,
 // spotify:track:<id> exactly (not the bare id), and the bearer token from the
 // mint. Spotify answers 204 on success, the shape TestNowPlayingIdleAnswers204
 // also relies on.
 func TestQueueSendsURIAsQueryParam(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/v1/me/player/queue", r.URL.Path)
 		assert.Equal(t, "spotify:track:3n3Ppam7vgaVa1iaRUc9Lp", r.URL.Query().Get("uri"))
 		assert.Equal(t, "Bearer tok-1", r.Header.Get("Authorization"))
 		w.WriteHeader(http.StatusNoContent)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	}))
 	assert.Empty(t, reply.Error)
 }
 
@@ -381,31 +406,21 @@ func TestQueueSendsURIAsQueryParam(t *testing.T) {
 // actually answered. Spotify's queue endpoint has been observed answering 200
 // with a body rather than 204; that must still read as success.
 func TestQueueSucceedsOn200WithBody(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{}`)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	}))
 	assert.Empty(t, reply.Error, "a 200 with a body is still a Spotify success, not a decode failure")
 }
 
 // TestQueueMapsNoActiveDevice maps Spotify's NO_ACTIVE_DEVICE 404 onto the one
 // reason a broadcaster can act on: start playing something.
 func TestQueueMapsNoActiveDevice(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = io.WriteString(w, `{"error":{"status":404,"message":"NO_ACTIVE_DEVICE"}}`)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	}))
 	assert.Contains(t, reply.Error, "no active Spotify device")
 }
 
@@ -421,36 +436,23 @@ func TestQueueMissingTrack(t *testing.T) {
 }
 
 // TestNextSkipsWithNoBody pins next's write contract: a bare POST, no query,
-// no body, 204 on success. It shares TestQueueSucceedsOn200WithBody's fix
-// (Do(ctx, req, nil) must not fail a non-204 2xx), since next answers through
-// the exact same playerWrite/decodeJSON path.
+// no body, 200 with no body on success. It shares TestQueueSucceedsOn200WithBody's
+// fix (Do(ctx, req, nil) must not fail a non-204 2xx), since next answers
+// through the exact same playerWrite/decodeJSON path.
 func TestNextSkipsWithNoBody(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := runNext(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/v1/me/player/next", r.URL.Path)
 		assert.Equal(t, "Bearer tok-1", r.Header.Get("Authorization"))
 		w.WriteHeader(http.StatusOK)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "next")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
+	}))
 	assert.Empty(t, reply.Error)
 }
 
 // TestQueueMapsScope403ToReconnect confirms Spotify's own "Insufficient
 // client scope" wording still maps to the reconnect message.
 func TestQueueMapsScope403ToReconnect(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, `{"error":{"status":403,"message":"Insufficient client scope"}}`)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	reply := runQueue(t, spotify403("Insufficient client scope"))
 	assert.Contains(t, reply.Error, "reconnect it on the dashboard")
 }
 
@@ -459,15 +461,7 @@ func TestQueueMapsScope403ToReconnect(t *testing.T) {
 // development-mode "user not on the app's allowlist" answer, among others)
 // must not tell an unrelated broadcaster to reconnect on the dashboard.
 func TestQueueDoesNotMapUnrecognized403ToReconnect(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, `{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}`)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-
-	reply := asReply[gossiprpc.SpotifyPlayerReply](t,
-		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
+	reply := runQueue(t, spotify403("User not registered in the Developer Dashboard"))
 	assert.NotContains(t, reply.Error, "reconnect it on the dashboard",
 		"an allowlist or otherwise-unrecognized 403 is not a reconnect problem")
 }
