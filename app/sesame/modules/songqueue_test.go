@@ -71,6 +71,24 @@ func (f *fakeSongQueue) RemoveAt(_ context.Context, _ uint64, position int) (eng
 	return out, true, nil
 }
 
+func (f *fakeSongQueue) SyncPlaying(_ context.Context, _ uint64, trackID string) (bool, error) {
+	if trackID == "" {
+		return false, nil
+	}
+	if f.current != nil && f.current.TrackID == trackID {
+		return false, nil
+	}
+	for i := range f.up {
+		if f.up[i].TrackID == trackID {
+			entry := f.up[i]
+			f.current = &entry
+			f.up = f.up[i+1:]
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (f *fakeSongQueue) Advance(_ context.Context, _ uint64) (*engine.SongEntry, *engine.SongEntry, error) {
 	if len(f.up) == 0 {
 		out := f.current
@@ -162,10 +180,12 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 
 	out := runSR(t, m, songCtx("42", "alice"), "brightside by the killers")
 
-	// One resolve, then one push onto the live player: the push is what makes
-	// the request audible, and it addresses the track the search resolved.
-	require.Len(t, g.calls, 2)
-	search, push := g.calls[0], g.calls[1]
+	// One resolve, one best-effort player reconcile, then one push onto the
+	// live player: the push is what makes the request audible, and it
+	// addresses the track the search resolved.
+	require.Len(t, g.calls, 3)
+	search, sync, push := g.calls[0], g.calls[1], g.calls[2]
+	assert.Equal(t, "nowplaying", sync.endpoint)
 	assert.Equal(t, "spotify", search.provider)
 	assert.Equal(t, "search", search.endpoint)
 	assert.Equal(t, "100", search.req.ChannelID, "the broadcaster id scopes gossip's per-channel credential")
@@ -560,4 +580,43 @@ func assertSongRedeem(t *testing.T, want string, store *fakeSongQueue, out []mod
 		assert.Empty(t, out)
 		assert.Empty(t, store.up)
 	}
+}
+
+// The ghost-position bug: a pushed track plays through on Spotify, the list
+// still holds it, and the next viewer is told #2 behind a song that already
+// played. Reconciling against the live player before the add makes the
+// position count only what is still waiting.
+func TestSRPositionSkipsAlreadyPlayedHead(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Played Already", RequesterID: "7", RequesterName: "bob"},
+	}}
+	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
+	// The player is audibly on t1: Spotify moved on without telling anyone.
+	g.replies["spotify.nowplaying"] = playing(srTrack("t1", "Played Already", "Someone"))
+	m := SongQueue(songDeps(store, g))
+
+	out := runSR(t, m, songCtx("42", "alice"), "human")
+
+	require.NotNil(t, store.current)
+	assert.Equal(t, "t1", store.current.TrackID, "the played head reconciles to current")
+	require.Len(t, store.up, 1)
+	assert.Contains(t, chatText(t, out), "#1", "the new request is first in what is actually waiting")
+}
+
+// !srlist reads five deep where the bare view reads three.
+func TestSRListShowsFiveUpNext(t *testing.T) {
+	up := make([]engine.SongEntry, 0, 6)
+	for i := 0; i < 6; i++ {
+		id := strconv.Itoa(i + 1)
+		up = append(up, engine.SongEntry{TrackID: "t" + id, Title: "Song " + id, RequesterID: id, RequesterName: "v" + id})
+	}
+	store := &fakeSongQueue{up: up}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+
+	out := runSongCmd(t, m, "srlist", songCtx("42", "alice"))
+
+	text := chatText(t, out)
+	assert.Contains(t, text, "Song 5")
+	assert.NotContains(t, text, "Song 6", "srlist is five deep, not the whole line")
+	assert.Contains(t, findCmd(t, m, "srlist").Aliases, "songlist")
 }

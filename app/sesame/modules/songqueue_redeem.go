@@ -113,6 +113,9 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund(failure + ", your points were refunded")
 		return nil
 	}
+	// Same reconcile as the chat path: the position in the reply must count
+	// only songs still ahead of this one.
+	r.qc.syncWithPlayer(ctx)
 	// A redemption event carries no badges, so the quota tier resolves from
 	// what the context knows: the broadcaster shortcut still applies, everyone
 	// else redeems under the everyone tier.

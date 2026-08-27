@@ -69,7 +69,7 @@ describe('module catalog', () => {
     expect(new Set(icons).size).toBe(icons.length);
   });
 
-  test('songqueue is a bespoke href module listing !sr, !remove, !skip, !clear and !current', () => {
+  test('songqueue is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current', () => {
     const def = moduleDef('songqueue');
     expect(def).toBeDefined();
     expect(def?.href).toBe('/songqueue');
@@ -79,6 +79,7 @@ describe('module catalog', () => {
       '!remove',
       '!skip',
       '!clear',
+      '!srlist',
       '!current'
     ]);
   });

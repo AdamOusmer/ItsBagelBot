@@ -39,6 +39,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
       perm: 'mod'
     },
     { trigger: '!clear', summary: 'Empty the queue.', perm: 'mod' },
+    { trigger: '!srlist', summary: 'Show the next five songs in the queue (also !songlist).' },
     {
       trigger: '!current',
       summary: 'Say what your Spotify is playing right now (also !song, !np).'

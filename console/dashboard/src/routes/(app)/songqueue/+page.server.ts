@@ -13,6 +13,7 @@ import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
+import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/valkey-store';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -38,6 +39,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     return {
       ...demoSpotifyView(),
       quotas: blankSpotifyQuotas(),
+      queue: {
+        current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
+        up: [
+          { title: 'Human', artists: 'The Killers', requester: 'bob' },
+          { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
+        ]
+      } as QueueView,
       connected: true,
       scopeGap: [] as string[],
       app: { present: true, clientId: 'demo-client-id' },
@@ -59,7 +67,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const store = spotifyStore(uid);
     // The module blob and the connection presence are independent reads; run
     // them together so SSR is one round trip deep.
-    const [view, grant, app] = await Promise.all([store.read(), store.grant(), store.app()]);
+    const [view, grant, app, queue] = await Promise.all([
+      store.read(),
+      store.grant(),
+      store.app(),
+      getSongQueue(uid)
+    ]);
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
     // matches byte-for-byte at both ends of the flow.
@@ -69,6 +82,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     // only needs the answer: is this grant short, and of what.
     return {
       ...view,
+      queue: shapeQueue(queue),
       connected: grant.connected,
       scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
       app,
@@ -82,6 +96,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       sr: blankSpotifySr(),
       redeem: blankSpotifyRedeem(),
       quotas: blankSpotifyQuotas(),
+      queue: { current: null, up: [] } as QueueView,
       connected: false,
       scopeGap: [] as string[],
       app: { present: false, clientId: '' },
@@ -92,6 +107,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     };
   }
 };
+
+// QueueView is the display slice of sesame's queue doc: titles, artists as
+// one line, and who asked. Track ids and timestamps stay server-side; the
+// page has no use for them.
+export interface QueueView {
+  current: QueueRow | null;
+  up: QueueRow[];
+}
+interface QueueRow {
+  title: string;
+  artists: string;
+  requester: string;
+}
+
+function shapeQueue(doc: SongQueueDoc): QueueView {
+  const row = (e: NonNullable<SongQueueDoc['current']>): QueueRow => ({
+    title: e.title,
+    artists: (e.artists ?? []).join(', '),
+    requester: e.req_name
+  });
+  return {
+    current: doc.current ? row(doc.current) : null,
+    up: (doc.up ?? []).slice(0, 10).map(row)
+  };
+}
 
 function requireSession(locals: App.Locals): string | null {
   if (!DEMO && !locals.session) return null;
