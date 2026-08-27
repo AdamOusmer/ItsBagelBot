@@ -75,8 +75,25 @@ export async function getSongQueue(broadcasterId: string): Promise<SongQueueDoc>
   try {
     const raw = await c.get(`songqueue:doc:${broadcasterId}`);
     if (!raw) return {};
-    return JSON.parse(raw) as SongQueueDoc;
+    return shapeDoc(JSON.parse(raw));
   } catch {
     return {};
   }
+}
+
+// shapeDoc keeps only what a well-formed doc carries: a corrupt or foreign
+// value under the key must degrade to the empty queue, not flow typed-but-
+// wrong into the page (a string where an array is expected happily answers
+// .slice and then explodes on .map).
+function shapeDoc(parsed: unknown): SongQueueDoc {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const d = parsed as { current?: unknown; up?: unknown };
+  const doc: SongQueueDoc = {};
+  if (d.current && typeof d.current === 'object' && !Array.isArray(d.current)) {
+    doc.current = d.current as SongQueueEntry;
+  }
+  if (Array.isArray(d.up)) {
+    doc.up = d.up.filter((e): e is SongQueueEntry => !!e && typeof e === 'object');
+  }
+  return doc;
 }

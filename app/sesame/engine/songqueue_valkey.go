@@ -321,6 +321,10 @@ func (s *ValkeySongQueueStore) RemoveAt(ctx context.Context, broadcasterID uint6
 func (s *ValkeySongQueueStore) SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error) {
 	changed := false
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
+		// The closure re-runs on a CAS retry against a re-read doc, so the
+		// flag resets each attempt: only the attempt that actually commits
+		// may report a change.
+		changed = false
 		if trackID == "" {
 			return nil
 		}
