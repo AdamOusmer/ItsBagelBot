@@ -28,6 +28,10 @@ const songqueueModuleName = "songqueue"
 // floods chat.
 const songqueueListLen = 3
 
+// srlistLen is the deeper look !srlist gives: enough to see what is coming
+// without flooding a chat line past readability.
+const srlistLen = 5
+
 // defaultSongQueueDepth is the pending-line cap when the broadcaster has not
 // configured one; hardSongQueueDepth is the ceiling on what they CAN set, so
 // one misconfigured dashboard value cannot promise an unplayable marathon.
@@ -173,6 +177,13 @@ func SongQueue(d engine.Deps) module.Module {
 		Run(songQueueClear(d, log))
 	m.Command("remove").Everyone().
 		Run(songQueueRemove(d, log))
+	// !srlist is the deeper queue read: the next srlistLen tracks. Its own
+	// command rather than an !sr verb because chat reaches for it by name,
+	// and cooled like !current since the player reconcile behind it reads the
+	// live player.
+	m.Command("srlist").Everyone().Cooldown(currentCooldown).
+		Aliases("songlist").
+		Run(songQueueList(d, log))
 
 	// Channel-points path: the redemption of the bound reward queues a track.
 	// Registered unconditionally, because the handler answers only to the reward id
@@ -316,6 +327,24 @@ func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 	return snap.Current.RequesterName
 }
 
+// syncWithPlayer drops list entries the player has already moved past.
+// Spotify walks its own queue without telling anyone: a pushed track plays,
+// the list still holds it as up-next, and the next add reports a position
+// counting ghosts (the "you are #2 behind a song that already played" bug).
+// Reading the live player and advancing the list to match makes every
+// position and every view answer about what is actually still waiting.
+// Best-effort on purpose: an idle or unreadable player just leaves the list
+// as it was.
+func (qc songQueueCmd) syncWithPlayer(ctx context.Context) {
+	track, failure := qc.livePlayer(ctx)
+	if failure != "" || track == nil {
+		return
+	}
+	if _, err := qc.store.SyncPlaying(ctx, qc.c.BroadcasterID, track.ID); err != nil {
+		qc.log.Warn("songqueue: player sync failed", qc.bid(), zap.Error(err))
+	}
+}
+
 // songQueueSkip backs !skip / !next: the same advance !sr next performs. The moderator
 // gate rides on the command registration here rather than the hand-rolled check
 // bareModVerb needs, because there is no query for it to be confused with.
@@ -350,6 +379,17 @@ func songQueueRemove(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return nil
 		}
 		return qc.actRemove(ctx, args, strings.TrimSpace(args), emit)
+	}
+}
+
+// songQueueList backs !srlist: the queue view, srlistLen deep.
+func songQueueList(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.viewDepth(ctx, srlistLen, emit)
 	}
 }
 
@@ -431,6 +471,9 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		qc.emitChat(emit, failure)
 		return nil
 	}
+	// Reconcile before adding: the position chat hears must count only songs
+	// still ahead, not entries the player already burned through.
+	qc.syncWithPlayer(ctx)
 	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), engine.SongQueueLimits{MaxDepth: qc.maxDepth, PerRequester: qc.quotaFor()})
 	if err != nil {
 		return qc.reportAdd(emit, *track, pos, err)
@@ -720,7 +763,12 @@ func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {
 
 // view answers bare "!sr" with now-playing plus the next few requests.
 func (qc songQueueCmd) view(ctx context.Context, emit module.Emit) error {
-	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)
+	return qc.viewDepth(ctx, songqueueListLen, emit)
+}
+
+func (qc songQueueCmd) viewDepth(ctx context.Context, depth int, emit module.Emit) error {
+	qc.syncWithPlayer(ctx)
+	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, depth)
 	if err != nil {
 		qc.log.Warn("songqueue: snapshot failed", qc.bid(), zap.Error(err))
 		return err

@@ -77,6 +77,14 @@ type SongQueueStore interface {
 	// RemoveAt takes the 1-based up-next entry out of the line (a moderator
 	// action; viewers have no positional reach).
 	RemoveAt(ctx context.Context, broadcasterID uint64, position int) (SongEntry, bool, error)
+	// SyncPlaying reconciles the list with what the player is audibly on.
+	// Spotify plays through its own queue without telling anyone, so entries
+	// sesame pushed stay "up next" here long after they played; the next add
+	// then reports a position counting ghosts. When trackID matches a pending
+	// entry, everything before it is dropped as played and that entry becomes
+	// current. A track the list has never seen (the broadcaster's own music)
+	// changes nothing. Returns whether the doc changed.
+	SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error)
 	// Advance marks the head as now-playing and promotes the next entry,
 	// returning what just finished and what started. On an empty line it
 	// clears a stale current instead of inventing one.
@@ -308,6 +316,34 @@ func (s *ValkeySongQueueStore) RemoveAt(ctx context.Context, broadcasterID uint6
 		return nil
 	})
 	return out, ok, err
+}
+
+func (s *ValkeySongQueueStore) SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error) {
+	changed := false
+	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
+		// The closure re-runs on a CAS retry against a re-read doc, so the
+		// flag resets each attempt: only the attempt that actually commits
+		// may report a change.
+		changed = false
+		if trackID == "" {
+			return nil
+		}
+		if d.Current != nil && d.Current.TrackID == trackID {
+			return nil
+		}
+		for i := range d.Up {
+			if d.Up[i].TrackID != trackID {
+				continue
+			}
+			entry := d.Up[i]
+			d.Current = &entry
+			d.Up = d.Up[i+1:]
+			changed = true
+			return nil
+		}
+		return nil
+	})
+	return changed, err
 }
 
 func (s *ValkeySongQueueStore) Advance(ctx context.Context, broadcasterID uint64) (*SongEntry, *SongEntry, error) {

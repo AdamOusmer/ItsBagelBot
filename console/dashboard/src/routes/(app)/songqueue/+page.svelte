@@ -124,7 +124,13 @@
   }
 
   onMount(() => {
+    // Queue changes come from chat, which the console's event stream never
+    // sees; a lazy poll keeps the panel honest without a new push channel.
+    const poll = setInterval(() => {
+      if (!document.hidden) void invalidateAll();
+    }, 15000);
     if (data.justConnected) toast('ok', t('spotify.connectedToast'));
+    return () => clearInterval(poll);
   });
 
   type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
@@ -409,6 +415,38 @@
     </Card>
 
     {#if connected}
+      <!-- The live queue, read from sesame's store. Chat owns the writes;
+           this panel answers "what is coming up" without asking chat, and
+           refreshes itself on a lazy poll since queue changes ride chat
+           events the console's invalidation stream never sees. -->
+      <Card>
+        <div class="queue-head">
+          <h2 class="path-title">{t('spotify.queueTitle')}</h2>
+          <Button variant="ghost" type="button" onclick={() => invalidateAll()}>{t('spotify.queueRefresh')}</Button>
+        </div>
+        {#if data.queue?.current}
+          <p class="queue-now">
+            <span class="queue-label">{t('spotify.queueNow')}</span>
+            <strong>{data.queue.current.title}</strong>
+            {#if data.queue.current.artists}<span class="muted-text"> · {data.queue.current.artists}</span>{/if}
+            {#if data.queue.current.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {data.queue.current.requester})</span>{/if}
+          </p>
+        {/if}
+        {#if data.queue?.up?.length}
+          <ol class="queue-list">
+            {#each data.queue.up as row, i (i)}
+              <li>
+                <strong>{row.title}</strong>
+                {#if row.artists}<span class="muted-text"> · {row.artists}</span>{/if}
+                {#if row.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {row.requester})</span>{/if}
+              </li>
+            {/each}
+          </ol>
+        {:else if !data.queue?.current}
+          <p class="muted-text">{t('spotify.queueEmpty')}</p>
+        {/if}
+      </Card>
+
       <div class="paths" class:inspecting>
         <Card>
           <h2 class="path-title">{t('spotify.srTitle')}</h2>
@@ -565,6 +603,29 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
+  .queue-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .queue-now {
+    margin: 6px 0 10px;
+  }
+  .queue-label {
+    font-size: 0.82em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
+    margin-right: 8px;
+  }
+  .queue-list {
+    margin: 0;
+    padding-left: 22px;
+    display: grid;
+    gap: 6px;
+  }
+
   .quota-title {
     margin-top: 18px;
   }
