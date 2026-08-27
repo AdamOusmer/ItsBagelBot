@@ -21,9 +21,9 @@ import (
 // hot channel: rare by construction (chat-paced writes), and safe to surface
 // as a generic retry hint rather than a specific one.
 var (
-	ErrSongAlreadyQueued = errors.New("song already queued by this requester")
-	ErrSongQueueFull     = errors.New("song queue is at its depth cap")
-	errSongQueueStale    = errors.New("song queue changed under us")
+	ErrSongQuotaReached = errors.New("requester is at their song quota")
+	ErrSongQueueFull    = errors.New("song queue is at its depth cap")
+	errSongQueueStale   = errors.New("song queue changed under us")
 )
 
 // SongEntry is one requested track in a channel's song queue. RequesterID is
@@ -54,10 +54,12 @@ type SongQueueSnapshot struct {
 // being played now plus the ordered line behind it. The songqueue module
 // drives it from chat (!sr …); nothing else writes it.
 type SongQueueStore interface {
-	// Add appends the resolved track unless its requester already has one
-	// pending (one live request per viewer keeps retract unambiguous) or the
-	// line is at maxDepth. It returns the requester-facing 1-based position.
-	Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth int) (pos int, err error)
+	// Add appends the resolved track unless the requester already has
+	// perRequester entries pending (0 means unlimited; the quota is the
+	// caller's per-tier policy) or the line is at maxDepth. It returns the
+	// requester-facing 1-based position. Retraction stays unambiguous under a
+	// quota above one because RetractOwn takes the most recent entry.
+	Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth, perRequester int) (pos int, err error)
 	// RetractOwn removes the requester's most recent pending entry: the one
 	// thing a viewer may do to anyone's requests. The currently-playing track
 	// is intentionally out of reach: it is already playing.
@@ -233,12 +235,18 @@ func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, e
 	return s.cas(ctx, st, newDoc)
 }
 
-func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth int) (int, error) {
+func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, maxDepth, perRequester int) (int, error) {
 	var pos int
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		for i := range d.Up {
-			if d.Up[i].RequesterID == entry.RequesterID {
-				return ErrSongAlreadyQueued
+		if perRequester > 0 {
+			mine := 0
+			for i := range d.Up {
+				if d.Up[i].RequesterID == entry.RequesterID {
+					mine++
+				}
+			}
+			if mine >= perRequester {
+				return ErrSongQuotaReached
 			}
 		}
 		if maxDepth > 0 && len(d.Up) >= maxDepth {

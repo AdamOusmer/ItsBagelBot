@@ -79,3 +79,20 @@ export function scopeGap(required: readonly string[], granted: readonly string[]
   const have = new Set(granted);
   return required.filter((scope) => !have.has(scope));
 }
+
+// SpotifyQuotas is the per-tier pending-request cap sesame enforces on adds.
+// null means UNLIMITED for that tier, which is also every tier's default. The
+// broadcaster is never capped, so they have no field here.
+export interface SpotifyQuotas {
+  everyone: number | null;
+  sub: number | null;
+  vip: number | null;
+  mod: number | null;
+}
+
+export const SPOTIFY_QUOTA_TIERS = ['everyone', 'sub', 'vip', 'mod'] as const;
+export type SpotifyQuotaTier = (typeof SPOTIFY_QUOTA_TIERS)[number];
+
+export function blankSpotifyQuotas(): SpotifyQuotas {
+  return { everyone: null, sub: null, vip: null, mod: null };
+}

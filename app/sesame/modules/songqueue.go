@@ -65,6 +65,23 @@ type songqueueConfig struct {
 	// gate, so enabling the module never stopped working under a viewer.
 	Sr     *songqueueSr     `json:"sr"`
 	Redeem *songqueueRedeem `json:"redeem"`
+	// Quotas caps how many pending requests one viewer may hold, by the
+	// highest role they carry. Absent block or absent tier means UNLIMITED,
+	// which is also the default: the old behaviour hard-coded one per viewer,
+	// and channels that want a cap now say so per tier instead. The
+	// broadcaster is never capped.
+	Quotas *songqueueQuotas `json:"quotas"`
+}
+
+// songqueueQuotas is the per-tier pending cap. Pointers keep "not set"
+// (unlimited) distinct from a number; zero is treated as unlimited too, so no
+// stored value can accidentally mean "nobody may request" (that is what the
+// sr enable switch is for).
+type songqueueQuotas struct {
+	Everyone *int `json:"everyone"`
+	Sub      *int `json:"sub"`
+	VIP      *int `json:"vip"`
+	Mod      *int `json:"mod"`
 }
 
 // songqueueSr is the chat (!sr) request path. Enabled gates adds; Perm is a
@@ -414,8 +431,22 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		qc.emitChat(emit, failure)
 		return nil
 	}
-	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth)
-	return qc.reportAdd(emit, *track, pos, err)
+	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth, qc.quotaFor())
+	if err != nil {
+		return qc.reportAdd(emit, *track, pos, err)
+	}
+	// The store accepted, now make it audible. If Spotify refuses (no active
+	// device, no Premium, a stale grant), the just-added entry is rolled back
+	// so the list never claims a song the player will not reach, and chat
+	// hears the actual reason instead of a hollow "queued".
+	if failure := qc.pushToPlayer(ctx, track.ID); failure != "" {
+		if _, _, rbErr := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); rbErr != nil {
+			qc.log.Warn("songqueue: rollback after player refusal failed", qc.bid(), zap.Error(rbErr))
+		}
+		qc.emitChat(emit, failure)
+		return nil
+	}
+	return qc.reportAdd(emit, *track, pos, nil)
 }
 
 // srRefusal names the line to answer a chat add with, or "" when the path is
@@ -466,6 +497,76 @@ func (qc songQueueCmd) livePermits(ctx context.Context, allowOffline bool) bool 
 	return ok
 }
 
+// quotaFor resolves the pending cap for the chatter: the tier of the highest
+// role they hold, 0 meaning unlimited. The broadcaster is always unlimited;
+// their queue, their rules.
+func (qc songQueueCmd) quotaFor() int {
+	q := qc.cfg.Quotas
+	if q == nil {
+		return 0
+	}
+	var tier *int
+	switch role := qc.c.Chatter(); {
+	case role.Allows(module.RoleBroadcaster):
+		return 0
+	case role.Allows(module.RoleModerator):
+		tier = q.Mod
+	case role.Allows(module.RoleVIP):
+		tier = q.VIP
+	case role.Allows(module.RoleSubscriber):
+		tier = q.Sub
+	default:
+		tier = q.Everyone
+	}
+	if tier == nil || *tier <= 0 {
+		return 0
+	}
+	return *tier
+}
+
+// pushToPlayer appends the track to the broadcaster's live Spotify queue.
+// This is the half that makes a request AUDIBLE: the store keeps the request
+// list (who asked, retraction, credits), Spotify plays the music, and an add
+// only counts when both halves landed. The empty return is success; anything
+// else is the chat-safe reason gossip mapped.
+func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string {
+	if qc.gossip == nil {
+		return ""
+	}
+	var reply gossiprpc.SpotifyPlayerReply
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "queue"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10), TrackID: trackID}, &reply)
+	if reply.Error != "" {
+		return reply.Error
+	}
+	if err != nil {
+		qc.log.Warn("songqueue: player queue push failed", qc.bid(), zap.Error(err))
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	return ""
+}
+
+// skipPlayer asks Spotify to advance the live player. Same contract as
+// pushToPlayer: empty means the music actually moved.
+func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
+	if qc.gossip == nil {
+		return ""
+	}
+	var reply gossiprpc.SpotifyPlayerReply
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "next"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
+	if reply.Error != "" {
+		return reply.Error
+	}
+	if err != nil {
+		qc.log.Warn("songqueue: player skip failed", qc.bid(), zap.Error(err))
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	return ""
+}
+
 // canRequest gates adds on a gossip connection and the broadcaster's twitch
 // user id being on file; without either there is nothing to resolve against.
 func (qc songQueueCmd) canRequest() bool {
@@ -477,8 +578,8 @@ func (qc songQueueCmd) canRequest() bool {
 // success announces through the broadcaster's add template.
 func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack, pos int, err error) error {
 	switch {
-	case errors.Is(err, engine.ErrSongAlreadyQueued):
-		qc.reply(emit, "", "songqueue.add.already")
+	case errors.Is(err, engine.ErrSongQuotaReached):
+		qc.reply(emit, "", "songqueue.add.quota", "limit", strconv.Itoa(qc.quotaFor()))
 	case errors.Is(err, engine.ErrSongQueueFull):
 		qc.reply(emit, "", "songqueue.add.full")
 	case err != nil:
@@ -574,6 +675,14 @@ func (qc songQueueCmd) removeAt(ctx context.Context, pos int, emit module.Emit) 
 
 // nextTrack marks the head played and promotes the next entry.
 func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
+	// The player moves first: !skip means "skip the music", and the request
+	// list only advances in step with what actually happened. A refused skip
+	// (no device, no Premium, stale grant) says so and leaves the list alone,
+	// so nothing is marked played that is still audibly playing.
+	if failure := qc.skipPlayer(ctx); failure != "" {
+		qc.emitChat(emit, failure)
+		return nil
+	}
 	_, now, err := qc.store.Advance(ctx, qc.c.BroadcasterID)
 	if err != nil {
 		qc.log.Warn("songqueue: advance failed", qc.bid(), zap.Error(err))

@@ -456,6 +456,14 @@ type SpotifyExchangeReply struct {
 	Error        string   `json:"error,omitempty"`
 }
 
+// SpotifyPlayerReply is the answer to the spotify player writes (queue, next).
+// Success is an empty reply: the only payload a player write has is whether it
+// happened. Error carries a chat-safe reason (no active device, playback
+// control not granted, Premium required), never upstream detail.
+type SpotifyPlayerReply struct {
+	Error string `json:"error,omitempty"`
+}
+
 // McsrSessionReply is the answer to mcsr.session: the change in a player's
 // ranked standing since the stream-start snapshot for this channel.
 //

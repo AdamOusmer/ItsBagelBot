@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
 import type { Actions, PageServerLoad } from './$types';
-import { SPOTIFY_SR_PERMS, blankSpotifySr, blankSpotifyRedeem } from '@bagel/shared';
+import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/shared';
 import type {
   RewardDraft,
   RewardOnRedeem,
@@ -37,6 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const { demoSpotifyView } = await import('$lib/server/demo-data');
     return {
       ...demoSpotifyView(),
+      quotas: blankSpotifyQuotas(),
       connected: true,
       scopeGap: [] as string[],
       app: { present: true, clientId: 'demo-client-id' },
@@ -80,6 +81,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       enabled: false,
       sr: blankSpotifySr(),
       redeem: blankSpotifyRedeem(),
+      quotas: blankSpotifyQuotas(),
       connected: false,
       scopeGap: [] as string[],
       app: { present: false, clientId: '' },
@@ -239,6 +241,19 @@ export const actions: Actions = {
       { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}/off=${sr.allowOffline}` },
       (s) => s.saveSr(sr)
     );
+  },
+
+  quotas: async ({ request, locals }) => {
+    const f = await request.formData();
+    // Empty or non-positive input means unlimited for that tier; the store
+    // coerces the same way on read, so both directions agree on what null is.
+    const quotas = blankSpotifyQuotas();
+    for (const tier of SPOTIFY_QUOTA_TIERS) {
+      const n = Number(f.get(`quota_${tier}`));
+      quotas[tier] = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    }
+    const detail = SPOTIFY_QUOTA_TIERS.map((t) => `${t}=${quotas[t] ?? 'inf'}`).join('/');
+    return run(locals, { action: 'spotify:quotas', detail }, (s) => s.saveQuotas(quotas));
   },
 
   redeemToggle: async ({ request, locals }) => {
