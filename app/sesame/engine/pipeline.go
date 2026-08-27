@@ -433,12 +433,15 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
 
-	actioned := p.moderateChat(ctx, mctx, views, emit)
-	refunded := p.refundSpecialRedemption(mctx, emit)
-	if soloChat && !actioned {
+	// The two gates are event-type-disjoint (moderateChat acts on chat lines,
+	// the refund gate on redemptions), so one consumed flag covers both without
+	// changing either type's behavior.
+	consumed := p.moderateChat(ctx, mctx, views, emit)
+	consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+	if soloChat && !consumed {
 		p.dispatch(ctx, mctx, views, emit)
 	}
-	if len(p.registry.For(env.Type)) > 0 && !actioned && !refunded {
+	if len(p.registry.For(env.Type)) > 0 && !consumed {
 		// Event handlers can emit localized system text too (for example the
 		// stream-online bagel announcement). Command dispatch resolves locale for
 		// baked commands, but non-command events never pass through that path.
