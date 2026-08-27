@@ -870,6 +870,20 @@ func decodeJSON(resp *http.Response, out any) error {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return &UpstreamError{Status: resp.StatusCode, Message: upstreamMessage(body)}
 	}
+	// A nil out means the caller only wants to know whether the call
+	// succeeded (the player-write endpoints: a write that "hits" is a write
+	// that did not happen, so there is no reply shape to hold). Without this,
+	// any 2xx that is not EXACTLY 204 (Spotify's queue endpoint has been
+	// observed answering 200 with an empty or minimal body, not only 204)
+	// reached json.Unmarshal(body, nil), which always fails with
+	// "json: Unmarshal(nil)" REGARDLESS of what the upstream actually did.
+	// That turned a real Spotify success into a reported failure, which
+	// queueTrack's caller (songqueue.request) then rolled back the just-added
+	// queue entry over: the fleet's own decode contract was quietly undoing
+	// writes that had already landed.
+	if out == nil {
+		return nil
+	}
 	return codec.Unmarshal(body, out)
 }
 
