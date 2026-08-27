@@ -81,19 +81,22 @@ export async function getSongQueue(broadcasterId: string): Promise<SongQueueDoc>
   }
 }
 
+// isRecord is the one shape test the doc guard needs: a plain object, which
+// in JSON terms excludes null, arrays and every primitive.
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
 // shapeDoc keeps only what a well-formed doc carries: a corrupt or foreign
 // value under the key must degrade to the empty queue, not flow typed-but-
 // wrong into the page (a string where an array is expected happily answers
 // .slice and then explodes on .map).
 function shapeDoc(parsed: unknown): SongQueueDoc {
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-  const d = parsed as { current?: unknown; up?: unknown };
+  if (!isRecord(parsed)) return {};
   const doc: SongQueueDoc = {};
-  if (d.current && typeof d.current === 'object' && !Array.isArray(d.current)) {
-    doc.current = d.current as SongQueueEntry;
-  }
-  if (Array.isArray(d.up)) {
-    doc.up = d.up.filter((e): e is SongQueueEntry => !!e && typeof e === 'object');
+  if (isRecord(parsed.current)) doc.current = parsed.current as unknown as SongQueueEntry;
+  if (Array.isArray(parsed.up)) {
+    doc.up = parsed.up.filter((e): e is SongQueueEntry => isRecord(e));
   }
   return doc;
 }
