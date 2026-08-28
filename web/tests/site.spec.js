@@ -186,28 +186,36 @@ test.describe('ItsBagelBot site', () => {
         await expect(page).toHaveURL(/\/contact\/?$/);
     });
 
-    test('changelog lists tagged releases linked to GitHub', async ({ page }) => {
+    test('changelog lists tagged releases ordered by version', async ({ page }) => {
         await page.goto('/changelog');
 
         await expect(page.locator('.phero__title')).toContainText("What's new.");
         const items = page.locator('.clog__item');
-        await expect(items).toHaveCount(2);
+        await expect(items).toHaveCount(5);
 
-        await expect(items.first()).toContainText('Beta Launch');
+        // Same publish day must not scramble order: newest version tag first.
+        await expect(items.nth(0).locator('.clog__ver')).toHaveText('v1.0.3-beta');
+        await expect(items.nth(1).locator('.clog__ver')).toHaveText('v1.0.2-beta');
+        await expect(items.nth(2).locator('.clog__ver')).toHaveText('v1.0.1-beta');
+        await expect(items.nth(3).locator('.clog__ver')).toHaveText('v1.0.0-beta');
+        await expect(items.nth(4).locator('.clog__ver')).toHaveText('v0.1.0-alpha');
+
+        await expect(items.first()).toContainText('Your Spotify, your modules, fewer clicks');
         await expect(items.first().locator('.rtag--beta')).toHaveCount(1);
-        await expect(items.first().locator('.clog__ver')).toHaveText('v1.0.0-beta');
-        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.0-beta"]')).toHaveCount(1);
+        await expect(items.first().locator('.clog__highlights li')).toHaveCount(4);
+        await expect(items.first()).toContainText('Add to Twitch starts OAuth right away');
+        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.3-beta"]')).toHaveCount(1);
 
-        await expect(items.last()).toContainText('Alpha Release');
+        await expect(items.nth(1)).toContainText('JSON data sources in the command editor');
+        await expect(items.nth(2)).toContainText('Security fixes.');
         await expect(items.last().locator('.rtag--alpha')).toHaveCount(1);
-        await expect(items.last().locator('.clog__ver')).toHaveText('v0.1.0-alpha');
 
         await expect(page.locator('footer a[aria-label="Changelog"]')).toHaveCount(1);
 
         await page.goto('/fr/changelog');
         await expect(page.locator('.phero__title')).toContainText('Quoi de neuf.');
-        await expect(page.locator('.clog__item').first()).toContainText('Lancement bêta');
-        await expect(page.locator('.rtag--beta')).toContainText('Bêta');
+        await expect(page.locator('.clog__item').first()).toContainText('Votre Spotify, vos modules, moins de clics');
+        await expect(page.locator('.rtag--beta').first()).toContainText('Bêta');
         await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
     });
 

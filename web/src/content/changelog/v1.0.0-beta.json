@@ -3,12 +3,20 @@
   "version": "v1.0.0-beta",
   "date": "2026-08-14",
   "title": {
-    "en": "Beta Launch",
+    "en": "Beta launch",
     "fr": "Lancement bêta"
   },
-  "description": {
-    "en": "The oven's been running since August 14. Notifications land in the dashboard, the pod mesh sits on a private VLAN, and an OCI certificate rotation no longer takes the fleet down. Production hardening, in public.",
-    "fr": "Le four tourne depuis le 14 août. Les notifications arrivent dans le tableau de bord, le maillage des pods vit sur un VLAN privé, et une rotation de certificat OCI n'arrête plus la flotte. Le durcissement en production, au grand jour."
+  "highlights": {
+    "en": [
+      "Dashboard notifications. Alerts land where you already work.",
+      "Production hardening. Fleet and networking updates so the public beta stays up through certificate and infra changes.",
+      "Performance: external APIs (game stats)."
+    ],
+    "fr": [
+      "Notifications dans le tableau de bord. Les alertes arrivent là où vous travaillez déjà.",
+      "Durcissement en production. Mises à jour du parc et du réseau pour que la bêta publique tienne pendant les rotations de certificats et les changements d'infra.",
+      "Performance : API externes (stats de jeux)."
+    ]
   },
   "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.0-beta"
 }
