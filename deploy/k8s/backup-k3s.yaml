@@ -13,12 +13,22 @@
 # What a restore needs (all three, k3s single-server SQLite):
 #   - db/state.db            -- the datastore itself
 #   - token                  -- decrypts the bootstrap keys stored *inside* the db
-#   - cred/encryption-config.json + encryption-state.json -- secrets
-#     encryption-at-rest is ON in this cluster; without these keys every Secret
-#     row in a restored db is undecryptable, which is strictly worse than no
-#     backup because it looks like one.
-# Restore: stop k3s on the new host, place the three under
-# /var/lib/rancher/k3s/server/ (db/state.db, token, cred/), start k3s.
+#   - /etc/rancher/k3s/encryption-config.json -- THE operative Secrets
+#     encryption key. This cluster enables encryption-at-rest via
+#     kube-apiserver-arg encryption-provider-config in config.yaml, NOT via
+#     k3s's --secrets-encryption, so server/cred/encryption-{config,state}.json
+#     are unused scaffolding with a DIFFERENT key (sha256 mismatch verified
+#     2026-08-28). The 2026-08-28 restore drill proved it both ways: a restored
+#     server without the flag fails every Secret read with "identity
+#     transformer tried to read encrypted data", with --secrets-encryption
+#     (cred key) it fails with "no matching prefix found", and with the
+#     /etc file wired as encryption-provider-config all 125 Secrets decrypt.
+#     The cred/ pair is still bundled, but only as scaffolding.
+# Restore (rehearsed 2026-08-28 in a rancher/k3s container, --disable-agent):
+# stop k3s on the new host, place db/state.db + token under
+# /var/lib/rancher/k3s/server/, place meta/etc-encryption-config.json at
+# /etc/rancher/k3s/encryption-config.json, carry the kube-apiserver-arg
+# encryption-provider-config lines into the new config.yaml, start k3s.
 #
 # Why sqlite3 .backup and not cp: the live db runs in WAL mode (verified
 # 2026-08-28: state.db-wal was 25 MB next to a 52 MB state.db). A plain cp
@@ -84,6 +94,9 @@ data:
     mkdir -p meta/cred
     cp /host/token meta/token
     cp /host/cred/encryption-config.json /host/cred/encryption-state.json meta/cred/
+    # The file that actually decrypts Secrets (see header) -- a bundle without
+    # it restores to an apiserver that cannot read any Secret.
+    cp /host/etc-encryption-config.json meta/etc-encryption-config.json
     ls -l state.db meta
   encrypt.sh: |
     #!/bin/sh
@@ -187,6 +200,8 @@ spec:
               hostPath: {path: /var/lib/rancher/k3s/server/token, type: File}
             - name: k3s-cred
               hostPath: {path: /var/lib/rancher/k3s/server/cred, type: Directory}
+            - name: k3s-etc-enc
+              hostPath: {path: /etc/rancher/k3s/encryption-config.json, type: File}
           initContainers:
             # Runs as root: db/, token and cred/ are 0600/0700 root on the
             # host. Every capability is still dropped -- uid 0 passes the
@@ -202,6 +217,7 @@ spec:
                 - {name: k3s-db, mountPath: /host/db}
                 - {name: k3s-token, mountPath: /host/token, readOnly: true}
                 - {name: k3s-cred, mountPath: /host/cred, readOnly: true}
+                - {name: k3s-etc-enc, mountPath: /host/etc-encryption-config.json, readOnly: true}
               securityContext:
                 runAsUser: 0
                 allowPrivilegeEscalation: false
