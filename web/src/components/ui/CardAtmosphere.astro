@@ -40,12 +40,14 @@
     /* Even siblings flip so neighbouring cards don't share one corner glow.
        scaleX on this layer only — body copy is a sibling, not a child. */
     :global(.card:nth-child(even)) .card-atmo,
-    :global(.gcard:nth-child(even)) .card-atmo {
+    :global(.gcard:nth-child(even)) .card-atmo,
+    :global(.clog__item:nth-child(even) .clog__card) .card-atmo {
         transform: scaleX(-1);
     }
 
     :global(.card:hover) .card-atmo,
     :global(.gcard:hover) .card-atmo,
+    :global(.clog__item:hover) .card-atmo,
     :global(.card:focus-visible) .card-atmo,
     :global(.gcard:focus-visible) .card-atmo {
         --card-atmo-orb: 0.42;

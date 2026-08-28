@@ -8,6 +8,7 @@
  * description, and a link to the GitHub release.
  */
 import type { CollectionEntry } from 'astro:content';
+import CardAtmosphere from '../ui/CardAtmosphere.astro';
 import ReleaseTag from './ReleaseTag.astro';
 import TextLink from '../ui/TextLink.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -54,6 +55,7 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
                             <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
                         </div>
                         <article class="clog__card">
+                            <CardAtmosphere />
                             <header class="clog__meta">
                                 <ReleaseTag tag={tag} label={tagLabel[tag]} />
                                 <span class="clog__ver">{version}</span>
@@ -160,18 +162,10 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    .clog__card::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(
-            420px 180px at 8% 0%,
-            rgba(201, 168, 124, 0.08),
-            transparent 70%
-        );
-        opacity: 0;
-        transition: opacity 260ms ease;
-        pointer-events: none;
+    /* Content rides above the atmosphere layer (which paints at z-index 0). */
+    .clog__card > :global(*:not(.card-atmo)) {
+        position: relative;
+        z-index: 1;
     }
 
     @media (hover: hover) and (pointer: fine) {
@@ -180,7 +174,6 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform: translateY(-3px);
         }
 
-        .clog__item:hover .clog__card::before { opacity: 1; }
 
         .clog__item:hover::before {
             background: var(--tan, #c9a87c);
