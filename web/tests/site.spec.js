@@ -194,17 +194,17 @@ test.describe('ItsBagelBot site', () => {
         await expect(items).toHaveCount(5);
 
         // Same publish day must not scramble order: newest version tag first.
-        await expect(items.nth(0).locator('.clog__ver')).toHaveText('v1.0.3-beta');
-        await expect(items.nth(1).locator('.clog__ver')).toHaveText('v1.0.2-beta');
-        await expect(items.nth(2).locator('.clog__ver')).toHaveText('v1.0.1-beta');
-        await expect(items.nth(3).locator('.clog__ver')).toHaveText('v1.0.0-beta');
+        await expect(items.nth(0).locator('.clog__ver')).toHaveText('v0.1.3-beta');
+        await expect(items.nth(1).locator('.clog__ver')).toHaveText('v0.1.2-beta');
+        await expect(items.nth(2).locator('.clog__ver')).toHaveText('v0.1.1-beta');
+        await expect(items.nth(3).locator('.clog__ver')).toHaveText('v0.1.0-beta');
         await expect(items.nth(4).locator('.clog__ver')).toHaveText('v0.1.0-alpha');
 
         await expect(items.first()).toContainText('Your Spotify, your modules, fewer clicks');
         await expect(items.first().locator('.rtag--beta')).toHaveCount(1);
         await expect(items.first().locator('.clog__highlights li')).toHaveCount(4);
         await expect(items.first()).toContainText('Add to Twitch starts OAuth right away');
-        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.3-beta"]')).toHaveCount(1);
+        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.3-beta"]')).toHaveCount(1);
 
         await expect(items.nth(1)).toContainText('JSON data sources in the command editor');
         await expect(items.nth(2)).toContainText('Security fixes.');

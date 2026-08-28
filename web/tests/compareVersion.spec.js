@@ -6,9 +6,9 @@ import { compareVersion } from '../src/lib/compareVersion.ts';
 
 describe('compareVersion', () => {
   test('orders core versions numerically', () => {
-    expect(compareVersion('v1.0.3-beta', 'v1.0.2-beta')).toBeGreaterThan(0);
-    expect(compareVersion('v1.0.1-beta', 'v1.0.3-beta')).toBeLessThan(0);
-    expect(compareVersion('v0.1.0-alpha', 'v1.0.0-beta')).toBeLessThan(0);
+    expect(compareVersion('v0.1.3-beta', 'v0.1.2-beta')).toBeGreaterThan(0);
+    expect(compareVersion('v0.1.1-beta', 'v0.1.3-beta')).toBeLessThan(0);
+    expect(compareVersion('v0.1.0-alpha', 'v0.1.3-beta')).toBeLessThan(0);
   });
 
   test('treats bare release as newer than the same core with a prerelease', () => {
@@ -21,17 +21,17 @@ describe('compareVersion', () => {
 
   test('newest-first sort matches the changelog page', () => {
     const tags = [
-      'v1.0.0-beta',
-      'v1.0.3-beta',
+      'v0.1.0-beta',
+      'v0.1.3-beta',
       'v0.1.0-alpha',
-      'v1.0.1-beta',
-      'v1.0.2-beta',
+      'v0.1.1-beta',
+      'v0.1.2-beta',
     ];
     expect([...tags].sort((a, b) => compareVersion(b, a))).toEqual([
-      'v1.0.3-beta',
-      'v1.0.2-beta',
-      'v1.0.1-beta',
-      'v1.0.0-beta',
+      'v0.1.3-beta',
+      'v0.1.2-beta',
+      'v0.1.1-beta',
+      'v0.1.0-beta',
       'v0.1.0-alpha',
     ]);
   });
