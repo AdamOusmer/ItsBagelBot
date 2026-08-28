@@ -62,13 +62,24 @@ data:
     # of waiting the writer out.
     sqlite3 -cmd ".timeout 30000" /host/db/state.db ".backup /work/state.db"
 
-    # Gate before anything ships: a torn or short snapshot is the failure mode
-    # this job exists to avoid, and the exit code of .backup alone does not
-    # prove page-level consistency.
     if [ "$(sqlite3 /work/state.db 'PRAGMA integrity_check;')" != "ok" ]; then
       echo "FATAL: snapshot failed integrity_check -- not shipping" >&2
       exit 1
     fi
+
+    # integrity_check alone is NOT a torn-copy detector: a plain cp of this db
+    # was measured (2026-07-25) losing 551 kine rows while still passing it,
+    # structurally valid and unrestorable. The backup API cannot tear, but this
+    # floor catches the whole class anyway. Direction matters: the snapshot
+    # counting MORE rows than live is normal (kine compacts between the two
+    # reads), so only a large deficit fails.
+    SNAP=$(sqlite3 /work/state.db 'SELECT count(*) FROM kine;')
+    LIVE=$(sqlite3 -cmd ".timeout 30000" /host/db/state.db 'SELECT count(*) FROM kine;')
+    if [ "$SNAP" -lt $((LIVE / 2)) ]; then
+      echo "FATAL: snapshot kine rows $SNAP vs live $LIVE -- torn, not shipping" >&2
+      exit 1
+    fi
+    echo "kine rows: snapshot=$SNAP live=$LIVE"
 
     mkdir -p meta/cred
     cp /host/token meta/token
