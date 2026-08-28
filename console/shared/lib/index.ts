@@ -78,6 +78,7 @@ export * from './toast';
 export * from './connection-state';
 export * from './overlay-stack';
 export * from './inspector-machine';
+export * from './command-active';
 export * from './commands-validate';
 export * from './rehearsal';
 export * from './validation';

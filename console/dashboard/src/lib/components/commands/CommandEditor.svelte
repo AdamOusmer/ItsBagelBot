@@ -11,9 +11,11 @@
     FieldError,
     Scroller,
     EditorFooter,
+    Switch,
     PERMS,
     PERM_LABELS,
     validateCommand,
+    commandContentSnapshot,
     normName,
     COOLDOWN_MAX,
     RESPONSE_MAX_LINES,
@@ -37,7 +39,9 @@
     fetchKeys = [],
     onFetchDefsChanged,
     onCancel,
-    onSubmit
+    onSubmit,
+    liveActive = false,
+    onToggleActive
   }: {
     draft: CommandDraft;
     serverErrors?: CommandErrors | null;
@@ -50,6 +54,11 @@
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
     onCancel: () => void;
     onSubmit: SubmitFunction;
+    // Edit: live row enabled state. The inspector Switch posts the same toggle
+    // as the row so Active is not a draft field (#221). Create still uses the
+    // checkbox below — there is no row yet.
+    liveActive?: boolean;
+    onToggleActive?: (next: boolean) => void;
   } = $props();
 
   const busy = $derived(status === 'saving');
@@ -62,11 +71,13 @@
   const errors = $derived<CommandErrors>({ ...(serverErrors ?? {}), ...clientErrors });
 
   // Mirror the working draft to sessionStorage (skip the initial unmodified
-  // state so merely opening an editor doesn't flag the row as unsaved).
+  // state so merely opening an editor doesn't flag the row as unsaved). Active
+  // is compared out: a live toggle must not persist a draft that only differs
+  // in is_active, or the row would show an unsaved chip after a pause/resume.
   const key = draftKey(draft.originalName, draft.edit);
-  const initial = JSON.stringify(draft);
+  const initial = commandContentSnapshot(draft);
   $effect(() => {
-    const current = JSON.stringify(draft);
+    const current = commandContentSnapshot(draft);
     if (current === initial) return;
     try {
       sessionStorage.setItem(key, current);
@@ -166,7 +177,23 @@
   </label>
 
   <div class="check">
-    <CheckButton name="is_active" bind:checked={draft.is_active} label={t('commandEditor.active')} />
+    {#if draft.edit && onToggleActive}
+      <!-- type=button: this form is ?/save; a nested toggle form is invalid
+           HTML. The Switch posts via onToggleActive (same optimistic toggle
+           as the row) so Save cannot write a stale Active snapshot (#221). -->
+      <input type="hidden" name="is_active" value={liveActive ? 'on' : ''} />
+      <div class="live-active">
+        <span class="live-lbl">{t('commandEditor.active')}</span>
+        <Switch
+          checked={liveActive}
+          pending={busy}
+          onchange={() => onToggleActive(!liveActive)}
+          label={t('commandEditor.active')}
+        />
+      </div>
+    {:else}
+      <CheckButton name="is_active" bind:checked={draft.is_active} label={t('commandEditor.active')} />
+    {/if}
   </div>
 
   <div class="check">
@@ -208,6 +235,17 @@
 
   .check { margin: 4px 0 14px; }
   .check :global(.cb) { align-items: center; }
+  .live-active {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .live-lbl {
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    color: var(--bb-white, var(--bb-text, #e8e0d6));
+  }
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }
