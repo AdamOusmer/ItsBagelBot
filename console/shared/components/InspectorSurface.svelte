@@ -7,6 +7,7 @@
   // scrim/Escape — reusing the shared overlay foundation. One component so every
   // route's inspector behaves identically instead of each re-styling an <aside>.
   import type { Snippet } from 'svelte';
+  import Card from './Card.svelte';
   import Icon from './Icon.svelte';
   import { pushOverlay, removeOverlay, isTopmost, overlayIndex, hasOpenOverlay, portal, trapFocus } from '../lib/overlay-stack';
 
@@ -102,24 +103,24 @@
       </div>
     </div>
   {:else}
-    <aside class="surface docked" aria-label={title}>
+    <!-- Docked: in-flow beside the deck's Card, so it IS a Card — same ink,
+         hairline and atmosphere. padding:0 because the head/body own theirs. -->
+    <Card as="aside" class="surface docked" style="padding:0" aria-label={title}>
       {@render body()}
-    </aside>
+    </Card>
   {/if}
 {/if}
 
 <style>
-  .surface {
+  /* Layout only, shared by both variants. :global because the docked variant's
+     class rides <Card>'s root, which this component's scoping hash never
+     reaches; the sheet is an in-template element and matches either way. */
+  :global(.surface) {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    overflow: hidden;
   }
-  .surface.docked {
+  :global(.surface.docked) {
     position: sticky;
     top: 62px;
     max-height: calc(100dvh - 62px - 108px);
@@ -168,11 +169,17 @@
     border: 0; padding: 0;
     background: rgba(0, 0, 0, 0.55);
   }
+  /* The sheet keeps its own material rather than becoming a Card: it floats
+     over a scrim on --bb-bg-1, where the card's warm ink and corner orbs read
+     as a second panel showing through the first. */
   .surface.sheet {
     position: absolute;
     left: 0; right: 0; bottom: 0;
     max-height: 88dvh;
+    border: 1px solid var(--rule);
+    border-top-color: var(--rule-strong);
     border-radius: 8px 8px 0 0;
+    overflow: hidden;
     background: var(--bb-bg-1, #111);
     padding-bottom: env(safe-area-inset-bottom, 0);
     animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) both;

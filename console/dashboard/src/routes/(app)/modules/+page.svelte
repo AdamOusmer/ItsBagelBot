@@ -15,6 +15,7 @@
     Icon,
     PageHead,
     AlertBanner,
+    Card,
     EmptyState,
     toast,
     getI18n,
@@ -214,11 +215,11 @@
                 <p>{catHint(group.name)}</p>
               {/if}
             </header>
-            <div class="family-list">
+            <Card style="padding:0">
               {#each group.modules as m (m.def.id)}
                 <ModuleIndexRow module={m} status={modStatus[m.def.id] ?? 'idle'} toggleSubmit={toggleSubmit(m)} />
               {/each}
-            </div>
+            </Card>
           </section>
         {/each}
       </div>
@@ -296,13 +297,6 @@
     color: var(--bb-muted);
     max-width: 52ch;
   }
-  .family-list {
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    background: rgba(240, 236, 228, 0.018);
-    overflow: hidden;
-  }
-
   @media (max-width: 760px) {
     .deck {
       top: calc(52px + env(safe-area-inset-top, 0px));
