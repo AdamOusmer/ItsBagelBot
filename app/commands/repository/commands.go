@@ -457,29 +457,44 @@ func (r *Commands) drainPendingUses() map[commandKey]uint64 {
 }
 
 // persistUses applies uses = uses + n per key and returns the keys that
-// landed. A single missing/deleted row must not drop the whole window, so
-// per-row failures are logged and skipped.
+// landed. Keys are grouped by their increment so one UPDATE with OR-ed key
+// predicates lands every key sharing a count: a 30s window is mostly n=1, so
+// this turns up to usesFlushMaxKeys per-row statements — each a ~1ms NLB
+// round trip since the 2026-08-27 cutover — into one or two statements
+// total. Groups stay bounded by usesFlushMaxKeys (512), well under MySQL's
+// placeholder limit. A failed group is logged and skipped rather than
+// failing the window (loss-tolerant counters, the same rule as the loyalty
+// flush); a missing/deleted row simply matches nothing and is later dropped
+// by rowStates' reload.
 func (r *Commands) persistUses(ctx context.Context, txn *newrelic.Transaction, pend map[commandKey]uint64) ([]commandKey, error) {
+	byCount := map[uint64][]commandKey{}
+	for key, n := range pend {
+		byCount[n] = append(byCount[n], key)
+	}
 	keys := make([]commandKey, 0, len(pend))
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		for key, n := range pend {
-			_, err := r.client.Commands.Update().
-				Where(
+		for n, group := range byCount {
+			preds := make([]predicate.Commands, 0, len(group))
+			for _, key := range group {
+				preds = append(preds, commands.And(
 					commands.UserIDEQ(key.userID),
 					commands.NameEQ(key.name),
-				).
+				))
+			}
+			_, err := r.client.Commands.Update().
+				Where(commands.Or(preds...)).
 				AddUses(int64(n)). //nolint:gosec // n is a small per-window count
 				Save(ctx)
 			if err != nil {
 				txn.NoticeError(err)
 				r.log.Warn("failed to persist command uses",
-					zap.Uint64("user_id", key.userID),
-					zap.String("command", key.name),
+					zap.Int("commands", len(group)),
+					zap.Uint64("delta", n),
 					zap.Error(err),
 				)
 				continue
 			}
-			keys = append(keys, key)
+			keys = append(keys, group...)
 		}
 		return nil
 	})
