@@ -802,6 +802,7 @@ export type KnownMessageKey =
   | 'modules.noTriggersTitle'
   | 'modules.offConfigurable'
   | 'modules.patchConflict'
+  | 'modules.permLeadMods'
   | 'modules.permMods'
   | 'modules.repliesLabel'
   | 'modules.replyBlankHint'

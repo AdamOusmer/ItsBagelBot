@@ -6,7 +6,9 @@ package modules
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
@@ -26,6 +28,12 @@ import (
 //     !cmd add <name> <response>
 //     !cmd edit <name> <response>
 //     !cmd remove <name>
+//
+//   - Stream editor. Lead moderators (and the broadcaster) set the live title,
+//     category, tags, run a commercial, or drop a stream marker, matching the
+//     Nightbot !title/!game/!tags/!commercial/!marker set plus StreamElements
+//     !settitle/!setgame aliases. Each command is toggleable per broadcaster
+//     (absent row = on) the same way !clip is, and they ship enabled.
 //
 // The command itself is open to everyone (so the link works for viewers); the
 // mutating subcommands are gated on RoleModerator inside the handler. Mutations
@@ -64,6 +72,16 @@ func Cmd(d engine.Deps) module.Module {
 		}
 		return nil
 	})
+
+	// Stream editor: LeadMod at the builder so the engine gate matches the
+	// dashboard's defaultPerm. Each command is independently toggleable under
+	// its trigger name (absent row = on). Commercial and marker are live-only
+	// because Twitch rejects both on an offline channel.
+	m.Command("title").Aliases("settitle").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTitle))
+	m.Command("game").Aliases("setgame").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldGame))
+	m.Command("tags").Aliases("settags").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTags))
+	m.Command("commercial").Aliases("ad").LeadMod().LiveOnly().Cooldown(streamCommercialCooldown).Run(streamCommercialRun(d))
+	m.Command("marker").LeadMod().LiveOnly().Cooldown(streamMarkerCooldown).Run(streamMarkerRun(d))
 
 	return m.Build()
 }
@@ -190,4 +208,172 @@ func splitFirst(s string) (first, rest string) {
 		return s[:i], strings.TrimSpace(s[i+1:])
 	}
 	return s, ""
+}
+
+// Stream-editor commands share one Helix Modify Channel Information call
+// (title/game/tags) plus commercial and marker. Nightbot's !title/!game show
+// the current value with no args and set it when args are present;
+// StreamElements' !settitle/!setgame require args. We honour both: the
+// set* aliases with no args print usage, the Nightbot spellings with no args
+// ask outgress to read the live channel info.
+const (
+	streamFieldTitle = "title"
+	streamFieldGame  = "game"
+	streamFieldTags  = "tags"
+
+	// Twitch's Modify Channel Information title cap. Sending more is a 400, so
+	// we refuse here rather than paying Helix to say no.
+	streamTitleMax = 140
+	// Helix stream tags: at most 10, each 1–25 characters.
+	streamTagMaxCount = 10
+	streamTagMaxLen   = 25
+	// Helix Start Commercial accepts these lengths only.
+	streamCommercialMin  = 30
+	streamCommercialMax  = 180
+	streamCommercialStep = 30
+
+	streamEditCooldown       = 5 * time.Second
+	streamCommercialCooldown = 30 * time.Second
+	streamMarkerCooldown     = 10 * time.Second
+)
+
+// streamFieldRun emits a TypeChannelUpdate for !title/!game/!tags (and their
+// set* aliases). An empty argument on the Nightbot spelling is a get; the
+// same empty argument on settitle/setgame/settags is usage. Over-long titles
+// and illegal tag lists are refused here so outgress never sends a 400.
+func streamFieldRun(d engine.Deps, field string) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		if !moduleEnabled(ctx, d, c.BroadcasterID, field) {
+			return nil
+		}
+		value := strings.TrimSpace(args)
+		if value == "" {
+			if streamIsSetAlias(c) {
+				reply(c, emit, i18n.T(c.Locale, "stream."+field+".usage"), c.Env.ChatterName(), "")
+				return nil
+			}
+			emitStreamUpdate(c, field, "", emit)
+			return nil
+		}
+		if field == streamFieldTitle && len([]rune(value)) > streamTitleMax {
+			reply(c, emit, i18n.T(c.Locale, "stream.title.too_long"), c.Env.ChatterName(), "")
+			return nil
+		}
+		if field == streamFieldTags {
+			if _, err := parseStreamTags(value); err != nil {
+				reply(c, emit, i18n.T(c.Locale, "stream.tags.usage"), c.Env.ChatterName(), "")
+				return nil
+			}
+		}
+		emitStreamUpdate(c, field, value, emit)
+		return nil
+	}
+}
+
+func streamCommercialRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		if !moduleEnabled(ctx, d, c.BroadcasterID, "commercial") {
+			return nil
+		}
+		length, ok := parseCommercialLength(args)
+		if !ok {
+			reply(c, emit, i18n.T(c.Locale, "stream.commercial.usage"), c.Env.ChatterName(), "")
+			return nil
+		}
+		emit(&module.Output{
+			Type:          outgress.TypeCommercial,
+			BroadcasterID: c.Env.BroadcasterUserID,
+			Duration:      float64(length),
+			Template:      c.Locale,
+			To:            c.Env.ChatterName(),
+		})
+		return nil
+	}
+}
+
+func streamMarkerRun(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		if !moduleEnabled(ctx, d, c.BroadcasterID, "marker") {
+			return nil
+		}
+		desc := strings.TrimSpace(args)
+		if len([]rune(desc)) > streamTitleMax {
+			desc = string([]rune(desc)[:streamTitleMax])
+		}
+		emit(&module.Output{
+			Type:          outgress.TypeStreamMarker,
+			BroadcasterID: c.Env.BroadcasterUserID,
+			Text:          desc,
+			Template:      c.Locale,
+			To:            c.Env.ChatterName(),
+		})
+		return nil
+	}
+}
+
+func emitStreamUpdate(c *module.Context, field, value string, emit module.Emit) {
+	emit(&module.Output{
+		Type:          outgress.TypeChannelUpdate,
+		BroadcasterID: c.Env.BroadcasterUserID,
+		Text:          value,
+		Reason:        field,
+		Template:      c.Locale,
+		To:            c.Env.ChatterName(),
+	})
+}
+
+// streamIsSetAlias reports whether the chatter typed a set* alias (settitle,
+// setgame, settags) rather than the Nightbot show-or-set spelling. The engine
+// resolves aliases onto the same command, so the typed trigger has to be
+// recovered from the original chat line.
+func streamIsSetAlias(c *module.Context) bool {
+	t := strings.TrimSpace(c.Env.Text)
+	t = strings.TrimPrefix(t, "!")
+	first, _, _ := strings.Cut(t, " ")
+	switch strings.ToLower(first) {
+	case "settitle", "setgame", "settags":
+		return true
+	}
+	return false
+}
+
+// parseStreamTags splits a comma-separated tag list the way Nightbot's !tags
+// does. Empty pieces are dropped; more than 10 tags or a tag over 25 runes
+// is rejected so the PATCH never 400s.
+func parseStreamTags(s string) ([]string, error) {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		tag := strings.TrimSpace(p)
+		if tag == "" {
+			continue
+		}
+		if len([]rune(tag)) > streamTagMaxLen {
+			return nil, fmt.Errorf("tag too long")
+		}
+		out = append(out, tag)
+	}
+	if len(out) == 0 || len(out) > streamTagMaxCount {
+		return nil, fmt.Errorf("tag count")
+	}
+	return out, nil
+}
+
+// parseCommercialLength reads a Twitch commercial length from args. Bare
+// !commercial (no number) is 30, the shortest Helix accepts. Any other value
+// must be 30/60/90/120/150/180 — Nightbot's set, and the only lengths Twitch
+// will run.
+func parseCommercialLength(args string) (int, bool) {
+	s := strings.TrimSpace(args)
+	if s == "" {
+		return streamCommercialMin, true
+	}
+	n, err := strconv.Atoi(strings.Fields(s)[0])
+	if err != nil {
+		return 0, false
+	}
+	if n < streamCommercialMin || n > streamCommercialMax || n%streamCommercialStep != 0 {
+		return 0, false
+	}
+	return n, true
 }

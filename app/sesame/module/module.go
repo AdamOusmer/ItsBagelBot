@@ -65,12 +65,13 @@ func (k Kind) String() string {
 //     unless Type is an announce.
 //   - To is the shoutout target (login or id); empty unless Type is a shoutout.
 //   - Duration is the requested clip length in seconds (Twitch allows 5–60);
-//     zero means unset, so Twitch applies its default (30). Only Type clip
-//     reads it.
+//     zero means unset, so Twitch applies its default (30). Type clip and
+//     Type commercial also read it (clip length vs commercial length).
 //   - Template is a custom reply template a command can carry for downstream
 //     expansion (e.g. the clip reply's {clip} token, expanded by outgress once
-//     the clip URL exists). Empty means use the default reply. Only Type clip
-//     reads it.
+//     the clip URL exists). Empty means use the default reply. Clip uses it
+//     as the reply template; stream-editor actions use it as the locale
+//     so outgress can localise the confirmation.
 //   - BatchID/Items carry a multi-message response as one outgress queue job.
 //     Items are already translated actions and execute in slice order.
 type Output struct {
@@ -83,7 +84,11 @@ type Output struct {
 	Items         []Output
 	// Duration is shared: the clip length (fractional seconds) for a clip
 	// Output, the timeout length in whole seconds for a timeout (0 = permanent
-	// ban). Template is the clip reply template.
+	// ban), and the commercial length in whole seconds for a commercial.
+	// Template is the clip reply template, or the locale for stream-editor
+	// actions (channel_update / commercial / stream_marker) so outgress can
+	// localise the chat confirmation. Reason is the stream-editor field
+	// (title/game/tags) for a channel_update Output.
 	Duration float64
 	Template string
 	// Moderation-action fields, set only for a ban/timeout/delete Output.

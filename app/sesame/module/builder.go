@@ -190,6 +190,13 @@ func (c *CmdBuilder) VIP() *CmdBuilder { c.cmd.Perm = RoleVIP; return c }
 // broadcaster also satisfy it).
 func (c *CmdBuilder) Mod() *CmdBuilder { c.cmd.Perm = RoleModerator; return c }
 
+// LeadMod requires the chatter to be at least a lead moderator (the
+// broadcaster also satisfies it). Stream-editor commands default here: Twitch
+// ships lead_moderator as a distinct badge above moderator, StreamElements
+// Super Moderator maps onto this tier, and a plain mod flipping the live
+// title/category is the failure mode the extra rank exists to stop.
+func (c *CmdBuilder) LeadMod() *CmdBuilder { c.cmd.Perm = RoleLeadModerator; return c }
+
 // Broadcaster restricts the command to the channel owner.
 func (c *CmdBuilder) Broadcaster() *CmdBuilder { c.cmd.Perm = RoleBroadcaster; return c }
 

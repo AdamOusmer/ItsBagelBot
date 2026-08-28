@@ -29,6 +29,27 @@ describe('module catalog', () => {
     expect(missing).toEqual([]);
   });
 
+  test('stream management is a Channel tile on /commands with no master switch', () => {
+    const def = moduleDef('stream');
+    expect(def).toBeDefined();
+    expect(def?.href).toBe('/commands');
+    expect(def?.toggleable).toBe(false);
+    expect(def?.defaultEnabled).toBe(true);
+    expect(def?.category).toBe('Channel');
+    expect(def?.icon).toBe('broadcast');
+    expect(moduleDelegateSections(def!)).toEqual(['commands']);
+    expect(def?.commands?.map((c) => c.trigger)).toEqual([
+      '!title',
+      '!game',
+      '!tags',
+      '!commercial',
+      '!marker',
+      '!cmd'
+    ]);
+    expect(def?.commands?.find((c) => c.trigger === '!title')?.perm).toBe('lead_mod');
+    expect(def?.commands?.find((c) => c.trigger === '!title')?.aliases).toEqual(['!settitle']);
+  });
+
   test('folds counters into Modules delegation without an enable switch', () => {
     const counters = moduleDef('counters');
     expect(counters).toBeDefined();

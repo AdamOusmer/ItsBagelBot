@@ -65,6 +65,7 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
     const savedReply = def.editable && def.replyKey ? configString(row?.configs, def.replyKey) : '';
     return {
       name: def.id,
+      aliases: def.aliases,
       // Editable built-ins carry the saved template (or the default) so the
       // inspector's editor and rehearsal start from the real value; others show
       // the static summary.
@@ -198,6 +199,7 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
 function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean): CommandView {
   return {
     name: def.id,
+    aliases: def.aliases,
     response,
     is_active: isActive,
     perm: def.defaultPerm,

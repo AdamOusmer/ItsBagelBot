@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/sesame/engine"
@@ -43,6 +44,7 @@ func (f *fakeCommandManager) Delete(_ context.Context, userID, name string) erro
 
 type fakeProj struct {
 	commands map[string]projection.Command
+	modules  []projection.ModuleView
 }
 
 func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
@@ -50,7 +52,7 @@ func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
 }
 
 func (f *fakeProj) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
-	return nil, nil
+	return f.modules, nil
 }
 
 func (f *fakeProj) Command(_ context.Context, _ uint64, name string) (projection.Command, bool, error) {
@@ -418,4 +420,158 @@ func TestSplitFirst(t *testing.T) {
 		assert.Equal(t, tt.wantFirst, first, "splitFirst(%q) first", tt.input)
 		assert.Equal(t, tt.wantRest, rest, "splitFirst(%q) rest", tt.input)
 	}
+}
+
+// --- stream editor ---
+
+func TestStreamEditorCommandShape(t *testing.T) {
+	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
+	title := findCmd(t, m, "title")
+	assert.Equal(t, module.RoleLeadModerator, title.Perm)
+	assert.ElementsMatch(t, []string{"settitle"}, title.Aliases)
+	assert.False(t, title.LiveOnly)
+	assert.Equal(t, streamEditCooldown, title.Cooldown)
+
+	game := findCmd(t, m, "game")
+	assert.Equal(t, module.RoleLeadModerator, game.Perm)
+	assert.ElementsMatch(t, []string{"setgame"}, game.Aliases)
+
+	tags := findCmd(t, m, "tags")
+	assert.Equal(t, module.RoleLeadModerator, tags.Perm)
+	assert.ElementsMatch(t, []string{"settags"}, tags.Aliases)
+
+	commercial := findCmd(t, m, "commercial")
+	assert.Equal(t, module.RoleLeadModerator, commercial.Perm)
+	assert.ElementsMatch(t, []string{"ad"}, commercial.Aliases)
+	assert.True(t, commercial.LiveOnly)
+	assert.Equal(t, streamCommercialCooldown, commercial.Cooldown)
+
+	marker := findCmd(t, m, "marker")
+	assert.Equal(t, module.RoleLeadModerator, marker.Perm)
+	assert.True(t, marker.LiveOnly)
+	assert.Equal(t, streamMarkerCooldown, marker.Cooldown)
+}
+
+func TestTitleGetEmitsChannelUpdate(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title"), "", col.emit))
+	require.Len(t, col.out, 1)
+	o := col.out[0]
+	assert.Equal(t, outgress.TypeChannelUpdate, o.Type)
+	assert.Equal(t, "100", o.BroadcasterID)
+	assert.Equal(t, "title", o.Reason)
+	assert.Empty(t, o.Text)
+	assert.Equal(t, "alice", o.To)
+}
+
+func TestTitleSetEmitsValue(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title Ranked grind"), "Ranked grind", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeChannelUpdate, col.out[0].Type)
+	assert.Equal(t, "Ranked grind", col.out[0].Text)
+	assert.Equal(t, "title", col.out[0].Reason)
+}
+
+func TestSettitleEmptyPrintsUsage(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!settitle"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
+	assert.Contains(t, col.out[0].Text, "Usage")
+	assert.Contains(t, col.out[0].Text, "!settitle")
+}
+
+func TestTitleTooLongRefuses(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
+	var col collector
+	long := strings.Repeat("a", streamTitleMax+1)
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title "+long), long, col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
+	assert.Contains(t, col.out[0].Text, "too long")
+}
+
+func TestTitleSuppressedWhenDisabled(t *testing.T) {
+	proj := &fakeProj{modules: []projection.ModuleView{{Name: "title", IsEnabled: false}}}
+	cmd := findCmd(t, Cmd(cmdDeps(proj, &fakeCommandManager{})), "title")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title hello"), "hello", col.emit))
+	assert.Empty(t, col.out)
+}
+
+func TestCommercialEmitsLength(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial 60"), "60", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeCommercial, col.out[0].Type)
+	assert.Equal(t, 60.0, col.out[0].Duration)
+	assert.Equal(t, "alice", col.out[0].To)
+}
+
+func TestCommercialBareIsThirty(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial"), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, 30.0, col.out[0].Duration)
+}
+
+func TestCommercialBadLengthPrintsUsage(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial 45"), "45", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
+	assert.Contains(t, col.out[0].Text, "Usage")
+}
+
+func TestMarkerEmitsDescription(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "marker")
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!marker Boss fight"), "Boss fight", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, outgress.TypeStreamMarker, col.out[0].Type)
+	assert.Equal(t, "Boss fight", col.out[0].Text)
+}
+
+func TestParseStreamTags(t *testing.T) {
+	got, err := parseStreamTags("English, family friendly")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"English", "family friendly"}, got)
+
+	_, err = parseStreamTags("")
+	assert.Error(t, err)
+	_, err = parseStreamTags(strings.Repeat("a", streamTagMaxLen+1))
+	assert.Error(t, err)
+	tooMany := make([]string, streamTagMaxCount+1)
+	for i := range tooMany {
+		tooMany[i] = "t"
+	}
+	_, err = parseStreamTags(strings.Join(tooMany, ","))
+	assert.Error(t, err)
+}
+
+func TestParseCommercialLength(t *testing.T) {
+	n, ok := parseCommercialLength("")
+	assert.True(t, ok)
+	assert.Equal(t, 30, n)
+	n, ok = parseCommercialLength("180")
+	assert.True(t, ok)
+	assert.Equal(t, 180, n)
+	_, ok = parseCommercialLength("45")
+	assert.False(t, ok)
+	_, ok = parseCommercialLength("nope")
+	assert.False(t, ok)
+}
+
+func TestStreamIsSetAlias(t *testing.T) {
+	assert.True(t, streamIsSetAlias(cmdCtx("alice", "!settitle")))
+	assert.True(t, streamIsSetAlias(cmdCtx("alice", "!setgame Fortnite")))
+	assert.False(t, streamIsSetAlias(cmdCtx("alice", "!title")))
+	assert.False(t, streamIsSetAlias(cmdCtx("alice", "!game")))
 }
