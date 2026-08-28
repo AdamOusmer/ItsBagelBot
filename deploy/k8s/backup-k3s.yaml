@@ -1,0 +1,241 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+#
+# Off-OCI backup of the k3s datastore on cp1.
+#
+# Why this exists: backup-mysql.yaml covers the *application* state, but the
+# cluster's own state (every Secret, the NATS auth material, Doppler tokens,
+# cert-manager CAs, all object specs) lives in a single SQLite file on cp1 --
+# and cp1 is an OCI host like the MySQL instance, so the same single-account
+# loss that motivated the MySQL job takes the cluster state with it. Rebuilding
+# from manifests alone loses everything the manifests reference by Secret.
+#
+# What a restore needs (all three, k3s single-server SQLite):
+#   - db/state.db            -- the datastore itself
+#   - token                  -- decrypts the bootstrap keys stored *inside* the db
+#   - cred/encryption-config.json + encryption-state.json -- secrets
+#     encryption-at-rest is ON in this cluster; without these keys every Secret
+#     row in a restored db is undecryptable, which is strictly worse than no
+#     backup because it looks like one.
+# Restore: stop k3s on the new host, place the three under
+# /var/lib/rancher/k3s/server/ (db/state.db, token, cred/), start k3s.
+#
+# Why sqlite3 .backup and not cp: the live db runs in WAL mode (verified
+# 2026-08-28: state.db-wal was 25 MB next to a 52 MB state.db). A plain cp
+# tears -- it captures the main file without the WAL frames, which is a
+# corrupt-on-arrival backup that still "succeeds" every run. The online backup
+# API takes a consistent snapshot and folds the WAL in, and the copy is then
+# gated on PRAGMA integrity_check the way the MySQL dump is gated on its
+# "Dump completed" trailer.
+#
+# Why the db hostPath is mounted read-write: WAL readers must be able to map
+# and lock state.db-shm, so a readOnly mount fails the open outright. The
+# container only ever *writes* to /work; rw here is a locking requirement, not
+# a write intent.
+#
+# No seLinuxOptions despite the host enforcing: k3s on cp1 runs without
+# --selinux, so containers get no container_t transition (verified 2026-08-28:
+# zero container_t processes on the host) and root in the pod reads the
+# root-owned hostPath directly.
+#
+# Encryption/destination/retention deliberately mirror backup-mysql.yaml:
+# same write-only smime cert, same R2 bucket (k3s/ prefix), retention as R2
+# lifecycle rules on k3s/daily + k3s/monthly rather than deletes in-job.
+# worker1 mirrors R2 prefixes explicitly (bagel-backup-sync), so k3s/daily and
+# k3s/monthly must be added to its prefix list -- it will not pick them up on
+# its own.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-k3s-scripts
+  namespace: db
+data:
+  snapshot.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+    cd /work
+
+    # .timeout: the CLI's default busy handler is zero, and kine writes this db
+    # constantly -- without it .backup can die on the first SQLITE_BUSY instead
+    # of waiting the writer out.
+    sqlite3 -cmd ".timeout 30000" /host/db/state.db ".backup /work/state.db"
+
+    # Gate before anything ships: a torn or short snapshot is the failure mode
+    # this job exists to avoid, and the exit code of .backup alone does not
+    # prove page-level consistency.
+    if [ "$(sqlite3 /work/state.db 'PRAGMA integrity_check;')" != "ok" ]; then
+      echo "FATAL: snapshot failed integrity_check -- not shipping" >&2
+      exit 1
+    fi
+
+    mkdir -p meta/cred
+    cp /host/token meta/token
+    cp /host/cred/encryption-config.json /host/cred/encryption-state.json meta/cred/
+    ls -l state.db meta
+  encrypt.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+    cd /work
+
+    printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
+
+    STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+    OUT="k3s-${STAMP}.tar.gz.enc"
+
+    tar -czf bundle.tar.gz state.db meta
+
+    openssl smime -encrypt -binary -aes-256-cbc -outform DER \
+      -in bundle.tar.gz -out "$OUT" pub.pem
+    sha256sum "$OUT" > "${OUT}.sha256"
+
+    rm -rf bundle.tar.gz state.db meta pub.pem
+    # The uploader runs as 65534 like its MySQL counterpart; this container is
+    # the last one running as root, so it hands the ciphertext over here.
+    chown 65534:65534 /work "$OUT" "${OUT}.sha256"
+    ls -l "$OUT"
+  upload.sh: |
+    #!/bin/sh
+    set -eu
+    cd /work
+
+    export RCLONE_CONFIG_R2_TYPE=s3
+    export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+    export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+    export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+    export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT"
+    export RCLONE_CONFIG_R2_ACL=private
+    # Same single-bucket token as the MySQL job: it cannot ListBuckets, so
+    # rclone's bucket-exists preflight has to be skipped.
+    export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+
+    rclone copy /work "r2:${R2_BUCKET}/k3s/daily/" \
+      --include "*.enc" --include "*.sha256" --stats-one-line
+
+    if [ "$(date -u +%d)" = "01" ]; then
+      rclone copy /work "r2:${R2_BUCKET}/k3s/monthly/" \
+        --include "*.enc" --include "*.sha256" --stats-one-line
+    fi
+
+    # Retention lives in R2 lifecycle rules on k3s/daily and k3s/monthly, same
+    # rationale as the MySQL job: rules keep pruning when this job is broken or
+    # deleted, and the job never needs a delete on the happy path.
+    rclone lsf "r2:${R2_BUCKET}/k3s/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-k3s
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  schedule: "37 */6 * * *" # every 6h, offset from backup-mysql's :23
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: backup-k3s
+        spec:
+          restartPolicy: OnFailure
+          # The datastore only exists on cp1, and cp1 repels normal workloads
+          # with the role=cp taint -- this pod is one of the few that belongs
+          # there.
+          nodeSelector:
+            role: cp
+          tolerations:
+            - key: role
+              operator: Equal
+              value: cp
+              effect: NoSchedule
+          securityContext:
+            seccompProfile: {type: RuntimeDefault}
+          volumes:
+            # medium: Memory -- between snapshot and encrypt, /work holds the
+            # entire cluster state in plaintext (every Secret in the fleet).
+            # Sized for headroom: state.db measured 52 MB on 2026-08-28; peak
+            # usage is snapshot + tarball + ciphertext, ~130 MB today.
+            - name: work
+              emptyDir: {medium: Memory, sizeLimit: 512Mi}
+            - name: scripts
+              configMap:
+                name: backup-k3s-scripts
+                defaultMode: 0555
+            - name: k3s-db
+              hostPath: {path: /var/lib/rancher/k3s/server/db, type: Directory}
+            - name: k3s-token
+              hostPath: {path: /var/lib/rancher/k3s/server/token, type: File}
+            - name: k3s-cred
+              hostPath: {path: /var/lib/rancher/k3s/server/cred, type: Directory}
+          initContainers:
+            # Runs as root: db/, token and cred/ are 0600/0700 root on the
+            # host. Every capability is still dropped -- uid 0 passes the
+            # owner-bits check on those files without CAP_DAC_OVERRIDE.
+            - name: snapshot
+              image: alpine/sqlite:3.53.4@sha256:0a1296c0dc9483bf6e3c59df8b53561fa328ad1092bbab7822f095254c56e93b
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/snapshot.sh"]
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+                # rw is a WAL locking requirement (see header), not a write path.
+                - {name: k3s-db, mountPath: /host/db}
+                - {name: k3s-token, mountPath: /host/token, readOnly: true}
+                - {name: k3s-cred, mountPath: /host/cred, readOnly: true}
+              securityContext:
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {memory: 512Mi}
+            - name: encrypt
+              image: alpine/openssl:3.5.7@sha256:19f8eb9004a1dbaec323eed6094e9b6bcc1dbf2697ecb5fb8d2fad4e3336a8f7
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/encrypt.sh"]
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                # CHOWN only, to hand the ciphertext to the 65534 uploader.
+                capabilities: {drop: ["ALL"], add: ["CHOWN"]}
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {memory: 512Mi}
+          containers:
+            - name: upload
+              image: rclone/rclone:1.71.2@sha256:3103526c506266a9ecdf064efe99bf3677d92ef6407af124d8c56b4f49cbaa51
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/upload.sh"]
+              env:
+                - {name: HOME, value: /work}
+              envFrom:
+                - secretRef: {name: backup-env}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: ["ALL"]}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}
