@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -22,6 +22,9 @@
     builtinDef,
     BUILTIN_NAMES,
     validateCommand,
+    persistCommandActive,
+    overlayLiveActive,
+    commandContentSnapshot,
     PERM_LABELS,
     PERMS,
     COMMAND_NAME_MAX,
@@ -244,7 +247,9 @@
   });
   const isDirty = $derived(
     !!editorDraft && !editorDraft.builtin && committedDraft !== null
-      ? JSON.stringify(editorDraft) !== JSON.stringify(committedDraft)
+      ? editorDraft.edit
+        ? commandContentSnapshot(editorDraft) !== commandContentSnapshot(committedDraft)
+        : JSON.stringify(editorDraft) !== JSON.stringify(committedDraft)
       : false
   );
 
@@ -290,33 +295,24 @@
       editorGen++;
       return;
     }
-    // loadDraft only returns something after a forced reload; restore quietly.
-    editorDraft = loadDraft(c.name, true) ?? fromView(c);
+    // Overlay live Active onto a restored sessionStorage draft: a snapshot
+    // taken while the command was on must not re-enable it (#221).
+    editorDraft = overlayLiveActive(loadDraft(c.name, true) ?? fromView(c), c.is_active);
     expanded = c.name;
     editorGen++;
   }
 
-  // #221: the draft snapshots Active at open, so anything flipping the row
-  // afterwards (the row Switch, a second tab, a failed-save rollback) left the
-  // editor holding the stale value — and the next Save wrote it straight back:
-  // toggling off with the inspector open reverted on save, and a sessionStorage
-  // draft captured while the command was active re-activated a disabled command
-  // when restored. Reconcile on every committed move instead. The effect never
-  // reads draft.is_active after first sight on purpose: tracking it would re-run
-  // this effect on the user's own checkbox click and snap it back to committed.
-  let committedActive: boolean | null = null;
+  // Keep the open edit draft's Active in lockstep with the live row. Reassign
+  // (don't mutate) so the bound Switch sees the new value; untrack the write
+  // so overlaying is_active cannot re-enter the effect.
   $effect(() => {
     const d = editorDraft;
     const live =
       d && d.edit && !d.builtin ? items.find((c) => c.name === d.originalName) : undefined;
-    if (!d || !live) {
-      committedActive = null;
-      return;
-    }
-    if (committedActive === null || committedActive !== live.is_active) {
-      committedActive = live.is_active;
-      d.is_active = live.is_active;
-    }
+    if (!d || !live || d.is_active === live.is_active) return;
+    untrack(() => {
+      editorDraft = overlayLiveActive(d, live.is_active);
+    });
   });
   // Unguarded close for the delete path (the command is already gone).
   function doCloseEditor() {
@@ -459,7 +455,7 @@
   };
 
   // --- Save (optimistic with row-level rollback) -----------------------------
-  const saveSubmit: SubmitFunction = () => {
+  const saveSubmit: SubmitFunction = ({ formData }) => {
     const d = editorDraft;
     if (!d) return;
     const key = normName(d.name);
@@ -470,6 +466,13 @@
     // is still on the command it was submitted for.
     const submittedExpanded = expanded;
 
+    // Content save must not write the inspector's Active snapshot (#221): a
+    // disabled command stayed disabled, and a row toggle with the inspector
+    // open is not reverted. Create still uses the draft checkbox.
+    const live = items.find((c) => c.name === (orig ?? key));
+    const isActive = persistCommandActive(d.edit, d.is_active, live?.is_active);
+    formData.set('is_active', isActive ? 'on' : '');
+
     // Row-level snapshot: rollback restores only the affected row(s), so a
     // concurrent toggle on another row can't be clobbered.
     const prevRows = items.filter((c) => c.name === key || c.name === orig);
@@ -477,12 +480,12 @@
       name: key,
       aliases: d.aliases.map(normName).filter(Boolean),
       response: d.response,
-      is_active: d.is_active,
+      is_active: isActive,
       stream_online_only: d.stream_online_only,
       perm: d.perm,
       cooldown: Math.floor(Number(d.cooldown) || 0),
       allowed_user_id: d.allowed_user_id.replace(/\D/g, ''),
-      uses: items.find((c) => c.name === (orig ?? key))?.uses
+      uses: live?.uses
     };
     items = [...items.filter((c) => c.name !== key && c.name !== orig), optimistic];
     busy = true;
@@ -533,6 +536,17 @@
   };
 
   // --- Toggle (optimistic flip) ----------------------------------------------
+  function settleToggle(name: string, before: CommandView, payload: ActionResult | null | undefined, ok: boolean) {
+    if (ok && payload?.ok) {
+      applyResult(payload);
+      ackSaved(name);
+      return;
+    }
+    items = items.map((x) => (x.name === name ? before : x));
+    flagError(name);
+    toast('err', payload?.error ?? t('commands.toastToggleFailed'));
+  }
+
   const toggleSubmit =
     (c: CommandView): SubmitFunction =>
     () => {
@@ -544,14 +558,7 @@
           result.type === 'success' || result.type === 'failure'
             ? (result.data as ActionResult | undefined)
             : undefined;
-        if (result.type === 'success' && payload?.ok) {
-          applyResult(payload); // silent from the server
-          ackSaved(c.name);
-        } else {
-          items = items.map((x) => (x.name === c.name ? before : x));
-          flagError(c.name);
-          toast('err', payload?.error ?? t('commands.toastToggleFailed'));
-        }
+        settleToggle(c.name, before, payload, result.type === 'success');
       };
     };
 
@@ -655,6 +662,20 @@
   const selectedCmd = $derived(
     expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined
   );
+
+  // Inspector Active Switch: same optimistic toggle as the row, without a
+  // nested form inside ?/save. no-ops when the requested state is already live
+  // so Switch's local flip + this setter cannot double-toggle.
+  function setSelectedActive(next: boolean) {
+    const c = selectedCmd;
+    if (!c || c.builtin || c.is_active === next) return;
+    const before = { ...c };
+    items = items.map((x) => (x.name === c.name ? { ...x, is_active: next } : x));
+    setStatus(c.name, 'saving');
+    void postAction('toggle', formDataFor({ ...c, is_active: next })).then((payload) => {
+      settleToggle(c.name, before, payload, payload?.ok === true);
+    });
+  }
 
   // The open editor's footer status. Maps the legacy 'live' row state (no longer
   // produced) to 'saved' so it fits the footer's state set.
@@ -799,6 +820,8 @@
               onFetchDefsChanged={(next) => (fetchDefs = next)}
               onCancel={closeEditor}
               onSubmit={saveSubmit}
+              liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
+              onToggleActive={setSelectedActive}
             />
           {/key}
         {/if}
