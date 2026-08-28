@@ -7,6 +7,7 @@ import PageHero from '../../components/ui/PageHero.astro';
 import ChangelogList from '../../components/changelog/ChangelogList.astro';
 import { getCollection } from 'astro:content';
 import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
+import { compareVersion } from '../../lib/compareVersion';
 
 export function getStaticPaths() {
   return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
@@ -15,8 +16,9 @@ export function getStaticPaths() {
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
+// Newest version tag first. Same calendar day used to scramble 1.0.1–1.0.3.
 const entries = (await getCollection('changelog')).sort(
-    (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+    (a, b) => compareVersion(b.data.version, a.data.version),
 );
 ---
 

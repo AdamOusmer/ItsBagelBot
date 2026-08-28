@@ -3,9 +3,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Changelog timeline. Newest bake first. Each JSON entry from the `changelog`
- * collection becomes a card: stylized tag, version (filename), date, title,
- * description, and a link to the GitHub release.
+ * Changelog timeline. Newest version tag first. Each JSON entry from the
+ * `changelog` collection becomes a card: stylized tag, version, date, title,
+ * short highlight bullets, and a link to the GitHub release.
  */
 import type { CollectionEntry } from 'astro:content';
 import ReleaseTag from './ReleaseTag.astro';
@@ -21,9 +21,15 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
 type Localized = string | { en: string; [locale: string]: string };
+type LocalizedList = string[] | { en: string[]; [locale: string]: string[] };
 
 function pick(value: Localized, locale: string): string {
     if (typeof value === 'string') return value;
+    return value[locale] ?? value.en;
+}
+
+function pickList(value: LocalizedList, locale: string): string[] {
+    if (Array.isArray(value)) return value;
     return value[locale] ?? value.en;
 }
 
@@ -47,7 +53,8 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
     ) : (
         <ol class="clog__list">
             {entries.map((entry, i) => {
-                const { tag, version, title, description, github, date } = entry.data;
+                const { tag, version, title, highlights, github, date } = entry.data;
+                const lines = pickList(highlights, lang);
                 return (
                     <li class="clog__item" data-reveal style={`--reveal-i: ${i + 1}`}>
                         <div class="clog__when">
@@ -59,7 +66,11 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
                                 <span class="clog__ver">{version}</span>
                             </header>
                             <h2 class="clog__title">{pick(title, lang)}</h2>
-                            <p class="clog__desc">{pick(description, lang)}</p>
+                            <ul class="clog__highlights">
+                                {lines.map((line) => (
+                                    <li>{line}</li>
+                                ))}
+                            </ul>
                             <TextLink
                                 href={github}
                                 label={t('changelog.releaseLink')}
@@ -216,13 +227,34 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         margin: 0;
     }
 
-    .clog__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 1rem;
-        line-height: 1.7;
-        color: #a39c92;
+    .clog__highlights {
         margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
         max-width: 62ch;
+        width: 100%;
+    }
+
+    .clog__highlights li {
+        position: relative;
+        padding-left: 1.1em;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.98rem;
+        line-height: 1.55;
+        color: #a39c92;
+    }
+
+    .clog__highlights li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.55em;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(201, 168, 124, 0.55);
     }
 
     @media (prefers-reduced-motion: reduce) {
