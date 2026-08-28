@@ -1,6 +1,6 @@
 {
   "tag": "beta",
-  "version": "v1.0.0-beta",
+  "version": "v0.1.0-beta",
   "date": "2026-08-14",
   "title": {
     "en": "Beta launch",
@@ -18,5 +18,5 @@
       "Performance : API externes (stats de jeux)."
     ]
   },
-  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v1.0.0-beta"
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.0-beta"
 }
