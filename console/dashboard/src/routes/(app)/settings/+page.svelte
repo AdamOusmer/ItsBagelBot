@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, Button, ButtonLink, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
+  import { Icon, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
@@ -198,7 +198,7 @@
   <SettingsNav label={t('settings.navSections')} items={navItems} />
 
   <!-- ACCOUNT -->
-  <section id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
+  <Card as="section" id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
     <h2 id="h-account">{t('settings.account')}</h2>
     <div class="row">
       <div>
@@ -207,19 +207,19 @@
       </div>
       <ButtonLink href="/auth/login?reauth=1" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
     </div>
-  </section>
+  </Card>
 
   <!-- IMPORT: prominent entry to the config-import flow (/settings/import).
        Kept as its own section so the section nav and the onboarding CTA have
        a stable anchor, same as every other entry point here. -->
-  <section id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
+  <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
     <h2 id="h-import">{t('settings.importSetup')}</h2>
     <p class="hint">{t('settings.importSetupHint')}</p>
     <ButtonLink href="/settings/import" variant="secondary" icon="send">{t('settings.importSetupCta')}</ButtonLink>
-  </section>
+  </Card>
 
   <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->
-  <section id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
+  <Card as="section" id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
     <h2 id="h-access">{t('settings.sharedAccess')}</h2>
 
     <h3>{t('settings.accessGranted')}</h3>
@@ -353,10 +353,10 @@
         {/each}
       </ul>
     {/if}
-  </section>
+  </Card>
 
   <!-- NOTIFICATIONS: the bell dropdown's "view all" target (/settings#notifications). -->
-  <section id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
+  <Card as="section" id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
     <h2 id="h-notifications">{t('settings.notifications')}</h2>
     {#if notifications.length === 0}
       <p class="hint">{t('settings.notificationsEmpty')}</p>
@@ -380,10 +380,10 @@
         {/each}
       </ul>
     {/if}
-  </section>
+  </Card>
 
   <!-- PREFERENCES -->
-  <section id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
+  <Card as="section" id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
     <h2 id="h-preferences">{t('settings.preferences')}</h2>
     <div class="row">
       <div>
@@ -399,12 +399,12 @@
       </div>
       <CursorSwitch describedby="cursor-hint" />
     </div>
-  </section>
+  </Card>
 
   <!-- API KEYS: account-level secrets for data sources. Owner-only, like the
        rest of this page. Data sources themselves are created inside the command
        editor; only the keys they spend are managed here. -->
-  <section id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
+  <Card as="section" id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
     <h2 id="h-api-keys">{t('fetches.keysTitle')}</h2>
     <FetchKeyManager
       keys={fetchKeys}
@@ -413,10 +413,10 @@
       onSetKey={handleSetKey}
       onDeleteKey={handleDeleteKey}
     />
-  </section>
+  </Card>
 
   <!-- DANGER ZONE: visually separated, last. -->
-  <section id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
+  <Card as="section" id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
     <h2 id="h-danger">{t('settings.dangerZone')}</h2>
     <p class="hint">{t('settings.dangerZoneHint')}</p>
     <div class="row">
@@ -433,7 +433,7 @@
       </div>
       <Button variant="destructive" onclick={() => (deleteOpen = true)}>{t('settings.deleteAccount')}</Button>
     </div>
-  </section>
+  </Card>
 </section>
 
 <!-- Revoke confirm -->
@@ -517,16 +517,15 @@
 {/if}
 
 <style>
-  .settings-section {
+  /* Surface (bg/border/radius/padding) comes from <Card>; only the layout and
+     scroll-anchoring live here. :global because the class rides a component
+     root, which the parent's scoping hash never reaches. */
+  :global(.settings-section) {
     margin-top: 18px;
-    padding: var(--card-pad, 22px);
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: 8px;
     /* Anchor + programmatic focus land below the sticky topbar. */
     scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
   }
-  .settings-section:focus { outline: none; }
+  :global(.settings-section:focus) { outline: none; }
 
   h2 { margin: 0 0 6px; font-size: 16px; }
   h3 { margin: 18px 0 6px; font-size: 14px; }
@@ -641,7 +640,7 @@
   .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
 
   /* --- danger zone --- */
-  .danger-section {
+  :global(.danger-section) {
     margin-top: 28px;
     border-color: var(--bb-status-error-border, rgba(176, 90, 70, 0.4));
     background: var(--bb-status-error-bg, rgba(176, 90, 70, 0.06));

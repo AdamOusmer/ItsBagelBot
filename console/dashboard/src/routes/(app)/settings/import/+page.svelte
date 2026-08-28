@@ -28,6 +28,7 @@
     AlertBanner,
     Badge,
     Button,
+    Card,
     Icon,
     PageHead,
     toast,
@@ -431,7 +432,7 @@
   </PageHead>
 
   <!-- Horizontal stepper: completed / current / future stages. -->
-  <ol class="stepper" aria-label={t('import.stagesLabel')}>
+  <Card as="ol" class="stepper" aria-label={t('import.stagesLabel')}>
     {#each STAGES as key, i (key)}
       {#if i > 0}<li class="bar" aria-hidden="true"></li>{/if}
       <li
@@ -446,10 +447,10 @@
         {t(key)}
       </li>
     {/each}
-  </ol>
+  </Card>
 
   {#if step === 'pick'}
-    <div class="panel">
+    <Card>
       <h2>{t('import.stepPick')}</h2>
       <p class="hint">{t('import.pickHint')}</p>
 
@@ -519,9 +520,9 @@
           <span class="tile-desc">{t('import.slDesc')}</span>
         </label>
       </div>
-    </div>
+    </Card>
   {:else if step === 'instructions' && source}
-    <div class="panel">
+    <Card>
       <h2>{t('import.stepInstructions', { source: SOURCE_LABEL[source] })}</h2>
       <p class="hint">{t('import.instrHint', { source: SOURCE_LABEL[source] })}</p>
 
@@ -599,9 +600,9 @@
           </Button>
         </div>
       </form>
-    </div>
+    </Card>
   {:else if step === 'review' && previewResult?.manifest}
-    <div class="panel">
+    <Card>
       <h2>{t('import.reviewTitle')}</h2>
       <p class="hint">{reviewHint}</p>
 
@@ -774,9 +775,9 @@
           </Button>
         </div>
       </form>
-    </div>
+    </Card>
   {:else if step === 'done'}
-    <div class="panel done-panel">
+    <Card class="done-panel">
       <h2>{t('import.doneTitle')}</h2>
       {#if commitResult}
         <p class="hint">
@@ -806,17 +807,11 @@
       <div class="actions">
         <Button variant="primary" icon="check" onclick={reset}>{t('import.backToSources')}</Button>
       </div>
-    </div>
+    </Card>
   {/if}
 </section>
 
 <style>
-  .panel {
-    padding: var(--card-pad, 22px);
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: 8px;
-  }
   h2 {
     margin: 0 0 6px;
     font-size: 16px;
@@ -832,16 +827,15 @@
   }
 
   /* --- stepper header --- */
-  .stepper {
+  /* Surface comes from <Card>; :global because the class rides a component
+     root, which this page's scoping hash never reaches. */
+  :global(.stepper) {
     display: flex;
     align-items: center;
     gap: 10px;
     list-style: none;
     margin: 0 0 16px;
     padding: 14px 18px;
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: 8px;
   }
   .stage {
     display: inline-flex;
@@ -887,7 +881,7 @@
     background: var(--glass-border);
   }
   @media (max-width: 560px) {
-    .stepper {
+    :global(.stepper) {
       gap: 7px;
       padding: 12px 14px;
     }

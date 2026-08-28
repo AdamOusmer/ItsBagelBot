@@ -352,7 +352,7 @@
          card's own hover lift. -->
     {#each tiles as tile, i (tile.label)}
       <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
-        <Card hover class="tile">
+        <Card atmosphere hover class="tile">
           <div class="tile-head">
             <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
             <span class="label">{tile.label}</span>
@@ -375,7 +375,7 @@
 
   <section class="boards" aria-label={t('stats.boardsEyebrow')}>
     <div class="board-wrap reveal" style="--i:6">
-      <Card class="board">
+      <Card atmosphere class="board">
         <header class="board-head">
           <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
           <div class="board-titles">
@@ -421,7 +421,7 @@
     </div>
 
     <div class="board-wrap reveal" style="--i:6.5">
-      <Card class="board">
+      <Card atmosphere class="board">
         <header class="board-head">
           <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
           <div class="board-titles">

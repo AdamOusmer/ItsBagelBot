@@ -185,7 +185,7 @@
     {#if data.commands.length}
       <div class="grid">
         {#each data.commands as command}
-          <Card hover class="tile">
+          <Card atmosphere hover class="tile">
             <div class="tile-top">
               <h3 class="trigger">{command.trigger}</h3>
               {#if command.uses}
@@ -209,7 +209,7 @@
         {/each}
       </div>
     {:else}
-      <Card class="empty">No active custom commands.</Card>
+      <Card atmosphere class="empty">No active custom commands.</Card>
     {/if}
   </section>
 
@@ -223,7 +223,7 @@
     {#if data.modules.length}
       <div class="grid">
         {#each data.modules as mod}
-          <Card hover class="tile">
+          <Card atmosphere hover class="tile">
             <div class="tile-top">
               <div class="tile-title">
                 <span class="cat">{mod.category}</span>
@@ -252,7 +252,7 @@
         {/each}
       </div>
     {:else}
-      <Card class="empty">No active modules.</Card>
+      <Card atmosphere class="empty">No active modules.</Card>
     {/if}
   </section>
 </main>
