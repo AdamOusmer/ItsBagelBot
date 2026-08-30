@@ -126,7 +126,7 @@ func vocabChannel(m map[uint64]*chanVocab, channel uint64) *chanVocab {
 	if cv := m[channel]; cv != nil {
 		return cv
 	}
-	evictStalestHalf(m, func(cv *chanVocab) int64 { return cv.lastSeen })
+	evictStalestHalf(m, vocabChanCap/baselineShards, func(cv *chanVocab) int64 { return cv.lastSeen })
 	cv := &chanVocab{bins: make(map[string]*tokenStat)}
 	m[channel] = cv
 	return cv

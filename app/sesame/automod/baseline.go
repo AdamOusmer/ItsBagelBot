@@ -50,8 +50,10 @@ const (
 
 	// baselineChanCap mirrors bot_stats.go channelStatsMaxKeys=4096: a memory
 	// backstop against pathological fan-out or a bug minting broadcaster ids,
-	// not a working limit. Overflow drops the stalest half by lastSeen so a
-	// returning active channel re-warms rather than staying evicted.
+	// not a working limit. GLOBAL across all shards - eviction call sites pass
+	// baselineChanCap/baselineShards per shard. Overflow drops the stalest
+	// half by lastSeen so a returning active channel re-warms rather than
+	// staying evicted.
 	baselineChanCap = 4096
 )
 
@@ -144,7 +146,7 @@ func (b *Baseline) Observe(ch uint64, caps, symbol, tokens float64) {
 	s.Lock()
 	cs := s.m[ch]
 	if cs == nil {
-		evictStalestHalf(s.m, func(cs *chanStats) int64 { return cs.lastSeen })
+		evictStalestHalf(s.m, baselineChanCap/baselineShards, func(cs *chanStats) int64 { return cs.lastSeen })
 		cs = &chanStats{}
 		s.m[ch] = cs
 	}
@@ -156,31 +158,39 @@ func (b *Baseline) Observe(ch uint64, caps, symbol, tokens float64) {
 	s.Unlock()
 }
 
-// Adjust returns the EFFECTIVE threshold for kind on channel ch:
-// max(ceiling[kind], mean + zScore·stddev) once the channel is warm
-// (>= coldFloorN observations), else max(ceiling[kind], ratio). ratio is the
-// static threshold the caller was about to apply and floors BOTH paths - on
-// the cold path too, so a stricter per-channel config survives adaptation
-// from line one and wiring this in cannot flip a single pre-existing verdict
-// until ~coldFloorN judged lines accumulate. Direction is raise-only by
-// construction: every branch bottoms out at a documented ceiling.
+// Adjust returns the EFFECTIVE threshold for kind on channel ch. ratio is
+// the profile-resolved static threshold the caller was about to apply, and it
+// is the floor on every path: a cold channel sees it verbatim, so wiring a
+// baseline in cannot flip a single pre-existing verdict until ~coldFloorN
+// judged lines accumulate. A warm channel's learned value (mean +
+// zScore·stddev) applies only when it clears BOTH ratio and the fleet
+// ceiling: the ceiling clamps the LEARNED contribution alone - learned data
+// is attacker-observable (frog-boiling), a broadcaster's static config is
+// not, so the ceiling must never override a deliberately tighter static
+// threshold (2026-08-30: it used to, silently erasing LevelStrict's 0.6 caps
+// on every baseline-wired channel). Direction stays raise-only by
+// construction.
 func (b *Baseline) Adjust(ch uint64, kind StyleKind, ratio float64) float64 {
-	return b.floored(kind, b.rawThresh(ch, kind), ratio)
+	t, warm := b.rawThresh(ch, kind)
+	if !warm || t < b.ceilingOf(kind) {
+		return ratio
+	}
+	return math.Max(t, ratio)
 }
 
-// rawThresh is the stats-lookup half of Adjust: kind's observed threshold for
-// channel ch under the shard lock - the ceiling until the channel is warm
-// (below coldFloorN observations the variance estimate is garbage), and
-// mean+zScore*stddev of the learned series afterwards.
-func (b *Baseline) rawThresh(ch uint64, kind StyleKind) float64 {
+// rawThresh is the stats-lookup half of Adjust: kind's observed
+// mean+zScore*stddev for channel ch under the shard lock, and whether the
+// channel is warm. Below coldFloorN observations the variance estimate is
+// garbage, so the cold path reports no learned value at all.
+func (b *Baseline) rawThresh(ch uint64, kind StyleKind) (float64, bool) {
 	s := &b.shards[ch&baselineShardMask]
 	s.Lock()
 	defer s.Unlock()
 	cs := s.m[ch]
 	if cs == nil || cs.n < coldFloorN {
-		return b.ceilingOf(kind)
+		return 0, false
 	}
-	return kind.series(cs).thresh()
+	return kind.series(cs).thresh(), true
 }
 
 // series selects the EWMA Adjust consults for kind.
@@ -195,19 +205,6 @@ func (k StyleKind) series(cs *chanStats) *metricEWMA {
 	}
 }
 
-// floored applies BOTH raise-only floors in one place - the documented
-// ceiling for the series and the caller's static threshold - so every return
-// path of Adjust (cold and warm alike) bottoms out at a documented ceiling.
-func (b *Baseline) floored(kind StyleKind, t, ratio float64) float64 {
-	if eff := b.ceilingOf(kind); t < eff {
-		t = eff
-	}
-	if t < ratio {
-		t = ratio
-	}
-	return t
-}
-
 func (b *Baseline) ceilingOf(kind StyleKind) float64 {
 	switch kind {
 	case KindCaps:
@@ -220,10 +217,13 @@ func (b *Baseline) ceilingOf(kind StyleKind) float64 {
 }
 
 // evictStalestHalf drops the oldest half of m by lastSeen when a shard map
-// hits its cap. Runs only on the overflow path (once per ~2048 new channels),
-// so its sort allocation never touches the steady state.
-func evictStalestHalf[V any](m map[uint64]V, lastSeen func(V) int64) {
-	if len(m) < baselineChanCap {
+// hits maxKeys. Runs only on the overflow path, so its sort allocation never
+// touches the steady state. maxKeys is the PER-SHARD share of the documented
+// global cap - callers pass cap/shards (2026-08-30: this used to hardcode
+// baselineChanCap per shard, silently making the real backstop 64x the
+// documented 4096 and leaving vocabChanCap decorative).
+func evictStalestHalf[V any](m map[uint64]V, maxKeys int, lastSeen func(V) int64) {
+	if len(m) < maxKeys {
 		return
 	}
 	type ageKey struct {

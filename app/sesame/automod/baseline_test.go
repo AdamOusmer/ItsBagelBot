@@ -14,15 +14,21 @@ func newTestBaseline() *Baseline {
 	return b
 }
 
-func TestBaselineColdChannelReturnsPlainCeiling(t *testing.T) {
+func TestBaselineColdChannelReturnsCallerStatic(t *testing.T) {
 	b := newTestBaseline()
+	// Cold channels see the caller's static threshold VERBATIM - including a
+	// static tighter than the fleet ceiling (LevelStrict caps 0.6): the
+	// ceiling clamps only the learned contribution, never a config choice.
 	for kind, want := range map[StyleKind]float64{
 		KindCaps:   0.7,
 		KindSymbol: 0.6,
 	} {
-		if got := b.Adjust(42, kind, 0.0); got != want {
-			t.Fatalf("cold channel kind=%d: got %v, want plain ceiling %v", kind, got, want)
+		if got := b.Adjust(42, kind, want); got != want {
+			t.Fatalf("cold channel kind=%d: got %v, want caller static %v", kind, got, want)
 		}
+	}
+	if got := b.Adjust(42, KindCaps, 0.6); got != 0.6 {
+		t.Fatalf("cold strict caps: got %v, want the tighter static 0.6", got)
 	}
 }
 
@@ -43,17 +49,28 @@ func TestBaselineWarmChannelRaisesForHypeCulture(t *testing.T) {
 	}
 }
 
-func TestBaselineNeverDropsBelowCeiling(t *testing.T) {
+func TestBaselineNeverDropsBelowCallerStatic(t *testing.T) {
 	b := newTestBaseline()
-	// A quiet channel: every branch of Adjust bottoms out at the ceiling.
+	// A quiet channel: the learned value sits under the fleet ceiling, so it
+	// is discarded and every kind pins to the caller's static exactly - the
+	// frog-boiling clamp: attacker-fed quiet lines can never tighten (or
+	// loosen) the gate below what the config says.
 	for i := 0; i < 500; i++ {
 		b.Observe(9, 0.2, 0.1, 8)
 	}
-	for kind, floor := range map[StyleKind]float64{KindCaps: 0.7, KindSymbol: 0.6} {
-		got := b.Adjust(9, kind, 0.0)
-		if got != floor {
-			t.Fatalf("kind=%d quiet warm channel must pin to ceiling exactly, got %v want %v", kind, got, floor)
+	for kind, static := range map[StyleKind]float64{KindCaps: 0.7, KindSymbol: 0.6} {
+		got := b.Adjust(9, kind, static)
+		if got != static {
+			t.Fatalf("kind=%d quiet warm channel must pin to static exactly, got %v want %v", kind, got, static)
 		}
+	}
+	// A learned value between a strict static (0.6) and the fleet ceiling
+	// (0.7) is likewise discarded: raises act only from the ceiling up.
+	for i := 0; i < 500; i++ {
+		b.Observe(11, 0.62, 0.1, 8)
+	}
+	if got := b.Adjust(11, KindCaps, 0.6); got != 0.6 {
+		t.Fatalf("sub-ceiling learned value must not move a strict static: got %v want 0.6", got)
 	}
 }
 
@@ -76,8 +93,10 @@ func TestBaselineEvictsStalestHalfAtCap(t *testing.T) {
 		b.Observe(ch, 0.3, 0.1, 5)
 	}
 	s := &b.shards[shardBase&baselineShardMask]
-	if len(s.m) > baselineChanCap {
-		t.Fatalf("shard map exceeded cap: %d", len(s.m))
+	// The documented global backstop divides across shards: one shard holds
+	// at most its share, so 64 shards aggregate to baselineChanCap, not 64x it.
+	if len(s.m) > baselineChanCap/baselineShards {
+		t.Fatalf("shard map exceeded its per-shard cap: %d > %d", len(s.m), baselineChanCap/baselineShards)
 	}
 	freshest := shardBase + (baselineChanCap+511)*64
 	if _, ok := s.m[freshest]; !ok {

@@ -104,6 +104,55 @@ func (s signals) symbolRatio() float64 {
 	return float64(s.symbols) / float64(s.runes)
 }
 
+// classify buckets one rune into the style counters. Split from scan's walk
+// so the loop keeps only the repeat-run tracking and each half stays under
+// the repo's cyclomatic gate. last is the previous rune (zero on the first),
+// which the combining-mark case reads to tell a stacked mark from a base one.
+func (s *signals) classify(r, last rune) {
+	switch {
+	case unicode.IsLetter(r):
+		s.letters++
+		if r > unicode.MaxASCII {
+			s.lettersNonASCII++
+		}
+		if unicode.IsUpper(r) {
+			s.upper++
+		}
+	// Emoji-structure glue must not read as evasion: U+200D ZWJ and
+	// U+FE0F VS16 are the JOINERS of 👨‍👩‍👧 / 🏳️‍🌈, and counting them
+	// as invisible (IsInvisible lists ZWJ) deleted every composed emoji.
+	// They route here instead of into zeroWidth; every other invisible
+	// (U+200B ZWSP, U+200C ZWNJ, word joiner, BOM, RTL overrides) still
+	// counts. ZWJ also does NOT enter symbols - it was never a symbol
+	// before, and minting one per joiner would inflate symbolRatio for
+	// multi-member families without any evasion being present.
+	case isEmojiRune(r):
+		s.emoji++
+		if r != 0x200d { // ZWJ
+			s.symbols++
+		}
+	case moderation.IsInvisible(r):
+		s.zeroWidth++
+	// Combining marks ride their base letter and are style-neutral:
+	// Devanagari matras, Arabic harakat, NFD accents. The old catch-all
+	// counted every one as a symbol, so mark-heavy scripts ran at 3-4x an
+	// ASCII line's symbolRatio (measured 2026-08-30: Hindi 0.36, Tamil
+	// 0.39, Arabic+harakat 0.42 against symbolRatioHi 0.6) - margin, not
+	// evasion. Only a STACKED mark (2nd+ Mn in a row, the zalgo shape)
+	// still counts: no natural script stacks marks the way zalgo does
+	// (Vietnamese NFD tops out at 2 per letter), so mark-wall spam keeps
+	// its symbol signal instead of gaining a free evasion channel.
+	case unicode.Is(unicode.Mn, r):
+		if unicode.Is(unicode.Mn, last) {
+			s.symbols++
+		}
+	case unicode.IsSpace(r):
+		s.spaces++
+	case !unicode.IsDigit(r):
+		s.symbols++
+	}
+}
+
 // scan walks the raw text once (range over a string does not allocate) and
 // gathers the cheap signals.
 func scan(text string) signals {
@@ -115,35 +164,7 @@ func scan(text string) signals {
 		if r > unicode.MaxASCII {
 			s.hasNonASCII = true
 		}
-		switch {
-		case unicode.IsLetter(r):
-			s.letters++
-			if r > unicode.MaxASCII {
-				s.lettersNonASCII++
-			}
-			if unicode.IsUpper(r) {
-				s.upper++
-			}
-		// Emoji-structure glue must not read as evasion: U+200D ZWJ and
-		// U+FE0F VS16 are the JOINERS of 👨‍👩‍👧 / 🏳️‍🌈, and counting them
-		// as invisible (IsInvisible lists ZWJ) deleted every composed emoji.
-		// They route here instead of into zeroWidth; every other invisible
-		// (U+200B ZWSP, U+200C ZWNJ, word joiner, BOM, RTL overrides) still
-		// counts. ZWJ also does NOT enter symbols - it was never a symbol
-		// before, and minting one per joiner would inflate symbolRatio for
-		// multi-member families without any evasion being present.
-		case isEmojiRune(r):
-			s.emoji++
-			if r != 0x200d { // ZWJ
-				s.symbols++
-			}
-		case moderation.IsInvisible(r):
-			s.zeroWidth++
-		case unicode.IsSpace(r):
-			s.spaces++
-		case !unicode.IsDigit(r):
-			s.symbols++
-		}
+		s.classify(r, last)
 		if r == last {
 			run++
 			if run > s.maxRepeat {
