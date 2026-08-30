@@ -55,7 +55,21 @@ data:
     printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
 
     export MYSQL_PWD="$DB_PASS"
-    MY="--host=$DB_HOST --port=$DB_PORT --user=$DB_USER --ssl-ca=ca.pem --ssl-mode=VERIFY_CA"
+    # VERIFY_IDENTITY works since the 2026-08-27 BYOC cert: the leaf carries an
+    # IP SAN for the NLB address in DB_HOST. VERIFY_CA before that (the
+    # service-defined cert had no SAN at all, identity was uncheckable).
+    MY="--host=$DB_HOST --port=$DB_PORT --user=$DB_USER --ssl-ca=ca.pem --ssl-mode=VERIFY_IDENTITY"
+
+    # mTLS identity for the REQUIRE X509 account flip (client cert issued by
+    # the ItsBagelBot HeatWave Root CA). Optional as a pair so this deploys
+    # ahead of the flip; half-configured is a Doppler mistake and fails loudly.
+    if [ -n "${DB_CLIENT_CERT:-}" ] || [ -n "${DB_CLIENT_KEY:-}" ]; then
+      [ -n "${DB_CLIENT_CERT:-}" ] && [ -n "${DB_CLIENT_KEY:-}" ] || {
+        echo "DB_CLIENT_CERT and DB_CLIENT_KEY must be set together" >&2; exit 1; }
+      printf '%s\n' "$DB_CLIENT_CERT" > client-cert.pem
+      printf '%s\n' "$DB_CLIENT_KEY" > client-key.pem
+      MY="$MY --ssl-cert=client-cert.pem --ssl-key=client-key.pem"
+    fi
 
     # Enumerate schemas instead of hardcoding them: services onboard new
     # schemas regularly (loyalty landed 2026-07-11) and a hardcoded list fails
@@ -213,7 +227,7 @@ spec:
                 limits: {memory: 512Mi}
           containers:
             - name: upload
-              image: rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548
+              image: rclone/rclone:1.71.2@sha256:3103526c506266a9ecdf064efe99bf3677d92ef6407af124d8c56b4f49cbaa51
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:

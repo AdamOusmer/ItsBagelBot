@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
 import type { Actions, PageServerLoad } from './$types';
-import { SPOTIFY_SR_PERMS } from '@bagel/shared';
+import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/shared';
 import type {
   RewardDraft,
   RewardOnRedeem,
@@ -10,9 +10,10 @@ import type {
   SpotifySrPerm
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
-import { spotifyRedirectURI, spotifyConfigured } from '$lib/server/oauth';
+import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
+import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
 import { gateModulePage } from '$lib/server/module-gate';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -37,7 +38,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const { demoSpotifyView } = await import('$lib/server/demo-data');
     return {
       ...demoSpotifyView(),
+      quotas: blankSpotifyQuotas(),
+      queue: {
+        current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
+        up: [
+          { title: 'Human', artists: 'The Killers', requester: 'bob' },
+          { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
+        ]
+      } as QueueView,
       connected: true,
+      scopeGap: [] as string[],
       app: { present: true, clientId: 'demo-client-id' },
       redirectUri: 'https://console.example/spotify/callback',
       justConnected: false,
@@ -57,7 +67,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const store = spotifyStore(uid);
     // The module blob and the connection presence are independent reads; run
     // them together so SSR is one round trip deep.
-    const [view, connected, app] = await Promise.all([store.read(), store.connected(), store.app()]);
+    const [view, grant, app, queue] = await Promise.all([
+      store.read(),
+      store.grant(),
+      store.app(),
+      getSongQueue(uid)
+    ]);
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
     // matches byte-for-byte at both ends of the flow. A missing
@@ -65,15 +80,30 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     // as unconfigured rather than collapsing the page behind the degraded
     // banner (that is how a forgotten Doppler key looked like "could not
     // reach the backend" on first ship of BYO Spotify apps).
+    //
+    // scopeGap is resolved here rather than in the browser: the scope set the
+    // flow asks for is server config (DASHBOARD_SPOTIFY_SCOPES), and the page
+    // only needs the answer: is this grant short, and of what.
     const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
-    const slug = errorSlug || (!redirectUri ? 'unconfigured' : '');
-    return { ...view, connected, app, redirectUri, justConnected, errorSlug: slug };
+    return {
+      ...view,
+      queue: shapeQueue(queue),
+      connected: grant.connected,
+      scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
+      app,
+      redirectUri,
+      justConnected,
+      errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
+    };
   } catch {
     return {
       enabled: false,
-      sr: { enabled: false, perm: 'everyone' as SpotifySrPerm },
-      redeem: { enabled: false, rewardId: '', onRedeem: 'fulfill' as RewardOnRedeem, replyMessage: '', reward: null },
+      sr: blankSpotifySr(),
+      redeem: blankSpotifyRedeem(),
+      quotas: blankSpotifyQuotas(),
+      queue: { current: null, up: [] } as QueueView,
       connected: false,
+      scopeGap: [] as string[],
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
@@ -82,6 +112,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     };
   }
 };
+
+// QueueView is the display slice of sesame's queue doc: titles, artists as
+// one line, and who asked. Track ids and timestamps stay server-side; the
+// page has no use for them.
+export interface QueueView {
+  current: QueueRow | null;
+  up: QueueRow[];
+}
+interface QueueRow {
+  title: string;
+  artists: string;
+  requester: string;
+}
+
+function shapeQueue(doc: SongQueueDoc): QueueView {
+  const row = (e: NonNullable<SongQueueDoc['current']>): QueueRow => ({
+    title: e.title,
+    artists: (e.artists ?? []).join(', '),
+    requester: e.req_name
+  });
+  return {
+    current: doc.current ? row(doc.current) : null,
+    up: (doc.up ?? []).slice(0, 10).map(row)
+  };
+}
 
 function requireSession(locals: App.Locals): string | null {
   if (!DEMO && !locals.session) return null;
@@ -221,14 +276,41 @@ export const actions: Actions = {
 
   sr: async ({ request, locals }) => {
     const f = await request.formData();
-    const sr = { enabled: f.get('sr_enabled') === 'on', perm: asPerm(f.get('perm')) };
-    return run(locals, { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}` }, (s) => s.saveSr(sr));
+    const sr = {
+      enabled: f.get('sr_enabled') === 'on',
+      perm: asPerm(f.get('perm')),
+      allowOffline: f.get('sr_allow_offline') === 'on'
+    };
+    return run(
+      locals,
+      { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}/off=${sr.allowOffline}` },
+      (s) => s.saveSr(sr)
+    );
+  },
+
+  quotas: async ({ request, locals }) => {
+    const f = await request.formData();
+    // Empty or non-positive input means unlimited for that tier; the store
+    // coerces the same way on read, so both directions agree on what null is.
+    const quotas = blankSpotifyQuotas();
+    for (const tier of SPOTIFY_QUOTA_TIERS) {
+      const n = Number(f.get(`quota_${tier}`));
+      quotas[tier] = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    }
+    const detail = SPOTIFY_QUOTA_TIERS.map((t) => `${t}=${quotas[t] ?? 'inf'}`).join('/');
+    return run(locals, { action: 'spotify:quotas', detail }, (s) => s.saveQuotas(quotas));
   },
 
   redeemToggle: async ({ request, locals }) => {
-    const enabled = (await request.formData()).get('redeem_enabled') === 'on';
-    return run(locals, { action: 'spotify:redeem_toggle', detail: String(enabled) }, (s) =>
-      s.setRedeemEnabled(enabled)
+    const f = await request.formData();
+    const path = {
+      enabled: f.get('redeem_enabled') === 'on',
+      allowOffline: f.get('redeem_allow_offline') === 'on'
+    };
+    return run(
+      locals,
+      { action: 'spotify:redeem_toggle', detail: `${path.enabled}/off=${path.allowOffline}` },
+      (s) => s.setRedeemPath(path)
     );
   },
 

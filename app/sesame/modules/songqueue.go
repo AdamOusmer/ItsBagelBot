@@ -28,6 +28,10 @@ const songqueueModuleName = "songqueue"
 // floods chat.
 const songqueueListLen = 3
 
+// srlistLen is the deeper look !srlist gives: enough to see what is coming
+// without flooding a chat line past readability.
+const srlistLen = 5
+
 // defaultSongQueueDepth is the pending-line cap when the broadcaster has not
 // configured one; hardSongQueueDepth is the ceiling on what they CAN set, so
 // one misconfigured dashboard value cannot promise an unplayable marathon.
@@ -41,6 +45,12 @@ const (
 // broadcaster's token quota for junk entries.
 const srAddCooldown = 5 * time.Second
 
+// currentCooldown paces !current. Every miss is a live read of the
+// broadcaster's Spotify player against THEIR token allowance, and gossip
+// caches the answer for a few seconds, so a shorter cooldown would only spend
+// chat's patience re-reading a cached line.
+const currentCooldown = 5 * time.Second
+
 // songqueueConfig holds the broadcaster's overrides. MaxDepth caps the
 // pending line; the message fields are dashboard-editable templates whose
 // empty value falls back to the localized default next to each.
@@ -50,9 +60,57 @@ type songqueueConfig struct {
 	PlayingMessage string `json:"playingMessage"` // i18n songqueue.playing  {title} {artist} {req}
 	RetractMessage string `json:"retractMessage"` // i18n songqueue.retract.ok {user} {title}
 	// CurrentMessage overrides both !current lines. {req} only expands when
-	// the playing track is the one at the head of the queue — a track the
+	// the playing track is the one at the head of the queue: a track the
 	// broadcaster started themselves has no requester to credit.
 	CurrentMessage string `json:"currentMessage"` // i18n songqueue.current.ok {title} {artist} {url} {req}
+	// Sr and Redeem are the two request-path switches the dashboard writes.
+	// Pointers on purpose: a blob written before the switches shipped has
+	// neither key, and nil means "pre-switch behaviour": chat open, no live
+	// gate, so enabling the module never stopped working under a viewer.
+	Sr     *songqueueSr     `json:"sr"`
+	Redeem *songqueueRedeem `json:"redeem"`
+	// Quotas caps how many pending requests one viewer may hold, by the
+	// highest role they carry. Absent block or absent tier means UNLIMITED,
+	// which is also the default: the old behaviour hard-coded one per viewer,
+	// and channels that want a cap now say so per tier instead. The
+	// broadcaster is never capped.
+	Quotas *songqueueQuotas `json:"quotas"`
+}
+
+// songqueueQuotas is the per-tier pending cap. Pointers keep "not set"
+// (unlimited) distinct from a number; zero is treated as unlimited too, so no
+// stored value can accidentally mean "nobody may request" (that is what the
+// sr enable switch is for).
+type songqueueQuotas struct {
+	Everyone *int `json:"everyone"`
+	Sub      *int `json:"sub"`
+	VIP      *int `json:"vip"`
+	Mod      *int `json:"mod"`
+}
+
+// songqueueSr is the chat (!sr) request path. Enabled gates adds; Perm is a
+// module.ParsePerm string; AllowOffline opts out of the live-only gate the
+// same way govee's allowOffline does (default false = live-only).
+// Enabled is a POINTER so the three states stay distinct: absent (the console
+// never decided, path open), true, and an explicit false. A plain bool folds
+// absent into false, which is what closed !sr under channels whose blob was
+// written before the switch existed.
+type songqueueSr struct {
+	Enabled      *bool  `json:"enabled"`
+	Perm         string `json:"perm"`
+	AllowOffline bool   `json:"allowOffline"`
+}
+
+// songqueueRedeem is the channel-points request path. RewardID binds the
+// Twitch custom reward the redemption handler answers to; OnRedeem is what to
+// do with the redemption after a successful queue (fulfill/cancel/leave);
+// AllowOffline mirrors the chat path's live gate polarity.
+type songqueueRedeem struct {
+	Enabled      bool   `json:"enabled"`
+	RewardID     string `json:"rewardId"`
+	OnRedeem     string `json:"onRedeem"`
+	ReplyMessage string `json:"replyMessage"`
+	AllowOffline bool   `json:"allowOffline"`
 }
 
 // SongQueue owns the viewer song-request queue, resolved against the
@@ -68,12 +126,12 @@ type songqueueConfig struct {
 //	!sr next                              → mod: mark played, promote next
 //	!sr clear                             → mod: empty everything
 //
-// next/clear are verbs only as bare words — "next episode by dr. dre" is a
+// next/clear are verbs only as bare words: "next episode by dr. dre" is a
 // request for a song, not a skip.
 //
 // Retraction keys on the chatter's Twitch user id captured at request time,
 // never the display name, and only ever touches that viewer's own pending
-// entry — "the one they asked" and nothing else. The currently-playing track
+// entry: "the one they asked" and nothing else. The currently-playing track
 // is out of reach on purpose: it already played.
 func SongQueue(d engine.Deps) module.Module {
 	log := d.Log
@@ -88,7 +146,7 @@ func SongQueue(d engine.Deps) module.Module {
 
 	// Standalone spellings for the two things viewers ask for by name. They are
 	// separate commands rather than aliases of !sr because an alias arrives as a
-	// bare invocation, which would make every one of them mean "view" — !skip
+	// bare invocation, which would make every one of them mean "view": !skip
 	// has to advance the queue.
 	//
 	// NOT !queue: the viewer queue module (queue.go) already owns that name, and
@@ -98,23 +156,48 @@ func SongQueue(d engine.Deps) module.Module {
 	//
 	// No cooldown: a read and a mod action, neither spends the Spotify lookup an
 	// add does.
-	m.Command("song").Everyone().
+	m.Command("song").Everyone().Cooldown(currentCooldown).
 		Aliases("current", "nowplaying", "np").
 		Run(songQueueView(d, log))
 
 	// !skip carries its moderator gate on the registration, where the !sr next
-	// sub-verb has to enforce it by hand — a bare word after !sr could also be
+	// sub-verb has to enforce it by hand: a bare word after !sr could also be
 	// a song title, so that path cannot lean on the command's own permission.
 	m.Command("skip").Mod().
+		Aliases("next").
 		Run(songQueueSkip(d, log))
+
+	// !clear and !remove are the standalone spellings of the two !sr verbs
+	// chat reaches for by name. Without them the trigger falls through to a
+	// custom command, which replies without ever touching the queue: the
+	// failure mode that reads as "the bot ignored me". !remove is Everyone
+	// because it retracts the caller's OWN request; the positional form
+	// inside actRemove is what carries the moderator check.
+	m.Command("clear").Mod().
+		Run(songQueueClear(d, log))
+	m.Command("remove").Everyone().
+		Run(songQueueRemove(d, log))
+	// !srlist is the deeper queue read: the next srlistLen tracks. Its own
+	// command rather than an !sr verb because chat reaches for it by name,
+	// and cooled like !current since the player reconcile behind it reads the
+	// live player.
+	m.Command("srlist").Everyone().Cooldown(currentCooldown).
+		Aliases("songlist").
+		Run(songQueueList(d, log))
+
+	// Channel-points path: the redemption of the bound reward queues a track.
+	// Registered unconditionally, because the handler answers only to the reward id
+	// in this channel's config and no-ops for every other redemption.
+	m.On(redemptionAddType, songqueueRedemption(d, log))
 	return m.Build()
 }
 
 // songQueueCmd bundles the per-invocation state every handler shares, built
-// once by newSongQueueCmd — the same shape as queueCmd.
+// once by newSongQueueCmd, the same shape as queueCmd.
 type songQueueCmd struct {
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
+	live     engine.IsLiveChecker
 	c        *module.Context
 	cfg      songqueueConfig
 	log      *zap.Logger
@@ -125,7 +208,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, c: c, log: log}
+	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, live: d.Live, c: c, log: log}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -149,6 +232,7 @@ var songQueueActions = map[string]songQueueAction{
 	"cancel":  (*songQueueCmd).actRetract,
 	"remove":  (*songQueueCmd).actRemove,
 	"next":    (*songQueueCmd).actNext,
+	"skip":    (*songQueueCmd).actNext,
 	"clear":   (*songQueueCmd).actClear,
 }
 
@@ -166,12 +250,12 @@ func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
 // current answers !current from the broadcaster's LIVE Spotify player rather
 // than from the queue. Chat asks "what is this song" about whatever is
 // actually audible, and on most channels that is the broadcaster's own
-// playlist — a queue read answers "nothing queued" while a song is plainly
+// playlist: a queue read answers "nothing queued" while a song is plainly
 // playing, which reads as the bot being broken.
 //
 // An idle player (paused, private session, nothing loaded) degrades to the
 // queue view: with nothing playing, what is waiting is the only thing left
-// worth saying. Bare !sr keeps the queue view unconditionally — that command
+// worth saying. Bare !sr keeps the queue view unconditionally, that command
 // is about the queue.
 func (qc songQueueCmd) current(ctx context.Context, emit module.Emit) error {
 	track, failure := qc.livePlayer(ctx)
@@ -243,7 +327,25 @@ func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 	return snap.Current.RequesterName
 }
 
-// songQueueSkip backs !skip: the same advance !sr next performs. The moderator
+// syncWithPlayer drops list entries the player has already moved past.
+// Spotify walks its own queue without telling anyone: a pushed track plays,
+// the list still holds it as up-next, and the next add reports a position
+// counting ghosts (the "you are #2 behind a song that already played" bug).
+// Reading the live player and advancing the list to match makes every
+// position and every view answer about what is actually still waiting.
+// Best-effort on purpose: an idle or unreadable player just leaves the list
+// as it was.
+func (qc songQueueCmd) syncWithPlayer(ctx context.Context) {
+	track, failure := qc.livePlayer(ctx)
+	if failure != "" || track == nil {
+		return
+	}
+	if _, err := qc.store.SyncPlaying(ctx, qc.c.BroadcasterID, track.ID); err != nil {
+		qc.log.Warn("songqueue: player sync failed", qc.bid(), zap.Error(err))
+	}
+}
+
+// songQueueSkip backs !skip / !next: the same advance !sr next performs. The moderator
 // gate rides on the command registration here rather than the hand-rolled check
 // bareModVerb needs, because there is no query for it to be confused with.
 func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
@@ -253,6 +355,41 @@ func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return nil
 		}
 		return qc.nextTrack(ctx, emit)
+	}
+}
+
+// songQueueClear backs standalone !clear (mod grant on registration).
+func songQueueClear(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.clearAll(ctx, emit)
+	}
+}
+
+// songQueueRemove backs standalone !remove: retract your own request, or drop
+// a position when a mod supplies a number, the same rules as !sr remove, so
+// both spellings answer identically.
+func songQueueRemove(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.actRemove(ctx, args, strings.TrimSpace(args), emit)
+	}
+}
+
+// songQueueList backs !srlist: the queue view, srlistLen deep.
+func songQueueList(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
+		qc, ok := newSongQueueCmd(d, c, log)
+		if !ok {
+			return nil
+		}
+		return qc.viewDepth(ctx, srlistLen, emit)
 	}
 }
 
@@ -280,7 +417,7 @@ func (qc songQueueCmd) actRetract(ctx context.Context, _, _ string, emit module.
 }
 
 // actRemove treats a number as aiming at someone else's position (mod-only);
-// anything else — including a non-mod guessing at numbers — retracts the
+// anything else (including a non-mod guessing at numbers) retracts the
 // chatter's own request, which is always safe.
 func (qc songQueueCmd) actRemove(ctx context.Context, _ string, rest string, emit module.Emit) error {
 	if n := parsePosition(rest); n > 0 && qc.c.Chatter().Allows(module.RoleModerator) {
@@ -317,13 +454,169 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	if !qc.canRequest() {
 		return nil
 	}
+	// A refusal SAYS so. Silence here is what makes a closed switch look like
+	// a broken bot: the viewer typed a command the catalog advertises, the
+	// module is on, and nothing came back. The engine's per-chatter cooldown
+	// on !sr is what keeps the refusal from being spammable.
+	if key := qc.srRefusal(); key != "" {
+		qc.reply(emit, "", key)
+		return nil
+	}
+	if !qc.chatLiveOK(ctx) {
+		qc.reply(emit, "", "songqueue.sr.offline")
+		return nil
+	}
 	track, failure := qc.resolveTrack(ctx, query)
 	if failure != "" {
 		qc.emitChat(emit, failure)
 		return nil
 	}
-	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), qc.maxDepth)
-	return qc.reportAdd(emit, *track, pos, err)
+	// Reconcile before adding: the position chat hears must count only songs
+	// still ahead, not entries the player already burned through.
+	qc.syncWithPlayer(ctx)
+	pos, err := qc.store.Add(ctx, qc.c.BroadcasterID, qc.entry(*track), engine.SongQueueLimits{MaxDepth: qc.maxDepth, PerRequester: qc.quotaFor()})
+	if err != nil {
+		return qc.reportAdd(emit, *track, pos, err)
+	}
+	// The store accepted, now make it audible. If Spotify refuses (no active
+	// device, no Premium, a stale grant), the just-added entry is rolled back
+	// so the list never claims a song the player will not reach, and chat
+	// hears the actual reason instead of a hollow "queued".
+	if failure := qc.pushToPlayer(ctx, track.ID); failure != "" {
+		if _, _, rbErr := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); rbErr != nil {
+			qc.log.Warn("songqueue: rollback after player refusal failed", qc.bid(), zap.Error(rbErr))
+		}
+		qc.emitChat(emit, failure)
+		return nil
+	}
+	return qc.reportAdd(emit, *track, pos, nil)
+}
+
+// srRefusal names the line to answer a chat add with, or "" when the path is
+// open. A missing sr block (a blob from before the path switches shipped)
+// stays open so channels that only ever flipped the master toggle keep
+// working; an explicit false closes adds while the view and the mod verbs
+// still run.
+func (qc songQueueCmd) srRefusal() string {
+	if qc.cfg.Sr == nil {
+		return ""
+	}
+	if qc.cfg.Sr.Enabled != nil && !*qc.cfg.Sr.Enabled {
+		return "songqueue.sr.off"
+	}
+	if !qc.c.Chatter().Allows(module.ParsePerm(qc.cfg.Sr.Perm)) {
+		return "songqueue.sr.perm"
+	}
+	return ""
+}
+
+// chatLiveOK is the live gate for chat adds, shaped exactly like govee's:
+// legacy blobs with no sr block skip it, and once the dashboard has written
+// sr, live-only is the default with AllowOffline as the opt-out.
+func (qc songQueueCmd) chatLiveOK(ctx context.Context) bool {
+	if qc.cfg.Sr == nil {
+		return true
+	}
+	return qc.livePermits(ctx, qc.cfg.Sr.AllowOffline)
+}
+
+// livePermits mirrors goveeLivePermits: live-only by default, AllowOffline
+// opts out, and a live-check error fails CLOSED: a queue that fills while the
+// stream is down is worse than an add that did not land. It hangs off the
+// command struct because both request paths already hold one, and the checker,
+// the logger and the broadcaster id all come from it.
+func (qc songQueueCmd) livePermits(ctx context.Context, allowOffline bool) bool {
+	if allowOffline {
+		return true
+	}
+	if qc.live == nil {
+		return true
+	}
+	ok, err := qc.live.IsLive(ctx, qc.c.BroadcasterID)
+	if err != nil {
+		qc.log.Warn("songqueue: live check failed, denying", qc.bid(), zap.Error(err))
+		return false
+	}
+	return ok
+}
+
+// quotaFor resolves the pending cap for the chatter: the tier of the highest
+// role they hold, 0 meaning unlimited. The broadcaster is always unlimited;
+// their queue, their rules.
+func (qc songQueueCmd) quotaFor() int {
+	q := qc.cfg.Quotas
+	if q == nil {
+		return 0
+	}
+	var tier *int
+	switch role := qc.c.Chatter(); {
+	case role.Allows(module.RoleBroadcaster):
+		return 0
+	case role.Allows(module.RoleModerator):
+		tier = q.Mod
+	case role.Allows(module.RoleVIP):
+		tier = q.VIP
+	case role.Allows(module.RoleSubscriber):
+		tier = q.Sub
+	default:
+		tier = q.Everyone
+	}
+	if tier == nil || *tier <= 0 {
+		return 0
+	}
+	return *tier
+}
+
+// pushToPlayer appends the track to the broadcaster's live Spotify queue.
+// This is the half that makes a request AUDIBLE: the store keeps the request
+// list (who asked, retraction, credits), Spotify plays the music, and an add
+// only counts when both halves landed. The empty return is success; anything
+// else is the chat-safe reason gossip mapped.
+func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string {
+	if qc.gossip == nil {
+		// No gossip connection means no Spotify call was ever made: an empty
+		// return here reads as success and the caller keeps a request the
+		// player never received. That is worse than refusing, since nothing
+		// downstream can tell the difference between "played" and "silently
+		// skipped".
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	var reply gossiprpc.SpotifyPlayerReply
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "queue"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10), TrackID: trackID}, &reply)
+	if reply.Error != "" {
+		return reply.Error
+	}
+	if err != nil {
+		qc.log.Warn("songqueue: player queue push failed", qc.bid(), zap.Error(err))
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	return ""
+}
+
+// skipPlayer asks Spotify to advance the live player. Same contract as
+// pushToPlayer: empty means the music actually moved.
+func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
+	if qc.gossip == nil {
+		// Same reasoning as pushToPlayer: an empty return here would let
+		// !skip advance the local queue while Spotify keeps playing the
+		// current track, so refuse instead of claiming a skip that never
+		// reached the player.
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	var reply gossiprpc.SpotifyPlayerReply
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "next"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
+	if reply.Error != "" {
+		return reply.Error
+	}
+	if err != nil {
+		qc.log.Warn("songqueue: player skip failed", qc.bid(), zap.Error(err))
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
+	return ""
 }
 
 // canRequest gates adds on a gossip connection and the broadcaster's twitch
@@ -337,8 +630,8 @@ func (qc songQueueCmd) canRequest() bool {
 // success announces through the broadcaster's add template.
 func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack, pos int, err error) error {
 	switch {
-	case errors.Is(err, engine.ErrSongAlreadyQueued):
-		qc.reply(emit, "", "songqueue.add.already")
+	case errors.Is(err, engine.ErrSongQuotaReached):
+		qc.reply(emit, "", "songqueue.add.quota", "limit", strconv.Itoa(qc.quotaFor()))
 	case errors.Is(err, engine.ErrSongQueueFull):
 		qc.reply(emit, "", "songqueue.add.full")
 	case err != nil:
@@ -358,7 +651,7 @@ func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack,
 // user-facing line explaining why none could be queued. A reply-level
 // failure already carries chat-safe text (an unsupported share, no Spotify
 // connection on file) and is surfaced verbatim; anything else is
-// infrastructure — logged here where it is known, answered generically so an
+// infrastructure: logged here where it is known, answered generically so an
 // outage leaks no detail.
 func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossiprpc.SpotifyTrack, string) {
 	var reply gossiprpc.SpotifySearchReply
@@ -397,7 +690,7 @@ func (qc songQueueCmd) entry(t gossiprpc.SpotifyTrack) engine.SongEntry {
 	}
 }
 
-// retract takes back the chatter's own pending request — never anybody
+// retract takes back the chatter's own pending request, never anybody
 // else's, never the playing track.
 func (qc songQueueCmd) retract(ctx context.Context, emit module.Emit) error {
 	entry, removed, err := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID)
@@ -434,6 +727,14 @@ func (qc songQueueCmd) removeAt(ctx context.Context, pos int, emit module.Emit) 
 
 // nextTrack marks the head played and promotes the next entry.
 func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
+	// The player moves first: !skip means "skip the music", and the request
+	// list only advances in step with what actually happened. A refused skip
+	// (no device, no Premium, stale grant) says so and leaves the list alone,
+	// so nothing is marked played that is still audibly playing.
+	if failure := qc.skipPlayer(ctx); failure != "" {
+		qc.emitChat(emit, failure)
+		return nil
+	}
 	_, now, err := qc.store.Advance(ctx, qc.c.BroadcasterID)
 	if err != nil {
 		qc.log.Warn("songqueue: advance failed", qc.bid(), zap.Error(err))
@@ -462,7 +763,12 @@ func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {
 
 // view answers bare "!sr" with now-playing plus the next few requests.
 func (qc songQueueCmd) view(ctx context.Context, emit module.Emit) error {
-	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)
+	return qc.viewDepth(ctx, songqueueListLen, emit)
+}
+
+func (qc songQueueCmd) viewDepth(ctx context.Context, depth int, emit module.Emit) error {
+	qc.syncWithPlayer(ctx)
+	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, depth)
 	if err != nil {
 		qc.log.Warn("songqueue: snapshot failed", qc.bid(), zap.Error(err))
 		return err
@@ -533,7 +839,7 @@ func (qc songQueueCmd) emitChat(emit module.Emit, text string) {
 }
 
 // reply emits one chat line from a customizable override or the localized
-// default — the queue module's mechanism, shared verbatim.
+// default: the queue module's mechanism, shared verbatim.
 func (qc songQueueCmd) reply(emit module.Emit, override, key string, kv ...string) {
 	tmpl := override
 	if tmpl == "" {

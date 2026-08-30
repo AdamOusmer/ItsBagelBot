@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// denyAll fails the test on ANY api.spotify.com call — used when a route must
+// denyAll fails the test on ANY api.spotify.com call: used when a route must
 // never reach the data API.
 func denyAll(t *testing.T) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

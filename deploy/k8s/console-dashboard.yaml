@@ -28,10 +28,10 @@
 # SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
 # DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). OAuth callbacks that
 # must also live in that config: TWITCH_REDIRECT_URI and SPOTIFY_REDIRECT_URI
-# (https://dashboard.itsbagelbot.com/spotify/callback — fleet-wide; each
+# (https://dashboard.itsbagelbot.com/spotify/callback, fleet-wide: each
 # broadcaster pastes the same URL into their own Spotify app). Billing links
-# are also read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens
-# the hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
+# are also read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
+# hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
@@ -141,7 +141,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787653528-bdc9f828db20@sha256:74024d879739fb6dd6dc6dde6985344b4aaaa4c259839e409c909181c819be3a
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1787816014-ed17ec910137@sha256:6bc33409428b4ecc14239e58e3f28ebc7370683b6ed4a50da6c2e18b1233500a
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -167,7 +167,7 @@ spec:
             # under three public hostnames (dashboard., stats. and
             # commands.itsbagelbot.com),
             # so instead of pinning one ORIGIN it derives each request's origin
-            # from traefik's forwarded headers — traefik always sets both, and
+            # from traefik's forwarded headers: traefik always sets both, and
             # overwrites client-supplied values, so the origin-checked CSRF on
             # form POSTs stays sound. The stats host reroutes '/' to the public
             # stats page in the app (src/hooks.ts).
@@ -203,7 +203,7 @@ spec:
             - name: VALKEY_ADDR
               # Authoritative here, not in Doppler: dashboard-env/console-admin-env
               # still carry valkey.valkey.svc.cluster.local from before the cache
-              # moved to its own namespace, and that name is NXDOMAIN — every
+              # moved to its own namespace, and that name is NXDOMAIN: every
               # node-local read failed, the read breaker sat open, and the session
               # revocation check failed open on every request. The sentinel address
               # was already right, which is why writes landed and only reads broke.
@@ -368,7 +368,7 @@ spec:
     # The app serves /status, /healthz, /readyz on any hostname, and its rate
     # limiter exempts exactly those paths (kubelet probes). On the public app
     # hostnames they must not answer: rewrite them to a path no route claims,
-    # so the app renders its own 404 page under a genuine 404 status — and the
+    # so the app renders its own 404 page under a genuine 404 status, and the
     # rewritten path falls out of the RATE_EXEMPT set, so the read-tier limiter
     # applies again. The longer rule out-prioritizes the catch-all below
     # (traefik auto-priority is rule length). The status page's real route,
@@ -389,8 +389,8 @@ spec:
     # session escalation. Humans hit these a handful of times, so the auth
     # tier is far tighter than the general one. Longer rule out-prioritizes
     # the host-only catch-all below. /spotify/ is the BYO-app connect +
-    # callback (fleet redirect URI); without it those hits share the general
-    # rate limit with every HTML/asset request.
+    # callback (the fleet redirect URI); without it those hits would share the
+    # general rate limit with every HTML and asset request.
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&

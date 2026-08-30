@@ -16,6 +16,7 @@
     MasterToggle,
     PageToolbar,
     AlertBanner,
+    Card,
     DeckList,
     EmptyState,
     moduleDef
@@ -328,7 +329,7 @@
        change; each form names the gate it writes via its hidden kind field. -->
   <section class="block" aria-labelledby="quotes-perms-h">
     <h2 id="quotes-perms-h" class="block-title">{t('quotes.permsTitle')}</h2>
-    <div class="card">
+    <Card>
       <p class="hint">{t('quotes.permsHint')}</p>
       <div class="perm-grid">
         <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
@@ -353,7 +354,7 @@
           </Field>
         </form>
       </div>
-    </div>
+    </Card>
   </section>
 
   <!-- Polite live region: announces the match count as the search narrows. -->
@@ -499,12 +500,6 @@
     letter-spacing: -0.01em;
     color: var(--bb-white);
     margin: 0 0 12px;
-  }
-  .card {
-    padding: 18px;
-    border: 1px solid var(--bb-border);
-    border-radius: 10px;
-    background: rgba(240, 236, 228, 0.02);
   }
   .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   .perm-grid {

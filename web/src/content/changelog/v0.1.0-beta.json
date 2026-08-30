@@ -1,0 +1,22 @@
+{
+  "tag": "beta",
+  "version": "v0.1.0-beta",
+  "date": "2026-08-14",
+  "title": {
+    "en": "Beta launch",
+    "fr": "Lancement bêta"
+  },
+  "highlights": {
+    "en": [
+      "Dashboard notifications. Alerts land where you already work.",
+      "Production hardening. Fleet and networking updates so the public beta stays up through certificate and infra changes.",
+      "Performance: external APIs (game stats)."
+    ],
+    "fr": [
+      "Notifications dans le tableau de bord. Les alertes arrivent là où vous travaillez déjà.",
+      "Durcissement en production. Mises à jour du parc et du réseau pour que la bêta publique tienne pendant les rotations de certificats et les changements d'infra.",
+      "Performance : API externes (stats de jeux)."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.0-beta"
+}

@@ -1,0 +1,26 @@
+{
+  "tag": "beta",
+  "version": "v0.1.1-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "Games in chat and AutoMod beta",
+    "fr": "Jeux dans le chat et Bêta AutoMod"
+  },
+  "highlights": {
+    "en": [
+      "Valorant. Rank, matches, leaderboard, account, and shop commands.",
+      "Spotify song requests. !sr with a live queue and secure token custody.",
+      "Clash Royale. Full provider integration for chat commands.",
+      "AutoMod (beta). Learned false-positive protection, juror corrections, and reputation-based cohorts.",
+      "Security fixes."
+    ],
+    "fr": [
+      "Valorant. Commandes de rang, matchs, classement, compte et boutique.",
+      "Demandes Spotify. !sr avec file en direct et garde sécurisée des jetons.",
+      "Clash Royale. Intégration complète du fournisseur pour les commandes de chat.",
+      "AutoMod (bêta). Protection contre les faux positifs appris, corrections de jurés et cohortes basées sur la réputation.",
+      "Correctifs de sécurité."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.1-beta"
+}

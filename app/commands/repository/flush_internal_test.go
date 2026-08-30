@@ -68,3 +68,41 @@ func TestBulkUpsertPreservesUses(t *testing.T) {
 	assert.Equal(t, "new wording", row.Response)
 	assert.Equal(t, uint64(42), row.Uses)
 }
+
+// The uses flush groups keys by increment so one statement lands every key
+// sharing a count. Distinct counts must each land their own delta, and a key
+// whose row vanished before the flush must not fail its group — it matches
+// nothing and is dropped later by the reload in publishUseEvents.
+func TestPersistUsesGroupsByIncrement(t *testing.T) {
+	client := enttest.Open(t, "sqlite3", "file:commandsusesgroup?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = client.Close() })
+
+	r := NewCommands(client, bustest.NewPublisher(), nil, zap.NewNop())
+
+	ctx := context.Background()
+	for _, name := range []string{"a", "b", "c"} {
+		client.Commands.Create().
+			SetUserID(1001).
+			SetName(name).
+			SetResponse("r").
+			SetUses(10).
+			SaveX(ctx)
+	}
+
+	pend := map[commandKey]uint64{
+		{userID: 1001, name: "a"}:       1,
+		{userID: 1001, name: "b"}:       1,
+		{userID: 1001, name: "c"}:       3,
+		{userID: 1001, name: "deleted"}: 1,
+	}
+	landed, err := r.persistUses(ctx, nil, pend)
+	require.NoError(t, err)
+	assert.Len(t, landed, 4)
+
+	rows := client.Commands.Query().AllX(ctx)
+	got := map[string]uint64{}
+	for _, row := range rows {
+		got[row.Name] = row.Uses
+	}
+	assert.Equal(t, map[string]uint64{"a": 11, "b": 11, "c": 13}, got)
+}

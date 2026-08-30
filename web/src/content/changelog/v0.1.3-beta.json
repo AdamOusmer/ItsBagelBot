@@ -1,0 +1,24 @@
+{
+  "tag": "beta",
+  "version": "v0.1.3-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "Your Spotify, your modules, fewer clicks",
+    "fr": "Votre Spotify, vos modules, moins de clics"
+  },
+  "highlights": {
+    "en": [
+      "Bring your own Spotify app. Connect your channel to an app you own. Secrets stay sealed on our side.",
+      "Live now-playing. !current, !song, and !np read what is playing now, not what is stuck in the queue.",
+      "Modules directory. Search and browse by category. Gamble and duel sit under Loyalty where they belong.",
+      "Add to Twitch starts OAuth right away. One click from the site into Twitch consent, then straight into the dashboard. No extra login screen in between. Already signed in? You land in the console with no new consent prompt."
+    ],
+    "fr": [
+      "Apportez votre propre app Spotify. Connectez votre chaîne à une application que vous possédez. Les secrets restent scellés de notre côté.",
+      "Lecture en direct. !current, !song et !np lisent ce qui joue maintenant, pas ce qui reste coincé dans la file.",
+      "Annuaire des modules. Recherchez et parcourez par catégorie. Gamble et duel restent sous Fidélité.",
+      "Ajouter à Twitch lance l'OAuth tout de suite. Un clic depuis le site vers le consentement Twitch, puis directement dans le tableau de bord. Plus d'écran de connexion intermédiaire. Déjà connecté ? Vous arrivez dans la console sans nouveau consentement."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.3-beta"
+}

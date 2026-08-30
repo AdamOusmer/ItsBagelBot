@@ -25,6 +25,8 @@ type SpotifyCredential struct {
 	ClientID string `json:"client_id,omitempty"`
 	// ClientSecretEnc holds the value of the "client_secret_enc" field.
 	ClientSecretEnc []byte `json:"-"`
+	// Scopes holds the value of the "scopes" field.
+	Scopes string `json:"scopes,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 	selectValues sql.SelectValues
@@ -39,7 +41,7 @@ func (*SpotifyCredential) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case spotifycredential.FieldID, spotifycredential.FieldUserID:
 			values[i] = new(sql.NullInt64)
-		case spotifycredential.FieldClientID:
+		case spotifycredential.FieldClientID, spotifycredential.FieldScopes:
 			values[i] = new(sql.NullString)
 		case spotifycredential.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -87,6 +89,12 @@ func (_m *SpotifyCredential) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field client_secret_enc", values[i])
 			} else if value != nil {
 				_m.ClientSecretEnc = *value
+			}
+		case spotifycredential.FieldScopes:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field scopes", values[i])
+			} else if value.Valid {
+				_m.Scopes = value.String
 			}
 		case spotifycredential.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -139,6 +147,9 @@ func (_m *SpotifyCredential) String() string {
 	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("client_secret_enc=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("scopes=")
+	builder.WriteString(_m.Scopes)
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))

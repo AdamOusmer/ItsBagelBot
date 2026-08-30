@@ -31,15 +31,21 @@ const legalSections = defineCollection({
 });
 
 // Changelog: one JSON file per GitHub release. Drop in a new file to publish
-// an entry — no page edits. `title` / `description` are either a plain English
-// string or a locale map with `en` required; missing locales fall back to
-// English. `tag` drives the stylized chips (alpha, beta, prerelease); `release`
-// is the quiet stable mark. `version` is the git tag shown on the page (do not
-// rely on the filename: the loader strips dots from ids).
+// an entry — no page edits. `title` / `highlights` are either plain English
+// or a locale map with `en` required; missing locales fall back to English.
+// `highlights` is a short bullet list (UX-facing; no dense paragraphs).
+// `tag` drives the stylized chips (alpha, beta, prerelease); `release` is the
+// quiet stable mark. `version` is the git tag shown on the page and the sort
+// key (do not rely on the filename: the loader strips dots from ids).
 
 const localized = z.union([
   z.string(),
   z.object({ en: z.string() }).catchall(z.string()),
+]);
+
+const localizedList = z.union([
+  z.array(z.string()).min(1),
+  z.object({ en: z.array(z.string()).min(1) }).catchall(z.array(z.string())),
 ]);
 
 const changelog = defineCollection({
@@ -48,7 +54,7 @@ const changelog = defineCollection({
     tag: z.enum(['alpha', 'beta', 'prerelease', 'release']),
     version: z.string(),
     title: localized,
-    description: localized,
+    highlights: localizedList,
     github: z.string().url(),
     date: z.coerce.date(),
   }),

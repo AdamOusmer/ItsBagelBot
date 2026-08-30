@@ -6,6 +6,7 @@
 // env. Helix user fetch lives here too so the callback route stays thin.
 import { Twitch } from '@bagel/shared/server/oauth';
 import { env } from '$env/dynamic/private';
+import { scopeGap } from '@bagel/shared';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
 // DASHBOARD_BOT_SCOPES (Doppler) so the consent matches what it always asked
@@ -20,7 +21,7 @@ export function scopes(): string[] {
   // (Create Clip runs on the broadcaster's own token, not the bot's).
   // channel:manage:redemptions covers the whole Channel Points surface: creating,
   // editing and deleting custom rewards, subscribing to redemption events, and
-  // resolving redemptions (fulfill/refund) — all on the broadcaster's own token.
+  // resolving redemptions (fulfill/refund): all on the broadcaster's own token.
   // channel:read:ads authorizes the channel.ad_break.begin EventSub behind the
   // ads chat alert; grants that predate it skip that (optional) subscription
   // until the broadcaster re-consents.
@@ -38,18 +39,27 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
-// Spotify connect for song requests (the /songqueue page). Playback state
-// scopes let the bot report what is actually playing and resolve !sr queries;
-// the refresh token itself is handed to the modules service's sealed custody,
-// never stored here, and the app it authorizes against is the broadcaster's
-// own (see spotifyAuthorizeURL).
+// Spotify connect for song requests (the /songqueue page). The refresh token
+// itself is handed to the modules service's sealed custody, never stored
+// here, and the app it authorizes against is the broadcaster's own (see
+// spotifyAuthorizeURL).
+//
+// Search rides any user token; now-playing needs user-read-currently-playing
+// (user-read-playback-state is the documented fallback). Player control,
+// !skip and queueing a track onto the active device, needs
+// user-modify-playback-state. Without the modify grant Spotify answers 403 on
+// next/queue/play, so queue control looks broken even though chat still
+// replies. DASHBOARD_SPOTIFY_SCOPES overrides the whole set, mirroring
+// DASHBOARD_LOGIN_SCOPES above.
 export function spotifyScopes(): string[] {
-  return ['user-read-currently-playing', 'user-read-playback-state'];
+  const override = (env.DASHBOARD_SPOTIFY_SCOPES ?? '').split(/\s+/).filter(Boolean);
+  if (override.length) return override;
+  return ['user-read-currently-playing', 'user-read-playback-state', 'user-modify-playback-state'];
 }
 
 /**
  * True when the deployment is wired for Spotify. The fleet no longer holds a
- * Spotify application — each broadcaster registers their own — so the only
+ * Spotify application (each broadcaster registers their own) so the only
  * env left is the callback URL every one of those apps must register.
  * Callers use this to render an explainer instead of a server error: an
  * unconfigured deployment is a deployment state, not a fault.
@@ -70,8 +80,8 @@ export function spotifyRedirectURI(): string {
 }
 
 // spotifyAuthorizeURL builds the consent redirect for ONE broadcaster's own
-// Spotify application. Only the client id rides it — the authorize step is
-// public by design — which is why the console can build this while the client
+// Spotify application. Only the client id rides it: the authorize step is
+// public by design, which is why the console can build this while the client
 // secret stays sealed in the modules service and known to gossip alone.
 //
 // It is assembled here rather than through the shared Spotify client because
@@ -85,9 +95,23 @@ export function spotifyAuthorizeURL(clientId: string, state: string): string {
     client_id: clientId,
     redirect_uri: spotifyRedirectURI(),
     state,
-    scope: spotifyScopes().join(' ')
+    scope: spotifyScopes().join(' '),
+    // show_dialog forces the consent screen even when Spotify would have
+    // auto-approved. Without it a reconnect that only ADDS a scope can be
+    // waved through invisibly, which is indistinguishable to the broadcaster
+    // from the button doing nothing, and a partially-approved grant would
+    // then look identical to a full one.
+    show_dialog: 'true'
   });
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+// spotifyScopeGap is what a stored grant is missing against what the connect
+// flow asks for today. An empty recorded set means a grant from before scopes
+// were recorded: unknown, reported as missing everything, because assuming it
+// is complete is what leaves a broadcaster hitting 403s with no explanation.
+export function spotifyScopeGap(granted: readonly string[]): string[] {
+  return scopeGap(spotifyScopes(), granted);
 }
 
 // Fetch the account email from Helix with the just-issued user token. The
@@ -114,7 +138,7 @@ export async function fetchAccountEmail(accessToken: string): Promise<string | n
 
 // Post-login deep links must stay inside the app: a single leading slash only
 // (no '//' or '/\' protocol-relative escapes), and never back into the auth
-// routes themselves. Used on both sides of the OAuth round trip — when the
+// routes themselves. Used on both sides of the OAuth round trip: when the
 // login route stores the destination and when the callback consumes it.
 export function safeNextPath(value: string | null | undefined): string | null {
   if (!value || !value.startsWith('/')) return null;

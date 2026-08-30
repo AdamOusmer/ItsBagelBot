@@ -53,7 +53,7 @@ Locale codes are lowercase base tags (`es`, `pt-br`), maximum 8 characters.
 
 ## Rules for changelog JSON
 
-- One file per GitHub release: `web/src/content/changelog/<version>.json`. Name it after the git tag (`v1.0.0-beta.json`).
+- One file per GitHub release: `web/src/content/changelog/<version>.json`. Name it after the git tag (`v0.1.0-beta.json`).
 - Required fields: `tag` (`alpha`, `beta`, `prerelease`, or `release`), `version` (the git tag shown on the page), `date` (ISO, used for sort and display), `title`, `description`, `github` (the GitHub release URL).
 - `title` and `description` are either a plain English string or a locale map with `en` required. Add your language as another key (`"fr": "..."`). Missing locales fall back to English; do not rename keys.
 

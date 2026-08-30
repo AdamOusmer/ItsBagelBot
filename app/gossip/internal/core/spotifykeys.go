@@ -22,7 +22,7 @@ const spotifyKeyTimeout = 2 * time.Second
 // SpotifyCredentials is one broadcaster's complete Spotify identity: the
 // application they registered themselves plus the OAuth grant minted against
 // it. The fleet holds no Spotify app of its own, so both halves are per
-// broadcaster and both are needed for any call — a grant can only be refreshed
+// broadcaster and both are needed for any call: a grant can only be refreshed
 // by the application that issued it.
 //
 // An empty ClientID means the broadcaster has not registered an application;
@@ -74,7 +74,7 @@ func (c *SpotifyKeyClient) Credentials(ctx context.Context, broadcasterID string
 // Rotate writes a replacement refresh token back to custody after Spotify
 // rotated it on exchange. Compare-and-swap on the previous value: the modules
 // store refuses the swap when someone else already replaced the token, and
-// that staleness comes back as an error like any other failure — the caller
+// that staleness comes back as an error like any other failure: the caller
 // treats them all the same way (warn and keep serving on the token it has).
 func (c *SpotifyKeyClient) Rotate(ctx context.Context, broadcasterID, prevToken, newToken string) error {
 	reply, err := bus.RequestJSONTimeout[spotifyrpc.RefreshTokenMutateReply](

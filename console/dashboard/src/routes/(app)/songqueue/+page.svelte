@@ -25,7 +25,12 @@
     SPOTIFY_SR_PERMS,
     type SpotifySrConfig,
     type SpotifyRedeemConfig,
-    type SpotifySrPerm
+    type SpotifySrPerm,
+    blankSpotifySr,
+    blankSpotifyRedeem,
+    blankSpotifyQuotas,
+    SPOTIFY_QUOTA_TIERS,
+    type SpotifyQuotas
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -45,11 +50,13 @@
   // svelte-ignore state_referenced_locally
   let connected = $state<boolean>(data.connected ?? false);
   // svelte-ignore state_referenced_locally
-  let sr = $state<SpotifySrConfig>(data.sr ?? { enabled: false, perm: 'everyone' });
+  let scopeGap = $state<string[]>(data.scopeGap ?? []);
   // svelte-ignore state_referenced_locally
-  let redeem = $state<SpotifyRedeemConfig>(
-    data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null }
-  );
+  let sr = $state<SpotifySrConfig>(data.sr ?? blankSpotifySr());
+  // svelte-ignore state_referenced_locally
+  let redeem = $state<SpotifyRedeemConfig>(data.redeem ?? blankSpotifyRedeem());
+  // svelte-ignore state_referenced_locally
+  let quotas = $state<SpotifyQuotas>(data.quotas ?? blankSpotifyQuotas());
   // svelte-ignore state_referenced_locally
   let seed = data;
   $effect(() => {
@@ -57,9 +64,11 @@
       seed = data;
       enabled = data.enabled ?? false;
       connected = data.connected ?? false;
+      scopeGap = data.scopeGap ?? [];
       app = data.app ?? { present: false, clientId: '' };
-      sr = data.sr ?? { enabled: false, perm: 'everyone' };
-      redeem = data.redeem ?? { enabled: false, rewardId: '', onRedeem: 'fulfill', replyMessage: '', reward: null };
+      sr = data.sr ?? blankSpotifySr();
+      redeem = data.redeem ?? blankSpotifyRedeem();
+      quotas = data.quotas ?? blankSpotifyQuotas();
     }
   });
 
@@ -82,7 +91,7 @@
   // --- The broadcaster's own Spotify application -----------------------------
   // Step one of two: there is no fleet-wide Spotify app, so a channel supplies
   // its own credentials before anything can be authorized. The secret is
-  // write-only — it is posted once and never comes back — so the field is
+  // write-only (it is posted once and never comes back) so the field is
   // always blank on load, including when an app is already stored.
   // svelte-ignore state_referenced_locally
   let app = $state<{ present: boolean; clientId: string }>(data.app ?? { present: false, clientId: '' });
@@ -115,7 +124,13 @@
   }
 
   onMount(() => {
+    // Queue changes come from chat, which the console's event stream never
+    // sees; a lazy poll keeps the panel honest without a new push channel.
+    const poll = setInterval(() => {
+      if (!document.hidden) void invalidateAll();
+    }, 15000);
     if (data.justConnected) toast('ok', t('spotify.connectedToast'));
+    return () => clearInterval(poll);
   });
 
   type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
@@ -147,8 +162,14 @@
   let missingScope = $state(false);
 
   // --- Command path (!sr): switch + permission tier post together on change ---
-  const srSubmit: SubmitFunction = () =>
-    async ({ result }) => {
+  // The switches submit their own form the moment they flip, and the hidden
+  // inputs mirroring them have not re-rendered yet at that point, so the
+  // current values are stamped onto the payload here rather than read out of
+  // stale DOM. (Both fields ride this form; perm comes from the select.)
+  const srSubmit: SubmitFunction = ({ formData }) => {
+    formData.set('sr_enabled', sr.enabled ? 'on' : '');
+    formData.set('sr_allow_offline', sr.allowOffline ? 'on' : '');
+    return async ({ result }) => {
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.srSaved'));
@@ -162,9 +183,31 @@
       toast('err', payload?.error ?? t('spotify.srSaveFailed'));
       await invalidateAll();
     };
+  };
 
-  const redeemToggleSubmit: SubmitFunction = () =>
+  const QUOTA_LABEL_KEYS: Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string> = {
+    everyone: 'spotify.quotaEveryone',
+    sub: 'spotify.quotaSub',
+    vip: 'spotify.quotaVip',
+    mod: 'spotify.quotaMod'
+  };
+
+  const quotasSubmit: SubmitFunction = () =>
     async ({ result }) => {
+      const payload = payloadOf(result);
+      if (result.type === 'success' && payload?.ok !== false) {
+        toast('ok', t('spotify.quotaSaved'));
+        await invalidateAll();
+        return;
+      }
+      toast('err', payload?.error ?? t('spotify.quotaSaveFailed'));
+      await invalidateAll();
+    };
+
+  const redeemToggleSubmit: SubmitFunction = ({ formData }) => {
+    formData.set('redeem_enabled', redeem.enabled ? 'on' : '');
+    formData.set('redeem_allow_offline', redeem.allowOffline ? 'on' : '');
+    return async ({ result }) => {
       const payload = payloadOf(result);
       if (result.type === 'success' && payload?.ok !== false) {
         await invalidateAll();
@@ -177,6 +220,7 @@
       toast('err', payload?.error ?? t('spotify.masterFail'));
       await invalidateAll();
     };
+  };
 
   // --- Inspector (govee deck: one row, docked editor) -----------------------
   let inspecting = $state(false);
@@ -344,10 +388,24 @@
       {#if connected}
         <div class="row">
           <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.connectedPill')}</span>
+          <!-- Reconnect is a plain re-run of the consent flow, NOT a disconnect
+               first: the stored token stays usable until a new one replaces it,
+               and a broadcaster who backs out of Spotify's screen keeps working.
+               It has to be reachable while connected, because a grant that
+               predates a scope the bot now needs looks perfectly connected. -->
+          <ButtonLink variant="secondary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
           <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
             <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
           </form>
         </div>
+        {#if scopeGap.length}
+          <AlertBanner variant="warn" icon="music">
+            {t('spotify.scopeGap')}
+            {#snippet action()}
+              <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
+            {/snippet}
+          </AlertBanner>
+        {/if}
       {:else if app.present}
         <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
       {:else}
@@ -357,6 +415,38 @@
     </Card>
 
     {#if connected}
+      <!-- The live queue, read from sesame's store. Chat owns the writes;
+           this panel answers "what is coming up" without asking chat, and
+           refreshes itself on a lazy poll since queue changes ride chat
+           events the console's invalidation stream never sees. -->
+      <Card>
+        <div class="queue-head">
+          <h2 class="path-title">{t('spotify.queueTitle')}</h2>
+          <Button variant="ghost" type="button" onclick={() => invalidateAll()}>{t('spotify.queueRefresh')}</Button>
+        </div>
+        {#if data.queue?.current}
+          <p class="queue-now">
+            <span class="queue-label">{t('spotify.queueNow')}</span>
+            <strong>{data.queue.current.title}</strong>
+            {#if data.queue.current.artists}<span class="muted-text"> · {data.queue.current.artists}</span>{/if}
+            {#if data.queue.current.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {data.queue.current.requester})</span>{/if}
+          </p>
+        {/if}
+        {#if data.queue?.up?.length}
+          <ol class="queue-list">
+            {#each data.queue.up as row, i (i)}
+              <li>
+                <strong>{row.title}</strong>
+                {#if row.artists}<span class="muted-text"> · {row.artists}</span>{/if}
+                {#if row.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {row.requester})</span>{/if}
+              </li>
+            {/each}
+          </ol>
+        {:else if !data.queue?.current}
+          <p class="muted-text">{t('spotify.queueEmpty')}</p>
+        {/if}
+      </Card>
+
       <div class="paths" class:inspecting>
         <Card>
           <h2 class="path-title">{t('spotify.srTitle')}</h2>
@@ -370,6 +460,22 @@
               <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
             </div>
             <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
+            <!-- The switch reads as "live only", the stored field is its
+                 inverse (allowOffline). The config keeps govee's polarity so
+                 both modules mean the same thing by the same key. -->
+            <div class="enable-row">
+              <div class="enable-text">
+                <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
+                <span class="muted-text" id="spotify-sr-live-desc">{sr.allowOffline ? t('spotify.srLiveOnlyOff') : t('spotify.srLiveOnlyOn')}</span>
+              </div>
+              <Switch
+                checked={!sr.allowOffline}
+                onchange={(liveOnly: boolean) => { sr.allowOffline = !liveOnly; srChanged(); }}
+                label={t('spotify.liveOnlyLabel')}
+                describedby="spotify-sr-live-desc"
+              />
+            </div>
+            <input type="hidden" name="sr_allow_offline" value={sr.allowOffline ? 'on' : ''} />
             {#if sr.enabled}
               <Field label={t('spotify.srPermLabel')}>
                 <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
@@ -381,6 +487,31 @@
             {:else}
               <input type="hidden" name="perm" value={sr.perm} />
             {/if}
+          </form>
+
+          <!-- Per-viewer limits apply to BOTH request paths (chat and channel
+               points): they cap how many pending songs one viewer may hold.
+               Blank means unlimited, which is the default; the broadcaster is
+               never capped. Saved as a whole set on submit. -->
+          <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
+            <h3 class="path-title quota-title">{t('spotify.quotaTitle')}</h3>
+            <p class="muted-text">{t('spotify.quotaHelp')}</p>
+            <div class="quota-grid">
+              {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
+                <Field label={t(QUOTA_LABEL_KEYS[tier])}>
+                  <input
+                    class="input"
+                    name={`quota_${tier}`}
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder={t('spotify.quotaUnlimited')}
+                    value={quotas[tier] ?? ''}
+                  />
+                </Field>
+              {/each}
+            </div>
+            <Button variant="secondary" type="submit">{t('spotify.quotaSave')}</Button>
           </form>
         </Card>
 
@@ -397,6 +528,21 @@
                 <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
               </div>
               <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
+              {#if redeem.enabled}
+                <div class="enable-row">
+                  <div class="enable-text">
+                    <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
+                    <span class="muted-text" id="spotify-redeem-live-desc">{redeem.allowOffline ? t('spotify.redeemLiveOnlyOff') : t('spotify.redeemLiveOnlyOn')}</span>
+                  </div>
+                  <Switch
+                    checked={!redeem.allowOffline}
+                    onchange={(liveOnly: boolean) => { redeem.allowOffline = !liveOnly; redeemToggled(); }}
+                    label={t('spotify.liveOnlyLabel')}
+                    describedby="spotify-redeem-live-desc"
+                  />
+                </div>
+              {/if}
+              <input type="hidden" name="redeem_allow_offline" value={redeem.allowOffline ? 'on' : ''} />
             </form>
             <div class="reward-slot">
               <SpotifyRewardRow
@@ -457,6 +603,39 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
+  .queue-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .queue-now {
+    margin: 6px 0 10px;
+  }
+  .queue-label {
+    font-size: 0.82em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
+    margin-right: 8px;
+  }
+  .queue-list {
+    margin: 0;
+    padding-left: 22px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .quota-title {
+    margin-top: 18px;
+  }
+  .quota-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
   .back {
     display: inline-flex;
     align-items: center;
@@ -535,7 +714,7 @@
   }
   @media (min-width: 1080px) {
     .paths { grid-template-columns: 1fr 1fr; }
-    /* Inspector docks beside the points card, full width under chat — same
+    /* Inspector docks beside the points card, full width under chat: same
        list+pane shape as govee, without squeezing the chat card into a third. */
     .paths.inspecting { grid-template-columns: 1fr; }
     .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }

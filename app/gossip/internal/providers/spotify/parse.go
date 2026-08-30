@@ -98,7 +98,7 @@ func classify(raw string) resolvedInput {
 }
 
 // classifyURI parses the spotify:<type>:<id> URI form. The id segment must be
-// taken verbatim — base62 ids are case-sensitive, so nothing here may fold
+// taken verbatim: base62 ids are case-sensitive, so nothing here may fold
 // case after the type token.
 func classifyURI(s string) resolvedInput {
 	parts := strings.Split(s, ":")
@@ -128,13 +128,13 @@ func classifyURL(raw string) resolvedInput {
 
 // catalogTarget validates one parsed link target against its resolve kind.
 // Recognized-but-unsupported types are reported precisely; ids must be REAL
-// catalog ids — Spotify's are always 22 base62 characters, so anything else
+// catalog ids: Spotify's are always 22 base62 characters, so anything else
 // is a typo-shaped phrase better served by a text search than by a
 // guaranteed 404. An unrecognized segment reads as the zero kind and degrades
 // to text like any other unclassifiable input.
 // linkRef is a recognized Spotify reference pulled out of an input: the type
 // segment exactly as written (its case decides nothing here) plus the id
-// verbatim — base62 ids are case-sensitive, so nothing may fold them.
+// verbatim: base62 ids are case-sensitive, so nothing may fold them.
 type linkRef struct {
 	typeSeg string
 	id      string
@@ -142,7 +142,7 @@ type linkRef struct {
 
 // resolveCatalogLink maps one recognized reference onto a resolvedInput.
 // Recognized-but-unsupported types are reported precisely; ids must be REAL
-// catalog ids — Spotify's are always 22 base62 characters, so anything else
+// catalog ids: Spotify's are always 22 base62 characters, so anything else
 // is a typo-shaped phrase better served by a text search than by a
 // guaranteed 404. An unrecognized segment reads as the zero kind and degrades
 // to text like any other unclassifiable input.
@@ -195,7 +195,7 @@ func planTextSearch(raw string) []searchCandidate {
 }
 
 // heuristicCandidate builds the field-scoped first candidate from whichever
-// naming convention the input follows — "song by artist" first, then the
+// naming convention the input follows: "song by artist" first, then the
 // dash form copied from video titles. ok is false when neither convention
 // matches or a split leaves a usable side empty; the caller then plans the
 // plain search alone. A false positive ("Stand by Me") survives as the

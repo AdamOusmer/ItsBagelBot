@@ -16,6 +16,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/shared/components/Button.svelte';
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
+  import Card from '@bagel/shared/components/Card.svelte';
   import Icon from '@bagel/shared/components/Icon.svelte';
   import Skeleton from '@bagel/shared/components/Skeleton.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
@@ -100,7 +101,7 @@
   });
 </script>
 
-<section class="ov-status card sheen" class:ov-status--premium={isPremium} aria-labelledby="ov-status-h">
+<Card as="section" sheen class="ov-status {isPremium ? 'ov-status--premium' : ''}" aria-labelledby="ov-status-h">
   <div class="ov-status__mark"><img src={logoSrc} alt="" /></div>
 
   <div class="ov-status__body">
@@ -161,17 +162,19 @@
       {/if}
     </div>
   {/if}
-</section>
+</Card>
 
 <style>
-  .ov-status {
+  /* :global on every .ov-status / --premium rule: the class now rides <Card>'s
+     root element, which this component's scoping hash never reaches. */
+  :global(.ov-status) {
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 22px;
     align-items: center;
     margin-bottom: var(--row-gap);
   }
-  .ov-status--premium {
+  :global(.ov-status--premium) {
     border-color: rgba(201, 168, 124, 0.4);
   }
 
@@ -186,7 +189,7 @@
     justify-content: center;
     flex: none;
   }
-  .ov-status--premium .ov-status__mark {
+  :global(.ov-status--premium) .ov-status__mark {
     border-color: rgba(201, 168, 124, 0.4);
     background: rgba(201, 168, 124, 0.05);
   }
@@ -321,7 +324,7 @@
   /* Stack the panel on narrow screens; actions become full-width, comfortably
      tappable, and never force horizontal scroll at 320px. */
   @media (max-width: 760px) {
-    .ov-status {
+    :global(.ov-status) {
       grid-template-columns: auto 1fr;
       gap: 16px;
     }

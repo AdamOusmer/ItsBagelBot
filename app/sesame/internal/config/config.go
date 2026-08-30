@@ -74,6 +74,11 @@ type Config struct {
 	// user ids, the same Doppler secret ingress uses to lane them premium.
 	SpecialUserIDs string
 
+	// AutoRefundChannel is the one channel (Twitch user id or login) where a
+	// special user's channel-points redemptions are auto-cancelled — refunded —
+	// before any module runs. Doppler secret; empty (default) disables the gate.
+	AutoRefundChannel string
+
 	// BotUserID is the bot's own Twitch user id; the engine skips the bot's own
 	// chat messages so it never reacts to itself.
 	BotUserID string
@@ -220,6 +225,8 @@ func Load() *Config {
 		ProjectionLiveSubject: env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
 
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
+
+		AutoRefundChannel: env.Get("TWITCH_AUTOREFUND_CHANNEL", ""),
 
 		BotUserID: env.Get("TWITCH_BOT_USER_ID", ""),
 

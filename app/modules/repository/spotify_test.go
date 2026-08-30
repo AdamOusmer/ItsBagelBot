@@ -28,7 +28,10 @@ func TestSpotifyTokenRoundTrip(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "rt-secret-token"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{
+		RefreshToken: "rt-secret-token",
+		Scopes:       []string{"user-read-currently-playing", "user-modify-playback-state"},
+	}))
 
 	got, err := creds.Token(ctx, 1001)
 	require.NoError(t, err)
@@ -44,8 +47,8 @@ func TestSpotifyTokenUpsertReplaces(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
-	require.NoError(t, creds.SetToken(ctx, 1001, "second"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "second"}))
 
 	got, err := creds.Token(ctx, 1001)
 	require.NoError(t, err)
@@ -63,7 +66,7 @@ func TestSpotifyTokenStatusAndClear(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, present)
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "rt"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "rt"}))
 	present, err = creds.HasToken(ctx, 1001)
 	require.NoError(t, err)
 	assert.True(t, present)
@@ -87,7 +90,7 @@ func TestSpotifyTokenAADBindsToUser(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "owner-token"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "owner-token"}))
 
 	// Copy user 1001's ciphertext onto user 2002's row: the AAD binds the
 	// envelope to 1001, so opening it as 2002 must fail rather than leak.
@@ -108,7 +111,7 @@ func TestSpotifyRotateTokenSwapsOnMatch(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
 	require.NoError(t, creds.RotateToken(ctx, 1001, "first", "second"))
 
 	got, err := creds.Token(ctx, 1001)
@@ -120,7 +123,7 @@ func TestSpotifyRotateTokenStaleRefused(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 1001, "newer"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "newer"}))
 	err := creds.RotateToken(ctx, 1001, "older", "rotated-from-older")
 	require.ErrorIs(t, err, repository.ErrRotateStale)
 
@@ -138,7 +141,7 @@ func TestSpotifyRotateTokenMissingRow(t *testing.T) {
 func TestSpotifyRotateTokenEmptyNextRefused(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
-	require.NoError(t, creds.SetToken(ctx, 1001, "first"))
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
 	require.Error(t, creds.RotateToken(ctx, 1001, "first", ""))
 }
 
@@ -158,12 +161,12 @@ func seedApp(t *testing.T, creds *repository.SpotifyCreds, userID uint64) {
 		repository.SpotifyApp{ClientID: testClientID, ClientSecret: testClientSecret}))
 }
 
-// seedConnected registers an application and connects an account to it — the
+// seedConnected registers an application and connects an account to it: the
 // fully set-up broadcaster.
 func seedConnected(t *testing.T, creds *repository.SpotifyCreds, userID uint64, token string) {
 	t.Helper()
 	seedApp(t, creds, userID)
-	require.NoError(t, creds.SetToken(context.Background(), userID, token))
+	require.NoError(t, creds.SetToken(context.Background(), userID, repository.SpotifyGrant{RefreshToken: token}))
 }
 
 func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
@@ -227,7 +230,7 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 }
 
 // A broadcaster who pasted credentials but never finished the connect flow is
-// "app, no grant" — not a connection, and not a seal failure either.
+// "app, no grant", not a connection, and not a seal failure either.
 func TestSpotifyAppWithoutGrantReadsAsNotConnected(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -250,7 +253,7 @@ func TestSpotifyCredentialsWithoutAppRefuses(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
 
-	require.NoError(t, creds.SetToken(ctx, 2006, "rt-1"))
+	require.NoError(t, creds.SetToken(ctx, 2006, repository.SpotifyGrant{RefreshToken: "rt-1"}))
 
 	_, err := creds.Credentials(ctx, 2006)
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
@@ -289,7 +292,7 @@ func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
 // Disconnecting an account clears the grant and nothing else. Deleting the row
 // here would take the broadcaster's registered application with it, so the
 // reconnect they were about to do would demand their client id and secret
-// again — for no reason they could see.
+// again: for no reason they could see.
 func TestSpotifyClearTokenKeepsTheApp(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -315,10 +318,44 @@ func TestSpotifyReconnectAfterDisconnectNeedsNoRepaste(t *testing.T) {
 	seedConnected(t, creds, 2010, "rt-1")
 
 	require.NoError(t, creds.ClearToken(ctx, 2010))
-	require.NoError(t, creds.SetToken(ctx, 2010, "rt-2"))
+	require.NoError(t, creds.SetToken(ctx, 2010, repository.SpotifyGrant{RefreshToken: "rt-2"}))
 
 	setup, err := creds.Credentials(ctx, 2010)
 	require.NoError(t, err)
 	assert.Equal(t, testClientID, setup.App.ClientID)
 	assert.Equal(t, "rt-2", setup.RefreshToken)
+}
+
+// A grant records what Spotify said it covers, and a rotation must not blank
+// that: the replacement token carries the same consent as the one it
+// replaces. A row written before the column existed reads back as unknown,
+// which callers treat as stale rather than complete.
+func TestSpotifyTokenScopesSurviveRotation(t *testing.T) {
+	ctx := context.Background()
+	_, creds := spotifySetup(t)
+
+	granted := []string{"user-read-currently-playing", "user-modify-playback-state"}
+	require.NoError(t, creds.SetToken(ctx, 3001, repository.SpotifyGrant{RefreshToken: "rt-1", Scopes: granted}))
+
+	status, err := creds.TokenStatus(ctx, 3001)
+	require.NoError(t, err)
+	assert.True(t, status.Present)
+	assert.Equal(t, granted, status.Scopes)
+
+	require.NoError(t, creds.RotateToken(ctx, 3001, "rt-1", "rt-2"))
+
+	status, err = creds.TokenStatus(ctx, 3001)
+	require.NoError(t, err)
+	assert.True(t, status.Present)
+	assert.Equal(t, granted, status.Scopes, "rotation is the same consent re-issued")
+}
+
+func TestSpotifyTokenStatusIsEmptyWithoutAGrant(t *testing.T) {
+	ctx := context.Background()
+	_, creds := spotifySetup(t)
+
+	status, err := creds.TokenStatus(ctx, 3002)
+	require.NoError(t, err)
+	assert.False(t, status.Present)
+	assert.Empty(t, status.Scopes)
 }

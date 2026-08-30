@@ -74,6 +74,11 @@ func ClientSecretEnc(v []byte) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldClientSecretEnc, v))
 }
 
+// Scopes applies equality check predicate on the "scopes" field. It's identical to ScopesEQ.
+func Scopes(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldScopes, v))
+}
+
 // UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
 func UpdatedAt(v time.Time) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldUpdatedAt, v))
@@ -292,6 +297,81 @@ func ClientSecretEncIsNil() predicate.SpotifyCredential {
 // ClientSecretEncNotNil applies the NotNil predicate on the "client_secret_enc" field.
 func ClientSecretEncNotNil() predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldNotNull(FieldClientSecretEnc))
+}
+
+// ScopesEQ applies the EQ predicate on the "scopes" field.
+func ScopesEQ(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldScopes, v))
+}
+
+// ScopesNEQ applies the NEQ predicate on the "scopes" field.
+func ScopesNEQ(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNEQ(FieldScopes, v))
+}
+
+// ScopesIn applies the In predicate on the "scopes" field.
+func ScopesIn(vs ...string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIn(FieldScopes, vs...))
+}
+
+// ScopesNotIn applies the NotIn predicate on the "scopes" field.
+func ScopesNotIn(vs ...string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotIn(FieldScopes, vs...))
+}
+
+// ScopesGT applies the GT predicate on the "scopes" field.
+func ScopesGT(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGT(FieldScopes, v))
+}
+
+// ScopesGTE applies the GTE predicate on the "scopes" field.
+func ScopesGTE(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGTE(FieldScopes, v))
+}
+
+// ScopesLT applies the LT predicate on the "scopes" field.
+func ScopesLT(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLT(FieldScopes, v))
+}
+
+// ScopesLTE applies the LTE predicate on the "scopes" field.
+func ScopesLTE(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLTE(FieldScopes, v))
+}
+
+// ScopesContains applies the Contains predicate on the "scopes" field.
+func ScopesContains(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldContains(FieldScopes, v))
+}
+
+// ScopesHasPrefix applies the HasPrefix predicate on the "scopes" field.
+func ScopesHasPrefix(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldHasPrefix(FieldScopes, v))
+}
+
+// ScopesHasSuffix applies the HasSuffix predicate on the "scopes" field.
+func ScopesHasSuffix(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldHasSuffix(FieldScopes, v))
+}
+
+// ScopesIsNil applies the IsNil predicate on the "scopes" field.
+func ScopesIsNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIsNull(FieldScopes))
+}
+
+// ScopesNotNil applies the NotNil predicate on the "scopes" field.
+func ScopesNotNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotNull(FieldScopes))
+}
+
+// ScopesEqualFold applies the EqualFold predicate on the "scopes" field.
+func ScopesEqualFold(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEqualFold(FieldScopes, v))
+}
+
+// ScopesContainsFold applies the ContainsFold predicate on the "scopes" field.
+func ScopesContainsFold(v string) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldContainsFold(FieldScopes, v))
 }
 
 // UpdatedAtEQ applies the EQ predicate on the "updated_at" field.

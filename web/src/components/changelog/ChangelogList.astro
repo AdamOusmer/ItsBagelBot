@@ -3,11 +3,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Changelog timeline. Newest bake first. Each JSON entry from the `changelog`
- * collection becomes a card: stylized tag, version (filename), date, title,
- * description, and a link to the GitHub release.
+ * Changelog timeline. Newest version tag first. Each JSON entry from the
+ * `changelog` collection becomes a card: stylized tag, version, date, title,
+ * short highlight bullets, and a link to the GitHub release.
  */
 import type { CollectionEntry } from 'astro:content';
+import CardAtmosphere from '../ui/CardAtmosphere.astro';
 import ReleaseTag from './ReleaseTag.astro';
 import TextLink from '../ui/TextLink.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -21,9 +22,15 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
 type Localized = string | { en: string; [locale: string]: string };
+type LocalizedList = string[] | { en: string[]; [locale: string]: string[] };
 
 function pick(value: Localized, locale: string): string {
     if (typeof value === 'string') return value;
+    return value[locale] ?? value.en;
+}
+
+function pickList(value: LocalizedList, locale: string): string[] {
+    if (Array.isArray(value)) return value;
     return value[locale] ?? value.en;
 }
 
@@ -47,19 +54,25 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
     ) : (
         <ol class="clog__list">
             {entries.map((entry, i) => {
-                const { tag, version, title, description, github, date } = entry.data;
+                const { tag, version, title, highlights, github, date } = entry.data;
+                const lines = pickList(highlights, lang);
                 return (
                     <li class="clog__item" data-reveal style={`--reveal-i: ${i + 1}`}>
                         <div class="clog__when">
                             <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
                         </div>
                         <article class="clog__card">
+                            <CardAtmosphere />
                             <header class="clog__meta">
                                 <ReleaseTag tag={tag} label={tagLabel[tag]} />
                                 <span class="clog__ver">{version}</span>
                             </header>
                             <h2 class="clog__title">{pick(title, lang)}</h2>
-                            <p class="clog__desc">{pick(description, lang)}</p>
+                            <ul class="clog__highlights">
+                                {lines.map((line) => (
+                                    <li>{line}</li>
+                                ))}
+                            </ul>
                             <TextLink
                                 href={github}
                                 label={t('changelog.releaseLink')}
@@ -160,18 +173,10 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    .clog__card::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(
-            420px 180px at 8% 0%,
-            rgba(201, 168, 124, 0.08),
-            transparent 70%
-        );
-        opacity: 0;
-        transition: opacity 260ms ease;
-        pointer-events: none;
+    /* Content rides above the atmosphere layer (which paints at z-index 0). */
+    .clog__card > :global(*:not(.card-atmo)) {
+        position: relative;
+        z-index: 1;
     }
 
     @media (hover: hover) and (pointer: fine) {
@@ -180,7 +185,6 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform: translateY(-3px);
         }
 
-        .clog__item:hover .clog__card::before { opacity: 1; }
 
         .clog__item:hover::before {
             background: var(--tan, #c9a87c);
@@ -216,13 +220,34 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         margin: 0;
     }
 
-    .clog__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 1rem;
-        line-height: 1.7;
-        color: #a39c92;
+    .clog__highlights {
         margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
         max-width: 62ch;
+        width: 100%;
+    }
+
+    .clog__highlights li {
+        position: relative;
+        padding-left: 1.1em;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.98rem;
+        line-height: 1.55;
+        color: #a39c92;
+    }
+
+    .clog__highlights li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.55em;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(201, 168, 124, 0.55);
     }
 
     @media (prefers-reduced-motion: reduce) {

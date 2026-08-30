@@ -69,7 +69,7 @@ describe('module catalog', () => {
     expect(new Set(icons).size).toBe(icons.length);
   });
 
-  test('songqueue is a bespoke href module listing !sr, !remove, !next, !clear and !current', () => {
+  test('songqueue is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current', () => {
     const def = moduleDef('songqueue');
     expect(def).toBeDefined();
     expect(def?.href).toBe('/songqueue');
@@ -77,10 +77,19 @@ describe('module catalog', () => {
     expect(def?.commands?.map((c) => c.trigger)).toEqual([
       '!sr',
       '!remove',
-      '!next',
+      '!skip',
       '!clear',
+      '!srlist',
       '!current'
     ]);
+  });
+
+  // The reward that queues a song is created on /songqueue, so a
+  // channel-points delegate has to be able to open the page.
+  test('songqueue opens for modules and channel-points delegates', () => {
+    const def = moduleDef('songqueue');
+    expect(def).toBeDefined();
+    expect(moduleDelegateSections(def!)).toEqual(['modules', 'channelpoints']);
   });
 
   test('gamble and duels nest under loyalty with no second currency name', () => {

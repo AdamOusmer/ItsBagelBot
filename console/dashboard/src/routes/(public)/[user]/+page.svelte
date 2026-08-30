@@ -71,7 +71,7 @@
     </div>
   {:else if data.top.length === 0}
     <div class="podium-wrap reveal" style="--i:3">
-      <Card class="empty-card">
+      <Card atmosphere class="empty-card">
         <span class="ico gem" aria-hidden="true"><Icon name="gem" size={18} /></span>
         <h2>{t('leaderboard.emptyTitle')}</h2>
         <p>{t('leaderboard.emptyBody', { channel: data.channelName })}</p>
@@ -83,7 +83,7 @@
     <section class="podium" aria-label={t('leaderboard.podiumLabel')}>
       {#each podium as viewer, i (viewer.viewerId)}
         <div class="spot-wrap reveal place-{i + 1}" style="--i:{3 + i * 0.5}">
-          <Card hover class="spot">
+          <Card atmosphere hover class="spot">
             <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
             <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
             <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
@@ -101,7 +101,7 @@
     </section>
 
     <section class="board-wrap reveal" style="--i:5" aria-label={t('leaderboard.boardLabel')}>
-      <Card class="board">
+      <Card atmosphere class="board">
         <header class="board-head">
           <span class="ico" aria-hidden="true"><Icon name="users" size={16} /></span>
           <div class="board-titles">
@@ -148,7 +148,7 @@
 
   {#if data.commands.length > 0 || commandTriggers.length > 0}
     <section class="cmds-wrap reveal" style="--i:6" aria-label={t('leaderboard.commandsLabel')}>
-      <Card class="cmds-card">
+      <Card atmosphere class="cmds-card">
         <header class="cmds-head">
           <span class="ico" aria-hidden="true"><Icon name="commands" size={16} /></span>
           <h2>{t('leaderboard.commandsTitle')}</h2>

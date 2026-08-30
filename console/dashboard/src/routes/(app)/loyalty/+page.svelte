@@ -9,6 +9,7 @@
     MasterToggle,
     Switch,
     AlertBanner,
+    Card,
     ButtonLink,
     Button,
     Field,
@@ -131,7 +132,7 @@
   <!-- 1) Module status: the master enable, in its own labelled section. -->
   <section class="block" aria-labelledby="loy-status-h">
     <h2 id="loy-status-h" class="block-title">{t('loyalty.statusTitle')}</h2>
-    <div class="card status-row">
+    <Card class="status-row">
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -141,7 +142,7 @@
         failMessage={t('loyalty.toastToggleFailed')}
       />
       <ButtonLink href="/counters" variant="ghost" icon="modules">{t('loyalty.countersLink')}</ButtonLink>
-    </div>
+    </Card>
   </section>
 
   <!-- Nested wager games: two rows, not a third settings form. Odds and chat
@@ -149,19 +150,19 @@
   {#if games.length}
     <section class="block" aria-labelledby="loy-games-h">
       <h2 id="loy-games-h" class="block-title">{t('loyalty.gamesTitle')}</h2>
-      <div class="card">
+      <Card>
         <p class="hint">{enabled ? t('loyalty.gamesHint') : t('loyalty.gamesNeedsOn')}</p>
         {#each games as g (g.def.id)}
           <LoyaltyGameRow def={g.def} bind:enabled={g.enabled} loyaltyOn={enabled} />
         {/each}
-      </div>
+      </Card>
     </section>
   {/if}
 
   <!-- 2) Configuration: earning rates, an explicit Save form with Field labels. -->
   <section class="block" aria-labelledby="loy-rates-h">
     <h2 id="loy-rates-h" class="block-title">{t('loyalty.ratesTitle')}</h2>
-    <div class="card">
+    <Card>
       <p class="hint">{t('loyalty.ratesHint')}</p>
 
       <form method="POST" action="?/save" use:enhance={saveSubmit} class="rates" novalidate>
@@ -204,14 +205,14 @@
           <Button variant="primary" type="submit" icon="check" loading={busy}>{t('loyalty.save')}</Button>
         </div>
       </form>
-    </div>
+    </Card>
   </section>
 
   <!-- 3) Leaderboard: a data table with a caption, column headers and a per-row
        header. Rank is textual (never conveyed by position or colour alone). -->
   <section class="block" aria-labelledby="loy-top-h">
     <h2 id="loy-top-h" class="block-title">{t('loyalty.topTitle')}</h2>
-    <div class="card">
+    <Card>
       {#if top.length === 0}
         <EmptyState icon="coin" title={t('loyalty.topEmpty')} />
       {:else}
@@ -239,7 +240,7 @@
           </table>
         </div>
       {/if}
-    </div>
+    </Card>
   </section>
 
   {#if loyaltyCommands.length}
@@ -262,15 +263,9 @@
     margin: 0 0 12px;
   }
 
-  /* Local card shell (shared Card is a component; a plain block keeps this page's
-     four sections visually consistent without nesting extra wrappers). */
-  .card {
-    padding: 18px;
-    border: 1px solid var(--bb-border);
-    border-radius: 10px;
-    background: rgba(240, 236, 228, 0.02);
-  }
-  .status-row {
+  /* Passed to <Card>, so it needs :global — the parent's scoping hash never
+     reaches a child component's root element. */
+  :global(.status-row) {
     display: flex;
     align-items: center;
     justify-content: space-between;

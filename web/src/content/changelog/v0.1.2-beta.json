@@ -1,0 +1,28 @@
+{
+  "tag": "beta",
+  "version": "v0.1.2-beta",
+  "date": "2026-08-25",
+  "title": {
+    "en": "Leaderboards, song requests, and a clearer command editor",
+    "fr": "Classements, demandes de chansons et éditeur plus clair"
+  },
+  "highlights": {
+    "en": [
+      "Loyalty leaderboard. Per-channel rankings, finer mod permissions, and viewer-to-viewer point transfers.",
+      "Song Requests console. Its own page, plus standalone !song and !skip.",
+      "AutoMod link safety. Dynamic link checks, plus an opt-in clips-only filter.",
+      "JSON data sources in the command editor. Build a URL fetch, sample the response as a clickable tree, pick the field you want, and insert it into the reply. No separate fetches page, no pasting raw JSON by hand.",
+      "Faster console boot and a rebuilt login flow.",
+      "Performance: console boot, caching."
+    ],
+    "fr": [
+      "Classement de fidélité. Classements par chaîne, permissions de modération plus fines et transferts de points entre spectateurs.",
+      "Console des demandes de chansons. Sa propre page, plus les commandes !song et !skip.",
+      "Sécurité des liens AutoMod. Vérification dynamique des liens, plus un filtre optionnel « clips uniquement ».",
+      "Sources de données JSON dans l'éditeur de commandes. Créez une requête URL, échantillonnez la réponse en arbre cliquable, choisissez le champ voulu et insérez-le dans la réponse. Plus de page fetches séparée, plus de collage de JSON brut à la main.",
+      "Démarrage plus rapide de la console et connexion repensée.",
+      "Performance : démarrage de la console, cache."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.2-beta"
+}
