@@ -30,16 +30,14 @@ type channelUpdateMeta struct {
 	User   string `json:"user"`
 }
 
-type streamMarkerMeta struct {
+// streamJobMeta is the superset blob for the two single-call stream-editor
+// jobs: a marker send fills Description, a commercial send fills Length.
+// One struct instead of two so both jobs can share one handler body.
+type streamJobMeta struct {
 	Description string `json:"description"`
+	Length      int    `json:"length"`
 	Locale      string `json:"locale"`
 	User        string `json:"user"`
-}
-
-type commercialMeta struct {
-	Length int    `json:"length"`
-	Locale string `json:"locale"`
-	User   string `json:"user"`
 }
 
 // processChannelUpdate handles !title/!game/!tags. GET (empty value) runs
@@ -131,24 +129,11 @@ func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta 
 }
 
 func (w *Worker) processMarker(ctx context.Context, payload *outgress.Message) error {
-	var meta streamMarkerMeta
-	decodeStreamMeta(payload, &meta)
-	return w.runBroadcasterJob(ctx, payload, meta.Locale,
-		func() error { return w.twitch.CreateMarker(ctx, payload.BroadcasterID, meta.Description) },
-		streamExpand(meta.Locale, "stream.marker.ok", map[string]string{"user": meta.User}),
-		"marker created but reply chat failed")
+	return w.runStreamJob(ctx, payload, "marker")
 }
 
 func (w *Worker) processCommercial(ctx context.Context, payload *outgress.Message) error {
-	var meta commercialMeta
-	decodeStreamMeta(payload, &meta)
-	return w.runBroadcasterJob(ctx, payload, meta.Locale,
-		func() error { return w.twitch.StartCommercial(ctx, payload.BroadcasterID, meta.Length) },
-		streamExpand(meta.Locale, "stream.commercial.ok", map[string]string{
-			"user":   meta.User,
-			"length": strconv.Itoa(meta.Length),
-		}),
-		"commercial started but reply chat failed")
+	return w.runStreamJob(ctx, payload, "commercial")
 }
 
 // decodeStreamMeta tolerates an absent payload: every stream-editor field has
@@ -159,20 +144,31 @@ func decodeStreamMeta(payload *outgress.Message, meta any) {
 	}
 }
 
-// runBroadcasterJob is the shared marker/commercial shape: take the Helix
-// slot as the broadcaster, run the call, then confirm in chat. A reply
-// failure after a successful call logs instead of redelivering — the Helix
-// write already happened, so a retry would run it twice.
-func (w *Worker) runBroadcasterJob(ctx context.Context, payload *outgress.Message, locale string, call func() error, okLine, replyWarn string) error {
+// runStreamJob is the single body behind marker and commercial: take the
+// Helix slot as the broadcaster, run the one Helix write, then confirm in
+// chat under stream.<kind>.ok. A reply failure after a successful call logs
+// instead of redelivering — the Helix write already happened, so a retry
+// would run it twice.
+func (w *Worker) runStreamJob(ctx context.Context, payload *outgress.Message, kind string) error {
+	var meta streamJobMeta
+	decodeStreamMeta(payload, &meta)
+	call := func() error { return w.twitch.CreateMarker(ctx, payload.BroadcasterID, meta.Description) }
+	tokens := map[string]string{"user": meta.User}
+	if kind == "commercial" {
+		call = func() error { return w.twitch.StartCommercial(ctx, payload.BroadcasterID, meta.Length) }
+		tokens["length"] = strconv.Itoa(meta.Length)
+	}
+
 	payload.As = outgress.AsBroadcaster
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
 	if err := call(); err != nil {
-		return w.streamHelixErr(ctx, payload, locale, err)
+		return w.streamHelixErr(ctx, payload, meta.Locale, err)
 	}
-	if err := w.sendBotLine(ctx, payload.BroadcasterID, okLine); err != nil {
-		w.log.Warn(replyWarn,
+	if err := w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream."+kind+".ok", tokens)); err != nil {
+		w.log.Warn("stream job ran but reply chat failed",
+			zap.String("kind", kind),
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
 	}
 	return nil

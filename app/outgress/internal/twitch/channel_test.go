@@ -87,44 +87,28 @@ func TestSearchCategory(t *testing.T) {
 	}
 }
 
-func TestModifyChannelPatch(t *testing.T) {
-	var method, path string
-	c := channelClient(t, func(req *http.Request) (*http.Response, error) {
-		method, path = req.Method, req.URL.Path
-		return &http.Response{
-			StatusCode: http.StatusNoContent,
-			Body:       io.NopCloser(strings.NewReader("")),
-			Header:     make(http.Header),
-		}, nil
-	})
-	if err := c.ModifyChannel(context.Background(), "123", ChannelPatch{Title: "Hello"}); err != nil {
-		t.Fatal(err)
+// TestChannelWrites pins each write helper to its Helix method+path; the
+// route assertion lives in routeClient so a rename here cannot silently
+// stop checking it.
+func TestChannelWrites(t *testing.T) {
+	cases := []struct {
+		name, method, path, body string
+		call                     func(*Client) error
+	}{
+		{"modify channel", http.MethodPatch, "/helix/channels", `{}`,
+			func(c *Client) error {
+				return c.ModifyChannel(context.Background(), "123", ChannelPatch{Title: "Hello"})
+			}},
+		{"create marker", http.MethodPost, "/helix/streams/markers", `{"data":[{"id":"1"}]}`,
+			func(c *Client) error { return c.CreateMarker(context.Background(), "123", "boss") }},
+		{"start commercial", http.MethodPost, "/helix/channels/commercial", `{"data":[{"length":30}]}`,
+			func(c *Client) error { return c.StartCommercial(context.Background(), "123", 30) }},
 	}
-	if method != http.MethodPatch || path != "/helix/channels" {
-		t.Fatalf("got %s %s, want PATCH /helix/channels", method, path)
-	}
-}
-
-func TestCreateMarker(t *testing.T) {
-	c := channelClient(t, func(req *http.Request) (*http.Response, error) {
-		if req.Method != http.MethodPost || req.URL.Path != "/helix/streams/markers" {
-			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
-		}
-		return jsonOK(`{"data":[{"id":"1"}]}`), nil
-	})
-	if err := c.CreateMarker(context.Background(), "123", "boss"); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestStartCommercial(t *testing.T) {
-	c := channelClient(t, func(req *http.Request) (*http.Response, error) {
-		if req.Method != http.MethodPost || req.URL.Path != "/helix/channels/commercial" {
-			t.Fatalf("unexpected %s %s", req.Method, req.URL.Path)
-		}
-		return jsonOK(`{"data":[{"length":30}]}`), nil
-	})
-	if err := c.StartCommercial(context.Background(), "123", 30); err != nil {
-		t.Fatal(err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.call(routeClient(t, tc.method, tc.path, tc.body)); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
