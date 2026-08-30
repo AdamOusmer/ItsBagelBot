@@ -18,7 +18,7 @@ require (
 	github.com/newrelic/go-agent/v3 v3.44.2
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
-	github.com/resend/resend-go/v3 v3.17.0
+	github.com/resend/resend-go/v4 v4.2.0
 	github.com/stretchr/testify v1.12.1
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/tink-crypto/tink-go/v2 v2.8.0
