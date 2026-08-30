@@ -151,6 +151,12 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
 	}
+	if d.Automod == nil && d.Log != nil {
+		// gateChat/gateCohort fail OPEN on a nil gate - every message passes
+		// unmoderated. Legitimate in unit tests, a silent misconfiguration in
+		// prod, so say it once at wiring time instead of never.
+		d.Log.Warn("automod gate not wired; chat moderation disabled")
+	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
 	}

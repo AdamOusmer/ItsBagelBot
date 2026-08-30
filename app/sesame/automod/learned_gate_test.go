@@ -72,9 +72,11 @@ func TestBaselineColdFloorsCallerStaticThreshold(t *testing.T) {
 	if got := b.Adjust(42, KindSymbol, 0.9); got != 0.9 {
 		t.Fatalf("cold symbol Adjust = %v, want caller static 0.9", got)
 	}
-	// ...and never below its own ceiling when the static value sits under it.
-	if got := b.Adjust(42, KindCaps, 0.6); got != 0.7 {
-		t.Fatalf("cold Adjust under ceiling = %v, want 0.7", got)
+	// ...including a static tighter than the fleet ceiling: LevelStrict's 0.6
+	// caps is a config choice, not learned data, so the ceiling never
+	// overrides it (it silently did before 2026-08-30).
+	if got := b.Adjust(42, KindCaps, 0.6); got != 0.6 {
+		t.Fatalf("cold Adjust under ceiling = %v, want the static 0.6", got)
 	}
 }
 
@@ -216,11 +218,13 @@ func TestUnscopedLinesKeepLayersInert(t *testing.T) {
 	}
 
 	// A per-channel stricter config also floors through the adapted threshold:
+	// quiet culture's learned value sits under the fleet ceiling, so strict's
+	// static 0.6 applies verbatim - the ceiling gates only learned raises.
 	cfg := ParseConfig(codec.RawMessage(`{"level":"strict"}`))
 	warm := uint64(5)
 	observeQuietCulture(b, warm, 300)
-	if got := b.Adjust(warm, KindCaps, cfg.resolved().capsThresh); got < 0.7 {
-		t.Fatalf("adapted strict threshold %v dropped below the fleet ceiling", got)
+	if got := b.Adjust(warm, KindCaps, cfg.resolved().capsThresh); got != 0.6 {
+		t.Fatalf("adapted strict threshold = %v, want the broadcaster's static 0.6", got)
 	}
 }
 

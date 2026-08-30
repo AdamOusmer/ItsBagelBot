@@ -272,18 +272,9 @@ func (g *Gate) Assess(role module.Role, text string, cfg *Config, opts ...Assess
 	// allow-term (broadcaster owns that risk); the floor above already returned.
 	allowed := cfg.allows(skel)
 	if !allowed {
-		if v, ok := lexVerdict(cat, term, sec); ok {
-			g.purgeLearned(uint64(sc.ch), text)
+		ln := sectionLine{sec: sec, cfg: cfg, skel: skel, text: text, ch: uint64(sc.ch)}
+		if v, ok := g.sectionVerdict(cat, term, ln); ok {
 			return v, out
-		}
-		if v, ok := cfg.blockTermVerdict(skel); ok {
-			g.purgeLearned(uint64(sc.ch), text)
-			return v, out
-		}
-		// clips_only is a channel preference (not the immovable floor): allow
-		// terms suppress it the same way they suppress heuristics / block terms.
-		if sec.clipsOnly && hasNonClipLink(text) {
-			return Verdict{Action: ActionDelete, Rule: "clips_only"}, out
 		}
 	}
 
@@ -301,6 +292,38 @@ func (g *Gate) linkConvicted(sec sections, sc assessScope, text string) bool {
 		return false
 	}
 	return lk.Evaluate(text, uint64(sc.ch), sc.sender)
+}
+
+// sectionLine bundles the per-line evidence the section checks read, so
+// sectionVerdict takes one view of the line instead of six loose arguments -
+// same shape as styleAttempt below.
+type sectionLine struct {
+	sec  sections
+	cfg  *Config
+	skel []byte
+	text string
+	ch   uint64
+}
+
+// sectionVerdict resolves the allow-term-suppressible section checks in
+// council order - profile lexicon categories, channel block-terms, the
+// clips-only link filter. Split from Assess only to stay under the repo's
+// cyclomatic gate; behavior is Assess's verbatim.
+func (g *Gate) sectionVerdict(cat moderation.Category, term string, ln sectionLine) (Verdict, bool) {
+	if v, ok := lexVerdict(cat, term, ln.sec); ok {
+		g.purgeLearned(ln.ch, ln.text)
+		return v, true
+	}
+	if v, ok := ln.cfg.blockTermVerdict(ln.skel); ok {
+		g.purgeLearned(ln.ch, ln.text)
+		return v, true
+	}
+	// clips_only is a channel preference (not the immovable floor): allow
+	// terms suppress it the same way they suppress heuristics / block terms.
+	if ln.sec.clipsOnly && hasNonClipLink(ln.text) {
+		return Verdict{Action: ActionDelete, Rule: "clips_only"}, true
+	}
+	return Verdict{}, false
 }
 
 // styleAttempt is the style-juror's full view of one line: the resolved flags,
