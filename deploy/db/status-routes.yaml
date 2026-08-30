@@ -8,17 +8,18 @@
 # the app/db split. The webhook route rides along: it terminates on the same
 # transactions Service.
 #
-# Path-shape note (measured 2026-08-25): edge normalization folds //svc,
-# /./svc onto the clean path before matching, but replacePath pins the
-# backend to /status for every match, so the reachable set is still exactly
-# {<svc> -> /status}. See deploy/k8s/status-routes.yaml for the probe list.
+# No trafficDistribution on these Services (deliberate, mirrors the app half):
+# PreferSameNode pinned every external probe to the entry node's own replica,
+# so one dead pod read as service-down while the other replicas were healthy
+# (2026-08-30 node3 uplink blip: Better Stack reported projector down with 2/3
+# replicas serving). Status traffic is one probe per ~30s behind the rate
+# limiter, so the cross-node hop this reintroduces costs nothing.
 apiVersion: v1
 kind: Service
 metadata:
   name: commands-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: commands
   ports:
@@ -32,7 +33,6 @@ metadata:
   name: loyalty-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: loyalty
   ports:
@@ -46,7 +46,6 @@ metadata:
   name: modules-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: modules
   ports:
@@ -60,7 +59,6 @@ metadata:
   name: notifications-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: notifications
   ports:
@@ -74,7 +72,6 @@ metadata:
   name: projector-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: projector
   ports:
@@ -88,7 +85,6 @@ metadata:
   name: users-status
   namespace: db
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: users
   ports:
@@ -113,14 +109,31 @@ metadata:
   name: status-ratelimit
   namespace: db
 spec:
-  # Mirrors deploy/k8s/status-routes.yaml: the app half shipped this limiter,
-  # this copy didn't, leaving seven backends hammerable at line rate by anyone
-  # who can reach health.itsbagelbot.com (red-team finding F3b).
+  # Mirrors deploy/k8s/status-routes.yaml (red-team finding F3b). The limiter
+  # shipped here without being attached to the routes below, leaving seven
+  # backends hammerable at line rate for 11 days; attached 2026-08-30 — keep
+  # every route's middleware list starting with this limiter.
   rateLimit:
     average: 1
     burst: 10
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
+---
+# Re-pick a backend when the first pick fails at the connection level. With
+# PreferSameNode gone (header comment) the pool is every ready replica, so a
+# pod that died faster than its EndpointSlice updated (the NotReady grace is
+# 40s+) no longer turns one bad pick into a public "down": 2026-08-30 node3
+# blip, Better Stack reported projector down with 2/3 replicas serving.
+# Sits after the rate limiter so retries don't re-count against the caller.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-retry
+  namespace: db
+spec:
+  retry:
+    attempts: 3
+    initialInterval: 100ms
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -132,7 +145,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/commands`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: commands-status
           port: 443
@@ -140,7 +153,7 @@ spec:
           serversTransport: commands-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/loyalty`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: loyalty-status
           port: 443
@@ -148,7 +161,7 @@ spec:
           serversTransport: loyalty-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/modules`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: modules-status
           port: 443
@@ -156,7 +169,7 @@ spec:
           serversTransport: modules-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/notifications`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: notifications-status
           port: 443
@@ -164,7 +177,7 @@ spec:
           serversTransport: notifications-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/projector`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: projector-status
           port: 443
@@ -172,7 +185,7 @@ spec:
           serversTransport: projector-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/users`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: users-status
           port: 443
@@ -180,7 +193,7 @@ spec:
           serversTransport: users-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
       kind: Rule
-      middlewares: [{name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: transactions
           port: 443
