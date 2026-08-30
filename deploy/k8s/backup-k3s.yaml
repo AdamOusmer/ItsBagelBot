@@ -214,7 +214,7 @@ spec:
             # host. Every capability is still dropped -- uid 0 passes the
             # owner-bits check on those files without CAP_DAC_OVERRIDE.
             - name: snapshot
-              image: alpine/sqlite:3.53.4@sha256:0a1296c0dc9483bf6e3c59df8b53561fa328ad1092bbab7822f095254c56e93b
+              image: alpine/sqlite:3.53.4@sha256:c85930fa0308f480a28ed37382acf22fb4533cb4bc5838a96a4b1ee3f9304701
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/snapshot.sh"]
               volumeMounts:
