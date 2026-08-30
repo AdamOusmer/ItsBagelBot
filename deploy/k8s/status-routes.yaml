@@ -8,15 +8,6 @@
 # from outside; /healthz, /readyz and /drain stay cluster-internal (a public
 # /drain would let anyone hold handler goroutines for 10s a request).
 #
-# Path-shape note (measured 2026-08-25, live-probed): edge URL normalization
-# folds //gossip and /./gossip onto the clean path before matching, so those
-# shapes DO reach this router — but replacePath pins every match to /status,
-# and /gossip%2fstatus, /gossip/../drain, //gossip/drain all miss into the
-# unrouted fallback (302). The reachable-endpoint invariant survives every
-# observed shape: exactly {<svc> -> /status}. Accepted as-is rather than
-# adding a canonicalization middleware: it would buy zero reachable-set
-# reduction on a surface whose only endpoint is already public.
-#
 # DNS needs no record work: the cloudflared tunnel wildcard admits any
 # *.itsbagelbot.com hostname, and this router claiming Host(health...) is what
 # lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).
@@ -27,13 +18,19 @@
 # transactions.yaml. Every backend hop is TLS: pkg/health terminates it with
 # the per-service cert-manager <svc>-tls cert (SAN <svc>-status), and the
 # per-service ServersTransports below verify it against the fleet CA.
+#
+# No trafficDistribution on these Services (deliberate, mirrors the db half):
+# PreferSameNode pinned every external probe to the entry node's own replica,
+# so one dead pod read as service-down while the other replicas were healthy
+# (2026-08-30 node3 uplink blip: Better Stack reported projector down with 2/3
+# replicas serving). Status traffic is one probe per ~30s behind the rate
+# limiter, so the cross-node hop this reintroduces costs nothing.
 apiVersion: v1
 kind: Service
 metadata:
   name: gossip-status
   namespace: app
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: gossip
   ports:
@@ -47,7 +44,6 @@ metadata:
   name: outgress-status
   namespace: app
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: outgress
   ports:
@@ -61,7 +57,6 @@ metadata:
   name: sesame-status
   namespace: app
 spec:
-  trafficDistribution: PreferSameNode
   selector:
     app: sesame
   ports:
@@ -91,6 +86,22 @@ spec:
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
+# Re-pick a backend when the first pick fails at the connection level. With
+# PreferSameNode gone (header comment) the pool is every ready replica, so a
+# pod that died faster than its EndpointSlice updated (the NotReady grace is
+# 40s+) no longer turns one bad pick into a public "down": 2026-08-30 node3
+# blip, Better Stack reported projector down with 2/3 replicas serving.
+# Sits after the rate limiter so retries don't re-count against the caller.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-retry
+  namespace: app
+spec:
+  retry:
+    attempts: 3
+    initialInterval: 100ms
+---
 # Rewrites every routed path to the one endpoint the backends actually serve.
 # Shared by all routes below: the per-service path only exists to pick the
 # backend, never to reach a different endpoint.
@@ -113,7 +124,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/dashboard`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: console-dashboard
           port: 443
@@ -122,7 +133,7 @@ spec:
           nativeLB: true
     - match: Host(`health.itsbagelbot.com`) && Path(`/gossip`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: gossip-status
           port: 443
@@ -130,7 +141,7 @@ spec:
           serversTransport: gossip-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/ingress`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: twitch-ingress-status
           port: 443
@@ -138,7 +149,7 @@ spec:
           serversTransport: twitch-ingress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: outgress-status
           port: 443
@@ -146,7 +157,7 @@ spec:
           serversTransport: outgress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: sesame-status
           port: 443
@@ -172,6 +183,18 @@ spec:
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
+# db copy of status-retry above, same reasoning; deploy/db/status-routes.yaml
+# ships an identical one so either file applies standalone.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: status-retry
+  namespace: db
+spec:
+  retry:
+    attempts: 3
+    initialInterval: 100ms
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -191,7 +214,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
         - name: transactions
           port: 443
