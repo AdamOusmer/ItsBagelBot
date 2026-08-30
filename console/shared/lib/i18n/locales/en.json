@@ -1068,7 +1068,21 @@
     "errParseFailed": "That file could not be read as a Moobot export ({m}). Make sure you exported via Tools → Import & Export.",
     "errNothingSelected": "Nothing is selected.",
     "errGeneric": "Import failed. Try again.",
-    "toastApplied": "Import applied."
+    "toastApplied": "Import applied.",
+    "railProgress": "Progress",
+    "railAudit": "Imports are logged and reversible from the audit trail for 30 days.",
+    "railPickPending": "No source chosen",
+    "railTokenPending": "Token needed",
+    "railTokenSet": "Token provided",
+    "railFilePending": "No file chosen",
+    "railReviewPending": "Nothing to review yet",
+    "railDone": "Import applied",
+    "tileCta": "Pick this source",
+    "selectAll": "Select all",
+    "selectNone": "None",
+    "selectionLine": "{n} of {total} selected",
+    "startOver": "Start over",
+    "auditFoot": "Audit #{n} · revert available for 30 days"
   },
   "onboarding": {
     "title": "Welcome aboard 🥯",
