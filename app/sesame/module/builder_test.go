@@ -47,6 +47,7 @@ func TestPermSettersMapToRoles(t *testing.T) {
 		{"sub", (*CmdBuilder).Sub, RoleSubscriber},
 		{"vip", (*CmdBuilder).VIP, RoleVIP},
 		{"mod", (*CmdBuilder).Mod, RoleModerator},
+		{"lead_mod", (*CmdBuilder).LeadMod, RoleLeadModerator},
 		{"broadcaster", (*CmdBuilder).Broadcaster, RoleBroadcaster},
 	}
 	for _, tc := range cases {

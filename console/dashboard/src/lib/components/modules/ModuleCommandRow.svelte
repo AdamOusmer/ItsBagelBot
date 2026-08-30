@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // A read-only command row on a module page: the static twin of ReplyRow. It
   // lists a chat command the module unlocks (trigger + summary), with a small
-  // "Mods" tag when the command is moderator-only. Unlike ReplyRow it is not a
+  // role tag when the command is moderator- or lead-mod-only. Unlike ReplyRow it is not a
   // button and carries no toggle or inspector: nothing here is editable, so it
   // is deliberately not clickable.
   import { getI18n, type ModuleCommandInfo } from '@bagel/shared';
@@ -24,6 +24,8 @@
     </span>
     {#if command.perm === 'mod'}
       <span class="tag">{t('modules.permMods')}</span>
+    {:else if command.perm === 'lead_mod'}
+      <span class="tag">{t('modules.permLeadMods')}</span>
     {:else}
       <span class="mini-spacer" aria-hidden="true"></span>
     {/if}

@@ -66,6 +66,9 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeShoutout:         shoutoutOutgress,
 	outgress.TypePin:              pinOutgress,
 	outgress.TypeClip:             clipOutgress,
+	outgress.TypeChannelUpdate:    channelUpdateOutgress,
+	outgress.TypeStreamMarker:     streamMarkerOutgress,
+	outgress.TypeCommercial:       commercialOutgress,
 	outgress.TypeBan:              banOutgress,
 	outgress.TypeTimeout:          banOutgress,
 	outgress.TypeShieldMode:       shieldOutgress,
@@ -135,6 +138,36 @@ func clipOutgress(o *module.Output) (outgress.Message, error) {
 		Duration float64 `json:"duration,omitempty"`
 		Reply    string  `json:"reply,omitempty"`
 	}{o.Text, o.To, o.Duration, o.Template})
+}
+
+// channelUpdateOutgress builds a Modify Channel Information job. Field is
+// title/game/tags; Value empty means "read the current value and reply",
+// non-empty means PATCH. Locale and the chatter's name ride so outgress can
+// compose the chat reply — only it sees the Helix response (the resolved
+// category name, the stored tags).
+func channelUpdateOutgress(o *module.Output) (outgress.Message, error) {
+	return payloadMessage(outgress.TypeChannelUpdate, o.BroadcasterID, &struct {
+		Field  string `json:"field"`
+		Value  string `json:"value,omitempty"`
+		Locale string `json:"locale,omitempty"`
+		User   string `json:"user,omitempty"`
+	}{o.Reason, o.Text, o.Template, o.To})
+}
+
+func streamMarkerOutgress(o *module.Output) (outgress.Message, error) {
+	return payloadMessage(outgress.TypeStreamMarker, o.BroadcasterID, &struct {
+		Description string `json:"description,omitempty"`
+		Locale      string `json:"locale,omitempty"`
+		User        string `json:"user,omitempty"`
+	}{o.Text, o.Template, o.To})
+}
+
+func commercialOutgress(o *module.Output) (outgress.Message, error) {
+	return payloadMessage(outgress.TypeCommercial, o.BroadcasterID, &struct {
+		Length int    `json:"length"`
+		Locale string `json:"locale,omitempty"`
+		User   string `json:"user,omitempty"`
+	}{int(o.Duration), o.Template, o.To})
 }
 
 // banOutgress builds the Helix Ban User body: {"data":{"user_id","duration",

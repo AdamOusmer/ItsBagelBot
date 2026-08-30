@@ -91,7 +91,8 @@ export interface ModuleCommandInfo {
   trigger: string; // the chat trigger with '!' (e.g. '!join', '!queue next')
   summary: string; // one-line description of what it does
   // perm names the minimum role, shown as a small tag. Omit for everyone.
-  perm?: 'mod';
+  perm?: 'mod' | 'lead_mod';
+  aliases?: string[];
 }
 
 export interface ModuleDef {

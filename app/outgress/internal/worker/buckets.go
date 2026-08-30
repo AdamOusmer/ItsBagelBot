@@ -113,6 +113,19 @@ func (w *Worker) takeGeneralHelix(ctx context.Context, payload *outgress.Message
 	return w.take(ctx, shared)
 }
 
+// takeAppHelix pays one app-partition token outside any message identity.
+// It exists for jobs that make a second, app-token Helix call the message's
+// own takeGeneralHelix slot does not cover (the category search before a
+// !game PATCH). Keys mirror generalHelixRequests' default branch so the two
+// paths can never account against different buckets.
+func (w *Worker) takeAppHelix(ctx context.Context) error {
+	shared := helixGeneralSpec.ForKey("ratelimit:helix:app")
+	if w.lane == LaneStandard {
+		return w.takeOrdered(ctx, helixStandardSpec.ForKey("ratelimit:helix:app:standard"), shared)
+	}
+	return w.take(ctx, shared)
+}
+
 // takeSystemHelix consumes one token for a system-lane Helix call. The
 // reserved partition is tried first, so EventSub enroll jobs always keep
 // their guaranteed floor no matter how busy chat/api traffic is. When the

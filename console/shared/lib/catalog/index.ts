@@ -28,6 +28,7 @@ import { QUOTES_MODULE } from './quotes';
 import { RAFFLE_MODULE } from './raffle';
 import { SHOUTOUT_MODULE } from './shoutout';
 import { SONGQUEUE_MODULE } from './songqueue';
+import { STREAM_MODULE } from './stream';
 import { TIMERS_MODULE } from './timers';
 import { TIME_MODULE } from './time';
 import { TRIGGERS_MODULE } from './triggers';
@@ -55,7 +56,8 @@ export const MOD = {
   raffle: 'raffle',
   quotes: 'quotes',
   govee: 'govee',
-  songqueue: 'songqueue'
+  songqueue: 'songqueue',
+  stream: 'stream'
 } as const;
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
@@ -65,6 +67,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   // sees. Channel Points and Timers own bespoke pages (opened via href);
   // Trigger Words uses the generic reply inspector with its rule editor.
   CHANNELPOINTS_MODULE,
+  STREAM_MODULE,
   TIMERS_MODULE,
   LOYALTY_MODULE,
   COUNTERS_MODULE,

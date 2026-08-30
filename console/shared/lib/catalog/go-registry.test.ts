@@ -30,7 +30,10 @@ const GO_DIRS = ['modules', 'engine'];
 // Catalog ids with no sesame module behind them, and why. Anything else in MOD
 // must name a module Go actually serves.
 const NO_GO_MODULE: Record<string, string> = {
-  counters: 'a catalog tool, not a module: counters are rows on the loyalty service, and the tile carries toggleable:false so no ModuleView row is ever written'
+  counters:
+    'a catalog tool, not a module: counters are rows on the loyalty service, and the tile carries toggleable:false so no ModuleView row is ever written',
+  stream:
+    'KindCore stream-editor commands live on Cmd(); the tile is discovery plus the commands grant, toggleable:false so no ModuleView row named stream is ever written'
 };
 
 // Named Go modules the dashboard deliberately does not surface as a tile yet.

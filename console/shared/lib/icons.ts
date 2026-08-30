@@ -86,7 +86,12 @@ export const icons = {
     '<circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="2" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="22" y2="12"/>',
   ticket:
     '<path d="M3 9a2.4 2.4 0 0 0 0 6v4h18v-4a2.4 2.4 0 0 0 0-6V5H3z"/><line x1="13" y1="5" x2="13" y2="8"/><line x1="13" y1="16" x2="13" y2="19"/>',
-  bulb: '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6.4 6.4 0 0 1 4.4 11V16H7.6v-2A6.4 6.4 0 0 1 12 3z"/>'
+  bulb: '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6.4 6.4 0 0 1 4.4 11V16H7.6v-2A6.4 6.4 0 0 1 12 3z"/>',
+  // Concentric broadcast waves, not the pulse polyline (Activity) or the
+  // megaphone (alerts): Stream Management is "this channel is live and editable",
+  // and those two already sit on other catalog tiles.
+  broadcast:
+    '<circle cx="12" cy="18" r="1.6"/><path d="M8.2 14.2a5.4 5.4 0 0 1 7.6 0"/><path d="M5.2 11.2a9.4 9.4 0 0 1 13.6 0"/><line x1="12" y1="18" x2="12" y2="9"/>'
 } as const;
 
 export type IconName = keyof typeof icons;

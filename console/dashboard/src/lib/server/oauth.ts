@@ -19,13 +19,18 @@ export function scopes(): string[] {
   // so the bot may act in the channel. Adds channel:read:subscriptions and bits:read
   // for EventSub access, and clips:edit so !clip can create clips on the channel
   // (Create Clip runs on the broadcaster's own token, not the bot's).
+  // channel:manage:broadcast covers the stream editor (!title/!game/!tags/!marker):
+  // Modify Channel Information and Create Stream Marker both run on the
+  // broadcaster's own token. channel:edit:commercial is !commercial / !ad.
+  // Existing grants that predate either scope skip those Helix calls until
+  // the broadcaster re-consents (Reconnect Twitch on settings).
   // channel:manage:redemptions covers the whole Channel Points surface: creating,
   // editing and deleting custom rewards, subscribing to redemption events, and
   // resolving redemptions (fulfill/refund): all on the broadcaster's own token.
   // channel:read:ads authorizes the channel.ad_break.begin EventSub behind the
   // ads chat alert; grants that predate it skip that (optional) subscription
   // until the broadcaster re-consents.
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:redemptions channel:read:ads'
+  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];

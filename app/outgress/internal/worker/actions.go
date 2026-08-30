@@ -24,6 +24,10 @@ import (
 //     the body's duration makes it a timeout.
 //   - ad/commercial/clip: the broadcaster's own grant starts the ad
 //     (channel:edit:commercial) or creates the clip (clips:edit).
+//   - channel_update: Internal because one intent is GET (app token, works
+//     offline) or PATCH (broadcaster, channel:manage:broadcast), plus a
+//     category search for !game. The handler owns every Helix call.
+//   - stream_marker: Create Stream Marker under the broadcaster token.
 //   - api: generic passthrough; the message must carry its own endpoint.
 //   - eventsub/stream_status/redemption_update: internal jobs whose handlers
 //     own their Twitch calls (typed client methods, no route resolution
@@ -46,8 +50,10 @@ func (w *Worker) buildActions() action.Registry {
 	b.Action(outgress.TypeDelete).Delete("/helix/moderation/chat").As(outgress.AsBot).Run(w.processDelete)
 	b.Action(outgress.TypeWarn).Post("/helix/moderation/warnings").As(outgress.AsBot).Run(w.processWarn)
 	b.Action(outgress.TypeAd).Post("/helix/channels/commercial").As(outgress.AsBroadcaster).Run(w.processAPI)
-	b.Action(outgress.TypeCommercial).Post("/helix/channels/commercial").As(outgress.AsBroadcaster).Run(w.processAPI)
+	b.Action(outgress.TypeCommercial).Post("/helix/channels/commercial").As(outgress.AsBroadcaster).Run(w.processCommercial)
 	b.Action(outgress.TypeClip).Post("/helix/clips").As(outgress.AsBroadcaster).Run(w.processClip)
+	b.Action(outgress.TypeChannelUpdate).Internal().Run(w.processChannelUpdate)
+	b.Action(outgress.TypeStreamMarker).Post("/helix/streams/markers").As(outgress.AsBroadcaster).Run(w.processMarker)
 	b.Action(outgress.TypeAPI).Passthrough().Run(w.processAPI)
 	b.Action(outgress.TypeEventSub).Internal().Run(w.processEventSub)
 	b.Action(outgress.TypeStreamStatus).Internal().Run(w.processStreamStatus)

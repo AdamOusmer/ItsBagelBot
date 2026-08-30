@@ -116,7 +116,7 @@ func validateAction(claimed map[string]struct{}, entry *builderAction) error {
 // hands the shape check to validateRoute.
 func validateRouteForm(entry *builderAction) error {
 	if !entry.routed {
-		return fmt.Errorf("action %q declares no route form (chain Post/Put/Delete, Passthrough, or Internal)", entry.act.Type)
+		return fmt.Errorf("action %q declares no route form (chain Post/Put/Patch/Delete, Passthrough, or Internal)", entry.act.Type)
 	}
 	if entry.redeclared {
 		return fmt.Errorf("action %q declares more than one route form", entry.act.Type)
@@ -167,6 +167,14 @@ func (a *ActionBuilder) Post(endpoint Endpoint) *ActionBuilder {
 // Put declares a routed Helix call defaulting to PUT endpoint.
 func (a *ActionBuilder) Put(endpoint Endpoint) *ActionBuilder {
 	return a.helix(http.MethodPut, endpoint)
+}
+
+// Patch declares a routed Helix call defaulting to PATCH endpoint. Helix
+// Modify Channel Information is PATCH, not PUT; without this setter the
+// stream-editor actions would have to lie about the method or go Internal
+// and lose the route pin the registry exists to enforce.
+func (a *ActionBuilder) Patch(endpoint Endpoint) *ActionBuilder {
+	return a.helix(http.MethodPatch, endpoint)
 }
 
 // Delete declares a routed Helix call defaulting to DELETE endpoint.

@@ -22,6 +22,7 @@ func TestBuildProducesImmutableRegistry(t *testing.T) {
 	b.Action("chat").Post("/helix/chat/messages").As(outgress.AsApp).Run(nopRun)
 	b.Action("unban").Delete("/helix/moderation/bans").As(outgress.AsBot).Run(nopRun)
 	b.Action("pin").Put("/helix/chat/pins").As(outgress.AsApp).Run(nopRun)
+	b.Action("channel").Patch("/helix/channels").As(outgress.AsBroadcaster).Run(nopRun)
 	b.Action("api").Passthrough().Run(nopRun)
 	b.Action("eventsub").Internal().Run(nopRun)
 	registry := b.Build()
@@ -35,6 +36,9 @@ func TestBuildProducesImmutableRegistry(t *testing.T) {
 	}
 	if unban, _ := registry.Lookup("unban"); unban.Method != http.MethodDelete {
 		t.Fatalf("unban method = %q, want DELETE", unban.Method)
+	}
+	if ch, _ := registry.Lookup("channel"); ch.Method != http.MethodPatch {
+		t.Fatalf("channel method = %q, want PATCH", ch.Method)
 	}
 	if api, _ := registry.Lookup("api"); api.Kind != KindPassthrough {
 		t.Fatalf("api kind = %v, want passthrough", api.Kind)

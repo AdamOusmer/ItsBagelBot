@@ -104,6 +104,16 @@ const (
 	TypeAd           = "ad"
 	TypeCommercial   = "commercial"
 	TypeClip         = "clip"
+	// TypeChannelUpdate is Modify Channel Information (PATCH /helix/channels)
+	// plus the Get/Search reads that resolve a typed title, category, or tag
+	// list. Outgress owns the Helix round-trips because game names must become
+	// game_ids and the current title is only visible after Get Channel
+	// Information — sesame emits the intent, outgress replies in chat.
+	TypeChannelUpdate = "channel_update"
+	// TypeStreamMarker is Create Stream Marker (POST /helix/streams/markers)
+	// under the broadcaster token (channel:manage:broadcast). Live-only: Twitch
+	// rejects a marker on an offline channel.
+	TypeStreamMarker = "stream_marker"
 	TypeAnnounce     = "announce"
 	TypeShoutout     = "shoutout"
 	// TypePin sends a chat message and pins the returned message id. Outgress
