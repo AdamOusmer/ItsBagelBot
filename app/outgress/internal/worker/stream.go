@@ -76,40 +76,11 @@ func (w *Worker) streamGet(ctx context.Context, payload *outgress.Message, meta 
 }
 
 func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta channelUpdateMeta) error {
-	display := strings.TrimSpace(meta.Value)
-	patch := twitch.ChannelPatch{}
-
-	switch meta.Field {
-	case "title":
-		patch.Title = display
-	case "game":
-		// SearchCategory runs on the app token — a second Helix call the
-		// broadcaster-bucket slot from processChannelUpdate does not cover.
-		// Pay the app bucket before making it; nothing was written yet, so
-		// an error here can safely redeliver.
-		if err := w.takeAppHelix(ctx); err != nil {
-			return err
-		}
-		cat, ok, err := w.twitch.SearchCategory(ctx, display)
-		if err != nil {
-			return w.streamHelixErr(ctx, payload, meta.Locale, err)
-		}
-		if !ok {
-			_ = w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream.game.not_found", map[string]string{
-				"user": meta.User,
-				"game": display,
-			}))
-			return nil
-		}
-		patch.GameID = cat.ID
-		display = cat.Name
-	case "tags":
-		patch.Tags = splitStreamTags(meta.Value)
-		display = strings.Join(patch.Tags, ", ")
-	default:
-		w.log.Error("dropping channel_update with unknown field",
-			zap.String("field", meta.Field),
-			zap.String("broadcaster_id", payload.BroadcasterID))
+	patch, display, ok, err := w.buildChannelPatch(ctx, payload, meta)
+	if err != nil {
+		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+	}
+	if !ok {
 		return nil
 	}
 
@@ -126,6 +97,54 @@ func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta 
 			zap.Error(err))
 	}
 	return nil
+}
+
+// buildChannelPatch maps field+value onto the Helix patch and the display
+// string for the chat reply. ok=false with a nil error means the job is
+// finished without a PATCH — chat was already answered (unknown game) or the
+// field is unroutable.
+func (w *Worker) buildChannelPatch(ctx context.Context, payload *outgress.Message, meta channelUpdateMeta) (patch twitch.ChannelPatch, display string, ok bool, err error) {
+	display = strings.TrimSpace(meta.Value)
+	switch meta.Field {
+	case "title":
+		patch.Title = display
+	case "game":
+		cat, found, err := w.resolveGame(ctx, payload, meta, display)
+		if err != nil || !found {
+			return patch, display, false, err
+		}
+		patch.GameID = cat.ID
+		display = cat.Name
+	case "tags":
+		patch.Tags = splitStreamTags(meta.Value)
+		display = strings.Join(patch.Tags, ", ")
+	default:
+		w.log.Error("dropping channel_update with unknown field",
+			zap.String("field", meta.Field),
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return patch, display, false, nil
+	}
+	return patch, display, true, nil
+}
+
+// resolveGame turns a typed game name into the Helix category. SearchCategory
+// runs on the app token — a second Helix call the broadcaster-bucket slot
+// from processChannelUpdate does not cover — so the app bucket is paid here
+// first; nothing was written yet, so an error can safely redeliver. A miss
+// answers chat directly and reports found=false.
+func (w *Worker) resolveGame(ctx context.Context, payload *outgress.Message, meta channelUpdateMeta, name string) (cat twitch.Category, found bool, err error) {
+	if err := w.takeAppHelix(ctx); err != nil {
+		return cat, false, err
+	}
+	cat, found, err = w.twitch.SearchCategory(ctx, name)
+	if err != nil || found {
+		return cat, found, err
+	}
+	_ = w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream.game.not_found", map[string]string{
+		"user": meta.User,
+		"game": name,
+	}))
+	return cat, false, nil
 }
 
 func (w *Worker) processMarker(ctx context.Context, payload *outgress.Message) error {

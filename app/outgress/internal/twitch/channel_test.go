@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -45,21 +46,15 @@ func routeClient(t *testing.T, method, path, body string) *Client {
 }
 
 func TestChannelInfo(t *testing.T) {
-	c := channelClient(t, func(req *http.Request) (*http.Response, error) {
-		if req.Method != http.MethodGet || !strings.Contains(req.URL.RawQuery, "broadcaster_id=123") {
-			t.Fatalf("unexpected request %s %s", req.Method, req.URL.String())
-		}
-		return jsonOK(`{"data":[{"title":"Ranked grind","game_id":"33214","game_name":"Fortnite","tags":["English"]}]}`), nil
-	})
+	c := routeClient(t, http.MethodGet, "/helix/channels",
+		`{"data":[{"title":"Ranked grind","game_id":"33214","game_name":"Fortnite","tags":["English"]}]}`)
 	info, err := c.ChannelInfo(context.Background(), "123")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Title != "Ranked grind" || info.GameName != "Fortnite" || info.GameID != "33214" {
-		t.Fatalf("info = %+v", info)
-	}
-	if len(info.Tags) != 1 || info.Tags[0] != "English" {
-		t.Fatalf("tags = %v", info.Tags)
+	want := ChannelInfo{Title: "Ranked grind", GameID: "33214", GameName: "Fortnite", Tags: []string{"English"}}
+	if !reflect.DeepEqual(info, want) {
+		t.Fatalf("info = %+v, want %+v", info, want)
 	}
 }
 
