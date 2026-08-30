@@ -260,6 +260,13 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
 
+	// A command that dispatched and ran. Counted on this synchronous path, not
+	// off the observer hook below, because that hook drops under backpressure
+	// and a counter fed from it would silently undercount.
+	if mctx.Command != "" {
+		p.stats.countAnswered(broadcasterID)
+	}
+
 	// Single funnel hook, placed AFTER the stages: the activity feed reports
 	// which command answered and in how long, and neither is known before
 	// dispatch runs. See observe.go for why this is a bounded hand-off.

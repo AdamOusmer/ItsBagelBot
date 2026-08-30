@@ -314,10 +314,16 @@ func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID strin
 }
 
 // helixStream is the slice of Helix Get Streams the workers and RPC handlers
-// read: the broadcast type ("live" while streaming) and when the session began.
+// read: the broadcast type ("live" while streaming), when the session began,
+// and the title/game/viewer snapshot StreamDetails projects for the Overview
+// dashboard. user_login/user_name are not decoded: every caller already knows
+// its own broadcaster identity, so there is nothing here that needs them.
 type helixStream struct {
-	Type      string    `json:"type"`
-	StartedAt time.Time `json:"started_at"`
+	Type        string    `json:"type"`
+	StartedAt   time.Time `json:"started_at"`
+	Title       string    `json:"title"`
+	GameName    string    `json:"game_name"`
+	ViewerCount int       `json:"viewer_count"`
 }
 
 // getStream fetches broadcasterID's current stream via Helix Get Streams under
@@ -366,6 +372,34 @@ func (c *Client) StreamStartedAt(ctx context.Context, broadcasterID string) (tim
 		return time.Time{}, false, err
 	}
 	return stream.StartedAt, true, nil
+}
+
+// StreamDetails is the Get Streams snapshot the Overview dashboard projects
+// as per-stream metadata: title/game/viewer count as Twitch reports them at
+// the moment of the call, plus when the session began.
+type StreamDetails struct {
+	Title       string
+	GameName    string
+	ViewerCount int
+	StartedAt   time.Time
+}
+
+// StreamDetails reports broadcasterID's live state and, when live, the
+// title/game/viewer snapshot from that same Get Streams call. It exists so a
+// caller that needs both the live flag and the metadata (the stream_status
+// job) pays for one Helix call instead of IsStreamLive plus a second lookup;
+// callers that only need the flag should keep using IsStreamLive.
+func (c *Client) StreamDetails(ctx context.Context, broadcasterID string) (StreamDetails, bool, error) {
+	stream, live, err := c.getStream(ctx, broadcasterID)
+	if err != nil || !live {
+		return StreamDetails{}, live, err
+	}
+	return StreamDetails{
+		Title:       stream.Title,
+		GameName:    stream.GameName,
+		ViewerCount: stream.ViewerCount,
+		StartedAt:   stream.StartedAt,
+	}, true, nil
 }
 
 // helixUser is the slice of Helix Get Users the workers read: the account's

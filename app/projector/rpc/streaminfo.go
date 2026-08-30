@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
@@ -47,6 +48,25 @@ func (s *streamInfoRPC) handleGet(ctx context.Context, req projectorrpc.StreamIn
 		return projectorrpc.StreamInfoReply{BroadcasterID: req.BroadcasterID, Known: false}
 	}
 
+	// Live is a SEPARATE field of the same settings hash, written by the stream
+	// event path, so it is read separately here. Reporting the metadata without
+	// it would leave the panel permanently showing an offline channel: the
+	// metadata alone cannot say whether the stream it describes is the one
+	// running now or the last one that ended.
+	//
+	// The id is re-parsed because the two accessors take different types — the
+	// stream-info pair keys by the raw string (parsing internally), GetStreamLive
+	// by the parsed uint64. Both land on the same cache.UserKey, so the hash is
+	// shared; only the call signatures differ.
+	live := false
+	if id, perr := strconv.ParseUint(req.BroadcasterID, 10, 64); perr == nil {
+		got, _, liveErr := s.store.GetStreamLive(ctx, id)
+		if liveErr != nil {
+			log.Warn("stream info rpc: live read failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(liveErr))
+		}
+		live = got
+	}
+
 	return projectorrpc.StreamInfoReply{
 		BroadcasterID: req.BroadcasterID,
 		Title:         info.Title,
@@ -55,6 +75,7 @@ func (s *streamInfoRPC) handleGet(ctx context.Context, req projectorrpc.StreamIn
 		PeakViewers:   info.PeakViewers,
 		StartedAt:     info.StartedAt,
 		EndedAt:       info.EndedAt,
+		Live:          live,
 		Known:         known,
 	}
 }

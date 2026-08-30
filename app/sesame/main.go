@@ -14,6 +14,8 @@ import (
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/internal/config"
 	"ItsBagelBot/app/sesame/modules"
+	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/chatvolume"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
@@ -94,6 +96,12 @@ func main() {
 	}
 	defer valkeyClient.Close()
 
+	// Real Overview activity sink: internal/activity.Emit is a no-op until a
+	// sink is installed (see that package's decision record). This is the one
+	// SetSink call for the whole process; every Emit call site in sesame's
+	// modules (alerts.go) lands here without further wiring.
+	activity.SetSink(activity.NewStore(valkeyClient))
+
 	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log}
 
 	proj := newProjection(w)
@@ -132,6 +140,15 @@ func main() {
 
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
+
+	// Overview feed: turns handled command dispatches into activity rows and
+	// the latency median (see activity_observer.go). Each lane below owns its
+	// own Observer.
+	pipe.RegisterObserver(activityObserver{})
+
+	// Overview chart: per-minute chat volume plus command-answer ticks (see
+	// chatvolume_observer.go and internal/chatvolume's package doc).
+	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
 	if err != nil {

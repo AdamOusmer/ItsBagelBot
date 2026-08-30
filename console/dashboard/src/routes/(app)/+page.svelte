@@ -425,6 +425,13 @@
     flex-direction: column;
     gap: var(--row-gap);
   }
+  /* NeedsAttention and LinkedSummary each carry their own bottom margin from
+     when the page was one vertical stack. Inside the rail that margin adds to
+     the flex gap and every second slot ends up double-spaced (measured 28px
+     then 56px), so the rail owns the spacing and the children contribute none. */
+  .ov-row__side > :global(section) {
+    margin-bottom: 0;
+  }
   @media (max-width: 900px) {
     .ov-row {
       grid-template-columns: 1fr;

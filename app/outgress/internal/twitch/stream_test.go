@@ -70,3 +70,34 @@ func TestStreamStartedAtSurfacesTwitchFailure(t *testing.T) {
 		t.Fatal("StreamStartedAt() error = nil, want StatusError")
 	}
 }
+
+func TestStreamDetailsLive(t *testing.T) {
+	client := uptimeClient(t, http.StatusOK,
+		`{"data":[{"type":"live","started_at":"2026-08-24T12:00:00Z","title":"Ranked grind","game_name":"Fortnite","viewer_count":42}]}`)
+
+	details, live, err := client.StreamDetails(context.Background(), "123")
+	if err != nil || !live {
+		t.Fatalf("StreamDetails() = live=%v err=%v, want live=true err=nil", live, err)
+	}
+	want := StreamDetails{
+		Title:       "Ranked grind",
+		GameName:    "Fortnite",
+		ViewerCount: 42,
+		StartedAt:   time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC),
+	}
+	if details != want {
+		t.Fatalf("StreamDetails() = %+v, want %+v", details, want)
+	}
+}
+
+func TestStreamDetailsOffline(t *testing.T) {
+	client := uptimeClient(t, http.StatusOK, `{"data":[]}`)
+
+	details, live, err := client.StreamDetails(context.Background(), "123")
+	if err != nil || live {
+		t.Fatalf("StreamDetails() = live=%v err=%v, want live=false err=nil", live, err)
+	}
+	if details != (StreamDetails{}) {
+		t.Fatalf("StreamDetails() = %+v, want zero value", details)
+	}
+}
