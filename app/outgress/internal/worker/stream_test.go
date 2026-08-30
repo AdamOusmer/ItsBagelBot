@@ -5,6 +5,7 @@ package worker
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"ItsBagelBot/app/outgress/internal/action"
@@ -60,7 +61,8 @@ func TestStreamDrop(t *testing.T) {
 
 func TestSplitStreamTags(t *testing.T) {
 	got := splitStreamTags("English,  family friendly,")
-	if len(got) != 2 || got[0] != "English" || got[1] != "family friendly" {
-		t.Fatalf("got %v", got)
+	want := []string{"English", "family friendly"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }

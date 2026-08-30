@@ -49,9 +49,7 @@ type commercialMeta struct {
 // Helix Modify Channel takes a game_id, not a name.
 func (w *Worker) processChannelUpdate(ctx context.Context, payload *outgress.Message) error {
 	var meta channelUpdateMeta
-	if len(payload.Payload) > 0 {
-		_ = codec.Unmarshal(payload.Payload, &meta)
-	}
+	decodeStreamMeta(payload, &meta)
 	if payload.BroadcasterID == "" {
 		return nil
 	}
@@ -87,6 +85,13 @@ func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta 
 	case "title":
 		patch.Title = display
 	case "game":
+		// SearchCategory runs on the app token — a second Helix call the
+		// broadcaster-bucket slot from processChannelUpdate does not cover.
+		// Pay the app bucket before making it; nothing was written yet, so
+		// an error here can safely redeliver.
+		if err := w.takeAppHelix(ctx); err != nil {
+			return err
+		}
 		cat, ok, err := w.twitch.SearchCategory(ctx, display)
 		if err != nil {
 			return w.streamHelixErr(ctx, payload, meta.Locale, err)
@@ -127,42 +132,47 @@ func (w *Worker) streamSet(ctx context.Context, payload *outgress.Message, meta 
 
 func (w *Worker) processMarker(ctx context.Context, payload *outgress.Message) error {
 	var meta streamMarkerMeta
-	if len(payload.Payload) > 0 {
-		_ = codec.Unmarshal(payload.Payload, &meta)
-	}
-	payload.As = outgress.AsBroadcaster
-	if err := w.takeGeneralHelix(ctx, payload); err != nil {
-		return err
-	}
-	if err := w.twitch.CreateMarker(ctx, payload.BroadcasterID, meta.Description); err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
-	}
-	if err := w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream.marker.ok", map[string]string{
-		"user": meta.User,
-	})); err != nil {
-		w.log.Warn("marker created but reply chat failed",
-			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
-	}
-	return nil
+	decodeStreamMeta(payload, &meta)
+	return w.runBroadcasterJob(ctx, payload, meta.Locale,
+		func() error { return w.twitch.CreateMarker(ctx, payload.BroadcasterID, meta.Description) },
+		streamExpand(meta.Locale, "stream.marker.ok", map[string]string{"user": meta.User}),
+		"marker created but reply chat failed")
 }
 
 func (w *Worker) processCommercial(ctx context.Context, payload *outgress.Message) error {
 	var meta commercialMeta
+	decodeStreamMeta(payload, &meta)
+	return w.runBroadcasterJob(ctx, payload, meta.Locale,
+		func() error { return w.twitch.StartCommercial(ctx, payload.BroadcasterID, meta.Length) },
+		streamExpand(meta.Locale, "stream.commercial.ok", map[string]string{
+			"user":   meta.User,
+			"length": strconv.Itoa(meta.Length),
+		}),
+		"commercial started but reply chat failed")
+}
+
+// decodeStreamMeta tolerates an absent payload: every stream-editor field has
+// a workable zero value, and sesame always sends the blob anyway.
+func decodeStreamMeta(payload *outgress.Message, meta any) {
 	if len(payload.Payload) > 0 {
-		_ = codec.Unmarshal(payload.Payload, &meta)
+		_ = codec.Unmarshal(payload.Payload, meta)
 	}
+}
+
+// runBroadcasterJob is the shared marker/commercial shape: take the Helix
+// slot as the broadcaster, run the call, then confirm in chat. A reply
+// failure after a successful call logs instead of redelivering — the Helix
+// write already happened, so a retry would run it twice.
+func (w *Worker) runBroadcasterJob(ctx context.Context, payload *outgress.Message, locale string, call func() error, okLine, replyWarn string) error {
 	payload.As = outgress.AsBroadcaster
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err
 	}
-	if err := w.twitch.StartCommercial(ctx, payload.BroadcasterID, meta.Length); err != nil {
-		return w.streamHelixErr(ctx, payload, meta.Locale, err)
+	if err := call(); err != nil {
+		return w.streamHelixErr(ctx, payload, locale, err)
 	}
-	if err := w.sendBotLine(ctx, payload.BroadcasterID, streamExpand(meta.Locale, "stream.commercial.ok", map[string]string{
-		"user":   meta.User,
-		"length": strconv.Itoa(meta.Length),
-	})); err != nil {
-		w.log.Warn("commercial started but reply chat failed",
+	if err := w.sendBotLine(ctx, payload.BroadcasterID, okLine); err != nil {
+		w.log.Warn(replyWarn,
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
 	}
 	return nil

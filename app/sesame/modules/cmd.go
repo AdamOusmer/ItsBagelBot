@@ -247,27 +247,36 @@ func streamFieldRun(d engine.Deps, field string) module.RunFunc {
 			return nil
 		}
 		value := strings.TrimSpace(args)
-		if value == "" {
-			if streamIsSetAlias(c) {
-				reply(c, emit, i18n.T(c.Locale, "stream."+field+".usage"), c.Env.ChatterName(), "")
-				return nil
-			}
-			emitStreamUpdate(c, field, "", emit)
+		if value == "" && streamIsSetAlias(c) {
+			reply(c, emit, i18n.T(c.Locale, "stream."+field+".usage"), c.Env.ChatterName(), "")
 			return nil
 		}
-		if field == streamFieldTitle && len([]rune(value)) > streamTitleMax {
-			reply(c, emit, i18n.T(c.Locale, "stream.title.too_long"), c.Env.ChatterName(), "")
+		if key := streamFieldRefusal(field, value); key != "" {
+			reply(c, emit, i18n.T(c.Locale, key), c.Env.ChatterName(), "")
 			return nil
-		}
-		if field == streamFieldTags {
-			if _, err := parseStreamTags(value); err != nil {
-				reply(c, emit, i18n.T(c.Locale, "stream.tags.usage"), c.Env.ChatterName(), "")
-				return nil
-			}
 		}
 		emitStreamUpdate(c, field, value, emit)
 		return nil
 	}
+}
+
+// streamFieldRefusal returns the i18n key refusing value for field, or ""
+// when the value can be sent to outgress. An empty value is always sendable
+// here — it is the Nightbot get spelling (the set-alias case is refused
+// before validation ever runs).
+func streamFieldRefusal(field, value string) string {
+	if value == "" {
+		return ""
+	}
+	if field == streamFieldTitle && len([]rune(value)) > streamTitleMax {
+		return "stream.title.too_long"
+	}
+	if field == streamFieldTags {
+		if _, err := parseStreamTags(value); err != nil {
+			return "stream.tags.usage"
+		}
+	}
+	return ""
 }
 
 func streamCommercialRun(d engine.Deps) module.RunFunc {
@@ -372,7 +381,10 @@ func parseCommercialLength(args string) (int, bool) {
 	if err != nil {
 		return 0, false
 	}
-	if n < streamCommercialMin || n > streamCommercialMax || n%streamCommercialStep != 0 {
+	if n < streamCommercialMin || n > streamCommercialMax {
+		return 0, false
+	}
+	if n%streamCommercialStep != 0 {
 		return 0, false
 	}
 	return n, true

@@ -32,6 +32,18 @@ func jsonOK(body string) *http.Response {
 	}
 }
 
+// routeClient fails the test on any request that is not method+path and
+// answers the expected one with body.
+func routeClient(t *testing.T, method, path, body string) *Client {
+	t.Helper()
+	return channelClient(t, func(req *http.Request) (*http.Response, error) {
+		if req.Method != method || req.URL.Path != path {
+			t.Fatalf("unexpected %s %s, want %s %s", req.Method, req.URL.Path, method, path)
+		}
+		return jsonOK(body), nil
+	})
+}
+
 func TestChannelInfo(t *testing.T) {
 	c := channelClient(t, func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet || !strings.Contains(req.URL.RawQuery, "broadcaster_id=123") {
@@ -51,26 +63,27 @@ func TestChannelInfo(t *testing.T) {
 	}
 }
 
-func TestSearchCategoryFirstHit(t *testing.T) {
-	c := channelClient(t, func(*http.Request) (*http.Response, error) {
-		return jsonOK(`{"data":[{"id":"33214","name":"Fortnite"}]}`), nil
-	})
-	cat, ok, err := c.SearchCategory(context.Background(), "fort")
-	if err != nil || !ok {
-		t.Fatalf("SearchCategory() = ok=%v err=%v", ok, err)
+func TestSearchCategory(t *testing.T) {
+	cases := []struct {
+		name, body string
+		wantOK     bool
+	}{
+		{"first hit", `{"data":[{"id":"33214","name":"Fortnite"}]}`, true},
+		{"miss", `{"data":[]}`, false},
 	}
-	if cat.ID != "33214" || cat.Name != "Fortnite" {
-		t.Fatalf("cat = %+v", cat)
-	}
-}
-
-func TestSearchCategoryMiss(t *testing.T) {
-	c := channelClient(t, func(*http.Request) (*http.Response, error) {
-		return jsonOK(`{"data":[]}`), nil
-	})
-	_, ok, err := c.SearchCategory(context.Background(), "zzzz")
-	if err != nil || ok {
-		t.Fatalf("SearchCategory() = ok=%v err=%v, want miss", ok, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := channelClient(t, func(*http.Request) (*http.Response, error) {
+				return jsonOK(tc.body), nil
+			})
+			cat, ok, err := c.SearchCategory(context.Background(), "fort")
+			if err != nil || ok != tc.wantOK {
+				t.Fatalf("SearchCategory() = ok=%v err=%v, want ok=%v", ok, err, tc.wantOK)
+			}
+			if ok && (cat.ID != "33214" || cat.Name != "Fortnite") {
+				t.Fatalf("cat = %+v", cat)
+			}
+		})
 	}
 }
 
