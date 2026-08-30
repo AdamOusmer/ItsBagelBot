@@ -21,6 +21,18 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
+import {
+  degradedStreamMeta,
+  degradedStreamCounters,
+  degradedChatVolume,
+  degradedActivityFeed,
+  degradedAnsweredTonight,
+  type StreamMeta,
+  type StreamCounters,
+  type ChatVolume,
+  type ActivityFeed,
+  type AnsweredTonight
+} from '$lib/overview-live';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -216,7 +228,32 @@ export const load: PageServerLoad = ({ locals }) => {
     conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
     commands: demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid)),
     modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => moduleDigest(uid)),
-    shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid))
+    shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
+
+    // The redesign's live panels. Each resolves to its degraded default until
+    // the lane that feeds it lands; the panels render an honest "not measured"
+    // rather than a confident zero, so the page ships complete either way.
+    // Adding a real read here is the ONLY edit each lane makes to this file.
+    stream: demoOr<StreamMeta>(
+      (m) => m.demoStreamMeta(Date.now()),
+      () => Promise.resolve(degradedStreamMeta())
+    ),
+    counters: demoOr<StreamCounters>(
+      (m) => m.demoStreamCounters,
+      () => Promise.resolve(degradedStreamCounters())
+    ),
+    volume: demoOr<ChatVolume>(
+      (m) => m.demoChatVolume(),
+      () => Promise.resolve(degradedChatVolume())
+    ),
+    feed: demoOr<ActivityFeed>(
+      (m) => m.demoActivityFeed(Date.now()),
+      () => Promise.resolve(degradedActivityFeed())
+    ),
+    answered: demoOr<AnsweredTonight>(
+      (m) => m.demoAnsweredTonight,
+      () => Promise.resolve(degradedAnsweredTonight())
+    )
   };
 };
 
