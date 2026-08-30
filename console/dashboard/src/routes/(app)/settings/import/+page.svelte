@@ -303,7 +303,11 @@
     out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
     out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
     out.counters = keep(m.counters as ManifestCounter[] | undefined, 'counters');
-    if (m.automod) out.automod = m.automod;
+    // Automod terms have no row of their own, so they used to ride along even
+    // when every row was unchecked: the commit bar could read "0 of N selected"
+    // and the commit would still call commitAutomodTerms. Nothing selected now
+    // means nothing imported.
+    if (m.automod && rowPicked > 0) out.automod = m.automod;
     return JSON.stringify(out);
   }
 
