@@ -25,7 +25,7 @@
         "@bagel/shared": "workspace:*",
         "@nats-io/kv": "^3.4.0",
         "@nats-io/transport-node": "^3.4.0",
-        "nanoid": "^5.1.14",
+        "nanoid": "^6.0.1",
         "newrelic": "^12.11.0",
         "pino": "^9",
       },
@@ -587,7 +587,7 @@
 
     "nan": ["nan@2.28.0", "", {}, "sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ=="],
 
-    "nanoid": ["nanoid@5.1.16", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ=="],
+    "nanoid": ["nanoid@6.0.1", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-3wVS3i51pE2pi1k5FFL/95BGfVS0kSsvDVuGXHOtxox/TywUmtgq+3qiTOTbs9J7KfHaXPiN171k/A6dBnaXFw=="],
 
     "newrelic": ["newrelic@12.25.1", "", { "dependencies": { "@grpc/grpc-js": "^1.13.2", "@grpc/proto-loader": "^0.7.5", "@newrelic/security-agent": "^2.4.4", "@opentelemetry/api": "^1.9.0", "@opentelemetry/core": "^2.0.0", "@opentelemetry/exporter-metrics-otlp-proto": "^0.201.1", "@opentelemetry/resources": "^2.0.1", "@opentelemetry/sdk-metrics": "^2.0.1", "@opentelemetry/sdk-trace-base": "^2.0.0", "@tyriar/fibonacci-heap": "^2.0.7", "concat-stream": "^2.0.0", "https-proxy-agent": "^7.0.1", "import-in-the-middle": "^1.13.0", "json-bigint": "^1.0.0", "json-stringify-safe": "^5.0.0", "module-details-from-path": "^1.0.3", "readable-stream": "^3.6.1", "require-in-the-middle": "^7.4.0", "semver": "^7.5.2", "winston-transport": "^4.5.0" }, "optionalDependencies": { "@newrelic/fn-inspect": "^4.4.0", "@newrelic/native-metrics": "^11.1.0", "@prisma/prisma-fmt-wasm": "^4.17.0-16.27eb2449f178cd9fe1a4b892d732cc4795f75085" }, "bin": { "newrelic-naming-rules": "bin/test-naming-rules.js" } }, "sha512-CcVkLRiVRhfiVQeGJ3bjpMfM6yhaK9gxG+jQCR5DhcG94hTgLCCND1xwdlVqZwPG5LMlPddkDXWmXY7jd6P5DQ=="],
 
