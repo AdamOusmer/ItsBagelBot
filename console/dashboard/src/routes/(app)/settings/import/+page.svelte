@@ -27,6 +27,7 @@
   import {
     AlertBanner,
     Badge,
+    Bolota,
     Button,
     Card,
     Icon,
@@ -209,6 +210,70 @@
 
   const statsLine = $derived(statChips.join(' · ') || t('import.statsNone'));
 
+  // --- bulk selection, commit-bar counter, rail detail lines ----------------
+  // "Select all" still refuses error-flagged rows: commit drops those
+  // server-side, so checking them would promise a landing that never happens.
+  function setAll(v: boolean) {
+    const m = previewResult?.manifest;
+    if (!m) return;
+    const next: Record<string, boolean> = {};
+    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
+      const rows = (m[kind] as unknown[] | undefined) ?? [];
+      for (let i = 0; i < rows.length; i++) {
+        next[`${kind}:${i}`] = v && !itemDiags(kind, i).some((d) => d.severity === 'error');
+      }
+    }
+    selected = next;
+  }
+
+  const rowTotal = $derived.by(() => {
+    const m = previewResult?.manifest;
+    if (!m) return 0;
+    return (Object.keys(CODE_PREFIX) as RowKind[]).reduce(
+      (n, kind) => n + ((m[kind] as unknown[] | undefined) ?? []).length,
+      0
+    );
+  });
+  const rowPicked = $derived.by(() => {
+    const m = previewResult?.manifest;
+    if (!m) return 0;
+    let n = 0;
+    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
+      const rows = (m[kind] as unknown[] | undefined) ?? [];
+      for (let i = 0; i < rows.length; i++) if (isChecked(kind, i)) n++;
+    }
+    return n;
+  });
+  const selectionLine = $derived(t('import.selectionLine', { n: rowPicked, total: rowTotal }));
+
+  // One line of detail per rail stage, so the rail reports the actual choices
+  // (source, file/token, selection) instead of repeating the stage names.
+  const railDetail = $derived.by(() => [
+    source ? SOURCE_LABEL[source] : t('import.railPickPending'),
+    source === 'streamelements'
+      ? credential
+        ? t('import.railTokenSet')
+        : t('import.railTokenPending')
+      : uploadFile
+        ? uploadFile.name
+        : t('import.railFilePending'),
+    previewResult ? selectionLine : t('import.railReviewPending'),
+    commitResult ? t('import.railDone') : ''
+  ]);
+
+  // Count tiles on the done panel — only collections that actually landed.
+  const appliedTiles = $derived.by(() => {
+    const a = commitResult?.applied;
+    if (!a) return [] as { n: number; label: string }[];
+    const out: { n: number; label: string }[] = [];
+    if (a.commands) out.push({ n: a.commands, label: t('import.hCommands') });
+    if (a.timers) out.push({ n: a.timers, label: t('import.hTimers') });
+    if (a.triggers) out.push({ n: a.triggers, label: t('import.hTriggers') });
+    if (a.quotes) out.push({ n: a.quotes, label: t('import.hQuotes') });
+    if (a.counters) out.push({ n: a.counters, label: t('import.hCounters') });
+    return out;
+  });
+
   const reviewHint = $derived.by(() => {
     if (!source) return '';
     let s = t('import.reviewHint', {
@@ -238,7 +303,11 @@
     out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
     out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
     out.counters = keep(m.counters as ManifestCounter[] | undefined, 'counters');
-    if (m.automod) out.automod = m.automod;
+    // Automod terms have no row of their own, so they used to ride along even
+    // when every row was unchecked: the commit bar could read "0 of N selected"
+    // and the commit would still call commitAutomodTerms. Nothing selected now
+    // means nothing imported.
+    if (m.automod && rowPicked > 0) out.automod = m.automod;
     return JSON.stringify(out);
   }
 
@@ -431,23 +500,36 @@
     {t('import.pageTitlePre')}{' '}<em>{t('import.pageTitleEm')}</em>
   </PageHead>
 
-  <!-- Horizontal stepper: completed / current / future stages. -->
-  <Card as="ol" class="stepper" aria-label={t('import.stagesLabel')}>
-    {#each STAGES as key, i (key)}
-      {#if i > 0}<li class="bar" aria-hidden="true"></li>{/if}
-      <li
-        class="stage"
-        class:done={i < stepIndex}
-        class:current={i === stepIndex}
-        aria-current={i === stepIndex ? 'step' : undefined}
-      >
-        <span class="dot" aria-hidden="true">
-          {#if i < stepIndex}<Icon name="check" size={11} />{:else}{i + 1}{/if}
-        </span>
-        {t(key)}
-      </li>
-    {/each}
-  </Card>
+  <div class="wizard">
+    <!-- Persistent progress rail: stage list plus what has actually been
+         chosen so far. Sticky, so the flow column scrolls under it. -->
+    <Card as="aside" class="rail" aria-label={t('import.stagesLabel')}>
+      <p class="rail-head">{t('import.railProgress')}</p>
+      <ol class="rail-list">
+        {#each STAGES as key, i (key)}
+          <li
+            class="rail-item"
+            class:done={i < stepIndex}
+            class:current={i === stepIndex}
+            aria-current={i === stepIndex ? 'step' : undefined}
+          >
+            <span class="rail-gutter" aria-hidden="true">
+              <span class="rail-dot">
+                {#if i < stepIndex}<Icon name="check" size={11} />{:else}{i + 1}{/if}
+              </span>
+              {#if i < STAGES.length - 1}<span class="rail-bar"></span>{/if}
+            </span>
+            <span class="rail-text">
+              <span class="rail-title">{t(key)}</span>
+              {#if railDetail[i]}<span class="rail-detail">{railDetail[i]}</span>{/if}
+            </span>
+          </li>
+        {/each}
+      </ol>
+      <p class="rail-foot">{t('import.railAudit')}</p>
+    </Card>
+
+    <div class="flow">
 
   {#if step === 'pick'}
     <Card>
@@ -472,6 +554,7 @@
             <span class="chip">{t('import.chipToken')}</span>
           </span>
           <span class="tile-desc">{t('import.seDesc')}</span>
+          <span class="tile-cta">{t('import.tileCta')}</span>
         </label>
 
         <!-- Fossabot: the parser exists backend-side but is not registered yet
@@ -501,6 +584,7 @@
             <span class="chip">{t('import.chipFile')}</span>
           </span>
           <span class="tile-desc">{t('import.moobotDesc')}</span>
+          <span class="tile-cta">{t('import.tileCta')}</span>
         </label>
 
         <!-- StreamLabs Chatbot: desktop database export (.db) -->
@@ -518,12 +602,16 @@
             <span class="chip">{t('import.chipFile')}</span>
           </span>
           <span class="tile-desc">{t('import.slDesc')}</span>
+          <span class="tile-cta">{t('import.tileCta')}</span>
         </label>
       </div>
     </Card>
   {:else if step === 'instructions' && source}
     <Card>
-      <h2>{t('import.stepInstructions', { source: SOURCE_LABEL[source] })}</h2>
+      <div class="instr-head">
+        <span class="glyph" aria-hidden="true">{SOURCE_INITIALS[source]}</span>
+        <h2>{t('import.stepInstructions', { source: SOURCE_LABEL[source] })}</h2>
+      </div>
       <p class="hint">{t('import.instrHint', { source: SOURCE_LABEL[source] })}</p>
 
       {#if instrSteps.length}
@@ -602,15 +690,17 @@
       </form>
     </Card>
   {:else if step === 'review' && previewResult?.manifest}
-    <Card>
+    <Card class="review-head">
       <h2>{t('import.reviewTitle')}</h2>
       <p class="hint">{reviewHint}</p>
 
-      {#if statChips.length}
-        <div class="stat-strip">
-          {#each statChips as c (c)}<span class="stat">{c}</span>{/each}
-        </div>
-      {/if}
+      <div class="review-bar">
+        {#each statChips as c (c)}<span class="stat">{c}</span>{/each}
+        <span class="review-spacer"></span>
+        <button type="button" class="mini" onclick={() => setAll(true)}>{t('import.selectAll')}</button>
+        <button type="button" class="mini" onclick={() => setAll(false)}>{t('import.selectNone')}</button>
+      </div>
+    </Card>
 
       {#each manifestLevelDiags as d (d.code + d.message)}
         <p class="manifest-warn" role="status">{d.message}</p>
@@ -627,157 +717,196 @@
       {/if}
 
       {#if previewResult.manifest.commands?.length}
-        <h3>{t('import.hCommands')}</h3>
-        <ul class="rows">
-          {#each previewResult.manifest.commands as c, i (c.name)}
-            {@const diags = itemDiags('commands', i)}
-            <li class="row-item" class:collision={collidedCommands.has(normalizeName(c.name))}>
-              <label class="pick">
-                <input
-                  type="checkbox"
-                  checked={isChecked('commands', i)}
-                  onchange={(e) => toggle('commands', i, e.currentTarget.checked)}
-                />
-                <span class="row-name">!{c.name}</span>
-              </label>
-              <div class="row-body">
-                <span class="row-response">{c.responses?.join(' / ')}</span>
-                <span class="chips">
-                  {#if c.permission && c.permission !== 'everyone'}<Badge perm={c.permission} />{/if}
-                  {#if c.cooldown_seconds}<span class="chip">{t('import.cooldownChip', { n: c.cooldown_seconds })}</span>{/if}
-                  {#each c.aliases ?? [] as a (a)}<span class="alias-chip">!{a}</span>{/each}
-                  {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                    <span class="warn-chip" title={d.message}>{d.message}</span>
-                  {/each}
-                  {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                    <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
-                  {/each}
-                  {#if collidedCommands.has(normalizeName(c.name))}
-                    <span class="collision-chip">{t('import.alreadyExists')}</span>
-                  {/if}
-                </span>
-              </div>
-            </li>
-          {/each}
-        </ul>
+        <Card class="group">
+          <div class="group-head">
+            <span class="group-title">{t('import.hCommands')}</span>
+            <span class="group-count">{previewResult.manifest.commands.length}</span>
+          </div>
+          <ul class="rows">
+            {#each previewResult.manifest.commands as c, i (c.name)}
+              {@const diags = itemDiags('commands', i)}
+              <li class="row-item" class:collision={collidedCommands.has(normalizeName(c.name))}>
+                <label class="pick">
+                  <input
+                    type="checkbox"
+                    checked={isChecked('commands', i)}
+                    onchange={(e) => toggle('commands', i, e.currentTarget.checked)}
+                  />
+                  <span class="row-name">!{c.name}</span>
+                </label>
+                <div class="row-body">
+                  <span class="row-response">{c.responses?.join(' / ')}</span>
+                  <span class="chips">
+                    {#if c.permission && c.permission !== 'everyone'}<Badge perm={c.permission} />{/if}
+                    {#if c.cooldown_seconds}<span class="chip">{t('import.cooldownChip', { n: c.cooldown_seconds })}</span>{/if}
+                    {#each c.aliases ?? [] as a (a)}<span class="alias-chip">!{a}</span>{/each}
+                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
+                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                    {/each}
+                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
+                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                    {/each}
+                    {#if collidedCommands.has(normalizeName(c.name))}
+                      <span class="collision-chip">{t('import.alreadyExists')}</span>
+                    {/if}
+                  </span>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        </Card>
       {/if}
 
       {#if previewResult.manifest.timers?.length}
-        <h3>{t('import.hTimers')}</h3>
-        <ul class="rows">
-          {#each previewResult.manifest.timers as tm, i (tm.message)}
-            {@const diags = itemDiags('timers', i)}
-            <li class="row-item">
-              <label class="pick">
-                <input
-                  type="checkbox"
-                  checked={isChecked('timers', i)}
-                  onchange={(e) => toggle('timers', i, e.currentTarget.checked)}
-                />
-              </label>
-              <div class="row-body">
-                <span class="row-response">{tm.message}</span>
-                <span class="chips">
-                  <span class="chip">{t('import.everySeconds', { n: tm.interval_seconds })}</span>
-                  {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                    <span class="warn-chip" title={d.message}>{d.message}</span>
-                  {/each}
-                  {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                    <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
-                  {/each}
-                </span>
-              </div>
-            </li>
-          {/each}
-        </ul>
+        <Card class="group">
+          <div class="group-head">
+            <span class="group-title">{t('import.hTimers')}</span>
+            <span class="group-count">{previewResult.manifest.timers.length}</span>
+          </div>
+          <ul class="rows">
+            {#each previewResult.manifest.timers as tm, i (tm.message)}
+              {@const diags = itemDiags('timers', i)}
+              <li class="row-item">
+                <label class="pick">
+                  <input
+                    type="checkbox"
+                    checked={isChecked('timers', i)}
+                    onchange={(e) => toggle('timers', i, e.currentTarget.checked)}
+                  />
+                </label>
+                <div class="row-body">
+                  <span class="row-response">{tm.message}</span>
+                  <span class="chips">
+                    <span class="chip">{t('import.everySeconds', { n: tm.interval_seconds })}</span>
+                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
+                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                    {/each}
+                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
+                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                    {/each}
+                  </span>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        </Card>
       {/if}
 
       {#if previewResult.manifest.triggers?.length}
-        <h3>{t('import.hTriggers')}</h3>
-        <ul class="rows">
-          {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
-            {@const diags = itemDiags('triggers', i)}
-            <li class="row-item">
-              <label class="pick">
-                <input
-                  type="checkbox"
-                  checked={isChecked('triggers', i)}
-                  onchange={(e) => toggle('triggers', i, e.currentTarget.checked)}
-                />
-                <span class="row-name">{tg.phrase}</span>
-              </label>
-              <div class="row-body">
-                <span class="row-response">{tg.response}</span>
-                <span class="chips">
-                  {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                    <span class="warn-chip" title={d.message}>{d.message}</span>
-                  {/each}
-                  {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                    <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
-                  {/each}
-                </span>
-              </div>
-            </li>
-          {/each}
-        </ul>
+        <Card class="group">
+          <div class="group-head">
+            <span class="group-title">{t('import.hTriggers')}</span>
+            <span class="group-count">{previewResult.manifest.triggers.length}</span>
+          </div>
+          <ul class="rows">
+            {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
+              {@const diags = itemDiags('triggers', i)}
+              <li class="row-item">
+                <label class="pick">
+                  <input
+                    type="checkbox"
+                    checked={isChecked('triggers', i)}
+                    onchange={(e) => toggle('triggers', i, e.currentTarget.checked)}
+                  />
+                  <span class="row-name">{tg.phrase}</span>
+                </label>
+                <div class="row-body">
+                  <span class="row-response">{tg.response}</span>
+                  <span class="chips">
+                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
+                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                    {/each}
+                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
+                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                    {/each}
+                  </span>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        </Card>
       {/if}
 
       {#if previewResult.manifest.quotes?.length}
-        <h3>{t('import.hQuotes')}</h3>
-        <p class="hint">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</p>
+        <Card class="group">
+          <div class="group-head">
+            <span class="group-title">{t('import.hQuotes')}</span>
+            <span class="group-count">{previewResult.manifest.quotes.length}</span>
+          </div>
+          <p class="hint">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</p>
+        </Card>
       {/if}
 
       {#if previewResult.manifest.counters?.length}
-        <h3>{t('import.hCounters')}</h3>
-        <ul class="rows">
-          {#each previewResult.manifest.counters as ctr, i (ctr.name)}
-            {@const diags = itemDiags('counters', i)}
-            <li class="row-item">
-              <label class="pick">
-                <input
-                  type="checkbox"
-                  checked={isChecked('counters', i)}
-                  onchange={(e) => toggle('counters', i, e.currentTarget.checked)}
-                />
-                <span class="row-name">{`{counter:` + ctr.name + `}`}</span>
-              </label>
-              <div class="row-body">
-                <span class="row-response">{t('import.startsAt', { n: ctr.value })}</span>
-                <span class="chips">
-                  {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                    <span class="warn-chip" title={d.message}>{d.message}</span>
-                  {/each}
-                  {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                    <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
-                  {/each}
-                </span>
-              </div>
-            </li>
-          {/each}
-        </ul>
+        <Card class="group">
+          <div class="group-head">
+            <span class="group-title">{t('import.hCounters')}</span>
+            <span class="group-count">{previewResult.manifest.counters.length}</span>
+          </div>
+          <ul class="rows">
+            {#each previewResult.manifest.counters as ctr, i (ctr.name)}
+              {@const diags = itemDiags('counters', i)}
+              <li class="row-item">
+                <label class="pick">
+                  <input
+                    type="checkbox"
+                    checked={isChecked('counters', i)}
+                    onchange={(e) => toggle('counters', i, e.currentTarget.checked)}
+                  />
+                  <span class="row-name">{`{counter:` + ctr.name + `}`}</span>
+                </label>
+                <div class="row-body">
+                  <span class="row-response">{t('import.startsAt', { n: ctr.value })}</span>
+                  <span class="chips">
+                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
+                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                    {/each}
+                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
+                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                    {/each}
+                  </span>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        </Card>
       {/if}
 
       {#if commitError}<AlertBanner icon="ban">{commitError}</AlertBanner>{/if}
 
+      <!-- Sticky commit bar: the selection count travels with the list so the
+           import button is never scrolled off behind a long review. -->
       <form
-        class="actions"
+        class="commit-bar"
         onsubmit={(e) => {
           e.preventDefault();
           runCommit();
         }}
       >
+        <span class="commit-line">{selectionLine}</span>
         <div class="actions-row">
           <Button variant="ghost" type="button" onclick={reset} disabled={submitting}
-            >{t('import.back')}</Button
+            >{t('import.startOver')}</Button
           >
           <Button type="submit" variant="primary" icon="check" loading={submitting}>
             {t('import.importNow')}
           </Button>
         </div>
       </form>
-    </Card>
   {:else if step === 'done'}
     <Card class="done-panel">
+      <!-- The blob is seeded off the channel name, so the face that congratulates
+           you here is the same one the topbar has been wearing all session. -->
+      <span class="done-blob">
+        <Bolota
+          name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
+          size={58}
+          active={true}
+          cycle={false}
+          sequence="entrance"
+          sequenceKey={commitResult?.audit_id ?? 'done'}
+        />
+      </span>
       <h2>{t('import.doneTitle')}</h2>
       {#if commitResult}
         <p class="hint">
@@ -794,8 +923,17 @@
               names: commitResult.skipped.map((c) => c.name).join(', ')
             })}
           {/if}
-          {#if commitResult.audit_id}{t('import.auditLine', { n: commitResult.audit_id })}{/if}
         </p>
+        {#if appliedTiles.length}
+          <div class="applied">
+            {#each appliedTiles as a (a.label)}
+              <div class="applied-tile">
+                <span class="applied-n">{a.n}</span>
+                <span class="applied-label">{a.label}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
           <p class:manifest-warn={d.severity === 'warn'} class:form-error={d.severity === 'error'} role="status">
             {d.message}
@@ -807,8 +945,13 @@
       <div class="actions">
         <Button variant="primary" icon="check" onclick={reset}>{t('import.backToSources')}</Button>
       </div>
+      {#if commitResult?.audit_id}
+        <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>
+      {/if}
     </Card>
   {/if}
+    </div>
+  </div>
 </section>
 
 <style>
@@ -816,80 +959,133 @@
     margin: 0 0 6px;
     font-size: 16px;
   }
-  h3 {
-    margin: 24px 0 10px;
-    font-size: 14px;
-  }
   .hint {
     color: var(--bb-muted, #888077);
     font-size: 13px;
     margin: 0 0 12px;
   }
 
-  /* --- stepper header --- */
-  /* Surface comes from <Card>; :global because the class rides a component
-     root, which this page's scoping hash never reaches. */
-  :global(.stepper) {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    list-style: none;
-    margin: 0 0 16px;
-    padding: 14px 18px;
+  /* --- wizard shell: sticky progress rail + flow column --- */
+  .wizard {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
   }
-  .stage {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+  .flow {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  :global(.rail) {
+    position: sticky;
+    top: 32px;
+    padding: 22px 20px;
+  }
+  .rail-head {
+    margin: 0 0 18px;
     font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--bb-muted);
-    white-space: nowrap;
   }
-  .stage .dot {
+  .rail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .rail-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .rail-gutter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 26px;
+  }
+  .rail-dot {
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-fill);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-fill);
+    color: var(--bb-muted);
+    transition:
+      border-color var(--bb-dur-fast, 140ms) ease,
+      color var(--bb-dur-fast, 140ms) ease;
   }
-  .stage.current {
+  .rail-bar {
+    width: 1px;
+    flex: 1;
+    min-height: 26px;
+    background: var(--bb-border);
+  }
+  .rail-text {
+    padding-bottom: 18px;
+    min-width: 0;
+  }
+  .rail-title {
+    display: block;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .rail-detail {
+    display: block;
+    margin-top: 5px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #5f5a53;
+    overflow-wrap: anywhere;
+  }
+  .rail-item.current .rail-title {
     color: var(--bb-white);
   }
-  .stage.current .dot {
+  .rail-item.current .rail-dot {
     border-color: rgba(201, 168, 124, 0.6);
     color: var(--bb-tan-light);
     box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.12);
   }
-  .stage.done {
+  .rail-item.done .rail-title {
     color: var(--bb-green-glow, #52b788);
   }
-  .stage.done .dot {
-    border-color: rgba(82, 183, 136, 0.4);
-    background: rgba(82, 183, 136, 0.12);
+  .rail-item.done .rail-dot {
+    border-color: rgba(82, 183, 136, 0.5);
+    color: var(--bb-green-glow, #52b788);
   }
-  .bar {
-    width: 26px;
-    height: 1px;
-    background: var(--glass-border);
+  .rail-foot {
+    margin: 6px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--bb-border);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bb-muted);
   }
-  @media (max-width: 560px) {
-    :global(.stepper) {
-      gap: 7px;
-      padding: 12px 14px;
+
+  /* Below the two-column breakpoint the rail stops being a sidebar: it goes
+     back to normal flow above the steps rather than eating a scroll-locked
+     column on a phone. */
+  @media (max-width: 900px) {
+    .wizard {
+      grid-template-columns: minmax(0, 1fr);
     }
-    .stage {
-      font-size: 9.5px;
-    }
-    .bar {
-      width: 12px;
+    :global(.rail) {
+      position: static;
     }
   }
 
@@ -1104,12 +1300,6 @@
   }
 
   /* --- step 2: stats strip + review rows --- */
-  .stat-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 4px 0 14px;
-  }
   .stat {
     font-family: var(--bb-font-mono);
     font-size: 11px;
@@ -1247,6 +1437,167 @@
     }
     .overwrite-toggle {
       margin-left: 0;
+    }
+  }
+  /* --- design import: tile CTA, instruction head, review + done panels --- */
+  .tile-cta {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bb-green-glow, #52b788);
+  }
+
+  .instr-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .instr-head h2 {
+    margin: 0;
+  }
+
+  .review-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .review-spacer {
+    flex: 1;
+  }
+  .mini {
+    font: inherit;
+    cursor: pointer;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    background: transparent;
+    border: 1px solid var(--bb-border);
+    border-radius: 999px;
+    padding: 6px 13px;
+    transition:
+      color var(--bb-dur-fast, 140ms) ease,
+      background var(--bb-dur-fast, 140ms) ease;
+  }
+  .mini:hover {
+    color: var(--bb-white);
+    background: rgba(201, 168, 124, 0.08);
+  }
+
+  /* Each collection is its own panel, so a long commands list cannot push the
+     counters heading out of sight of its own rows. */
+  :global(.group) {
+    padding: 0;
+    overflow: hidden;
+  }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--bb-border);
+  }
+  .group-title {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bb-tan, #c9a87c);
+  }
+  .group-count {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: #5f5a53;
+  }
+  :global(.group) .rows {
+    margin: 0;
+  }
+  :global(.group) .hint {
+    margin: 0;
+    padding: 16px 22px;
+  }
+  :global(.group) .row-item {
+    padding: 16px 22px;
+  }
+
+  .commit-bar {
+    position: sticky;
+    bottom: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid var(--bb-border-strong);
+    border-radius: 999px;
+    background: rgba(17, 17, 16, 0.92);
+    backdrop-filter: blur(18px);
+    padding: 14px 16px 14px 24px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  }
+  .commit-line {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+
+  .done-blob {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 16px;
+    background: rgba(82, 183, 136, 0.12);
+    border: 1px solid var(--bb-border-strong);
+    margin-bottom: 14px;
+  }
+  .applied {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin: 22px 0 26px;
+  }
+  .applied-tile {
+    border: 1px solid var(--bb-border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    background: var(--glass-fill);
+  }
+  .applied-n {
+    display: block;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--bb-white);
+  }
+  .applied-label {
+    display: block;
+    margin-top: 6px;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .audit {
+    margin: 24px 0 0;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: #5f5a53;
+  }
+
+  @media (max-width: 560px) {
+    .commit-bar {
+      border-radius: 8px;
+      padding: 14px 16px;
     }
   }
 </style>
