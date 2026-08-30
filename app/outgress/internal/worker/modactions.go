@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -59,7 +61,15 @@ func (w *Worker) processModAction(ctx context.Context, payload *outgress.Message
 }
 
 func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) error {
-	return w.processModAction(ctx, payload, banAction)
+	err := w.processModAction(ctx, payload, banAction)
+	if err == nil {
+		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
+			Kind: activity.KindAutomod,
+			Text: "ban/timeout issued",
+			At:   time.Now(),
+		})
+	}
+	return err
 }
 
 func (w *Worker) processShieldMode(ctx context.Context, payload *outgress.Message) error {
@@ -131,7 +141,15 @@ func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) e
 	payload.Endpoint = deleteEndpoint(payload.BroadcasterID, mod, payload.MsgID)
 	payload.Payload = nil
 
-	return w.execute(ctx, payload)
+	err := w.execute(ctx, payload)
+	if err == nil {
+		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
+			Kind: activity.KindAutomod,
+			Text: "message deleted",
+			At:   time.Now(),
+		})
+	}
+	return err
 }
 
 // deleteEndpoint assembles the Helix Delete Chat Messages path; all three ids
