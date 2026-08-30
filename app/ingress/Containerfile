@@ -6,7 +6,7 @@
 # OTP 27 introduced the native `:json` module used on the ingress firehose; 28
 # is the newest OTP an official Elixir image is published for, so it is what
 # local, CI and this build all pin to.
-FROM docker.io/library/elixir:1.20-otp-28@sha256:51bdb388db276cbf7d0e9c33b76aaf8093a891a12bb7fb99defe686bfe2fb77d AS build
+FROM docker.io/library/elixir:1.20-otp-28@sha256:34f43a22129afb51654e01987104e032a0eec12f4acf888f22cc2634054764ff AS build
 
 ENV MIX_ENV=prod
 WORKDIR /src
@@ -24,7 +24,7 @@ RUN mix compile && mix release
 
 # ---------------------------------------------------------------------------
 # Must match the builder's base distro: the release links against its glibc.
-FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
+FROM docker.io/library/debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libssl3 libncurses6 ca-certificates \

@@ -227,7 +227,7 @@ spec:
                 limits: {memory: 512Mi}
           containers:
             - name: upload
-              image: rclone/rclone:1.71.2@sha256:3103526c506266a9ecdf064efe99bf3677d92ef6407af124d8c56b4f49cbaa51
+              image: rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:

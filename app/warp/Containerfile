@@ -19,7 +19,7 @@
 # securityContext note in deploy/k8s/gossip.yaml for why withholding them is
 # the pod-to-pod safety guarantee.
 
-FROM docker.io/library/debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
 # No hand-written version: install whatever Cloudflare currently ships as
 # stable in the bookworm channel. Transcribing a version here would be a

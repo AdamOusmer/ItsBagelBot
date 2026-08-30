@@ -14,9 +14,9 @@
     "@bagel/shared": "workspace:*",
     "@nats-io/kv": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
-    "nanoid": "^5.1.14",
-    "newrelic": "^12.11.0",
-    "pino": "^9"
+    "nanoid": "^6.0.1",
+    "newrelic": "^14.3.9",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.5.5",

@@ -7,7 +7,7 @@ require (
 	github.com/Yiling-J/theine-go v0.6.2
 	github.com/abadojack/whatlanggo v1.0.1
 	github.com/buger/jsonparser v1.6.1
-	github.com/bytedance/sonic v1.15.2
+	github.com/bytedance/sonic v1.15.3
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-sql-driver/mysql v1.10.0
@@ -18,7 +18,7 @@ require (
 	github.com/newrelic/go-agent/v3 v3.44.2
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
-	github.com/resend/resend-go/v3 v3.17.0
+	github.com/resend/resend-go/v4 v4.2.0
 	github.com/stretchr/testify v1.12.1
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/tink-crypto/tink-go/v2 v2.8.0
@@ -38,7 +38,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.5.1 // indirect
+	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/go-openapi/inflect v0.21.5 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
