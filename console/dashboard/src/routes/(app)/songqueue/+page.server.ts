@@ -10,7 +10,7 @@ import type {
   SpotifySrPerm
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
-import { spotifyRedirectURI, spotifyScopeGap } from '$lib/server/oauth';
+import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
@@ -75,20 +75,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     ]);
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
-    // matches byte-for-byte at both ends of the flow.
+    // matches byte-for-byte at both ends of the flow. A missing
+    // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage — surface it
+    // as unconfigured rather than collapsing the page behind the degraded
+    // banner (that is how a forgotten Doppler key looked like "could not
+    // reach the backend" on first ship of BYO Spotify apps).
     //
     // scopeGap is resolved here rather than in the browser: the scope set the
     // flow asks for is server config (DASHBOARD_SPOTIFY_SCOPES), and the page
     // only needs the answer: is this grant short, and of what.
+    const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
     return {
       ...view,
       queue: shapeQueue(queue),
       connected: grant.connected,
       scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
       app,
-      redirectUri: spotifyRedirectURI(),
+      redirectUri,
       justConnected,
-      errorSlug
+      errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
     };
   } catch {
     return {
