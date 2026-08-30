@@ -13,7 +13,7 @@
   "dependencies": {
     "@bagel/shared": "workspace:*",
     "motion": "^13.0.0",
-    "newrelic": "^12.11.0",
+    "newrelic": "^14.3.9",
     "pino": "^9"
   },
   "devDependencies": {

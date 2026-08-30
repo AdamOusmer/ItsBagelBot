@@ -15,7 +15,7 @@
     "@nats-io/kv": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "nanoid": "^6.0.1",
-    "newrelic": "^12.11.0",
+    "newrelic": "^14.3.9",
     "pino": "^9"
   },
   "devDependencies": {
