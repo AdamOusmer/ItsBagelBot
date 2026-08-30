@@ -41,8 +41,15 @@ func leafFailbackOption() nats.Option {
 
 func loadFailbackConfig() failbackConfig {
 	return failbackConfig{
-		nodeName:  env.Get("NODE_NAME", ""),
-		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local:8222/healthz"),
+		nodeName: env.Get("NODE_NAME", ""),
+		// The namespace qualifier is load-bearing: the nats-leaf-local Service
+		// exists only in messaging, while every workload runs in app/db. The
+		// original short-name default resolved through the caller's search
+		// path, NXDOMAINed from those namespaces, and left the failback loop
+		// permanently inert — audited live 2026-08-30: 28 of 39 leaf client
+		// connections were parked on a wrong-node leaf for days with zero
+		// ForceReconnect attempts, because localLeafReady never returned true.
+		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local.messaging:8222/healthz"),
 		interval:  durationEnv("NATS_FAILBACK_INTERVAL", defaultFailbackInterval),
 		successes: positiveIntEnv("NATS_FAILBACK_SUCCESSES", defaultFailbackSuccesses),
 		timeout:   durationEnv("NATS_FAILBACK_PROBE_TIMEOUT", defaultFailbackTimeout),
