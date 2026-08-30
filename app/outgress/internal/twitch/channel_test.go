@@ -72,11 +72,17 @@ func TestSearchCategory(t *testing.T) {
 				return jsonOK(tc.body), nil
 			})
 			cat, ok, err := c.SearchCategory(context.Background(), "fort")
-			if err != nil || ok != tc.wantOK {
-				t.Fatalf("SearchCategory() = ok=%v err=%v, want ok=%v", ok, err, tc.wantOK)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if ok && (cat.ID != "33214" || cat.Name != "Fortnite") {
-				t.Fatalf("cat = %+v", cat)
+			if ok != tc.wantOK {
+				t.Fatalf("SearchCategory() ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if want := (Category{ID: "33214", Name: "Fortnite"}); cat != want {
+				t.Fatalf("cat = %+v, want %+v", cat, want)
 			}
 		})
 	}

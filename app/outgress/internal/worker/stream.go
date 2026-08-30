@@ -217,7 +217,10 @@ func (w *Worker) streamHelixErr(ctx context.Context, payload *outgress.Message, 
 // recover"; here the typed client already retried once, so looping just
 // poisons the lane.
 func streamDrop(err error) bool {
-	if isPermanent(err) || errors.Is(err, twitch.ErrNoUserToken) || twitch.GrantDead(err) {
+	if isPermanent(err) || twitch.GrantDead(err) {
+		return true
+	}
+	if errors.Is(err, twitch.ErrNoUserToken) {
 		return true
 	}
 	var se *twitch.StatusError
