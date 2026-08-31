@@ -148,7 +148,9 @@
     "unknownChannel": "Unnamed channel",
     "boardEmpty": "No ranking yet. The board fills as channels rack up traffic.",
     "feedBoardEmpty": "Nobody has fed the bagel yet.",
-    "rightNow": "right now"
+    "rightNow": "right now",
+    "trafficBoardCh": "traffic · board 01",
+    "feedBoardCh": "feed · board 02"
   },
   "overview": {
     "statusHeading": "Bot status",
@@ -1459,6 +1461,8 @@
     "emptyBody": "This board fills up as {channel}'s community watches live, subscribes, gifts and cheers. Tune in and claim the top spot.",
     "degraded": "Live standings are temporarily unavailable. They will catch up on their own.",
     "earnNote": "Earned by watching live · subs · gifts · cheers",
+    "boardCh": "standings · live",
+    "commandsCh": "commands · public",
     "commandsLabel": "Chat commands",
     "commandsTitle": "Chat commands",
     "colCommand": "Command",
