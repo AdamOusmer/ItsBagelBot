@@ -99,6 +99,19 @@
         "digest"
       ],
       "groupName": "Container images"
+    },
+    {
+      "description": "Hold the console on TypeScript 6. svelte-check refuses to run against TypeScript 7 unless both 6 and 7 are installed and --tsgo is passed, and that mode resolves .svelte imports to the ambient module declaration -- component props degrade to any and a string passed to a boolean prop goes unreported. Lift this when svelte-check supports 7 outside its experimental path.",
+      "matchManagers": [
+        "bun"
+      ],
+      "matchFileNames": [
+        "console/package.json"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7"
     }
   ]
 }
