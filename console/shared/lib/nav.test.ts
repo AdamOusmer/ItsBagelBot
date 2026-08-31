@@ -2,7 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { DASHBOARD_SECTIONS, GRANTABLE_SECTIONS, dashboardNavGroups, dashboardNavItems, sectionForPath } from './nav';
+import { DASHBOARD_SECTIONS, GRANTABLE_SECTIONS, dashboardNavGroups, dashboardNavItems, moduleSectionLinks, sectionForPath } from './nav';
+import { MODULE_CATALOG } from './types';
+import { MODULE_CATEGORY_ORDER } from './module-index';
 
 describe('nav registry', () => {
   test('every bespoke page prefix resolves to its owning section', () => {
@@ -62,6 +64,26 @@ describe('nav registry', () => {
     });
     expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/billing']);
     expect(full.map((i) => i.active)).toEqual([false, true, false]);
+  });
+
+  test('the rail nests the /modules sections, not the modules themselves', () => {
+    // A module is a tile on /modules, not a page of its own (only 8 of the 21
+    // have a route), so the rail must mirror that page's sections instead.
+    const links = moduleSectionLinks((key) => `en:${key}`);
+    expect(links.map((l) => l.href)).toEqual(
+      MODULE_CATEGORY_ORDER.map((name) => `/modules#cat-${name.toLowerCase()}`)
+    );
+    expect(links.map((l) => l.count).reduce((a, b) => Number(a) + Number(b), 0)).toBe(
+      MODULE_CATALOG.length
+    );
+    expect(links[0].label).toBe('en:modules.catModeration');
+  });
+
+  test('only the Modules row carries children', () => {
+    const items = dashboardNavItems({ isDelegate: false, sections: [], section: 'overview' });
+    const withKids = items.filter((i) => i.children?.length);
+    expect(withKids.map((i) => i.href)).toEqual(['/modules']);
+    expect(withKids[0].children).toHaveLength(MODULE_CATEGORY_ORDER.length);
   });
 
   test('groups wrap items under the single Manage group', () => {

@@ -18,6 +18,8 @@ export { default as Modal } from '../components/Modal.svelte';
 export { default as Drawer } from '../components/Drawer.svelte';
 export { default as AppShell } from '../components/AppShell.svelte';
 export { default as Sidebar } from '../components/Sidebar.svelte';
+export { default as Rail } from '../components/Rail.svelte';
+export { default as RailItem } from '../components/RailItem.svelte';
 export { default as Brand } from '../components/Brand.svelte';
 export { default as NavGroup } from '../components/NavGroup.svelte';
 export { default as AccountFoot } from '../components/AccountFoot.svelte';

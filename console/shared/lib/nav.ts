@@ -11,8 +11,12 @@
 // from this list, so they cannot drift.
 
 import type { IconName } from './icons';
-import type { NavGroupDef, NavLink } from './types';
+import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
+// Both are pure data/pure functions -- no import.meta.glob, no Vite-only
+// entry points -- so they are safe in guard.ts's boot import graph.
+import { MODULE_CATALOG } from './types';
+import { MODULE_CATEGORY_I18N, MODULE_CATEGORY_ORDER, categoryHref } from './module-index';
 
 // The label translator defaults to identity rather than pulling in
 // i18n/messages: that module loads locales via Vite's import.meta.glob, which
@@ -146,7 +150,25 @@ export function dashboardNavItems(opts: {
     href: def.href,
     icon: def.icon,
     label: t(def.labelKey),
-    active: section === def.id
+    active: section === def.id,
+    ...(def.id === 'modules' ? { children: moduleSectionLinks(t) } : {})
+  }));
+}
+
+/**
+ * The sections the /modules page is itself divided into, in the order that page
+ * renders them. The rail nests these under Modules; the individual modules are
+ * NOT nav entries -- a module is a tile on that page, and only eight of the 21
+ * own a route, so listing them made the rail disagree with the page it points
+ * at. Each href is the same in-page anchor categoryHref() jumps to, and the
+ * count is how many modules that section holds.
+ */
+export function moduleSectionLinks(t?: (key: MessageKey) => string): NavChild[] {
+  const label = t ?? identity;
+  return MODULE_CATEGORY_ORDER.map((name) => ({
+    href: `/modules${categoryHref(name)}`,
+    label: label(MODULE_CATEGORY_I18N[name].label as MessageKey),
+    count: MODULE_CATALOG.filter((def) => def.category === name).length
   }));
 }
 
