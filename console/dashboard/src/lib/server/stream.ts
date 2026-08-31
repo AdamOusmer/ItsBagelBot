@@ -17,7 +17,12 @@
 import { rpc } from '@bagel/shared/server/nats';
 import { POLICY } from '@bagel/shared/server/cache-keys';
 import { fabric } from './services';
-import { degradedStreamMeta, type StreamMeta } from '$lib/overview-live';
+import {
+  finiteOrNull,
+  allRead,
+  degradedStreamMeta,
+  type StreamMeta
+} from '$lib/overview-live';
 
 // Same env-var-with-default convention as every other projector RPC subject
 // (see SUB in ./services.ts). stream-info is the sibling of the live verb:
@@ -55,11 +60,10 @@ function isoOrNull(raw: string | undefined): string | null {
 /** Minutes between two known ISO timestamps, 0 if either is missing or the
  *  pair is out of order (a still-running stream has no EndedAt yet). */
 function durationMin(startedAt: string | null, endedAt: string | null): number {
-  if (!startedAt || !endedAt) return 0;
-  const start = Date.parse(startedAt);
-  const end = Date.parse(endedAt);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
-  return Math.floor((end - start) / 60_000);
+  const span = [startedAt, endedAt].map((iso) => (iso ? finiteOrNull(Date.parse(iso)) : null));
+  if (!allRead(span)) return 0;
+  const [start, end] = span;
+  return end > start ? Math.floor((end - start) / 60_000) : 0;
 }
 
 function fromWire(reply: StreamInfoReplyWire): StreamMeta {

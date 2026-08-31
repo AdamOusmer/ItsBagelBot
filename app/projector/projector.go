@@ -361,16 +361,28 @@ func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID u
 		return
 	}
 
+	// All three or none: a partial baseline would subtract a stale figure from
+	// a fresh total and report a slice of the channel's lifetime as this
+	// stream. Read as a list so "did every read land" stays one check rather
+	// than a clause per counter.
 	uid := strconv.FormatUint(broadcasterID, 10)
-	messages, ok1 := p.loyalty.get(ctx, uid, data.CounterMessagesProcessed)
-	answered, ok2 := p.loyalty.get(ctx, uid, data.CounterCommandsAnswered)
-	modActions, ok3 := p.loyalty.get(ctx, uid, data.CounterModActionsTaken)
-	if !ok1 || !ok2 || !ok3 {
-		log.Warn("skipping stream counter baseline: loyalty read failed", zap.Uint64("user_id", broadcasterID))
-		return
+	names := []string{
+		data.CounterMessagesProcessed,
+		data.CounterCommandsAnswered,
+		data.CounterModActionsTaken,
+	}
+	vals := make([]int64, 0, len(names))
+	for _, name := range names {
+		v, ok := p.loyalty.get(ctx, uid, name)
+		if !ok {
+			log.Warn("skipping stream counter baseline: loyalty read failed",
+				zap.Uint64("user_id", broadcasterID), zap.String("counter", name))
+			return
+		}
+		vals = append(vals, v)
 	}
 
-	b := projection.StreamCounters{Messages: messages, Answered: answered, ModActions: modActions}
+	b := projection.StreamCounters{Messages: vals[0], Answered: vals[1], ModActions: vals[2]}
 	if err := p.store.SetStreamCounterBaseline(ctx, uid, b); err != nil {
 		log.Warn("failed to write stream counter baseline", zap.Uint64("user_id", broadcasterID), zap.Error(err))
 	}

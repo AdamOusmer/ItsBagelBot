@@ -29,10 +29,25 @@ type streamInfoRPC struct {
 	log   *zap.Logger
 }
 
-// SubscribeStreamInfo registers the projector stream-info verb on subject.
-func SubscribeStreamInfo(nc *nats.Conn, store *projection.Store, subject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	s := &streamInfoRPC{store: store, log: log}
-	return bus.QueueSubscribeJSON[projectorrpc.StreamInfoRequest, projectorrpc.StreamInfoReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
+// StreamInfoDeps is what SubscribeStreamInfo needs to bind the verb. A struct
+// rather than a six-parameter signature: the handles arrive together from one
+// runtime value at the call site (main.go's rpcRuntime), and naming them at
+// that call site is what keeps a string subject from silently swapping with a
+// string queue group.
+type StreamInfoDeps struct {
+	NC         *nats.Conn
+	Store      *projection.Store
+	Subject    string
+	QueueGroup string
+	App        *newrelic.Application
+	Log        *zap.Logger
+}
+
+// SubscribeStreamInfo registers the projector stream-info verb on d.Subject.
+func SubscribeStreamInfo(d StreamInfoDeps) error {
+	s := &streamInfoRPC{store: d.Store, log: d.Log}
+	return bus.QueueSubscribeJSON[projectorrpc.StreamInfoRequest, projectorrpc.StreamInfoReply](
+		d.NC, d.Subject, d.QueueGroup, 1500*time.Millisecond, d.App, d.Log, s.handleGet)
 }
 
 func (s *streamInfoRPC) handleGet(ctx context.Context, req projectorrpc.StreamInfoRequest) projectorrpc.StreamInfoReply {

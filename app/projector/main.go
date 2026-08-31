@@ -230,6 +230,8 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 		"failed to subscribe dashboard projector rpc")
 	fatalIf(rt.log, rpc.SubscribeLive(rt.nc, rt.store, rt.pub, topics.live, topics.outgressSystem, "projector-rpc", rt.nrApp, rt.log),
 		"failed to subscribe live rpc")
-	fatalIf(rt.log, rpc.SubscribeStreamInfo(rt.nc, rt.store, topics.streamInfo, "projector-rpc", rt.nrApp, rt.log),
-		"failed to subscribe stream info rpc")
+	fatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
+		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,
+		QueueGroup: "projector-rpc", App: rt.nrApp, Log: rt.log,
+	}), "failed to subscribe stream info rpc")
 }

@@ -34,7 +34,7 @@ import {
 import { getServerConfig, hasServerConfig, type ValkeyConfig } from '@bagel/shared/server/config';
 import { CircuitBreaker, withTimeout } from '@bagel/shared/server/resilience';
 import { logger } from '@bagel/shared/server/logger';
-import { degradedChatVolume, type ChatVolume } from '../overview-live';
+import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../overview-live';
 
 const RING_WIDTH = 60;
 const OP_TIMEOUT_MS = 200;
@@ -107,15 +107,17 @@ function chatVolKey(uid: string): string {
  * internal/chatvolume's readSlot/parseSlotValue exactly.
  */
 function parseSlot(raw: string | undefined, wantDelta: number): { count: number; handled: boolean } {
-  if (!raw) return { count: 0, handled: false };
-  const parts = raw.split(':');
-  if (parts.length !== 3) return { count: 0, handled: false };
-  const delta = Number(parts[0]);
-  const count = Number(parts[1]);
-  if (!Number.isFinite(delta) || !Number.isFinite(count) || delta !== wantDelta) {
-    return { count: 0, handled: false };
-  }
-  return { count, handled: parts[2] === '1' };
+  const empty = { count: 0, handled: false };
+  const parts = raw?.split(':') ?? [];
+  if (parts.length !== 3) return empty;
+
+  const nums = [finiteOrNull(parts[0]), finiteOrNull(parts[1])];
+  if (!allRead(nums)) return empty;
+
+  // A slot carries the minute it was written for; a stale lap of the ring
+  // answers for a different minute and reads as empty rather than as history.
+  const [delta, count] = nums;
+  return delta === wantDelta ? { count, handled: parts[2] === '1' } : empty;
 }
 
 function slotName(epoch: number): string {

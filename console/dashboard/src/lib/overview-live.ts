@@ -119,6 +119,31 @@ export function degradedAnsweredTonight(): AnsweredTonight {
   return { commands: [], ok: false };
 }
 
+// ── read guards ──────────────────────────────────────────────────────────────
+// Every panel here shares one shape: read several values that can each fail on
+// their own, then degrade if ANY of them did. Spelled out per call site that
+// becomes an N-clause boolean in four different files, which is both the thing
+// the health gate flags and a real reading cost — the reader has to check each
+// clause to learn it is just "did everything arrive". These two say it once.
+
+/**
+ * True when every read landed, narrowing the array so callers skip the chain.
+ *
+ * Takes a mutable array on purpose: the callers build these with `Promise.all`
+ * and `.map`, both of which yield `(T | null)[]`, and a `readonly` predicate
+ * does not narrow a mutable argument — the destructure downstream still sees
+ * `T | null` and the guard buys nothing.
+ */
+export function allRead<T>(vals: (T | null)[]): vals is T[] {
+  return vals.every((v) => v !== null);
+}
+
+/** Parse to a finite number, or null when absent / not a number. */
+export function finiteOrNull(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 // ── shared formatting ────────────────────────────────────────────────────────
 
 /** "3h 42m" / "42m" from a minute count. Callers pass 0 for unknown. */

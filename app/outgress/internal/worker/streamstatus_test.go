@@ -54,8 +54,20 @@ func TestNextStreamInfoGoOfflineSetsEndedAtAndKeepsPeak(t *testing.T) {
 	got := nextStreamInfo(prev, false, twitch.StreamDetails{})
 	after := time.Now()
 
-	if got.PeakViewers != 150 || got.Title != "Ranked grind" || !got.StartedAt.Equal(started) {
-		t.Fatalf("nextStreamInfo() offline changed retained fields: %+v", got)
+	// Each retained field asserted on its own, so a failure names the field
+	// that moved instead of reporting that one of three did.
+	retained := []struct {
+		field string
+		kept  bool
+	}{
+		{"PeakViewers", got.PeakViewers == 150},
+		{"Title", got.Title == "Ranked grind"},
+		{"StartedAt", got.StartedAt.Equal(started)},
+	}
+	for _, r := range retained {
+		if !r.kept {
+			t.Fatalf("nextStreamInfo() offline changed %s: %+v", r.field, got)
+		}
 	}
 	if got.EndedAt.Before(before) || got.EndedAt.After(after) {
 		t.Fatalf("EndedAt = %v, want between %v and %v", got.EndedAt, before, after)

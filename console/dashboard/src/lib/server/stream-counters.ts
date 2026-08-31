@@ -36,7 +36,11 @@ import {
   valkeyTLSOptions
 } from '@bagel/shared/server/valkey-connection';
 import { SUB } from './services';
-import { degradedStreamCounters, type StreamCounters } from '$lib/overview-live';
+import {
+  allRead,
+  degradedStreamCounters,
+  type StreamCounters
+} from '$lib/overview-live';
 
 const SETTINGS_PREFIX = 'settings:';
 
@@ -48,11 +52,12 @@ const FIELD_ANSWERED = 'streamctr:answered';
 const FIELD_MOD_ACTIONS = 'streamctr:mod_actions';
 
 // Loyalty counter names. messages_processed already has a real writer
-// (sesame's bot_stats.go flushes it per channel every ~30s). commands_answered
-// and mod_actions are reserved system names (see SystemCounter in
-// internal/domain/event/data/loyalty_events.go) with no writer yet; an
-// uncreated counter answers found:false, which this file (like
-// public-stats.ts's counterValue) treats as an honest 0, not an error.
+// (sesame's bot_stats.go flushes it per channel every ~30s), and so do
+// commands_answered and mod_actions, published from the same flush. All three
+// are reserved system names (see SystemCounter in
+// internal/domain/event/data/loyalty_events.go). A counter loyalty has not
+// created yet answers found:false, which this file (like public-stats.ts's
+// counterValue) treats as an honest 0, not an error.
 const COUNTER_MESSAGES = 'messages_processed';
 const COUNTER_ANSWERED = 'commands_answered';
 const COUNTER_MOD_ACTIONS = 'mod_actions';
@@ -199,13 +204,17 @@ export async function streamCounters(uid: string): Promise<StreamCounters> {
   const baseline = await readBaseline(uid);
   if (!baseline.known) return degradedStreamCounters();
 
-  const [messages, answered, modActions] = await Promise.all([
+  // Annotated as an array, not left as the tuple Promise.all infers: a type
+  // predicate narrows an array cleanly but a tuple only partially, which
+  // leaves the destructure below still nullable.
+  const totals: (number | null)[] = await Promise.all([
     counterValue(uid, COUNTER_MESSAGES),
     counterValue(uid, COUNTER_ANSWERED),
     counterValue(uid, COUNTER_MOD_ACTIONS)
   ]);
-  if (messages === null || answered === null || modActions === null) return degradedStreamCounters();
+  if (!allRead(totals)) return degradedStreamCounters();
 
+  const [messages, answered, modActions] = totals;
   return {
     messages: clampDelta(messages, baseline.messages),
     answered: clampDelta(answered, baseline.answered),
