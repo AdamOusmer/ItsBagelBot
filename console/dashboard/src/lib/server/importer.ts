@@ -7,7 +7,7 @@
 // There is no bagel.rpc.importer.* anymore and no importer pod.
 //
 //   preview: streamelements   → kappa v2 API fetch + parse (shared TS port)
-//            moobot           → manifest arrives pre-parsed by the browser
+//            moobot, nightbot → manifest arrives pre-parsed by the browser
 //            streamlabs_desktop → Chatbot.db parsed here (sql.js, see module)
 //          …then validateManifest + collision lookup against live commands.
 //
