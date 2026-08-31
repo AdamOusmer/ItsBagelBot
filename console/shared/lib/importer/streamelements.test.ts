@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { CODE } from './validate';
+import { CODE, isValidFetchDefName } from './validate';
 import {
   DEFAULT_API_BASE,
   FETCH_DEF_CAP,
@@ -293,11 +293,23 @@ describe('urlfetch mapping', () => {
       `{"commands":[{"command":"weather","reply":${JSON.stringify(reply)},"accessLevel":100${extra}}],"timers":[]}`
     );
 
+  // Regression guard: the slug used to be `se-<command>`, which the commands
+  // service refuses (^[a-z0-9_]{1,32}$) — every synthesized definition failed
+  // at commit with its tokens already in the response text.
+  test('every synthesized definition name is one the commands service accepts', () => {
+    const { manifest } = parse(
+      '$(urlfetch https://a.example/1) $(urlfetch https://a.example/2 data.temp)',
+      ',"command":"my cool-cmd"'
+    );
+    expect(manifest.fetches!.length).toBe(2);
+    for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
+  });
+
   test('inline URL extracted into a synthesized definition; token replaced', () => {
     const { manifest } = parse('Temp: $(urlfetch https://api.example.com/v1)');
-    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:se-weather}');
+    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:se_weather}');
     expect(manifest.fetches).toEqual([
-      { name: 'se-weather', url: 'https://api.example.com/v1', source: 'streamelements' }
+      { name: 'se_weather', url: 'https://api.example.com/v1', source: 'streamelements' }
     ]);
   });
 
@@ -305,7 +317,7 @@ describe('urlfetch mapping', () => {
     const { manifest } = parse('$(urlfetch https://api.example.com data.current.temp_f)');
     expect(manifest.fetches).toEqual([
       {
-        name: 'se-weather',
+        name: 'se_weather',
         url: 'https://api.example.com',
         json_path: ['data', 'current', 'temp_f'],
         source: 'streamelements'
@@ -317,9 +329,9 @@ describe('urlfetch mapping', () => {
     const { manifest } = parse(
       '$(urlfetch https://a.example/x) and $(urlfetch https://b.example/y) and $(urlfetch https://c.example/z)'
     );
-    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se-weather', 'se-weather-2', 'se-weather-3']);
+    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se_weather', 'se_weather_2', 'se_weather_3']);
     expect(manifest.commands![0].responses![0]).toBe(
-      '{urlfetch:se-weather} and {urlfetch:se-weather-2} and {urlfetch:se-weather-3}'
+      '{urlfetch:se_weather} and {urlfetch:se_weather_2} and {urlfetch:se_weather_3}'
     );
   });
 
@@ -327,7 +339,7 @@ describe('urlfetch mapping', () => {
     const reply = '$(urlfetch https://q.example/r) said $(urlfetch https://q.example/r)';
     const { manifest } = parse(reply);
     expect(manifest.fetches).toHaveLength(1);
-    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-weather} said {urlfetch:se-weather}');
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_weather} said {urlfetch:se_weather}');
   });
 
   test('unusable URLs stay literal with the standard unmapped warn', () => {
@@ -342,7 +354,7 @@ describe('urlfetch mapping', () => {
 
   test('${braced} form maps identically', () => {
     const { manifest } = parse('${urlfetch https://b.example/z}');
-    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-weather}');
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_weather}');
     expect(manifest.fetches).toHaveLength(1);
   });
 
@@ -361,8 +373,8 @@ describe('urlfetch mapping', () => {
       })
     );
     // Command mapped; def exists once.
-    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se-w}');
-    expect(manifest.fetches).toEqual([{ name: 'se-w', url: 'https://ok.example/x', source: 'streamelements' }]);
+    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_w}');
+    expect(manifest.fetches).toEqual([{ name: 'se_w', url: 'https://ok.example/x', source: 'streamelements' }]);
     // Trigger kept the raw token, attributed with trigger_variable_unmapped.
     expect(manifest.triggers![0].response).toContain('$(urlfetch https://ok.example/x)');
     expect(diagnostics.some((d) => d.code === SE_CODE.triggerVariableUnmapped && d.message.includes('urlfetch'))).toBe(true);
@@ -381,7 +393,7 @@ describe('urlfetch mapping', () => {
         timers: []
       })
     );
-    expect(manifest.fetches).toEqual([{ name: 'se-clash', url: 'https://first.example/a', source: 'streamelements' }]);
+    expect(manifest.fetches).toEqual([{ name: 'se_clash', url: 'https://first.example/a', source: 'streamelements' }]);
     // The loser's token degrades to literal rather than re-pointing at
     // another command's data source.
     expect(manifest.commands![1].responses![0]).toContain('$(urlfetch');

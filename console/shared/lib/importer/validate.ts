@@ -29,6 +29,8 @@ import type {
   Perm
 } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
+import { slugifyName } from '../fetch-tokens';
+import { FETCH_NAME_MAX } from '../fetch-validate';
 
 // --- diagnostic codes (restated from internal/domain/rpc/importer — kept in
 // step; snake_case, item-kind-prefixed for item-level findings) ---------------
@@ -170,6 +172,8 @@ const PERM_TIERS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod'
 //   - StreamElements: Everyone / Moderator / Owner (dashboard wording).
 //   - Fossabot: Viewer / Subscriber / VIP / Moderator / Broadcaster|Streamer.
 //   - Moobot: Everyone / Subscribers / Moderators / Owner plus Regulars.
+//   - Nightbot: Everyone / Regular / Subscriber / Twitch VIP (twitch_vip on
+//     the wire) / Moderator / Owner.
 //   - StreamLabs Desktop: Everyone / Subscriber / Moderator / Streamer (+VIP).
 // lead_mod exists only in this bot; no source produces it, so it has no alias.
 const PERMISSION_ALIASES: Record<string, Perm> = {
@@ -187,6 +191,7 @@ const PERMISSION_ALIASES: Record<string, Perm> = {
   subs: 'sub',
   vip: 'vip',
   vips: 'vip',
+  twitch_vip: 'vip',
   moderator: 'mod',
   moderators: 'mod',
   mod: 'mod',
@@ -280,6 +285,51 @@ export const MIN_TIMER_INTERVAL_SECONDS = 30;
 // headroom for the merged blob (2 x 200 terms x ~100 bytes), so hitting the cap
 // mid-commit becomes impossible rather than handled.
 export const MAX_AUTOMOD_TERMS = 200;
+// --- synthesized fetch-definition slugs --------------------------------------
+
+// MAX_FETCH_SLUG_SUFFIX reserves room for the widest slot suffix a synthesis
+// pass can append ("_2000" at the commands cap): pre-truncating the command
+// part by this much means prefix + part + suffix can never exceed
+// FETCH_NAME_MAX, so two long names cannot collide by truncation alone.
+const MAX_FETCH_SLUG_SUFFIX = 5;
+
+// FetchSlugSource is the closed set of importer prefixes. A bare string would
+// let any caller invent a prefix the 32-byte budget was never sized for (and
+// would read as one more anonymous string argument at the call site); the
+// union keeps both the budget and the meaning checked.
+export type FetchSlugSource = 'se' | 'moobot' | 'nightbot';
+
+// fetchDefSlug builds one legal definition name from a short source prefix and
+// a command name: `<source>_<slugified command>`.
+//
+// Decision record — why the fold is slugifyName and not a local one: the name
+// this returns becomes the Valkey hash field "fetch:<name>" and the
+// {urlfetch:<name>} token payload, and the commands service validates it as
+// ^[a-z0-9_]{1,32}$ (Go FetchDefName, internal/domain/validate/fetch.go). The
+// importers used to mint `se-<command>` / `moobot-<command>`: a HYPHEN IS NOT
+// IN THAT GRAMMAR, so every synthesized definition was refused at commit while
+// its tokens were already written into the response text. Routing through the
+// fetches editor's own slugifier is what makes the two agree — a broadcaster
+// re-creating a URL-less shell by hand lands on the SAME name the imported
+// tokens reference — and it keeps the linear underscore trimming that fold
+// uses on purpose (anchored /^_+/ backtracks polynomially; see fetch-tokens).
+// Deterministic: same export in, same slugs out (re-import idempotence).
+export function fetchDefSlug(source: FetchSlugSource, commandName: string): string {
+  const budget = FETCH_NAME_MAX - source.length - 1 - MAX_FETCH_SLUG_SUFFIX;
+  // Second pass over the sliced part re-trims an underscore the cut exposed.
+  return `${source}_${slugifyName(slugifyName(commandName).slice(0, budget))}`;
+}
+
+// isValidFetchDefName reports whether a name would be accepted by the commands
+// service verbatim. Parsers assert their own output against it; untrusted
+// manifests are NOT re-slugified (silently renaming a reference the responses
+// embed would break token-def agreement).
+export function isValidFetchDefName(name: string): boolean {
+  return name.length <= FETCH_NAME_MAX && FETCH_DEF_NAME_RE.test(name);
+}
+
+const FETCH_DEF_NAME_RE = /^[a-z0-9_]+$/;
+
 // Matches the loyalty service's counter-key treatment (bare key, lower-cased).
 const MAX_COUNTER_NAME_LEN = 64;
 
