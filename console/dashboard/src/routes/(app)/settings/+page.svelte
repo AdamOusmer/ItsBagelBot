@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
+  import { Icon, Bolota, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
@@ -25,10 +25,16 @@
     if (!createdGrant || grants.some((g) => g.token === createdGrant.token)) return grants;
     return [createdGrant, ...grants];
   });
+  // The two halves of a share link's life. They read as different objects — one
+  // names a person, the other is a URL still waiting for one — so they get their
+  // own lists instead of a single list carrying a stage strip per row.
+  const inUse = $derived(given.filter((g) => g.consumed));
+  const pending = $derived(given.filter((g) => !g.consumed));
   const received = $derived(
     (data.received ?? []) as { owner_user_id: string; owner_login: string; sections: string[] }[]
   );
   const origin = $derived(page.url.origin);
+  const unreadIds = $derived(notifications.filter((n) => !n.read).map((n) => n.id));
 
   // Sections an owner can grant (from the server so it stays in one place).
   const grantable = $derived(
@@ -59,6 +65,7 @@
     { href: '#notifications', label: t('settings.notifications') },
     { href: '#preferences', label: t('settings.preferences') },
     { href: '#api-keys', label: t('fetches.keysTitle') },
+    { href: '#import', label: t('settings.importNav') },
     { href: '#danger-zone', label: t('settings.dangerZone') }
   ]);
 
@@ -131,6 +138,9 @@
   // the round-trip. Both messages name the affected control (the section group).
   let createError = $state('');
   let editError = $state('');
+  // The section picker is a disclosure behind the header's "New share link"
+  // button: creating a link is the rarer act than reading who already has one.
+  let creating = $state(false);
   function hasSelection(formData: FormData): boolean {
     return grantable.some((sec) => formData.get(sec) === 'on');
   }
@@ -153,18 +163,27 @@
     }
   }
 
-  // Surface action results as toasts (replaces the old inline banners).
+  // Surface action results as toasts (replaces the old inline banners). A table
+  // rather than an if-chain: every new action is one row, not another branch.
+  const actionToast: Record<string, () => string> = {
+    created: () => t('settings.toastCreated'),
+    updated: () => t('settings.toastAccessUpdated'),
+    revoked: () => t('settings.toastRevoked'),
+    opted_out: () => t('settings.toastOptedOut'),
+    all_read: () => t('settings.toastAllRead')
+  };
   // svelte-ignore state_referenced_locally
   let lastForm: unknown = form;
   $effect(() => {
     if (form === lastForm) return;
     lastForm = form;
     if (!form) return;
-    if (form.error) toast('err', String(form.error));
-    else if (form.ok && form.action === 'created') toast('ok', t('settings.toastCreated'));
-    else if (form.ok && form.action === 'updated') toast('ok', t('settings.toastAccessUpdated'));
-    else if (form.ok && form.action === 'revoked') toast('ok', t('settings.toastRevoked'));
-    else if (form.ok && form.action === 'opted_out') toast('ok', t('settings.toastOptedOut'));
+    if (form.error) {
+      toast('err', String(form.error));
+      return;
+    }
+    const message = form.ok ? actionToast[String(form.action)] : undefined;
+    if (message) toast('ok', message());
   });
 
   // Revoke is irreversible (tokens are single-use), so it gets a confirm
@@ -192,150 +211,187 @@
   let signOutForm = $state<HTMLFormElement | null>(null);
 </script>
 
+{#snippet sectionChips(sections: string[])}
+  {#each sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
+{/snippet}
+
+{#snippet editSections(g: DelegationGrant)}
+  <form
+    method="POST"
+    action="?/updateSections"
+    class="grant-edit"
+    use:enhance={({ formData, cancel }) => {
+      if (!hasSelection(formData)) {
+        editError = t('settings.pickSectionError');
+        cancel();
+        return;
+      }
+      editError = '';
+      return async ({ result, update }) => {
+        await update();
+        if (result.type === 'success') closeEdit();
+      };
+    }}
+  >
+    <input type="hidden" name="token" value={g.token} />
+    <SectionPicker
+      legend={t('settings.sectionsLegend')}
+      options={pickerOptions((sec) => g.sections.includes(sec))}
+      error={editError}
+      errorId={`edit-error-${g.token}`}
+      compact
+    />
+    <div class="grant-edit-actions">
+      <Button variant="ghost" class="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
+      <Button type="submit" variant="primary" class="sm" icon="check">{t('common.save')}</Button>
+    </div>
+  </form>
+{/snippet}
+
 <section class="screen active">
   <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
 
-  <SettingsNav label={t('settings.navSections')} items={navItems} />
+  <div class="layout">
+    <!-- Section rail. SectionNav stacks itself into a hairline rail once its
+         container is narrow (container query, not a viewport hide), so the
+         same markup is the chip row on a phone. -->
+    <aside class="rail">
+      <SettingsNav label={t('settings.navSections')} items={navItems} />
+      <Card class="board">
+        <span class="board-title">{t('settings.boardState')}</span>
+        <span class="board-row"><i class="dot live" aria-hidden="true"></i>{t('settings.boardTwitch')}</span>
+        <span class="board-row"><i class="dot tan" aria-hidden="true"></i>{t('settings.boardAccess', { n: inUse.length })}</span>
+        <span class="board-row"><i class="dot" aria-hidden="true"></i>{t('settings.boardShared', { n: received.length })}</span>
+      </Card>
+    </aside>
 
+    <div class="stack">
   <!-- ACCOUNT -->
   <Card as="section" id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
     <h2 id="h-account">{t('settings.account')}</h2>
-    <div class="row">
-      <div>
-        <b>{t('settings.reconnectTwitch')}</b>
-        <p class="hint">{t('settings.reconnectTwitchHint')}</p>
+    <p class="hint">{t('settings.accountHint')}</p>
+    <div class="identity">
+      <span class="identity-face"><Bolota name={data.login ?? ''} size={44} /></span>
+      <div class="identity-main">
+        <div class="identity-line">
+          <b>{data.displayName || data.login}</b>
+          <span class="pill ok"><Icon name="check" size={12} /> {t('settings.connectedPill')}</span>
+        </div>
+        <span class="identity-meta">{t('settings.reconnectTwitchHint')}</span>
       </div>
       <ButtonLink href="/auth/login?reauth=1" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
     </div>
   </Card>
 
-  <!-- IMPORT: prominent entry to the config-import flow (/settings/import).
-       Kept as its own section so the section nav and the onboarding CTA have
-       a stable anchor, same as every other entry point here. -->
-  <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
-    <h2 id="h-import">{t('settings.importSetup')}</h2>
-    <p class="hint">{t('settings.importSetupHint')}</p>
-    <ButtonLink href="/settings/import" variant="secondary" icon="send">{t('settings.importSetupCta')}</ButtonLink>
-  </Card>
-
   <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->
   <Card as="section" id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
-    <h2 id="h-access">{t('settings.sharedAccess')}</h2>
+    <div class="sec-head">
+      <div>
+        <h2 id="h-access">{t('settings.sharedAccess')}</h2>
+        <p class="hint">{t('settings.sharedAccessHint')}</p>
+      </div>
+      <Button variant="primary" icon="link" aria-expanded={creating} onclick={() => (creating = !creating)}>
+        {t('settings.newShareLink')}
+      </Button>
+    </div>
 
-    <h3>{t('settings.accessGranted')}</h3>
-    <p class="hint">{t('settings.accessGrantedHint')}</p>
+    {#if creating}
+      <form
+        method="POST"
+        action="?/create"
+        class="create"
+        use:enhance={({ formData, cancel }) => {
+          if (!hasSelection(formData)) {
+            createError = t('settings.pickSectionError');
+            cancel();
+            return;
+          }
+          createError = '';
+          return async ({ result, update }) => {
+            await update();
+            if (result.type === 'success') creating = false;
+          };
+        }}
+      >
+        <p class="hint">{t('settings.newShareLinkHint')}</p>
+        <SectionPicker
+          legend={t('settings.sectionsLegend')}
+          options={pickerOptions((sec) => sec === 'commands')}
+          error={createError}
+          errorId="create-error"
+        />
+        <div class="create-actions">
+          <Button variant="ghost" onclick={() => (creating = false)}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="primary" icon="link">{t('common.generate')}</Button>
+        </div>
+      </form>
+    {/if}
 
     {#if given.length === 0}
       <EmptyState icon="link" title={t('settings.noShareLinks')} body={t('settings.noShareLinksBody')} />
-    {:else}
+    {/if}
+
+    {#if inUse.length > 0}
+      <span class="group-label">{t('settings.inUseCount', { n: inUse.length })}</span>
       <ul class="grants">
-        {#each given as g (g.token)}
-          <li class="grant {g.consumed ? 'consumed' : 'pending'}">
-            <div class="grant-top">
-              <span class="lifecycle">
-                <span class="stage done">{t('settings.stageCreated')}</span>
-                <span class="sep" aria-hidden="true">→</span>
-                <span class="stage {g.consumed || copied[g.token] ? 'done' : ''}">{t('settings.stageLinkShared')}</span>
-                <span class="sep" aria-hidden="true">→</span>
-                <span class="stage {g.consumed ? 'done live' : ''}">
-                  {g.consumed ? t('settings.stageInUse', { login: g.delegate_login || t('settings.unknown') }) : t('settings.stageWaiting')}
-                </span>
-              </span>
+        {#each inUse as g (g.token)}
+          <li class="grant consumed">
+            <span class="face"><Bolota name={g.delegate_login} size={30} /></span>
+            <div class="grant-main">
+              <b class="grant-name">{g.delegate_login}</b>
+              <div class="grant-sections">{@render sectionChips(g.sections)}</div>
+            </div>
+            <div class="actions">
+              <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
               <Button variant="destructive" class="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
             </div>
-            {#if editingToken === g.token}
-              <form
-                method="POST"
-                action="?/updateSections"
-                class="grant-edit"
-                use:enhance={({ formData, cancel }) => {
-                  if (!hasSelection(formData)) {
-                    editError = t('settings.pickSectionError');
-                    cancel();
-                    return;
-                  }
-                  editError = '';
-                  return async ({ result, update }) => {
-                    await update();
-                    if (result.type === 'success') closeEdit();
-                  };
-                }}
-              >
-                <input type="hidden" name="token" value={g.token} />
-                <SectionPicker
-                  legend={t('settings.sectionsLegend')}
-                  options={pickerOptions((sec) => g.sections.includes(sec))}
-                  error={editError}
-                  errorId={`edit-error-${g.token}`}
-                  compact
-                />
-                <div class="grant-edit-actions">
-                  <Button variant="ghost" class="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
-                  <Button type="submit" variant="primary" class="sm" icon="check">{t('common.save')}</Button>
-                </div>
-              </form>
-            {:else}
-              <div class="grant-sections">
-                {#each g.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
-                <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
-              </div>
-            {/if}
-            {#if !g.consumed}
-              <div class="grant-link">
-                <code>{linkFor(g.token)}</code>
-                <Button
-                  variant="ghost"
-                  class="sm"
-                  icon={copied[g.token] ? 'check' : 'link'}
-                  onclick={() => copy(g.token)}
-                  aria-label={t('settings.copyLinkAria')}
-                >
-                  {copied[g.token] ? t('common.copied') : t('common.copy')}
-                </Button>
-              </div>
-            {/if}
+            {#if editingToken === g.token}{@render editSections(g)}{/if}
           </li>
         {/each}
       </ul>
     {/if}
 
-    <form
-      method="POST"
-      action="?/create"
-      class="create"
-      use:enhance={({ formData, cancel }) => {
-        if (!hasSelection(formData)) {
-          createError = t('settings.pickSectionError');
-          cancel();
-          return;
-        }
-        createError = '';
-        return async ({ update }) => {
-          await update();
-        };
-      }}
-    >
-      <h3>{t('settings.newShareLink')}</h3>
-      <p class="hint">{t('settings.newShareLinkHint')}</p>
-      <SectionPicker
-        legend={t('settings.sectionsLegend')}
-        options={pickerOptions((sec) => sec === 'commands')}
-        error={createError}
-        errorId="create-error"
-      />
-      <Button type="submit" variant="primary" icon="link">{t('common.generate')}</Button>
-    </form>
-
-    <h3 class="sub">{t('settings.sharedWithYou')}</h3>
-    {#if received.length === 0}
-      <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
-    {:else}
+    {#if pending.length > 0}
+      <span class="group-label">{t('settings.inviteLinks')}</span>
       <ul class="grants">
-        {#each received as r (r.owner_user_id)}
-          <li class="grant consumed">
-            <div class="grant-top">
-              <span class="owner"><Icon name="overview" size={14} /> {r.owner_login}</span>
-              <span class="actions">
+        {#each pending as g (g.token)}
+          <li class="grant pending">
+            <span class="pill warn">{t('settings.stageWaiting')}</span>
+            <code class="grant-link">{linkFor(g.token)}</code>
+            <div class="actions">
+              <Button
+                variant="ghost"
+                class="sm"
+                icon={copied[g.token] ? 'check' : 'link'}
+                onclick={() => copy(g.token)}
+                aria-label={t('settings.copyLinkAria')}
+              >
+                {copied[g.token] ? t('common.copied') : t('common.copy')}
+              </Button>
+              <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
+              <Button variant="destructive" class="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
+            </div>
+            <div class="grant-sections">{@render sectionChips(g.sections)}</div>
+            {#if editingToken === g.token}{@render editSections(g)}{/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
+    <div class="sub-block">
+      <span class="group-label">{t('settings.sharedWithYou')}</span>
+      {#if received.length === 0}
+        <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
+      {:else}
+        <ul class="grants">
+          {#each received as r (r.owner_user_id)}
+            <li class="grant consumed">
+              <span class="face"><Bolota name={r.owner_login} size={30} /></span>
+              <div class="grant-main">
+                <b class="grant-name">{r.owner_login}</b>
+                <div class="grant-sections">{@render sectionChips(r.sections)}</div>
+              </div>
+              <div class="actions">
                 <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" class="sm">{t('common.open')}</ButtonLink>
                 <Button
                   type="button"
@@ -344,20 +400,25 @@
                   aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}
                   onclick={() => (leaveTarget = r)}
                 >{t('common.leave')}</Button>
-              </span>
-            </div>
-            <div class="grant-sections">
-              {#each r.sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   </Card>
 
   <!-- NOTIFICATIONS: the bell dropdown's "view all" target (/settings#notifications). -->
   <Card as="section" id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
-    <h2 id="h-notifications">{t('settings.notifications')}</h2>
+    <div class="sec-head">
+      <h2 id="h-notifications">{t('settings.notifications')}</h2>
+      {#if unreadIds.length > 0}
+        <form method="POST" action="?/markAllRead" use:enhance>
+          <input type="hidden" name="ids" value={unreadIds.join(',')} />
+          <Button type="submit" variant="ghost" class="sm" icon="check">{t('settings.markAllRead')}</Button>
+        </form>
+      {/if}
+    </div>
     {#if notifications.length === 0}
       <p class="hint">{t('settings.notificationsEmpty')}</p>
     {:else}
@@ -406,6 +467,7 @@
        editor; only the keys they spend are managed here. -->
   <Card as="section" id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
     <h2 id="h-api-keys">{t('fetches.keysTitle')}</h2>
+    <p class="hint">{t('settings.keysHint')}</p>
     <FetchKeyManager
       keys={fetchKeys}
       references={data.fetchKeyRefs ?? {}}
@@ -413,6 +475,18 @@
       onSetKey={handleSetKey}
       onDeleteKey={handleDeleteKey}
     />
+  </Card>
+
+  <!-- IMPORT: the doorway to /settings/import, which is a settings section that
+       needs a page of its own. -->
+  <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
+    <div class="sec-head">
+      <div>
+        <h2 id="h-import">{t('settings.importSetup')}</h2>
+        <p class="hint">{t('settings.importSetupHint')}</p>
+      </div>
+      <ButtonLink href="/settings/import" variant="secondary" icon="send">{t('settings.importSetupCta')}</ButtonLink>
+    </div>
   </Card>
 
   <!-- DANGER ZONE: visually separated, last. -->
@@ -434,6 +508,8 @@
       <Button variant="destructive" onclick={() => (deleteOpen = true)}>{t('settings.deleteAccount')}</Button>
     </div>
   </Card>
+    </div>
+  </div>
 </section>
 
 <!-- Revoke confirm -->
@@ -521,21 +597,109 @@
      scroll-anchoring live here. :global because the class rides a component
      root, which the parent's scoping hash never reaches. */
   :global(.settings-section) {
-    margin-top: 18px;
     /* Anchor + programmatic focus land below the sticky topbar. */
     scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
   }
   :global(.settings-section:focus) { outline: none; }
 
+  /* Rail + column, same shape as the modules index: one column on a phone
+     (SectionNav renders its chip row), two once there is room for a ~12rem
+     rail. The rail is a container query inside SectionNav, so nothing here
+     hides anything. */
+  .layout {
+    display: grid;
+    gap: 18px 40px;
+    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+  }
+  @media (min-width: 761px) {
+    .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
+  }
+  .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+  /* The board card only makes sense beside the rail; in the phone's single
+     column it would sit between the chip row and the first section. */
+  .rail :global(.board) { display: none; }
+  @media (min-width: 761px) {
+    .rail :global(.board) {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 16px;
+    }
+  }
+  .board-title {
+    font-family: var(--bb-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bb-tan);
+  }
+  .board-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--bb-muted); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bb-muted); flex: none; }
+  .dot.live { background: var(--bb-green-glow, #52b788); box-shadow: 0 0 8px var(--bb-green-glow, #52b788); }
+  .dot.tan { background: var(--bb-tan); }
+
+  .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
   h2 { margin: 0 0 6px; font-size: 16px; }
-  h3 { margin: 18px 0 6px; font-size: 14px; }
-  h3:first-of-type { margin-top: 6px; }
-  h3.sub {
+  .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
+
+  /* Card header: title block left, its one primary action right. */
+  .sec-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .sec-head h2 { margin-bottom: 0; }
+  .sec-head .hint { margin: 4px 0 0; }
+  .sec-head + :global(*) { margin-top: 18px; }
+
+  .group-label {
+    display: block;
+    font-family: var(--bb-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bb-tan);
+    margin: 22px 0 10px;
+  }
+  .sub-block {
     margin-top: 26px;
     padding-top: 18px;
     border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06));
   }
-  .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
+  .sub-block .group-label { margin-top: 0; }
+
+  /* --- account identity --- */
+  .identity {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 16px;
+    border: 1px solid rgba(82, 183, 136, 0.25);
+    border-radius: 8px;
+    background: rgba(82, 183, 136, 0.04);
+  }
+  .identity-face { flex: none; display: flex; }
+  .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .identity-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .identity-line b { font-size: 15px; color: var(--bb-white); }
+  .identity-meta { font-size: 12.5px; color: var(--bb-muted); }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: var(--bb-radius-pill, 100px);
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
+  .pill.ok { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border: 1px solid rgba(82, 183, 136, 0.3); }
+  .pill.warn { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border: 1px solid rgba(201, 168, 124, 0.3); }
   .row {
     display: flex;
     align-items: center;
@@ -544,51 +708,51 @@
     padding: 12px 0 0;
   }
   .row b, .pref-label { font-size: 14px; color: var(--bb-white); font-family: var(--bb-font-body); }
+  /* Connected pill mirrors the songqueue Spotify pill so both integrations
+     read as the same "linked account" state. */
+  .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
   .row .hint { margin: 4px 0 0; }
-  .create { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06)); }
-  .create :global(.btn) { margin-top: 14px; }
+  .create {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px dashed var(--bb-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
-  /* --- Grant lifecycle cards --- */
-  .grants { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
+  /* --- Grant rows --- */
+  .grants { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
   .grant {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
     border: 1px solid var(--glass-border);
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 14px 16px;
     background: rgba(255, 255, 255, 0.02);
   }
   .grant.pending { border-color: rgba(201, 168, 124, 0.3); }
   .grant.consumed { border-color: rgba(82, 183, 136, 0.25); }
 
-  .grant-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .lifecycle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 10.5px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+  .face { flex: none; display: flex; }
+  .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+  .grant-name { font-size: 14px; color: var(--bb-white); }
+  .grant-link {
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
     color: var(--bb-muted);
-    flex-wrap: wrap;
-  }
-  .stage { opacity: 0.55; }
-  .stage.done { opacity: 1; color: var(--bb-tan-light); }
-  .stage.done.live { color: var(--bb-green-glow, #52b788); }
-  .sep { opacity: 0.4; }
-
-  .owner {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 14.5px;
-    color: var(--bb-white);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .grant-sections { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
-  .grant-edit { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  /* A pending row's chips and its open editor both sit under the whole row. */
+  .grant.pending .grant-sections { grid-column: 1 / -1; }
+  .grant-edit { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-direction: column; gap: 12px; }
   .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
   .section-chip {
     font-family: var(--bb-font-mono);
@@ -600,19 +764,7 @@
     padding: 2px 10px;
   }
 
-  .grant-link {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-    padding: 8px 10px;
-    border: 1px dashed var(--glass-border);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .grant-link code { font-size: 12px; word-break: break-all; flex: 1; min-width: 0; color: var(--bb-muted); }
-
-  .actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
      compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
   :global(.settings-section .btn) { min-height: 44px; }
@@ -630,8 +782,11 @@
   .notif-text b { font-size: 14px; color: var(--bb-white); }
   .notif-text p { margin: 4px 0; font-size: 13px; color: var(--bb-muted); }
   .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
+  /* Same pill language as the connected/waiting states above, so a page full of
+     status markers reads as one set rather than two. */
   .level {
-    font-family: var(--bb-font-body); font-weight: 600; font-size: 10.5px;
+    font-family: var(--bb-font-mono); font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase;
     padding: 3px 10px; border-radius: var(--bb-radius-pill, 100px); border: 1px solid transparent; white-space: nowrap;
   }
   .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--bb-border); }
@@ -647,14 +802,19 @@
   }
 
   @media (max-width: 760px) {
-    /* Stack the label above its control, but keep the control at its natural
-       width: stretching turned the language switch and every action button
-       into a full-row bar. The taller min-height keeps them comfortable to
-       tap without the visual weight of a stretched button. */
-    .row { flex-direction: column; align-items: flex-start; }
-    .row :global(.btn) { min-height: 44px; }
-    .grant-top { flex-direction: column; align-items: flex-start; }
-    .grant-link { flex-direction: column; align-items: stretch; }
-    .grant-link :global(.btn) { justify-content: center; min-height: 44px; }
+    .row, .identity { flex-direction: column; align-items: stretch; }
+    .sec-head :global(.btn) { width: 100%; justify-content: center; }
+    /* A phone has no room for three grid tracks; every part of a row stacks
+       and the link wraps instead of ellipsing. */
+    .grant { grid-template-columns: minmax(0, 1fr); }
+    .grant .actions :global(.btn) { flex: 1; justify-content: center; }
+    .grant-link { white-space: normal; word-break: break-all; }
+    /* Level pill and Read button share the first line; the message gets the
+       full width rather than a column three words wide. */
+    .notif-item { flex-wrap: wrap; }
+    .notif-text { flex-basis: 100%; }
+  }
+  @media (max-width: 900px) {
+    .layout { --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
   }
 </style>

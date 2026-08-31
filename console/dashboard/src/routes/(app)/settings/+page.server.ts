@@ -250,6 +250,29 @@ export const actions: Actions = {
     }
   },
 
+  // "Mark all read" from the Settings list. markPeeked is not this: a peek only
+  // shortens the unread TTL and drops the badge, while these rows must actually
+  // come back read. The notifications service has no bulk mark, and the ids are
+  // one rendered page's worth, so the per-id write fans out; any rejection is
+  // reported as a failure rather than a partial success the list would deny.
+  markAllRead: async ({ request, locals }) => {
+    const s = locals.session;
+    if (DEMO) return { ok: true, action: 'all_read' };
+    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+
+    const ids = String((await request.formData()).get('ids') ?? '')
+      .split(',')
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (ids.length === 0) return { ok: true, action: 'all_read' };
+
+    const settled = await Promise.allSettled(ids.map((id) => notificationMarkRead(s.user_id, id)));
+    if (settled.some((r) => r.status === 'rejected')) {
+      return fail(502, { error: 'Could not update. Try again in a moment.' });
+    }
+    return { ok: true, action: 'all_read' };
+  },
+
   // markPeeked is the bell-dropdown-open path: soft-acknowledge everything the
   // user can see. Best-effort — a failure just leaves the badge for next time,
   // so it never surfaces an error to the glance-only bell.
