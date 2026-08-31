@@ -19,7 +19,9 @@
   //   gossip commands): ONLY the tokens in `samples` (plus the dynamic set
   //   unless dynamic={false}), one message. A leading slash-verb routes the
   //   same as a command line — the pipeline translates every emitted output.
+  import { page } from '$app/state';
   import {
+    Bolota,
     rehearseCommand,
     rehearseReply,
     COMMAND_SAMPLES,
@@ -64,6 +66,12 @@
   // The sample viewer typing the trigger; reply surfaces may carry no {user}.
   const viewerName = $derived(samples?.user ?? COMMAND_SAMPLES.user);
 
+  // The bot's face is the BROADCASTER's bolota, not its own: in chat the bot
+  // speaks as the channel, so the rehearsal shows the channel's creature. The
+  // (app) layout always loads displayName; the fallback only covers surfaces
+  // rendered outside it (none today).
+  const botSeed = $derived((page.data.displayName as string | undefined) ?? 'ItsBagelBot');
+
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
   // Twitch announcement accent colors. "primary" is the channel accent.
@@ -90,6 +98,10 @@
   // Typing beat: edits flip to the dots, settle back to the reply. Debounced so
   // the bot doesn't stutter on every keystroke.
   let typing = $state(false);
+  // The viewer's bolota runs its live engine only while the rehearsal is being
+  // re-acted (typing beat) or the pointer is on the box — same budget rule as
+  // the Topbar/AccountFoot avatars: no idle engines on a screen full of chrome.
+  let hovered = $state(false);
   let settle: ReturnType<typeof setTimeout> | undefined;
   let first = true;
   $effect(() => {
@@ -106,6 +118,15 @@
   });
 </script>
 
+{#snippet botName()}
+  <span class="who bot-name">
+    <!-- Seeded by the broadcaster's name: the bot speaks as the channel, so it
+         wears the channel owner's creature — same face as the topbar avatar. -->
+    <span class="avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
+    ItsBagelBot
+  </span>
+{/snippet}
+
 {#snippet segs(list: Seg[])}
   {#each list as seg, i (i)}
     {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
@@ -114,7 +135,13 @@
   {/each}
 {/snippet}
 
-<div class="chat" aria-label={t('chatPreview.ariaPreview')}>
+<div
+  class="chat"
+  role="group"
+  aria-label={t('chatPreview.ariaPreview')}
+  onpointerenter={() => (hovered = true)}
+  onpointerleave={() => (hovered = false)}
+>
   <span class="chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
   {#if showViewer}
     <div class="line viewer">
@@ -124,20 +151,14 @@
   {/if}
   {#if typing}
     <div class="line bot">
-      <span class="who bot-name">
-        <img src="/logo.png" alt="" class="bot-avatar" />
-        ItsBagelBot
-      </span>
+      {@render botName()}
       <span class="msg typing" aria-label={t('chatPreview.ariaTyping')}>
         <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
       </span>
     </div>
   {:else if views.length === 0}
     <div class="line bot">
-      <span class="who bot-name">
-        <img src="/logo.png" alt="" class="bot-avatar" />
-        ItsBagelBot
-      </span>
+      {@render botName()}
       <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
     </div>
   {:else}
@@ -149,10 +170,7 @@
         class:me={v.mode === 'me'}
         style="--reply-delay: {li * 140}ms"
       >
-        <span class="who bot-name">
-          <img src="/logo.png" alt="" class="bot-avatar" />
-          ItsBagelBot
-        </span>
+        {@render botName()}
         {#if v.mode === 'announce'}
           <div class="announce" style="--acc: {ACCENT[v.color ?? 'primary']}">
             <span class="announce-head">
@@ -240,12 +258,13 @@
     gap: 5px;
   }
   .viewer-name { color: var(--bb-tan-light); }
+  /* Nudged down so the blob hangs from the text baseline the row aligns on. */
+  .avatar { display: inline-flex; flex: none; transform: translateY(4px); }
   .viewer-name::after, .bot-name::after { content: ':'; color: var(--bb-muted); font-weight: 400; }
   /* /me actions carry no colon (Twitch renders them as "name action…"). */
   .line.bot.me .bot-name::after { content: none; }
   .line.bot.special .bot-name::after { content: none; }
   .bot-name { color: var(--bb-green-glow); }
-  .bot-avatar { width: 14px; height: 14px; border-radius: 8px; }
 
   .msg {
     font-family: var(--bb-font-body);

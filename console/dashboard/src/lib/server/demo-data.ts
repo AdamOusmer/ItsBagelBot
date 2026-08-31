@@ -380,24 +380,24 @@ export function demoFetchTestRun(): { status: string; values: string[]; ms: numb
 // Sample rows use the STORED key format (no leading "!" — chat adds it), same
 // as what the projector serves; the UI renders the "!" itself.
 export const demoCommandRows: CommandView[] = [
-  { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
-  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1.2k', is_active: true },
-  { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
-  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
-  { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
-  { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: '177', is_active: true }
+  { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: 412, is_active: true, stream_online_only: true },
+  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: 288, is_active: true },
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: 1200, is_active: true },
+  { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: 96, is_active: true },
+  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: 203, is_active: true },
+  { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: 14, is_active: false },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: 521, is_active: true },
+  { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: 177, is_active: true }
 ];
 
 // Home-page digests. The digest shape is the route's own, so the fixture ships
 // the rows and the caller folds them with its real digest() function.
 export const demoDigestRows: CommandView[] = [
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1.2k' },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
-  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: '412' },
-  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
-  { name: 'debug', response: 'node={node}', is_active: false, uses: '14' }
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: 1200 },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: 521 },
+  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: 412 },
+  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: 288 },
+  { name: 'debug', response: 'node={node}', is_active: false, uses: 14 }
 ];
 
 export function demoConn(connectionUiState: (s: ConnData['signals']) => ConnData['ui']): ConnData {
