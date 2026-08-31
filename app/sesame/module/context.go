@@ -37,6 +37,12 @@ type Context struct {
 	// command; a command reads it to interpret the number (e.g. clip duration).
 	Num string
 
+	// Command is the trigger this line dispatched ("bagel" for "!bagel"), or
+	// empty when the line was not a command. Set by the engine at dispatch and
+	// read back after the stages run, so the activity feed can name what
+	// answered without re-parsing the text on the hot path.
+	Command string
+
 	role    Role
 	roleSet bool
 
@@ -116,6 +122,7 @@ func (c *Context) Reset() {
 	c.Locale = ""
 	c.Config = nil
 	c.Num = ""
+	c.Command = ""
 	c.role = RoleEveryone
 	c.roleSet = false
 	c.emoteCodes = nil

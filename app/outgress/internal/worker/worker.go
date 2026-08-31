@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/ratelimit"
 
@@ -91,6 +92,15 @@ type Worker struct {
 	// live writes the result of a Twitch live re-check back into the projection.
 	// Only the system lane sets it (via SetLiveWriter); nil elsewhere.
 	live *LiveWriter
+	// streamInfo projects per-stream metadata (title/game/viewers/start-end)
+	// for the Overview dashboard. This is the projector's settings:<user_id>
+	// hash (internal/projection), a DIFFERENT store from live above: live
+	// writes outgress's own flat live:<id> key, which is what every live-gated
+	// command actually reads. The two must not be conflated -- see
+	// persistStreamInfo in streamstatus.go. Only the system lane sets it (via
+	// SetStreamInfoStore); nil elsewhere, where persistStreamInfo becomes a
+	// no-op.
+	streamInfo *projection.Store
 	// reauth tells a streamer their Twitch grant died (dashboard bell + the
 	// go-live chat beacon copy). Wiring attaches one shared instance to all
 	// three lanes: the system lane drives the beacon and the authz consumers,
@@ -170,6 +180,10 @@ func New(cfg Config) *Worker {
 // SetLiveWriter attaches the live re-check write-back, used by the system lane
 // worker that handles stream_status jobs.
 func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
+
+// SetStreamInfoStore attaches the projector's stream-metadata projection,
+// used by the system lane worker that handles stream_status jobs.
+func (w *Worker) SetStreamInfoStore(s *projection.Store) { w.streamInfo = s }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 

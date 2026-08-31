@@ -30,6 +30,13 @@ const (
 	counterMessagesProcessed = data.CounterMessagesProcessed
 	counterEventsProcessed   = data.CounterEventsProcessed
 
+	// The Overview's per-stream panel reads these two the same way it reads
+	// messages_processed: a lifetime channel-scope total, minus the baseline
+	// snapshotted when the stream went live. Both are system-owned, so a
+	// channel cannot rewrite its own row.
+	counterCommandsAnswered = data.CounterCommandsAnswered
+	counterModActions       = data.CounterModActionsTaken
+
 	// channelStatsFlushTicks is how many flush intervals the per-channel split
 	// waits before it is published: 15 ticks, so every 30s. It rides a slower
 	// clock than the fleet totals on purpose. The fleet pair is two counter
@@ -191,10 +198,18 @@ func baseRuleBucket(base flagRule) flagRuleBucket {
 	return bktOther
 }
 
-// Log field names for the detection-flag flushes. Flags surface only as log
-// fields — no loyalty counter rows — because new bot-namespace counter names
-// would not join the SystemCounter set (internal/domain/event/data), i.e. they
-// would be a loyalty-schema change without its protection.
+// Log field names for the detection-flag flushes.
+//
+// These used to be log-only in full, on the grounds that a new bot-namespace
+// counter name would not join the SystemCounter set (internal/domain/event/data)
+// and so would be a loyalty-schema change without its protection. That reason
+// no longer applies to the enforced total: mod_actions is now a registered
+// SystemCounter, so it carries the same protection as messages_processed and is
+// published per channel for the Overview's per-stream panel.
+//
+// The per-RULE split stays log-only, and the original reasoning still holds for
+// it: rule names churn with the automod ruleset, and each new one would mint an
+// unprotected counter name. Publish the total, log the breakdown.
 const (
 	flagFieldTotal    = "flags_total"
 	flagFieldEnforced = "flags_enforced"
@@ -239,6 +254,11 @@ type chanTally struct {
 	messages int64
 	flags    int64
 	enforced int64
+	// answered counts command dispatches that actually ran. Tallied here
+	// rather than off the observer hook because that hook sheds events under
+	// backpressure by design: a counter fed from a lossy path would drift
+	// down over a long stream and never recover.
+	answered int64
 	// rules is allocated lazily on a channel's first flagged line: most
 	// channels are never moderated, so the common case pays nothing beyond
 	// the two ints above.
@@ -324,6 +344,20 @@ func (s *botStats) countChannel(broadcasterID uint64, isChat bool) {
 	if isChat {
 		tally.messages++
 	}
+}
+
+// countAnswered records one command that dispatched and ran on this channel.
+func (s *botStats) countAnswered(broadcasterID uint64) {
+	if s == nil || broadcasterID == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tally := s.channelTallyLocked(broadcasterID)
+	if tally == nil {
+		return
+	}
+	tally.answered++
 }
 
 func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedDelta int64) {
@@ -412,6 +446,11 @@ func (s *botStats) flushChannels() {
 	for id, tally := range channels {
 		s.bumpChannel(id, counterEventsProcessed, tally.events)
 		s.bumpChannel(id, counterMessagesProcessed, tally.messages)
+		// enforced was already tallied for the flag log line; it is exactly
+		// the "mod actions" figure the Overview wants, so it is published as a
+		// counter here rather than counted a second time somewhere else.
+		s.bumpChannel(id, counterCommandsAnswered, tally.answered)
+		s.bumpChannel(id, counterModActions, tally.enforced)
 		if tally.flags > 0 {
 			flagged = append(flagged, flagChannelEntry{id: id, total: tally.flags, enforced: tally.enforced})
 		}

@@ -18,6 +18,8 @@ COPY go.mod go.sum ./
 # of masking it with GOFLAGS/GONOSUMCHECK.
 RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
 
+COPY internal/activity internal/activity
+COPY internal/chatvolume internal/chatvolume
 COPY internal/domain internal/domain
 COPY internal/moderation internal/moderation
 COPY internal/projection internal/projection

@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
 
@@ -231,15 +232,21 @@ func Alerts(d engine.Deps) module.Module {
 	subAlert := onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
 		defaultSubTemplate,
-		func(_ context.Context, ev subscribeEvent) (alertLine, bool) {
+		func(ctx context.Context, ev subscribeEvent) (alertLine, bool) {
 			// A gifted recipient is announced through the gift alert on
 			// channel.subscription.gift (one line per gifter, not one per
 			// recipient), so a gift bomb cannot flood chat with welcome lines.
 			if ev.UserLogin == "" || ev.IsGift {
 				return alertLine{}, false
 			}
+			user := chatName(ev.UserName, ev.UserLogin)
+			activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
+				Kind: activity.KindEvent,
+				Text: user + " subscribed (" + ev.Tier + ")",
+				At:   time.Now(),
+			})
 			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": chatName(ev.UserName, ev.UserLogin),
+				"user": user,
 				"tier": ev.Tier,
 			}}, true
 		})
@@ -249,7 +256,7 @@ func Alerts(d engine.Deps) module.Module {
 	m.On("channel.subscription.gift", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
 		defaultGiftTemplate,
-		func(_ context.Context, ev giftEvent) (alertLine, bool) {
+		func(ctx context.Context, ev giftEvent) (alertLine, bool) {
 			if ev.BroadcasterUserID == "" || ev.Total <= 0 {
 				return alertLine{}, false
 			}
@@ -257,8 +264,14 @@ func Alerts(d engine.Deps) module.Module {
 			if !ev.IsAnonymous {
 				gifter = displayName(ev.UserName, ev.UserLogin)
 			}
+			gifter = strings.TrimPrefix(gifter, "@")
+			activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
+				Kind: activity.KindEvent,
+				Text: gifter + " gifted " + strconv.Itoa(ev.Total) + " subs",
+				At:   time.Now(),
+			})
 			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user":  strings.TrimPrefix(gifter, "@"),
+				"user":  gifter,
 				"count": strconv.Itoa(ev.Total),
 				"tier":  ev.Tier,
 			}}, true
@@ -284,12 +297,18 @@ func Alerts(d engine.Deps) module.Module {
 	m.On("channel.raid", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
 		defaultRaidTemplate,
-		func(_ context.Context, ev raidEvent) (alertLine, bool) {
+		func(ctx context.Context, ev raidEvent) (alertLine, bool) {
 			if ev.FromBroadcasterUserLogin == "" {
 				return alertLine{}, false
 			}
+			user := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
+			activity.Emit(ctx, ev.ToBroadcasterUserID, activity.Row{
+				Kind: activity.KindEvent,
+				Text: user + " raided with " + strconv.Itoa(ev.Viewers) + " viewers",
+				At:   time.Now(),
+			})
 			return alertLine{ev.ToBroadcasterUserID, map[string]string{
-				"user":    chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin),
+				"user":    user,
 				"viewers": strconv.Itoa(ev.Viewers),
 			}}, true
 		}))
@@ -317,8 +336,14 @@ func followLine(cd engine.CooldownStore, log *zap.Logger) func(context.Context, 
 		if ev.UserLogin == "" || !firstFollowAlert(ctx, cd, log, ev) {
 			return alertLine{}, false
 		}
+		user := chatName(ev.UserName, ev.UserLogin)
+		activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
+			Kind: activity.KindEvent,
+			Text: user + " followed",
+			At:   time.Now(),
+		})
 		return alertLine{ev.BroadcasterUserID, map[string]string{
-			"user": chatName(ev.UserName, ev.UserLogin),
+			"user": user,
 		}}, true
 	}
 }

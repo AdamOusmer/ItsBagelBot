@@ -37,6 +37,10 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
+	// Recorded for the post-stage observer hook (see engine/observe.go). The
+	// name is a view into the pooled payload; the hook clones before it hands
+	// the event to anything that outlives Process.
+	c.Command = name
 	if bc, num, isBaked := p.registry.ResolveCommand(name); isBaked {
 		if p.enabled(bc.Owner, views, c) {
 			return p.runBaked(ctx, c, bc.Cmd, num, args, emit)

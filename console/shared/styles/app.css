@@ -183,6 +183,13 @@ body {
 }
 @keyframes save-sweep { to { transform: translateX(100%); } }
 
+/* Overview live panels. ov-pulse is the "this is live, not stale" heartbeat on
+   the stream + feed dots; ov-feed-in runs once on an arriving activity row.
+   Global rather than component-scoped because three components share them and
+   Svelte would otherwise emit three identical scoped copies. */
+@keyframes ov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes ov-feed-in { from { opacity: 0; } to { opacity: 1; } }
+
 /* keyboard hint chips */
 kbd.hint {
   font-family: var(--bb-font-mono); font-size: 10.5px; letter-spacing: 0.04em;

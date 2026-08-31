@@ -9,7 +9,11 @@
 // and projection.ModulesReply directly.
 package projectorrpc
 
-import "ItsBagelBot/internal/domain/rpc/projection"
+import (
+	"time"
+
+	"ItsBagelBot/internal/domain/rpc/projection"
+)
 
 // DashboardRequest is the input shape for projector dashboard verbs.
 // Commands and Modules carry payloads for the replace verbs; they are empty for get.
@@ -47,4 +51,29 @@ type LiveReply struct {
 	Live          bool   `json:"live"`
 	Known         bool   `json:"known"`
 	Error         string `json:"error,omitempty"`
+}
+
+// StreamInfoRequest is the input shape for the projector stream-info verb:
+// the Overview dashboard asks for a broadcaster's current per-stream
+// metadata (title, game, viewer counts, start/end).
+type StreamInfoRequest struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
+// StreamInfoReply is the reply shape for the projector stream-info verb.
+// Live mirrors LiveReply's live signal; Known is false when the projector has
+// no projected stream-info row for this broadcaster yet (a cold hash, not
+// necessarily an offline stream), matching the Known semantics documented on
+// LiveReply.
+type StreamInfoReply struct {
+	BroadcasterID string    `json:"broadcaster_id"`
+	Title         string    `json:"title"`
+	GameName      string    `json:"game_name"`
+	ViewerCount   int       `json:"viewer_count"`
+	PeakViewers   int       `json:"peak_viewers"`
+	StartedAt     time.Time `json:"started_at"`
+	EndedAt       time.Time `json:"ended_at"`
+	Live          bool      `json:"live"`
+	Known         bool      `json:"known"`
+	Error         string    `json:"error,omitempty"`
 }

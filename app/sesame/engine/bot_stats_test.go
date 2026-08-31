@@ -430,8 +430,11 @@ func TestFlagChannelCapDropsNewChannels(t *testing.T) {
 	assert.NotContains(t, s.channels, uint64(channelStatsMaxKeys+1))
 }
 
-// The fleet flush surfaces the flag window as log fields only — no loyalty
-// counter rows — so the bumper still sees exactly the two traffic counters.
+// The fleet flush surfaces the flag window as log fields only. The per-rule
+// split must never become a counter (rule names churn, so each new one would
+// mint an unprotected counter name); the enforced TOTAL is exempt because
+// mod_actions is a registered SystemCounter and the Overview reads it per
+// channel.
 func TestFlagFlushLogsFleetFieldsNotCounters(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	bumper := &fakeBumper{}
@@ -461,8 +464,10 @@ func TestFlagFlushLogsFleetFieldsNotCounters(t *testing.T) {
 	}, line.ContextMap())
 
 	for _, c := range bumper.calls() {
-		assert.Contains(t, []string{counterEventsProcessed, counterMessagesProcessed}, c.name,
-			"flag counters must not become loyalty bumps")
+		assert.Contains(t,
+			[]string{counterEventsProcessed, counterMessagesProcessed, counterCommandsAnswered, counterModActions},
+			c.name, "per-rule flag counters must not become loyalty bumps")
+		assert.NotContains(t, c.name, "flag_rule_", "rule names must never mint a counter")
 	}
 }
 

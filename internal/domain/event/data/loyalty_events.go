@@ -40,10 +40,29 @@ const (
 	CounterEventsProcessed   = "events_processed"
 )
 
+// CounterCommandsAnswered and CounterModActionsTaken are reserved the same
+// way as the pair above, for the Overview's per-stream counter panel (see
+// internal/projection/valkey.go's StreamCounters and
+// console/dashboard/src/lib/server/stream-counters.ts). Neither has a writer
+// yet — sesame's bot_stats.go only flushes messages/events per channel today
+// — but reserving the names now means the eventual writer needs no protocol
+// change, and until it ships an uncreated counter reads as an honest 0
+// through counter.get's found:false (same precedent as messages_processed
+// before its own writer existed).
+const (
+	CounterCommandsAnswered = "commands_answered"
+	CounterModActionsTaken  = "mod_actions"
+)
+
 // SystemCounter reports whether a counter name belongs to the fleet stats set
 // above rather than to the broadcaster whose row holds it.
 func SystemCounter(name string) bool {
-	return name == CounterMessagesProcessed || name == CounterEventsProcessed
+	switch name {
+	case CounterMessagesProcessed, CounterEventsProcessed, CounterCommandsAnswered, CounterModActionsTaken:
+		return true
+	default:
+		return false
+	}
 }
 
 // LoyaltyEarnEntry is one viewer's summed accrual inside a flush window:

@@ -17,7 +17,9 @@ import (
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/app/outgress/internal/worker"
 	"ItsBagelBot/app/outgress/rpc"
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
@@ -99,6 +101,11 @@ func main() {
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	fatalIf(log, err, "failed to connect to valkey")
 	defer valkeyClient.Close()
+
+	// Real Overview activity sink: the modactions.go/redemption.go Emit call
+	// sites are already wired (see internal/activity's decision record) and
+	// need only this one SetSink to start landing rows.
+	activity.SetSink(activity.NewStore(valkeyClient))
 
 	registry := channels.New(valkeyClient)
 
@@ -438,6 +445,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
 	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
+	system.SetStreamInfoStore(projection.NewStore(d.valkey))
 
 	return premium, standard, system, modVerifier.Close
 }

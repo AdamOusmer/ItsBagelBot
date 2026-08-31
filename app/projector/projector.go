@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -45,7 +46,12 @@ type Projector struct {
 	// cache bus after Valkey is updated. Subject = prefix + "." + scope.
 	cacheInvalidatePrefix string
 	hydrator              *hydration.Hydrator
-	log                   *zap.Logger
+	// loyalty reads a channel's current lifetime counters to seed the
+	// per-stream Overview baseline on go-live (snapshotCounterBaseline). Nil
+	// is tolerated (see that method) so tests and any other constructor of
+	// Projector need not wire it.
+	loyalty loyaltyCounterReader
+	log     *zap.Logger
 }
 
 // Deps carries the projector's collaborators. invalidateSubject is the
@@ -58,6 +64,7 @@ type Deps struct {
 	InvalidateSubject     string
 	CacheInvalidatePrefix string
 	Hydrator              *hydration.Hydrator
+	Loyalty               loyaltyCounterReader
 	Log                   *zap.Logger
 }
 
@@ -68,6 +75,7 @@ func NewProjector(d Deps) *Projector {
 		invalidateSubject:     d.InvalidateSubject,
 		cacheInvalidatePrefix: d.CacheInvalidatePrefix,
 		hydrator:              d.Hydrator,
+		loyalty:               d.Loyalty,
 		log:                   d.Log,
 	}
 }
@@ -273,6 +281,25 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
+	// Read the prior live state before overwriting it: the Overview's
+	// per-stream counter baseline (see snapshotCounterBaseline) must be
+	// seeded exactly once per stream, on the false->true edge, and this is
+	// the only point that still has "before" in hand. A cold key (never
+	// projected) reads back false, which is the correct treatment here too —
+	// a channel's first-ever stream event is a go-live like any other.
+	//
+	// A read failure here defaults to wasLive=true (skip the snapshot this
+	// cycle) rather than nacking or defaulting to false: guessing false would
+	// risk re-snapshotting an already-live stream mid-run, silently resetting
+	// its counters to the current instant, which is strictly worse than the
+	// dashboard staying degraded (ok:false) for one stream. SetStreamLive
+	// right below keeps its own nack-on-failure — only this baseline
+	// decision gets the soft fallback.
+	wasLive, _, err := p.store.GetStreamLive(msg.Context(), st.BroadcasterID)
+	if err != nil {
+		wasLive = true
+	}
+
 	if err := p.store.SetStreamLive(msg.Context(), st.BroadcasterID, st.Live); err != nil {
 		return err
 	}
@@ -290,10 +317,75 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
+	if isGoLiveEdge(wasLive, st.Live) {
+		p.snapshotCounterBaseline(msg.Context(), st.BroadcasterID, log)
+	}
+
 	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 	p.hydrator.RefreshAsync(st.BroadcasterID)
 	p.warmBroadcasterToken(st.BroadcasterID)
 	return nil
+}
+
+// isGoLiveEdge reports whether a stream-status update is the false->true
+// transition the per-stream counter baseline must snapshot on — pulled out
+// of HandleStreamEvent as its own pure check so the edge condition itself
+// (and not just its Valkey-backed callers) can be unit tested directly.
+func isGoLiveEdge(wasLive, isLive bool) bool {
+	return isLive && !wasLive
+}
+
+// snapshotCounterBaseline seeds the Overview's per-stream counters (see
+// internal/projection/valkey.go's StreamCounters/SetStreamCounterBaseline,
+// and console/dashboard/src/lib/server/stream-counters.ts which diffs
+// against them) with loyalty's current lifetime totals for this channel, the
+// instant its stream goes live. HandleStreamEvent calls this only on the
+// false->true transition — every other stream event on an already-live
+// stream (a redelivery, a later offline) must leave an existing baseline
+// untouched, or a resend would silently reset the panel mid-stream.
+//
+// All three reads must succeed together: a partial baseline (say, a real
+// messages count paired with a zero from a failed answered/mod_actions read)
+// would understate this stream's totals for the rest of it, and a fully
+// zeroed baseline from a loyalty outage would do worse — it would make the
+// panel report this channel's entire lifetime total as "this stream" (the
+// exact dishonesty stream-counters.ts's header forbids). Skipping the write
+// on any failure leaves the baseline absent, which the read side already
+// treats as ok:false; the next go-live retries it.
+//
+// Best-effort like the hydration/token-warm calls beside it in
+// HandleStreamEvent: a missed baseline degrades one dashboard panel, not the
+// live/offline state HandleStreamEvent's other writes protect with a nack.
+func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID uint64, log *zap.Logger) {
+	if p.loyalty == nil {
+		return
+	}
+
+	// All three or none: a partial baseline would subtract a stale figure from
+	// a fresh total and report a slice of the channel's lifetime as this
+	// stream. Read as a list so "did every read land" stays one check rather
+	// than a clause per counter.
+	uid := strconv.FormatUint(broadcasterID, 10)
+	names := []string{
+		data.CounterMessagesProcessed,
+		data.CounterCommandsAnswered,
+		data.CounterModActionsTaken,
+	}
+	vals := make([]int64, 0, len(names))
+	for _, name := range names {
+		v, ok := p.loyalty.get(ctx, uid, name)
+		if !ok {
+			log.Warn("skipping stream counter baseline: loyalty read failed",
+				zap.Uint64("user_id", broadcasterID), zap.String("counter", name))
+			return
+		}
+		vals = append(vals, v)
+	}
+
+	b := projection.StreamCounters{Messages: vals[0], Answered: vals[1], ModActions: vals[2]}
+	if err := p.store.SetStreamCounterBaseline(ctx, uid, b); err != nil {
+		log.Warn("failed to write stream counter baseline", zap.Uint64("user_id", broadcasterID), zap.Error(err))
+	}
 }
 
 // broadcastLiveInvalidate fans a live-state change over the console cache bus on

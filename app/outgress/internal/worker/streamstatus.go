@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/app/outgress/internal/twitch"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
 
@@ -22,6 +24,11 @@ import (
 // system Helix bucket and runs only on the system lane (where SetLiveWriter has
 // attached the write-back). A permanent Twitch rejection is dropped; transient
 // errors nack so the paced redelivery retries.
+//
+// It calls StreamDetails rather than IsStreamLive so the same Helix response
+// also carries the title/game/viewer snapshot persistStreamInfo projects for
+// the Overview dashboard -- Helix budget on this path is scarce, and a second
+// call just to re-fetch what this one already returned would waste it.
 func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Message) error {
 	if w.live == nil {
 		w.log.Error("dropping stream_status job off the system lane")
@@ -36,7 +43,7 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 		return err
 	}
 
-	isLive, err := w.twitch.IsStreamLive(ctx, payload.BroadcasterID)
+	details, isLive, err := w.twitch.StreamDetails(ctx, payload.BroadcasterID)
 	if err != nil {
 		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
 	}
@@ -44,6 +51,8 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
 		return err
 	}
+
+	w.persistStreamInfo(ctx, payload.BroadcasterID, isLive, details)
 
 	if isLive {
 		// Proactively re-verify in the background when a channel goes live.
@@ -53,6 +62,61 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 	w.log.Debug("stream_status resolved",
 		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
 	return nil
+}
+
+// persistStreamInfo projects one Get Streams sample into the per-stream
+// metadata row the Overview dashboard reads (internal/projection's
+// settings:<user_id> hash). This is a DIFFERENT store from w.live above: live
+// writes outgress's own flat live:<id> key, the one every live-gated command
+// actually depends on. Conflating the two would mean a stream-info write
+// failure could look like a live-state failure, so this stays best-effort and
+// separate -- a Valkey error here is logged, never returned, and never blocks
+// or retries the job.
+func (w *Worker) persistStreamInfo(ctx context.Context, broadcasterID string, isLive bool, details twitch.StreamDetails) {
+	if w.streamInfo == nil {
+		return
+	}
+
+	prev, _, err := w.streamInfo.GetStreamInfo(ctx, broadcasterID)
+	if err != nil {
+		w.log.Warn("stream info: prior read failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+
+	info := nextStreamInfo(prev, isLive, details)
+	if err := w.streamInfo.SetStreamInfo(ctx, broadcasterID, info); err != nil {
+		w.log.Warn("stream info: projection write failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+}
+
+// nextStreamInfo folds one Get Streams sample onto the previously projected
+// row. It does no I/O so the merge rules can be unit tested plainly.
+//
+// PeakViewers caveat: this is a high-water mark of the samples outgress
+// happens to observe (this job and the cold-live escalation), never a true
+// stream maximum. A fixed poll would keep it fresher, but was rejected: this
+// path already pays a scarce reserved system Helix bucket per call, and a
+// poll loop would multiply that cost for a number that is advisory ("stream
+// is genuinely popular right now") rather than depended on. Between samples
+// the real peak can run higher and this field will never know it.
+func nextStreamInfo(prev projection.StreamInfo, isLive bool, details twitch.StreamDetails) projection.StreamInfo {
+	if !isLive {
+		prev.EndedAt = time.Now().UTC()
+		return prev
+	}
+
+	prev.Title = details.Title
+	prev.GameName = details.GameName
+	prev.ViewerCount = details.ViewerCount
+	prev.EndedAt = time.Time{}
+	if details.ViewerCount > prev.PeakViewers {
+		prev.PeakViewers = details.ViewerCount
+	}
+	if !details.StartedAt.IsZero() {
+		prev.StartedAt = details.StartedAt
+	}
+	return prev
 }
 
 // seedLiveStatus resolves the broadcaster's current live state right after an

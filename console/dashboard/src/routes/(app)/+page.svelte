@@ -23,6 +23,9 @@
   import LinkedSummary from '$lib/components/overview/LinkedSummary.svelte';
   import TopCommands from '$lib/components/overview/TopCommands.svelte';
   import SetupProgress from '$lib/components/overview/SetupProgress.svelte';
+  import StreamSection from '$lib/components/overview/StreamSection.svelte';
+  import ActivityLog from '$lib/components/overview/ActivityLog.svelte';
+  import AnsweredTonight from '$lib/components/overview/AnsweredTonight.svelte';
   import {
     CONNECTION_POLL_FAST_MS,
     CONNECTION_POLL_TIMEOUT_MS,
@@ -91,6 +94,16 @@
 
   onMount(() => {
     greeting = greetingForHour(new Date().getHours());
+  });
+
+  // The single clock for the whole page. StreamSection derives "3h 42m" from
+  // this rather than reading the time itself, which keeps every component in
+  // components/overview pure display — the convention the whole directory
+  // follows — and means one interval ticks instead of one per panel.
+  let now = $state(Date.now());
+  onMount(() => {
+    const id = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(id);
   });
 
   // Confirm modal state
@@ -268,43 +281,73 @@
     />
   {/await}
 
-  <!-- 3. Needs attention: only real, non-connection issues (guarded on the read
-       having landed); the connection story stays in the status panel. -->
-  {#await Promise.all([data.commands, data.shares]) then [cd, sh]}
-    <NeedsAttention
-      active={cd.active}
-      total={cd.total}
-      commandsOk={cd.ok}
-      pendingShares={sh.pending}
-      sharesOk={sh.ok}
-    />
+  <!-- 3. This stream: the headline panel. Three independent reads, each of
+       which can be down on its own without blanking the others. -->
+  {#await Promise.all([data.stream, data.counters, data.volume])}
+    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
+      <span class="sr-only">{t('overview.checking')}</span>
+      <div class="ov-loading__stack" aria-hidden="true">
+        <Skeleton variant="block" height="260px" />
+      </div>
+    </section>
+  {:then [meta, counters, volume]}
+    <StreamSection {meta} {counters} {volume} {now} />
   {/await}
 
-  <!-- 4. Quick actions: New command is the page's single primary CTA. -->
+  <!-- 4. The working row: what the bot just did, beside the smaller reads that
+       answer "and is anything wrong". -->
+  <div class="ov-row">
+    <div class="ov-row__main">
+      {#await data.feed}
+        <Skeleton variant="block" height="420px" />
+      {:then feed}
+        <ActivityLog {feed} />
+      {/await}
+    </div>
+
+    <div class="ov-row__side">
+      {#await data.answered}
+        <Skeleton variant="block" height="260px" />
+      {:then answered}
+        <AnsweredTonight {answered} />
+      {/await}
+
+      <!-- Only real, non-connection issues (guarded on the read having landed);
+           the connection story stays in the status panel. -->
+      {#await Promise.all([data.commands, data.shares]) then [cd, sh]}
+        <NeedsAttention
+          active={cd.active}
+          total={cd.total}
+          commandsOk={cd.ok}
+          pendingShares={sh.pending}
+          sharesOk={sh.ok}
+        />
+      {/await}
+
+      <!-- Each item a real link naming its count + destination. -->
+      {#await Promise.all([data.commands, data.modules, data.conn, data.shares])}
+        <div class="ov-loading__grid" aria-hidden="true">
+          {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="56px" />{/each}
+        </div>
+      {:then [cd, md, c, sh]}
+        <LinkedSummary
+          active={cd.active}
+          commandsOk={cd.ok}
+          modulesOn={md.on}
+          modulesOk={md.ok}
+          planLabel={statusLabel(c.signals.status)}
+          people={sh.people}
+          sharesOk={sh.ok}
+        />
+      {/await}
+    </div>
+  </div>
+
+  <!-- 5. Quick actions: New command is the page's single primary CTA. -->
   {#await data.conn}
     <QuickActions />
   {:then c}
     <QuickActions needsAttention={liveUi(c).kind !== 'online'} />
-  {/await}
-
-  <!-- 5. Linked summary: each item a real link naming its count + destination. -->
-  {#await Promise.all([data.commands, data.modules, data.conn, data.shares])}
-    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
-      <span class="sr-only">{t('overview.checking')}</span>
-      <div class="ov-loading__grid" aria-hidden="true">
-        {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="56px" />{/each}
-      </div>
-    </section>
-  {:then [cd, md, c, sh]}
-    <LinkedSummary
-      active={cd.active}
-      commandsOk={cd.ok}
-      modulesOn={md.on}
-      modulesOk={md.ok}
-      planLabel={statusLabel(c.signals.status)}
-      people={sh.people}
-      sharesOk={sh.ok}
-    />
   {/await}
 
   <!-- 6. Established -> top commands; unreachable -> honest notice; incomplete ->
@@ -364,6 +407,37 @@
 </Modal>
 
 <style>
+  /* The working row: activity log carries the weight, the smaller reads stack
+     beside it. Collapses to one column before the log's rows start truncating. */
+  .ov-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--row-gap);
+    align-items: start;
+    margin-bottom: var(--row-gap);
+  }
+  .ov-row__main,
+  .ov-row__side {
+    min-width: 0;
+  }
+  .ov-row__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--row-gap);
+  }
+  /* NeedsAttention and LinkedSummary each carry their own bottom margin from
+     when the page was one vertical stack. Inside the rail that margin adds to
+     the flex gap and every second slot ends up double-spaced (measured 28px
+     then 56px), so the rail owns the spacing and the children contribute none. */
+  .ov-row__side > :global(section) {
+    margin-bottom: 0;
+  }
+  @media (max-width: 900px) {
+    .ov-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .ov-loading {
     margin-bottom: var(--row-gap);
   }

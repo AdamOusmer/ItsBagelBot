@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"strconv"
 	"sync"
+	"time"
 
 	"ItsBagelBot/app/sesame/automod"
 	"ItsBagelBot/app/sesame/module"
@@ -120,6 +121,11 @@ type Pipeline struct {
 	// cancelled before any module runs.
 	special           *SpecialSet
 	autoRefundChannel string
+
+	// observers is the activity-feed / per-stream-counters registration point
+	// (see observe.go). nil (the default) means no observer is wired and
+	// notifyObservers returns before touching the event.
+	observers []*observerLane
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -179,6 +185,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 // Close flushes and stops the command-use reporter and the bot-wide stats
 // flusher. Safe when either was never started.
 func (p *Pipeline) Close() {
+	p.closeObservers()
 	if p.uses != nil {
 		p.uses.Close()
 	}
@@ -249,8 +256,29 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		env:     env,
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
+	started := time.Now()
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
+
+	// A command that dispatched and ran. Counted on this synchronous path, not
+	// off the observer hook below, because that hook drops under backpressure
+	// and a counter fed from it would silently undercount.
+	if mctx.Command != "" {
+		p.stats.countAnswered(broadcasterID)
+	}
+
+	// Single funnel hook, placed AFTER the stages: the activity feed reports
+	// which command answered and in how long, and neither is known before
+	// dispatch runs. See observe.go for why this is a bounded hand-off.
+	p.notifyObservers(ObservedEvent{
+		BroadcasterID: broadcasterID,
+		Type:          env.Type,
+		At:            started,
+		Handled:       mctx.Command != "",
+		Command:       mctx.Command,
+		Actor:         env.ChatterUserName,
+		DurationMS:    int(time.Since(started).Milliseconds()),
+	})
 
 	// nil = ack; a publish/marshal failure on the emit path = nack.
 	tracePipelineResult(ctx, emission.err)

@@ -38,6 +38,15 @@ import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
 import type { PublicBoards } from './public-boards';
 import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
+import type {
+  StreamMeta,
+  StreamCounters,
+  ChatVolume,
+  ActivityFeed,
+  ActivityRow,
+  ActivityKind,
+  AnsweredTonight
+} from '$lib/overview-live';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
@@ -500,3 +509,81 @@ export function demoBoards(now: number): PublicBoards {
     degraded: false
   };
 }
+
+// ── Overview redesign: live panels ───────────────────────────────────────────
+// Fixtures for the four panels whose backend lanes ship separately. These let
+// the redesign be built and reviewed end to end before any of that data exists,
+// and they are the only place the shapes are exercised until the lanes land.
+
+export function demoStreamMeta(now: number): StreamMeta {
+  return {
+    live: true,
+    known: true,
+    title: 'Rain World — blind run, day three',
+    gameName: 'Rain World',
+    startedAt: new Date(now - 222 * 60_000).toISOString(),
+    endedAt: null,
+    viewers: 1284,
+    peakViewers: 1610,
+    lastDurationMin: 248,
+    ok: true
+  };
+}
+
+export const demoStreamCounters: StreamCounters = {
+  messages: 9412,
+  answered: 148,
+  modActions: 7,
+  ok: true
+};
+
+// A plausible rising-then-plateauing chat curve. Ticks mark the minutes a
+// command answered, which is what the tan marks under the chart read from.
+export function demoChatVolume(): ChatVolume {
+  const buckets = [
+    18, 26, 22, 39, 33, 48, 42, 61, 55, 74, 66, 81, 58, 92, 74, 108, 82, 90, 64,
+    78, 96, 68, 88, 56, 74, 50, 66, 40, 56, 46, 42
+  ];
+  return {
+    buckets,
+    commandTicks: [3, 7, 9, 13, 15, 16, 20, 22, 25, 28],
+    now: buckets[buckets.length - 1],
+    peak: Math.max(...buckets),
+    ok: true
+  };
+}
+
+// The bot's work, newest first.
+const DEMO_FEED: [ActivityKind, string, string][] = [
+  ['command', '!bagel answered @novaburst', '41ms'],
+  ['automod', 'timeout 10m @linkspam_99 · link', 'floor 0.94'],
+  ['timer', 'socials posted to chat', 'every 25m'],
+  ['command', '!deaths incremented → 14', '33ms'],
+  ['reward', 'Bagel Rain redeemed by @kettle', '500 pts'],
+  ['event', 'new follower @gremlin_dev · shoutout sent', 'ok'],
+  ['queue', 'Mount Kimbie — Made to Stray queued by @vex', '#4'],
+  ['command', '!uptime answered @mods', '12ms'],
+  ['loyalty', '412 watchers earned 5 points', 'tick']
+];
+
+export function demoActivityFeed(now: number): ActivityFeed {
+  const rows: ActivityRow[] = DEMO_FEED.map(([kind, text, meta], i) => ({
+    id: `demo-${i}`,
+    kind,
+    text,
+    meta,
+    at: new Date(now - i * 37_000).toISOString()
+  }));
+  return { rows, medianMs: 38, dropped: 0, ok: true };
+}
+
+export const demoAnsweredTonight: AnsweredTonight = {
+  commands: [
+    { name: '!bagel', count: 46 },
+    { name: '!uptime', count: 31 },
+    { name: '!song', count: 28 },
+    { name: '!deaths', count: 22 },
+    { name: '!socials', count: 12 }
+  ],
+  ok: true
+};

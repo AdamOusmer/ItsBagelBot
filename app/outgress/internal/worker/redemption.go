@@ -6,8 +6,10 @@ package worker
 import (
 	"context"
 	"errors"
+	"time"
 
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -31,6 +33,12 @@ func (w *Worker) processRedemptionUpdate(ctx context.Context, payload *outgress.
 
 	err := w.twitch.UpdateRedemptionStatus(ctx, payload.BroadcasterID, payload.RewardID, payload.RedemptionID, payload.Status)
 	if err == nil {
+		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
+			Kind: activity.KindReward,
+			Text: "redemption " + payload.Status,
+			Meta: payload.RewardID,
+			At:   time.Now(),
+		})
 		return nil
 	}
 	if redemptionPermanent(err) {

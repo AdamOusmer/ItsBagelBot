@@ -51,6 +51,8 @@ type projectorTopics struct {
 	status            string
 	dashboard         string
 	live              string
+	streamInfo        string
+	loyalty           string
 	outgressSystem    string
 	hydrationConcurr  int
 	queryHydrationTTL time.Duration
@@ -59,15 +61,22 @@ type projectorTopics struct {
 
 func loadTopics() projectorTopics {
 	return projectorTopics{
-		stream:            env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
-		users:             env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		modules:           env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		commands:          env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
-		invalidate:        env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
-		cacheInvalidate:   env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
-		status:            env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
-		dashboard:         env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard"),
-		live:              env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+		stream:          env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
+		users:           env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
+		modules:         env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
+		commands:        env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
+		invalidate:      env.Get("NATS_PROJECTOR_TIER_INVALIDATE_SUBJECT", "bagel.internal.projector.tier.invalidate"),
+		cacheInvalidate: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		status:          env.Get("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
+		dashboard:       env.Get("NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX", "bagel.rpc.projector.dashboard"),
+		live:            env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
+		streamInfo:      env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "bagel.rpc.broadcaster.stream_info.get"),
+		// loyalty is the RPC prefix the loyalty service subscribes under (see
+		// app/loyalty/rpc/rpc.go's Subscribe doc). Same default the dashboard's
+		// services.ts uses for its own loyalty client, so both sides of the
+		// Overview counter feature point at the same service without extra
+		// config in dev.
+		loyalty:           env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 		outgressSystem:    env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
 		hydrationConcurr:  env.GetInt("PROJECTOR_HYDRATION_CONCURRENCY", 8),
 		queryHydrationTTL: env.GetDuration("PROJECTOR_QUERY_HYDRATION_TTL", 2*time.Hour),
@@ -115,6 +124,7 @@ func main() {
 		InvalidateSubject:     topics.invalidate,
 		CacheInvalidatePrefix: topics.cacheInvalidate,
 		Hydrator:              hydrator,
+		Loyalty:               newLoyaltyCounters(nc, topics.loyalty),
 		Log:                   log,
 	})
 
@@ -220,4 +230,8 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 		"failed to subscribe dashboard projector rpc")
 	fatalIf(rt.log, rpc.SubscribeLive(rt.nc, rt.store, rt.pub, topics.live, topics.outgressSystem, "projector-rpc", rt.nrApp, rt.log),
 		"failed to subscribe live rpc")
+	fatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
+		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,
+		QueueGroup: "projector-rpc", App: rt.nrApp, Log: rt.log,
+	}), "failed to subscribe stream info rpc")
 }
