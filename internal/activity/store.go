@@ -5,13 +5,13 @@ package activity
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
+	"ItsBagelBot/pkg/codec"
 	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -113,7 +113,7 @@ func truncateBytes(s string, max int) string {
 }
 
 func encodeRow(row Row) ([]byte, error) {
-	return json.Marshal(wireRow{
+	return codec.Marshal(wireRow{
 		Kind: row.Kind,
 		Text: truncateBytes(row.Text, maxTextBytes),
 		Meta: truncateBytes(row.Meta, maxMetaBytes),
@@ -124,7 +124,7 @@ func encodeRow(row Row) ([]byte, error) {
 
 func decodeRow(raw string) (Row, bool) {
 	var w wireRow
-	if err := json.Unmarshal([]byte(raw), &w); err != nil {
+	if err := codec.Unmarshal([]byte(raw), &w); err != nil {
 		return Row{}, false
 	}
 	at, err := time.Parse(time.RFC3339Nano, w.At)
