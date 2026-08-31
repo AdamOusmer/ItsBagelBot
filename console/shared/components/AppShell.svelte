@@ -1,25 +1,31 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The stage layout: no sidebar. A thin call-sign strip on top, one centered
-  // reading column for the page, and the floating command dock at the bottom —
-  // the same navigation pattern at every breakpoint.
+  // The stage layout: a thin call-sign strip on top, one centered reading
+  // column for the page, and the floating command dock at the bottom.
+  //
+  // `rail` opts a board into the desktop sidebar: the dock alone could never
+  // show a page's sub-pages, so the dashboard nests the /modules sections under
+  // Modules there. It is a prop, not the default, because the admin board's
+  // several groups are what the grouped dock was built for -- flipping it on
+  // everywhere would redesign a surface nobody asked about.
   import type { Snippet } from 'svelte';
   import Topbar from './Topbar.svelte';
   import Dock from './Dock.svelte';
+  import Rail from './Rail.svelte';
   import { getI18n } from '../lib/i18n/context';
   import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
 
   const { t } = getI18n();
   let {
     brandTitle = 'ItsBagelBot', brandSub, crumbRoot, crumb,
-    accountName, accountRole, dashboards = [], groups, mobileItems,
+    accountName, accountRole, dashboards = [], groups, mobileItems, rail = false,
     offset = false, logoSrc = '/logo.png', isPremium = false, banner, topActions, children,
     isDelegate = false, delegateExitHref = '', delegateExitLabel = ''
   }: {
     brandTitle?: string; brandSub: string; crumbRoot: string; crumb: string;
     accountName: string; accountRole: string; dashboards?: DashboardLink[];
-    groups: NavGroupDef[]; mobileItems: NavLink[];
+    groups: NavGroupDef[]; mobileItems: NavLink[]; rail?: boolean;
     offset?: boolean; logoSrc?: string; isPremium?: boolean; banner?: Snippet; topActions?: Snippet; children: Snippet;
     isDelegate?: boolean; delegateExitHref?: string; delegateExitLabel?: string;
   } = $props();
@@ -49,7 +55,11 @@
 
 {#if banner}{@render banner()}{/if}
 
-<div class="app" class:offset>
+<div class="app" class:offset class:railed={rail}>
+  {#if rail}
+    <Rail {brandTitle} {brandSub} {groups} {accountName} {accountRole} />
+  {/if}
+  <div class="stage">
   <Topbar
     root={crumbRoot}
     {crumb}
@@ -68,11 +78,25 @@
   <main class="main" id="main-content" tabindex="-1" bind:this={mainEl}>
     <div class="canvas">{@render children()}</div>
   </main>
-  <Dock items={dockItems} {groups} />
+  </div>
+  <div class="dock-slot">
+    <Dock items={dockItems} {groups} />
+  </div>
 </div>
 
 <style>
   .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+  .stage { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  /* display: contents keeps the fixed dock positioned against the viewport as
+     before; the wrapper exists only so the rail can take the dock's place at
+     desktop widths without Dock growing a breakpoint of its own. */
+  .dock-slot { display: contents; }
+  @media (min-width: 761px) {
+    .app.railed { flex-direction: row; }
+    .app.railed .dock-slot { display: none; }
+    /* No dock to clear: give the column back the bottom it was reserving. */
+    .app.railed .canvas { padding-bottom: calc(var(--gutter) + 24px); }
+  }
   .main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   /* main is a landmark skip-target, not a control: focus lands here from the
      skip link / dock so the next Tab starts in the content, but a full-width

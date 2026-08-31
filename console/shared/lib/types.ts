@@ -115,6 +115,15 @@ export interface IngressCapacity {
   websocket_autoscale_max_shards: number;
 }
 
+// A row nested under a NavLink in the desktop rail (the /modules sections).
+// Deliberately not a NavLink: these have no icon and never carry their own
+// active state -- the parent row owns it, so the rail keeps one highlight.
+export interface NavChild {
+  href: string;
+  label: string;
+  count?: string | number;
+}
+
 export interface NavLink {
   href: string;
   icon: IconName;
@@ -122,6 +131,8 @@ export interface NavLink {
   active?: boolean;
   locked?: boolean;
   count?: string | number;
+  // Rail-only: the dock and the mobile list ignore these.
+  children?: NavChild[];
 }
 
 export interface NavGroupDef {

@@ -124,6 +124,7 @@
   dashboards={data.authorizedDashboards ?? []}
   {groups}
   mobileItems={items}
+  rail
   offset={showBanner}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
