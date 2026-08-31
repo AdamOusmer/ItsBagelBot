@@ -208,7 +208,24 @@ spec:
                 defaultMode: 0555
           initContainers:
             - name: dump
-              image: mysql:8.4-oracle@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+              # 26.7 is the innovation train, three eras ahead of the 8.4 LTS
+              # server this dumps. That gap was the reason the first bump was
+              # rejected, so it was measured rather than assumed: a 26.7 client
+              # dumping an 8.4.11 server with the exact flags below produces a
+              # dump that restores byte-faithful into a fresh 8.4 -- rows,
+              # hex-blobs, routines, triggers, events and views all intact. The
+              # only difference from an 8.4-client dump is three comment blocks
+              # reading "can't read the INFORMATION_SCHEMA.libraries table",
+              # which is the newer client probing for JS libraries the old
+              # server has no concept of. They are comments; the restore skips
+              # them and the "-- Dump completed" trailer the sanity gate below
+              # greps for is still written.
+              #
+              # Innovation means this tag is superseded quarterly. If that churn
+              # ever costs more than it is worth, lts-oracle (9.7.x) is the
+              # conservative lane -- do not silently fall back to 8.4, which is
+              # the era being left behind here.
+              image: mysql:26.7-oracle@sha256:66aec17cd21a956029b83f083b813073859e8355dc1a00e55df6ba02f0e32345
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/dump.sh"]
               env:
