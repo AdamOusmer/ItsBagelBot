@@ -7,7 +7,7 @@
   // handlers so all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, SaveStatus, ManagementRow, Switch, getI18n, type CommandView, type Perm } from '@bagel/shared';
+  import { Icon, Badge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -15,6 +15,7 @@
   let {
     command,
     index = undefined as number | undefined,
+    usesMax = 0,
     status = 'idle' as SaveState,
     unsaved = false,
     expanded = false,
@@ -24,6 +25,8 @@
   }: {
     command: CommandView;
     index?: number;
+    /** Largest use count in the visible deck; sets the bar's full width. */
+    usesMax?: number;
     status?: SaveState;
     unsaved?: boolean;
     expanded?: boolean;
@@ -33,8 +36,13 @@
   } = $props();
 
   const c = $derived(command);
-  const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '0s');
+  const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '\u2014');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
+  const uses = $derived(usesCount(c));
+  // Share of the deck's busiest command. Clamped so a stale usesMax (a row
+  // arriving from an optimistic save before the page re-derives the max) can
+  // never draw a bar past its track.
+  const barPct = $derived(usesMax > 0 ? Math.min(100, Math.round((uses / usesMax) * 100)) : 0);
 </script>
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>
@@ -70,17 +78,20 @@
           {/if}
         </span>
         <span class="resp">{c.response}</span>
-        <span class="meta">
-          <span class="m-perm"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
-          <span class="m-item">
-            <span class="m-lbl">{t('commandRow.cooldown')}</span>
-            <span class="m-val">{cd}</span>
-          </span>
-          <span class="m-item">
+        <span class="m-perm"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
+        <span class="m-uses">
+          <span class="u-line">
+            <span class="m-val uses">{uses.toLocaleString()}</span>
             <span class="m-lbl">{t('commandRow.uses')}</span>
-            <span class="m-val uses">{c.uses ?? '0'}</span>
+          </span>
+          <!-- Relative-use bar: the deck ranks by use, so the row carries the
+               proportion it is ranked on instead of leaving the reader to
+               compare raw numbers down the column. -->
+          <span class="u-track" aria-hidden="true">
+            <span class="u-fill" style="width:{barPct}%"></span>
           </span>
         </span>
+        <span class="m-cd">{cd}</span>
         <span class="state"><SaveStatus state={status} /></span>
       </span>
     {/snippet}
@@ -108,23 +119,46 @@
 </div>
 
 <style>
+  /* Selection accent: a 2px green edge on the selected row, so the list still
+     says which command the docked inspector is holding once the row scrolls
+     away from the inspector's own header. Applied from here rather than in the
+     shared ManagementRow: only the command deck docks an inspector beside its
+     list, and the other decks select without one. */
+  .row-wrap :global(.mrow) { position: relative; }
+  .row-wrap :global(.mrow.selected)::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--bb-green-glow, #52b788);
+  }
+
   .prow {
     display: grid;
-    /* Fixed name column so command names align and end at the same x on every
-       row; the response takes the flexible remainder and the metadata block is
-       a fixed-width grid, so permission / cooldown / uses line up column to
-       column across rows. */
-    grid-template-columns: 28px 190px minmax(0, 1fr) auto auto;
+    /* One fixed track per cell rather than a nested metadata grid: the deck
+       reads as columns, so permission / uses / cooldown / state must land on
+       the same x on every row, including rows whose response is short. */
+    grid-template-columns: 22px 190px minmax(0, 1fr) 104px 92px 44px auto;
     align-items: center;
     gap: 14px;
+    /* Pin every row to one height: the tallest cell (perm pill vs uses stack)
+       differs by a rounding pixel between custom and built-in rows otherwise. */
+    min-height: 26px;
   }
 
   .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
 
-  .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  /* Single-line cell: aliases ride inline after the name so every row is the
+     same height — a second stacked line made alias rows taller than the rest. */
+  .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name {
     display: inline-flex; align-items: center; gap: 2px;
     font-family: var(--bb-font-mono); font-size: 13.5px; color: var(--bb-tan-light);
+    /* Never wraps: a name + badge combo wider than the 190px name column used
+       to fold to a second line and make that row taller than its neighbors. */
+    white-space: nowrap;
   }
   .lock { display: inline-flex; color: var(--bb-muted); margin-left: 6px; vertical-align: middle; }
 
@@ -152,7 +186,7 @@
     padding: 1px 8px;
   }
 
-  .aliases { display: flex; flex-wrap: wrap; gap: 4px; }
+  .aliases { display: flex; flex-wrap: nowrap; gap: 4px; min-width: 0; overflow: hidden; }
   .alias-tag {
     font-family: var(--bb-font-mono);
     font-size: 10px;
@@ -173,17 +207,28 @@
     min-width: 0;
   }
 
-  /* Fixed column tracks so the permission, cooldown and uses line up across
-     every row instead of shifting with content. */
-  .meta {
-    display: grid;
-    grid-template-columns: 104px 92px 64px;
-    align-items: center;
-    gap: 12px;
+  .m-perm { display: inline-flex; align-items: center; min-width: 0; justify-self: start; }
+
+  .m-uses { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .u-line { display: flex; align-items: baseline; gap: 6px; }
+  .u-track { display: block; height: 2px; background: rgba(240, 236, 228, 0.09); }
+  .u-fill {
+    display: block;
+    height: 2px;
+    background: var(--bb-green-glow, #52b788);
+    transition: width var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, ease);
   }
-  .meta > * { min-width: 0; }
-  .m-perm { display: inline-flex; align-items: center; min-width: 0; }
-  .m-item { display: inline-flex; align-items: baseline; gap: 5px; }
+  /* A disabled command keeps its history but stops being a live signal. */
+  :global(.mrow.off) .u-fill { background: var(--bb-muted); }
+
+  .m-cd {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
   .m-lbl {
     font-family: var(--bb-font-body);
     font-size: 10px;
@@ -219,19 +264,28 @@
   .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
   .mini-spacer { width: 32px; height: 32px; flex: none; }
 
+  /* Mid width: the index and the cooldown are the first things to go — the
+     row still ranks by use, and the cooldown lives in the inspector. */
+  @media (max-width: 1080px) {
+    .prow { grid-template-columns: 190px minmax(0, 1fr) 104px 92px auto; }
+    .idx, .m-cd { display: none; }
+  }
+
   @media (max-width: 760px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
         'cmd'
         'resp'
-        'meta';
-      row-gap: 4px;
+        'perm'
+        'uses';
+      row-gap: 6px;
     }
-    .idx { display: none; }
-    .cmd { grid-area: cmd; }
+    .cmd { grid-area: cmd; flex-wrap: wrap; }
+    .aliases { flex-wrap: wrap; overflow: visible; }
     .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 8px 12px; }
+    .m-perm { grid-area: perm; }
+    .m-uses { grid-area: uses; width: 130px; }
     .state { display: none; }
     .mini, .mini-spacer { min-width: 44px; min-height: 44px; }
   }

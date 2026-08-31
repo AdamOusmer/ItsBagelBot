@@ -30,9 +30,10 @@ export interface CommandView {
   cooldown?: number;
   // Twitch id of the only user allowed to run the command; '' or undefined = unrestricted.
   allowed_user_id?: string;
-  // Lifetime execution counter. The backend sends a number; older sample data
-  // used human-formatted strings ('1.2k'), so both are accepted for display.
-  uses?: number | string;
+  // Lifetime execution counter, always a number. The demo fixtures once carried
+  // human-formatted strings ('1.2k'), which forced every consumer to parse; the
+  // fixtures were normalized to numbers instead (see demo-data.ts).
+  uses?: number;
   // When true this is a built-in command: its behavior is baked into the bot,
   // it has no editable response, and its on/off state is stored in the modules
   // service (not the commands service). The dashboard renders it read-only with

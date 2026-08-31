@@ -80,5 +80,6 @@ export * from './overlay-stack';
 export * from './inspector-machine';
 export * from './command-active';
 export * from './commands-validate';
+export * from './uses';
 export * from './rehearsal';
 export * from './validation';

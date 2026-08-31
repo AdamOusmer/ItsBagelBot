@@ -25,6 +25,7 @@
     persistCommandActive,
     overlayLiveActive,
     commandContentSnapshot,
+    usesCount,
     PERM_LABELS,
     PERMS,
     COMMAND_NAME_MAX,
@@ -188,8 +189,45 @@
           c.response.toLowerCase().includes(q)
         );
       })
-      // Built-ins float to the top, then alphabetical within each group.
-      .toSorted((a, b) => Number(!!b.builtin) - Number(!!a.builtin) || a.name.localeCompare(b.name))
+      // Ranked by use, not by name: the deck's job is to show what the channel
+      // actually fires. Ties fall back to the name so the order is stable
+      // across re-derives (most rows start life at 0 uses).
+      .toSorted((a, b) => usesCount(b) - usesCount(a) || a.name.localeCompare(b.name))
+  );
+
+  // Built-ins are separated into their own group rather than sorted to the top:
+  // the two halves obey different rules (yours are editable, built-ins only
+  // take a reply template), and the header is where that gets said once instead
+  // of per row. Empty groups drop out so a filter never leaves a bare heading.
+  const groups = $derived(
+    [
+      {
+        key: 'custom',
+        label: t('commands.groupYours'),
+        note: t('commands.groupYoursNote'),
+        rows: rows.filter((c) => !c.builtin)
+      },
+      {
+        key: 'builtin',
+        label: t('commands.groupBuiltin'),
+        note: t('commands.groupBuiltinNote'),
+        rows: rows.filter((c) => c.builtin)
+      }
+    ].filter((g) => g.rows.length > 0)
+  );
+
+  // Full width of a row's use bar. Taken over the visible rows so filtering to a
+  // quiet corner of the deck still spreads that corner across the track.
+  const usesMax = $derived(Math.max(1, ...rows.map(usesCount)));
+
+  // Head readouts. `fires` is the lifetime counter the backend keeps — there is
+  // no 24h window in the command payload, so the strip says "total" rather than
+  // implying a rolling figure it cannot compute.
+  const fires = $derived(items.reduce((n, c) => n + usesCount(c), 0));
+  const busiest = $derived(
+    items.length === 0
+      ? null
+      : items.reduce((top, c) => (usesCount(c) > usesCount(top) ? c : top))
   );
 
   // --- Inline editor ----------------------------------------------------------
@@ -279,10 +317,13 @@
     afterDiscard = null;
   }
 
-  function doOpenNew() {
+  function doOpenNew(name = '') {
     serverErrors = null;
     // A draft under the "new" key only survives a forced reload; restore quietly.
-    editorDraft = loadDraft('', false) ?? blankDraft();
+    // A name typed into the filter wins over that restored draft's name: the
+    // user asked for THAT command by typing it and pressing create.
+    const draft = loadDraft('', false) ?? blankDraft();
+    editorDraft = name ? { ...draft, name } : draft;
     expanded = NEW;
     editorGen++;
   }
@@ -323,7 +364,21 @@
   }
 
   function openNew() {
-    guarded(doOpenNew);
+    guarded(() => doOpenNew());
+  }
+
+  // The filter doubles as the create field: a name that matches nothing is an
+  // offer to build it, so the deck never dead-ends on "no results".
+  const typedName = $derived(normName(search));
+  const canCreateTyped = $derived(
+    typedName.length > 1 &&
+      typedName.length <= COMMAND_NAME_MAX &&
+      !items.some((c) => c.name === typedName) &&
+      !BUILTIN_NAMES.has(typedName)
+  );
+  function createTyped() {
+    const name = typedName;
+    guarded(() => doOpenNew(name));
   }
 
   // --- Deep-link compose (marketing command builder) ---------------------------
@@ -711,11 +766,29 @@
 </script>
 
 <section class="screen active">
-  <PageHead
-    eyebrow={t('commands.eyebrow')}
-    description={t('commands.description', { active: activeCount, disabled: items.length - activeCount })}
-  >
+  <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
+    {#snippet trail()}
+      <!-- The counts the description used to carry, promoted to a readout: the
+           deck is a working screen, so how much of it is live and what it fires
+           belong next to the title, not inside a sentence. -->
+      <dl class="deck-stats">
+        <div class="ds-cell">
+          <dt>{t('commands.statActive')}</dt>
+          <dd><span class="big">{activeCount}</span><span class="of">/{items.length}</span></dd>
+        </div>
+        <div class="ds-rule" aria-hidden="true"></div>
+        <div class="ds-cell">
+          <dt>{t('commands.statFires')}</dt>
+          <dd><span class="big">{fires.toLocaleString()}</span></dd>
+        </div>
+        <div class="ds-rule" aria-hidden="true"></div>
+        <div class="ds-cell">
+          <dt>{t('commands.statBusiest')}</dt>
+          <dd><span class="mono">{busiest ? `!${busiest.name}` : t('commands.statNone')}</span></dd>
+        </div>
+      </dl>
+    {/snippet}
   </PageHead>
 
   {#if data.degraded}
@@ -747,20 +820,40 @@
 
   <!-- The deck: ledger list left, docked inspector right. The list never
        disappears — selecting a row (or "new") loads it into the inspector. -->
+  {#if canCreateTyped}
+    <button class="create-hint" type="button" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
+      <span class="ch-name">!{typedName}</span>
+      <span class="ch-body">{t('commands.createHint')}</span>
+      <span class="ch-grow"></span>
+      <span class="ch-cta">{t('commands.createHintCta')}</span>
+    </button>
+  {/if}
+
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
       <div class="list">
-        {#each rows as c, i (c.name)}
-          <CommandRow
-            command={c}
-            index={i + 1}
-            status={rowStatus[c.name] ?? 'idle'}
-            unsaved={rowHasDraft(c.name) && expanded !== c.name}
-            expanded={expanded === c.name}
-            onExpand={() => openEdit(c)}
-            onDelete={() => requestDelete(c)}
-            toggleSubmit={toggleSubmit(c)}
-          />
+        {#each groups as g (g.key)}
+          <div class="group">
+            <div class="group-head">
+              <span class="g-label">{g.label}</span>
+              <span class="g-count">{g.rows.length}</span>
+              <span class="g-rule" aria-hidden="true"></span>
+              <span class="g-note">{g.note}</span>
+            </div>
+            {#each g.rows as c, i (c.name)}
+              <CommandRow
+                command={c}
+                index={i + 1}
+                {usesMax}
+                status={rowStatus[c.name] ?? 'idle'}
+                unsaved={rowHasDraft(c.name) && expanded !== c.name}
+                expanded={expanded === c.name}
+                onExpand={() => openEdit(c)}
+                onDelete={() => requestDelete(c)}
+                toggleSubmit={toggleSubmit(c)}
+              />
+            {/each}
+          </div>
         {/each}
         {#if rows.length === 0}
           {#if items.length === 0}
@@ -772,7 +865,7 @@
               <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('commands.newCommand')}</button>
             </EmptyState>
           {:else}
-            <EmptyState title={t('commands.noneMatch')} />
+            <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />
           {/if}
         {/if}
       </div>
@@ -877,6 +970,92 @@
     color: var(--bb-muted);
   }
 
+  /* Head readout strip: a quiet ledger row (hairline top/bottom, thin dividers),
+     NOT the .stat card from app.css — that global class boxes and hover-lifts,
+     which is why these classes deliberately avoid the .stat* names. */
+  .deck-stats {
+    display: flex;
+    gap: 26px;
+    margin: 0;
+    padding: 14px 0;
+    border-top: 1px solid var(--bb-border);
+    border-bottom: 1px solid var(--bb-border);
+  }
+  .ds-cell { white-space: nowrap; }
+  .ds-rule { width: 1px; align-self: stretch; background: var(--bb-border); }
+  .deck-stats dt {
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    margin-bottom: 6px;
+  }
+  .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
+  .deck-stats .big {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+    font-variant-numeric: tabular-nums;
+  }
+  .deck-stats .of { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+  .deck-stats .mono { font-family: var(--bb-font-mono); font-size: 15px; color: var(--bb-tan-light); line-height: 1.7; }
+
+  /* Typing a name that matches nothing turns the filter into a create button. */
+  .create-hint {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    border: 1px dashed rgba(82, 183, 136, 0.4);
+    border-radius: 8px;
+    background: rgba(82, 183, 136, 0.06);
+    cursor: pointer;
+    text-align: left;
+  }
+  .create-hint:hover { border-color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); }
+  .create-hint:focus-visible { outline: 2px solid var(--bb-green-glow); outline-offset: 2px; }
+  .ch-name { font-family: var(--bb-font-mono); font-size: 13.5px; color: var(--bb-green-glow); }
+  .ch-body { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .ch-grow { flex: 1; }
+  .ch-cta {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-green-glow);
+  }
+
+  .group + .group { margin-top: 26px; }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px 9px;
+  }
+  .g-label {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bb-tan);
+  }
+  .g-count { font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted); }
+  .g-rule { flex: 1; height: 1px; background: var(--bb-border); }
+  .g-note {
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+
   .toolbar-search { width: 220px; }
 
   .keys {
@@ -904,9 +1083,15 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  /* Trim only the deck's very last hairline. Keyed off .row-wrap (the each-item
+     wrapper) — .row-shell is always the sole child of its wrapper, so a bare
+     .row-shell:last-child matches EVERY row and erased the whole last group's
+     separators. */
+  .group:last-child :global(.row-wrap:last-child .row-shell) { border-bottom: none; }
 
   @media (max-width: 760px) {
+    .deck-stats { gap: 16px; }
+    .deck-stats .big { font-size: 20px; }
     .toolbar-search { width: 100%; order: 3; }
     .chip-row {
       overflow-x: auto;
