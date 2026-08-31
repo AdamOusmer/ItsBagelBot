@@ -16,13 +16,14 @@
     "test": "bun test shared dashboard/src/lib/server/oauth-start.test.ts && bun shared/scripts/size.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
     "@sveltejs/adapter-node": "^5.5.7",
     "@sveltejs/kit": "^2.69.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@types/bun": "^1.4.0",
+    "@types/node": "^26.0.0",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.1",
-    "typescript": "^7.0.0",
+    "typescript": "^6.0.3",
     "vite": "^8.0.0"
   },
   "dependencies": {
