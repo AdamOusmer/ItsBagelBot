@@ -353,10 +353,12 @@
     {#each tiles as tile, i (tile.label)}
       <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
         <Card atmosphere hover class="tile">
-          <div class="tile-head">
-            <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
-            <span class="label">{tile.label}</span>
-          </div>
+          {#snippet band()}
+            <div class="tile-head">
+              <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
+              <span class="label">{tile.label}</span>
+            </div>
+          {/snippet}
           <div class="value">
             <span class="num">{tile.value}</span>
           </div>
@@ -375,14 +377,16 @@
 
   <section class="boards" aria-label={t('stats.boardsEyebrow')}>
     <div class="board-wrap reveal" style="--i:6">
-      <Card atmosphere class="board">
-        <header class="board-head">
-          <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
-          <div class="board-titles">
-            <h2>{t('stats.trafficBoardTitle')}</h2>
-            <p>{t('stats.trafficBoardNote')}</p>
-          </div>
-        </header>
+      <Card atmosphere class="board" label={t('stats.trafficBoardCh')}>
+        {#snippet band()}
+          <header class="board-head">
+            <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
+            <div class="board-titles">
+              <h2>{t('stats.trafficBoardTitle')}</h2>
+              <p>{t('stats.trafficBoardNote')}</p>
+            </div>
+          </header>
+        {/snippet}
         {#if traffic.length === 0}
           <p class="empty">{t('stats.boardEmpty')}</p>
         {:else}
@@ -421,14 +425,16 @@
     </div>
 
     <div class="board-wrap reveal" style="--i:6.5">
-      <Card atmosphere class="board">
-        <header class="board-head">
-          <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
-          <div class="board-titles">
-            <h2>{t('stats.feedBoardTitle')}</h2>
-            <p>{t('stats.feedBoardNote')}</p>
-          </div>
-        </header>
+      <Card atmosphere class="board" label={t('stats.feedBoardCh')}>
+        {#snippet band()}
+          <header class="board-head">
+            <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
+            <div class="board-titles">
+              <h2>{t('stats.feedBoardTitle')}</h2>
+              <p>{t('stats.feedBoardNote')}</p>
+            </div>
+          </header>
+        {/snippet}
         <div class="feed-total">
           <span class="num tan">{totalFmt.format(feed.total)}</span>
           <span class="label">{t('stats.feedTotalLabel')}</span>
@@ -540,9 +546,18 @@
      hairline border, radius, hover spotlight/lift — is the Card's own. */
   .tile-wrap { min-width: 0; }
 
+  /* The tile is a banded Card: the head lives in the housing band, so the
+     column layout and gap move to the body the Card renders below it. */
   .tiles :global(.card) {
     --card-pad: clamp(24px, 3.4vw, 40px);
     height: 100%;
+    min-width: 0;
+  }
+  .tiles :global(.card__band) {
+    min-height: 0;
+    padding: calc(14px * var(--d, 1)) var(--card-pad);
+  }
+  .tiles :global(.card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-5);
@@ -643,9 +658,17 @@
 
   .board-wrap { min-width: 0; }
 
+  /* Banded Card: the head is the housing band; column layout moves to the
+     body below it. */
   .boards :global(.card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
     height: 100%;
+    min-width: 0;
+  }
+  .boards :global(.card__band) {
+    padding: calc(16px * var(--d, 1)) var(--card-pad);
+  }
+  .boards :global(.card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);

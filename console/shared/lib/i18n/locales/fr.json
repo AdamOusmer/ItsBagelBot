@@ -148,7 +148,9 @@
     "unknownChannel": "Chaîne sans nom",
     "boardEmpty": "Pas encore de classement : le tableau se remplit à mesure que les chaînes accumulent du trafic.",
     "feedBoardEmpty": "Personne n'a encore nourri le bagel.",
-    "rightNow": "en ce moment"
+    "rightNow": "en ce moment",
+    "trafficBoardCh": "trafic · tableau 01",
+    "feedBoardCh": "flux · tableau 02"
   },
   "overview": {
     "statusHeading": "État du bot",
@@ -1459,6 +1461,8 @@
     "emptyBody": "Ce classement se remplit à mesure que la communauté de {channel} regarde en direct, s'abonne, offre des cadeaux et envoie des cheers. Connectez-vous et prenez la première place.",
     "degraded": "Le classement en direct est temporairement indisponible. Il se remettra à jour de lui-même.",
     "earnNote": "Gagné en regardant en direct · abonnements · cadeaux · cheers",
+    "boardCh": "classement · direct",
+    "commandsCh": "commandes · publiques",
     "commandsLabel": "Commandes de chat",
     "commandsTitle": "Commandes de chat",
     "colCommand": "Commande",
