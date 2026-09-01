@@ -250,6 +250,17 @@ async function readSourceInput(
   return { ok: true, input };
 }
 
+// usableSource maps the posted source onto one preview can serve, or the
+// refusal prose. Unknown strings and Fossabot (its parser is unregistered and
+// its OAuth connect flow unbuilt since the importer folded into the dashboard;
+// the card is disabled client-side, this rejects direct posts) collapse into
+// one branch at the call site.
+function usableSource(v: string): Exclude<ImportSource, 'fossabot'> | { error: string } {
+  if (!isSource(v)) return { error: 'Pick a source to import from.' };
+  if (v === 'fossabot') return { error: 'Fossabot import is not available yet.' };
+  return v;
+}
+
 // resolveCredential picks the credential a preview fetches with. Nightbot's
 // never rides the form: the OAuth callback parked the access token in an
 // HttpOnly cookie and this is the only reader — null means the account is not
@@ -270,14 +281,8 @@ preview: async ({ request, locals, cookies }) => {
     if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'preview' });
 
     const form = await request.formData();
-    const source = String(form.get('source') ?? '');
-    if (!isSource(source)) return fail(400, { error: 'Pick a source to import from.', step: 'preview' });
-
-    // Fossabot needs an OAuth connect flow that does not exist yet (no parser
-    // exists for it since the importer folded into the dashboard); the card is
-    // disabled client-side, this rejects direct posts.
-    if (source === 'fossabot')
-      return fail(400, { error: 'Fossabot import is not available yet.', step: 'preview' });
+    const source = usableSource(String(form.get('source') ?? ''));
+    if (typeof source !== 'string') return fail(400, { error: source.error, step: 'preview' });
 
     const read = await readSourceInput(form, source);
     if (!read.ok) return fail(read.status, { error: read.error, step: 'preview' });
