@@ -124,7 +124,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:main-1787870095-61a0817497d1@sha256:5b64bc905a7f0baa5e5060edd9bd1d9b1784fdea06f6ba425a512bd22c7821ec
+          image: ghcr.io/adamousmer/itsbagelbot/users:main-1788224508-1f3688f9b8be@sha256:05ea960f6344146ebd260e4a653ba1c26c9afb6c724b0bc489e83c1be35ed39e
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

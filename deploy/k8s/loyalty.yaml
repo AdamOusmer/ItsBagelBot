@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: loyalty
-          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1787870095-61a0817497d1@sha256:f059524648ba4ea1aa2ea797e05308f9ec080c96f7fafc1d582e36a762074a49
+          image: ghcr.io/adamousmer/itsbagelbot/loyalty:main-1788224508-1f3688f9b8be@sha256:1c8669dae0559e3eedbae2388e5655a44b31ecdc56c8066ec4621c99775b8bcf
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
