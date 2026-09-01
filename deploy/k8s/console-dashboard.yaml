@@ -29,7 +29,12 @@
 # DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). OAuth callbacks that
 # must also live in that config: TWITCH_REDIRECT_URI and SPOTIFY_REDIRECT_URI
 # (https://dashboard.itsbagelbot.com/spotify/callback, fleet-wide: each
-# broadcaster pastes the same URL into their own Spotify app). Billing links
+# broadcaster pastes the same URL into their own Spotify app). The Nightbot
+# config importer needs NIGHTBOT_CLIENT_ID/NIGHTBOT_CLIENT_SECRET (app at
+# nightbot.tv/account/applications) and NIGHTBOT_REDIRECT_URI
+# (https://dashboard.itsbagelbot.com/settings/import/nightbot/callback —
+# must byte-match the registered value); absent keys degrade the wizard to a
+# readable "not configured" error, never a 500. Billing links
 # are also read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
 # hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
 apiVersion: secrets.doppler.com/v1alpha1
