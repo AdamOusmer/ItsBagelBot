@@ -154,6 +154,9 @@ const enterpriseFeatures = [
         display: grid;
         grid-template-columns: 1fr;
         gap: 24px;
+        /* The premium logo is the tallest thing either housing holds (80px);
+           both tiers take that height so the two seams meet across the pair. */
+        --card-band-h: 116px;
     }
 
     @media (min-width: 860px) {
@@ -244,7 +247,7 @@ const enterpriseFeatures = [
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        min-height: 72px;
+        height: 100%;
         overflow: hidden;
     }
 

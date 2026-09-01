@@ -106,6 +106,8 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* One housing height for the whole bento so every seam lines up. */
+        --card-band-h: 112px;
     }
 
     @media (min-width: 720px) {
@@ -149,7 +151,7 @@ const t = useTranslations(lang);
         flex-direction: column;
         justify-content: center;
         gap: 8px;
-        min-height: 72px;
+        height: 100%;
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;

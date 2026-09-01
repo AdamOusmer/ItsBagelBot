@@ -444,6 +444,9 @@
   .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
   @media (min-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } }
   .grid :global(.card), :global(.empty) { display: flex; flex-direction: column; }
+  /* One housing height per grid: a wrapped trigger or a two-line module title
+     would otherwise drop that card's seam below its neighbour's. */
+  .grid :global(.card__band) { --card-band-h: calc(84px * var(--d, 1)); }
 
   .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .tile-title { display: flex; flex-direction: column; gap: 8px; }

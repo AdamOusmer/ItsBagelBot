@@ -448,7 +448,10 @@
     --card-pad: clamp(20px, 2.4vw, 30px);
     min-width: 0;
   }
+  /* Sized for the note wrapped to three lines on a 375px screen — the same
+     head shape as the stats boards. */
   .board-wrap :global(.card__band) {
+    --card-band-h: calc(112px * var(--d, 1));
     padding: calc(16px * var(--d, 1)) var(--card-pad);
   }
   .board-wrap :global(.card__body) {

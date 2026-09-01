@@ -553,8 +553,10 @@
     height: 100%;
     min-width: 0;
   }
+  /* 32px icon, or a label wrapped to two lines on a narrow screen, plus the
+     housing's padding — one height for the pair either way. */
   .tiles :global(.card__band) {
-    min-height: 0;
+    --card-band-h: calc(70px * var(--d, 1));
     padding: calc(14px * var(--d, 1)) var(--card-pad);
   }
   .tiles :global(.card__body) {
@@ -665,7 +667,12 @@
     height: 100%;
     min-width: 0;
   }
+  /* Both boards share one housing height: the two notes wrap at different
+     widths, so a floor would stagger the seams across the pair. Sized for the
+     longest note wrapped to three lines on a 375px screen (65px in French),
+     which is the tightest this head ever gets. */
   .boards :global(.card__band) {
+    --card-band-h: calc(112px * var(--d, 1));
     padding: calc(16px * var(--d, 1)) var(--card-pad);
   }
   .boards :global(.card__body) {

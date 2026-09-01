@@ -79,24 +79,34 @@ const banded = Astro.slots.has("band");
     }
 
     /* 3a housing: the band is a fixture the visual sits in, not a picture
-       frame — page-ink background, hairline seam, atmosphere contained. */
+       frame — page-ink background, hairline seam, atmosphere contained.
+
+       A FIXED height, never a min-height: cards sit side by side in a grid,
+       and a floor lets the one card whose visual runs tall (Games' rifle
+       drawing was 131px against its neighbours' 105px) push its own seam down
+       while the others stay at the floor — two different housings in one row.
+       Sections set --card-band-h once for the whole grid, sized to their
+       tallest visual, so every seam in the row lands on the same line. */
     .card__band {
         position: relative;
         flex: none;
         display: flex;
         align-items: center;
-        min-height: 104px;
+        height: var(--card-band-h, 104px);
         padding: 16px 24px;
         background: var(--black, #0a0a0a);
         border-bottom: 1px solid rgba(201, 168, 124, 0.12);
         overflow: hidden;
     }
 
+    /* Fills the housing so a visual sized in percentages resolves against the
+       band, not against its own content. */
     .card__band-inner {
         position: relative;
         z-index: 1;
         display: block;
         width: 100%;
+        height: 100%;
     }
 
     /* Inside the housing the arc re-parks to band scale: centered on the
