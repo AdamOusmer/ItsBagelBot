@@ -39,19 +39,35 @@ interface NightbotApp {
   redirectUri: string;
 }
 
+// readApp is the single reader of the three env keys: null when any is
+// missing, so configured-ness and the throwing accessor cannot drift apart.
+function readApp(): NightbotApp | null {
+  const app: NightbotApp = {
+    clientId: env.NIGHTBOT_CLIENT_ID ?? '',
+    clientSecret: env.NIGHTBOT_CLIENT_SECRET ?? '',
+    redirectUri: env.NIGHTBOT_REDIRECT_URI ?? ''
+  };
+  return Object.values(app).every((v) => v !== '') ? app : null;
+}
+
 function app(): NightbotApp {
-  const clientId = env.NIGHTBOT_CLIENT_ID ?? '';
-  const clientSecret = env.NIGHTBOT_CLIENT_SECRET ?? '';
-  const redirectUri = env.NIGHTBOT_REDIRECT_URI ?? '';
-  if (!clientId || !clientSecret || !redirectUri)
-    throw new Error('NIGHTBOT_CLIENT_ID/SECRET/REDIRECT_URI not set');
-  return { clientId, clientSecret, redirectUri };
+  const a = readApp();
+  if (!a) throw new Error('NIGHTBOT_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return a;
 }
 
 // nightbotConfigured lets the routes degrade to a readable error instead of a
 // 500 when the app registration has not landed in this environment yet.
 export function nightbotConfigured(): boolean {
-  return !!(env.NIGHTBOT_CLIENT_ID && env.NIGHTBOT_CLIENT_SECRET && env.NIGHTBOT_REDIRECT_URI);
+  return readApp() !== null;
+}
+
+// importOwner is the shared route gate: the connect/callback pair carries the
+// same owner-only policy as the import actions themselves (an import rewrites
+// the board wholesale; delegates are read-mostly by design).
+export function importOwner(locals: App.Locals): boolean {
+  const s = locals.session;
+  return !!s && !s.delegate_of;
 }
 
 export function nightbotAuthURL(state: string): URL {

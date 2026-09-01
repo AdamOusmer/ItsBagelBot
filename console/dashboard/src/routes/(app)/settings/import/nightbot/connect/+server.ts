@@ -11,13 +11,13 @@ import { randomBytes } from 'node:crypto';
 import {
   NB_COOKIE_PATH,
   NB_STATE_COOKIE,
+  importOwner,
   nightbotAuthURL,
   nightbotConfigured
 } from '$lib/server/nightbot-oauth';
 
 export const GET: RequestHandler = async ({ locals, cookies, url }) => {
-  const s = locals.session;
-  if (!s || s.delegate_of) throw redirect(302, '/');
+  if (!importOwner(locals)) throw redirect(302, '/');
   if (!nightbotConfigured()) throw redirect(302, '/settings/import?source=nightbot&e=nb_config');
 
   const state = randomBytes(16).toString('base64url');

@@ -4,6 +4,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { fail, redirect } from '@sveltejs/kit';
+import type { Cookies } from '@sveltejs/kit';
 import { previewImport, commitImport } from '$lib/server/importer';
 import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
 import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
@@ -249,6 +250,17 @@ async function readSourceInput(
   return { ok: true, input };
 }
 
+// resolveCredential picks the credential a preview fetches with. Nightbot's
+// never rides the form: the OAuth callback parked the access token in an
+// HttpOnly cookie and this is the only reader — null means the account is not
+// connected (no cookie, or it expired) and the action refuses with the
+// connect-first prose. Every other source uses whatever the form carried.
+function resolveCredential(source: ImportSource, input: SourceInput, cookies: Cookies): string | null {
+  if (source !== 'nightbot') return input.credential;
+  const token = cookies.get(NB_TOKEN_COOKIE) ?? '';
+  return token === '' ? null : token;
+}
+
 export const actions: Actions = {
 // preview translates one source config into a reviewable manifest. The
 // identity comes from the session; the form carries the source choice and one
@@ -275,10 +287,8 @@ preview: async ({ request, locals, cookies }) => {
       return { ok: true, step: 'preview', source, preview: demo.demoImportPreview(source) };
     }
 
-    // Nightbot's credential never rides the form: the OAuth callback parked
-    // the access token in an HttpOnly cookie and this is the only reader.
-    const credential = source === 'nightbot' ? (cookies.get(NB_TOKEN_COOKIE) ?? '') : read.input.credential;
-    if (source === 'nightbot' && credential === '')
+    const credential = resolveCredential(source, read.input, cookies);
+    if (credential === null)
       return fail(400, { error: 'Connect your Nightbot account first.', step: 'preview' });
 
     let preview: PreviewResponse;
