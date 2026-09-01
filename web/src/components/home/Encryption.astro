@@ -354,7 +354,7 @@ const t = useTranslations(lang);
     const POST_BOOT_INIT_DELAY_MS = 960;
     const POST_BOOT_SCROLL_THRESHOLD = 36;
     let preloadModulesPromise: Promise<[
-        typeof import('three'),
+        typeof import('../../script/three-slim.js'),
         typeof import('three/addons/postprocessing/RenderPass.js'),
         typeof import('three/addons/postprocessing/UnrealBloomPass.js'),
     ]> | null = null;
@@ -376,8 +376,10 @@ const t = useTranslations(lang);
 
     function preloadEncryptionModules() {
         if (!preloadModulesPromise) {
+            // three-slim re-exports only the names the scene uses, so the
+            // bundler tree-shakes the rest of three out of the chunk.
             preloadModulesPromise = Promise.all([
-                import('three'),
+                import('../../script/three-slim.js'),
                 import('three/addons/postprocessing/RenderPass.js'),
                 import('three/addons/postprocessing/UnrealBloomPass.js'),
             ]);

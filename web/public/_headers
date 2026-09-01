@@ -12,6 +12,16 @@
 # style="" attributes on ~360 elements per page, and Astro inlines small
 # stylesheets. Dropping it needs style-src-attr, which pre-2022 browsers ignore
 # and would fall back to blocking those attributes.
+# font-src/style-src/connect-src no longer list fonts.googleapis.com /
+# fonts.gstatic.com: fonts are self-hosted via Fontsource (see Layout.astro)
+# and ship from /_astro like every other bundled asset.
 /*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com
   X-Frame-Options: DENY
+
+# Everything under /_astro/ is content-hashed by the build (a changed file gets
+# a new URL), so a year-long immutable lifetime is safe and turns repeat visits
+# into pure cache hits. Without this the host serves max-age=0,must-revalidate
+# and every navigation re-validates each script/stylesheet/font/image.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
