@@ -133,7 +133,11 @@ const banded = Astro.slots.has("band");
         color: rgba(201, 168, 124, 0.4);
     }
 
-    .card--band .card__body {
+    /* :where() so a section can restyle the body it was handed: written as
+       `.card--band .card__body` this scored 0,4,0 with Astro's scoping and
+       quietly outranked every page-level `:global(.card__body)` override
+       (0,3,0). The defaults stay defaults. */
+    :where(.card--band) .card__body {
         flex: 1;
         padding: 24px;
     }
@@ -154,7 +158,7 @@ const banded = Astro.slots.has("band");
             padding: 0;
         }
 
-        .card--band .card__body {
+        :where(.card--band) .card__body {
             padding: 20px;
         }
     }

@@ -147,7 +147,13 @@
     color: rgba(201, 168, 124, 0.4);
   }
 
-  .card.banded > .card__body {
+  /* :where() so this scores 0,1,0 and a page can restyle the body it was
+     handed. Written as `.card.banded > .card__body` it scored 0,4,0 and beat
+     every page's own `.tiles .card__body` (0,3,0): the stats tiles asked for
+     a flex column with a gap, silently got this `display: block` instead, and
+     their gap stopped existing — which is how the counter's rate line ended
+     up printed through the digits. The defaults below stay defaults. */
+  :where(.card.banded) > :where(.card__body) {
     position: relative;
     display: block;
     flex: 1;

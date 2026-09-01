@@ -559,11 +559,20 @@
     --card-band-h: calc(70px * var(--d, 1));
     padding: calc(14px * var(--d, 1)) var(--card-pad);
   }
+  /* The gap is the real 12px between the counter and its rate line. It used
+     to be 24px here with a -12px margin on .rate pulling back against it,
+     which collapsed onto the counter's last line as soon as the number
+     wrapped and printed the rate line through the digits.
+
+     container-type makes this box the reference for the counter's cqi font
+     size below — the counter has to fit the tile it is in, not the tile it
+     had when the number was shorter. */
   .tiles :global(.card__body) {
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-5);
+    gap: var(--bb-space-3);
     min-width: 0;
+    container-type: inline-size;
   }
   /* Hairline of light along the top edge, as on the marketing surfaces. Free to
      use: Card's own ::before only paints under the (unused) `sheen` variant. */
@@ -606,9 +615,20 @@
   .num {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    /* Sized so a ten-digit total (13 characters with separators) still fits on
-       one line in the narrowest two-column tile, just above the 720px collapse. */
-    font-size: clamp(30px, 5vw, 60px);
+    /* Sized against the tile, not the viewport, because the counter only ever
+       grows. clamp(30px, 5vw, 60px) was set when the total was shorter; by
+       2,506,163,926 the number needed 11.32em and no longer fit one line at
+       ANY width — it wrapped mid-group ("2,506,163," / "926") on desktop as
+       well as on a phone.
+
+       8cqi is the tile's inline size divided by 12.5, and an eleven-digit
+       total (14 characters with separators) measures 12.32em in English,
+       which is the wider of the two locales. So the number that wraps is the
+       first one past a hundred billion, and the wrap is safe when it comes:
+       overflow-wrap below still breaks it and the gap above no longer
+       collapses. Viewport units cannot do this — the tile is one column wide
+       on a phone and half a grid wide on a desktop at the same vw. */
+    font-size: clamp(20px, 8cqi, 60px);
     line-height: 1;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
@@ -631,7 +651,6 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: calc(-1 * var(--bb-space-3));
   }
 
   .rate-num {
