@@ -38,19 +38,38 @@
   // The glide is measured, not per-row CSS, so one block travels across group
   // boundaries. offsetTop is relative to .rail (position: relative).
   let railEl = $state<HTMLElement | null>(null);
+  let navEl = $state<HTMLElement | null>(null);
   let top = $state(0);
   let height = $state(0);
   let shown = $state(false);
-  $effect(() => {
-    // Re-measure when the nav changes or a group opens/closes under it.
-    void groups;
-    void manual;
+
+  const measure = () => {
     const el = railEl?.querySelector<HTMLElement>('.rail-item.active');
     shown = !!el;
     if (el) {
       top = el.offsetTop;
       height = el.offsetHeight;
     }
+  };
+
+  $effect(() => {
+    // Re-measure when the nav changes or a group opens/closes under it.
+    void groups;
+    void manual;
+    measure();
+  });
+
+  // A sub-list slides over 200ms, so every row under it keeps moving well
+  // after the state change that started the slide. Measuring only on that
+  // change left the highlight at the row's pre-collapse offset: open Modules,
+  // go to Settings, collapse Modules, and the highlight stayed where Settings
+  // used to sit. Watching the nav box re-measures on each frame the slide
+  // reflows, so the block tracks the row instead of a stale offset.
+  $effect(() => {
+    if (!navEl) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(navEl);
+    return () => ro.disconnect();
   });
 </script>
 
@@ -61,12 +80,43 @@
     <span class="glide-edge"></span>
   </span>
 
-  {#each groups as g (g.label ?? '')}
-    {#if g.label}<div class="rail-label">{g.label}</div>{/if}
-    <div class="rail-group">
-      {#each g.items as it (it.href)}
-        {#if it.children && it.children.length}
-          <div class="rail-row">
+  <div class="rail-nav" bind:this={navEl}>
+    {#each groups as g (g.label ?? '')}
+      {#if g.label}<div class="rail-label">{g.label}</div>{/if}
+      <div class="rail-group">
+        {#each g.items as it (it.href)}
+          {#if it.children && it.children.length}
+            <div class="rail-row">
+              <RailItem
+                href={it.href}
+                icon={it.icon}
+                label={it.label}
+                active={it.active}
+                locked={it.locked}
+                count={it.count}
+              />
+              <button
+                class="chev"
+                class:open={isOpen(it)}
+                type="button"
+                aria-expanded={isOpen(it)}
+                aria-label={it.label}
+                onclick={() => toggle(it)}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14"><polyline points="9 6 15 12 9 18"></polyline></svg>
+              </button>
+            </div>
+            {#if isOpen(it)}
+              <div class="rail-subs" transition:slide={{ duration: 200 }}>
+                {#each it.children as c (c.href)}
+                  <a class="rail-sub" href={c.href}>
+                    <span class="lbl">{c.label}</span>
+                    {#if c.count !== undefined}<span class="count">{c.count}</span>{/if}
+                  </a>
+                {/each}
+              </div>
+            {/if}
+          {:else}
             <RailItem
               href={it.href}
               icon={it.icon}
@@ -75,40 +125,11 @@
               locked={it.locked}
               count={it.count}
             />
-            <button
-              class="chev"
-              class:open={isOpen(it)}
-              type="button"
-              aria-expanded={isOpen(it)}
-              aria-label={it.label}
-              onclick={() => toggle(it)}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14"><polyline points="9 6 15 12 9 18"></polyline></svg>
-            </button>
-          </div>
-          {#if isOpen(it)}
-            <div class="rail-subs" transition:slide={{ duration: 200 }}>
-              {#each it.children as c (c.href)}
-                <a class="rail-sub" href={c.href}>
-                  <span class="lbl">{c.label}</span>
-                  {#if c.count !== undefined}<span class="count">{c.count}</span>{/if}
-                </a>
-              {/each}
-            </div>
           {/if}
-        {:else}
-          <RailItem
-            href={it.href}
-            icon={it.icon}
-            label={it.label}
-            active={it.active}
-            locked={it.locked}
-            count={it.count}
-          />
-        {/if}
-      {/each}
-    </div>
-  {/each}
+        {/each}
+      </div>
+    {/each}
+  </div>
 
   <div class="rail-spacer"></div>
   <AccountFoot
@@ -150,6 +171,11 @@
     position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px;
     background: var(--bb-green-glow); box-shadow: 0 0 10px rgba(82, 183, 136, 0.5);
   }
+
+  /* One box holding every nav row: the glide watches its height so a sliding
+     sub-list re-measures as it moves. flex: none keeps a tall nav from being
+     squeezed by the spacer below it. */
+  .rail-nav { display: flex; flex-direction: column; flex: none; }
 
   .rail-label {
     font-family: var(--bb-font-mono); font-size: 9px; letter-spacing: 0.22em;
