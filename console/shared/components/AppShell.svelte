@@ -57,7 +57,17 @@
 
 <div class="app" class:offset class:railed={rail}>
   {#if rail}
-    <Rail {brandTitle} {brandSub} {groups} {accountName} {accountRole} />
+    <Rail
+      {brandTitle}
+      {brandSub}
+      {groups}
+      {accountName}
+      {accountRole}
+      {dashboards}
+      {isDelegate}
+      {delegateExitHref}
+      {delegateExitLabel}
+    />
   {/if}
   <div class="stage">
   <Topbar
@@ -74,6 +84,7 @@
     {isDelegate}
     {delegateExitHref}
     {delegateExitLabel}
+    railed={rail}
   />
   <main class="main" id="main-content" tabindex="-1" bind:this={mainEl}>
     <div class="canvas">{@render children()}</div>

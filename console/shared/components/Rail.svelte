@@ -11,14 +11,21 @@
   import Brand from './Brand.svelte';
   import RailItem from './RailItem.svelte';
   import AccountFoot from './AccountFoot.svelte';
-  import type { NavGroupDef, NavLink } from '../lib/types';
+  import type { DashboardLink, NavGroupDef, NavLink } from '../lib/types';
 
-  let { brandTitle = 'ItsBagelBot', brandSub, groups, accountName, accountRole }: {
+  let {
+    brandTitle = 'ItsBagelBot', brandSub, groups, accountName, accountRole,
+    dashboards = [], isDelegate = false, delegateExitHref = '', delegateExitLabel = ''
+  }: {
     brandTitle?: string;
     brandSub: string;
     groups: NavGroupDef[];
     accountName: string;
     accountRole: string;
+    dashboards?: DashboardLink[];
+    isDelegate?: boolean;
+    delegateExitHref?: string;
+    delegateExitLabel?: string;
   } = $props();
 
   // Groups the reader collapsed or expanded by hand, keyed by the parent href.
@@ -104,12 +111,23 @@
   {/each}
 
   <div class="rail-spacer"></div>
-  <AccountFoot name={accountName} role={accountRole} />
+  <AccountFoot
+    name={accountName}
+    role={accountRole}
+    {dashboards}
+    {isDelegate}
+    {delegateExitHref}
+    {delegateExitLabel}
+  />
 </aside>
 
 <style>
   .rail {
-    position: sticky; top: 0; align-self: start; height: 100vh;
+    /* z-index 1: pages that paint a fixed full-viewport backdrop inside the
+       shell (billing's AuroraBg, position: fixed at z-index 0) come after the
+       rail in DOM order and are opaque, so an auto-z rail vanishes under
+       them. 1 keeps the rail above those backdrops and below the topbar. */
+    position: sticky; top: 0; z-index: 1; align-self: start; height: 100vh;
     box-sizing: border-box; width: 240px; flex: none;
     display: none; flex-direction: column;
     padding: 20px 14px 14px;

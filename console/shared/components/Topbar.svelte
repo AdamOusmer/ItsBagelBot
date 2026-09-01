@@ -29,7 +29,8 @@
     isPremium = false,
     isDelegate = false,
     delegateExitHref = '',
-    delegateExitLabel = ''
+    delegateExitLabel = '',
+    railed = false
   }: {
     root: string;
     crumb: string;
@@ -46,6 +47,10 @@
     isDelegate?: boolean;
     delegateExitHref?: string;
     delegateExitLabel?: string;
+    // The rail owns the account surface at desktop widths (its AccountFoot
+    // opens the switcher menu), so a railed app hides the operator chip there
+    // and keeps it only on phones, where the rail is off screen.
+    railed?: boolean;
   } = $props();
 
   // Account menu: the avatar chip opens a small dropdown holding Log out,
@@ -94,7 +99,7 @@
   <span class="clock" aria-hidden="true">{now}</span>
 
   {#if accountName}
-    <div class="operator-wrap">
+    <div class="operator-wrap" class:railed>
       <button
         class="operator"
         class:open={menuOpen}
@@ -309,6 +314,9 @@
   @media (min-width: 761px) {
     .clock { display: inline; }
     .op-id { display: flex; }
+    /* Rail visible → its AccountFoot is the account surface; drop the chip.
+       Same breakpoint as the rail's own display: flex. */
+    .operator-wrap.railed { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .op-menu { animation: none; }
