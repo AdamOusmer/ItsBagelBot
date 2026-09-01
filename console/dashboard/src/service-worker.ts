@@ -12,14 +12,12 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 // deploy-scoped and activate() can drop every prior generation.
 const CACHE = `bagel-dashboard-${version}`;
 
-// Large or crawler-only static files with no offline value; kept out of the
-// precache so we don't push megabytes of imagery to every install.
-const PRECACHE_EXCLUDE = new Set([
-  '/og-image.png',
-  '/logo.png',
-  '/premium-logo.png',
-  '/robots.txt'
-]);
+// Large static files with no offline value; kept out of the precache so we
+// don't push megabytes of imagery to every install. /robots.txt used to be
+// listed here too and no longer needs to be: it is served by a route now
+// (routes/robots.txt), because one static file cannot answer differently for
+// the three hostnames this build serves, so `files` never mentions it.
+const PRECACHE_EXCLUDE = new Set(['/og-image.png', '/logo.png', '/premium-logo.png']);
 
 // Content-hashed build output (always safe to cache) plus the static files we
 // actually want offline: icons, the web manifest, and offline.html.
