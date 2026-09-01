@@ -5,6 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { fail, redirect } from '@sveltejs/kit';
 import { previewImport, commitImport } from '$lib/server/importer';
+import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
 import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
 import type { Session } from '$lib/server/session';
 import type {
@@ -105,16 +106,20 @@ async function requireOwner(locals: App.Locals): Promise<Session | null> {
   return s;
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await requireOwner(locals);
   if (!s) throw redirect(302, '/');
-  return {};
+  // Connected = the OAuth callback parked a token cookie that has not expired
+  // or been consumed by a commit yet. DEMO reads connected so the wizard is
+  // walkable without a real Nightbot app registration.
+  return { nightbotConnected: DEMO || !!cookies.get(NB_TOKEN_COOKIE) };
 };
 
 // SourceInput carries the three form-borne inputs a preview may use: a pasted
 // credential (StreamElements), an uploaded export (StreamLabs .db), or an
-// already-parsed manifest (Moobot and Nightbot — the browser decoded its own
-// export so the raw file never crosses the wire).
+// already-parsed manifest (Moobot — the browser decoded its own export so the
+// raw file never crosses the wire). Nightbot carries nothing on the form: its
+// credential is the OAuth token cookie, resolved in the action itself.
 interface SourceInput {
   credential: string;
   fileB64: string;
@@ -138,7 +143,9 @@ const SOURCE_INPUT_RULES: Record<Exclude<ImportSource, 'fossabot'>, (input: Sour
   streamelements: (input) =>
     missingAnyInput(input, 'Paste your StreamElements JWT first.') ?? jwtShapeRefusal(input.credential),
   moobot: withJwtShapeCheck('Choose a file to upload.'),
-  nightbot: withJwtShapeCheck('Choose a file to upload.'),
+  // Nightbot posts no form inputs at all: the OAuth connect flow parked the
+  // access token in an HttpOnly cookie and nightbotCredential resolves it.
+  nightbot: () => null,
   streamlabs_desktop: withJwtShapeCheck('Choose a file to upload.')
 };
 
@@ -246,7 +253,7 @@ export const actions: Actions = {
 // preview translates one source config into a reviewable manifest. The
 // identity comes from the session; the form carries the source choice and one
 // of the inputs described on SourceInput.
-preview: async ({ request, locals }) => {
+preview: async ({ request, locals, cookies }) => {
     const gate = await importGate(locals);
     if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'preview' });
 
@@ -268,11 +275,17 @@ preview: async ({ request, locals }) => {
       return { ok: true, step: 'preview', source, preview: demo.demoImportPreview(source) };
     }
 
+    // Nightbot's credential never rides the form: the OAuth callback parked
+    // the access token in an HttpOnly cookie and this is the only reader.
+    const credential = source === 'nightbot' ? (cookies.get(NB_TOKEN_COOKIE) ?? '') : read.input.credential;
+    if (source === 'nightbot' && credential === '')
+      return fail(400, { error: 'Connect your Nightbot account first.', step: 'preview' });
+
     let preview: PreviewResponse;
     try {
       preview = await previewImport(gate.session, {
         source,
-        credential: read.input.credential,
+        credential,
         file_b64: read.input.fileB64,
         manifest: read.input.preManifest
       });
@@ -296,7 +309,7 @@ preview: async ({ request, locals }) => {
   // about who is asking beyond the session — $lib/server/importer re-runs
   // validateManifest (counts, lengths, perms, caps) over every incoming
   // manifest before writing, so a hand-edited POST cannot land junk.
-  commit: async ({ request, locals }) => {
+  commit: async ({ request, locals, cookies }) => {
     const gate = await importGate(locals);
     if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'commit' });
 
@@ -331,6 +344,11 @@ preview: async ({ request, locals }) => {
 
     if (commit.error)
       return fail(502, { error: commit.error, step: 'commit' });
+
+    // The Nightbot token was needed for exactly one preview→commit round
+    // trip; drop it as soon as the import lands rather than waiting out the
+    // cookie's own 15-minute TTL.
+    if (source === 'nightbot') cookies.delete(NB_TOKEN_COOKIE, { path: NB_COOKIE_PATH });
 
     return { ok: true, step: 'commit', commit };
   }

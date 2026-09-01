@@ -7,7 +7,14 @@
 // change one only when the mapping itself is meant to change.
 
 import { describe, expect, test } from 'bun:test';
-import { detectNightbot, NB_CODE, NightbotExportError, parseNightbot } from './nightbot';
+import {
+  detectNightbot,
+  fetchNightbot,
+  NB_CODE,
+  NightbotExportError,
+  NightbotFetchError,
+  parseNightbot
+} from './nightbot';
 import { CODE, isValidFetchDefName, validateManifest } from './validate';
 import type { ImportDiagnostic } from './types';
 
@@ -265,5 +272,125 @@ describe('spam protection', () => {
     );
     expect(manifest.automod).toEqual({ block: ['badword'] });
     expect(codesOf(diagnostics)).toEqual([NB_CODE.automodRegexSkipped]);
+  });
+});
+
+// --- fetch flow (OAuth-token API pull) ---------------------------------------
+
+// Local stand-in server, mirroring streamelements.test.ts: records every
+// request (snapshotted eagerly — Bun recycles Request internals once the
+// handler resolves) and answers via `handler`.
+interface Recorded {
+  path: string;
+  authorization: string | null;
+  accept: string | null;
+}
+async function withTestServer(
+  handler: (req: Request) => Response | Promise<Response>,
+  run: (baseUrl: string, requests: Recorded[]) => Promise<void>
+): Promise<void> {
+  const requests: Recorded[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(req) {
+      requests.push({
+        path: new URL(req.url).pathname,
+        authorization: req.headers.get('authorization'),
+        accept: req.headers.get('accept')
+      });
+      return handler(req);
+    }
+  });
+  try {
+    await run(`http://127.0.0.1:${server.port}`, requests);
+  } finally {
+    server.stop(true);
+  }
+}
+
+const TEST_TOKEN = 'nb-test-access-token';
+
+describe('fetch flow', () => {
+  test('staples commands+timers+spam filters over three Bearer calls, parseable as-is', async () => {
+    await withTestServer(
+      (req) => {
+        const path = new URL(req.url).pathname;
+        if (path === '/1/commands')
+          return Response.json({ _total: 1, status: 200, commands: [command()] });
+        if (path === '/1/timers')
+          return Response.json({
+            _total: 1,
+            status: 200,
+            timers: [{ _id: 't1', name: 'plug', message: 'follow me', interval: '*/15 * * * *', enabled: true }]
+          });
+        if (path === '/1/spam_protection')
+          return Response.json({ status: 200, filters: [{ type: 'blacklist', blacklist: ['badword'] }] });
+        return new Response('not found', { status: 404 });
+      },
+      async (baseUrl, requests) => {
+        const env = await fetchNightbot(TEST_TOKEN, { baseUrl });
+        expect(requests.map((r) => r.path)).toEqual(['/1/commands', '/1/timers', '/1/spam_protection']);
+        for (const r of requests) {
+          expect(r.authorization).toBe(`Bearer ${TEST_TOKEN}`);
+          expect(r.accept).toContain('application/json');
+        }
+
+        const { manifest } = parseNightbot(bytes(env));
+        expect(manifest.commands).toHaveLength(1);
+        expect(manifest.timers).toHaveLength(1);
+        expect(manifest.automod).toEqual({ block: ['badword'] });
+      }
+    );
+  });
+
+  test('missing or malformed token refuses before any transport', async () => {
+    await withTestServer(
+      () => Response.json({}),
+      async (baseUrl, requests) => {
+        await expect(fetchNightbot('   ', { baseUrl })).rejects.toThrow(/access token is required/);
+        await expect(fetchNightbot('has spaces inside', { baseUrl })).rejects.toThrow(/malformed/);
+        expect(requests).toHaveLength(0);
+      }
+    );
+  });
+
+  test('401 carries endpoint, status and reconnect remediation', async () => {
+    await withTestServer(
+      () => new Response('{"status":401,"message":"invalid token"}', { status: 401 }),
+      async (baseUrl) => {
+        const err = await fetchNightbot(TEST_TOKEN, { baseUrl }).catch((e) => e as Error);
+        expect(err).toBeInstanceOf(NightbotFetchError);
+        expect(err.message).toContain('/1/commands returned 401');
+        expect(err.message).toContain('reconnect your Nightbot account');
+      }
+    );
+  });
+
+  test('spam_protection failure degrades to no blacklist instead of failing the fetch', async () => {
+    await withTestServer(
+      (req) => {
+        const path = new URL(req.url).pathname;
+        if (path === '/1/spam_protection') return new Response('boom', { status: 500 });
+        if (path === '/1/commands')
+          return Response.json({ _total: 1, status: 200, commands: [command()] });
+        return Response.json({ _total: 0, status: 200, timers: [] });
+      },
+      async (baseUrl) => {
+        const env = await fetchNightbot(TEST_TOKEN, { baseUrl });
+        expect(env.spam_protection).toEqual([]);
+        expect(parseNightbot(bytes(env)).manifest.commands).toHaveLength(1);
+      }
+    );
+  });
+
+  test('malformed upstream JSON fails descriptively', async () => {
+    await withTestServer(
+      () => new Response('not json'),
+      async (baseUrl) => {
+        const err = await fetchNightbot(TEST_TOKEN, { baseUrl }).catch((e) => e as Error);
+        expect(err.message).toContain('/1/commands');
+        expect(err.message).toContain('decoding response');
+      }
+    );
   });
 });

@@ -126,7 +126,7 @@ export function decodeEnvelope(bytes: Uint8Array): NbEnvelope {
   };
   if (isEmpty(env))
     throw new NightbotExportError(
-      'importer/nightbot: no commands, timers or spam-protection terms found — save the response of api.nightbot.tv/1/commands (and /1/timers) into one file'
+      'importer/nightbot: no commands, timers or spam-protection terms found in this Nightbot account'
     );
   return env;
 }

@@ -1064,14 +1064,18 @@
     ],
     "seLinkLabel": "Open the StreamElements channels page",
     "jwtFieldAria": "StreamElements JWT",
-    "nightbotDesc": "Custom commands, timers and blacklist terms saved from the Nightbot API.",
+    "nightbotDesc": "Connect your Nightbot account and your commands, timers and blacklist come over automatically.",
     "instrNightbot": [
-      "Sign in at nightbot.tv and open Commands → Custom.",
-      "Open your browser's developer tools (F12) and pick the Network tab.",
-      "Reload the page, click the request to api.nightbot.tv/1/commands and save its response as a .json file.",
-      "Repeat on the Timers page for /1/timers if you want your timers too, and put both responses in one file as {\"commands\": …, \"timers\": …}.",
-      "Upload that file below — it is read in your browser and never uploaded as-is."
+      "Click “Connect Nightbot” below — you'll be sent to nightbot.tv to sign in and approve access.",
+      "Approve the request (commands, timers and spam protection, read for this import only) and you'll land right back here.",
+      "Hit Continue and pick what to import."
     ],
+    "nbConnectCta": "Connect Nightbot",
+    "nbConnected": "Nightbot account connected.",
+    "nbScopeHint": "The access you grant is used once to read your commands, timers and spam-protection terms for this import, then discarded.",
+    "errNbNotConnected": "Connect your Nightbot account first.",
+    "errNbOauth": "Nightbot didn't authorize the connection. Try connecting again.",
+    "errNbConfig": "Nightbot import isn't configured on this server yet.",
     "instrMoobot": [
       "Sign in at moobot.ai and open your dashboard.",
       "Open the Tools menu.",
@@ -1088,6 +1092,7 @@
     "continueCta": "Continue",
     "chipToken": "token",
     "chipFile": "file",
+    "chipConnect": "connect",
     "chipSoon": "coming soon",
     "seDesc": "Paste your channel JWT and your commands are read over their API.",
     "jwtHint": "Open the StreamElements dashboard while signed in, then copy the JWT your browser sends to api.streamelements.com (any request's <code>Authorization</code> header, the part after “Bearer ”).",
