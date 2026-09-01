@@ -32,6 +32,9 @@
 // honest (stats.localhost, leaderboard.localhost) without a config knob, the
 // same trick hooks.ts uses for the stats reroute.
 
+import { redirect } from '@sveltejs/kit';
+import { dev } from '$app/environment';
+
 export type SeoHost = 'dashboard' | 'stats' | 'leaderboard' | 'commands';
 
 const KIND_BY_LABEL: Readonly<Record<string, SeoHost>> = {
@@ -62,3 +65,23 @@ export const SEO_ORIGIN: Readonly<Record<SeoHost, string>> = {
   leaderboard: 'https://leaderboard.itsbagelbot.com',
   commands: 'https://commands.itsbagelbot.com'
 };
+
+/**
+ * Send the visitor to `host`'s own origin unless they are already on it,
+ * preserving path and query.
+ *
+ * The app answers its whole route table under every hostname traefik gives it,
+ * so a page is only "on one host" if it says so itself. Without this, the same
+ * document is four URLs — which is how leaderboard.itsbagelbot.com/user/<login>
+ * came to serve the commands page under the leaderboard origin.
+ *
+ * 308 rather than 301: the permanent redirect that promises the method is not
+ * rewritten. Path and query ride over verbatim, so a route's own canonical-form
+ * redirects still get their turn once the request lands, and ?lang= survives.
+ *
+ * dev is exempt so localhost keeps serving the page it is asked for.
+ */
+export function requireHost(url: URL, host: SeoHost): void {
+  if (dev || seoHost(url) === host) return;
+  throw redirect(308, `${SEO_ORIGIN[host]}${url.pathname}${url.search}`);
+}

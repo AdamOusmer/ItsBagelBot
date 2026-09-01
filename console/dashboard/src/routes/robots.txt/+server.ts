@@ -17,7 +17,10 @@ import { seoHost, type SeoHost } from '$lib/server/seo-hosts';
 // serves every route on every hostname, so without that the same document is
 // four URLs and search engines pick the winner themselves. /user/<login> is the
 // case that matters — the bot posts commands.itsbagelbot.com/user/<login> in
-// chat, so that is its host, and the other three disallow it.
+// chat, so that is its host, and routes/user/[channel] now 308s every other
+// host there. Deliberately NOT also disallowed off-host: a crawler that cannot
+// fetch the URL cannot see the redirect either, and the redirect is the
+// stronger signal. Let it follow.
 
 const DASHBOARD = `# ItsBagelBot Dashboard — https://dashboard.itsbagelbot.com
 # A private, auth-gated app. Only the public sign-in landing should be indexed;
@@ -74,11 +77,6 @@ Disallow: /cursor
 Disallow: /healthz
 Disallow: /readyz
 Disallow: /status
-
-# Public, SSR'd, and still blocked here: /user/<login> is handed out by the bot
-# under commands.itsbagelbot.com, which is where it is indexed. The app answers
-# it on this host too, and indexing it twice would be indexing one page as two.
-Disallow: /user/
 `;
 
 const COMMANDS = `# ItsBagelBot Commands — https://commands.itsbagelbot.com

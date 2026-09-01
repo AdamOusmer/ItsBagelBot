@@ -6,6 +6,7 @@ import type { PageServerLoad } from './$types';
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
 import { accountState, resolveLogin } from '$lib/server/services';
+import { requireHost } from '$lib/server/seo-hosts';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
@@ -78,7 +79,24 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
   return (await channelFromLogin(segment)) ?? channelFromID(segment);
 }
 
-export const load: PageServerLoad = async ({ params }) => {
+// One channel, one URL — and one HOST.
+//
+// The canonical-form redirects above settle which SEGMENT names a channel;
+// requireHost settles which ORIGIN serves it. traefik routes four hostnames to
+// this app (deploy/k8s/console-dashboard.yaml) and the route table is the same
+// on all of them, so /user/<login> answered 200 on every one. The leaderboard
+// board page linked here relatively, which is how
+// leaderboard.itsbagelbot.com/user/<login> came to serve the commands page
+// under the wrong origin — one document at four URLs, and a visitor who clicked
+// a channel name from a board landed on a page that looked like it had moved
+// hosts on them.
+//
+// commands.itsbagelbot.com is the canonical host because it is the one the bot
+// prints in chat: !cmd answers with <PublicBaseURL>/user/<login>, defaulting to
+// that origin (app/sesame/modules/cmd.go).
+export const load: PageServerLoad = async ({ params, url }) => {
+  requireHost(url, 'commands');
+
   if (DEMO) {
     const d = await import('$lib/server/demo-data');
     return {

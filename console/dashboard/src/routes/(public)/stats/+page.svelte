@@ -4,6 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n, type IconName } from '@bagel/shared';
   import type { PageData } from './$types';
+  import { commandsHref } from '$lib/components/public/links';
 
   let { data }: { data: PageData } = $props();
 
@@ -298,8 +299,11 @@
   // has no login shape at all). Link by id when the label cannot be one, rather
   // than linking somewhere that 404s.
   const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
+  // Absolute, to the host the command page belongs to. Relative would keep the
+  // visitor on whichever host served /stats and hand them the commands page
+  // under it; the server redirects that away, so this just saves the hop.
   const channelHref = (row: { id: string; name: string }) =>
-    `/user/${LOGIN_SHAPE.test(row.name) ? row.name : row.id}`;
+    commandsHref(LOGIN_SHAPE.test(row.name) ? row.name : row.id);
 </script>
 
 <svelte:head>
