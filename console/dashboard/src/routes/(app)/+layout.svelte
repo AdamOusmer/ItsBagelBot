@@ -175,6 +175,14 @@
     color: var(--bb-muted, #a39b8b);
     text-decoration: none;
     transition: color 180ms ease;
+    white-space: nowrap;
+    flex: none;
+    /* Desktop-only, same breakpoint as the topbar clock/name: on phones the
+       strip has no room left after brand + crumb + avatar + bell. */
+    display: none;
+  }
+  @media (min-width: 761px) {
+    .status-link { display: inline; }
   }
   .status-link:hover {
     color: var(--bb-tan-pale, #eceae1);
