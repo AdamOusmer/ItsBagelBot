@@ -154,11 +154,12 @@ test.describe('ItsBagelBot site', () => {
             const animations = animated.map((element) => element.getAnimations()[0]);
             animations.forEach((animation) => animation.pause());
 
-            // Mid-open sample per gate: the 7.2s choreography opens the gates
-            // at 23–34%, 45–56% and 65–76% of the cycle (SafetyLayers.astro
-            // keyframes); these times land inside each window while the packet
-            // sits in the matching lane band asserted below.
-            return [2050, 3700, 5100].map((time) => {
+            // The 7.2s gatePacket cycle holds the packet in front of each gate
+            // while that gate opens: gate one 23-26% of the cycle, gate two
+            // 45-48%, gate three 65-68% (SafetyLayers.astro keyframes). Sample
+            // the midpoint of each hold/open overlap window, where the packet
+            // is parked rather than mid-flight.
+            return [1764, 3348, 4788].map((time) => {
                 animations.forEach((animation) => { animation.currentTime = time; });
                 const laneRect = lane.getBoundingClientRect();
                 const packetRect = packet.getBoundingClientRect();
@@ -171,8 +172,11 @@ test.describe('ItsBagelBot site', () => {
 
         expect(samples).toHaveLength(3);
         for (const [index, sample] of samples.entries()) {
-            expect(sample.packet).toBeGreaterThan([0.2, 0.4, 0.6][index]);
-            expect(sample.packet).toBeLessThan([0.38, 0.58, 0.8][index]);
+            // Gates sit at 29%/50%/71% of the lane; the packet parks 46px short
+            // of each, so the expected ratio is gate% minus 46px over the lane
+            // width. Bounds allow the lane width to vary with the viewport.
+            expect(sample.packet).toBeGreaterThan([0.14, 0.35, 0.56][index]);
+            expect(sample.packet).toBeLessThan([0.26, 0.47, 0.68][index]);
             expect(sample.gates[index]).toBeLessThan(25);
         }
     });
