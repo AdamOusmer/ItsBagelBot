@@ -8,6 +8,10 @@
  * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
 import Card from '../ui/Card.astro';
+import { Image } from 'astro:assets';
+// Rendered at 80px tall; the source is a 1024px 834 kB PNG. Serving it
+// through astro:assets ships a ~160px webp of a few kB instead.
+import premiumLogo from '../../assets/premium-logo.png';
 import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -65,7 +69,7 @@ const enterpriseFeatures = [
         <!-- Premium: the tip jar -->
         <Card class="tier tier--premium" label={t('tier.premiumCh')} data-reveal style="--reveal-i: 1">
             <div class="tier__demo" slot="band" aria-hidden="true">
-                <img src="/premium-logo.png" alt="Premium" class="tier__premium-logo" />
+                <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
             </div>
             <span class="tier__badge">{t('tier.premiumBadge')}</span>
             <span class="tier__name">{t('tier.premium')}</span>

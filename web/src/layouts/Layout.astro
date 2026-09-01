@@ -4,6 +4,26 @@
 
 import '../styles/style.css';
 
+// Fonts are self-hosted (Fontsource) instead of loaded from Google Fonts.
+// The old <link href="fonts.googleapis.com/css2?..."> was a render-blocking
+// stylesheet on a third-party origin: a cold visit paid DNS+TLS to two hosts
+// before first paint, and the CSS itself was uncacheable across sites since
+// browsers partition caches per-site. Bundling the @font-face rules into our
+// own CSS and serving the woff2 files from /_astro (immutable-cached in
+// public/_headers) removes both round-trips. Variable fonts replace the
+// per-weight files (Syne 400–800, DM Sans 400+italic, Caveat 500–600 in one
+// file each); DM Mono has no variable cut, so 400/500 stay static.
+import '@fontsource-variable/syne';
+import '@fontsource-variable/dm-sans';
+import '@fontsource-variable/dm-sans/wght-italic.css';
+import '@fontsource-variable/caveat';
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+// Preload only the two families that render above the fold (display + body,
+// latin subset). The rest load on demand via unicode-range.
+import syneLatinWoff2 from '@fontsource-variable/syne/files/syne-latin-wght-normal.woff2?url';
+import dmSansLatinWoff2 from '@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url';
+
 import { ClientRouter } from 'astro:transitions';
 import Cursor from '../components/ui/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
@@ -132,10 +152,10 @@ const devConnectSources = import.meta.env.DEV
 const contentSecurityPolicy = [
     "default-src 'self'",
     "img-src 'self' data:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     `script-src 'self'${devScriptSources} https://static.cloudflareinsights.com`,
-    `connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com${devConnectSources}`,
+    `connect-src 'self' https://cloudflareinsights.com${devConnectSources}`,
     "base-uri 'self'",
     "form-action 'self'",
 ].join('; ');
@@ -164,10 +184,8 @@ const contentSecurityPolicy = [
 
     <meta name="generator" content={Astro.generator}/>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;1,400&family=Caveat:wght@500;600&display=swap"
-          rel="stylesheet"/>
+    <link rel="preload" href={syneLatinWoff2} as="font" type="font/woff2" crossorigin/>
+    <link rel="preload" href={dmSansLatinWoff2} as="font" type="font/woff2" crossorigin/>
 
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=bot-1">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=bot-1">

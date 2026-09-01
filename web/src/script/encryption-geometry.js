@@ -24,7 +24,7 @@ export const INTER_CURVE_SEGMENTS = 24;
 export const FLOW_CURVE_SAMPLES = 32;
 
 /**
- * @param {typeof import('three')} THREE
+ * @param {typeof import('./three-slim.js')} THREE
  * @param {{ isCompact: boolean }} options
  */
 export function buildEncryptionGeometryData(THREE, {isCompact}) {

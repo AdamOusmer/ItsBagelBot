@@ -51,7 +51,9 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
         // Sparse pockets reuse the inner-page mote field without covering home.
-        await expect(page.locator('.home-light-field[data-field]')).toHaveCount(2);
+        // Three fields: the hero starfield plus the two section pockets.
+        await expect(page.locator('.home-light-field[data-field]')).toHaveCount(3);
+        await expect(page.locator('.starfield .home-light-field')).toHaveCount(1);
         await expect(page.locator('#safety-layers .home-light-field')).toHaveCount(1);
         await expect(page.locator('#how .home-light-field')).toHaveCount(1);
 
@@ -152,7 +154,11 @@ test.describe('ItsBagelBot site', () => {
             const animations = animated.map((element) => element.getAnimations()[0]);
             animations.forEach((animation) => animation.pause());
 
-            return [1680, 2580, 3480].map((time) => {
+            // Mid-open sample per gate: the 7.2s choreography opens the gates
+            // at 23–34%, 45–56% and 65–76% of the cycle (SafetyLayers.astro
+            // keyframes); these times land inside each window while the packet
+            // sits in the matching lane band asserted below.
+            return [2050, 3700, 5100].map((time) => {
                 animations.forEach((animation) => { animation.currentTime = time; });
                 const laneRect = lane.getBoundingClientRect();
                 const packetRect = packet.getBoundingClientRect();
@@ -245,19 +251,19 @@ test.describe('ItsBagelBot site', () => {
 
     test('active nav route is marked', async ({ page }) => {
         await page.goto('/pricing');
-        await expect(page.locator('nav a[aria-label="Pricing"].is-active')).toHaveCount(1);
+        await expect(page.locator('nav a.nav-link.is-active[href="/pricing"]')).toHaveCount(1);
     });
 
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
 
-        await page.locator('nav a[aria-label="Pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expectPageTop(page);
 
         await jumpDown(page);
-        await page.locator('nav a[aria-label="Contact"]').click();
+        await page.locator('nav a.nav-link[href="/contact"]').click();
         await expect(page).toHaveURL(/\/contact\/?$/);
         await expectPageTop(page);
 
@@ -269,7 +275,7 @@ test.describe('ItsBagelBot site', () => {
     test('decode text animates after client route swaps', async ({ page }) => {
         await page.goto('/');
 
-        await page.locator('nav a[aria-label="Pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
         await page.waitForFunction(() => {
@@ -292,7 +298,7 @@ test.describe('ItsBagelBot site', () => {
 
         const firstSceneId = await page.evaluate(() => window.__itsbagelbotPreload.activeEncryption.id);
 
-        await page.locator('nav a[aria-label="Pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expect(page.locator('#enc-canvas')).toHaveCount(0);
 
@@ -316,16 +322,16 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the three guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the four guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.phero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(3);
+        await expect(page.locator('.gcard')).toHaveCount(4);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
 
         // The Guides nav entry is live and marked active.
-        await expect(page.locator('nav a[aria-label="Guides"]')).toHaveAttribute('aria-current', 'page');
+        await expect(page.locator('nav a.nav-link[href="/guides"]')).toHaveAttribute('aria-current', 'page');
     });
 
     test('guide pages render toc, visuals, and pager', async ({ page }) => {

@@ -29,8 +29,14 @@
  * the client through a JSON island (site pattern, CSP-safe); the client script
  * builds DOM with textContent only.
  */
+import { getImage } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
 import { builderData, builderUI, builderRecipes } from '../../i18n/builder';
+
+// The chat mock renders the bot avatar at 14px; `logoImage.src` would inline
+// the URL of the original 1 MB PNG into data-avatar. getImage resolves a
+// build-time 28px webp (2x for retina) of ~1 kB instead.
+const avatarImage = await getImage({ src: logoImage, width: 28, height: 28, format: 'webp' });
 import { localizePath, type Lang } from '../../i18n/ui';
 
 interface Props {
@@ -112,7 +118,7 @@ for (const surface of data.surfaces) {
         <aside>
             <section class="preview card">
                 <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
-                <div class="chat" data-chat data-avatar={logoImage.src}>
+                <div class="chat" data-chat data-avatar={avatarImage.src}>
                     <span class="chat-tag" data-chat-tag>{ui.rehearsal}</span>
                 </div>
                 <small data-preview-note></small>

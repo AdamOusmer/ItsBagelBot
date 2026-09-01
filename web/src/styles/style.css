@@ -14,10 +14,13 @@
     --card-bg: #111110;
     --border: rgba(201, 168, 124, 0.15);
 
-    --font-display: "Syne", sans-serif;
+    /* "* Variable" are the self-hosted Fontsource variable-font family names
+       (see Layout.astro); the plain names stay as fallbacks for any cached
+       page still holding the old Google Fonts CSS. */
+    --font-display: "Syne Variable", "Syne", sans-serif;
     --font-mono: "DM Mono", monospace;
-    --font-body: "DM Sans", sans-serif;
-    --font-hand: "Caveat", cursive;
+    --font-body: "DM Sans Variable", "DM Sans", sans-serif;
+    --font-hand: "Caveat Variable", "Caveat", cursive;
 
     --nav-height: 76px;
     /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
