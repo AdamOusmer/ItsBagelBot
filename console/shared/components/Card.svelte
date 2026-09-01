@@ -96,14 +96,20 @@
   }
 
   /* 3a housing: the band is a fixture the visual sits in — page-ink
-     background, hairline seam, atmosphere contained. */
+     background, hairline seam, atmosphere contained.
+
+     A FIXED height, never a min-height: banded cards sit side by side in a
+     grid, and a floor lets one card whose head runs long (a wrapped board
+     note, a two-line module title) push its own seam down while its
+     neighbours stay at the floor. Grids set --card-band-h once, sized to
+     their tallest head, so every seam in the row lands on the same line. */
   .card__band {
     position: relative;
     isolation: isolate;
     flex: none;
     display: flex;
     align-items: center;
-    min-height: calc(96px * var(--d, 1));
+    height: var(--card-band-h, calc(96px * var(--d, 1)));
     padding: calc(14px * var(--d, 1)) calc(18px * var(--d, 1));
     background: var(--bb-bg-0, #0a0a0a);
     border-bottom: 1px solid rgba(201, 168, 124, 0.12);
@@ -114,6 +120,7 @@
     position: relative;
     display: block;
     width: 100%;
+    height: 100%;
   }
 
   /* Inside the housing the arc re-parks to band scale: centered on the

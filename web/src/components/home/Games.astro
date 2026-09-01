@@ -161,6 +161,10 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* Sized to the tallest visual in the row — the Fortnite rifle with its
+           rarity/price line underneath — so the shorter stat read-outs share
+           the same housing instead of each sizing its own. */
+        --card-band-h: 132px;
     }
 
     @media (min-width: 720px) {
@@ -214,7 +218,7 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         flex-direction: column;
         justify-content: center;
         gap: 12px;
-        min-height: 72px;
+        height: 100%;
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;

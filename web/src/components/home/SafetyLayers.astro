@@ -121,6 +121,8 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* 132px of stage plus the housing's 16px padding, top and bottom. */
+        --card-band-h: 164px;
     }
 
     .safe__card {
@@ -153,7 +155,7 @@ const t = useTranslations(lang);
        chrome and outer padding, the demo keeps only its stage height. */
     .safe__demo {
         position: relative;
-        height: 132px;
+        height: 100%;
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.66rem;
