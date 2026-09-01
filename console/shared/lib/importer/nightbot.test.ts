@@ -261,6 +261,21 @@ describe('timers', () => {
 });
 
 describe('spam protection', () => {
+  test('live-API filter shape: newline-delimited blacklist string under _type', () => {
+    // Wire shape per api-docs.nightbot.tv (verified 2026-09-01): one filter
+    // object with _type "blacklist" whose terms are ONE \n-joined string.
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        spam_protection: [
+          { _type: 'links', enabled: true },
+          { _type: 'blacklist', enabled: true, blacklist: 'badword\nBadWord\n~/spam.*/\n  ' }
+        ]
+      })
+    );
+    expect(manifest.automod).toEqual({ block: ['badword'] });
+    expect(codesOf(diagnostics)).toEqual([NB_CODE.automodRegexSkipped]);
+  });
+
   test('blacklist terms become automod block terms, regex entries skipped', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({
@@ -324,7 +339,10 @@ describe('fetch flow', () => {
             timers: [{ _id: 't1', name: 'plug', message: 'follow me', interval: '*/15 * * * *', enabled: true }]
           });
         if (path === '/1/spam_protection')
-          return Response.json({ status: 200, filters: [{ type: 'blacklist', blacklist: ['badword'] }] });
+          return Response.json({
+            status: 200,
+            filters: [{ _type: 'blacklist', enabled: true, blacklist: 'badword\nother' }]
+          });
         return new Response('not found', { status: 404 });
       },
       async (baseUrl, requests) => {
@@ -338,7 +356,7 @@ describe('fetch flow', () => {
         const { manifest } = parseNightbot(bytes(env));
         expect(manifest.commands).toHaveLength(1);
         expect(manifest.timers).toHaveLength(1);
-        expect(manifest.automod).toEqual({ block: ['badword'] });
+        expect(manifest.automod).toEqual({ block: ['badword', 'other'] });
       }
     );
   });

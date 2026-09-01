@@ -77,11 +77,19 @@ function rowsOf(doc: NbRow, key: string): NbRow[] {
 }
 
 // blacklistTerms harvests spam-protection terms. GET /1/spam_protection
-// answers with a list of filters keyed by type, of which "blacklist" carries
-// the words; a saved single filter or a bare term array is accepted too.
+// answers with a list of filters, of which the blacklist one carries the
+// words; a saved single filter or a bare term array is accepted too. The live
+// API (verified against api-docs.nightbot.tv 2026-09-01) carries "blacklist"
+// as ONE newline-delimited string, while community exporters split it into an
+// array — both land here as individual terms (the parse layer trims, drops
+// blanks and dedups, so a naive split costs nothing).
 function blacklistTerms(doc: NbRow): string[] {
   const out: string[] = [];
   const take = (v: unknown): void => {
+    if (typeof v === 'string') {
+      out.push(...v.split('\n'));
+      return;
+    }
     if (Array.isArray(v)) for (const t of v) if (typeof t === 'string') out.push(t);
   };
   take(doc.blacklist);
