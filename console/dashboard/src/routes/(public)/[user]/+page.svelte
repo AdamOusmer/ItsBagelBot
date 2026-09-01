@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n } from '@bagel/shared';
   import type { PageData } from './$types';
+  import { commandsHref } from '$lib/components/public/links';
 
   let { data }: { data: PageData } = $props();
 
@@ -33,9 +34,11 @@
       .sort((a, b) => a.localeCompare(b))
   );
 
-  // The hero's channel name links to its public command page, which lives on
-  // the static /user/<login> route — reachable on this host like any other.
-  const channelHref = $derived(`/user/${data.login}`);
+  // The hero's channel name links to its public command page. Absolute, to the
+  // host that page belongs to: this used to be `/user/${login}`, and because the
+  // app answers that route on every hostname, clicking it kept the visitor here
+  // and served them the commands page at leaderboard.itsbagelbot.com/user/<login>.
+  const channelHref = $derived(commandsHref(data.login));
 </script>
 
 <svelte:head>
