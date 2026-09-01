@@ -7,7 +7,9 @@
 // There is no bagel.rpc.importer.* anymore and no importer pod.
 //
 //   preview: streamelements   → kappa v2 API fetch + parse (shared TS port)
-//            moobot, nightbot → manifest arrives pre-parsed by the browser
+//            nightbot          → REST API fetch with the OAuth token the
+//                                connect flow parked in a cookie, then parse
+//            moobot            → manifest arrives pre-parsed by the browser
 //            streamlabs_desktop → Chatbot.db parsed here (sql.js, see module)
 //          …then validateManifest + collision lookup against live commands.
 //
@@ -23,6 +25,7 @@
 // authenticated Session here and never from caller-supplied data.
 import { randomUUID } from 'node:crypto';
 import { fetchStreamElements, parseStreamElements } from '@bagel/shared/importer/streamelements';
+import { fetchNightbot, parseNightbot } from '@bagel/shared/importer/nightbot';
 import { parseStreamLabsDesktop } from '@bagel/shared/importer/streamlabs-desktop';
 import {
   CODE,
@@ -127,6 +130,7 @@ function refused(diag: RefusalDiag): ParseOutcome {
 // browser-parsed Moobot flow posts its manifest directly and has no leg here.
 const SOURCE_LEGS: Partial<Record<ImportSource, (req: ImportPreviewRequest) => Promise<ParseOutcome>>> = {
   streamelements: streamelementsLeg,
+  nightbot: nightbotLeg,
   streamlabs_desktop: streamlabsDesktopLeg
 };
 
@@ -166,6 +170,26 @@ async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcom
   }
   const parsed = parseStreamElements(envelope);
   return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
+}
+
+// nightbotLeg pulls the account's config over the Nightbot REST API with the
+// OAuth access token (req.credential — the form action reads it off the
+// HttpOnly cookie the callback route set, never off user paste) and feeds the
+// stapled envelope through the shared parser.
+async function nightbotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  let envelope: Uint8Array;
+  try {
+    const fetched = await fetchNightbot(req.credential ?? '');
+    envelope = new TextEncoder().encode(JSON.stringify(fetched));
+  } catch (err) {
+    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
+  }
+  try {
+    const parsed = parseNightbot(envelope);
+    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
+  } catch (err) {
+    return refused({ code: CODE.parseFailed, message: (err as Error).message });
+  }
 }
 
 async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
