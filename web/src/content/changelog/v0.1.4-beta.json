@@ -9,14 +9,14 @@
   "highlights": {
     "en": [
       "A redesigned dashboard. Overview opens on live stream panels, commands rank themselves into a deck, and settings and modules each get their own rail.",
-      "Run the stream from chat. Lead mods set the title, category, tags, ads and markers with commands, the way Nightbot does.",
+      "Run the stream from chat. Lead mods set the title, category, tags, ads and markers with commands, without ever leaving chat.",
       "Import from Nightbot. Point the rebuilt import wizard at your Nightbot setup and bring your commands over in one pass.",
       "The song queue drives the real player. Requests control Spotify directly, positions stay in sync with what is actually playing, and !srlist shows the queue.",
       "Easier to find, faster to load. Real sitemaps and per-host robots.txt, lighter pages, and a stats counter that stays inside its tile."
     ],
     "fr": [
       "Un tableau de bord repensé. L'aperçu s'ouvre sur des panneaux de stream en direct, les commandes se classent en deck, et les réglages comme les modules ont chacun leur propre rail.",
-      "Pilotez le stream depuis le chat. Les modérateurs principaux règlent le titre, la catégorie, les tags, les pubs et les marqueurs par commandes, comme avec Nightbot.",
+      "Pilotez le stream depuis le chat. Les modérateurs principaux règlent le titre, la catégorie, les tags, les pubs et les marqueurs par commandes, sans jamais quitter le chat.",
       "Importez depuis Nightbot. Pointez le nouvel assistant d'import vers votre configuration Nightbot et récupérez vos commandes en une seule passe.",
       "La file musicale pilote le vrai lecteur. Les demandes contrôlent Spotify directement, les positions restent alignées sur ce qui joue vraiment, et !srlist affiche la file.",
       "Plus facile à trouver, plus rapide à charger. De vrais sitemaps et un robots.txt par hôte, des pages allégées, et un compteur de stats qui reste dans sa tuile."
