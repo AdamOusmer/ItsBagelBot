@@ -33,6 +33,14 @@
     connectionPollSettled,
     type ConnectionPollGoal
   } from '$lib/connection-poll';
+  // AnsweredTonight aliased: the component import above owns the bare name.
+  import type {
+    StreamMeta,
+    StreamCounters,
+    ChatVolume,
+    ActivityFeed,
+    AnsweredTonight as AnsweredDigest
+  } from '$lib/overview-live';
   let { data } = $props();
 
   const { t } = getI18n();
@@ -104,6 +112,35 @@
   onMount(() => {
     const id = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(id);
+  });
+
+  // Live panels after the first paint. The SSR snapshot in `data` covers the
+  // initial render; /overview/stream then pushes a whole-lane snapshot every
+  // few seconds and the markup below prefers it over the awaited SSR value.
+  // These lanes are exactly the reads the invalidation bus does not cover
+  // (viewer counts, chat volume, the activity feed), so the layout's /events
+  // stream never re-fetches them — without this the panels freeze at their
+  // load-time values until a manual reload. Delegates never see the Overview
+  // and the endpoint rejects them; skip the connection rather than burn a
+  // retrying EventSource on a guaranteed 401.
+  let live = $state<{
+    stream: StreamMeta;
+    counters: StreamCounters;
+    volume: ChatVolume;
+    feed: ActivityFeed;
+    answered: AnsweredDigest;
+  } | null>(null);
+  onMount(() => {
+    if (typeof EventSource === 'undefined' || isDelegate) return;
+    const es = new EventSource('/overview/stream');
+    es.addEventListener('live', (e) => {
+      try {
+        live = JSON.parse((e as MessageEvent).data);
+      } catch {
+        /* malformed frame — keep the last good snapshot */
+      }
+    });
+    return () => es.close();
   });
 
   // Confirm modal state
@@ -291,7 +328,12 @@
       </div>
     </section>
   {:then [meta, counters, volume]}
-    <StreamSection {meta} {counters} {volume} {now} />
+    <StreamSection
+      meta={live?.stream ?? meta}
+      counters={live?.counters ?? counters}
+      volume={live?.volume ?? volume}
+      {now}
+    />
   {/await}
 
   <!-- 4. The working row: what the bot just did, beside the smaller reads that
@@ -301,7 +343,7 @@
       {#await data.feed}
         <Skeleton variant="block" height="420px" />
       {:then feed}
-        <ActivityLog {feed} />
+        <ActivityLog feed={live?.feed ?? feed} />
       {/await}
     </div>
 
@@ -309,7 +351,7 @@
       {#await data.answered}
         <Skeleton variant="block" height="260px" />
       {:then answered}
-        <AnsweredTonight {answered} />
+        <AnsweredTonight answered={live?.answered ?? answered} />
       {/await}
 
       <!-- Only real, non-connection issues (guarded on the read having landed);
