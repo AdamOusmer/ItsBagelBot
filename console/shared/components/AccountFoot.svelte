@@ -81,6 +81,15 @@
         onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
       ></div>
       <div class="foot-menu" role="menu">
+        <!-- Centrepiece, carried over from the topbar menu this replaced: a big
+             Bolota on its own plate, name and role stacked under it. -->
+        <div class="foot-menu-head">
+          <span class="foot-menu-avatar">
+            <Bolota name={name} size={72} active={menuOpen} />
+          </span>
+          <b>{name}</b>
+          <i>{role}</i>
+        </div>
         {#if dashboards.length}
           <!-- The Scroller caps the list so a long roster never runs the menu
                off the top of the rail. Each row jumps into that owner's
@@ -165,6 +174,22 @@
     from { opacity: 0; transform: translateY(6px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
+
+  .foot-menu-head {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 10px 16px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px;
+    text-align: center;
+  }
+  .foot-menu-avatar {
+    width: 84px; height: 84px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
+    display: flex; align-items: center; justify-content: center;
+  }
+  .foot-menu-head b {
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 14px; color: var(--bb-white);
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .foot-menu-head i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; color: var(--bb-tan); }
 
   .foot-menu-section {
     padding: 2px 10px 4px;
