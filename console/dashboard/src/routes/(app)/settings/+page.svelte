@@ -271,7 +271,7 @@
     <h2 id="h-account">{t('settings.account')}</h2>
     <p class="hint">{t('settings.accountHint')}</p>
     <div class="identity">
-      <span class="identity-face"><Bolota name={data.login ?? ''} size={44} /></span>
+      <span class="identity-face"><Bolota name={data.login ?? ''} size={44} active /></span>
       <div class="identity-main">
         <div class="identity-line">
           <b>{data.displayName || data.login}</b>
