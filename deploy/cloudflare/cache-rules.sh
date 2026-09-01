@@ -21,8 +21,37 @@
 #
 # The bagel_session bypass is defense-in-depth: even if the origin gate in
 # edgeCacheControl ever regressed, a request carrying a session cookie can
-# neither populate nor hit the edge cache. Cache rules are first-match-wins,
-# so it must stay above the eligibility rule.
+# neither populate nor hit the edge cache.
+#
+# That bypass is expressed TWICE -- as a "not" clause on the eligibility rule
+# and as a standalone rule after it -- because this phase does not terminate on
+# match. Custom Rules stop at the first match; Cache Rules do not: every
+# matching rule applies, and a later rule overrides an earlier one for the same
+# setting. The first version of this file assumed first-match-wins and put the
+# standalone bypass rule ABOVE eligibility. Measured on the live zone
+# 2026-09-01, that shape did nothing: a request carrying
+# `Cookie: bagel_session=...` to leaderboard.itsbagelbot.com/itsmavey returned
+# cf-cache-status HIT four times running, because the eligibility rule's
+# cache:true silently overwrote the bypass rule's cache:false. With the
+# not-clause added and the standalone rule moved below, the same request
+# measures DYNAMIC while the anonymous request still measures MISS -> HIT.
+# Do not collapse this back to a single rule or restore the old order: the
+# not-clause is what actually holds today, and the standalone rule is what
+# holds if the clause is ever dropped.
+#
+# bagel_cursor=0 is excluded for a different reason: correctness, not defence.
+# Cloudflare's cache key ignores cookies, so a cookie that changes the rendered
+# markup has to be named here or the edge will serve one visitor's variant to
+# another. The cursor opt-out flips markup server-side (hooks.server.ts returns
+# null from edgeCacheControl for it), but "origin says no-store" only helps on
+# requests that reach the origin -- and a cached page means none do. Measured
+# 2026-09-01 before this clause existed: `Cookie: bagel_cursor=0` on
+# leaderboard.itsbagelbot.com/itsmavey returned HIT, serving the cursor-ON body
+# to a visitor who opted out. Only '0' is matched because the cookie is only
+# ever written '0' or '1' (session.ts) and absent means on, so cursor=1 and no
+# cookie share one cacheable variant. Any FUTURE cookie that changes markup
+# must be added here too -- that is the one case where the "broad eligibility
+# is safe by construction" claim above does not hold on its own.
 #
 # This script OWNS the phase: the PUT replaces the whole ruleset. Foreign rules
 # added through the dashboard will not survive a re-run of this script -- treat
@@ -40,21 +69,21 @@ PAYLOAD=$(cat <<'JSON'
 {
   "rules": [
     {
-      "description": "[bagelbot] bypass edge cache for session-bearing requests",
-      "expression": "(http.cookie contains \"bagel_session=\")",
-      "action": "set_cache_settings",
-      "action_parameters": { "cache": false },
-      "enabled": true
-    },
-    {
       "description": "[bagelbot] console hosts: eligibility on, TTLs from origin headers",
-      "expression": "(http.host in {\"dashboard.itsbagelbot.com\" \"stats.itsbagelbot.com\" \"commands.itsbagelbot.com\" \"leaderboard.itsbagelbot.com\"})",
+      "expression": "(http.host in {\"dashboard.itsbagelbot.com\" \"stats.itsbagelbot.com\" \"commands.itsbagelbot.com\" \"leaderboard.itsbagelbot.com\"} and not http.cookie contains \"bagel_session=\" and not http.cookie contains \"bagel_cursor=0\")",
       "action": "set_cache_settings",
       "action_parameters": {
         "cache": true,
         "edge_ttl": { "mode": "respect_origin" },
         "browser_ttl": { "mode": "respect_origin" }
       },
+      "enabled": true
+    },
+    {
+      "description": "[bagelbot] bypass edge cache for session or cursor-opt-out requests",
+      "expression": "(http.cookie contains \"bagel_session=\" or http.cookie contains \"bagel_cursor=0\")",
+      "action": "set_cache_settings",
+      "action_parameters": { "cache": false },
       "enabled": true
     }
   ]
