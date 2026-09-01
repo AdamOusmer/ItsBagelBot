@@ -358,7 +358,7 @@
         {
           "name": "weather",
           "responses": [
-            "{urlfetch:se-weather}F and {urlfetch:se-weather-2}"
+            "{urlfetch:se_weather}F and {urlfetch:se_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 10
@@ -366,14 +366,14 @@
         {
           "name": "quote",
           "responses": [
-            "{urlfetch:se-quote} — no wait: {urlfetch:se-quote}"
+            "{urlfetch:se_quote} — no wait: {urlfetch:se_quote}"
           ],
           "permission": "everyone"
         },
         {
           "name": "mixedbag",
           "responses": [
-            "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: {urlfetch:se-mixedbag}"
+            "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: {urlfetch:se_mixedbag}"
           ],
           "permission": "everyone",
           "warnings": [
@@ -384,7 +384,7 @@
         {
           "name": "clash",
           "responses": [
-            "{urlfetch:se-clash}"
+            "{urlfetch:se_clash}"
           ],
           "permission": "everyone"
         },
@@ -407,7 +407,7 @@
       ],
       "fetches": [
         {
-          "name": "se-weather",
+          "name": "se_weather",
           "url": "https://api.weather.example/v1",
           "json_path": [
             "data",
@@ -417,22 +417,22 @@
           "source": "streamelements"
         },
         {
-          "name": "se-weather-2",
+          "name": "se_weather_2",
           "url": "https://api.other.example/hum",
           "source": "streamelements"
         },
         {
-          "name": "se-quote",
+          "name": "se_quote",
           "url": "https://api.q.example/random",
           "source": "streamelements"
         },
         {
-          "name": "se-mixedbag",
+          "name": "se_mixedbag",
           "url": "https://ok.example/x",
           "source": "streamelements"
         },
         {
-          "name": "se-clash",
+          "name": "se_clash",
           "url": "https://first.example/a",
           "source": "streamelements"
         }
@@ -474,7 +474,7 @@
         "severity": "warn",
         "item_index": -1,
         "code": "fetch_def_collision",
-        "message": "fetch definition \"se-clash\" was already synthesized with different contents; the earlier one wins"
+        "message": "fetch definition \"se_clash\" was already synthesized with different contents; the earlier one wins"
       },
       {
         "severity": "warn",

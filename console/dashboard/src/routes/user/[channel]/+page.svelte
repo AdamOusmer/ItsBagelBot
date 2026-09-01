@@ -186,12 +186,14 @@
       <div class="grid">
         {#each data.commands as command}
           <Card atmosphere hover class="tile">
-            <div class="tile-top">
-              <h3 class="trigger">{command.trigger}</h3>
-              {#if command.uses}
-                <span class="tag">{command.uses} uses</span>
-              {/if}
-            </div>
+            {#snippet band()}
+              <div class="tile-top">
+                <h3 class="trigger">{command.trigger}</h3>
+                {#if command.uses}
+                  <span class="tag">{command.uses} uses</span>
+                {/if}
+              </div>
+            {/snippet}
             <p class="tile-desc">{command.response}</p>
             <ul class="feats">
               {#if command.aliases.length}
@@ -224,13 +226,15 @@
       <div class="grid">
         {#each data.modules as mod}
           <Card atmosphere hover class="tile">
-            <div class="tile-top">
-              <div class="tile-title">
-                <span class="cat">{mod.category}</span>
-                <h3>{mod.label}</h3>
+            {#snippet band()}
+              <div class="tile-top">
+                <div class="tile-title">
+                  <span class="cat">{mod.category}</span>
+                  <h3>{mod.label}</h3>
+                </div>
+                <span class="active-dot" aria-label="Active"></span>
               </div>
-              <span class="active-dot" aria-label="Active"></span>
-            </div>
+            {/snippet}
             <p class="tile-desc">{mod.tagline}</p>
 
             {#if mod.commands.length}
@@ -440,6 +444,9 @@
   .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
   @media (min-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } }
   .grid :global(.card), :global(.empty) { display: flex; flex-direction: column; }
+  /* One housing height per grid: a wrapped trigger or a two-line module title
+     would otherwise drop that card's seam below its neighbour's. */
+  .grid :global(.card__band) { --card-band-h: calc(84px * var(--d, 1)); }
 
   .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .tile-title { display: flex; flex-direction: column; gap: 8px; }
@@ -459,8 +466,10 @@
     color: var(--bb-tan-light);
     white-space: nowrap;
   }
+  /* Sits at the top of the banded Card's body; the body padding provides the
+     gap to the housing band above. */
   .tile-desc {
-    margin-top: 16px;
+    margin-top: 0;
     font-family: var(--bb-font-body);
     font-size: 0.9rem;
     line-height: 1.65;

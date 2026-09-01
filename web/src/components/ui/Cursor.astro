@@ -57,7 +57,7 @@
         cursor: none !important;
     }
 
-    @media (max-width: 900px), (pointer: coarse) {
+    @media (max-width: 900px), (pointer: coarse), (prefers-reduced-motion: reduce) {
         .cursor,
         .cursor-ring {
             display: none;
@@ -71,6 +71,10 @@
 
     // Only activate on desktop fine-pointer (same breakpoint as the dashboard).
     const fine = window.matchMedia('(min-width: 901px) and (pointer: fine)');
+    // Reduced-motion also disables the lerped cursor — and unlike `fine`, it
+    // can flip mid-session (OS toggle), so it gates the class/loop live
+    // instead of removing the elements at init.
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!fine.matches) {
         // Remove both elements so they don't take up any painting budget.
         dot.remove();
@@ -89,7 +93,7 @@
 
         // ── helpers ────────────────────────────────────────────────────────────
         const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-        const can  = () => fine.matches && !document.hidden;
+        const can  = () => fine.matches && !reduce.matches && !document.hidden;
         const start = () => { if (!raf && can()) raf = requestAnimationFrame(tick); };
 
         // ── animation loop ─────────────────────────────────────────────────────
@@ -118,8 +122,12 @@
                 tr = 18;
             }
 
-            // Lerp ring geometry — faster ease when morphing, slower when releasing.
-            const e = hovering ? 0.25 : 0.16;
+            // Lerp ring geometry. Release ease raised 0.16 → 0.28 (2026-08-31):
+            // user feedback read the trailing ring as site-wide sluggishness —
+            // at 0.16 the ring sat a full ring-width behind the dot on an
+            // ordinary sweep. 0.28 keeps a hint of trail; past ~0.35 the ring
+            // hard-locks to the dot and the two layers read as one blob.
+            const e = hovering ? 0.3 : 0.28;
             x = lerp(x, tx, e);
             y = lerp(y, ty, e);
             w = lerp(w, tw, e);
@@ -168,8 +176,16 @@
             if (el && el === target) { target = null; start(); }
         };
 
-        // Mark html so CSS can hide the native cursor (same class the dashboard uses).
-        document.documentElement.classList.add('bb-cursor-on');
+        // Mark html so CSS can hide the native cursor (same class the dashboard
+        // uses) — but only while reduced-motion is off. Users with OS-level
+        // large-cursor / reduced-motion settings keep the native cursor; the
+        // CSS media query above hides the dot/ring for them.
+        const syncMotionPref = () => {
+            document.documentElement.classList.toggle('bb-cursor-on', !reduce.matches);
+            if (!reduce.matches) start();
+        };
+        syncMotionPref();
+        reduce.addEventListener('change', syncMotionPref);
 
         window.addEventListener('pointermove',    onMove, { passive: true });
         document.addEventListener('pointerover',  onOver, { passive: true });
@@ -181,8 +197,7 @@
         // re-assert the cursor-hiding class (a swap can reset <html>) and make
         // sure the loop is running.
         document.addEventListener('astro:page-load', () => {
-            document.documentElement.classList.add('bb-cursor-on');
-            start();
+            syncMotionPref();
         });
     }
 </script>

@@ -29,6 +29,7 @@
     Badge,
     Bolota,
     Button,
+    ButtonLink,
     Card,
     Icon,
     PageHead,
@@ -54,18 +55,37 @@
   // Sources that can actually be picked. Fossabot is excluded: its parser
   // exists backend-side but is unregistered and its OAuth connect flow is
   // unbuilt, so a deep link asking for it falls back to the plain picker.
-  const PICKABLE: readonly ImportSource[] = ['streamelements', 'moobot', 'streamlabs_desktop'];
+  const PICKABLE: readonly ImportSource[] = [
+    'streamelements',
+    'moobot',
+    'nightbot',
+    'streamlabs_desktop'
+  ];
+
+  // Sources whose export is a JSON file this page parses itself, so the raw
+  // file never leaves the browser. Everything else either fetches server-side
+  // (StreamElements' pasted JWT, Nightbot's OAuth token cookie) or must
+  // upload (StreamLabs' SQLite .db, CSP no-go for a browser-side reader).
+  const CLIENT_PARSED = {
+    moobot: parseMoobot
+  } as const;
+
+  function isClientParsed(s: ImportSource | ''): s is keyof typeof CLIENT_PARSED {
+    return s === 'moobot';
+  }
 
   const SOURCE_LABEL: Record<ImportSource, string> = {
     streamelements: 'StreamElements',
     fossabot: 'Fossabot',
     moobot: 'Moobot',
+    nightbot: 'Nightbot',
     streamlabs_desktop: 'StreamLabs Chatbot'
   };
   const SOURCE_INITIALS: Record<ImportSource, string> = {
     streamelements: 'SE',
     fossabot: 'F',
     moobot: 'M',
+    nightbot: 'NB',
     streamlabs_desktop: 'SL'
   };
 
@@ -78,7 +98,6 @@
 
   // --- step state ----------------------------------------------------------
   type Step = 'pick' | 'instructions' | 'review' | 'done';
-  let step = $state<Step>('pick');
   // svelte-ignore state_referenced_locally
   let source = $state<ImportSource | ''>(
     (() => {
@@ -86,6 +105,19 @@
       return q && (PICKABLE as readonly string[]).includes(q) ? (q as ImportSource) : '';
     })()
   );
+  // A ?source= deep link lands on that source's instructions directly — this
+  // is what brings the wizard back mid-flow after the Nightbot OAuth round
+  // trip instead of dropping the user on the picker again.
+  // svelte-ignore state_referenced_locally
+  let step = $state<Step>(source ? 'instructions' : 'pick');
+
+  // Nightbot OAuth connect status (load reads the token cookie) and any error
+  // the callback route bounced back with.
+  const nightbotConnected = $derived(!!page.data.nightbotConnected);
+  const NB_OAUTH_ERRORS: Record<string, 'import.errNbOauth' | 'import.errNbConfig'> = {
+    nb_oauth: 'import.errNbOauth',
+    nb_config: 'import.errNbConfig'
+  };
   let credential = $state('');
   let uploadFile = $state<File | null>(null);
   let dragKind = $state<'' | ImportSource>('');
@@ -320,14 +352,20 @@
   // adding the directive to loosen CSP was weighed and rejected; one source
   // keeping its server path costs less than widening script-src for every
   // dashboard visitor.
-  const MAX_MOOBOT_BYTES = 10 * 1024 * 1024;
+  const MAX_JSON_BYTES = 10 * 1024 * 1024;
   const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
   // Instructions content per source: numbered steps are list leaves; the
   // StreamElements JWT hunt additionally gets a real deep link.
-  const INSTR_KEY: Partial<Record<ImportSource, 'import.instrSe' | 'import.instrMoobot' | 'import.instrSl'>> = {
+  const INSTR_KEY: Partial<
+    Record<
+      ImportSource,
+      'import.instrSe' | 'import.instrMoobot' | 'import.instrNightbot' | 'import.instrSl'
+    >
+  > = {
     streamelements: 'import.instrSe',
     moobot: 'import.instrMoobot',
+    nightbot: 'import.instrNightbot',
     streamlabs_desktop: 'import.instrSl'
   };
   const instrSteps = $derived.by(() => {
@@ -336,7 +374,16 @@
     return key ? tl(key) : [];
   });
 
-  let previewError = $state('');
+  // Seeded from the ?e= the Nightbot OAuth routes bounce back with, so the
+  // failure reads inline on the instructions step the deep link reopens.
+  // svelte-ignore state_referenced_locally
+  let previewError = $state(
+    (() => {
+      const e = page.url.searchParams.get('e');
+      const key = e ? NB_OAUTH_ERRORS[e] : undefined;
+      return key ? t(key) : '';
+    })()
+  );
   let commitError = $state('');
 
   async function runPreview() {
@@ -356,22 +403,30 @@
         return;
       }
       body.set('credential', credential.trim());
+    } else if (source === 'nightbot') {
+      // No form inputs: the server reads the OAuth access token off the
+      // HttpOnly cookie the connect flow parked, then fetches the account's
+      // config itself.
+      if (!nightbotConnected) {
+        previewError = t('import.errNbNotConnected');
+        return;
+      }
     } else if (!uploadFile || uploadFile.size === 0) {
       previewError = t('import.errFileMissing');
       return;
-    } else if (source === 'moobot') {
-      if (uploadFile.size > MAX_MOOBOT_BYTES) {
+    } else if (isClientParsed(source)) {
+      if (uploadFile.size > MAX_JSON_BYTES) {
         previewError = t('import.errTooLarge', { limit: 10 });
         return;
       }
-      // Parse locally: JSON.parse inside the ported parser (never eval), with
-      // per-item degradation exactly like the Go parser. Only the resulting
-      // manifest rides to the server, which re-validates it through
-      // mapping.Validate for authoritative diagnostics/collisions/stats.
+      // Parse locally: JSON.parse inside the parser (never eval), with
+      // per-item degradation. Only the resulting manifest rides to the server,
+      // which re-validates it through validateManifest for authoritative
+      // diagnostics/collisions/stats.
       submitting = true;
       try {
         const bytes = new Uint8Array(await uploadFile.arrayBuffer());
-        const parsed = parseMoobot(bytes);
+        const parsed = CLIENT_PARSED[source](bytes);
         const capped = applyImportCaps(parsed.manifest);
         body.set('manifest', JSON.stringify(capped.manifest));
         const r = await postPreview(body);
@@ -386,7 +441,9 @@
         }
       } catch (err) {
         if (err instanceof MoobotExportError)
-          previewError = t('import.errParseFailed', { m: err.message.replace(/^importer\/moobot:\s*/, '') });
+          previewError = t('import.errParseFailed', {
+            m: err.message.replace(/^importer\/moobot:\s*/, '')
+          });
         else previewError = t('import.errGeneric');
       }
       submitting = false;
@@ -587,6 +644,26 @@
           <span class="tile-cta">{t('import.tileCta')}</span>
         </label>
 
+        <!-- Nightbot: OAuth connect — the account's commands/timers/spam
+             protection are fetched server-side with the granted token,
+             the same way StreamElements' own Nightbot import works -->
+        <label class="tile" class:picked={source === 'nightbot'} data-cursor>
+          <input
+            type="radio"
+            name="source-pick"
+            value="nightbot"
+            checked={source === 'nightbot'}
+            onchange={() => choose('nightbot')}
+          />
+          <span class="tile-top">
+            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.nightbot}</span>
+            <span class="tile-name">Nightbot</span>
+            <span class="chip">{t('import.chipConnect')}</span>
+          </span>
+          <span class="tile-desc">{t('import.nightbotDesc')}</span>
+          <span class="tile-cta">{t('import.tileCta')}</span>
+        </label>
+
         <!-- StreamLabs Chatbot: desktop database export (.db) -->
         <label class="tile" class:picked={source === 'streamlabs_desktop'} data-cursor>
           <input
@@ -642,6 +719,20 @@
             {@html t('import.jwtHint')}
           </p>
         </div>
+      {:else if source === 'nightbot'}
+        <div class="cred">
+          {#if nightbotConnected}
+            <p class="nb-connected" role="status">
+              <Icon name="check" size={12} />
+              {t('import.nbConnected')}
+            </p>
+          {:else}
+            <ButtonLink href="/settings/import/nightbot/connect" variant="primary" icon="link">
+              {t('import.nbConnectCta')}
+            </ButtonLink>
+          {/if}
+          <p class="hint">{t('import.nbScopeHint')}</p>
+        </div>
       {:else if source === 'moobot' || source === 'streamlabs_desktop'}
         <!-- Drag handlers sit on the input, not the wrapper: the input covers
              the whole zone invisibly, so behaviour is identical while the
@@ -653,7 +744,9 @@
         >
           <input
             type="file"
-            accept={source === 'moobot' ? '.json,application/json' : '.db,application/octet-stream'}
+            accept={source === 'streamlabs_desktop'
+              ? '.db,application/octet-stream'
+              : '.json,application/json'}
             onchange={(e) => pickFile(e.currentTarget.files?.[0])}
             ondragover={(e) => {
               e.preventDefault();
@@ -1220,6 +1313,17 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 6px;
+  }
+  .cred :global(.btn) {
+    align-self: flex-start;
+  }
+  .nb-connected {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--bb-green, #7dc98f);
+    font-size: 13px;
   }
   .cred textarea {
     width: 100%;

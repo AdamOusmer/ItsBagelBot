@@ -13,6 +13,8 @@ export const WEB = 'https://itsbagelbot.com';
 export const DASH = 'https://dashboard.itsbagelbot.com';
 /** OAuth start. Add to Twitch hits this so Twitch redirects into the console. */
 export const DASH_LOGIN = `${DASH}/auth/login`;
+/** The short host the bot hands out for a channel's public command page. */
+export const COMMANDS = 'https://commands.itsbagelbot.com';
 
 /** One entry in the public nav's link row. */
 export interface PublicNavLink {
@@ -34,6 +36,23 @@ export function webHref(path: string, locale: Locale): string {
 /** The marketing home page, localized (web renders '/fr/' with the slash). */
 export function webHome(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? WEB : `${WEB}/${locale}/`;
+}
+
+/**
+ * A channel's public command page, always absolute.
+ *
+ * The app answers /user/<login> on every hostname it serves, so a RELATIVE link
+ * keeps the visitor on whichever host they were already on. That is how
+ * leaderboard.itsbagelbot.com/user/<login> came to exist and serve the commands
+ * page under the leaderboard origin: the board page linked here relatively. The
+ * server 308s that back to the canonical host now, so this helper is about not
+ * making every visitor pay for the redirect.
+ *
+ * Takes the raw URL segment, not a login, because the stats boards link some
+ * channels by id when their display name cannot be one.
+ */
+export function commandsHref(segment: string): string {
+  return `${COMMANDS}/user/${segment}`;
 }
 
 /**

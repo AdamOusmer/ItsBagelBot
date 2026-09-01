@@ -8,6 +8,7 @@
 
 // --- tag translation (ported from tags.go) ----------------------------------
 
+import { fetchDefSlug } from '../validate';
 import type { ManifestFetch } from '../types';
 import { IMPORT_ITEM_CAPS } from '../types';
 
@@ -77,7 +78,7 @@ function urlfetchSlot(tag: string): number | null | undefined {
 
 // urlfetchRef maps one Moobot urlfetch tag onto its `{urlfetch:<slug>}`
 // reference, synthesizing the definition shell on first sight. Slug rule:
-// `moobot-<normalizeName(command.name)>`, with the tag's own N appended for
+// `fetchDefSlug('moobot', command.name)`, with the tag's own N appended for
 // json.N — the TAG NAME is the slot id, so mapping is a pure function of the
 // export and re-import lands on identical slugs (idempotent). Slots never
 // merge even though none of them carries a URL: equality is unknowable until
@@ -85,10 +86,12 @@ function urlfetchSlot(tag: string): number | null | undefined {
 // definitions forever. Returns null at the cap, which degrades to the
 // literal+unmapped-warn path.
 function urlfetchRef(ctx: TagContext, slotN: number | null): string | null {
-  // Slug rule inlined: `moobot-<command>`, with the tag's own N appended for
-  // json.N — the TAG NAME is the slot id, so mapping is a pure function of
-  // the export and re-import lands on identical slugs (idempotent).
-  const key = slotN === null ? `moobot-${ctx.name}` : `moobot-${ctx.name}-${slotN}`;
+  // Slug rule: fetchDefSlug keeps the name inside the commands service's
+  // ^[a-z0-9_]{1,32}$ grammar (a hyphen is refused there), and the tag's own N
+  // is appended for json.N — the TAG NAME is the slot id, so mapping is a pure
+  // function of the export and re-import lands on identical slugs.
+  const base = fetchDefSlug('moobot', ctx.name);
+  const key = slotN === null ? base : `${base}_${slotN}`;
   if (!ctx.fetchDefs.has(key)) {
     if (ctx.fetchDefs.size >= FETCH_DEF_CAP) return null;
     // Deliberately NO url field: Moobot's BotCommand export carries no URL

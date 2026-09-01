@@ -4,9 +4,11 @@
 
 /**
  * QuietWork — a bento of the bot's chores, each card running its own tiny
- * live demo instead of a feature blurb. Built on the shared Card (header
- * atmosphere + lift); the demos are CSS loops, with one small script for the giveaway
- * name-shuffle and the poll bars (which want a reveal trigger).
+ * live demo instead of a feature blurb. Built on the shared Card's housing
+ * band (instrument-panel shell): each demo sits in the band with a mono
+ * channel label, copy on the plate below. Demos are CSS loops, with one
+ * small script for the giveaway name-shuffle and the poll bars (which want
+ * a reveal trigger).
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
@@ -22,8 +24,8 @@ const t = useTranslations(lang);
 
     <div class="qw__grid">
         <!-- Govee: bulb lights up and washes the stage in chat's colour -->
-        <Card class="qw__card qw__card--wide" data-reveal>
-            <div class="qw__demo qw__demo--govee" aria-hidden="true">
+        <Card class="qw__card qw__card--wide" label={t('qw.goveeCh')} data-reveal>
+            <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
                 <span class="qw-govee__glow"></span>
                 <span class="qw-govee__bulb">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -45,8 +47,8 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Commands: typewriter call + response -->
-        <Card class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
-            <div class="qw__demo qw__demo--cmd" aria-hidden="true">
+        <Card class="qw__card qw__card--wide" label={t('qw.cmdCh')} data-reveal style="--reveal-i: 1">
+            <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
                 <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
             </div>
@@ -55,8 +57,8 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Polls: racing bars, triggered on reveal -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 2">
-            <div class="qw__demo qw__demo--poll" aria-hidden="true" data-qw-poll>
+        <Card class="qw__card" label={t('qw.pollCh')} data-reveal style="--reveal-i: 2">
+            <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true" data-qw-poll>
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
                 <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
             </div>
@@ -68,8 +70,8 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Giveaways: name shuffle that lands -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 3">
-            <div class="qw__demo qw__demo--win" aria-hidden="true">
+        <Card class="qw__card" label={t('qw.winCh')} data-reveal style="--reveal-i: 3">
+            <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
                 <span class="qw-win__label">{t('qw.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
             </div>
@@ -78,8 +80,8 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Always on: heartbeat -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 4">
-            <div class="qw__demo qw__demo--beat" aria-hidden="true">
+        <Card class="qw__card" label={t('qw.beatCh')} data-reveal style="--reveal-i: 4">
+            <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
                 <svg viewBox="0 0 120 32" preserveAspectRatio="none">
                     <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
                           fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
@@ -104,6 +106,8 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* One housing height for the whole bento so every seam lines up. */
+        --card-band-h: 112px;
     }
 
     @media (min-width: 720px) {
@@ -137,19 +141,17 @@ const t = useTranslations(lang);
         margin: 0;
     }
 
-    /* ── Demo stage shared ── */
+    /* ── Demo stage shared ──
+       The demo lives in the Card's housing band now (slot="band"), so the
+       chip chrome (own border/background/radius) is gone — the band is the
+       fixture. Height comes from the band's 104px minimum. */
 
     .qw__demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
         gap: 8px;
-        height: 84px;
-        margin-bottom: 20px;
-        padding: 14px 16px;
-        border-radius: 10px;
-        background: rgba(10, 10, 10, 0.55);
-        border: 1px solid rgba(240, 236, 228, 0.05);
+        height: 100%;
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;

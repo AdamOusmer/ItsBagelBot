@@ -27,8 +27,8 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
 
     <div class="games__grid">
         <!-- Minecraft: Hypixel Bedwars + MCSR Ranked -->
-        <Card class="games__card" data-reveal>
-            <div class="games__demo games__demo--mc" aria-hidden="true">
+        <Card class="games__card" label={t('games.mcCh')} data-reveal>
+            <div class="games__demo games__demo--mc" slot="band" aria-hidden="true">
                 <div class="games-mc__group games-mc__group--bw">
                     <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
                     <div class="games-mc__stats games-mc__stats--bw">
@@ -52,8 +52,8 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         </Card>
 
         <!-- Fortnite -->
-        <Card class="games__card" data-reveal style="--reveal-i: 1">
-            <div class="games__demo games__demo--fn" aria-hidden="true">
+        <Card class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
+            <div class="games__demo games__demo--fn" slot="band" aria-hidden="true">
                 <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
                     <!-- stock -->
                     <path d="M10 32 L30 29 L30 47 L14 50 Z" />
@@ -94,8 +94,8 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         </Card>
 
         <!-- Valorant -->
-        <Card class="games__card" data-reveal style="--reveal-i: 2">
-            <div class="games__demo games__demo--val" aria-hidden="true">
+        <Card class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
+            <div class="games__demo games__demo--val" slot="band" aria-hidden="true">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
                 <div class="games-val__stats">
                     <span class="games-val__stat"><b>Tier</b> Immortal 2</span>
@@ -110,8 +110,8 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         </Card>
 
         <!-- Clash Royale -->
-        <Card class="games__card" data-reveal style="--reveal-i: 3">
-            <div class="games__demo games__demo--cr" aria-hidden="true">
+        <Card class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
+            <div class="games__demo games__demo--cr" slot="band" aria-hidden="true">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
                 <div class="games-cr__stats">
                     <span class="games-cr__stat"><b>Level</b> 62</span>
@@ -126,8 +126,8 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         </Card>
 
         <!-- Request more games -->
-        <Card class="games__card games__card--req" data-reveal style="--reveal-i: 4">
-            <div class="games__demo games__demo--req" aria-hidden="true">
+        <Card class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
+            <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
                 <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new" target="_blank" rel="noopener noreferrer" class="games-req__btn">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
@@ -161,6 +161,10 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* Sized to the tallest visual in the row — the Fortnite rifle with its
+           rarity/price line underneath — so the shorter stat read-outs share
+           the same housing instead of each sizing its own. */
+        --card-band-h: 132px;
     }
 
     @media (min-width: 720px) {
@@ -207,17 +211,14 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
 
     /* ── Demo stage shared ── */
 
+    /* Demos live in the Card's housing band (slot="band"); the band owns the
+       chrome and outer padding. Height matches the band's 104px minimum. */
     .games__demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
         gap: 12px;
-        height: 104px;
-        margin-bottom: 20px;
-        padding: 14px 16px;
-        border-radius: 10px;
-        background: rgba(10, 10, 10, 0.55);
-        border: 1px solid rgba(240, 236, 228, 0.05);
+        height: 100%;
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;

@@ -29,7 +29,8 @@
     isPremium = false,
     isDelegate = false,
     delegateExitHref = '',
-    delegateExitLabel = ''
+    delegateExitLabel = '',
+    railed = false
   }: {
     root: string;
     crumb: string;
@@ -46,6 +47,10 @@
     isDelegate?: boolean;
     delegateExitHref?: string;
     delegateExitLabel?: string;
+    // The rail owns the account surface at desktop widths (its AccountFoot
+    // opens the switcher menu), so a railed app hides the operator chip there
+    // and keeps it only on phones, where the rail is off screen.
+    railed?: boolean;
   } = $props();
 
   // Account menu: the avatar chip opens a small dropdown holding Log out,
@@ -94,7 +99,7 @@
   <span class="clock" aria-hidden="true">{now}</span>
 
   {#if accountName}
-    <div class="operator-wrap">
+    <div class="operator-wrap" class:railed>
       <button
         class="operator"
         class:open={menuOpen}
@@ -206,7 +211,10 @@
   .crumb .here::before { content: "/"; opacity: 0.45; }
   .crumb a { color: inherit; text-decoration: none; white-space: nowrap; transition: color var(--bb-dur-fast, 180ms) ease; }
   .crumb a:hover { color: var(--bb-tan-pale); }
-  .crumb .here span { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; }
+  /* min-width:0 + hidden overflow lets the crumb be the one flexible piece of
+     the strip: a long page title ellipsizes instead of running under the
+     account chip on narrow screens. */
+  .crumb .here span { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   .grow { flex: 1; }
 
@@ -216,7 +224,7 @@
     display: none;
   }
 
-  .operator-wrap { position: relative; display: flex; }
+  .operator-wrap { position: relative; display: flex; flex: none; }
   .operator {
     display: flex; align-items: center; gap: 9px;
     background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill, 100px);
@@ -309,15 +317,19 @@
   @media (min-width: 761px) {
     .clock { display: inline; }
     .op-id { display: flex; }
+    /* Rail visible → its AccountFoot is the account surface; drop the chip.
+       Same breakpoint as the rail's own display: flex. */
+    .operator-wrap.railed { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .op-menu { animation: none; }
   }
-  /* On phones the station id doubles as the crumb root, so hide the root li and
-     drop the leading separator; the <ol> stays valid with just the current page. */
+  /* On phones the crumb goes entirely: after the brand mark, avatar and bell
+     the pill leaves it ~30px (measured at 375px), which ellipsized every page
+     name down to two letters. The page eyebrow and the dock's active item
+     already carry the location there. */
   @media (max-width: 480px) {
-    .crumb .root { display: none; }
-    .crumb .here::before { content: none; }
+    .crumb { display: none; }
   }
 
   .icon-btn { width: 34px; height: 34px; border-radius: 8px 8px; display: flex; align-items: center; justify-content: center;

@@ -34,7 +34,7 @@ test('caps truncate overflow and report one manifest-level warn each', () => {
 test('fetch definitions ride the commands cap, not a number of their own', () => {
   // Under cap: carried through untouched.
   const pass = applyImportCaps({
-    fetches: [{ name: 'se-weather', url: 'https://x.example/a', source: 'streamelements' }]
+    fetches: [{ name: 'se_weather', url: 'https://x.example/a', source: 'streamelements' }]
   });
   expect(pass.manifest.fetches).toHaveLength(1);
   expect(pass.diagnostics).toEqual([]);

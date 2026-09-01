@@ -31,7 +31,7 @@
     "ariaMain": "Main navigation",
     "manage": "Manage",
     "overview": "Overview",
-    "commands": "Stream",
+    "commands": "Commands",
     "modules": "Modules",
     "counters": "Counters",
     "channelpoints": "Channel Points",
@@ -148,7 +148,9 @@
     "unknownChannel": "Unnamed channel",
     "boardEmpty": "No ranking yet. The board fills as channels rack up traffic.",
     "feedBoardEmpty": "Nobody has fed the bagel yet.",
-    "rightNow": "right now"
+    "rightNow": "right now",
+    "trafficBoardCh": "traffic · board 01",
+    "feedBoardCh": "feed · board 02"
   },
   "overview": {
     "statusHeading": "Bot status",
@@ -1062,6 +1064,18 @@
     ],
     "seLinkLabel": "Open the StreamElements channels page",
     "jwtFieldAria": "StreamElements JWT",
+    "nightbotDesc": "Connect your Nightbot account and your commands, timers and blacklist come over automatically.",
+    "instrNightbot": [
+      "Click “Connect Nightbot” below — you'll be sent to nightbot.tv to sign in and approve access.",
+      "Approve the request (commands, timers and spam protection, read for this import only) and you'll land right back here.",
+      "Hit Continue and pick what to import."
+    ],
+    "nbConnectCta": "Connect Nightbot",
+    "nbConnected": "Nightbot account connected.",
+    "nbScopeHint": "The access you grant is used once to read your commands, timers and spam-protection terms for this import, then discarded.",
+    "errNbNotConnected": "Connect your Nightbot account first.",
+    "errNbOauth": "Nightbot didn't authorize the connection. Try connecting again.",
+    "errNbConfig": "Nightbot import isn't configured on this server yet.",
     "instrMoobot": [
       "Sign in at moobot.ai and open your dashboard.",
       "Open the Tools menu.",
@@ -1078,6 +1092,7 @@
     "continueCta": "Continue",
     "chipToken": "token",
     "chipFile": "file",
+    "chipConnect": "connect",
     "chipSoon": "coming soon",
     "seDesc": "Paste your channel JWT and your commands are read over their API.",
     "jwtHint": "Open the StreamElements dashboard while signed in, then copy the JWT your browser sends to api.streamelements.com (any request's <code>Authorization</code> header, the part after “Bearer ”).",
@@ -1459,6 +1474,8 @@
     "emptyBody": "This board fills up as {channel}'s community watches live, subscribes, gifts and cheers. Tune in and claim the top spot.",
     "degraded": "Live standings are temporarily unavailable. They will catch up on their own.",
     "earnNote": "Earned by watching live · subs · gifts · cheers",
+    "boardCh": "standings · live",
+    "commandsCh": "commands · public",
     "commandsLabel": "Chat commands",
     "commandsTitle": "Chat commands",
     "colCommand": "Command",

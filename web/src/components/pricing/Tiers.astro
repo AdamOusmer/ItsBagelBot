@@ -8,6 +8,10 @@
  * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
 import Card from '../ui/Card.astro';
+import { Image } from 'astro:assets';
+// Rendered at 80px tall; the source is a 1024px 834 kB PNG. Serving it
+// through astro:assets ships a ~160px webp of a few kB instead.
+import premiumLogo from '../../assets/premium-logo.png';
 import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -28,7 +32,7 @@ const enterpriseFeatures = [
 
 <section class="tiers">
     <!-- Free: the whole product -->
-    <Card class="tier tier--free" data-reveal>
+    <Card class="tier tier--free" label={t('tier.freeCh')} data-reveal>
         <div class="tier-free__layout">
             <div class="tier-free__head">
                 <span class="tier__name">{t('tier.free')}</span>
@@ -63,11 +67,11 @@ const enterpriseFeatures = [
 
     <div class="tiers__pair">
         <!-- Premium: the tip jar -->
-        <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
-            <span class="tier__badge">{t('tier.premiumBadge')}</span>
-            <div class="tier__demo" aria-hidden="true">
-                <img src="/premium-logo.png" alt="Premium" class="tier__premium-logo" />
+        <Card class="tier tier--premium" label={t('tier.premiumCh')} data-reveal style="--reveal-i: 1">
+            <div class="tier__demo" slot="band" aria-hidden="true">
+                <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
             </div>
+            <span class="tier__badge">{t('tier.premiumBadge')}</span>
             <span class="tier__name">{t('tier.premium')}</span>
             <div class="tier__price">
                 <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
@@ -99,8 +103,8 @@ const enterpriseFeatures = [
         </Card>
 
         <!-- Enterprise -->
-        <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
-            <div class="tier__demo" aria-hidden="true">
+        <Card class="tier tier--enterprise" label={t('tier.enterpriseCh')} data-reveal style="--reveal-i: 2">
+            <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
                     <div class="ent-server">
                         <span class="ent-light"></span><span class="ent-line"></span>
@@ -154,6 +158,9 @@ const enterpriseFeatures = [
         display: grid;
         grid-template-columns: 1fr;
         gap: 24px;
+        /* The premium logo is the tallest thing either housing holds (80px);
+           both tiers take that height so the two seams meet across the pair. */
+        --card-band-h: 116px;
     }
 
     @media (min-width: 860px) {
@@ -231,23 +238,21 @@ const enterpriseFeatures = [
         z-index: 1;
     }
 
-    /* The badge straddles the top of the card body (its positioned ancestor),
-       so the premium card drops its content down to clear it — otherwise the
-       ribbon sits on top of the "Premium" title. */
-    .tier--premium :global(.card__body) { padding-top: 22px; }
+    /* The badge hangs on the seam between the housing and the plate: the body
+       is its positioned ancestor, so `top: 0` centres it on that line. The
+       body's own 24px of padding already clears it, which is why the extra
+       padding-top this card used to carry is gone — it was inert anyway,
+       outranked by Card's own band-body rule. */
 
-    /* ── Demo stage (mirrors QuietWork and Games) ── */
+    /* ── Demo stage (mirrors QuietWork and Games) ──
+       Lives in the Card's housing band (slot="band"); the band owns the
+       chrome, outer padding and the 104px minimum height. */
     .tier__demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        height: 104px;
-        margin-bottom: 24px;
-        padding: 14px 16px;
-        border-radius: 10px;
-        background: rgba(10, 10, 10, 0.55);
-        border: 1px solid rgba(240, 236, 228, 0.05);
+        height: 100%;
         overflow: hidden;
     }
 

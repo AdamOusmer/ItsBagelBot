@@ -22,8 +22,8 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')} />
 
     <div class="safe__grid">
-        <Card class="safe__card" data-reveal>
-            <div class="safe__demo safe__demo--jury" aria-hidden="true">
+        <Card class="safe__card" label={t('safe.juryCh')} data-reveal>
+            <div class="safe__demo safe__demo--jury" slot="band" aria-hidden="true">
                 <span class="jury__case">{t('safe.spam')} / {t('safe.hate')}</span>
                 <div class="jury__table">
                     <span class="jury__evidence">msg</span>
@@ -47,8 +47,8 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.juryDesc')}</p>
         </Card>
 
-        <Card class="safe__card" data-reveal style="--reveal-i: 1">
-            <div class="safe__demo safe__demo--gates" aria-hidden="true">
+        <Card class="safe__card" label={t('safe.gatesCh')} data-reveal style="--reveal-i: 1">
+            <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
                 <div class="gates__lane">
                     <span class="gates__packet">MSG</span>
                     <span class="gates__gate" style="--gate-i: 0"><i></i><b>{t('safe.gateRate')}</b></span>
@@ -70,8 +70,8 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.gatesDesc')}</p>
         </Card>
 
-        <Card class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
-            <div class="safe__demo safe__demo--network" aria-hidden="true">
+        <Card class="safe__card safe__card--network" label={t('safe.networkCh')} data-reveal style="--reveal-i: 2">
+            <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
                 <svg class="network__map" viewBox="0 0 360 112" role="presentation">
                     <g class="network__links">
                         <path d="M180 56 L118 14" pathLength="1" style="--wave-i: 0" />
@@ -121,6 +121,8 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        /* 132px of stage plus the housing's 16px padding, top and bottom. */
+        --card-band-h: 164px;
     }
 
     .safe__card {
@@ -149,15 +151,12 @@ const t = useTranslations(lang);
         color: var(--muted, #888077);
     }
 
+    /* Demos live in the Card's housing band (slot="band"); the band owns the
+       chrome and outer padding, the demo keeps only its stage height. */
     .safe__demo {
         position: relative;
-        height: 132px;
-        margin-bottom: 22px;
-        padding: 16px;
+        height: 100%;
         overflow: hidden;
-        border: 1px solid rgba(240, 236, 228, 0.05);
-        border-radius: 10px;
-        background: rgba(8, 8, 8, 0.68);
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.66rem;
     }

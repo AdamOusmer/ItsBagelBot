@@ -19,7 +19,9 @@ import {
   FailedItems,
   canonicalizeResponse,
   clampCooldown,
+  fetchDefSlug,
   findCollisions,
+  isValidFetchDefName,
   isEmptyStats,
   mapPermission,
   normalizeName,
@@ -270,8 +272,36 @@ describe('FailedItems', () => {
 // fight it at ingestion.
 test('FindCollisions flags fetch-definition slugs as kind "fetch"', () => {
   const m: ImportManifest = {
-    commands: [{ name: 'weather', responses: ['{urlfetch:moobot-weather}'] }],
-    fetches: [{ name: 'moobot-weather', source: 'moobot' }, { name: 'se-fresh', url: 'https://x.example', source: 'streamelements' }]
+    commands: [{ name: 'weather', responses: ['{urlfetch:moobot_weather}'] }],
+    fetches: [{ name: 'moobot_weather', source: 'moobot' }, { name: 'se_fresh', url: 'https://x.example', source: 'streamelements' }]
   };
-  expect(findCollisions(['MOOBOT-WEATHER', 'chat'], m)).toEqual([{ kind: 'fetch', name: 'moobot-weather' }]);
+  expect(findCollisions(['MOOBOT_WEATHER', 'chat'], m)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
+});
+
+// Synthesized definition names must satisfy the commands service's own
+// grammar (Go FetchDefName, ^[a-z0-9_]{1,32}$). They did not before
+// 2026-08-31: the parsers minted "se-<command>" and every upsert was refused
+// at commit with the tokens already written into the response text.
+describe('fetchDefSlug', () => {
+  test('folds a command name into the def-name grammar', () => {
+    expect(fetchDefSlug('se', 'weather')).toBe('se_weather');
+    expect(fetchDefSlug('moobot', 'my-cool cmd!')).toBe('moobot_my_cool_cmd');
+    expect(fetchDefSlug('nightbot', '  Weather  ')).toBe('nightbot_weather');
+  });
+
+  test('leaves room for a slot suffix and never ends on an underscore', () => {
+    const slug = fetchDefSlug('nightbot', 'a'.repeat(64));
+    expect(slug.length).toBeLessThanOrEqual(32 - 5);
+    expect(`${slug}_2000`.length).toBeLessThanOrEqual(32);
+    expect(isValidFetchDefName(`${slug}_2000`)).toBe(true);
+    expect(fetchDefSlug('se', `${'b'.repeat(23)}-tail`).endsWith('_')).toBe(false);
+  });
+
+  test('isValidFetchDefName rejects what the service rejects', () => {
+    expect(isValidFetchDefName('se_weather')).toBe(true);
+    expect(isValidFetchDefName('se-weather')).toBe(false);
+    expect(isValidFetchDefName('SE_weather')).toBe(false);
+    expect(isValidFetchDefName('a'.repeat(33))).toBe(false);
+    expect(isValidFetchDefName('')).toBe(false);
+  });
 });

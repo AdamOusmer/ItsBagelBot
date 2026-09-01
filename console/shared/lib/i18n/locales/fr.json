@@ -31,7 +31,7 @@
     "ariaMain": "Navigation principale",
     "manage": "Gérer",
     "overview": "Aperçu",
-    "commands": "Stream",
+    "commands": "Commandes",
     "modules": "Modules",
     "counters": "Compteurs",
     "channelpoints": "Points de chaîne",
@@ -148,7 +148,9 @@
     "unknownChannel": "Chaîne sans nom",
     "boardEmpty": "Pas encore de classement : le tableau se remplit à mesure que les chaînes accumulent du trafic.",
     "feedBoardEmpty": "Personne n'a encore nourri le bagel.",
-    "rightNow": "en ce moment"
+    "rightNow": "en ce moment",
+    "trafficBoardCh": "trafic · tableau 01",
+    "feedBoardCh": "flux · tableau 02"
   },
   "overview": {
     "statusHeading": "État du bot",
@@ -1062,6 +1064,18 @@
     ],
     "seLinkLabel": "Ouvrir la page Chaînes de StreamElements",
     "jwtFieldAria": "JWT StreamElements",
+    "nightbotDesc": "Connectez votre compte Nightbot : vos commandes, minuteries et liste noire arrivent automatiquement.",
+    "instrNightbot": [
+      "Cliquez sur « Connecter Nightbot » ci-dessous : vous serez redirigé vers nightbot.tv pour vous connecter et approuver l’accès.",
+      "Approuvez la demande (commandes, minuteries et protection anti-spam, en lecture pour cet import uniquement) et vous reviendrez directement ici.",
+      "Cliquez sur Continuer puis choisissez quoi importer."
+    ],
+    "nbConnectCta": "Connecter Nightbot",
+    "nbConnected": "Compte Nightbot connecté.",
+    "nbScopeHint": "L’accès accordé sert une seule fois à lire vos commandes, minuteries et termes anti-spam pour cet import, puis il est jeté.",
+    "errNbNotConnected": "Connectez d’abord votre compte Nightbot.",
+    "errNbOauth": "Nightbot n’a pas autorisé la connexion. Réessayez de vous connecter.",
+    "errNbConfig": "L’import Nightbot n’est pas encore configuré sur ce serveur.",
     "instrMoobot": [
       "Connectez-vous sur moobot.ai et ouvrez votre tableau de bord.",
       "Ouvrez le menu Tools (Outils).",
@@ -1078,6 +1092,7 @@
     "continueCta": "Continuer",
     "chipToken": "jeton",
     "chipFile": "fichier",
+    "chipConnect": "connexion",
     "chipSoon": "bientôt",
     "seDesc": "Collez le JWT de votre chaîne : vos commandes sont lues par leur API.",
     "jwtHint": "Ouvrez le tableau de bord StreamElements en étant connecté, puis copiez le JWT que votre navigateur envoie à api.streamelements.com (l’en-tête <code>Authorization</code> d’une requête, la partie après « Bearer »).",
@@ -1459,6 +1474,8 @@
     "emptyBody": "Ce classement se remplit à mesure que la communauté de {channel} regarde en direct, s'abonne, offre des cadeaux et envoie des cheers. Connectez-vous et prenez la première place.",
     "degraded": "Le classement en direct est temporairement indisponible. Il se remettra à jour de lui-même.",
     "earnNote": "Gagné en regardant en direct · abonnements · cadeaux · cheers",
+    "boardCh": "classement · direct",
+    "commandsCh": "commandes · publiques",
     "commandsLabel": "Commandes de chat",
     "commandsTitle": "Commandes de chat",
     "colCommand": "Commande",

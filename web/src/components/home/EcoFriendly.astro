@@ -14,8 +14,8 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('eco.eyebrow')} title={t('eco.title')} />
 
     <div class="eco__grid">
-        <Card class="eco__card" data-reveal>
-            <div class="eco__demo" aria-hidden="true">
+        <Card class="eco__card" label={t('eco.ch')} data-reveal>
+            <div class="eco__demo" slot="band" aria-hidden="true">
                 <svg class="eco__leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                     <path class="eco__leaf-path" d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1.5 2 2 4.4 2 8.6-2 5-6 10-10 9.4"></path>
                     <path class="eco__leaf-stem" d="M2 22l9-9"></path>
@@ -50,6 +50,7 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
+        --card-band-h: 160px;
     }
 
     @media (min-width: 720px) {
@@ -100,17 +101,14 @@ const t = useTranslations(lang);
         color: var(--white, #f0ece4);
     }
 
+    /* Demo lives in the Card's housing band (slot="band"); the band owns the
+       chrome and outer padding, the demo keeps only its stage height. */
     .eco__demo {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 160px;
-        margin-bottom: 24px;
-        padding: 14px 16px;
-        border-radius: 10px;
-        background: rgba(10, 10, 10, 0.55);
-        border: 1px solid rgba(240, 236, 228, 0.05);
+        height: 100%;
         overflow: hidden;
     }
 
@@ -155,7 +153,7 @@ const t = useTranslations(lang);
     }
     
     @media (max-width: 640px) {
-        .eco__demo { height: 100px; padding: 16px; }
+        .eco__grid { --card-band-h: 120px; }
         .eco__links { flex-direction: column; align-items: flex-start; gap: 10px; }
     }
 </style>

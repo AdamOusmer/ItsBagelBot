@@ -14,10 +14,13 @@
     --card-bg: #111110;
     --border: rgba(201, 168, 124, 0.15);
 
-    --font-display: "Syne", sans-serif;
+    /* "* Variable" are the self-hosted Fontsource variable-font family names
+       (see Layout.astro); the plain names stay as fallbacks for any cached
+       page still holding the old Google Fonts CSS. */
+    --font-display: "Syne Variable", "Syne", sans-serif;
     --font-mono: "DM Mono", monospace;
-    --font-body: "DM Sans", sans-serif;
-    --font-hand: "Caveat", cursive;
+    --font-body: "DM Sans Variable", "DM Sans", sans-serif;
+    --font-hand: "Caveat Variable", "Caveat", cursive;
 
     --nav-height: 76px;
     /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
@@ -58,9 +61,12 @@
     padding: 0;
 }
 
+/* Native-cursor hiding lives in Cursor.astro behind the JS-set
+   `bb-cursor-on` class — never here. A plain `cursor: none` on html hid the
+   cursor even when the cursor script failed or JS was off, leaving desktop
+   users with no pointer at all (shipped that way until 2026-08-31). */
 html {
     scroll-behavior: smooth;
-    cursor: none;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -72,20 +78,9 @@ body::-webkit-scrollbar {
     height: 0;
 }
 
-@media (max-width: 900px) {
-    html {
-        scroll-behavior: smooth;
-        cursor: auto;
-    }
-}
-
 @media (max-width: 1023px) {
     :root {
         --nav-height: 68px;
-    }
-
-    html {
-        cursor: auto;
     }
 }
 

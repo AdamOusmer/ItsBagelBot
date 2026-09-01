@@ -20,11 +20,17 @@ export type { Perm };
 
 // ImportSource names the supported import origins. The spelled-out values
 // travel on the wire (form posts carry `source`), so they must never change.
-export type ImportSource = 'streamelements' | 'fossabot' | 'moobot' | 'streamlabs_desktop';
+export type ImportSource =
+  | 'streamelements'
+  | 'fossabot'
+  | 'moobot'
+  | 'nightbot'
+  | 'streamlabs_desktop';
 export const IMPORT_SOURCES: readonly ImportSource[] = [
   'streamelements',
   'fossabot',
   'moobot',
+  'nightbot',
   'streamlabs_desktop'
 ];
 

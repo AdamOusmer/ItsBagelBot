@@ -25,7 +25,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import { detectMoobot, MoobotExportError, parseMoobot } from './moobot';
 import type { ImportDiagnostic, ImportManifest } from './types';
-import { findCollisions } from './validate';
+import { findCollisions, isValidFetchDefName } from './validate';
 
 const here = dirname(import.meta.path);
 
@@ -166,10 +166,21 @@ function exportWith(text: string, identifier = 'weather'): Uint8Array {
 describe('urlfetch mapping', () => {
   test('plain tag maps to the bare slug backed by a URL-less shell def', () => {
     const { manifest } = parseMoobot(exportWith('Temp: <urlfetch.plain>'));
-    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:moobot-weather}');
+    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:moobot_weather}');
     // Deliberately NO url: Moobot exports carry none; the shell is a
     // placeholder until the broadcaster re-enters it.
-    expect(manifest.fetches).toEqual([{ name: 'moobot-weather', source: 'moobot' }]);
+    expect(manifest.fetches).toEqual([{ name: 'moobot_weather', source: 'moobot' }]);
+  });
+
+  // Regression guard: the slug used to be `moobot-<command>`, which the
+  // commands service refuses (^[a-z0-9_]{1,32}$), so every synthesized shell
+  // failed at commit with its tokens already in the response text.
+  test('every synthesized definition name is one the commands service accepts', () => {
+    const { manifest } = parseMoobot(
+      exportWith('a <urlfetch.plain> b <urlfetch.json.3>', 'my cool-cmd')
+    );
+    expect(manifest.fetches!.length).toBe(2);
+    for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
   });
 
   test('json.N tags map to slug-N; plain and slots coexist as distinct defs', () => {
@@ -177,13 +188,13 @@ describe('urlfetch mapping', () => {
       exportWith('<urlfetch.plain> | <urlfetch.json.1> | <urlfetch.json.3> | <urlfetch.json.10>')
     );
     expect(manifest.commands![0].responses![0]).toBe(
-      '{urlfetch:moobot-weather} | {urlfetch:moobot-weather-1} | {urlfetch:moobot-weather-3} | {urlfetch:moobot-weather-10}'
+      '{urlfetch:moobot_weather} | {urlfetch:moobot_weather_1} | {urlfetch:moobot_weather_3} | {urlfetch:moobot_weather_10}'
     );
     expect(manifest.fetches!.map((f) => f.name)).toEqual([
-      'moobot-weather',
-      'moobot-weather-1',
-      'moobot-weather-3',
-      'moobot-weather-10'
+      'moobot_weather',
+      'moobot_weather_1',
+      'moobot_weather_3',
+      'moobot_weather_10'
     ]);
     for (const f of manifest.fetches!) {
       expect(f.url).toBeUndefined();
@@ -200,13 +211,13 @@ describe('urlfetch mapping', () => {
       expect(w.item_index).toBe(0);
       expect(w.message).toContain('re-enter the URL for');
     }
-    expect(warns[0].message).toContain('{urlfetch:moobot-weather}');
-    expect(warns[1].message).toContain('"moobot-weather-2"');
+    expect(warns[0].message).toContain('{urlfetch:moobot_weather}');
+    expect(warns[1].message).toContain('"moobot_weather_2"');
   });
 
   test('command name normalization feeds the slug (!Weather folds onto weather)', () => {
     const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', '!Weather'));
-    expect(manifest.fetches!.map((f) => f.name)).toEqual(['moobot-weather']);
+    expect(manifest.fetches!.map((f) => f.name)).toEqual(['moobot_weather']);
   });
 
   test('re-import idempotence: same export parses to identical bytes', () => {
@@ -216,9 +227,9 @@ describe('urlfetch mapping', () => {
 
   test('slug collisions with existing channel items surface via CollisionRef', () => {
     const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', 'weather'));
-    // The slug itself ("moobot-weather") is the name that could clash with an
+    // The slug itself ("moobot_weather") is the name that could clash with an
     // existing item — a plain "weather" command on the channel does not.
-    expect(findCollisions(['moobot-weather'], manifest)).toEqual([{ kind: 'fetch', name: 'moobot-weather' }]);
+    expect(findCollisions(['moobot_weather'], manifest)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
     // The imported command "weather" would of course collide with itself on
     // the channel; only an unrelated existing list stays fully clean.
     expect(findCollisions(['nothing-here'], manifest)).toEqual([]);

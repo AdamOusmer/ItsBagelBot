@@ -4,6 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n, type IconName } from '@bagel/shared';
   import type { PageData } from './$types';
+  import { commandsHref } from '$lib/components/public/links';
 
   let { data }: { data: PageData } = $props();
 
@@ -298,8 +299,11 @@
   // has no login shape at all). Link by id when the label cannot be one, rather
   // than linking somewhere that 404s.
   const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
+  // Absolute, to the host the command page belongs to. Relative would keep the
+  // visitor on whichever host served /stats and hand them the commands page
+  // under it; the server redirects that away, so this just saves the hop.
   const channelHref = (row: { id: string; name: string }) =>
-    `/user/${LOGIN_SHAPE.test(row.name) ? row.name : row.id}`;
+    commandsHref(LOGIN_SHAPE.test(row.name) ? row.name : row.id);
 </script>
 
 <svelte:head>
@@ -353,10 +357,12 @@
     {#each tiles as tile, i (tile.label)}
       <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
         <Card atmosphere hover class="tile">
-          <div class="tile-head">
-            <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
-            <span class="label">{tile.label}</span>
-          </div>
+          {#snippet band()}
+            <div class="tile-head">
+              <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
+              <span class="label">{tile.label}</span>
+            </div>
+          {/snippet}
           <div class="value">
             <span class="num">{tile.value}</span>
           </div>
@@ -375,14 +381,16 @@
 
   <section class="boards" aria-label={t('stats.boardsEyebrow')}>
     <div class="board-wrap reveal" style="--i:6">
-      <Card atmosphere class="board">
-        <header class="board-head">
-          <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
-          <div class="board-titles">
-            <h2>{t('stats.trafficBoardTitle')}</h2>
-            <p>{t('stats.trafficBoardNote')}</p>
-          </div>
-        </header>
+      <Card atmosphere class="board" label={t('stats.trafficBoardCh')}>
+        {#snippet band()}
+          <header class="board-head">
+            <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
+            <div class="board-titles">
+              <h2>{t('stats.trafficBoardTitle')}</h2>
+              <p>{t('stats.trafficBoardNote')}</p>
+            </div>
+          </header>
+        {/snippet}
         {#if traffic.length === 0}
           <p class="empty">{t('stats.boardEmpty')}</p>
         {:else}
@@ -421,14 +429,16 @@
     </div>
 
     <div class="board-wrap reveal" style="--i:6.5">
-      <Card atmosphere class="board">
-        <header class="board-head">
-          <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
-          <div class="board-titles">
-            <h2>{t('stats.feedBoardTitle')}</h2>
-            <p>{t('stats.feedBoardNote')}</p>
-          </div>
-        </header>
+      <Card atmosphere class="board" label={t('stats.feedBoardCh')}>
+        {#snippet band()}
+          <header class="board-head">
+            <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
+            <div class="board-titles">
+              <h2>{t('stats.feedBoardTitle')}</h2>
+              <p>{t('stats.feedBoardNote')}</p>
+            </div>
+          </header>
+        {/snippet}
         <div class="feed-total">
           <span class="num tan">{totalFmt.format(feed.total)}</span>
           <span class="label">{t('stats.feedTotalLabel')}</span>
@@ -540,13 +550,33 @@
      hairline border, radius, hover spotlight/lift — is the Card's own. */
   .tile-wrap { min-width: 0; }
 
+  /* The tile is a banded Card: the head lives in the housing band, so the
+     column layout and gap move to the body the Card renders below it. */
   .tiles :global(.card) {
     --card-pad: clamp(24px, 3.4vw, 40px);
     height: 100%;
+    min-width: 0;
+  }
+  /* 32px icon, or a label wrapped to two lines on a narrow screen, plus the
+     housing's padding — one height for the pair either way. */
+  .tiles :global(.card__band) {
+    --card-band-h: calc(70px * var(--d, 1));
+    padding: calc(14px * var(--d, 1)) var(--card-pad);
+  }
+  /* The gap is the real 12px between the counter and its rate line. It used
+     to be 24px here with a -12px margin on .rate pulling back against it,
+     which collapsed onto the counter's last line as soon as the number
+     wrapped and printed the rate line through the digits.
+
+     container-type makes this box the reference for the counter's cqi font
+     size below — the counter has to fit the tile it is in, not the tile it
+     had when the number was shorter. */
+  .tiles :global(.card__body) {
     display: flex;
     flex-direction: column;
-    gap: var(--bb-space-5);
+    gap: var(--bb-space-3);
     min-width: 0;
+    container-type: inline-size;
   }
   /* Hairline of light along the top edge, as on the marketing surfaces. Free to
      use: Card's own ::before only paints under the (unused) `sheen` variant. */
@@ -589,9 +619,20 @@
   .num {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    /* Sized so a ten-digit total (13 characters with separators) still fits on
-       one line in the narrowest two-column tile, just above the 720px collapse. */
-    font-size: clamp(30px, 5vw, 60px);
+    /* Sized against the tile, not the viewport, because the counter only ever
+       grows. clamp(30px, 5vw, 60px) was set when the total was shorter; by
+       2,506,163,926 the number needed 11.32em and no longer fit one line at
+       ANY width — it wrapped mid-group ("2,506,163," / "926") on desktop as
+       well as on a phone.
+
+       8cqi is the tile's inline size divided by 12.5, and an eleven-digit
+       total (14 characters with separators) measures 12.32em in English,
+       which is the wider of the two locales. So the number that wraps is the
+       first one past a hundred billion, and the wrap is safe when it comes:
+       overflow-wrap below still breaks it and the gap above no longer
+       collapses. Viewport units cannot do this — the tile is one column wide
+       on a phone and half a grid wide on a desktop at the same vw. */
+    font-size: clamp(20px, 8cqi, 60px);
     line-height: 1;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
@@ -614,7 +655,6 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: calc(-1 * var(--bb-space-3));
   }
 
   .rate-num {
@@ -643,9 +683,22 @@
 
   .board-wrap { min-width: 0; }
 
+  /* Banded Card: the head is the housing band; column layout moves to the
+     body below it. */
   .boards :global(.card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
     height: 100%;
+    min-width: 0;
+  }
+  /* Both boards share one housing height: the two notes wrap at different
+     widths, so a floor would stagger the seams across the pair. Sized for the
+     longest note wrapped to three lines on a 375px screen (65px in French),
+     which is the tightest this head ever gets. */
+  .boards :global(.card__band) {
+    --card-band-h: calc(112px * var(--d, 1));
+    padding: calc(16px * var(--d, 1)) var(--card-pad);
+  }
+  .boards :global(.card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);

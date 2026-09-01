@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n } from '@bagel/shared';
   import type { PageData } from './$types';
+  import { commandsHref } from '$lib/components/public/links';
 
   let { data }: { data: PageData } = $props();
 
@@ -33,9 +34,11 @@
       .sort((a, b) => a.localeCompare(b))
   );
 
-  // The hero's channel name links to its public command page, which lives on
-  // the static /user/<login> route — reachable on this host like any other.
-  const channelHref = $derived(`/user/${data.login}`);
+  // The hero's channel name links to its public command page. Absolute, to the
+  // host that page belongs to: this used to be `/user/${login}`, and because the
+  // app answers that route on every hostname, clicking it kept the visitor here
+  // and served them the commands page at leaderboard.itsbagelbot.com/user/<login>.
+  const channelHref = $derived(commandsHref(data.login));
 </script>
 
 <svelte:head>
@@ -101,14 +104,16 @@
     </section>
 
     <section class="board-wrap reveal" style="--i:5" aria-label={t('leaderboard.boardLabel')}>
-      <Card atmosphere class="board">
-        <header class="board-head">
-          <span class="ico" aria-hidden="true"><Icon name="users" size={16} /></span>
-          <div class="board-titles">
-            <h2>{t('leaderboard.boardTitle')}</h2>
-            <p>{t('leaderboard.boardNote')}</p>
-          </div>
-        </header>
+      <Card atmosphere class="board" label={t('leaderboard.boardCh')}>
+        {#snippet band()}
+          <header class="board-head">
+            <span class="ico" aria-hidden="true"><Icon name="users" size={16} /></span>
+            <div class="board-titles">
+              <h2>{t('leaderboard.boardTitle')}</h2>
+              <p>{t('leaderboard.boardNote')}</p>
+            </div>
+          </header>
+        {/snippet}
         {#if rest.length === 0}
           <p class="solo-note">{t('leaderboard.soloNote')}</p>
         {:else}
@@ -148,11 +153,13 @@
 
   {#if data.commands.length > 0 || commandTriggers.length > 0}
     <section class="cmds-wrap reveal" style="--i:6" aria-label={t('leaderboard.commandsLabel')}>
-      <Card atmosphere class="cmds-card">
-        <header class="cmds-head">
-          <span class="ico" aria-hidden="true"><Icon name="commands" size={16} /></span>
-          <h2>{t('leaderboard.commandsTitle')}</h2>
-        </header>
+      <Card atmosphere class="cmds-card" label={t('leaderboard.commandsCh')}>
+        {#snippet band()}
+          <header class="cmds-head">
+            <span class="ico" aria-hidden="true"><Icon name="commands" size={16} /></span>
+            <h2>{t('leaderboard.commandsTitle')}</h2>
+          </header>
+        {/snippet}
 
         {#if data.commands.length > 0}
           <div class="table-scroll">
@@ -438,8 +445,19 @@
     margin: 0 auto;
   }
 
+  /* Banded Card: the head is the housing band; column layout moves to the
+     body the Card renders below it. */
   .board-wrap :global(.card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
+    min-width: 0;
+  }
+  /* Sized for the note wrapped to three lines on a 375px screen — the same
+     head shape as the stats boards. */
+  .board-wrap :global(.card__band) {
+    --card-band-h: calc(112px * var(--d, 1));
+    padding: calc(16px * var(--d, 1)) var(--card-pad);
+  }
+  .board-wrap :global(.card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);
@@ -599,7 +617,6 @@
     display: flex;
     align-items: center;
     gap: var(--bb-space-2);
-    margin-bottom: var(--bb-space-3);
   }
   .cmds-head h2 {
     margin: 0;

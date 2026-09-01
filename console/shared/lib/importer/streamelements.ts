@@ -23,6 +23,7 @@ import {
   CODE,
   canonicalizeResponse,
   clampCooldown,
+  fetchDefSlug,
   mapPermission,
   normalizeName
 } from './validate';
@@ -643,7 +644,7 @@ function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SePars
     idx: commands.length,
     diags: state.diags,
     notes: [],
-    fetch: makeFetchSlotSink(`se-${name}`, state.fetchDefs, state.diags)
+    fetch: makeFetchSlotSink(fetchDefSlug('se', name), state.fetchDefs, state.diags)
   };
   const online = flag(c.enabledOnline);
 
@@ -1281,7 +1282,10 @@ export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
 // makeFetchSlotSink builds the per-command slot allocator over one shared
 // import-level def map. Slot rule: the first distinct argument set in a reply
-// takes the bare slug `se-<command>`, the Nth distinct one (N≥2) appends -N.
+// takes the bare fetchDefSlug('se', command), the Nth distinct one (N≥2)
+// appends _N — underscore, not hyphen: the commands service's def-name
+// grammar is ^[a-z0-9_]{1,32}$ and refused every hyphenated name this
+// importer used to synthesize.
 // Identical argument sets within ONE command share their def — equality is
 // byte-exact here, so merging is safe — but distinct slots never merge even
 // when their URLs look equal, matching the Moobot-side rule where equality is
@@ -1300,7 +1304,7 @@ function makeFetchSlotSink(
       const existing = byArgs.get(argsKey);
       if (existing !== undefined) return existing;
 
-      const key = slots > 0 ? `${baseSlug}-${slots + 1}` : baseSlug;
+      const key = slots > 0 ? `${baseSlug}_${slots + 1}` : baseSlug;
       if (!registerFetchDef(defs, fetchDefFor(key, url, jsonPath), diags)) return null;
       slots++;
       byArgs.set(argsKey, key);

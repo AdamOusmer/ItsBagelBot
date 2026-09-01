@@ -1,30 +1,31 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Card atmosphere — a pocket of the header's light, not a cursor tracker.
-  // Ported from the marketing site's CardAtmosphere.astro so console surfaces
-  // read as the same material as itsbagelbot.dev.
+  // Card atmosphere — the instrument-panel light (QuietWork Cards, variant
+  // 3a), ported from the marketing site's CardAtmosphere.astro so console
+  // surfaces read as the same material as itsbagelbot.dev: the hero's
+  // tan->green arc parked off the right edge plus a green sheen washing in
+  // from the top-right corner. The blurred green/tan orbs the earlier
+  // atmosphere carried are gone — they were two 42px-blur bitmaps per card;
+  // the sheen is one unblurred radial gradient. Character from structure,
+  // not from more glow.
   //
-  // Same discs as the hero (green top-right, tan bottom-left, a tan->green arc)
-  // at card scale. They stay static: a `filter: blur` on a still layer is one
-  // paint and a cached bitmap. The hitch upstream was animating them — a
-  // ::before that pulsed scale(1.1) on every orb plus a masked ring spinning on
-  // every tile, which re-rasters the blur at 60fps. Hover only changes opacity
-  // (compositor), never transform or filter.
+  // Everything stays static: the arc never spins (rotating a masked layer on
+  // every tile re-rasters at 60fps — the original hitch) and hover only
+  // nudges opacity, which stays on the compositor.
   //
-  // Divergence from the .astro original: it stacks content above the orbs with
-  // a `.card__body` wrapper at z-index 1. Console cards put layout on the card
+  // Divergence from the .astro original: console cards put layout on the card
   // ROOT (loyalty's .status-row and the importer's .stepper are display:flex
   // cards), and a wrapper element would swallow their children out of the flex
-  // container. So the orbs go to z-index:-1 under Card's `isolation: isolate`
-  // instead: a negative-z child paints after the card's own background but
-  // before in-flow content, which is the same result with no extra box.
+  // container. So the layers go to z-index:-1 under Card's `isolation:
+  // isolate` instead: a negative-z child paints after the card's own
+  // background but before in-flow content, which is the same result with no
+  // extra box.
 </script>
 
 <div class="card-atmo" aria-hidden="true">
   <span class="card-atmo__ring"></span>
-  <span class="card-atmo__orb card-atmo__orb--green"></span>
-  <span class="card-atmo__orb card-atmo__orb--tan"></span>
+  <span class="card-atmo__sheen"></span>
 </div>
 
 <style>
@@ -35,11 +36,11 @@
     overflow: hidden;
     pointer-events: none;
     border-radius: inherit;
-    /* Header orbs rest at ~0.16 on a full viewport; cards are smaller so the
-       same number reads as nothing. 0.28 at rest / 0.42 on hover was measured
-       upstream against --bb-card-bg #111110 (same ink here) after the pulsed
-       ::before came off: 0.22 (the pulsed rest) went flat without that layer. */
-    --card-atmo-orb: 0.28;
+    /* Rest/hover pair replaces the old orb bump (0.28->0.42): the sheen's
+       0.12 alpha is authored into the gradient, so the var scales it — 1.6
+       lands the hover wash at ~0.19 against the card ink. */
+    --card-atmo-glow: 1;
+    --card-atmo-ring: 0.16;
   }
 
   /* Even siblings flip so neighbouring cards don't share one corner glow. */
@@ -49,7 +50,8 @@
      panels, so an unconditional :hover would make the whole page twitch. */
   :global(.card.hoverable:hover) .card-atmo,
   :global(.card.hoverable:focus-visible) .card-atmo {
-    --card-atmo-orb: 0.42;
+    --card-atmo-glow: 1.6;
+    --card-atmo-ring: 0.24;
   }
 
   /* Mini of the header's ring: a 1.5px tan->green arc, not a filled disc.
@@ -64,7 +66,8 @@
     aspect-ratio: 1;
     translate: 0 -50%;
     border-radius: 50%;
-    opacity: 0.16;
+    opacity: var(--card-atmo-ring);
+    transition: opacity 360ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     background: conic-gradient(
       from 210deg,
       rgba(201, 168, 124, 0.9),
@@ -77,27 +80,11 @@
     mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
   }
 
-  .card-atmo__orb {
+  .card-atmo__sheen {
     position: absolute;
-    border-radius: 50%;
-    filter: blur(42px);
-    opacity: var(--card-atmo-orb);
+    inset: 0;
+    opacity: var(--card-atmo-glow);
     transition: opacity 360ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
-  }
-
-  .card-atmo__orb--green {
-    width: 240px;
-    height: 240px;
-    background-color: var(--bb-green, #2d6a4f);
-    top: -48px;
-    right: -36px;
-  }
-
-  .card-atmo__orb--tan {
-    width: 200px;
-    height: 200px;
-    background-color: var(--bb-tan, #c9a87c);
-    bottom: -40px;
-    left: -32px;
+    background: radial-gradient(120% 80% at 100% 0%, rgba(82, 183, 136, 0.12), transparent 60%);
   }
 </style>

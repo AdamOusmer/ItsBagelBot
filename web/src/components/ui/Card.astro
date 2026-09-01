@@ -3,27 +3,51 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Shared surface card. Atmosphere is the header's orb/ring language at card
- * scale (see CardAtmosphere) — not a pointer-tracked spotlight. Hover still
- * brightens the border and lifts a few pixels. Render as a <div> (default)
- * or an <a> via `as="a"` + `href`. Extra attributes (data-reveal, style,
- * target, rel, aria-*) pass straight through.
+ * Shared surface card, instrument-panel shell (QuietWork Cards, variant 3a).
+ *
+ * Two shapes:
+ *  - Flat: one plate, atmosphere (arc + sheen) washing the whole card.
+ *  - Banded: pass a `band` slot and the card grows a housing — a darker
+ *    #0A0A0A band on top holding the visual, with the atmosphere and the
+ *    mono channel `label` inset in its corner; body copy sits below on the
+ *    #111110 plate. "Character from structure, not from more glow."
+ *
+ * Hover still brightens the border and lifts a few pixels. Render as a
+ * <div> (default) or an <a> via `as="a"` + `href`. Extra attributes
+ * (data-reveal, style, target, rel, aria-*) pass straight through.
  */
 import CardAtmosphere from "./CardAtmosphere.astro";
 
 interface Props {
     as?: "div" | "a";
     href?: string;
+    label?: string;
     class?: string;
     [key: string]: unknown;
 }
 
-const { as = "div", href, class: className = "", ...attrs } = Astro.props;
+const { as = "div", href, label, class: className = "", ...attrs } = Astro.props;
 const Tag = as;
+const banded = Astro.slots.has("band");
 ---
 
-<Tag class:list={["card", className]} href={href} data-card {...attrs}>
-    <CardAtmosphere />
+<Tag class:list={["card", { "card--band": banded }, className]} href={href} data-card {...attrs}>
+    {
+        banded ? (
+            <span class="card__band">
+                <CardAtmosphere />
+                {label && <span class="card__label">{label}</span>}
+                <span class="card__band-inner">
+                    <slot name="band" />
+                </span>
+            </span>
+        ) : (
+            <>
+                <CardAtmosphere />
+                {label && <span class="card__label">{label}</span>}
+            </>
+        )
+    }
     <span class="card__body"><slot /></span>
 </Tag>
 
@@ -48,6 +72,76 @@ const Tag = as;
         display: block;
     }
 
+    .card--band {
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+    }
+
+    /* 3a housing: the band is a fixture the visual sits in, not a picture
+       frame — page-ink background, hairline seam, atmosphere contained.
+
+       A FIXED height, never a min-height: cards sit side by side in a grid,
+       and a floor lets the one card whose visual runs tall (Games' rifle
+       drawing was 131px against its neighbours' 105px) push its own seam down
+       while the others stay at the floor — two different housings in one row.
+       Sections set --card-band-h once for the whole grid, sized to their
+       tallest visual, so every seam in the row lands on the same line. */
+    .card__band {
+        position: relative;
+        flex: none;
+        display: flex;
+        align-items: center;
+        height: var(--card-band-h, 104px);
+        padding: 16px 24px;
+        background: var(--black, #0a0a0a);
+        border-bottom: 1px solid rgba(201, 168, 124, 0.12);
+        overflow: hidden;
+    }
+
+    /* Fills the housing so a visual sized in percentages resolves against the
+       band, not against its own content. */
+    .card__band-inner {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Inside the housing the arc re-parks to band scale: centered on the
+       band's midline, smaller, a touch brighter than the card-scale rest. */
+    .card__band :global(.card-atmo__ring) {
+        top: 50%;
+        right: -16%;
+        width: 62%;
+        --card-atmo-ring: 0.18;
+    }
+
+    /* Channel label inset in the housing corner (or the plate corner on a
+       flat card that asks for one). */
+    .card__label {
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        z-index: 2;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.6rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: rgba(201, 168, 124, 0.4);
+    }
+
+    /* :where() so a section can restyle the body it was handed: written as
+       `.card--band .card__body` this scored 0,4,0 with Astro's scoping and
+       quietly outranked every page-level `:global(.card__body)` override
+       (0,3,0). The defaults stay defaults. */
+    :where(.card--band) .card__body {
+        flex: 1;
+        padding: 24px;
+    }
+
     @media (hover: hover) and (pointer: fine) {
         .card:hover {
             border-color: rgba(201, 168, 124, 0.38);
@@ -58,6 +152,14 @@ const Tag = as;
     @media (max-width: 480px) {
         .card {
             padding: 24px;
+        }
+
+        .card--band {
+            padding: 0;
+        }
+
+        :where(.card--band) .card__body {
+            padding: 20px;
         }
     }
 </style>
