@@ -81,7 +81,13 @@ async function importGate(locals: App.Locals): Promise<GateVerdict> {
   return { ok: true, session: s };
 }
 
-const SOURCES: readonly ImportSource[] = ['streamelements', 'fossabot', 'moobot', 'streamlabs_desktop'];
+const SOURCES: readonly ImportSource[] = [
+  'streamelements',
+  'fossabot',
+  'moobot',
+  'nightbot',
+  'streamlabs_desktop'
+];
 
 function isSource(v: string): v is ImportSource {
   return (SOURCES as readonly string[]).includes(v);
@@ -107,8 +113,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 // SourceInput carries the three form-borne inputs a preview may use: a pasted
 // credential (StreamElements), an uploaded export (StreamLabs .db), or an
-// already-parsed manifest (Moobot — the browser decoded its own export so the
-// raw file never crosses the wire).
+// already-parsed manifest (Moobot and Nightbot — the browser decoded its own
+// export so the raw file never crosses the wire).
 interface SourceInput {
   credential: string;
   fileB64: string;
@@ -132,6 +138,7 @@ const SOURCE_INPUT_RULES: Record<Exclude<ImportSource, 'fossabot'>, (input: Sour
   streamelements: (input) =>
     missingAnyInput(input, 'Paste your StreamElements JWT first.') ?? jwtShapeRefusal(input.credential),
   moobot: withJwtShapeCheck('Choose a file to upload.'),
+  nightbot: withJwtShapeCheck('Choose a file to upload.'),
   streamlabs_desktop: withJwtShapeCheck('Choose a file to upload.')
 };
 

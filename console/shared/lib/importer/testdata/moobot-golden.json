@@ -79,7 +79,7 @@
         {
           "name": "weather",
           "responses": [
-            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+            "Weather: {urlfetch:moobot_weather} | Humidity: {urlfetch:moobot_weather_1} | Wind: {urlfetch:moobot_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -114,15 +114,15 @@
       ],
       "fetches": [
         {
-          "name": "moobot-weather",
+          "name": "moobot_weather",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-1",
+          "name": "moobot_weather_1",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-2",
+          "name": "moobot_weather_2",
           "source": "moobot"
         }
       ]
@@ -295,7 +295,7 @@
         {
           "name": "weather",
           "responses": [
-            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+            "Weather: {urlfetch:moobot_weather} | Humidity: {urlfetch:moobot_weather_1} | Wind: {urlfetch:moobot_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -330,15 +330,15 @@
       ],
       "fetches": [
         {
-          "name": "moobot-weather",
+          "name": "moobot_weather",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-1",
+          "name": "moobot_weather_1",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-2",
+          "name": "moobot_weather_2",
           "source": "moobot"
         }
       ]
@@ -528,7 +528,7 @@
         {
           "name": "weather",
           "responses": [
-            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+            "Weather: {urlfetch:moobot_weather} | Humidity: {urlfetch:moobot_weather_1} | Wind: {urlfetch:moobot_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -563,15 +563,15 @@
       ],
       "fetches": [
         {
-          "name": "moobot-weather",
+          "name": "moobot_weather",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-1",
+          "name": "moobot_weather_1",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-2",
+          "name": "moobot_weather_2",
           "source": "moobot"
         }
       ]
@@ -759,7 +759,7 @@
         {
           "name": "weather",
           "responses": [
-            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+            "Weather: {urlfetch:moobot_weather} | Humidity: {urlfetch:moobot_weather_1} | Wind: {urlfetch:moobot_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -794,15 +794,15 @@
       ],
       "fetches": [
         {
-          "name": "moobot-weather",
+          "name": "moobot_weather",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-1",
+          "name": "moobot_weather_1",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-2",
+          "name": "moobot_weather_2",
           "source": "moobot"
         }
       ]
@@ -1027,7 +1027,7 @@
         {
           "name": "weather",
           "responses": [
-            "Weather: {urlfetch:moobot-weather} | Humidity: {urlfetch:moobot-weather-1} | Wind: {urlfetch:moobot-weather-2}"
+            "Weather: {urlfetch:moobot_weather} | Humidity: {urlfetch:moobot_weather_1} | Wind: {urlfetch:moobot_weather_2}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -1045,15 +1045,15 @@
       ],
       "fetches": [
         {
-          "name": "moobot-weather",
+          "name": "moobot_weather",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-1",
+          "name": "moobot_weather_1",
           "source": "moobot"
         },
         {
-          "name": "moobot-weather-2",
+          "name": "moobot_weather_2",
           "source": "moobot"
         }
       ]

@@ -1064,6 +1064,14 @@
     ],
     "seLinkLabel": "Open the StreamElements channels page",
     "jwtFieldAria": "StreamElements JWT",
+    "nightbotDesc": "Custom commands, timers and blacklist terms saved from the Nightbot API.",
+    "instrNightbot": [
+      "Sign in at nightbot.tv and open Commands → Custom.",
+      "Open your browser's developer tools (F12) and pick the Network tab.",
+      "Reload the page, click the request to api.nightbot.tv/1/commands and save its response as a .json file.",
+      "Repeat on the Timers page for /1/timers if you want your timers too, and put both responses in one file as {\"commands\": …, \"timers\": …}.",
+      "Upload that file below — it is read in your browser and never uploaded as-is."
+    ],
     "instrMoobot": [
       "Sign in at moobot.ai and open your dashboard.",
       "Open the Tools menu.",

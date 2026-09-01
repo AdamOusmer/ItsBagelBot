@@ -42,6 +42,7 @@
     "./components/*": "./components/*",
     "./svelte-config": "./svelte-config.js",
     "./importer/moobot": "./lib/importer/moobot/index.ts",
+    "./importer/nightbot": "./lib/importer/nightbot/index.ts",
     "./importer/caps": "./lib/importer/caps.ts",
     "./importer/types": "./lib/importer/types.ts",
     "./importer/validate": "./lib/importer/validate.ts",

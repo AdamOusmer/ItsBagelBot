@@ -1064,6 +1064,14 @@
     ],
     "seLinkLabel": "Ouvrir la page Chaînes de StreamElements",
     "jwtFieldAria": "JWT StreamElements",
+    "nightbotDesc": "Commandes personnalisées, minuteries et termes de liste noire enregistrés depuis l’API Nightbot.",
+    "instrNightbot": [
+      "Connectez-vous sur nightbot.tv puis ouvrez Commands → Custom.",
+      "Ouvrez les outils de développement de votre navigateur (F12) et choisissez l’onglet Réseau.",
+      "Rechargez la page, cliquez sur la requête vers api.nightbot.tv/1/commands et enregistrez sa réponse dans un fichier .json.",
+      "Refaites-le sur la page Timers pour /1/timers si vous voulez aussi vos minuteries, puis rassemblez les deux réponses dans un seul fichier sous la forme {\"commands\" : …, \"timers\" : …}.",
+      "Déposez ce fichier ci-dessous : il est lu dans votre navigateur et n’est jamais envoyé tel quel."
+    ],
     "instrMoobot": [
       "Connectez-vous sur moobot.ai et ouvrez votre tableau de bord.",
       "Ouvrez le menu Tools (Outils).",
