@@ -123,7 +123,11 @@
 
 <style>
   .rail {
-    position: sticky; top: 0; align-self: start; height: 100vh;
+    /* z-index 1: pages that paint a fixed full-viewport backdrop inside the
+       shell (billing's AuroraBg, position: fixed at z-index 0) come after the
+       rail in DOM order and are opaque, so an auto-z rail vanishes under
+       them. 1 keeps the rail above those backdrops and below the topbar. */
+    position: sticky; top: 0; z-index: 1; align-self: start; height: 100vh;
     box-sizing: border-box; width: 240px; flex: none;
     display: none; flex-direction: column;
     padding: 20px 14px 14px;
