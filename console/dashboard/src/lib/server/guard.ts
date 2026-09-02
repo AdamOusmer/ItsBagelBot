@@ -26,6 +26,7 @@ import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
+import { betaRouteDef, moduleLocked } from '$lib/server/module-gate';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -187,5 +188,18 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     }
   }
 
+  await assertBetaRouteOpen(event);
   return s;
+}
+
+// A beta module's bespoke page (govee, timers, ...) is premium-only while the
+// catalog flags it. Gating it here covers the page AND its form actions in one
+// place, so none of the bespoke pages carries a tier check and a module enters
+// or leaves beta by flipping its catalog flag alone. Bounces to the modules
+// index, whose tile shows the lock. Runs after the delegate block so a dead
+// board exits first; broadcasterPremium reads the delegate's board, not them.
+async function assertBetaRouteOpen(event: RequestEvent): Promise<void> {
+  const def = betaRouteDef(event.url.pathname);
+  if (!def) return;
+  if (await moduleLocked(event.locals, def)) throw redirect(303, '/modules');
 }

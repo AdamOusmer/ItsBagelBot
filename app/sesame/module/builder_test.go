@@ -110,6 +110,8 @@ func TestValidateKindNamePairing(t *testing.T) {
 		}, false},
 		{"default empty bad", func() *Builder { return NewModule("", KindDefault) }, true},
 		{"optin empty bad", func() *Builder { return NewModule("", KindOptIn) }, true},
+		{"core beta bad", func() *Builder { return NewModule("x", KindCore).Beta() }, true},
+		{"optin beta ok", func() *Builder { return NewModule("x", KindOptIn).Beta() }, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

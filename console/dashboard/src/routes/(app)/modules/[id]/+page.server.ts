@@ -6,7 +6,7 @@ import { moduleDef, type ModuleDef, MOD } from '@bagel/shared';
 import { listModules, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { assertModuleWritable } from '$lib/server/module-gate';
+import { assertModuleWritable, moduleLocked } from '$lib/server/module-gate';
 import { parentIsEnabled } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -51,7 +51,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   if (def.href) throw redirect(302, def.href);
 
   const uid = effectiveId(locals.session);
-  if (DEMO) return { def, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 };
+  // Beta on a free channel: the page still renders (read-only, with the
+  // upgrade banner) but every write below is refused by resolveWrite.
+  const locked = await moduleLocked(locals, def);
+  if (DEMO) return { def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 };
 
   try {
     const rows = await listModules(uid);
@@ -59,13 +62,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     const { config, revision } = asConfig(row?.configs);
     return {
       def,
+      locked,
       enabled: row ? row.is_enabled : def.defaultEnabled,
       config,
       revision
     };
   } catch {
     // Surface defaults rather than a blank page if the read is momentarily down.
-    return { def, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, degraded: true };
+    return { def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, degraded: true };
   }
 };
 
@@ -119,13 +123,15 @@ function allowedConfigKeys(def: ModuleDef): Set<string> {
 // their bespoke page owns the write.
 type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: string };
 
-function resolveWrite(id: string, session: Session | null | undefined): WriteTarget {
+async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget> {
+  const session = locals.session;
   gateModules(session);
   const def = moduleDef(id);
   if (!def || def.href) return { denied: fail(404, { ok: false, error: 'Unknown module.' }) };
   // gateModules above only proves the 'modules' section; a module with its
   // own delegation grant (channel points) needs its own scope checked too.
   if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
+  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: 'Premium only while in beta.' }) };
   if (!DEMO && !session) return { denied: fail(401, { ok: false, error: 'Not signed in.' }) };
   return { def, uid: effectiveId(session) };
 }
@@ -144,7 +150,7 @@ export const actions: Actions = {
   // per-reply toggle). The client always posts the full draft, so upsertModule's
   // config replace is authoritative.
   save: async ({ request, params, locals }) => {
-    const target = resolveWrite(params.id, locals.session);
+    const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
     const { def, uid } = target;
 
@@ -171,7 +177,7 @@ export const actions: Actions = {
   // last read. A conflict means another writer moved the revision on: the client
   // reloads and retries instead of clobbering it.
   patch: async ({ request, params, locals }) => {
-    const target = resolveWrite(params.id, locals.session);
+    const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
     const { def, uid } = target;
 

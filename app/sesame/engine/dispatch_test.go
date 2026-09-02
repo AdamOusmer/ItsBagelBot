@@ -253,6 +253,44 @@ func TestBakedEnabledWinsOverCustom(t *testing.T) {
 	assert.Equal(t, "baked daily", got[0].Text)
 }
 
+// TestBetaModuleStandardLaneFallsThrough proves the beta gate: a Beta module
+// enabled by its row still yields to the custom command on the standard lane,
+// so a lapsed broadcaster keeps their row but the feature pauses.
+func TestBetaModuleStandardLaneFallsThrough(t *testing.T) {
+	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
+	p := newPipelineWith(&fakePublisher{}, reader, betaCmdEmit("urchin", "daily", "baked daily"))
+
+	views := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
+	var got []module.Output
+	require.NoError(t, p.dispatchCommand(context.Background(), chatCtx("!daily", ""), views, func(o *module.Output) { got = append(got, *o) }))
+	require.Len(t, got, 1)
+	assert.Equal(t, "custom daily", got[0].Text)
+}
+
+// TestBetaModulePremiumLaneRuns is the counterpart: on the premium lane the
+// beta module behaves like any enabled module.
+func TestBetaModulePremiumLaneRuns(t *testing.T) {
+	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
+	p := newPipelineWith(&fakePublisher{}, reader, betaCmdEmit("urchin", "daily", "baked daily"))
+
+	views := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
+	c := chatCtx("!daily", "")
+	c.Regress = module.RegressPremium
+	var got []module.Output
+	require.NoError(t, p.dispatchCommand(context.Background(), c, views, func(o *module.Output) { got = append(got, *o) }))
+	require.Len(t, got, 1)
+	assert.Equal(t, "baked daily", got[0].Text)
+}
+
+func betaCmdEmit(name, trigger, reply string) module.Module {
+	b := module.NewModule(name, module.KindOptIn).Beta()
+	b.Command(trigger).Everyone().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: reply})
+		return nil
+	})
+	return b.Build()
+}
+
 // TestBakedOutputRoutedByMiddleware proves announce is post-processing, not a
 // command: a baked command that writes "/announce hi" is routed to an announce
 // action by the shared middleware, exactly as a custom command would be.

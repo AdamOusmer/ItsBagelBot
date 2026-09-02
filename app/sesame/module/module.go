@@ -149,14 +149,25 @@ type Command struct {
 // each command goes into the flat command index, and each Events entry registers
 // the module under that EventSub type for its non-command path.
 //
-// There is deliberately no premium/feature gate here: premium vs standard is a
-// routing lane (it decides which outgress subject a reply rides), not a feature
-// switch. Every feature is available on both lanes.
+// There is deliberately no permanent premium/feature gate here: premium vs
+// standard is a routing lane (it decides which outgress subject a reply rides),
+// not a feature switch. Every feature is available on both lanes once it is
+// out of beta. Beta is the one exception: a module flagged Beta runs only on
+// the premium lane until the flag is removed, which is how a feature is
+// soft-launched to paying broadcasters before it goes fleet-wide.
 type Module struct {
 	Name     string
 	Kind     Kind
 	Events   map[string]EventHandler
 	Commands []Command
+	// Beta marks a module as premium-only while it is in beta. The engine skips
+	// it on the standard lane exactly as if its ModuleView were disabled, so a
+	// broadcaster who enabled it while paid keeps the row and silently resumes
+	// on re-upgrade or when the beta ends. The console mirrors this flag on the
+	// catalog ModuleDef (console/shared/lib/catalog/module-def.ts, `beta`);
+	// both must flip in the same PR, there is no shared source between Go and
+	// TS. Ending a beta is deleting the flag in both places, no data migration.
+	Beta bool
 	// Triggers is reserved: trigger-word matchers will land here so ingress can
 	// stop filtering to "!"-prefixed messages. Not populated yet.
 	// Triggers []Trigger

@@ -688,9 +688,16 @@ func notice(ctx context.Context, err error) {
 // enabled applies the per-module enable gate and wires the module's config into
 // the context: a core module is always on; a KindDefault module runs unless its
 // ModuleView disables it; a KindOptIn module runs only when its ModuleView
-// enables it. There is no premium gate: premium vs standard is a routing lane
-// (see emit), not a feature switch, so every module is available on both.
+// enables it. There is no permanent premium gate: premium vs standard is a
+// routing lane (see emit), not a feature switch, so every module is available
+// on both once out of beta. A Beta module is the temporary exception: off on
+// the standard lane regardless of its row (see module.Module.Beta). The lane
+// is read from the Context's Regress, which ingress derived from the same tier
+// projection the console reads, so no extra lookup happens here.
 func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleView, mctx *module.Context) bool {
+	if m.Beta && !mctx.Regress.IsPremium() {
+		return false
+	}
 	switch m.Kind {
 	case module.KindCore:
 		mctx.Config = nil

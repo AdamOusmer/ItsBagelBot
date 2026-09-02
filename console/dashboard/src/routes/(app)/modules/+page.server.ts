@@ -3,11 +3,11 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { ModuleState } from '@bagel/shared';
-import { MODULE_CATALOG, catalogIndexable, moduleDef } from '@bagel/shared';
+import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/shared';
 import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { assertModuleWritable, delegateCanOpen } from '$lib/server/module-gate';
+import { assertModuleWritable, broadcasterPremium, delegateCanOpen, moduleLocked } from '$lib/server/module-gate';
 import { disableChildren } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -41,14 +41,17 @@ function asConfig(raw: unknown): Record<string, string> {
 // Modules absent from the catalog (system, bagel, ...) are never surfaced, and
 // a delegate's grid drops tiles their grant cannot open (delegateCanOpen) —
 // such a tile would only bounce off the route guard. Owners see everything.
-function merge(rows: ModuleView[], session: Session | null | undefined): ModuleState[] {
+// A beta module stays listed for a free channel but locked (betaLocked), so
+// the tile can sell the feature rather than hide it.
+function merge(rows: ModuleView[], session: Session | null | undefined, premium: boolean): ModuleState[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
   return MODULE_CATALOG.filter((def) => catalogIndexable(def) && delegateCanOpen(def, session)).map((def) => {
     const row = byName.get(def.id);
     return {
       def,
       enabled: def.toggleable === false ? true : row ? row.is_enabled : def.defaultEnabled,
-      config: asConfig(row?.configs)
+      config: asConfig(row?.configs),
+      locked: betaLocked(def, premium)
     };
   });
 }
@@ -58,11 +61,12 @@ function merge(rows: ModuleView[], session: Session | null | undefined): ModuleS
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
-  if (DEMO) return { modules: merge([], locals.session) };
+  const premium = await broadcasterPremium(locals);
+  if (DEMO) return { modules: merge([], locals.session, premium) };
   try {
-    return { modules: merge(await listModules(uid), locals.session) };
+    return { modules: merge(await listModules(uid), locals.session, premium) };
   } catch {
-    return { modules: merge([], locals.session), degraded: true };
+    return { modules: merge([], locals.session, premium), degraded: true };
   }
 };
 
@@ -73,10 +77,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 // otherwise flip through this generic toggle.
 type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
 
-function resolveToggle(name: string, session: Session | null | undefined): ToggleTarget {
+async function resolveToggle(name: string, locals: App.Locals): Promise<ToggleTarget> {
+  const session = locals.session;
   const def = moduleDef(name);
   if (!def || def.toggleable === false || def.parent) return { denied: fail(400, { ok: false, error: 'Unknown module.' }) };
   if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
+  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: 'Premium only while in beta.' }) };
   return { uid: effectiveId(session) };
 }
 
@@ -97,7 +103,7 @@ export const actions: Actions = {
 
     const f = ctx.form;
     const name = String(f.get('name') ?? '');
-    const target = resolveToggle(name, ctx.session);
+    const target = await resolveToggle(name, event.locals);
     if ('denied' in target) return target.denied;
     const enabled = f.get('is_enabled') === 'on';
 
