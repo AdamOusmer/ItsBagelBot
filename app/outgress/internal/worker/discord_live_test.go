@@ -46,29 +46,29 @@ func (r *guildRecorder) SendEmbed(_ context.Context, post discapi.EmbedPost) (di
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("msg-")}, nil
 }
 
-func (r *guildRecorder) EditMessage(_ context.Context, _ discapi.Message, content string, _ []ddiscord.Embed) error {
+func (r *guildRecorder) EditMessage(_ context.Context, _ discapi.Message, patch discapi.MessagePatch) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.edits = append(r.edits, content)
+	r.edits = append(r.edits, patch.Content)
 	return nil
 }
 
-func (r *guildRecorder) CreateChannel(_ context.Context, _ string, ch discapi.ChannelCreate) (discapi.Snowflake, error) {
+func (r *guildRecorder) CreateChannel(_ context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Name, Type: ch.Type}
+	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Spec.Name, Type: ch.Spec.Type}
 	r.channels = append(r.channels, out)
-	r.createdCh = append(r.createdCh, ch.Name)
+	r.createdCh = append(r.createdCh, ch.Spec.Name)
 	return out, nil
 }
 
-func (r *guildRecorder) DeleteChannel(context.Context, string) error { return nil }
+func (r *guildRecorder) DeleteChannel(context.Context, discapi.Snowflake) error { return nil }
 
-func (r *guildRecorder) CreateRole(_ context.Context, _ string, role discapi.RoleCreate) (discapi.Snowflake, error) {
+func (r *guildRecorder) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.createdRo = append(r.createdRo, role.Name)
-	return discapi.Snowflake{ID: r.nextSnowflake("role-"), Name: role.Name}, nil
+	r.createdRo = append(r.createdRo, role.Spec.Name)
+	return discapi.Snowflake{ID: r.nextSnowflake("role-"), Name: role.Spec.Name}, nil
 }
 
 func (r *guildRecorder) AddMemberRole(_ context.Context, role discapi.MemberRole) error {
@@ -85,7 +85,7 @@ func (r *guildRecorder) RemoveMemberRole(_ context.Context, role discapi.MemberR
 	return nil
 }
 
-func (r *guildRecorder) ListGuildChannels(context.Context, string) ([]discapi.Snowflake, error) {
+func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]discapi.Snowflake, len(r.channels))
@@ -93,12 +93,12 @@ func (r *guildRecorder) ListGuildChannels(context.Context, string) ([]discapi.Sn
 	return out, nil
 }
 
-func (r *guildRecorder) ListGuildRoles(context.Context, string) ([]discapi.Snowflake, error) {
+func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
 	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
 }
 
-func (r *guildRecorder) GetGuild(_ context.Context, guildID string) (discapi.Snowflake, error) {
-	return discapi.Snowflake{ID: guildID, Name: "test"}, nil
+func (r *guildRecorder) GetGuild(_ context.Context, guild discapi.Guild) (discapi.Snowflake, error) {
+	return discapi.Snowflake{ID: guild.ID, Name: "test"}, nil
 }
 
 var _ discordGuildAPI = (*guildRecorder)(nil)
@@ -109,14 +109,14 @@ type memLiveStore struct {
 	guild, twitch string
 }
 
-func (s *memLiveStore) PutLiveMessage(_ context.Context, _ string, m discapi.Message) error {
+func (s *memLiveStore) PutLiveMessage(_ context.Context, _ liveMsgKey, m discapi.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.msg = m
 	return nil
 }
 
-func (s *memLiveStore) GetLiveMessage(_ context.Context, _ string) (discapi.Message, bool) {
+func (s *memLiveStore) GetLiveMessage(_ context.Context, _ liveMsgKey) (discapi.Message, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.msg.ChannelID == "" {
@@ -128,24 +128,24 @@ func (s *memLiveStore) GetLiveMessage(_ context.Context, _ string) (discapi.Mess
 	return s.msg, true
 }
 
-func (s *memLiveStore) DeleteLiveMessage(context.Context, string) error {
+func (s *memLiveStore) DeleteLiveMessage(context.Context, liveMsgKey) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.msg = discapi.Message{}
 	return nil
 }
 
-func (s *memLiveStore) PutGuild(_ context.Context, guildID, broadcasterID string) error {
+func (s *memLiveStore) PutGuild(_ context.Context, req GuildSetupRequest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.guild, s.twitch = guildID, broadcasterID
+	s.guild, s.twitch = req.GuildID, req.BroadcasterID
 	return nil
 }
 
-func (s *memLiveStore) GetGuild(_ context.Context, guildID string) (string, bool) {
+func (s *memLiveStore) GetGuild(_ context.Context, req GuildSetupRequest) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.guild != guildID {
+	if s.guild != req.GuildID {
 		return "", false
 	}
 	if s.twitch == "" {
@@ -154,10 +154,10 @@ func (s *memLiveStore) GetGuild(_ context.Context, guildID string) (string, bool
 	return s.twitch, true
 }
 
-func (s *memLiveStore) DeleteGuild(_ context.Context, guildID string) error {
+func (s *memLiveStore) DeleteGuild(_ context.Context, req GuildSetupRequest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.guild == guildID {
+	if s.guild == req.GuildID {
 		s.guild, s.twitch = "", ""
 	}
 	return nil
@@ -293,7 +293,10 @@ func TestAnnounceDiscordClipPostsEmbed(t *testing.T) {
 		cfg:     ddiscord.Config{GuildID: "g1", ClipsChannelID: "clips"},
 	}
 	w := liveWorker(t, guild, nil, mods)
-	w.announceDiscordClip(context.Background(), "42", ddiscord.ClipEmbed("https://clips.twitch.tv/x", "viewer", "huge play"))
+	w.announceDiscordClip(context.Background(), clipJob{
+		BroadcasterID: "42",
+		Embed:         ddiscord.ClipEmbed("https://clips.twitch.tv/x", "viewer", "huge play"),
+	})
 	if len(guild.embeds) != 1 {
 		t.Fatalf("embeds = %d", len(guild.embeds))
 	}
@@ -346,7 +349,7 @@ func TestAnnounceDiscordOfflineForgetsTheMessage(t *testing.T) {
 	if len(guild.edits) != 1 {
 		t.Fatalf("edits = %d, want 1: the key must be dropped after the offline edit", len(guild.edits))
 	}
-	if _, ok := kv.GetLiveMessage(context.Background(), "42"); ok {
+	if _, ok := kv.GetLiveMessage(context.Background(), liveMsgKey{BroadcasterID: "42"}); ok {
 		t.Fatal("live message key survived the offline edit")
 	}
 }

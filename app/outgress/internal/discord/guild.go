@@ -54,11 +54,35 @@ type Message struct {
 	ID        string
 }
 
+// MessagePatch is the body of PATCH /channels/{id}/messages/{id}.
+type MessagePatch struct {
+	Content string
+	Embeds  []domain.Embed
+}
+
 // EmbedPost is one embed (and optional content) to send into a channel.
 type EmbedPost struct {
 	ChannelID string
 	Content   string
 	Embed     domain.Embed
+}
+
+// Guild is a Discord guild id. REST calls that target a guild take this
+// instead of a bare string so the worker and client stay off primitive args.
+type Guild struct {
+	ID string
+}
+
+// GuildChannel is POST /guilds/{id}/channels.
+type GuildChannel struct {
+	Guild Guild
+	Spec  ChannelCreate
+}
+
+// GuildRole is POST /guilds/{id}/roles.
+type GuildRole struct {
+	Guild Guild
+	Spec  RoleCreate
 }
 
 // MemberRole addresses one role grant on one guild member.
@@ -72,6 +96,16 @@ type MemberRole struct {
 type Interaction struct {
 	ID    string
 	Token string
+}
+
+// InteractionReply is the type-4 channel-message answer to a slash command.
+type InteractionReply struct {
+	Interaction Interaction
+	Content     string
+}
+
+func (g Guild) path() string {
+	return "/guilds/" + url.PathEscape(g.ID)
 }
 
 func (m Message) path() string {
@@ -103,10 +137,10 @@ func (c *Client) SendEmbed(ctx context.Context, post EmbedPost) (Message, error)
 }
 
 // EditMessage patches content (and optionally replaces embeds).
-func (c *Client) EditMessage(ctx context.Context, m Message, content string, embeds []domain.Embed) error {
-	body := map[string]any{"content": content}
-	if embeds != nil {
-		body["embeds"] = embeds
+func (c *Client) EditMessage(ctx context.Context, m Message, patch MessagePatch) error {
+	body := map[string]any{"content": patch.Content}
+	if patch.Embeds != nil {
+		body["embeds"] = patch.Embeds
 	}
 	return c.do(ctx, request{method: http.MethodPatch, path: m.path(), body: body})
 }
@@ -117,21 +151,21 @@ func (c *Client) DeleteMessage(ctx context.Context, m Message) error {
 }
 
 // CreateChannel creates one guild channel and returns its snowflake.
-func (c *Client) CreateChannel(ctx context.Context, guildID string, ch ChannelCreate) (Snowflake, error) {
+func (c *Client) CreateChannel(ctx context.Context, ch GuildChannel) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodPost, path: "/guilds/" + url.PathEscape(guildID) + "/channels", body: ch}, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: ch.Guild.path() + "/channels", body: ch.Spec}, &out)
 	return out, err
 }
 
 // DeleteChannel removes a voice clone (or any channel the bot created).
-func (c *Client) DeleteChannel(ctx context.Context, channelID string) error {
-	return c.do(ctx, request{method: http.MethodDelete, path: "/channels/" + url.PathEscape(channelID)})
+func (c *Client) DeleteChannel(ctx context.Context, ch Snowflake) error {
+	return c.do(ctx, request{method: http.MethodDelete, path: "/channels/" + url.PathEscape(ch.ID)})
 }
 
 // CreateRole creates a guild role.
-func (c *Client) CreateRole(ctx context.Context, guildID string, role RoleCreate) (Snowflake, error) {
+func (c *Client) CreateRole(ctx context.Context, role GuildRole) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodPost, path: "/guilds/" + url.PathEscape(guildID) + "/roles", body: role}, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: role.Guild.path() + "/roles", body: role.Spec}, &out)
 	return out, err
 }
 
@@ -146,32 +180,33 @@ func (c *Client) RemoveMemberRole(ctx context.Context, r MemberRole) error {
 }
 
 // ListGuildChannels returns the guild's channels (for matching names on fill).
-func (c *Client) ListGuildChannels(ctx context.Context, guildID string) ([]Snowflake, error) {
+func (c *Client) ListGuildChannels(ctx context.Context, guild Guild) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "/channels"}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "/channels"}, &out)
 	return out, err
 }
 
 // ListGuildRoles returns the guild's roles (for matching names on fill).
-func (c *Client) ListGuildRoles(ctx context.Context, guildID string) ([]Snowflake, error) {
+func (c *Client) ListGuildRoles(ctx context.Context, guild Guild) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "/roles"}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "/roles"}, &out)
 	return out, err
 }
 
 // GetGuild returns the guild name and channel count (living-community check).
-func (c *Client) GetGuild(ctx context.Context, guildID string) (Snowflake, error) {
+func (c *Client) GetGuild(ctx context.Context, guild Guild) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "?with_counts=false"}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "?with_counts=false"}, &out)
 	return out, err
 }
 
 // InteractionRespond answers a slash command (type 4 channel message).
-func (c *Client) InteractionRespond(ctx context.Context, in Interaction, content string) error {
+func (c *Client) InteractionRespond(ctx context.Context, reply InteractionReply) error {
 	body := map[string]any{
 		"type": 4,
-		"data": map[string]any{"content": content},
+		"data": map[string]any{"content": reply.Content},
 	}
+	in := reply.Interaction
 	path := "/interactions/" + url.PathEscape(in.ID) + "/" + url.PathEscape(in.Token) + "/callback"
 	return c.do(ctx, request{method: http.MethodPost, path: path, body: body})
 }

@@ -102,35 +102,43 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 
 // GuildLayout lists a bound guild's channels and roles for the dashboard
 // pickers. Only the bound broadcaster may read it.
-func (w *Worker) GuildLayout(ctx context.Context, guildID, broadcasterID string) (GuildLayout, error) {
+func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildLayout, error) {
 	guild, ok := w.guildAPI()
 	if !ok {
 		return GuildLayout{}, errDiscordUnavailable
 	}
-	if err := w.requireBound(ctx, guildID, broadcasterID); err != nil {
+	if err := w.requireBound(ctx, req); err != nil {
 		return GuildLayout{}, err
 	}
-	channels, err := guild.ListGuildChannels(ctx, guildID)
+	channels, err := guild.ListGuildChannels(ctx, req.guild())
 	if err != nil {
 		return GuildLayout{}, err
 	}
-	roles, err := guild.ListGuildRoles(ctx, guildID)
+	roles, err := guild.ListGuildRoles(ctx, req.guild())
 	if err != nil {
 		return GuildLayout{}, err
 	}
 	return GuildLayout{Channels: entries(channels), Roles: entries(roles)}, nil
 }
 
+func (req GuildSetupRequest) guild() discapi.Guild {
+	return discapi.Guild{ID: req.GuildID}
+}
+
+type ownerCheck struct {
+	MissingOK bool
+}
+
 // UnbindGuild drops the guild→broadcaster reverse index on disconnect. A
 // guild bound to someone else is left alone.
-func (w *Worker) UnbindGuild(ctx context.Context, guildID, broadcasterID string) error {
-	if err := w.requireOwner(ctx, guildID, broadcasterID, true); err != nil {
+func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
+	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
 	}
 	if w.discordKV == nil {
 		return nil
 	}
-	return w.discordKV.DeleteGuild(ctx, guildID)
+	return w.discordKV.DeleteGuild(ctx, req)
 }
 
 func entries(in []discapi.Snowflake) []GuildEntry {
@@ -143,52 +151,53 @@ func entries(in []discapi.Snowflake) []GuildEntry {
 
 // bindGuild writes the reverse index unless the guild already belongs to a
 // different broadcaster.
-func (w *Worker) bindGuild(ctx context.Context, guildID, broadcasterID string) error {
+func (w *Worker) bindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if w.discordKV == nil {
 		return nil
 	}
-	if guildID == "" {
+	if req.GuildID == "" {
 		return nil
 	}
-	if broadcasterID == "" {
+	if req.BroadcasterID == "" {
 		return nil
 	}
-	if err := w.requireOwner(ctx, guildID, broadcasterID, true); err != nil {
+	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
 	}
-	return w.discordKV.PutGuild(ctx, guildID, broadcasterID)
+	return w.discordKV.PutGuild(ctx, req)
 }
 
-func (w *Worker) requireBound(ctx context.Context, guildID, broadcasterID string) error {
-	return w.requireOwner(ctx, guildID, broadcasterID, false)
+func (w *Worker) requireBound(ctx context.Context, req GuildSetupRequest) error {
+	return w.requireOwner(ctx, req, ownerCheck{})
 }
 
-// requireOwner checks the reverse index. missingOK treats an unbound guild
-// as success (unbind / first bind); otherwise a missing row is the same
-// refusal as a row owned by someone else.
-func (w *Worker) requireOwner(ctx context.Context, guildID, broadcasterID string, missingOK bool) error {
+func (w *Worker) requireOwner(ctx context.Context, req GuildSetupRequest, check ownerCheck) error {
 	if w.discordKV == nil {
 		return nil
 	}
-	owner, ok := w.discordKV.GetGuild(ctx, guildID)
+	owner, ok := w.discordKV.GetGuild(ctx, req)
 	if !ok {
-		if missingOK {
-			return nil
-		}
-		return ErrGuildBoundElsewhere
+		return missingBinding(check)
 	}
-	if owner != broadcasterID {
+	if owner != req.BroadcasterID {
 		return ErrGuildBoundElsewhere
 	}
 	return nil
+}
+
+func missingBinding(check ownerCheck) error {
+	if check.MissingOK {
+		return nil
+	}
+	return ErrGuildBoundElsewhere
 }
 
 // guildFill carries one setup's state: the client, the guild, and name
 // indexes of what already exists so every create is idempotent by name.
 type guildFill struct {
 	w          *Worker
-	guild      discordGuildAPI
-	guildID    string
+	api        discordGuildAPI
+	target     discapi.Guild
 	everyone   string
 	existing   []discapi.Snowflake
 	chanByName map[string]string
@@ -203,7 +212,7 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	if req.GuildID == "" {
 		return nil, errors.New("missing guild id")
 	}
-	if err := w.bindGuild(ctx, req.GuildID, req.BroadcasterID); err != nil {
+	if err := w.bindGuild(ctx, req); err != nil {
 		return nil, err
 	}
 	// One global token for the whole fill: it is a one-off admin action of
@@ -215,16 +224,16 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	if req.EveryoneRoleID == "" {
 		req.EveryoneRoleID = req.GuildID
 	}
-	existing, err := guild.ListGuildChannels(ctx, req.GuildID)
+	existing, err := guild.ListGuildChannels(ctx, req.guild())
 	if err != nil {
 		return nil, err
 	}
-	roles, err := guild.ListGuildRoles(ctx, req.GuildID)
+	roles, err := guild.ListGuildRoles(ctx, req.guild())
 	if err != nil {
 		return nil, err
 	}
 	return &guildFill{
-		w: w, guild: guild, guildID: req.GuildID, everyone: req.EveryoneRoleID, existing: existing,
+		w: w, api: guild, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
 	}, nil
 }
@@ -258,18 +267,31 @@ func (f *guildFill) livedIn() bool {
 // template by name, without creating anything.
 func (f *guildFill) adopt(out *GuildSetupResult) {
 	for _, spec := range ddiscord.CommunityRoles() {
-		out.setRole(spec.Name, f.roleByName[strings.ToLower(spec.Name)])
+		out.setRole(namedRef{Name: spec.Name, ID: f.roleByName[strings.ToLower(spec.Name)]})
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
-		out.setChannel(spec.Bind, f.chanByName[strings.ToLower(spec.Name)])
+		out.setChannel(namedRef{Name: spec.Bind, ID: f.chanByName[strings.ToLower(spec.Name)]})
 	}
+}
+
+// namedRef is one template name and the snowflake it resolved to.
+type namedRef struct {
+	Name string
+	ID   string
+}
+
+type namedCreate func() (discapi.Snowflake, error)
+
+type channelWant struct {
+	Spec   ddiscord.ChannelSpec
+	Parent string
 }
 
 // ensureNamed returns the id of the entry called name in index, creating it
 // when absent. Creation is idempotent by name, which is what lets a fill cut
 // short by a timeout finish on the next attempt.
-func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, name string, create func() (discapi.Snowflake, error)) (string, error) {
-	key := strings.ToLower(name)
+func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
+	key := strings.ToLower(want.Name)
 	if id := index[key]; id != "" {
 		return id, nil
 	}
@@ -283,59 +305,71 @@ func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, na
 
 func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityRoles() {
-		id, err := f.ensureNamed(ctx, f.roleByName, spec.Name, func() (discapi.Snowflake, error) {
-			return f.guild.CreateRole(ctx, f.guildID, discapi.RoleCreate{
-				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
-			})
-		})
+		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name}, f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
 		}
-		out.setRole(spec.Name, id)
+		out.setRole(namedRef{Name: spec.Name, ID: id})
 	}
 	return nil
+}
+
+func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) namedCreate {
+	return func() (discapi.Snowflake, error) {
+		return f.api.CreateRole(ctx, discapi.GuildRole{
+			Guild: f.target,
+			Spec: discapi.RoleCreate{
+				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
+			},
+		})
+	}
 }
 
 // ensureChannels walks the template categories-first (a child needs its
 // parent's id) and records every bound channel on the result.
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
 	parentID := map[string]string{}
-	for _, spec := range categoriesFirst(ddiscord.CommunityChannels()) {
-		id, err := f.ensureNamed(ctx, f.chanByName, spec.Name, f.channelCreator(spec, parentID[spec.Parent]))
+	for _, spec := range ddiscord.CommunityChannels() {
+		if spec.Type != ddiscord.ChannelCategory {
+			continue
+		}
+		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec}))
 		if err != nil {
 			return err
 		}
 		parentID[spec.Name] = id
-		out.setChannel(spec.Bind, id)
+		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+	}
+	return f.ensureChildChannels(ctx, parentID, out)
+}
+
+func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {
+	for _, spec := range ddiscord.CommunityChannels() {
+		if spec.Type == ddiscord.ChannelCategory {
+			continue
+		}
+		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parentID[spec.Parent]}))
+		if err != nil {
+			return err
+		}
+		out.setChannel(namedRef{Name: spec.Bind, ID: id})
 	}
 	return nil
 }
 
-func (f *guildFill) channelCreator(spec ddiscord.ChannelSpec, parent string) func() (discapi.Snowflake, error) {
+func (f *guildFill) channelCreator(ctx context.Context, want channelWant) namedCreate {
 	return func() (discapi.Snowflake, error) {
-		return f.guild.CreateChannel(context.Background(), f.guildID, discapi.ChannelCreate{
-			Name:                 spec.Name,
-			Type:                 spec.Type,
-			Topic:                spec.Topic,
-			ParentID:             parent,
-			PermissionOverwrites: overwrites(spec, f.everyone),
+		return f.api.CreateChannel(ctx, discapi.GuildChannel{
+			Guild: f.target,
+			Spec: discapi.ChannelCreate{
+				Name:                 want.Spec.Name,
+				Type:                 want.Spec.Type,
+				Topic:                want.Spec.Topic,
+				ParentID:             want.Parent,
+				PermissionOverwrites: f.overwrites(want.Spec),
+			},
 		})
 	}
-}
-
-func categoriesFirst(specs []ddiscord.ChannelSpec) []ddiscord.ChannelSpec {
-	out := make([]ddiscord.ChannelSpec, 0, len(specs))
-	for _, spec := range specs {
-		if spec.Type == ddiscord.ChannelCategory {
-			out = append(out, spec)
-		}
-	}
-	for _, spec := range specs {
-		if spec.Type != ddiscord.ChannelCategory {
-			out = append(out, spec)
-		}
-	}
-	return out
 }
 
 // create runs one Discord create, sleeping the server-dictated Retry-After
@@ -344,7 +378,13 @@ func (f *guildFill) create(ctx context.Context, do func() (discapi.Snowflake, er
 	for attempt := 0; ; attempt++ {
 		got, err := do()
 		wait := discapi.RetryAfterOf(err)
-		if err == nil || wait <= 0 || attempt >= maxCreateRetries {
+		if err == nil {
+			return got, err
+		}
+		if wait <= 0 {
+			return got, err
+		}
+		if attempt >= maxCreateRetries {
 			return got, err
 		}
 		select {
@@ -355,52 +395,50 @@ func (f *guildFill) create(ctx context.Context, do func() (discapi.Snowflake, er
 	}
 }
 
-func (out *GuildSetupResult) setRole(name, id string) {
-	if id == "" {
+func (out *GuildSetupResult) setRole(role namedRef) {
+	if role.ID == "" {
 		return
 	}
-	switch name {
+	switch role.Name {
 	case "Live":
-		out.LiveRoleID = id
+		out.LiveRoleID = role.ID
 	case "Mods":
-		out.ModsRoleID = id
+		out.ModsRoleID = role.ID
 	case "Regulars":
-		out.RegularsRoleID = id
+		out.RegularsRoleID = role.ID
 	case "Member":
-		out.MemberRoleID = id
+		out.MemberRoleID = role.ID
 	}
 }
 
-func (out *GuildSetupResult) setChannel(bind, id string) {
-	if id == "" {
+func (out *GuildSetupResult) setChannel(ch namedRef) {
+	if ch.ID == "" {
 		return
 	}
-	switch bind {
+	switch ch.Name {
 	case "live":
-		out.LiveChannelID = id
+		out.LiveChannelID = ch.ID
 	case "clips":
-		out.ClipsChannelID = id
+		out.ClipsChannelID = ch.ID
 	case "welcome":
-		out.WelcomeChannelID = id
+		out.WelcomeChannelID = ch.ID
 	case "alerts":
-		out.AlertsChannelID = id
+		out.AlertsChannelID = ch.ID
 	case "voice":
-		out.VoiceHubID = id
+		out.VoiceHubID = ch.ID
 	}
 }
 
-func overwrites(spec ddiscord.ChannelSpec, everyone string) []discapi.PermissionOverwrite {
-	if !spec.Staff && !spec.ReadOnly {
-		return nil
-	}
-	deny := permSendMessages
+func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOverwrite {
 	if spec.Staff {
-		deny = permViewChannel
+		return []discapi.PermissionOverwrite{{
+			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permViewChannel),
+		}}
 	}
-	return []discapi.PermissionOverwrite{{
-		ID:    everyone,
-		Type:  overwriteRole,
-		Allow: "0",
-		Deny:  fmt.Sprintf("%d", deny),
-	}}
+	if spec.ReadOnly {
+		return []discapi.PermissionOverwrite{{
+			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permSendMessages),
+		}}
+	}
+	return nil
 }

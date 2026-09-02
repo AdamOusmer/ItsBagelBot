@@ -10,6 +10,7 @@ import {
   setupGuild,
   unbindGuild,
   type DiscordConfig,
+  type DiscordGuildTarget,
   type DiscordLayout
 } from '$lib/server/discord-store';
 import {
@@ -59,10 +60,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 
   try {
-    const view = await readDiscord(uid);
+    const view = await readDiscord({ userId: uid });
     return {
       ...view,
-      layout: view.connected ? await loadLayout(uid, view.config.guildId) : NO_LAYOUT,
+      layout: view.connected ? await loadLayout({ userId: uid, guildId: view.config.guildId }) : NO_LAYOUT,
       templateURL: discordTemplateURL(),
       configured: discordConfigured(),
       justConnected,
@@ -86,9 +87,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 // loadLayout is best-effort: without it the page falls back to raw id inputs.
-async function loadLayout(uid: string, guildId: string): Promise<DiscordLayout> {
+async function loadLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
   try {
-    return await guildLayout(uid, guildId);
+    return await guildLayout(target);
   } catch (e) {
     logger.warn({ err: e }, '[discord] layout unavailable');
     return NO_LAYOUT;
@@ -99,130 +100,139 @@ type ActionCtx = { uid: string; session: Session | null | undefined; locals: App
 
 async function actionContext({ request, locals }: RequestEvent): Promise<ActionCtx | null> {
   gate(locals.session);
-  if (!DEMO && !locals.session) return null;
+  if (DEMO) {
+    return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
+  }
+  if (!locals.session) return null;
   return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
 }
 
 type Outcome<T> = { ok: true; data: T } | { ok: false; error: string };
 
-// attempt wraps one backend round trip: a thrown redirect propagates, any
-// other failure is logged once and mapped onto the action's user-facing line.
-async function attempt<T>(label: string, failMsg: string, work: () => Promise<T>): Promise<Outcome<T>> {
+type ActionWork = { label: string; failMsg: string };
+
+async function attempt<T>(work: ActionWork, run: () => Promise<T>): Promise<Outcome<T>> {
   try {
-    return { ok: true, data: await work() };
+    return { ok: true, data: await run() };
   } catch (e) {
     if (isRedirect(e)) throw e;
-    logger.error({ err: e }, `[discord] ${label} failed`);
-    return { ok: false, error: failMsg };
+    logger.error({ err: e }, `[discord] ${work.label} failed`);
+    return { ok: false, error: work.failMsg };
   }
 }
 
 type Refusal = { error: string };
 
-// discordAction is the shape every action here shares: gate, sign-in check,
-// demo short-circuit, one backend round trip, one user-facing failure line.
-// work may return a Refusal to fail with a specific message.
+function refusalOf(data: Record<string, unknown>): string {
+  if (!('error' in data)) return '';
+  if (typeof data.error !== 'string') return '';
+  return data.error;
+}
+
 function discordAction<T extends Record<string, unknown>>(
-  label: string,
-  failMsg: string,
-  work: (ctx: ActionCtx) => Promise<T | Refusal>
+  work: ActionWork,
+  run: (ctx: ActionCtx) => Promise<T | Refusal>
 ) {
   return async (event: RequestEvent) => {
     const ctx = await actionContext(event);
     if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
     if (DEMO) return { ok: true, enabled: ctx.form.get('is_enabled') === 'on' };
-    const r = await attempt(label, failMsg, () => work(ctx));
+    const r = await attempt(work, () => run(ctx));
     if (!r.ok) return fail(400, { ok: false, error: r.error });
-    if ('error' in r.data && typeof r.data.error === 'string' && r.data.error) {
-      return fail(400, { ok: false, error: r.data.error });
-    }
+    const refusal = refusalOf(r.data);
+    if (refusal) return fail(400, { ok: false, error: refusal });
     return { ok: true, ...r.data };
   };
 }
 
-function flag(form: FormData, name: string): string {
-  return form.get(name) === 'on' ? 'on' : 'off';
+type FormField = { form: FormData; name: string; current: string };
+
+function flag(field: FormField): string {
+  return field.form.get(field.name) === 'on' ? 'on' : 'off';
 }
 
 const SNOWFLAKE = /^\d{17,20}$/;
 
-// snowflake accepts a Discord id or empty; anything else keeps the current
-// value so a tampered select cannot store junk the workers would post into.
-function snowflake(form: FormData, name: string, current: string): string {
-  const raw = form.get(name);
-  if (raw === null) return current;
+function snowflake(field: FormField): string {
+  const raw = field.form.get(field.name);
+  if (raw === null) return field.current;
   const v = String(raw).trim();
-  return v === '' || SNOWFLAKE.test(v) ? v : current;
+  if (v === '') return v;
+  if (SNOWFLAKE.test(v)) return v;
+  return field.current;
 }
 
-// positiveInt keeps the current threshold unless the form carries an integer
-// of at least one; type="number" is only a client-side hint.
-function positiveInt(form: FormData, name: string, current: string): string {
-  const raw = form.get(name);
-  if (raw === null) return current;
+function positiveInt(field: FormField): string {
+  const raw = field.form.get(field.name);
+  if (raw === null) return field.current;
   const n = Number.parseInt(String(raw), 10);
-  return Number.isInteger(n) && n >= 1 ? String(n) : current;
+  if (!Number.isInteger(n)) return field.current;
+  if (n < 1) return field.current;
+  return String(n);
 }
 
 function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
   return {
     ...current,
-    liveEnabled: flag(form, 'liveEnabled'),
-    clipsEnabled: flag(form, 'clipsEnabled'),
-    raidEnabled: flag(form, 'raidEnabled'),
-    giftEnabled: flag(form, 'giftEnabled'),
-    cheerEnabled: flag(form, 'cheerEnabled'),
-    subMilestoneEnabled: flag(form, 'subMilestoneEnabled'),
-    welcomeEnabled: flag(form, 'welcomeEnabled'),
-    goodbyeEnabled: flag(form, 'goodbyeEnabled'),
-    voiceEnabled: flag(form, 'voiceEnabled'),
-    giftMin: positiveInt(form, 'giftMin', current.giftMin),
-    cheerMin: positiveInt(form, 'cheerMin', current.cheerMin),
+    liveEnabled: flag({ form, name: 'liveEnabled', current: current.liveEnabled }),
+    clipsEnabled: flag({ form, name: 'clipsEnabled', current: current.clipsEnabled }),
+    raidEnabled: flag({ form, name: 'raidEnabled', current: current.raidEnabled }),
+    giftEnabled: flag({ form, name: 'giftEnabled', current: current.giftEnabled }),
+    cheerEnabled: flag({ form, name: 'cheerEnabled', current: current.cheerEnabled }),
+    subMilestoneEnabled: flag({ form, name: 'subMilestoneEnabled', current: current.subMilestoneEnabled }),
+    welcomeEnabled: flag({ form, name: 'welcomeEnabled', current: current.welcomeEnabled }),
+    goodbyeEnabled: flag({ form, name: 'goodbyeEnabled', current: current.goodbyeEnabled }),
+    voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
+    giftMin: positiveInt({ form, name: 'giftMin', current: current.giftMin }),
+    cheerMin: positiveInt({ form, name: 'cheerMin', current: current.cheerMin }),
     categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
     categoryDeny: String(form.get('categoryDeny') ?? current.categoryDeny),
-    liveChannelId: snowflake(form, 'liveChannelId', current.liveChannelId),
-    clipsChannelId: snowflake(form, 'clipsChannelId', current.clipsChannelId),
-    alertsChannelId: snowflake(form, 'alertsChannelId', current.alertsChannelId),
-    welcomeChannelId: snowflake(form, 'welcomeChannelId', current.welcomeChannelId),
-    voiceHubId: snowflake(form, 'voiceHubId', current.voiceHubId),
-    liveRoleId: snowflake(form, 'liveRoleId', current.liveRoleId),
-    streamerDiscordId: snowflake(form, 'streamerDiscordId', current.streamerDiscordId)
+    liveChannelId: snowflake({ form, name: 'liveChannelId', current: current.liveChannelId }),
+    clipsChannelId: snowflake({ form, name: 'clipsChannelId', current: current.clipsChannelId }),
+    alertsChannelId: snowflake({ form, name: 'alertsChannelId', current: current.alertsChannelId }),
+    welcomeChannelId: snowflake({ form, name: 'welcomeChannelId', current: current.welcomeChannelId }),
+    voiceHubId: snowflake({ form, name: 'voiceHubId', current: current.voiceHubId }),
+    liveRoleId: snowflake({ form, name: 'liveRoleId', current: current.liveRoleId }),
+    streamerDiscordId: snowflake({ form, name: 'streamerDiscordId', current: current.streamerDiscordId })
   };
 }
 
 export const actions: Actions = {
-  toggle: discordAction('toggle', 'Could not toggle Discord.', async (ctx) => {
+  toggle: discordAction({ label: 'toggle', failMsg: 'Could not toggle Discord.' }, async (ctx) => {
     const enabled = ctx.form.get('is_enabled') === 'on';
-    const view = await readDiscord(ctx.uid);
-    await saveDiscord(ctx.uid, enabled, view.config);
+    const view = await readDiscord({ userId: ctx.uid });
+    await saveDiscord({ userId: ctx.uid, enabled, config: view.config });
     auditDashboardImpersonation(ctx.session, 'discord:toggle', String(enabled));
     return { enabled };
   }),
 
-  save: discordAction('save', 'Could not save Discord settings.', async (ctx) => {
-    const view = await readDiscord(ctx.uid);
+  save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
+    const view = await readDiscord({ userId: ctx.uid });
     const config = mergeSettings(view.config, ctx.form);
-    await saveDiscord(ctx.uid, view.enabled, config);
+    await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config });
     auditDashboardImpersonation(ctx.session, 'discord:save', config.guildId);
     return {};
   }),
 
-  setup: discordAction('setup', 'Could not set up this server.', async (ctx) => {
+  setup: discordAction({ label: 'setup', failMsg: 'Could not set up this server.' }, async (ctx) => {
     requireDiscordActor(ctx.locals);
-    const view = await readDiscord(ctx.uid);
+    const view = await readDiscord({ userId: ctx.uid });
     if (!view.config.guildId) return { error: 'Connect a server first.' };
     const login = ctx.session?.login ?? view.config.twitchLogin;
-    const result = await setupGuild(ctx.uid, view.config.guildId, { ...view.config, twitchLogin: login });
+    const result = await setupGuild(
+      { userId: ctx.uid, guildId: view.config.guildId },
+      { ...view.config, twitchLogin: login }
+    );
     if (result.error) return { error: result.error };
-    await saveDiscord(ctx.uid, view.enabled, { ...result.config, twitchLogin: login });
+    await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config: { ...result.config, twitchLogin: login } });
     auditDashboardImpersonation(ctx.session, 'discord:setup', view.config.guildId);
     return { refused: result.refused };
   }),
 
-  disconnect: discordAction('disconnect', 'Could not disconnect Discord.', async (ctx) => {
-    const view = await readDiscord(ctx.uid);
-    if (view.config.guildId) await unbindGuild(ctx.uid, view.config.guildId);
-    await saveDiscord(ctx.uid, false, blankDiscordConfig());
+  disconnect: discordAction({ label: 'disconnect', failMsg: 'Could not disconnect Discord.' }, async (ctx) => {
+    const view = await readDiscord({ userId: ctx.uid });
+    if (view.config.guildId) await unbindGuild({ userId: ctx.uid, guildId: view.config.guildId });
+    await saveDiscord({ userId: ctx.uid, enabled: false, config: blankDiscordConfig() });
     auditDashboardImpersonation(ctx.session, 'discord:disconnect', view.config.guildId);
     return {};
   })

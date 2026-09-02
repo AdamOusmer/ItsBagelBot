@@ -71,7 +71,10 @@ type discordRPC struct {
 }
 
 func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSetupRequest) outgressrpc.DiscordSetupReply {
-	if req.GuildID == "" || req.UserID == "" {
+	if req.GuildID == "" {
+		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
+	}
+	if req.UserID == "" {
 		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
 	}
 	got, err := d.w.SetupGuild(ctx, worker.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
@@ -94,10 +97,13 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 }
 
 func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLayoutRequest) outgressrpc.DiscordLayoutReply {
-	if req.GuildID == "" || req.UserID == "" {
+	if req.GuildID == "" {
 		return outgressrpc.DiscordLayoutReply{Error: "missing guild_id or user_id"}
 	}
-	layout, err := d.w.GuildLayout(ctx, req.GuildID, req.UserID)
+	if req.UserID == "" {
+		return outgressrpc.DiscordLayoutReply{Error: "missing guild_id or user_id"}
+	}
+	layout, err := d.w.GuildLayout(ctx, worker.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
 	if err != nil {
 		return outgressrpc.DiscordLayoutReply{Error: err.Error()}
 	}
@@ -116,17 +122,23 @@ func layoutEntries(in []worker.GuildEntry) []outgressrpc.DiscordLayoutEntry {
 }
 
 func (d *discordRPC) handleUnbind(ctx context.Context, req outgressrpc.DiscordUnbindRequest) outgressrpc.DiscordUnbindReply {
-	if req.GuildID == "" || req.UserID == "" {
+	if req.GuildID == "" {
 		return outgressrpc.DiscordUnbindReply{Error: "missing guild_id or user_id"}
 	}
-	if err := d.w.UnbindGuild(ctx, req.GuildID, req.UserID); err != nil {
+	if req.UserID == "" {
+		return outgressrpc.DiscordUnbindReply{Error: "missing guild_id or user_id"}
+	}
+	if err := d.w.UnbindGuild(ctx, worker.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID}); err != nil {
 		return outgressrpc.DiscordUnbindReply{Error: err.Error()}
 	}
 	return outgressrpc.DiscordUnbindReply{}
 }
 
 func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPostRequest) outgressrpc.DiscordPostReply {
-	if req.ChannelID == "" || req.Content == "" {
+	if req.ChannelID == "" {
+		return outgressrpc.DiscordPostReply{Error: "missing channel or content"}
+	}
+	if req.Content == "" {
 		return outgressrpc.DiscordPostReply{Error: "missing channel or content"}
 	}
 	if err := d.w.PostDiscord(ctx, req.ChannelID, req.Content); err != nil {

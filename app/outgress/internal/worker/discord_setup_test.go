@@ -41,8 +41,11 @@ func foreignChannels() []discapi.Snowflake {
 
 func assertBound(t *testing.T, kv *memLiveStore, broadcasterID string) {
 	t.Helper()
-	if kv.guild != "guild-1" || kv.twitch != broadcasterID {
-		t.Fatalf("reverse index = %s -> %s, want guild-1 -> %s", kv.guild, kv.twitch, broadcasterID)
+	if kv.guild != "guild-1" {
+		t.Fatalf("reverse guild = %s, want guild-1", kv.guild)
+	}
+	if kv.twitch != broadcasterID {
+		t.Fatalf("reverse twitch = %s, want %s", kv.twitch, broadcasterID)
 	}
 }
 
@@ -51,8 +54,17 @@ func assertFilled(t *testing.T, got GuildSetupResult) {
 	if got.Refused != "" {
 		t.Fatalf("refused = %q", got.Refused)
 	}
-	if got.GuildID != "guild-1" || got.LiveChannelID == "" || got.ClipsChannelID == "" || got.VoiceHubID == "" {
-		t.Fatalf("incomplete fill: %+v", got)
+	if got.GuildID != "guild-1" {
+		t.Fatalf("guild = %q", got.GuildID)
+	}
+	if got.LiveChannelID == "" {
+		t.Fatal("missing live channel")
+	}
+	if got.ClipsChannelID == "" {
+		t.Fatal("missing clips channel")
+	}
+	if got.VoiceHubID == "" {
+		t.Fatal("missing voice hub")
 	}
 }
 
@@ -79,11 +91,17 @@ func TestSetupGuildRefusesALivedInServerButStillBinds(t *testing.T) {
 
 	got := setupGuild1(t, setupWorker(guild, kv), "42")
 
-	if got.Refused == "" || len(guild.createdCh) != 0 {
+	if got.Refused == "" {
 		t.Fatal("lived-in guild must refuse the fill")
 	}
-	if got.GuildID != "guild-1" || got.ClipsChannelID != "" {
-		t.Fatalf("refused setup returns the guild id and adopts nothing here: %+v", got)
+	if len(guild.createdCh) != 0 {
+		t.Fatal("lived-in guild must not create channels")
+	}
+	if got.GuildID != "guild-1" {
+		t.Fatalf("refused setup returns the guild id: %+v", got)
+	}
+	if got.ClipsChannelID != "" {
+		t.Fatalf("refused setup adopts nothing here: %+v", got)
 	}
 	assertBound(t, kv, "42")
 }
@@ -114,11 +132,17 @@ func TestSetupGuildCompletesAPartialFill(t *testing.T) {
 	got := setupGuild1(t, setupWorker(guild, kv), "42")
 
 	assertFilled(t, got)
-	if got.LiveChannelID != "old-now-live" || got.ClipsChannelID != "old-clips" {
-		t.Fatalf("existing template channels must be reused: %+v", got)
+	if got.LiveChannelID != "old-now-live" {
+		t.Fatalf("existing live channel must be reused: %+v", got)
+	}
+	if got.ClipsChannelID != "old-clips" {
+		t.Fatalf("existing clips channel must be reused: %+v", got)
 	}
 	for _, name := range guild.createdCh {
-		if name == "now-live" || name == "clips" {
+		if name == "now-live" {
+			t.Fatalf("%s was created twice", name)
+		}
+		if name == "clips" {
 			t.Fatalf("%s was created twice", name)
 		}
 	}
@@ -129,8 +153,11 @@ func TestSetupGuildAdoptsMatchingChannelsOnALivedInServer(t *testing.T) {
 
 	got := setupGuild1(t, setupWorker(guild, &memLiveStore{}), "42")
 
-	if got.Refused == "" || len(guild.createdCh) != 0 {
+	if got.Refused == "" {
 		t.Fatal("lived-in guild must refuse the fill")
+	}
+	if len(guild.createdCh) != 0 {
+		t.Fatal("lived-in guild must not create channels")
 	}
 	if got.ClipsChannelID != "their-clips" {
 		t.Fatalf("clips channel must be adopted by name, got %q", got.ClipsChannelID)
@@ -141,13 +168,13 @@ func TestUnbindGuildOnlyForTheBoundBroadcaster(t *testing.T) {
 	kv := &memLiveStore{guild: "guild-1", twitch: "42"}
 	w := setupWorker(&guildRecorder{}, kv)
 
-	if err := w.UnbindGuild(context.Background(), "guild-1", "7"); err != ErrGuildBoundElsewhere {
+	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
 		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
 	}
-	if err := w.UnbindGuild(context.Background(), "guild-1", "42"); err != nil {
+	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}); err != nil {
 		t.Fatalf("UnbindGuild: %v", err)
 	}
-	if _, ok := kv.GetGuild(context.Background(), "guild-1"); ok {
+	if _, ok := kv.GetGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1"}); ok {
 		t.Fatal("binding survived unbind")
 	}
 }
@@ -156,14 +183,17 @@ func TestGuildLayoutRequiresTheBinding(t *testing.T) {
 	guild := &guildRecorder{channels: []discapi.Snowflake{{ID: "c1", Name: "general"}}}
 	w := setupWorker(guild, &memLiveStore{guild: "guild-1", twitch: "42"})
 
-	if _, err := w.GuildLayout(context.Background(), "guild-1", "7"); err != ErrGuildBoundElsewhere {
+	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
 		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
 	}
-	layout, err := w.GuildLayout(context.Background(), "guild-1", "42")
+	layout, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
 	if err != nil {
 		t.Fatalf("GuildLayout: %v", err)
 	}
-	if len(layout.Channels) != 1 || layout.Channels[0].ID != "c1" {
+	if len(layout.Channels) != 1 {
+		t.Fatalf("channels = %+v", layout.Channels)
+	}
+	if layout.Channels[0].ID != "c1" {
 		t.Fatalf("channels = %+v", layout.Channels)
 	}
 }

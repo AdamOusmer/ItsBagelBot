@@ -84,7 +84,9 @@ const EMPTY: DiscordConfig = {
 };
 
 function asRecord(raw: unknown): Record<string, string> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  if (raw == null) return {};
+  if (typeof raw !== 'object') return {};
+  if (Array.isArray(raw)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof v === 'string') out[k] = v;
@@ -101,8 +103,14 @@ function parseConfig(raw: unknown): DiscordConfig {
   return out;
 }
 
-export async function readDiscord(userId: string): Promise<DiscordView> {
-  const rows = await listModules(userId);
+export type DiscordUser = { userId: string };
+
+export type DiscordGuildTarget = { userId: string; guildId: string };
+
+export type DiscordSave = { userId: string; enabled: boolean; config: DiscordConfig };
+
+export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
+  const rows = await listModules(user.userId);
   const row = rows.find((r) => r.name === DISCORD_MODULE);
   const config = parseConfig(row?.configs);
   return {
@@ -112,12 +120,8 @@ export async function readDiscord(userId: string): Promise<DiscordView> {
   };
 }
 
-export async function saveDiscord(
-  userId: string,
-  enabled: boolean,
-  config: DiscordConfig
-): Promise<void> {
-  await upsertModule(userId, DISCORD_MODULE, enabled, config);
+export async function saveDiscord(save: DiscordSave): Promise<void> {
+  await upsertModule(save.userId, DISCORD_MODULE, save.enabled, save.config);
 }
 
 type SetupReply = {
@@ -143,28 +147,29 @@ export type DiscordSetup = {
 
 // isBoundElsewhere recognises outgress's refusal of a guild already linked
 // to a different broadcaster.
-export function isBoundElsewhere(error: string): boolean {
-  return error.includes(BOUND_ELSEWHERE);
+export function isBoundElsewhere(result: { error: string }): boolean {
+  return result.error.includes(BOUND_ELSEWHERE);
 }
 
 // setupGuild asks outgress to fill the community template (or, on a lived-in
 // server, adopt the channels it recognises by name) and bind the
 // guild→Twitch reverse index. Outgress refuses a guild bound to someone else.
 export async function setupGuild(
-  userId: string,
-  guildId: string,
+  target: DiscordGuildTarget,
   current: DiscordConfig
 ): Promise<DiscordSetup> {
   const r = await rpc<SetupReply>(
     `${SUB.outgressRpc}.discord.setup`,
-    { user_id: userId, guild_id: guildId },
+    { user_id: target.userId, guild_id: target.guildId },
     SETUP_TIMEOUT_MS
   );
   if (r.error) return { config: current, refused: '', error: r.error };
-  const next: DiscordConfig = { ...current, guildId };
+  const next: DiscordConfig = { ...current, guildId: target.guildId };
   for (const [key, replyKey] of SETUP_FIELDS) {
     const v = r[replyKey];
-    if (typeof v === 'string' && v) next[key] = v;
+    if (typeof v !== 'string') continue;
+    if (!v) continue;
+    next[key] = v;
   }
   return { config: next, refused: r.refused ?? '', error: '' };
 }
@@ -195,10 +200,10 @@ function entries(list: LayoutReply['channels']): DiscordEntry[] {
 }
 
 // guildLayout lists the bound guild's channels and roles for the pickers.
-export async function guildLayout(userId: string, guildId: string): Promise<DiscordLayout> {
+export async function guildLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
   const r = await rpc<LayoutReply>(
     `${SUB.outgressRpc}.discord.layout`,
-    { user_id: userId, guild_id: guildId },
+    { user_id: target.userId, guild_id: target.guildId },
     LAYOUT_TIMEOUT_MS
   );
   if (r.error) throw new Error(r.error);
@@ -207,10 +212,10 @@ export async function guildLayout(userId: string, guildId: string): Promise<Disc
 
 // unbindGuild drops the guild→Twitch reverse index on disconnect so outgress
 // stops resolving the guild to this broadcaster.
-export async function unbindGuild(userId: string, guildId: string): Promise<void> {
+export async function unbindGuild(target: DiscordGuildTarget): Promise<void> {
   const r = await rpc<{ error?: string }>(
     `${SUB.outgressRpc}.discord.unbind`,
-    { user_id: userId, guild_id: guildId },
+    { user_id: target.userId, guild_id: target.guildId },
     5000
   );
   if (r.error) throw new Error(r.error);
