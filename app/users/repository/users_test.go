@@ -216,7 +216,13 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@example.com"))
 
-	started := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	// Relative to now: a fixed 2026-07-02 start put the admin grant's expiry
+
+	// (start + two months) in the past on 2026-09-02, where SetAdminStatus
+
+	// rejects a paid status whose expiry is not in the future.
+
+	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
 	applied, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 1001, EventID: "evt-start", Action: billingrpc.ActionActivate,

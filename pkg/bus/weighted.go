@@ -716,14 +716,18 @@ func (p *routinePool) release(lane int) {
 	saturated := p.inflight >= p.capacity
 	p.inflight--
 	p.laneInflight[lane]--
+	wake := p.waiters[lane] > 0
+	p.mu.Unlock()
+	// Wake after unlocking: a waiter signalled under the lock runs straight
+	// into the mutex the releaser still holds and parks again, which at one
+	// release per delivery is a second contended handoff per message.
 	if saturated {
 		for _, c := range p.conds {
 			c.Broadcast()
 		}
-	} else if p.waiters[lane] > 0 {
+	} else if wake {
 		p.conds[lane].Signal()
 	}
-	p.mu.Unlock()
 }
 
 // setCapacity resizes the gate. Callers on the scaling path must go through
