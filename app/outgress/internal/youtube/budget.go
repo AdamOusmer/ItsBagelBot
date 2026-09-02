@@ -6,6 +6,7 @@ package youtube
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
@@ -18,10 +19,10 @@ import (
 // refill within the day — spending early must not let the bucket regenerate.
 //
 // The fleet runs three replicas against one project, so the ledger lives in
-// Valkey: one counter per UTC date key, take-N-or-nothing in one Lua call so
-// a denied action consumes nothing and an admitted one is charged exactly
-// once. Keys expire two days after creation so yesterday's ledger cleans
-// itself up.
+// Valkey: one counter per Pacific date key (Google's quota day, not UTC),
+// take-N-or-nothing in one Lua call so a denied action consumes nothing and
+// an admitted one is charged exactly once. Keys expire two days after
+// creation so yesterday's ledger cleans itself up.
 
 // luaTakeBudget charges cost units against key if doing so stays within
 // limit, else refuses without consuming. Returns 1 admitted / 0 refused.
@@ -68,7 +69,7 @@ func NewBudget(client valkey.Client, dailyUnitLimit int64) *Budget {
 // message rather than nacking, because no amount of redelivery frees units
 // before tomorrow.
 func (b *Budget) Take(ctx context.Context, cost int64) (bool, error) {
-	key := b.key(b.now().UTC())
+	key := b.key(b.now().In(pacificLocation()))
 
 	res := b.script.Exec(
 		ctx,
@@ -96,4 +97,24 @@ func (b *Budget) Take(ctx context.Context, cost int64) (bool, error) {
 // the old key expires itself.
 func (b *Budget) key(now time.Time) string {
 	return "ratelimit:yt:quota:" + now.Format("2006-01-02")
+}
+
+// Google's quota day is Pacific, not UTC. 00:00-08:00 UTC would otherwise
+// charge against the previous Pacific day and look like a full budget while
+// Google is already refusing. LoadLocation is cached; the PST fallback only
+// exists if the container image has no tzdata (it does on the fleet).
+var pacific = struct {
+	once sync.Once
+	loc  *time.Location
+}{}
+
+func pacificLocation() *time.Location {
+	pacific.once.Do(func() {
+		loc, err := time.LoadLocation("America/Los_Angeles")
+		if err != nil {
+			loc = time.FixedZone("PST", -8*3600)
+		}
+		pacific.loc = loc
+	})
+	return pacific.loc
 }

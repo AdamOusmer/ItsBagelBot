@@ -47,8 +47,15 @@ defmodule YtIngress.Nats do
         inbox = ack_inbox()
 
         case Gnat.sub(pid, self(), inbox) do
-          {:ok, _subscription} ->
-            publish_and_await_ack(subject, payload, inbox)
+          {:ok, sid} ->
+            # Gnat keys receivers by integer sid; unsub(inbox-string) is a
+            # no-op and leaked a subscription per lane event. Hold the sid
+            # and always drop it, including on encode failure / timeout.
+            try do
+              publish_and_await_ack(subject, payload, inbox)
+            after
+              Gnat.unsub(pid, sid)
+            end
 
           {:error, reason} ->
             Metrics.count("Nats/PublishDropped")
@@ -99,7 +106,6 @@ defmodule YtIngress.Nats do
               :ok
           end
 
-        Gnat.unsub(@connection, inbox)
         result
 
       {:error, _reason} = error ->
@@ -107,7 +113,6 @@ defmodule YtIngress.Nats do
         # here rather than crash the chat reader mid-stream.
         Metrics.count("Nats/PublishDropped")
         Metrics.count("Nats/PublishEncodeError")
-        Gnat.unsub(@connection, inbox)
         error
     end
   end

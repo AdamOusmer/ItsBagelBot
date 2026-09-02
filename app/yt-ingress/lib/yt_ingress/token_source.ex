@@ -69,7 +69,7 @@ defmodule YtIngress.TokenSource do
   def grpc_metadata({:bearer, token}), do: [{"authorization", "Bearer " <> token}]
 
   @impl true
-  def init(_opts), do: {:ok, %{tokens: %{}, inflight: %{}}}
+  def init(_opts), do: {:ok, %{tokens: %{}, inflight: %{}, refs: %{}}}
 
   @impl true
   def handle_call({:token, channel_id}, from, state) do
@@ -87,53 +87,64 @@ defmodule YtIngress.TokenSource do
   end
 
   # Misses run through a supervised task so an RPC outage costs the caller its
-  # timeout, never the TokenSource itself.
+  # timeout, never the TokenSource itself. Concurrent callers for the same
+  # channel join the in-flight fetch rather than stampeding the users RPC.
   defp fetch_and_reply(channel_id, from, state) do
-    task =
-      Task.Supervisor.async_nolink(YtIngress.TokenSource.TaskSupervisor, fn ->
-        request_token(channel_id)
-      end)
+    case Map.get(state.inflight, channel_id) do
+      {ref, waiters} ->
+        {:noreply,
+         %{state | inflight: Map.put(state.inflight, channel_id, {ref, [from | waiters]})}}
 
-    {channel, waiters} =
-      Map.get(state.inflight, task.ref, {channel_id, []})
+      nil ->
+        task =
+          Task.Supervisor.async_nolink(YtIngress.TokenSource.TaskSupervisor, fn ->
+            request_token(channel_id)
+          end)
 
-    {:noreply,
-     %{state | inflight: Map.put(state.inflight, task.ref, {channel, [from | waiters]})}}
+        {:noreply,
+         %{
+           state
+           | inflight: Map.put(state.inflight, channel_id, {task.ref, [from]}),
+             refs: Map.put(state.refs, task.ref, channel_id)
+         }}
+    end
   end
 
   @impl true
   def handle_info({ref, result}, state) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
+    finish_inflight(ref, result, state)
+  end
 
-    case Map.pop(state.inflight, ref) do
+  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
+    finish_inflight(ref, {:error, {:task, reason}}, state)
+  end
+
+  defp finish_inflight(ref, result, state) do
+    case Map.pop(state.refs, ref) do
       {nil, _} ->
         {:noreply, state}
 
-      {{channel_id, waiters}, inflight} ->
+      {channel_id, refs} ->
+        {entry, inflight} = Map.pop(state.inflight, channel_id)
+        waiters =
+          case entry do
+            {_ref, froms} -> froms
+            nil -> []
+          end
+
         case result do
           {:ok, token, expires_at} ->
             Enum.each(waiters, &GenServer.reply(&1, {:ok, {:bearer, token}}))
-            {:noreply, %{state | tokens: Map.put(state.tokens, channel_id, {token, expires_at}), inflight: inflight}}
+            {:noreply,
+             %{state | tokens: Map.put(state.tokens, channel_id, {token, expires_at}), inflight: inflight, refs: refs}}
 
           {:error, reason} ->
             Logger.warning("token fetch failed for #{channel_id}: #{inspect(reason)}")
             Metrics.count("Token/FetchErrors")
             Enum.each(waiters, &GenServer.reply(&1, {:error, reason}))
-            {:noreply, %{state | inflight: inflight}}
+            {:noreply, %{state | inflight: inflight, refs: refs}}
         end
-    end
-  end
-
-  def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
-    case Map.pop(state.inflight, ref) do
-      {nil, _} ->
-        {:noreply, state}
-
-      {{channel_id, waiters}, inflight} ->
-        Logger.warning("token fetch task failed for #{channel_id}: #{inspect(reason)}")
-        Metrics.count("Token/FetchTaskFailed")
-        Enum.each(waiters, &GenServer.reply(&1, {:error, {:task, reason}}))
-        {:noreply, %{state | inflight: inflight}}
     end
   end
 

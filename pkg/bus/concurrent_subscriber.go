@@ -43,11 +43,6 @@ type concurrentDurableSubscriber struct {
 	ackSync bool
 	log     *zap.Logger
 
-	// dlq publishes terminal deliveries before their TERM deletes them (see
-	// dead_letter.go). Nil-safe: a nil or disabled deadLetterer changes only
-	// where the payload ends up, never the ack discipline.
-	dlq *deadLetterer
-
 	// dropped counts deliveries shed when the explicit queue is full; see the
 	// overflow branch in deliveryCallback for why shedding beats blocking.
 	dropped atomic.Int64
@@ -81,9 +76,6 @@ type concurrentSubscriberConfig struct {
 	group    string
 	delay    redeliveryDelay
 	log      *zap.Logger
-	// dlq configures the terminal-delivery dead letter; zero value is the
-	// enabled default (see DeadLetterConfig).
-	dlq DeadLetterConfig
 }
 
 const (
@@ -182,7 +174,6 @@ func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentD
 		nc: cfg.nc, js: cfg.js, stream: cfg.stream, consumer: cfg.consumer, group: cfg.group,
 		delay: cfg.delay, handlerDeadline: 30 * time.Second, progress: time.Second, log: cfg.log,
 		ackSync: workQueueRetention(cfg.stream),
-		dlq:     newDeadLetterer(cfg.nc, cfg.dlq, cfg.log),
 		subs:    make(map[*nats.Subscription]ownedSubscription), closeCh: make(chan struct{}),
 	}
 	// Keep the WaitGroup positive until Close has unsubscribed every callback;
@@ -470,14 +461,6 @@ func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *sub
 
 func (s *concurrentDurableSubscriber) terminateMalformed(msg *nats.Msg, subject string, decodeErr error) {
 	s.log.Warn("terminating malformed NATS delivery", zap.String("subject", subject), zap.Error(decodeErr))
-	// Dead-letter before the TERM for the same reason as the budget path: the
-	// delivery count is best-effort here because a payload that fails header
-	// decoding may also fail metadata decoding.
-	delivery := uint64(0)
-	if metadata, err := msg.Metadata(); err == nil {
-		delivery = metadata.NumDelivered
-	}
-	s.dlq.emit(subject, msg, delivery, decodeErr)
 	if err := msg.Term(); err != nil {
 		s.log.Warn("malformed NATS delivery TERM failed", zap.String("subject", subject), zap.Error(err))
 	}
@@ -766,25 +749,14 @@ func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
 
 func (s *concurrentDurableSubscriber) nack(msg *nats.Msg) {
 	delay := time.Duration(0)
-	delivery := uint64(0)
 	if s.delay != nil {
 		if metadata, err := msg.Metadata(); err == nil {
-			delivery = metadata.NumDelivered
-			delay = s.delay.WaitTime(delivery)
+			delay = s.delay.WaitTime(metadata.NumDelivered)
 		}
 	}
-	s.applyNak(msg, delay, delivery)
-}
-
-// applyNak applies one redelivery decision: paced NAK for the ordinary case,
-// TERM at the end of the budget. The TERM branch dead-letters FIRST — on a
-// work-queue stream Term deletes the message, so publishing after it would
-// document a payload that no longer exists (see dead_letter.go).
-func (s *concurrentDurableSubscriber) applyNak(msg *nats.Msg, delay time.Duration, delivery uint64) {
 	var err error
 	switch {
 	case delay == terminateDelivery:
-		s.dlq.terminal(msg, delivery, errRedeliveryBudgetExhausted)
 		err = msg.Term()
 	case delay > 0:
 		err = msg.NakWithDelay(delay)

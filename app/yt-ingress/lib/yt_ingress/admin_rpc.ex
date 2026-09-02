@@ -36,8 +36,8 @@ defmodule YtIngress.AdminRpc do
 
     {:reply,
      JSON.encode(%{
-       watched_channels: MapSet.size(YouTubeConfig.channel_ids()),
-       pinned_chats: MapSet.size(YouTubeConfig.pinned_live_chat_ids()),
+       watched_channels: count(YouTubeConfig.channel_ids()),
+       pinned_chats: count(YouTubeConfig.pinned_live_chat_ids()),
        sessions: sessions
      })}
   rescue
@@ -70,6 +70,12 @@ defmodule YtIngress.AdminRpc do
   catch
     :exit, reason -> %{channel_id: channel_id, error: inspect(reason)}
   end
+
+  # channel_ids is a MapSet; pinned_live_chat_ids is a list. Counting the
+  # wrong shape (MapSet.size on []) crashed every admin snapshot.
+  defp count(%MapSet{} = set), do: MapSet.size(set)
+  defp count(list) when is_list(list), do: length(list)
+  defp count(_), do: 0
 
   defp pinned_entries do
     Enum.flat_map(YouTubeConfig.pinned_live_chat_ids(), fn live_chat_id ->

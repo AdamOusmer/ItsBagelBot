@@ -231,21 +231,30 @@ func (w *Worker) rebuildActions(extend func(b *action.Builder)) {
 // every lane.
 func (w *Worker) SetYouTube(client youtubeAPI, budget ytBudget, chats *youtube.ChatDirectory) {
 	w.youtube, w.ytBudget, w.ytChats = client, budget, chats
-	w.rebuildActions(func(b *action.Builder) {
-		b.Action(outgress.TypeYouTubeChat).Internal().Run(w.processYouTubeChat)
-		b.Action(outgress.TypeYouTubeDelete).Internal().Run(w.processYouTubeDelete)
-		b.Action(outgress.TypeYouTubeBan).Internal().Run(w.processYouTubeBan)
-		b.Action(outgress.TypeYouTubeTimeout).Internal().Run(w.processYouTubeTimeout)
-	})
+	w.rebuildActions(w.extendLatePlatforms)
 }
 
 // SetDiscord attaches the Discord REST client and registers the discord_chat
 // action. Unwired in main for now: no Discord deployment exists yet.
 func (w *Worker) SetDiscord(client discordAPI) {
 	w.discord = client
-	w.rebuildActions(func(b *action.Builder) {
+	w.rebuildActions(w.extendLatePlatforms)
+}
+
+// extendLatePlatforms re-registers every late platform that is already
+// attached. rebuildActions starts from the Twitch set, so SetYouTube then
+// SetDiscord (or the reverse) would otherwise drop the first platform's
+// actions.
+func (w *Worker) extendLatePlatforms(b *action.Builder) {
+	if w.youtube != nil {
+		b.Action(outgress.TypeYouTubeChat).Internal().Run(w.processYouTubeChat)
+		b.Action(outgress.TypeYouTubeDelete).Internal().Run(w.processYouTubeDelete)
+		b.Action(outgress.TypeYouTubeBan).Internal().Run(w.processYouTubeBan)
+		b.Action(outgress.TypeYouTubeTimeout).Internal().Run(w.processYouTubeTimeout)
+	}
+	if w.discord != nil {
 		b.Action(outgress.TypeDiscordChat).Internal().Run(w.processDiscordChat)
-	})
+	}
 }
 
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,

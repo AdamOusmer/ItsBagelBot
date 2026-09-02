@@ -6,6 +6,7 @@ package worker
 import (
 	"ItsBagelBot/pkg/codec"
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/discord"
@@ -126,12 +127,10 @@ func (w *Worker) classifyDiscordResult(ctx context.Context, payload *outgress.Me
 }
 
 func isDiscordPermanent(err error) bool {
-	switch err {
-	case discord.ErrAuth, discord.ErrForbidden,
-		discord.ErrChannelNotFound, discord.ErrBadRequest:
-		return true
-	}
-	return false
+	return errors.Is(err, discord.ErrAuth) ||
+		errors.Is(err, discord.ErrForbidden) ||
+		errors.Is(err, discord.ErrChannelNotFound) ||
+		errors.Is(err, discord.ErrBadRequest)
 }
 
 // SetDiscordPacing retunes the per-channel pacing bucket from configuration.

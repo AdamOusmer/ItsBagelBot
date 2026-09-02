@@ -147,6 +147,14 @@ spec:
           port: 443
           scheme: https
           serversTransport: twitch-ingress-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/youtube-ingress`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: yt-ingress-status
+          port: 443
+          scheme: https
+          serversTransport: yt-ingress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
       kind: Rule
       middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
@@ -274,3 +282,16 @@ spec:
   serverName: twitch-ingress-status
   rootCAsSecrets:
     - twitch-ingress-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: yt-ingress-status-transport
+  namespace: app
+spec:
+  # Same shape as twitch-ingress-status-transport: serverName matches the
+  # cert SAN on youtube-ingress-tls.
+  serverName: yt-ingress-status
+  rootCAsSecrets:
+    - youtube-ingress-tls
+

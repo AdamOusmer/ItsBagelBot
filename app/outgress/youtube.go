@@ -65,17 +65,16 @@ func (d *deps) youTubeLeaseToken(ctx context.Context, channelID string) (string,
 	return reply.AccessToken, time.Unix(reply.ExpiresAt, 0), nil
 }
 
-// startYTLifecycleLane binds a durable queue-grouped consumer for yt-ingress's
-// stream.online / stream.offline events (YOUTUBE_INGRESS, which outgress
-// reconciles because nothing else creates it today) under outgress's own
-// group, feeding the shared live-chat directory the YouTube handlers resolve
-// their target chat from. There is deliberately NO discovery fallback behind
-// this feed (see youtube.ChatDirectory): a missed event drops sends loudly
-// until the next lifecycle transition repopulates, instead of silently paying
-// search.list's 100 units per send. HandleLifecycleEvent always acks — a
-// malformed event must never poison or replay the lane.
+// startYTLifecycleLane binds a broadcast (empty-group) consumer for
+// yt-ingress's stream.online / stream.offline events. The live-chat directory
+// is in-process memory on each replica, so every outgress pod must see every
+// lifecycle event — the same class of bug as the Twitch token-warm fan-out,
+// which is why this is deliberately NOT queue-grouped under serviceName.
+// HandleLifecycleEvent always acks: a malformed event must never poison or
+// replay the lane. There is no discovery fallback behind this feed (see
+// youtube.ChatDirectory).
 func (d *deps) startYTLifecycleLane(ctx context.Context, directory *youtube.ChatDirectory) func() {
-	lifecycleSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
+	lifecycleSub, err := bus.NewSubscriber(d.cfg.NATSURL, "", d.log)
 	fatalIf(d.log, err, "failed to connect youtube lifecycle subscriber")
 
 	fatalIf(d.log, bus.Consume(ctx, d.nrApp, lifecycleSub, d.cfg.YouTubeStreamSubject,

@@ -388,13 +388,16 @@ defmodule YtIngress.ChatSession do
 
   # --- lifecycle helpers -----------------------------------------------------
 
+  # Returns a handle_info reply. Callers used to return this map bare, which
+  # is a GenServer crash (`:bad_return_value`) — a :transient restart that
+  # drops the page_token and turns a backoff into a reconnect storm.
   defp schedule_reconnect(state) do
     state = close_transport(state)
     delay = backoff_ms(state.attempts)
     Metrics.count("Session/Reconnects")
 
     timer = Process.send_after(self(), :connect, delay)
-    %{state | backoff_timer: timer, grpc_channel: nil, reader_ref: nil, connected?: false}
+    {:noreply, %{state | backoff_timer: timer, grpc_channel: nil, reader_ref: nil, connected?: false}}
   end
 
   defp reconnect_now(state) do

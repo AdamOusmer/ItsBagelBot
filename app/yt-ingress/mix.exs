@@ -35,6 +35,10 @@ defmodule YtIngress.MixProject do
       # vendored priv/protos/stream_list.proto against this package's runtime;
       # see that proto header for how to regenerate.
       {:grpc, "~> 1.0"},
+      # CA bundle for gRPC TLS to youtube.googleapis.com. Declared (not only
+      # transitive) the same way twitch-ingress does, so a dep trim cannot
+      # silently drop CAStore.file_path/0.
+      {:castore, "~> 1.0"},
       # Protobuf runtime the generated modules encode against
       {:protobuf, "~> 0.17"},
       # `YtIngress.Nats` keeps the same cowlib floor as the Twitch ingress:

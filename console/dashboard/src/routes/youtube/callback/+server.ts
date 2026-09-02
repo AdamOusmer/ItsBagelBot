@@ -14,7 +14,7 @@
 // rather than silently keeping a possibly-stale old grant.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { ResponseBodyError } from '@bagel/shared/server/oauth';
+import { isOAuthProtocolError } from '@bagel/shared/server/oauth';
 import { logger } from '@bagel/shared/server/logger';
 import { google } from '$lib/server/oauth';
 import { saveYoutubeGrant, auditDashboardImpersonation } from '$lib/server/services';
@@ -41,15 +41,15 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   if (!code || !state || state !== storedState) fail('state');
 
   let accessToken: string;
-  let refreshToken: string;
+  let refreshToken: string | undefined;
   let expiresIn: number | undefined;
   try {
     const tokens = await google().validateAuthorizationCode(code);
     accessToken = tokens.accessToken();
-    refreshToken = tokens.refreshToken();
+    refreshToken = tokens.refreshTokenOptional();
     expiresIn = tokens.expiresIn();
   } catch (e) {
-    if (!(e instanceof ResponseBodyError)) throw e;
+    if (!isOAuthProtocolError(e)) throw e;
     logger.warn({ err: e }, '[youtube-callback] code exchange refused');
     fail('oauth');
   }

@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -142,7 +143,8 @@ func TestYouTubeChatSendsAndSpendsBudget(t *testing.T) {
 func TestYouTubeChatPaysPacingBucket(t *testing.T) {
 	client := &recordingClient{}
 	manager := &fakeManager{denied: map[string]bool{"ratelimit:yt:chat:UCbroadcaster": true}}
-	w := newYouTubeWorker(client, &fakeYtBudget{}, manager)
+	budget := &fakeYtBudget{}
+	w := newYouTubeWorker(client, budget, manager)
 
 	err := w.processYouTubeChat(context.Background(), chatPayload("!points"))
 	var expected expectedNackError
@@ -151,6 +153,9 @@ func TestYouTubeChatPaysPacingBucket(t *testing.T) {
 	}
 	if client.calls != 0 {
 		t.Fatal("API fired despite pacing denial")
+	}
+	if budget.takes != 0 {
+		t.Fatalf("pacing nack charged %d quota units; pacing must run before the budget", budget.takes)
 	}
 }
 
@@ -186,6 +191,7 @@ func TestYouTubePermanentErrorsDrop(t *testing.T) {
 		"ended":     youtube.ErrChatEnded,
 		"not found": youtube.ErrChatNotFound,
 		"auth":      youtube.ErrAuth,
+		"wrapped":   fmt.Errorf("client: %w", youtube.ErrAuth),
 	} {
 		t.Run(name, func(t *testing.T) {
 			client := &recordingClient{reply: reply}

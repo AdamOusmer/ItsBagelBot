@@ -42,8 +42,10 @@ defmodule YtIngress.Watcher do
             pinned: MapSet.new()
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: via())
   end
+
+  def via, do: {:via, Horde.Registry, {YtIngress.Registry, :watcher}}
 
   @impl true
   def init(_opts) do
@@ -173,8 +175,19 @@ defmodule YtIngress.Watcher do
 
   defp running?(key) do
     case Horde.Registry.lookup(YtIngress.Registry, key) do
-      [{pid, _}] -> Process.alive?(pid)
+      [{pid, _}] -> alive?(pid)
       [] -> false
+    end
+  end
+
+  # Process.alive?/1 is local-only: a remote session pid looks dead and the
+  # watcher would start_child every tick. Same probe Bootstrapper uses.
+  defp alive?(pid) when node(pid) == node(), do: Process.alive?(pid)
+
+  defp alive?(pid) do
+    case :rpc.call(node(pid), Process, :alive?, [pid], 5_000) do
+      true -> true
+      _ -> false
     end
   end
 

@@ -6,6 +6,7 @@ package worker
 import (
 	"ItsBagelBot/pkg/codec"
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/outgress/internal/youtube"
@@ -69,19 +70,21 @@ func (w *Worker) processYouTubeChat(ctx context.Context, payload *outgress.Messa
 		return nil
 	}
 
-	// Budget before pacing: a refusal here drops today no matter how long the
-	// message waits, so it must not burn a pacing slot on its way out.
-	admitted, err := w.admitYouTubeBudget(ctx, payload)
-	if err != nil || !admitted {
-		return err
-	}
+	// Pacing first: a nack here retries later and must not burn today's
+	// quota. Budget second: a refusal drops (no retry) because Google's
+	// day will not refill. The original order charged 50 units then nacked
+	// on pacing, so every redelivery spent another 50 of a 10k/day budget.
 	if err := w.take(ctx, ytChatPacingSpec.ForDynamicKey(
 		"ratelimit:yt:chat:", "yt:chat", payload.BroadcasterID)); err != nil {
 		return err
 	}
+	admitted, err := w.admitYouTubeBudget(ctx, payload)
+	if err != nil || !admitted {
+		return err
+	}
 
 	return w.classifyYouTubeResult(ctx, payload,
-		w.youtube.SendChatMessage(ctx, chatID, text))
+		w.youtube.SendChatMessage(youtube.WithChannel(ctx, payload.BroadcasterID), chatID, text))
 }
 
 // processYouTubeDelete removes one chat message by id (Message.MsgID). No
@@ -100,7 +103,7 @@ func (w *Worker) processYouTubeDelete(ctx context.Context, payload *outgress.Mes
 	}
 
 	return w.classifyYouTubeResult(ctx, payload,
-		w.youtube.DeleteChatMessage(ctx, payload.MsgID))
+		w.youtube.DeleteChatMessage(youtube.WithChannel(ctx, payload.BroadcasterID), payload.MsgID))
 }
 
 // processYouTubeBan / processYouTubeTimeout issue liveChatBans.insert against
@@ -147,10 +150,10 @@ func (w *Worker) processYouTubeModeration(ctx context.Context, payload *outgress
 
 	if temporary {
 		return w.classifyYouTubeResult(ctx, payload,
-			w.youtube.Timeout(ctx, chatID, target, body.DurationSeconds))
+			w.youtube.Timeout(youtube.WithChannel(ctx, payload.BroadcasterID), chatID, target, body.DurationSeconds))
 	}
 	return w.classifyYouTubeResult(ctx, payload,
-		w.youtube.Ban(ctx, chatID, target))
+		w.youtube.Ban(youtube.WithChannel(ctx, payload.BroadcasterID), chatID, target))
 }
 
 // resolveYouTubeChat picks the target chat: an explicit producer-supplied id
@@ -218,12 +221,11 @@ func (w *Worker) classifyYouTubeResult(ctx context.Context, payload *outgress.Me
 }
 
 func isYouTubePermanent(err error) bool {
-	switch err {
-	case youtube.ErrQuotaExhausted, youtube.ErrChatEnded,
-		youtube.ErrChatNotFound, youtube.ErrAuth:
-		return true
-	}
-	return false
+	return errors.Is(err, youtube.ErrQuotaExhausted) ||
+		errors.Is(err, youtube.ErrChatEnded) ||
+		errors.Is(err, youtube.ErrChatNotFound) ||
+		errors.Is(err, youtube.ErrAuth) ||
+		errors.Is(err, youtube.ErrNoChannelInContext)
 }
 
 // decodeYouTubeText extracts {"message": text} from a youtube_chat payload.
