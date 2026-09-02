@@ -153,8 +153,12 @@ spec:
               value: tls://nats.messaging:4222
             - name: NATS_PUBLISH_WIRE
               value: atomic
+                        # 256 x 16 slots x 3 connections, measured 2026-09-02 on the production hub at 100k msg/s:
+            # commit p50 31-36 ms, p99 150-194 ms, vs 1000 x 8 x 6: p50 ~250 ms, p99 ~600 ms.
+            # The batch worker now keeps filling a cohort until a slot frees, so a window no
+            # longer makes cohorts tiny; the size caps the per-cohort apply burst on every replica.
             - name: NATS_ATOMIC_PUBLISH_BATCH_SIZE
-              value: "1000"
+              value: "256"
             # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
             # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
             # and the console nats lib (TS).
@@ -228,8 +232,26 @@ spec:
               value: "8"
             - name: NATS_PULL_MAX_ACK_PENDING
               value: "200000"
+                        # 250 x 8 loops = 2000 messages buffered per pod. Measured 2026-09-02: 8 x 1000
+            # held ~8000 messages client-side, ~260 ms of queue at 30k msg/s per pod (e2e p50
+            # 380 ms with commit p50 40 ms); 250 cut e2e p50 to 275 ms at the same rate.
             - name: NATS_PULL_FETCH_BATCH
-              value: "1000"
+              value: "250"
+            # One pull connection per loop. The hub delivers at most ~50k msg/s
+            # to a single connection (one TLS record per delivered message at
+            # these rates); two pods on eight connections each held 90k
+            # (2026-09-01, production hub). Ignored by images older than the
+            # pkg/bus that reads it.
+                        # One connection per pod. Measured 2026-09-02 on one shared R3 durable at 120k
+            # offered: 1 conn 73-88k consumed, 2 conns 67k, 8 conns 58-69k; more connections
+            # split the hub's deliveries into smaller TLS records, which costs both sides.
+            - name: NATS_PULL_CONNECTIONS
+              value: "1"
+            # Bounds the silent stall a pod suffers when two pods bind the shared
+            # durable in the same instant: 28 s at nats.go's 30 s default, 3-5 s
+            # here (see pullFetchExpiry).
+            - name: NATS_PULL_EXPIRY
+              value: 5s
             # PARTITION FLAG. "on" reshapes the ingress lane catalog to the
             # two-stream partition (narrow TWITCH_INGRESS, create
             # TWITCH_INGRESS_STANDARD) on the next sesame reconcile. Ships off
@@ -267,8 +289,27 @@ spec:
             # waiting the 1ms default. Cohorts still form under load because the
             # drain takes everything already queued. On the 0.4ms fabric that
             # timer was the largest single latency item in the pipeline.
-            - name: NATS_PUBLISH_BATCH_WAIT
-              value: "0"
+            # NATS_PUBLISH_BATCH_WAIT=0 sat here until 2026-09-02; it shapes the
+            # single wire only and this service runs the atomic wire (above), so
+            # it was a no-op. The atomic wire's own window is the knob that sets
+            # cohort size at a given rate (rate x window / connections).
+            - name: NATS_ATOMIC_PUBLISH_BATCH_WAIT
+              value: 1ms
+            # AckFirst stays ON (the code default). With it off the broker's
+            # rejection of a cohort's first message has no reply subject to
+            # land on, the commit then gets no reply at all, and the worker
+            # holds its slot for the full 2s ack wait: measured on the
+            # production hub 2026-09-02 at 150k msg/s offered, 35-112 such
+            # timeouts per pod per 30s, admit 114k and commit p99 3-5s with
+            # the hub near idle; the same run with AckFirst on admitted 123.5k
+            # with zero errors and commit p99 under 750ms.
+            - name: NATS_ATOMIC_ACK_FIRST
+              value: "true"
+
+            # 8 slots per worker: the 2026-08 live capacity runs used 8; at the
+            # default 4 a worker stalls on its slot at ~3 ms commit RTT.
+            - name: NATS_PUBLISH_INFLIGHT_COHORTS
+              value: "16"
             - name: SESAME_SCALE_UP_AFTER
               value: 2s
             - name: SESAME_SCALE_DOWN_AFTER

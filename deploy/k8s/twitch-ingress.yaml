@@ -230,10 +230,19 @@ spec:
             # Scheduler-local JetStream cohorts collect for at most 1ms. The
             # publisher is structurally dedup-free, so no environment toggle
             # can accidentally restore the broker's Nats-Msg-Id index tax.
+            # Cohort shape is rate x wait / connections, not the size cap: at
+            # 150k msg/s over three pods and two connections each, a 1 ms wait
+            # closes cohorts at ~25 messages and the hub pays its per-cohort
+            # staging store and commit ~6,000 times a second. 1000 at 4 ms
+            # (~100 per cohort, 4x fewer commits) is the shape the 2026-09-01
+            # production runs held; the extra 3 ms of window is paid once per
+            # message and is far below the commit latency it removes. 1000 is
+            # ADR-050's ceiling and the hub's 200 open-batch budget still holds
+            # 3 pods x 2 conns x 8 in flight = 48.
             - name: INGRESS_PUBLISH_BATCH_SIZE
-              value: "128"
+              value: "256"
             - name: INGRESS_PUBLISH_BATCH_WAIT_MS
-              value: "1"
+              value: "4"
             # Cohort wire, set explicitly even though it matches the shipped
             # default, because that is what makes the rollback a value edit here
             # rather than a rebuild. "atomic" writes the cohort as one ADR-050
