@@ -67,6 +67,7 @@
   "tier.premiumFeat2": "Your messages jump to the front of the line",
   "tier.premiumFeat3": "Faster command responses",
   "tier.premiumFeat4": "Priority support",
+  "tier.premiumFeat5": "Early access to beta features, AutoMod first",
   "tier.enterprise": "Enterprise",
   "tier.enterpriseAmount": "Custom",
   "tier.enterpriseDesc": "Dedicated setup for teams running many channels at once.",
