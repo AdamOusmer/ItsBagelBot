@@ -608,17 +608,21 @@ const automodModuleName = "automod"
 // ModuleViews. nil views (no name-gated module needs chat) or an absent row
 // yields nil (the global default: KindDefault ships enabled). A row present but
 // disabled maps to a Config that opts the gate out for that channel, the same
-// enable toggle every module has.
-func automodConfigFrom(views map[string]projection.ModuleView) *automod.Config {
-	if views == nil {
-		return nil
-	}
+// enable toggle every module has. locked is the beta lane gate (the module is
+// in beta and this event rides the standard lane): it forces the same
+// Disabled config whatever the row says, because this path bypasses
+// enabled(). Disabled is floor-only, not off, so the safety floor still holds
+// on a locked channel exactly as it does with the module switched off.
+func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *automod.Config {
 	mv, ok := views[automodModuleName]
-	if !ok {
+	if !ok && !locked {
 		return nil
 	}
-	cfg := automod.ParseConfig(mv.Configs)
-	if !mv.IsEnabled {
+	var cfg *automod.Config
+	if ok {
+		cfg = automod.ParseConfig(mv.Configs)
+	}
+	if locked || !mv.IsEnabled {
 		if cfg == nil {
 			cfg = &automod.Config{}
 		}
