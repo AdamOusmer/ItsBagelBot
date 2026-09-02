@@ -40,12 +40,20 @@ func (g *guardOnceLimiter) AllowOrdered(context.Context, ratelimit.Request, rate
 
 func (g *guardOnceLimiter) GuardRetryAfter() time.Duration { return g.wait }
 
+func scriptedKey(req ratelimit.Request) string {
+	if req.Key != "" {
+		return req.Key
+	}
+	return req.DynamicPrefix + req.Bucket.Value
+}
+
 func (s *scriptedLimiter) Allow(_ context.Context, req ratelimit.Request) (bool, error) {
-	s.calls = append(s.calls, req.Key)
-	if err := s.errs[req.Key]; err != nil {
+	key := scriptedKey(req)
+	s.calls = append(s.calls, key)
+	if err := s.errs[key]; err != nil {
 		return false, err
 	}
-	return !s.denied[req.Key], nil
+	return !s.denied[key], nil
 }
 
 func (s *scriptedLimiter) AllowOrdered(context.Context, ratelimit.Request, ratelimit.Request) (uint8, error) {

@@ -75,8 +75,9 @@ func TestDiscordChatPaysPerChannelThenGlobalBucket(t *testing.T) {
 	if err := w.processDiscordChat(context.Background(), discordChatPayload("hi")); err != nil {
 		t.Fatalf("send failed: %v", err)
 	}
-	if n := len(manager.calls); n == 0 || manager.calls[n-1] != "ratelimit:discord:global" {
-		t.Fatalf("bucket keys = %v, want the global ceiling paid last", manager.calls)
+	want := []string{"ratelimit:discord:chat:1234567890", "ratelimit:discord:global"}
+	if n := len(manager.calls); n != 2 || manager.calls[0] != want[0] || manager.calls[1] != want[1] {
+		t.Fatalf("bucket keys = %v, want %v", manager.calls, want)
 	}
 }
 
