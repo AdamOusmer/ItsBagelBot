@@ -181,7 +181,10 @@ func TestCollectBatchUngatedWireClosesOnTheWindow(t *testing.T) {
 	worker.slots <- struct{}{}
 	worker.slots <- struct{}{} // all four busy, and irrelevant
 	batch, ok := worker.collectBatch(stagedBatch(1)[0])
-	if !ok || len(batch) != 1 || worker.slotHeld {
-		t.Fatalf("collectBatch() = (%d, %v, held=%v), want the window to close the cohort", len(batch), ok, worker.slotHeld)
+	if !ok || len(batch) != 1 {
+		t.Fatalf("collectBatch() = (%d, %v), want the window to close the cohort", len(batch), ok)
+	}
+	if worker.slotHeld {
+		t.Fatal("an ungated wire took an inflight slot")
 	}
 }

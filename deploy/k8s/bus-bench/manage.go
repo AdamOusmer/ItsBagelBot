@@ -34,25 +34,20 @@ func runSetup(lane benchLane, maxBytes int64, maxAge time.Duration) error {
 		return err
 	default:
 		cfg := st.CachedInfo().Config
-		raise := cfg.MaxBytes < maxBytes
-		reage := maxAge > 0 && cfg.MaxAge != maxAge
-		if raise || reage {
-			report := setupReport{Raised: raise, OriginalMaxBytes: cfg.MaxBytes, OriginalMaxAge: int64(cfg.MaxAge)}
-			if raise {
-				cfg.MaxBytes = maxBytes
-			}
-			if reage {
-				// The broker rejects a duplicate window longer than MaxAge.
-				cfg.MaxAge = maxAge
-				cfg.Duplicates = min(cfg.Duplicates, maxAge)
-			}
-			if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
-				return uerr
-			}
-			emit(report)
+		report := setupReport{OriginalMaxBytes: cfg.MaxBytes, OriginalMaxAge: int64(cfg.MaxAge)}
+		target := retentionTarget{maxAge: maxAge}
+		if cfg.MaxBytes < maxBytes {
+			target.maxBytes = maxBytes
+		}
+		if !target.apply(&cfg) {
+			emit(setupReport{Raised: false})
 			return nil
 		}
-		emit(setupReport{Raised: false})
+		if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
+			return uerr
+		}
+		report.Raised = target.maxBytes > 0
+		emit(report)
 	}
 	return nil
 }
@@ -74,8 +69,28 @@ func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, du
 
 // revertStreamMaxBytes restores the bench stream's original MaxBytes cap,
 // tolerating a stream that setup never created.
-func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName string, original int64, originalAge time.Duration) (bool, error) {
-	if original <= 0 && originalAge <= 0 {
+// retentionTarget is what setup and cleanup write to the bench stream: a byte
+// cap and optionally a MaxAge, with the duplicate window clamped under the age
+// because the broker rejects a longer one. Zero fields leave that limit alone.
+type retentionTarget struct {
+	maxBytes int64
+	maxAge   time.Duration
+}
+
+// apply writes the target into cfg and reports whether anything changed.
+func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
+	changed := false
+	if t.maxBytes > 0 && cfg.MaxBytes != t.maxBytes {
+		cfg.MaxBytes, changed = t.maxBytes, true
+	}
+	if t.maxAge > 0 && cfg.MaxAge != t.maxAge {
+		cfg.MaxAge, cfg.Duplicates, changed = t.maxAge, min(cfg.Duplicates, t.maxAge), true
+	}
+	return changed
+}
+
+func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName string, target retentionTarget) (bool, error) {
+	if target == (retentionTarget{}) {
 		return false, nil
 	}
 	st, serr := js.Stream(ctx, streamName)
@@ -86,14 +101,7 @@ func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName st
 		return false, serr
 	}
 	cfg := st.CachedInfo().Config
-	changed := false
-	if original > 0 && cfg.MaxBytes != original {
-		cfg.MaxBytes, changed = original, true
-	}
-	if originalAge > 0 && cfg.MaxAge != originalAge {
-		cfg.MaxAge, cfg.Duplicates, changed = originalAge, min(cfg.Duplicates, originalAge), true
-	}
-	if !changed {
+	if !target.apply(&cfg) {
 		return false, nil
 	}
 	if _, uerr := js.UpdateStream(ctx, cfg); uerr != nil {
@@ -118,7 +126,7 @@ func runCleanup(lane benchLane, originalMaxBytes int64, originalMaxAge time.Dura
 		return err
 	}
 
-	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, originalMaxBytes, originalMaxAge)
+	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, retentionTarget{maxBytes: originalMaxBytes, maxAge: originalMaxAge})
 	if err != nil {
 		return err
 	}

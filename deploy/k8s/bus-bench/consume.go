@@ -201,11 +201,21 @@ func sortAsc(v []int64) {
 // publishOpts bundles one publish-mode invocation. Every flag feeds the same
 // run, so they travel as a struct rather than as a nine-argument signature.
 
-func runConsume(lane benchLane, duration time.Duration, startAt unixNano, payloadSize int, policy bus.ScalePolicy, warmup time.Duration, feeders int) error {
-	if startAt == 0 {
-		startAt = unixNano(time.Now().UnixNano())
+// consumeOptions is the shape of one consume run.
+type consumeOptions struct {
+	duration    time.Duration
+	startAt     unixNano
+	payloadSize int
+	policy      bus.ScalePolicy
+	warmup      time.Duration
+	feeders     int
+}
+
+func runConsume(lane benchLane, o consumeOptions) error {
+	if o.startAt == 0 {
+		o.startAt = unixNano(time.Now().UnixNano())
 	}
-	winStart, winEnd := startAt, startAt+unixNano(duration.Nanoseconds())
+	winStart, winEnd := o.startAt, o.startAt+unixNano(o.duration.Nanoseconds())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -218,10 +228,10 @@ func runConsume(lane benchLane, duration time.Duration, startAt unixNano, payloa
 	c := &collector{
 		winStart: winStart,
 		winEnd:   winEnd,
-		warmEnd:  winStart + unixNano(warmup.Nanoseconds()),
+		warmEnd:  winStart + unixNano(o.warmup.Nanoseconds()),
 		lat:      make([]int64, maxLatencySamples),
-		secs:     make([][]int64, int(duration.Seconds())+1),
-		secIdx:   make([]atomic.Int64, int(duration.Seconds())+1),
+		secs:     make([][]int64, int(o.duration.Seconds())+1),
+		secIdx:   make([]atomic.Int64, int(o.duration.Seconds())+1),
 		tracking: true,
 	}
 	for i := range c.secs {
@@ -236,7 +246,7 @@ func runConsume(lane benchLane, duration time.Duration, startAt unixNano, payloa
 		Sub:     sub,
 		Subject: lane.subject,
 		Handle:  c.handle,
-	}}, policy, stderrLogger())
+	}}, o.policy, stderrLogger())
 	if err != nil {
 		return err
 	}
@@ -254,12 +264,12 @@ func runConsume(lane benchLane, duration time.Duration, startAt unixNano, payloa
 	sortAsc(measured)
 	emit(consumeReport{
 		Consumed:   uint64(c.consumed.Load()),
-		Rate:       float64(c.consumed.Load()) / duration.Seconds(),
+		Rate:       float64(c.consumed.Load()) / o.duration.Seconds(),
 		E2ENs:      summarize(measured),
 		Duplicates: c.dupes.Load(),
 
 		PerSecP99:   c.perSecondP99(),
-		Missing:     c.missing(feeders),
+		Missing:     c.missing(o.feeders),
 		CPUUsPerMsg: cpuMicrosPerMessage(uint64(c.consumed.Load())),
 	})
 	return nil

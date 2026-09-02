@@ -14,30 +14,25 @@ import (
 // The pull lane delivers without an ack floor by default (the durable stays
 // R3; see pullAckPolicy); AckAll remains selectable and carries the pending
 // ceiling the server requires for it.
-func TestPullAckPolicyDefaultsToAckNone(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "")
-	cfg := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
-	if cfg.AckPolicy != jsapi.AckNonePolicy || cfg.MaxAckPending != 0 {
-		t.Fatalf("default = %v/%d, want AckNone with no pending ceiling", cfg.AckPolicy, cfg.MaxAckPending)
+func TestPullAckPolicyKnob(t *testing.T) {
+	cases := []struct {
+		knob    string
+		policy  jsapi.AckPolicy
+		pending int
+	}{
+		{"", jsapi.AckNonePolicy, 0},
+		{"none", jsapi.AckNonePolicy, 0},
+		{"all", jsapi.AckAllPolicy, defaultPullMaxAckPending},
 	}
-	if cfg.Replicas != defaultPullReplicas {
-		t.Fatalf("replicas = %d, want %d: AckNone must not change replication", cfg.Replicas, defaultPullReplicas)
-	}
-	t.Setenv("NATS_PULL_ACK_POLICY", "all")
-	cfg = pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
-	if cfg.AckPolicy != jsapi.AckAllPolicy || cfg.MaxAckPending != defaultPullMaxAckPending {
-		t.Fatalf("all = %v/%d, want AckAll with the pending ceiling", cfg.AckPolicy, cfg.MaxAckPending)
-	}
-}
-
-func TestPullAckPolicyNoneDropsPendingCeiling(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "none")
-	cfg := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
-	if cfg.AckPolicy != jsapi.AckNonePolicy {
-		t.Fatalf("ack policy = %v, want AckNone", cfg.AckPolicy)
-	}
-	if cfg.MaxAckPending != 0 {
-		t.Fatalf("max ack pending = %d, want 0 under AckNone", cfg.MaxAckPending)
+	for _, c := range cases {
+		t.Setenv("NATS_PULL_ACK_POLICY", c.knob)
+		cfg := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
+		if cfg.AckPolicy != c.policy || cfg.MaxAckPending != c.pending {
+			t.Fatalf("knob %q = %v/%d, want %v/%d", c.knob, cfg.AckPolicy, cfg.MaxAckPending, c.policy, c.pending)
+		}
+		if cfg.Replicas != defaultPullReplicas {
+			t.Fatalf("knob %q replicas = %d, want %d: the ack policy must not change replication", c.knob, cfg.Replicas, defaultPullReplicas)
+		}
 	}
 }
 
@@ -53,33 +48,31 @@ func TestPullAckNoneRecordsNoReceipt(t *testing.T) {
 }
 
 // A live durable that already carries every field this binding writes is bound
-// by lookup: no assignment write reaches the broker, so the pods already
-// fetching from it never see the leader transition a racing write can cause.
-func TestPullBindLooksUpAConvergedDurable(t *testing.T) {
+// by lookup, so the pods already fetching from it never see the leader
+// transition an assignment write can cause; a drifted one is written once.
+func TestPullBindWritesOnlyADriftedDurable(t *testing.T) {
 	t.Setenv("NATS_PULL_CREATE_STAGGER", "0")
 	desired := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
-	live := desired
-	live.Metadata = map[string]string{managedConsumerMetadata: "true", "_nats.req.level": "1"}
-	js := &pullConsumerSpy{live: &jsapi.ConsumerInfo{Config: live}}
-	if _, err := bindPullConsumer(context.Background(), js, "TWITCH_INGRESS", desired); err != nil {
-		t.Fatal(err)
+	drifted := desired
+	drifted.AckWait = desired.AckWait / 2
+	cases := []struct {
+		name   string
+		live   jsapi.ConsumerConfig
+		writes int
+	}{
+		{"converged", desired, 0},
+		{"drifted ack wait", drifted, 1},
 	}
-	if len(js.created) != 0 {
-		t.Fatalf("converged durable provoked %d assignment writes, want 0", len(js.created))
-	}
-}
-
-func TestPullBindWritesADriftedDurable(t *testing.T) {
-	t.Setenv("NATS_PULL_CREATE_STAGGER", "0")
-	desired := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
-	live := desired
-	live.AckWait = desired.AckWait / 2
-	js := &pullConsumerSpy{live: &jsapi.ConsumerInfo{Config: live}}
-	if _, err := bindPullConsumer(context.Background(), js, "TWITCH_INGRESS", desired); err != nil {
-		t.Fatal(err)
-	}
-	if len(js.created) != 1 {
-		t.Fatalf("drifted durable provoked %d assignment writes, want 1", len(js.created))
+	for _, c := range cases {
+		live := c.live
+		live.Metadata = map[string]string{managedConsumerMetadata: "true", "_nats.req.level": "1"}
+		js := &pullConsumerSpy{live: &jsapi.ConsumerInfo{Config: live}}
+		if _, err := bindPullConsumer(context.Background(), js, "TWITCH_INGRESS", desired); err != nil {
+			t.Fatal(err)
+		}
+		if len(js.created) != c.writes {
+			t.Fatalf("%s: %d assignment writes, want %d", c.name, len(js.created), c.writes)
+		}
 	}
 }
 

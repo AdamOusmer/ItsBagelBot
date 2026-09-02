@@ -81,7 +81,7 @@ func main() {
 			paceEvery: *paceEvery, podIndex: *podIndex, feeders: *feeders,
 		})
 	case "consume":
-		err = runConsume(lane, *duration, unixNano(*startAt), *payloadSize, bus.ScalePolicy{MinRoutines: *routinesMin, MaxRoutines: *routinesMax}, *warmup, *feeders)
+		err = runConsume(lane, consumeOptions{duration: *duration, startAt: unixNano(*startAt), payloadSize: *payloadSize, policy: bus.ScalePolicy{MinRoutines: *routinesMin, MaxRoutines: *routinesMax}, warmup: *warmup, feeders: *feeders})
 	case "cleanup":
 		err = runCleanup(lane, *origMaxBytes, *origMaxAge)
 	default:
