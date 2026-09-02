@@ -55,3 +55,7 @@ flowchart TB
 The bot's only public surface is the broadcaster console, served through the
 outbound cloudflared tunnel. Everything operator-facing is tailnet-only. Inside the
 box, services talk exclusively over NATS.
+
+The planned **BagelBridge** local companion (OBS, overlays, tray) is evaluated in
+[BagelBridge desktop frameworks](/architecture/bagelbridge-frameworks/). It is a Go
+agent, not an Electron app; see [ADR 0011](/adr/0011-bagelbridge-desktop-shell/).

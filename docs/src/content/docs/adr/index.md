@@ -15,6 +15,10 @@ ADR that supersedes it and update the older one's status to point forward.
 
 ADRs are listed in the sidebar in numerical order. Each filename follows the pattern `NNNN-kebab-case-title.md`.
 
+The newest proposed record is [ADR 0011](/adr/0011-bagelbridge-desktop-shell/) (BagelBridge desktop
+shell). The framework comparison behind it is
+[BagelBridge desktop frameworks](/architecture/bagelbridge-frameworks/).
+
 ## Writing a new ADR
 
 From the `docs/` directory:
