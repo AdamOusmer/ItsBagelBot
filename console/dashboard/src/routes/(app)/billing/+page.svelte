@@ -41,7 +41,8 @@
     t('billing.premiumFeat1'),
     t('billing.premiumFeat2'),
     t('billing.premiumFeat3'),
-    t('billing.premiumFeat4')
+    t('billing.premiumFeat4'),
+    t('billing.premiumFeat5')
   ]);
 
   let launching = $state(false);
