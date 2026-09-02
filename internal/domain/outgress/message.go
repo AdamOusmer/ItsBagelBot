@@ -36,6 +36,10 @@ type Message struct {
 	RewardID     string `json:"reward_id,omitempty"`
 	RedemptionID string `json:"redemption_id,omitempty"`
 	Status       string `json:"status,omitempty"`
+	// ChannelID is the Discord channel snowflake for TypeDiscordChat. Live
+	// embeds do not use this field: they bind twitch.ingress.event.stream
+	// directly and read the live channel off the Discord module blob.
+	ChannelID string `json:"channel_id,omitempty"`
 }
 
 // Batch is the shared producer/consumer contract for an ordered, at-most-once
@@ -136,6 +140,10 @@ const (
 	// broadcaster token (channel:manage:redemptions); RewardID + RedemptionID +
 	// Status ride the query string / body.
 	TypeRedemptionUpdate = "redemption_update"
+	// TypeDiscordChat posts one message into a Discord channel as the bot.
+	// Live go-live/offline embeds do not use this type: those bind the
+	// Twitch stream lane in outgress directly so they never pass through sesame.
+	TypeDiscordChat = "discord_chat"
 )
 
 // Redemption status values for a TypeRedemptionUpdate Message.Status.

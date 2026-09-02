@@ -194,6 +194,9 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
+	// Discord go-live/offline binds this lane directly (no sesame hop).
+	w.announceDiscordLive(msg.Context(), status)
+
 	// Only go-live triggers the re-verify; an offline event needs no mod check.
 	if !status.Live {
 		return nil

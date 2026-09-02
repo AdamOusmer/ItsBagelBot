@@ -472,6 +472,21 @@ var DiscordOutgressStream = StreamSpec{
 	Replicas:     3,
 }
 
+// DiscordIngressStream carries slash-command envelopes from dingress.
+// MaxBytes matches Discord outgress: slash volume is announcement-shaped.
+var DiscordIngressStream = StreamSpec{
+	Name:         "DISCORD_INGRESS",
+	Subjects:     []string{"discord.ingress.event.premium", "discord.ingress.event.standard"},
+	Retention:    nats.LimitsPolicy,
+	MaxAge:       10 * time.Second,
+	MaxBytes:     32 << 20,
+	Storage:      nats.MemoryStorage,
+	Replicas:     3,
+	MaxMsgsPer:   100_000,
+	Duplicates:   10 * time.Second,
+	BatchPublish: true,
+}
+
 // Ownership is deliberately outgress for now: it is the only consumer of
 // these subjects today (the lifecycle lane feeds the live-chat directory).
 // When a YouTube sesame exists, reconciliation moves there.
@@ -498,7 +513,6 @@ var YouTubeIngressStream = StreamSpec{
 	Duplicates:   10 * time.Second,
 	BatchPublish: true,
 }
-
 
 var DataStreams = []StreamSpec{
 	BagelDataStream,
@@ -597,7 +611,7 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream)
+		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream, DiscordIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

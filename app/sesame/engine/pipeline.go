@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,8 +105,8 @@ type Pipeline struct {
 	// once here because the inline gate reads its row without going through
 	// enabled() and must honor the same lane lock (see automodLocked).
 	automodBeta bool
-	reputation     Reputation
-	campaign       Campaign
+	reputation  Reputation
+	campaign    Campaign
 
 	// shieldEnabled gates the mass-raid Shield Mode escalation; raidGate dedups it
 	// per channel so one raid activates Shield Mode once, not on every folded burst.
@@ -453,7 +454,11 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		}
 		state.ordinal++
 		replayID := state.replayID()
-		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
+		subject := state.subject
+		if o.Type == outgress.TypeDiscordChat {
+			subject = discordOutgressSubject(state.subject)
+		}
+		if err := p.publishOutput(ctx, subject, replayID, o); err != nil {
 			state.err = err
 			return
 		}
@@ -496,6 +501,13 @@ func (p *Pipeline) laneSubject(regress module.Regress) string {
 		return p.outgressPremium
 	}
 	return p.outgressStandard
+}
+
+// discordOutgressSubject rewrites a twitch.outgress.* lane onto the Discord
+// announcement stream so raid/gift copies never share the Helix chat queue.
+// Live go-live embeds do not use this path.
+func discordOutgressSubject(twitchSubject string) string {
+	return strings.Replace(twitchSubject, "twitch.outgress.", "discord.outgress.", 1)
 }
 
 // floorSuppressed applies the send-time floor guard: the bot must never SAY

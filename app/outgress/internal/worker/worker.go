@@ -97,10 +97,13 @@ type Worker struct {
 	// hash (internal/projection), a DIFFERENT store from live above: live
 	// writes outgress's own flat live:<id> key, which is what every live-gated
 	// command actually reads. The two must not be conflated -- see
-	// persistStreamInfo in streamstatus.go. Only the system lane sets it (via
-	// SetStreamInfoStore); nil elsewhere, where persistStreamInfo becomes a
-	// no-op.
+	// persistStreamInfo in streamstatus.go. Every lane worker gets a reader
+	// so Discord clip posts (premium/standard) can look up the module blob;
+	// persistStreamInfo still only writes on the system lane (live is nil
+	// elsewhere, so those writes stay a no-op).
 	streamInfo *projection.Store
+	// discordMods is a test-injectable GetModule. Production uses streamInfo.
+	discordMods discordModuleReader
 	// reauth tells a streamer their Twitch grant died (dashboard bell + the
 	// go-live chat beacon copy). Wiring attaches one shared instance to all
 	// three lanes: the system lane drives the beacon and the authz consumers,
@@ -108,6 +111,12 @@ type Worker struct {
 	// proves the grant dead. Nil in tests, where every call site degrades to a
 	// no-op.
 	reauth *ReauthNotifier
+	// discord is the REST client processDiscordChat and the live announcer
+	// fire through, attached via SetDiscord. Nil until the bot token is set.
+	discord discordAPI
+	// discordKV stores the go-live message id so stream.offline can edit it.
+	// Nil in tests that only exercise chat sends.
+	discordKV discordLiveStore
 	// grants is the narrow registry slice the grant marker uses. It points at
 	// the same *channels.Registry as the field above; the separate, smaller
 	// interface exists so the marker's transition logic is testable without
@@ -181,8 +190,9 @@ func New(cfg Config) *Worker {
 // worker that handles stream_status jobs.
 func (w *Worker) SetLiveWriter(lw *LiveWriter) { w.live = lw }
 
-// SetStreamInfoStore attaches the projector's stream-metadata projection,
-// used by the system lane worker that handles stream_status jobs.
+// SetStreamInfoStore attaches the projector's settings hash. The system
+// lane writes stream metadata through it; every lane reads the Discord
+// module blob from it for go-live embeds and clip posts.
 func (w *Worker) SetStreamInfoStore(s *projection.Store) { w.streamInfo = s }
 
 func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
@@ -192,6 +202,16 @@ func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 // lifecycle events, the chat lanes for the dashboard bell raised the moment a
 // broadcaster-identity call proves the grant dead.
 func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
+
+// SetDiscord attaches the Discord REST client (and optional live-message
+// store). Wiring calls it once per lane worker when DISCORD_BOT_TOKEN is
+// set, before any consumer starts. Handlers capture w by method value, so
+// a late attach still works; buildActions always registers discord_chat and
+// drops it when the client is nil.
+func (w *Worker) SetDiscord(client discordAPI, kv discordLiveStore) {
+	w.discord = client
+	w.discordKV = kv
+}
 
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
 // so wiring builds one bounded cache and injects it into every lane worker

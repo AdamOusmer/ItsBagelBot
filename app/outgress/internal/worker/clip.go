@@ -148,6 +148,7 @@ func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta c
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
+	w.announceDiscordClip(ctx, broadcasterID, clipURL, meta.Clipper, strings.TrimSpace(meta.Title))
 	w.scheduleClipVerify(broadcasterID, meta.Clipper, id)
 }
 

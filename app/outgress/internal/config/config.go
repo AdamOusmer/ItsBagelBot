@@ -99,6 +99,10 @@ type Config struct {
 	NotifySendSubject string
 	UsersStateSubject string
 
+	DiscordBotToken        string
+	DiscordPremiumSubject  string
+	DiscordStandardSubject string
+
 	RateRegion          string
 	LeaseEpoch          time.Duration
 	LeaseGuard          time.Duration
@@ -133,6 +137,9 @@ func Load() *Config {
 		AuthzSubRevokedSubject: env.Get("NATS_SUBJECT_AUTHZ_SUBREVOKED", "twitch.ingress.status.authz.subrevoked"),
 		NotifySendSubject:      env.Get("NATS_NOTIFY_SEND_SUBJECT", "bagel.rpc.admin.notifications.send"),
 		UsersStateSubject:      env.Get("NATS_USERS_STATE_SUBJECT", "bagel.rpc.dashboard.state_get"),
+		DiscordBotToken:        env.Get("DISCORD_BOT_TOKEN", ""),
+		DiscordPremiumSubject:  env.Get("NATS_DISCORD_OUTGRESS_PREMIUM_SUBJECT", "discord.outgress.premium"),
+		DiscordStandardSubject: env.Get("NATS_DISCORD_OUTGRESS_STANDARD_SUBJECT", "discord.outgress.standard"),
 		MinRoutines:            env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:            env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:           env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

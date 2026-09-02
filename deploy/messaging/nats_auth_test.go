@@ -33,7 +33,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS", "DISCORD_OUTGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":  {"BAGEL_DATA"},
@@ -42,7 +42,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		// users/sesame boot order; identical catalog specs make the concurrent
 		// reconciles converge.
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "DISCORD_OUTGRESS"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
@@ -125,7 +125,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
 			// the partition ordering holds here exactly as it does in sesame.
 			"projector": "append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)",
-			"outgress":  "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
+			"outgress":  "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream, bus.DiscordOutgressStream}",
 		},
 		seen: make(map[string]bool, 4),
 	}

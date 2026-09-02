@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/config"
+	"ItsBagelBot/app/outgress/internal/discord"
 	"ItsBagelBot/app/outgress/internal/tokenstore"
 	"ItsBagelBot/app/outgress/internal/twitch"
 	"ItsBagelBot/app/outgress/internal/worker"
@@ -95,7 +96,7 @@ func main() {
 	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
 	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
 	// EventSub enroll survives a rollout gap instead of being purged.
-	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
+	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream, bus.DiscordOutgressStream}, log),
 		"failed to provision outgress streams")
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
@@ -162,6 +163,9 @@ func main() {
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
+	closeDiscord := d.startDiscord(ctx, premium, standard, system)
+	defer closeDiscord()
+
 	// The client-scoped user.authorization.* subscriptions that feed the
 	// notifier are ensured in the background below.
 	closeStreamLane := d.startStreamLane(ctx, system)
@@ -182,9 +186,10 @@ func main() {
 
 	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
 	// sesame's loyalty watch tick: one call per live channel per tick.
-	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
-		log.Fatal("failed to subscribe chatters rpc", zap.Error(err))
-	}
+	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+		"failed to subscribe chatters rpc")
+	fatalIf(log, rpc.SubscribeDiscord(nc, system, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+		"failed to subscribe discord rpc")
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.NATS("nats", nc))
@@ -445,7 +450,14 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
 	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
-	system.SetStreamInfoStore(projection.NewStore(d.valkey))
+	// Chat lanes need the same projection reader as the system lane: Discord
+	// clip posts run on premium/standard after Helix Create Clip, and they
+	// look up the Discord module blob here. Live go-live still fires on the
+	// system worker's stream-lane handler (no sesame hop).
+	streamInfo := projection.NewStore(d.valkey)
+	premium.SetStreamInfoStore(streamInfo)
+	standard.SetStreamInfoStore(streamInfo)
+	system.SetStreamInfoStore(streamInfo)
 
 	return premium, standard, system, modVerifier.Close
 }
@@ -564,6 +576,52 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 	}
 
 	return func() { _ = authzSub.Close() }
+}
+
+// startDiscord attaches the REST client to every lane worker (live embeds
+// fire on the system worker's stream-lane handler; raid copies drain the
+// Discord outgress lanes). No token means Discord stays dark: outgress
+// still boots for Twitch.
+func (d *deps) startDiscord(ctx context.Context, premium, standard, system *worker.Worker) func() {
+	token := d.cfg.DiscordBotToken
+	if token == "" {
+		d.log.Info("DISCORD_BOT_TOKEN unset; Discord outgress disabled")
+		return func() {}
+	}
+	client := discord.NewClient(token)
+	kv := worker.NewDiscordLiveStore(d.valkey)
+	premium.SetDiscord(client, kv)
+	standard.SetDiscord(client, kv)
+	system.SetDiscord(client, kv)
+
+	premiumSub, err := bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: d.cfg.DiscordPremiumSubject,
+		Group: "outgress-discord-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
+	fatalIf(d.log, err, "failed to connect discord premium subscriber")
+
+	standardSub, err := bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: d.cfg.DiscordStandardSubject,
+		Group: "outgress-discord-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
+	}, d.log)
+	fatalIf(d.log, err, "failed to connect discord standard subscriber")
+
+	_, err = bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
+		{Sub: premiumSub, Subject: d.cfg.DiscordPremiumSubject, Handle: premium.Process, Reserve: d.cfg.PremiumReserve},
+		{Sub: standardSub, Subject: d.cfg.DiscordStandardSubject, Handle: standard.Process},
+	}, bus.ScalePolicy{
+		MinRoutines:    d.cfg.MinRoutines,
+		MaxRoutines:    d.cfg.MaxRoutines,
+		MaxConsumers:   d.cfg.MaxConsumers,
+		ScaleUpAfter:   d.cfg.ScaleUpAfter,
+		ScaleDownAfter: d.cfg.ScaleDownAfter,
+	}, d.log)
+	fatalIf(d.log, err, "failed to consume discord outgress lanes")
+
+	return func() {
+		_ = standardSub.Close()
+		_ = premiumSub.Close()
+	}
 }
 
 func (d *deps) logReady(tw *twitch.Client) {

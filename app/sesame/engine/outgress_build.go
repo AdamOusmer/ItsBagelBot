@@ -75,6 +75,7 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeDelete:           deleteOutgress,
 	outgress.TypeWarn:             warnOutgress,
 	outgress.TypeRedemptionUpdate: redemptionUpdateOutgress,
+	outgress.TypeDiscordChat:      discordChatOutgress,
 }
 
 // payloadMessage marshals one typed payload and wraps it in the wire message.
@@ -224,4 +225,12 @@ func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {
 		RedemptionID:  o.RedemptionID,
 		Status:        o.Status,
 	}, nil
+}
+
+func discordChatOutgress(o *module.Output) (outgress.Message, error) {
+	msg, err := payloadMessage(outgress.TypeDiscordChat, o.BroadcasterID, &struct {
+		Content string `json:"content"`
+	}{o.Text})
+	msg.ChannelID = o.ChannelID
+	return msg, err
 }

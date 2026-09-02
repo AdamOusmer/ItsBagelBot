@@ -10,7 +10,7 @@ describe('module catalog', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  // MOD is a hand-written id map sitting next to 21 independently-declared
+  // MOD is a hand-written id map sitting next to 22 independently-declared
   // module ids (each catalog/<name>.ts owns its own `id: '<name>'`). A typo
   // in either place used to compile fine and just silently miss the module
   // blob at runtime. These two directions catch a renamed id on one side and
@@ -78,9 +78,12 @@ describe('module catalog', () => {
     expect(def?.icon).toBe('smile');
   });
 
-  test('govee shares Gear with Song Requests', () => {
+  test('govee shares Gear with Song Requests and Discord', () => {
     expect(moduleDef('govee')?.category).toBe('Gear');
     expect(moduleDef('songqueue')?.category).toBe('Gear');
+    expect(moduleDef('discord')?.category).toBe('Gear');
+    expect(moduleDef('discord')?.href).toBe('/discord');
+    expect(moduleDef('discord')?.icon).toBe('server');
   });
 
   test('AutoMod stays a visible Moderation row', () => {

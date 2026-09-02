@@ -13,7 +13,7 @@ describe('nav registry', () => {
     expect(sectionForPath('/')).toBe('overview');
     expect(sectionForPath('/commands')).toBe('commands');
     expect(sectionForPath('/commands/new')).toBe('commands');
-    for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty']) {
+    for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/discord']) {
       expect(sectionForPath(p)).toBe('modules');
     }
     expect(sectionForPath('/billing')).toBe('billing');
@@ -67,8 +67,9 @@ describe('nav registry', () => {
   });
 
   test('the rail nests the /modules sections, not the modules themselves', () => {
-    // A module is a tile on /modules, not a page of its own (only 8 of the 21
-    // have a route), so the rail must mirror that page's sections instead.
+    // A module is a tile on /modules, not a page of its own (only 9 of the
+    // catalog rows have a route, including /discord), so the rail must mirror that page's sections
+    // instead.
     const links = moduleSectionLinks((key) => `en:${key}`);
     expect(links.map((l) => l.href)).toEqual(
       MODULE_CATEGORY_ORDER.map((name) => `/modules#cat-${name.toLowerCase()}`)

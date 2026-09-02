@@ -1,5 +1,10 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
+#
+# Discord: DISCORD_BOT_TOKEN (and the dashboard's DISCORD_CLIENT_ID,
+# DISCORD_REDIRECT_URI, DISCORD_TEMPLATE_CODE) come from Doppler via outgress-env
+# / dashboard-env. Empty DISCORD_BOT_TOKEN leaves Discord dark; Twitch still
+# boots.
 
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret

@@ -726,6 +726,29 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 	return out, projected, nil
 }
 
+// GetModule reads one module row without HGETALL. Missing fields are a
+// not-found (the Discord live announcer treats that as "not connected").
+func (v *Store) GetModule(ctx context.Context, userID uint64, name string) (ModuleView, bool, error) {
+	defer segment(ctx, "HGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	enabledField := "module:" + name + ":enabled"
+	configField := "module:" + name + ":config"
+	res := v.client.DoMulti(ctx,
+		v.client.B().Hget().Key(key).Field(enabledField).Build(),
+		v.client.B().Hget().Key(key).Field(configField).Build(),
+	)
+	enabled, err := res[0].ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return ModuleView{}, false, nil
+		}
+		return ModuleView{}, false, err
+	}
+	cfg, _ := res[1].ToString()
+	return ModuleView{Name: name, IsEnabled: enabled == "1", Configs: codec.RawMessage(cfg)}, true, nil
+}
+
 func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {
 	defer segment(ctx, "HGETALL")()
 

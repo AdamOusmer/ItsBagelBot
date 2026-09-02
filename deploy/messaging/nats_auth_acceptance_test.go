@@ -96,7 +96,7 @@ func (h *acceptanceHarness) reconcileOwnedStreams(t *testing.T, ctx context.Cont
 	owners := []streamOwner{
 		{serviceIdentity{"users_bus"}, []bus.StreamSpec{localStream(bus.BagelDataStream)}},
 		{serviceIdentity{"worker_bus"}, []bus.StreamSpec{localStream(bus.TwitchIngressStream)}},
-		{serviceIdentity{"outgress_bus"}, []bus.StreamSpec{localStream(bus.OutgressStream), localStream(bus.OutgressSystemStream)}},
+		{serviceIdentity{"outgress_bus"}, []bus.StreamSpec{localStream(bus.OutgressStream), localStream(bus.OutgressSystemStream), localStream(bus.DiscordOutgressStream)}},
 	}
 	for _, owner := range owners {
 		h.activate(t, owner.identity)
@@ -122,6 +122,7 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"worker_bus"}, "authz_worker", "twitch.ingress.event.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.system"},
+		{serviceIdentity{"outgress_bus"}, "authz_outgress", "discord.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.event.stream"},
 		// Authorization lifecycle consumers (revocation marking + grant re-enroll).
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},

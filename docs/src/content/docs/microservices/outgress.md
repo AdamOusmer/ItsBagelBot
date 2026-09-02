@@ -5,7 +5,9 @@ title: Outgress
 description: Manages outbound messaging to Twitch and per-broadcaster rate limiting.
 ---
 
-The Outgress service (`app/outgress/`) is the bottleneck for all outbound communication to Twitch. It ensures that ItsBagelBot adheres to Twitch's strict rate limits and manages the token lifecycle for outbound requests.
+The Outgress service (`app/outgress/`) is the bottleneck for all outbound communication to Twitch and Discord. It ensures that ItsBagelBot adheres to Twitch's strict rate limits and manages the token lifecycle for outbound requests.
+
+Discord go-live and go-offline embeds bind the same `twitch.ingress.event.stream` lane the mod-status re-verify already consumes. They never pass through sesame. Raid, gift-bomb, and milestone copies still hop sesame → `discord.outgress.*`.
 
 ## Architecture
 

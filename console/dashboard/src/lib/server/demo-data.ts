@@ -332,6 +332,40 @@ export function demoSpotifyView() {
   };
 }
 
+export function demoDiscordView() {
+  return {
+    enabled: true,
+    connected: true,
+    config: {
+      guildId: '123456789012345678',
+      liveChannelId: 'now-live',
+      clipsChannelId: 'clips',
+      welcomeChannelId: 'welcome',
+      alertsChannelId: 'announcements',
+      voiceHubId: 'create-voice',
+      liveRoleId: 'live',
+      modsRoleId: '',
+      regularsRoleId: '',
+      memberRoleId: '',
+      liveEnabled: '',
+      clipsEnabled: '',
+      raidEnabled: '',
+      giftEnabled: '',
+      cheerEnabled: '',
+      subMilestoneEnabled: '',
+      welcomeEnabled: '',
+      goodbyeEnabled: '',
+      voiceEnabled: '',
+      giftMin: '5',
+      cheerMin: '1000',
+      categoryAllow: '',
+      categoryDeny: '',
+      twitchLogin: 'demo',
+      streamerDiscordId: ''
+    }
+  };
+}
+
 export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
   return {
     defs: [

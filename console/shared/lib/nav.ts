@@ -87,7 +87,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/songqueue'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/songqueue', '/discord'],
     grant: 'modules'
   },
   {
@@ -158,10 +158,10 @@ export function dashboardNavItems(opts: {
 /**
  * The sections the /modules page is itself divided into, in the order that page
  * renders them. The rail nests these under Modules; the individual modules are
- * NOT nav entries -- a module is a tile on that page, and only eight of the 21
- * own a route, so listing them made the rail disagree with the page it points
- * at. Each href is the same in-page anchor categoryHref() jumps to, and the
- * count is how many modules that section holds.
+ * NOT nav entries -- a module is a tile on that page, and only the bespoke
+ * href modules own a route, so listing them made the rail disagree with the
+ * page it points at. Each href is the same in-page anchor categoryHref() jumps
+ * to, and the count is how many modules that section holds.
  */
 export function moduleSectionLinks(t?: (key: MessageKey) => string): NavChild[] {
   const label = t ?? identity;
