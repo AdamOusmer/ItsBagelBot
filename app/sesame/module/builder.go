@@ -26,6 +26,7 @@ import (
 type Builder struct {
 	name   string
 	kind   Kind
+	beta   bool
 	events map[string]EventHandler
 	cmds   []*Command
 }
@@ -39,6 +40,14 @@ type Builder struct {
 // non-empty name. Build enforces this.
 func NewModule(name string, kind Kind) *Builder {
 	return &Builder{name: name, kind: kind}
+}
+
+// Beta flags the module premium-only while it is in beta (see Module.Beta).
+// Only meaningful on a named module: a core module has no ModuleView and is
+// never listed to broadcasters, so Build rejects Beta on KindCore.
+func (b *Builder) Beta() *Builder {
+	b.beta = true
+	return b
 }
 
 // On registers the module's non-command handler for one EventSub type (e.g.
@@ -88,6 +97,7 @@ func (b *Builder) Build() Module {
 	return Module{
 		Name:     b.name,
 		Kind:     b.kind,
+		Beta:     b.beta,
 		Events:   events,
 		Commands: cmds,
 	}
@@ -113,6 +123,9 @@ func (b *Builder) validateKindName() error {
 	switch b.kind {
 	case KindCore:
 		// name optional; always-on built-in, no ModuleView key.
+		if b.beta {
+			return fmt.Errorf("core module %q cannot be beta: it has no ModuleView to gate", b.name)
+		}
 	case KindDefault, KindOptIn:
 		if b.name == "" {
 			return fmt.Errorf("%s module must have a non-empty name", b.kind)

@@ -26,6 +26,7 @@ import { COOKIE, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
+import { assertBetaRouteOpen } from '$lib/server/module-gate';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -187,5 +188,8 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     }
   }
 
+  // After the delegate block so a dead board exits first; the beta gate reads
+  // the delegate's board tier, not their own.
+  await assertBetaRouteOpen(event);
   return s;
 }

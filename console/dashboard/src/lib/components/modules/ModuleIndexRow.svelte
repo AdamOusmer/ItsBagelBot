@@ -26,16 +26,23 @@
   const href = $derived(moduleHref(def));
   const chips = $derived(moduleCommandChips(def));
   const toggleable = $derived(def.toggleable !== false);
+  // Beta chip shows for everyone (premium included: it sets expectations);
+  // the lock replaces the switch only when the board is not premium.
+  const beta = $derived(def.beta === true);
+  const locked = $derived(module.locked === true);
 </script>
 
-<article class="mod" class:on={module.enabled} class:off={!module.enabled}>
+<article class="mod" class:on={module.enabled && !locked} class:off={!module.enabled || locked} class:locked>
   <!-- data-cursor="off": a row is a reading surface, not a control. The
        custom cursor morphs onto any <a>, and filling this whole card with a
        tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="off">
     <span class="icon" aria-hidden="true"><Icon name={def.icon} size={18} /></span>
     <span class="copy">
-      <span class="name">{def.label}</span>
+      <span class="name">
+        {def.label}
+        {#if beta}<span class="beta">{t('modules.betaChip')}</span>{/if}
+      </span>
       <span class="tagline">{def.tagline}</span>
       {#if chips.chips.length}
         <span class="cmds">
@@ -51,7 +58,9 @@
   </a>
   <div class="side">
     <SaveStatus state={status} compact />
-    {#if toggleable}
+    {#if locked}
+      <a class="always lock" href="/billing" data-cursor="off"><Icon name="gem" size={12} /> {t('modules.betaPremium')}</a>
+    {:else if toggleable}
       {#if module.enabled}
         <span class="state live">{t('modules.statusOn')}</span>
       {/if}
@@ -171,6 +180,23 @@
   }
   .cmd.more { color: var(--bb-muted); border-color: var(--rule); background: transparent; }
 
+  .beta {
+    display: inline-block;
+    vertical-align: 2px;
+    margin-left: 6px;
+    font-family: var(--bb-font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bb-tan-light);
+    border: 1px solid rgba(201, 168, 124, 0.45);
+    border-radius: 4px;
+    padding: 1px 5px;
+    line-height: 1.4;
+  }
+  .locked .icon { opacity: 0.6; }
+
   .side {
     display: inline-flex;
     align-items: center;
@@ -194,6 +220,14 @@
     color: var(--bb-tan-light);
     white-space: nowrap;
   }
+  .lock {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    color: var(--bb-tan-light);
+  }
+  .lock:hover { text-decoration: underline; }
 
   @media (max-width: 760px) {
     .main { gap: 12px; }

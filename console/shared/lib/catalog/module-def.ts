@@ -111,6 +111,15 @@ export interface ModuleDef {
   toggleable?: boolean;
   // If true, the module is hidden from the dashboard and unreachable.
   hidden?: boolean;
+  // If true, the module is in beta: listed to everyone with a Beta chip, but
+  // premium-only (paid/vip) until the flag is removed. Free channels see the
+  // tile locked, cannot toggle or write it, and its bespoke page (href)
+  // bounces to /modules from the route guard. Mirrors the sesame side, which
+  // skips a Beta module on the standard lane (app/sesame/module, Module.Beta);
+  // both flags flip in the same PR since Go and TS share no catalog. Ending a
+  // beta is deleting both flags: rows a channel enabled while premium stay and
+  // simply resume, no data migration.
+  beta?: boolean;
   // The module's configurable chat lines (the "commands" of the module page).
   replies: ModuleReply[];
   // Read-only chat commands to list on the module page. For modules that expose
@@ -150,4 +159,16 @@ export interface ModuleState {
   def: ModuleDef;
   enabled: boolean;
   config: Record<string, string>;
+  // locked is set by the dashboard's server load when the module is in beta
+  // and the broadcaster is not premium (betaLocked). The tile then shows the
+  // lock in place of its switch. Absent means open.
+  locked?: boolean;
+}
+
+// betaLocked reports whether a module is closed to this broadcaster: in beta
+// and the channel is not premium. The one rule both the tile grid and the
+// write gates apply, so a locked tile can never be toggled through a stale
+// form.
+export function betaLocked(def: ModuleDef, premium: boolean): boolean {
+  return def.beta === true && !premium;
 }

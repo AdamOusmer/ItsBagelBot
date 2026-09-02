@@ -106,11 +106,66 @@ func TestAutomodModuleProfileReachesGate(t *testing.T) {
 }
 
 func TestAutomodConfigFrom(t *testing.T) {
-	assert.Nil(t, automodConfigFrom(nil))
-	assert.Nil(t, automodConfigFrom(map[string]projection.ModuleView{}))
+	assert.Nil(t, automodConfigFrom(nil, false))
+	assert.Nil(t, automodConfigFrom(map[string]projection.ModuleView{}, false))
 
 	// A disabled row maps to a Config that opts the gate out.
-	cfg := automodConfigFrom(map[string]projection.ModuleView{"automod": {Name: "automod", IsEnabled: false}})
+	cfg := automodConfigFrom(map[string]projection.ModuleView{"automod": {Name: "automod", IsEnabled: false}}, false)
 	require.NotNil(t, cfg)
 	assert.True(t, cfg.Disabled)
+
+	// The beta lane lock forces the same Disabled config whatever the row
+	// says, including no row at all (the global default would otherwise
+	// apply).
+	locked := automodConfigFrom(nil, true)
+	require.NotNil(t, locked)
+	assert.True(t, locked.Disabled)
+	enabled := map[string]projection.ModuleView{"automod": {Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"moderate"}`)}}
+	locked = automodConfigFrom(enabled, true)
+	require.NotNil(t, locked)
+	assert.True(t, locked.Disabled)
+	assert.False(t, automodConfigFrom(enabled, false).Disabled)
+}
+
+func betaAutomodModule() module.Module {
+	m := module.NewModule("automod", module.KindDefault).Beta()
+	m.On(chatType, func(context.Context, *module.Context, module.Emit) error { return nil })
+	return m.Build()
+}
+
+func betaConfigPipeline(pub *fakePublisher, reader projection.Reader) *Pipeline {
+	d := Deps{
+		Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{},
+		Pub: pub, Log: zap.NewNop(), Automod: automod.New(),
+	}
+	cfg := Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutomodEnforce: true}
+	return NewPipeline(d, NewRegistry(zap.NewNop(), betaAutomodModule()), cfg)
+}
+
+// With automod in beta, a standard-lane channel is floor-only even with an
+// enabled row (the beta lock reads as the module switched off), while the
+// premium lane gets the full configured gate. The floor holds on both.
+func TestAutomodBetaLocksStandardLane(t *testing.T) {
+	reader := fakeReader{modules: []projection.ModuleView{
+		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"moderate"}`)},
+	}}
+
+	pub := &fakePublisher{}
+	p := betaConfigPipeline(pub, reader)
+	require.NoError(t, p.Process(chatMsg(t, "standard", "STOP SCREAMING IN CHAT RIGHT NOW PLEASE")))
+	assert.Empty(t, pub.got, "beta automod is floor-only on the standard lane")
+
+	pub2 := &fakePublisher{}
+	p2 := betaConfigPipeline(pub2, reader)
+	require.NoError(t, p2.Process(ipLoggerChat(t)))
+	require.Len(t, pub2.got, 1, "the floor still holds on a locked channel")
+	assert.Equal(t, outgress.TypeTimeout, pub2.got[0].msg.Type)
+
+	// The lock is lane-derived: premium unlocks, and a registry without a
+	// beta automod never locks either lane.
+	p3 := betaConfigPipeline(&fakePublisher{}, reader)
+	assert.True(t, p3.automodLocked(&module.Context{Regress: module.RegressStandard}))
+	assert.False(t, p3.automodLocked(&module.Context{Regress: module.RegressPremium}))
+	p4 := configPipeline(&fakePublisher{}, reader)
+	assert.False(t, p4.automodLocked(&module.Context{Regress: module.RegressStandard}))
 }

@@ -100,6 +100,10 @@ type Pipeline struct {
 
 	automod        *automod.Gate
 	automodEnforce bool
+	// automodBeta mirrors the registered automod module's Beta flag, resolved
+	// once here because the inline gate reads its row without going through
+	// enabled() and must honor the same lane lock (see automodLocked).
+	automodBeta bool
 	reputation     Reputation
 	campaign       Campaign
 
@@ -147,6 +151,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		outgressStandard:  cfg.OutgressStandard,
 		automod:           d.Automod,
 		automodEnforce:    cfg.AutomodEnforce,
+		automodBeta:       automodBeta(registry),
 		reputation:        d.Reputation,
 		campaign:          d.Campaign,
 		shieldEnabled:     cfg.ShieldEnabled,
@@ -604,21 +609,36 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 // pipeline reads the row directly here instead of through enabled().
 const automodModuleName = "automod"
 
+// automodBeta reports whether the registered automod module is in beta. It is
+// found through the chat index since that is the one event it registers.
+func automodBeta(reg *Registry) bool {
+	for _, m := range reg.For(chatType) {
+		if m.Name == automodModuleName {
+			return m.Beta
+		}
+	}
+	return false
+}
+
 // automodConfigFrom extracts the broadcaster's automod Config from the fetched
 // ModuleViews. nil views (no name-gated module needs chat) or an absent row
 // yields nil (the global default: KindDefault ships enabled). A row present but
 // disabled maps to a Config that opts the gate out for that channel, the same
-// enable toggle every module has.
-func automodConfigFrom(views map[string]projection.ModuleView) *automod.Config {
-	if views == nil {
-		return nil
-	}
+// enable toggle every module has. locked is the beta lane gate (the module is
+// in beta and this event rides the standard lane): it forces the same
+// Disabled config whatever the row says, because this path bypasses
+// enabled(). Disabled is floor-only, not off, so the safety floor still holds
+// on a locked channel exactly as it does with the module switched off.
+func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *automod.Config {
 	mv, ok := views[automodModuleName]
-	if !ok {
+	if !ok && !locked {
 		return nil
 	}
-	cfg := automod.ParseConfig(mv.Configs)
-	if !mv.IsEnabled {
+	var cfg *automod.Config
+	if ok {
+		cfg = automod.ParseConfig(mv.Configs)
+	}
+	if locked || !mv.IsEnabled {
 		if cfg == nil {
 			cfg = &automod.Config{}
 		}
@@ -688,9 +708,16 @@ func notice(ctx context.Context, err error) {
 // enabled applies the per-module enable gate and wires the module's config into
 // the context: a core module is always on; a KindDefault module runs unless its
 // ModuleView disables it; a KindOptIn module runs only when its ModuleView
-// enables it. There is no premium gate: premium vs standard is a routing lane
-// (see emit), not a feature switch, so every module is available on both.
+// enables it. There is no permanent premium gate: premium vs standard is a
+// routing lane (see emit), not a feature switch, so every module is available
+// on both once out of beta. A Beta module is the temporary exception: off on
+// the standard lane regardless of its row (see module.Module.Beta). The lane
+// is read from the Context's Regress, which ingress derived from the same tier
+// projection the console reads, so no extra lookup happens here.
 func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleView, mctx *module.Context) bool {
+	if m.Beta && !mctx.Regress.IsPremium() {
+		return false
+	}
 	switch m.Kind {
 	case module.KindCore:
 		mctx.Config = nil

@@ -227,30 +227,39 @@ func TestBakedCommandPermGate(t *testing.T) {
 	require.Len(t, collectDispatch(p, chatCtx("!clear", "moderator")), 1) // mod -> runs
 }
 
-// TestBakedDisabledFallsThroughToCustom proves a disabled opt-in module's
-// trigger does not reserve the name: the broadcaster's custom command with the
-// same trigger still answers.
-func TestBakedDisabledFallsThroughToCustom(t *testing.T) {
-	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
-	p := newPipelineWith(&fakePublisher{}, reader, cmdEmit("urchin", module.KindOptIn, "daily", "baked daily"))
-
-	// nil views = the opt-in module is not enabled for this broadcaster.
-	got := collectDispatch(p, chatCtx("!daily", ""))
-	require.Len(t, got, 1)
-	assert.Equal(t, "custom daily", got[0].Text)
-}
-
-// TestBakedEnabledWinsOverCustom is the counterpart: with the module enabled,
-// the baked command answers and the custom one is shadowed.
-func TestBakedEnabledWinsOverCustom(t *testing.T) {
-	reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
-	p := newPipelineWith(&fakePublisher{}, reader, cmdEmit("urchin", module.KindOptIn, "daily", "baked daily"))
-
-	views := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
-	var got []module.Output
-	require.NoError(t, p.dispatchCommand(context.Background(), chatCtx("!daily", ""), views, func(o *module.Output) { got = append(got, *o) }))
-	require.Len(t, got, 1)
-	assert.Equal(t, "baked daily", got[0].Text)
+// TestBakedDailyShadowing covers whether a module's baked trigger shadows the
+// broadcaster's custom command of the same name. A disabled opt-in module (nil
+// views) does not reserve the name, an enabled one does, and a Beta module
+// counts as disabled on the standard lane but enabled on the premium lane, so
+// a lapsed broadcaster keeps their row while the feature pauses.
+func TestBakedDailyShadowing(t *testing.T) {
+	enabled := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
+	cases := []struct {
+		name    string
+		beta    bool
+		views   map[string]projection.ModuleView
+		regress module.Regress
+		want    string
+	}{
+		{"disabled falls through to custom", false, nil, module.RegressStandard, "custom daily"},
+		{"enabled wins over custom", false, enabled, module.RegressStandard, "baked daily"},
+		{"beta standard lane falls through", true, enabled, module.RegressStandard, "custom daily"},
+		{"beta premium lane runs", true, enabled, module.RegressPremium, "baked daily"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := fakeReader{cmd: projection.Command{Name: "daily", Response: "custom daily", IsActive: true, Perm: "everyone"}, cmdFound: true}
+			mod := cmdEmit("urchin", module.KindOptIn, "daily", "baked daily")
+			mod.Beta = tc.beta
+			p := newPipelineWith(&fakePublisher{}, reader, mod)
+			c := chatCtx("!daily", "")
+			c.Regress = tc.regress
+			var got []module.Output
+			require.NoError(t, p.dispatchCommand(context.Background(), c, tc.views, func(o *module.Output) { got = append(got, *o) }))
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0].Text)
+		})
+	}
 }
 
 // TestBakedOutputRoutedByMiddleware proves announce is post-processing, not a

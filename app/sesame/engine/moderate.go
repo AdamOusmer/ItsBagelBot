@@ -52,11 +52,18 @@ func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views
 	if mctx.Env.Type != chatType {
 		return false
 	}
-	amCfg := automodConfigFrom(views)
+	amCfg := automodConfigFrom(views, p.automodLocked(mctx))
 	if len(mctx.Env.Senders) > 0 {
 		return p.gateCohort(ctx, mctx, amCfg, emit)
 	}
 	return p.gateChat(ctx, mctx, amCfg, emit)
+}
+
+// automodLocked is the beta lane gate for the inline automod path, which reads
+// its row directly rather than through enabled(): true when the automod module
+// is registered as Beta and this event rides the standard lane.
+func (p *Pipeline) automodLocked(mctx *module.Context) bool {
+	return p.automodBeta && !mctx.Regress.IsPremium()
 }
 
 // adaptiveEmoteCodes resolves the span-derived emote codes the learned layers

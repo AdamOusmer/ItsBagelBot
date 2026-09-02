@@ -6,6 +6,9 @@ import type { ModuleDef } from './module-def';
 export const AUTOMOD_MODULE: ModuleDef = 
 {
   id: 'automod',
+  // Beta: premium-only until it ships. Mirrors .Beta() on the sesame module
+  // (app/sesame/modules/automod.go); both flip together.
+  beta: true,
   label: 'AutoMod',
   tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
   description:

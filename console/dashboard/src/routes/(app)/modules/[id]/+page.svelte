@@ -512,6 +512,17 @@
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
+  {#if data.locked}
+    <!-- Beta on a free channel: read-only preview with the upgrade path. The
+         server refuses every write (resolveWrite), this only explains why. -->
+    <AlertBanner variant="warn" icon="gem">
+      {t('modules.betaLockedBody')}
+      {#snippet action()}
+        <ButtonLink href="/billing" variant="ghost">{t('modules.betaUpgrade')}</ButtonLink>
+      {/snippet}
+    </AlertBanner>
+  {/if}
+
   {#if parentDef}
     <AlertBanner variant="warn" icon="coin">
       {t('modules.nestedUnder', { parent: parentDef.label })}
@@ -530,14 +541,18 @@
         <h2 class="tr-label">{t('modules.moduleStatus')}</h2>
         <span class="tr-help">{t('modules.enabledHelp')}</span>
       </div>
-      <span class="status-text" class:on={enabled}>{enabled ? t('modules.statusOn') : t('modules.statusOff')}</span>
-      <SaveStatus state={modStatus['module'] ?? 'idle'} />
-      <Switch
-        checked={enabled}
-        label={t('modules.toggleAria', { label: def.label })}
-        pending={modStatus['module'] === 'saving'}
-        onchange={toggleModule}
-      />
+      {#if data.locked}
+        <span class="status-text">{t('modules.betaLocked')}</span>
+      {:else}
+        <span class="status-text" class:on={enabled}>{enabled ? t('modules.statusOn') : t('modules.statusOff')}</span>
+        <SaveStatus state={modStatus['module'] ?? 'idle'} />
+        <Switch
+          checked={enabled}
+          label={t('modules.toggleAria', { label: def.label })}
+          pending={modStatus['module'] === 'saving'}
+          onchange={toggleModule}
+        />
+      {/if}
     </div>
     {#if !enabled}
       <!-- Off but configurable: explain in TEXT that the lists stay editable and

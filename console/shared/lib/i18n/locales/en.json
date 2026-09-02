@@ -1041,7 +1041,12 @@
     "noMatch": "No modules match.",
     "noMatchBody": "Try a command like !sr, a game name, or what you want the bot to do.",
     "alwaysOn": "Always on",
-    "moreCommands": "+{n}"
+    "moreCommands": "+{n}",
+    "betaChip": "Beta",
+    "betaPremium": "Premium only",
+    "betaLocked": "Premium only while in beta",
+    "betaLockedBody": "This module is in beta and open to Premium channels only. It unlocks for everyone when the beta ends.",
+    "betaUpgrade": "See plans"
   },
   "import": {
     "pageTitlePre": "Import",
