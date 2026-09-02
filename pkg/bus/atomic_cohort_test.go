@@ -67,7 +67,7 @@ func TestAtomicCohortStagesEveryMessageButTheCommitPayload(t *testing.T) {
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) { return publisher, nil })
 	batch := confirmedBatch(4)
 
-	worker.publishAtomicOverlapped(batch)
+	worker.publishAtomicOverlapped(batch, false)
 	worker.acks.Wait()
 
 	requireCohortConfirmed(t, batch, "a committed cohort")
@@ -98,8 +98,8 @@ func TestAtomicOverlapResolvesEachCohortOnItsOwnCommit(t *testing.T) {
 	})
 	first, second := confirmedBatch(3), confirmedBatch(2)
 
-	worker.publishAtomicOverlapped(first)
-	worker.publishAtomicOverlapped(second)
+	worker.publishAtomicOverlapped(first, false)
+	worker.publishAtomicOverlapped(second, false)
 
 	requireCohortConfirmed(t, second, "the second cohort")
 	select {
@@ -128,7 +128,7 @@ func TestAtomicOverlapDoesNotReplayAnAmbiguousCommitFailure(t *testing.T) {
 	worker.js = replay
 	batch := confirmedBatch(3)
 
-	worker.publishAtomicOverlapped(batch)
+	worker.publishAtomicOverlapped(batch, false)
 	worker.acks.Wait()
 
 	requireCohortFailedWith(t, batch, want, "ambiguous")
@@ -149,7 +149,7 @@ func TestAtomicOverlapReplaysADefiniteBrokerRejection(t *testing.T) {
 	worker.js = replay
 	batch := confirmedBatch(3)
 
-	worker.publishAtomicOverlapped(batch)
+	worker.publishAtomicOverlapped(batch, false)
 	worker.acks.Wait()
 
 	if replay.published == 0 {
@@ -171,7 +171,7 @@ func TestAtomicOverlapResolvesAStagingFailureWithoutCommitting(t *testing.T) {
 	worker.js = &stubJetStream{err: errors.New("the per-message wire must not be used")}
 	batch := confirmedBatch(3)
 
-	worker.publishAtomicOverlapped(batch)
+	worker.publishAtomicOverlapped(batch, false)
 	worker.acks.Wait()
 
 	requireCohortFailedWith(t, batch, want, "staging")
@@ -193,14 +193,14 @@ func TestAtomicOverlapSlotsBoundTheCommitDepth(t *testing.T) {
 	})
 	worker.slots = make(chan struct{}, 2)
 
-	worker.publishAtomicOverlapped(confirmedBatch(2))
-	worker.publishAtomicOverlapped(confirmedBatch(2))
+	worker.publishAtomicOverlapped(confirmedBatch(2), false)
+	worker.publishAtomicOverlapped(confirmedBatch(2), false)
 	awaitSignal(t, started, "the first two commits never started")
 	awaitSignal(t, started, "the second commit never started")
 
 	staged := make(chan struct{})
 	go func() {
-		worker.publishAtomicOverlapped(confirmedBatch(2))
+		worker.publishAtomicOverlapped(confirmedBatch(2), false)
 		close(staged)
 	}()
 	select {
@@ -252,7 +252,7 @@ func TestAtomicCohortWithoutOverlapCommitsOnTheWorker(t *testing.T) {
 	worker.overlapCommit = false
 	batch := confirmedBatch(3)
 
-	worker.publishAtomicCohort(batch)
+	worker.publishAtomicCohort(batch, false)
 
 	if publisher.committed == nil {
 		t.Fatal("the cohort returned to the worker before its commit")

@@ -140,8 +140,9 @@ func TestAtomicPublishBatchWaitIsBounded(t *testing.T) {
 		t.Fatalf("default atomic batch wait = %s, want %s", got, defaultPublishBatchWait)
 	}
 	for value, want := range map[string]time.Duration{
-		"100us": 500 * time.Microsecond,
-		"0s":    500 * time.Microsecond,
+		"100us": 100 * time.Microsecond,
+		"50us":  100 * time.Microsecond,
+		"0s":    100 * time.Microsecond,
 		"1s":    20 * time.Millisecond,
 		"8ms":   8 * time.Millisecond,
 	} {
@@ -160,5 +161,18 @@ func TestAtomicPublishOverlapIsOnUnlessDisabled(t *testing.T) {
 	t.Setenv("NATS_ATOMIC_PUBLISH_OVERLAP", "false")
 	if atomicPublishOverlap() {
 		t.Fatal("NATS_ATOMIC_PUBLISH_OVERLAP=false must keep the commit on the worker")
+	}
+}
+
+func TestPublishQueueSizeIsBounded(t *testing.T) {
+	t.Setenv("NATS_PUBLISH_QUEUE_SIZE", "")
+	if got := publishQueueSize(); got != defaultPublishQueueSize {
+		t.Fatalf("default queue size = %d, want %d", got, defaultPublishQueueSize)
+	}
+	for value, want := range map[string]int{"1": 64, "1024": 1024, "1000000": 65_536} {
+		t.Setenv("NATS_PUBLISH_QUEUE_SIZE", value)
+		if got := publishQueueSize(); got != want {
+			t.Fatalf("NATS_PUBLISH_QUEUE_SIZE=%s gives %d, want %d", value, got, want)
+		}
 	}
 }

@@ -192,9 +192,17 @@ func atomicPublishBatchSize() int {
 // messages. A worker seeing 30k msg/s fills 30 messages in the default
 // millisecond and needs about 8ms to reach 256, so raising the size without
 // raising the wait changes nothing on a stream that is not already bursty.
+//
+// The floor was 500µs. It is 100µs since 2026-09-01: the collection window is a
+// fixed term of every message's end-to-end latency, and on a loopback 3-node
+// 2.14.4 cluster at 150k msg/s the 500µs window put commit p50 at 1.7 ms and
+// e2e p50 at 2.4 ms; 250µs gave no measurable gain (e2e p50 3.2 ms, p99 within
+// noise), so the extra commits per second bought nothing there, but a deployment
+// with slower brokers may find its knee lower. Below 100µs a fleet-rate cohort
+// holds one or two messages and cohortWire routes it to the single wire anyway.
 func atomicPublishBatchWait() time.Duration {
 	wait := env.GetDuration("NATS_ATOMIC_PUBLISH_BATCH_WAIT", defaultPublishBatchWait)
-	return min(max(wait, 500*time.Microsecond), 20*time.Millisecond)
+	return min(max(wait, 100*time.Microsecond), 20*time.Millisecond)
 }
 
 // atomicPublishOverlap reports whether a cohort's commit ack may be awaited off
@@ -268,11 +276,12 @@ type atomicCohort struct {
 
 // publishAtomicCohort routes one cohort to the overlapping or the strictly
 // ordered atomic path.
-func (w *publishBatchWorker) publishAtomicCohort(batch []publishRequest) {
+func (w *publishBatchWorker) publishAtomicCohort(batch []publishRequest, held bool) {
 	if w.overlapCommit {
-		w.publishAtomicOverlapped(batch)
+		w.publishAtomicOverlapped(batch, held)
 		return
 	}
+	w.dropSlot(held)
 	w.finish(batch, w.publishAtomic(batch))
 }
 
@@ -304,12 +313,14 @@ func (w *publishBatchWorker) publishAtomicCohort(batch []publishRequest) {
 // (jetstream.limits.batch.max_inflight_per_stream, default 50):
 // NATS_PUBLISH_CONNECTIONS workers x maxInflightCohorts slots is 16 per pod, so
 // up to three pods publishing to one stream still fit.
-func (w *publishBatchWorker) publishAtomicOverlapped(batch []publishRequest) {
+func (w *publishBatchWorker) publishAtomicOverlapped(batch []publishRequest, held bool) {
 	if err := atomicCohortFits(batch); err != nil {
+		w.dropSlot(held)
 		w.finish(batch, err)
 		return
 	}
-	w.slots <- struct{}{}
+	w.takeSlot(held)
+
 	cohort := w.stageAtomic(batch)
 	w.acks.Add(1)
 	go func() {
@@ -377,7 +388,7 @@ func (w *publishBatchWorker) atomicPublisher() (atomicCohortPublisher, error) {
 		// its necessity (typed rejection proof enabling safe replay) trades
 		// against confirmed-publish latency under load — measured decomposition
 		// lives with the bench. NATS_ATOMIC_ACK_FIRST tunes it.
-		jetstreamext.BatchFlowControl{AckFirst: env.GetBool("NATS_ATOMIC_ACK_FIRST", true), AckTimeout: defaultPublishAckWait},
+		jetstreamext.BatchFlowControl{AckFirst: w.ackFirst, AckTimeout: defaultPublishAckWait},
 	)
 	if err != nil {
 		return nil, err

@@ -131,3 +131,57 @@ func newTestBatchPublisher() *batchPublisher {
 	publisher.signal = sync.NewCond(&publisher.stateMu)
 	return publisher
 }
+
+// A slot-gated cohort whose window closes while every inflight slot is busy
+// keeps collecting: the messages that arrive during the slot wait join it
+// instead of forming cohorts of their own behind it, and the slot comes back
+// held for publish.
+func TestCollectBatchKeepsFillingWhileSlotsAreBusy(t *testing.T) {
+	worker := newOverlapWorker(nil)
+	worker.batchWait = time.Millisecond
+	worker.batchSize = 8
+	worker.slots = make(chan struct{}, 1)
+	worker.slots <- struct{}{} // the only slot is busy
+
+	staged := stagedBatch(4)
+	done := make(chan []publishRequest, 1)
+	go func() {
+		batch, _ := worker.collectBatch(staged[0])
+		done <- batch
+	}()
+	time.Sleep(20 * time.Millisecond) // window long closed, slot still busy
+	worker.requests <- staged[1]
+	worker.requests <- staged[2]
+	time.Sleep(5 * time.Millisecond)
+	select {
+	case batch := <-done:
+		t.Fatalf("cohort of %d closed while the slot was busy", len(batch))
+	default:
+	}
+	<-worker.slots // the inflight cohort resolves
+	batch := <-done
+	if len(batch) != 3 {
+		t.Fatalf("cohort = %d messages, want the 3 that arrived during the slot wait", len(batch))
+	}
+	if !worker.slotHeld {
+		t.Fatal("collectTimed returned without the slot it waited for")
+	}
+	if len(worker.slots) != 1 {
+		t.Fatalf("slots held = %d, want 1", len(worker.slots))
+	}
+}
+
+// A wire that takes no slot still closes on the window alone.
+func TestCollectBatchUngatedWireClosesOnTheWindow(t *testing.T) {
+	worker := newOverlapWorker(nil)
+	worker.overlapCommit = false
+	worker.batchWait = time.Millisecond
+	worker.slots <- struct{}{}
+	worker.slots <- struct{}{}
+	worker.slots <- struct{}{}
+	worker.slots <- struct{}{} // all four busy, and irrelevant
+	batch, ok := worker.collectBatch(stagedBatch(1)[0])
+	if !ok || len(batch) != 1 || worker.slotHeld {
+		t.Fatalf("collectBatch() = (%d, %v, held=%v), want the window to close the cohort", len(batch), ok, worker.slotHeld)
+	}
+}

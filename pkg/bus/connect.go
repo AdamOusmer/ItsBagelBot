@@ -88,6 +88,11 @@ func baseOptions(identity connectionIdentity) []nats.Option {
 		// with the member it was pinned to), and at 150k/s an 8 MB buffer fills
 		// in well under a second, dropping events the dedup window can't recover.
 		nats.ReconnectBufSize(32 * 1024 * 1024),
+		// The connection's bufio flush threshold, so also the largest TLS
+		// record the hub reads in one syscall. The 32 KiB library default is
+		// the floor; NATS_WRITE_BUFFER_SIZE raises it for cohort publishers.
+		nats.WriteBufferSize(writeBufferSize()),
+
 		nats.PingInterval(20 * time.Second),
 		nats.MaxPingsOutstanding(3),
 		nats.Timeout(15 * time.Second),
@@ -292,4 +297,10 @@ func busPublishURL(url endpoint) string {
 		return publish
 	}
 	return busURL(url)
+}
+
+// writeBufferSize is the client write buffer (NATS_WRITE_BUFFER_SIZE), never
+// below the library default of 32 KiB.
+func writeBufferSize() int {
+	return max(env.GetInt("NATS_WRITE_BUFFER_SIZE", 32*1024), 32*1024)
 }
