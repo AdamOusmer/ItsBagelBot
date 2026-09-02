@@ -462,29 +462,17 @@ var YouTubeOutgressStream = StreamSpec{
 // the sum under the pod's 5 GiB limit. At announcement volume 32 MiB under R3
 // is a deep lag budget; growing it is a deliberate edit there.
 var DiscordOutgressStream = StreamSpec{
-	Name:         "DISCORD_OUTGRESS",
-	Subjects:     []string{"discord.outgress.premium", "discord.outgress.standard"},
-	Retention:    nats.WorkQueuePolicy,
-	MaxAge:       5 * time.Second,
+	Name:      "DISCORD_OUTGRESS",
+	Subjects:  []string{"discord.outgress.premium", "discord.outgress.standard"},
+	Retention: nats.WorkQueuePolicy,
+	// 30 s, not Twitch chat's 5 s: a raid or gift-bomb copy is still worth
+	// posting half a minute late, and Discord answers a 429 with a
+	// multi-second Retry-After that a 5 s lifetime could never wait out.
+	MaxAge:       30 * time.Second,
 	MaxBytes:     32 << 20, // 32 MiB: announcement volume is far below Twitch chat's
 	Storage:      nats.MemoryStorage,
 	BatchPublish: true,
 	Replicas:     3,
-}
-
-// DiscordIngressStream carries slash-command envelopes from dingress.
-// MaxBytes matches Discord outgress: slash volume is announcement-shaped.
-var DiscordIngressStream = StreamSpec{
-	Name:         "DISCORD_INGRESS",
-	Subjects:     []string{"discord.ingress.event.premium", "discord.ingress.event.standard"},
-	Retention:    nats.LimitsPolicy,
-	MaxAge:       10 * time.Second,
-	MaxBytes:     32 << 20,
-	Storage:      nats.MemoryStorage,
-	Replicas:     3,
-	MaxMsgsPer:   100_000,
-	Duplicates:   10 * time.Second,
-	BatchPublish: true,
 }
 
 // Ownership is deliberately outgress for now: it is the only consumer of
@@ -611,7 +599,7 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream, DiscordIngressStream)
+		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

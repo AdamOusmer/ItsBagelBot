@@ -115,17 +115,23 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	check := streamOwnershipCheck{
-		want: map[string]string{
-			"users": "[]bus.StreamSpec{bus.BagelDataStream}",
+		want: map[string][]string{
+			"users": {"[]bus.StreamSpec{bus.BagelDataStream}"},
 			// Both ingress lane streams, in this order. EnsureStreams reconciles
 			// the slice in order and the partition's narrowing update must run
 			// before the new stream claims the subject, so the order is part of
 			// the assertion, not incidental formatting.
-			"sesame": "bus.IngressLaneSpecs()",
+			"sesame": {"bus.IngressLaneSpecs()"},
 			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
 			// the partition ordering holds here exactly as it does in sesame.
-			"projector": "append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)",
-			"outgress":  "[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream, bus.DiscordOutgressStream}",
+			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)"},
+			// Two calls: the Twitch pair is fatal, DISCORD_OUTGRESS is reconciled
+			// on its own and non-fatally so an outgress rolled ahead of the ACL
+			// push keeps serving Twitch (app/outgress/main.go ensureDiscordStream).
+			"outgress": {
+				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
+				"[]bus.StreamSpec{bus.DiscordOutgressStream}",
+			},
 		},
 		seen: make(map[string]bool, 4),
 	}
@@ -141,7 +147,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 }
 
 type streamOwnershipCheck struct {
-	want map[string]string
+	want map[string][]string
 	seen map[string]bool
 }
 
@@ -194,13 +200,15 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 		return
 	}
 	service := filepath.Base(filepath.Dir(file.name))
-	snippet, ok := c.want[service]
+	snippets, ok := c.want[service]
 	if !ok {
 		t.Errorf("%s reconciles streams but has no stream-owner ACL", service)
 		return
 	}
-	if !strings.Contains(body, snippet) {
-		t.Errorf("%s does not reconcile only its owned stream(s): want %s", service, snippet)
+	for _, snippet := range snippets {
+		if !strings.Contains(body, snippet) {
+			t.Errorf("%s does not reconcile only its owned stream(s): want %s", service, snippet)
+		}
 	}
 	c.seen[service] = true
 }

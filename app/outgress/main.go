@@ -52,6 +52,12 @@ const (
 
 	systemNakDelay        = 15 * time.Second
 	systemMaxRedeliveries = 6
+
+	// Discord copies are announcement-shaped, not chat: a 429 there carries a
+	// multi-second Retry-After, so redelivery waits 3 s and gets 6 tries
+	// inside DISCORD_OUTGRESS's 30 s MaxAge.
+	discordNakDelay        = 3 * time.Second
+	discordMaxRedeliveries = 6
 )
 
 // fatalIf aborts startup on err: outgress cannot run degraded without any of
@@ -96,8 +102,14 @@ func main() {
 	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
 	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
 	// EventSub enroll survives a rollout gap instead of being purged.
-	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream, bus.DiscordOutgressStream}, log),
+	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
 		"failed to provision outgress streams")
+	// The Discord stream is provisioned on its own and never fatally: its
+	// $JS.API.STREAM.CREATE grant lands with a NATS config push, and an
+	// outgress rolled ahead of that push must keep serving Twitch instead of
+	// CrashLooping until the ACL catches up. Discord stays dark until the
+	// next restart after the grant.
+	discordStreamReady := ensureDiscordStream(ctx, cfg.NATSURL, log)
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	fatalIf(log, err, "failed to connect to valkey")
@@ -157,13 +169,17 @@ func main() {
 	standard.SetReauthNotifier(reauth)
 	system.SetReauthNotifier(reauth)
 
+	// Discord attaches BEFORE any consumer goroutine starts: SetDiscord
+	// writes worker fields the lane handlers read without a lock.
+	discordOn := d.attachDiscord(premium, standard, system)
+
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
 		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
-	closeDiscord := d.startDiscord(ctx, premium, standard, system)
+	closeDiscord := d.startDiscordLanes(ctx, premium, standard, discordOn && discordStreamReady)
 	defer closeDiscord()
 
 	// The client-scoped user.authorization.* subscriptions that feed the
@@ -578,34 +594,59 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 	return func() { _ = authzSub.Close() }
 }
 
-// startDiscord attaches the REST client to every lane worker (live embeds
-// fire on the system worker's stream-lane handler; raid copies drain the
-// Discord outgress lanes). No token means Discord stays dark: outgress
-// still boots for Twitch.
-func (d *deps) startDiscord(ctx context.Context, premium, standard, system *worker.Worker) func() {
+// ensureDiscordStream reconciles DISCORD_OUTGRESS separately so a denied
+// grant degrades Discord instead of crashing Twitch output (see main).
+func ensureDiscordStream(ctx context.Context, natsURL string, log *zap.Logger) bool {
+	if err := bus.EnsureStreams(ctx, natsURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log); err != nil {
+		log.Error("discord outgress stream unavailable; Discord disabled until restart", zap.Error(err))
+		return false
+	}
+	return true
+}
+
+// attachDiscord hands the REST client and the live-message store to every
+// lane worker (live embeds fire on the system worker's stream-lane handler;
+// raid copies drain the Discord outgress lanes). It must run before any
+// consumer starts. No token means Discord stays dark: outgress still boots
+// for Twitch.
+func (d *deps) attachDiscord(premium, standard, system *worker.Worker) bool {
 	token := d.cfg.DiscordBotToken
 	if token == "" {
 		d.log.Info("DISCORD_BOT_TOKEN unset; Discord outgress disabled")
-		return func() {}
+		return false
 	}
 	client := discord.NewClient(token)
 	kv := worker.NewDiscordLiveStore(d.valkey)
 	premium.SetDiscord(client, kv)
 	standard.SetDiscord(client, kv)
 	system.SetDiscord(client, kv)
+	return true
+}
 
-	premiumSub, err := bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: d.cfg.DiscordPremiumSubject,
-		Group: "outgress-discord-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
-	}, d.log)
-	fatalIf(d.log, err, "failed to connect discord premium subscriber")
-
-	standardSub, err := bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: d.cfg.DiscordStandardSubject,
-		Group: "outgress-discord-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
-	}, d.log)
-	fatalIf(d.log, err, "failed to connect discord standard subscriber")
-
+// startDiscordLanes drains the Discord outgress lanes. Failures are logged,
+// never fatal: a NATS hiccup on the Discord stream must not take Twitch chat
+// output down with it. ready is false when the token is unset or the stream
+// could not be provisioned.
+func (d *deps) startDiscordLanes(ctx context.Context, premium, standard *worker.Worker, ready bool) func() {
+	noop := func() {}
+	if !ready {
+		return noop
+	}
+	premiumSub, err := d.discordLane(d.cfg.DiscordPremiumSubject, "outgress-discord-premium")
+	if err != nil {
+		d.log.Error("discord premium lane unavailable; Discord copies disabled", zap.Error(err))
+		return noop
+	}
+	standardSub, err := d.discordLane(d.cfg.DiscordStandardSubject, "outgress-discord-standard")
+	if err != nil {
+		_ = premiumSub.Close()
+		d.log.Error("discord standard lane unavailable; Discord copies disabled", zap.Error(err))
+		return noop
+	}
+	closeAll := func() {
+		_ = standardSub.Close()
+		_ = premiumSub.Close()
+	}
 	_, err = bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: d.cfg.DiscordPremiumSubject, Handle: premium.Process, Reserve: d.cfg.PremiumReserve},
 		{Sub: standardSub, Subject: d.cfg.DiscordStandardSubject, Handle: standard.Process},
@@ -616,12 +657,23 @@ func (d *deps) startDiscord(ctx context.Context, premium, standard, system *work
 		ScaleUpAfter:   d.cfg.ScaleUpAfter,
 		ScaleDownAfter: d.cfg.ScaleDownAfter,
 	}, d.log)
-	fatalIf(d.log, err, "failed to consume discord outgress lanes")
-
-	return func() {
-		_ = standardSub.Close()
-		_ = premiumSub.Close()
+	if err != nil {
+		closeAll()
+		d.log.Error("failed to consume discord outgress lanes; Discord copies disabled", zap.Error(err))
+		return noop
 	}
+	return closeAll
+}
+
+// discordLane binds one Discord outgress lane. Discord dictates its own
+// backoff on a 429 (seconds, not the 1 s Helix chat retries), so the lane
+// paces redelivery at discordNakDelay under the stream's 30 s MaxAge instead
+// of burning three tries in three seconds.
+func (d *deps) discordLane(subject, group string) (bus.Subscriber, error) {
+	return bus.NewLaneSubscriber(bus.LaneConfig{
+		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: subject,
+		Group: group, NakDelay: discordNakDelay, MaxRedeliveries: discordMaxRedeliveries,
+	}, d.log)
 }
 
 func (d *deps) logReady(tw *twitch.Client) {

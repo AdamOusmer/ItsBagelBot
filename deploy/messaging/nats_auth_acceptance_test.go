@@ -71,6 +71,7 @@ func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness.assertAllowedBindings(t)
 	harness.assertRequiredAckPermissions(t)
 	harness.assertPullFetchPermission(t)
+	harness.assertDiscordCopyPublish(t)
 	harness.assertConsumerIsolation(t)
 	harness.assertDestructiveOperationsDenied(t)
 	harness.assertNodeLocalRPCImport(t)
@@ -123,6 +124,7 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.system"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "discord.outgress.premium"},
+		{serviceIdentity{"outgress_bus"}, "authz_outgress", "discord.outgress.standard"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.event.stream"},
 		// Authorization lifecycle consumers (revocation marking + grant re-enroll).
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},
@@ -192,6 +194,18 @@ func (h *acceptanceHarness) assertPublishAllowed(t *testing.T, probe publishProb
 	case err := <-permissionErr:
 		t.Fatalf("%s could not publish required ACK %s: %v", probe.identity.user, probe.subject, err)
 	case <-time.After(25 * time.Millisecond):
+	}
+}
+
+// assertDiscordCopyPublish proves sesame (worker_bus) may publish the raid /
+// gift copies onto the Discord lanes. It is the one new cross-account publish
+// path in the Discord rollout and exactly the silent-ACL-drop class this
+// suite exists for: a denied publish is a broker-log violation and nothing
+// else.
+func (h *acceptanceHarness) assertDiscordCopyPublish(t *testing.T) {
+	t.Helper()
+	for _, subject := range bus.DiscordOutgressStream.Subjects {
+		h.assertPublishAllowed(t, publishProbe{serviceIdentity{"worker_bus"}, subject})
 	}
 }
 

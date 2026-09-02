@@ -17,7 +17,7 @@ import (
 func fleetStreamSpecs() []StreamSpec {
 	specs := append([]StreamSpec{}, DataStreams...)
 	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream,
-		DiscordOutgressStream, DiscordIngressStream)
+		DiscordOutgressStream)
 }
 
 // ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
@@ -219,18 +219,6 @@ func TestDiscordOutgressStreamResolvesItsLanes(t *testing.T) {
 	}
 }
 
-func TestDiscordIngressStreamResolvesItsLanes(t *testing.T) {
-	for _, subject := range []string{"discord.ingress.event.premium", "discord.ingress.event.standard"} {
-		got, err := streamForTopic(subject)
-		if err != nil {
-			t.Fatalf("streamForTopic(%q): %v", subject, err)
-		}
-		if got != DiscordIngressStream.Name {
-			t.Fatalf("stream for %q = %q, want %q", subject, got, DiscordIngressStream.Name)
-		}
-	}
-}
-
 func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	cfg := streamConfig(ingressStreamSpec(t))
 	// The premium/standard/stream lanes are distinct literal subjects on one
@@ -403,7 +391,6 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 		YouTubeOutgressStream.Name:       true,
 		YouTubeIngressStream.Name:        true,
 		DiscordOutgressStream.Name:       true,
-		DiscordIngressStream.Name:        true,
 	}
 	for _, spec := range fleetStreamSpecs() {
 		want := jsapi.FileStorage

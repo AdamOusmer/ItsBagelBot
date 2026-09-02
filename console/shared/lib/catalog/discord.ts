@@ -5,6 +5,10 @@ import type { ModuleDef } from './module-def';
 
 export const DISCORD_MODULE: ModuleDef = {
   id: 'discord',
+  // Beta: premium-only until the Discord gateway (welcomes, auto-voice, slash
+  // commands) ships. Mirrors .Beta() on the sesame module
+  // (app/sesame/modules/discord.go); both flip together.
+  beta: true,
   label: 'Discord',
   tagline: 'One bot on Twitch and Discord. Go-live, clips, and a community server.',
   description:

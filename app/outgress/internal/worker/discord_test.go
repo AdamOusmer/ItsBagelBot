@@ -122,7 +122,7 @@ func TestDiscordChatMalformedOrOversizedDropsWithoutCall(t *testing.T) {
 		t.Fatalf("malformed payload must drop (nil), got %v", err)
 	}
 
-	big := make([]byte, discordContentMaxBytes+1)
+	big := make([]byte, discordContentMaxRunes+1)
 	for i := range big {
 		big[i] = 'a'
 	}

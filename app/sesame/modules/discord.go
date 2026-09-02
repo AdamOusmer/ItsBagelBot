@@ -82,7 +82,7 @@ func isMilestone(months int) bool {
 // guild. Go-live is NOT here: outgress binds twitch.ingress.event.stream
 // directly so live posts never pass through sesame.
 func Discord(_ engine.Deps) module.Module {
-	m := module.NewModule(discordModuleName, module.KindOptIn)
+	m := module.NewModule(discordModuleName, module.KindOptIn).Beta()
 
 	m.On("channel.raid", func(_ context.Context, c *module.Context, emit module.Emit) error {
 		cfg := discordCfg(c)

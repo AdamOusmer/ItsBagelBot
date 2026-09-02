@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -34,6 +35,13 @@ const (
 	// ack/nack decision still lands inside the message's useful life.
 	requestTimeout = 5 * time.Second
 
+	// maxBody caps a success body. A guild channel listing is ~400 B per
+	// channel and a message-create echo carries the author and embed back, so
+	// the 2 KiB error cap silently truncated both (the id decoded empty and
+	// the go-offline edit never found its message). 1 MiB admits any listing
+	// Discord returns today while still bounding a runaway body.
+	maxBody = 1 << 20
+	// maxErrorBody bounds what an error message carries into the logs.
 	maxErrorBody = 2048
 )
 
@@ -105,6 +113,20 @@ func (c *Client) call(ctx context.Context, method, path string, payload []byte) 
 }
 
 func (c *Client) callBytes(ctx context.Context, method, path string, payload []byte) ([]byte, error) {
+	res, err := c.send(ctx, method, path, payload)
+	if err != nil {
+		return nil, err // network/transient: caller nacks
+	}
+	defer drain(res)
+
+	raw := readBody(res)
+	if res.StatusCode >= 200 && res.StatusCode < 300 {
+		return raw, nil
+	}
+	return nil, classify(res, raw)
+}
+
+func (c *Client) send(ctx context.Context, method, path string, payload []byte) (*http.Response, error) {
 	var body io.Reader
 	if payload != nil {
 		body = bytes.NewReader(payload)
@@ -117,46 +139,61 @@ func (c *Client) callBytes(ctx context.Context, method, path string, payload []b
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-
-	res, err := c.http.Do(req)
-	if err != nil {
-		return nil, err // network/transient: caller nacks
-	}
-	defer drain(res)
-
-	raw := readBody(res)
-	switch {
-	case res.StatusCode >= 200 && res.StatusCode < 300:
-		return []byte(raw), nil
-
-	case res.StatusCode == http.StatusBadRequest:
-		return nil, fmt.Errorf("%w: %s", ErrBadRequest, raw)
-
-	case res.StatusCode == http.StatusUnauthorized:
-		return nil, ErrAuth
-
-	case res.StatusCode == http.StatusForbidden:
-		return nil, fmt.Errorf("%w: %s", ErrForbidden, raw)
-
-	case res.StatusCode == http.StatusNotFound:
-		return nil, ErrChannelNotFound
-
-	case res.StatusCode == http.StatusTooManyRequests:
-		return nil, &RateLimitError{detail: raw}
-
-	case res.StatusCode >= 400:
-		return nil, fmt.Errorf("discord: api rejected request (%d): %s",
-			res.StatusCode, raw)
-	}
-
-	return nil, fmt.Errorf("discord: unexpected api status %d", res.StatusCode)
+	return c.http.Do(req)
 }
 
-// RateLimitError carries Discord's 429 body (which includes retry_after and a
-// global flag) so operators can tell per-channel pressure from a fleet-wide
-// bucket in the logs. It is classified exactly like ErrRateLimited.
+// classify maps a non-2xx status onto the typed errors above. The body is
+// truncated to maxErrorBody before it reaches an error string.
+func classify(res *http.Response, raw []byte) error {
+	detail := errorDetail(raw)
+	switch res.StatusCode {
+	case http.StatusBadRequest:
+		return fmt.Errorf("%w: %s", ErrBadRequest, detail)
+	case http.StatusUnauthorized:
+		return ErrAuth
+	case http.StatusForbidden:
+		return fmt.Errorf("%w: %s", ErrForbidden, detail)
+	case http.StatusNotFound:
+		return ErrChannelNotFound
+	case http.StatusTooManyRequests:
+		return newRateLimitError(res, raw, detail)
+	}
+	return fmt.Errorf("discord: api rejected request (%d): %s", res.StatusCode, detail)
+}
+
+func errorDetail(raw []byte) string {
+	if len(raw) > maxErrorBody {
+		raw = raw[:maxErrorBody]
+	}
+	return string(raw)
+}
+
+// RateLimitError carries Discord's 429 verdict: RetryAfter is the wait the
+// server dictated (header first, JSON body second) and Global says whether
+// the whole bot is throttled rather than one channel bucket. The setup fill
+// sleeps RetryAfter before its next create; the lanes surface it in logs so
+// per-channel pressure can be told from a fleet-wide bucket. It is
+// classified exactly like ErrRateLimited.
 type RateLimitError struct {
-	detail string
+	RetryAfter time.Duration
+	Global     bool
+	detail     string
+}
+
+func newRateLimitError(res *http.Response, raw []byte, detail string) *RateLimitError {
+	e := &RateLimitError{detail: detail}
+	var body struct {
+		RetryAfter float64 `json:"retry_after"`
+		Global     bool    `json:"global"`
+	}
+	if err := codec.Unmarshal(raw, &body); err == nil {
+		e.RetryAfter = time.Duration(body.RetryAfter * float64(time.Second))
+		e.Global = body.Global
+	}
+	if secs, err := strconv.ParseFloat(res.Header.Get("Retry-After"), 64); err == nil && secs > 0 {
+		e.RetryAfter = time.Duration(secs * float64(time.Second))
+	}
+	return e
 }
 
 func (e *RateLimitError) Error() string { return "discord: rate limited: " + e.detail }
@@ -167,14 +204,23 @@ func (e *RateLimitError) Is(target error) bool {
 	return target == ErrRateLimited
 }
 
-func readBody(res *http.Response) string {
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, maxErrorBody))
-	return string(raw)
+// RetryAfterOf returns the server-dictated wait when err is a 429, else 0.
+func RetryAfterOf(err error) time.Duration {
+	var rl *RateLimitError
+	if errors.As(err, &rl) {
+		return rl.RetryAfter
+	}
+	return 0
+}
+
+func readBody(res *http.Response) []byte {
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, maxBody))
+	return raw
 }
 
 // drain makes small responses reusable without letting a large or
 // non-terminating body pin the worker.
 func drain(res *http.Response) {
-	_, _ = io.CopyN(io.Discard, res.Body, maxErrorBody+1)
+	_, _ = io.CopyN(io.Discard, res.Body, maxBody+1)
 	_ = res.Body.Close()
 }

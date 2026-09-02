@@ -32,9 +32,19 @@ type EmbedFooter struct {
 // LiveColor is a warm bagel-ish amber, not a rainbow.
 const LiveColor = 0xC47A3A
 
-// LiveEmbed builds the go-live announcement. thumbnailURL is typically
-// the Twitch preview; watchURL is twitch.tv/<login>.
-func LiveEmbed(login, title, category, thumbnailURL string, viewers int) Embed {
+// LiveEmbedInput feeds LiveEmbed. ThumbnailURL is typically the Twitch
+// preview; the watch link is twitch.tv/<Login>.
+type LiveEmbedInput struct {
+	Login        string
+	Title        string
+	Category     string
+	ThumbnailURL string
+	Viewers      int
+}
+
+// LiveEmbed builds the go-live announcement.
+func LiveEmbed(in LiveEmbedInput) Embed {
+	login, title, category, thumbnailURL, viewers := in.Login, in.Title, in.Category, in.ThumbnailURL, in.Viewers
 	watch := "https://twitch.tv/" + login
 	e := Embed{
 		Title:  title,

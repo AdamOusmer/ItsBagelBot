@@ -337,13 +337,15 @@ export function demoDiscordView() {
     enabled: true,
     connected: true,
     config: {
+      // Snowflakes, not names: the live path stores 17-20 digit ids and the
+      // save action validates that shape, so demo must exercise it too.
       guildId: '123456789012345678',
-      liveChannelId: 'now-live',
-      clipsChannelId: 'clips',
-      welcomeChannelId: 'welcome',
-      alertsChannelId: 'announcements',
-      voiceHubId: 'create-voice',
-      liveRoleId: 'live',
+      liveChannelId: '234567890123456789',
+      clipsChannelId: '345678901234567890',
+      welcomeChannelId: '456789012345678901',
+      alertsChannelId: '567890123456789012',
+      voiceHubId: '678901234567890123',
+      liveRoleId: '789012345678901234',
       modsRoleId: '',
       regularsRoleId: '',
       memberRoleId: '',
@@ -363,6 +365,23 @@ export function demoDiscordView() {
       twitchLogin: 'demo',
       streamerDiscordId: ''
     }
+  };
+}
+
+export function demoDiscordLayout() {
+  return {
+    channels: [
+      { id: '234567890123456789', name: 'now-live', type: 0 },
+      { id: '345678901234567890', name: 'clips', type: 0 },
+      { id: '456789012345678901', name: 'welcome', type: 0 },
+      { id: '567890123456789012', name: 'announcements', type: 0 },
+      { id: '890123456789012345', name: 'chat', type: 0 },
+      { id: '678901234567890123', name: '+ Create voice', type: 2 }
+    ],
+    roles: [
+      { id: '789012345678901234', name: 'Live', type: 0 },
+      { id: '901234567890123456', name: 'Mods', type: 0 }
+    ]
   };
 }
 

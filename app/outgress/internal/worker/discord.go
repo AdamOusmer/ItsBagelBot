@@ -7,7 +7,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"errors"
-	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/outgress/internal/discord"
 	"ItsBagelBot/internal/domain/outgress"
@@ -22,26 +22,24 @@ import (
 // never trips them) and a fleet-shared global bucket.
 const (
 	// discordChatPacingCapacity/Window: 5 tokens per 5s per channel, refilled
-	// at 1/s. The window is env-tunable via DISCORD_CHAT_MIN_INTERVAL_MS (see
-	// SetDiscordPacing) for operators who want stricter pacing.
+	// at 1/s.
 	discordChatPacingCapacity = 5.0
 	discordChatPacingWindow   = 5.0
 
-	// discordGlobalCapacity/Window: 45/min of the bot's real ~50 req/s global
-	// budget, leaving headroom so bursts never touch Discord's global 429.
+	// discordGlobalCapacity/Window: 45 requests per SECOND against the bot's
+	// real 50 req/s global budget, leaving headroom so bursts never touch
+	// Discord's global 429. The first cut wrote 45 per 60s (0.75 req/s): at
+	// that rate every fleet-wide send past the 45th in a minute nacked, and
+	// with MaxDeliver 3 on a 5s lane those announcements were dropped.
 	discordGlobalCapacity = 45.0
-	discordGlobalWindow   = 60.0
+	discordGlobalWindow   = 1.0
 
-	// discordContentMaxBytes bounds content past this many bytes as malformed
-	// or abusive. Discord's own limit is 2000 characters; a UTF-8 bound of
-	// 2048 bytes admits any legal message while rejecting floods cheaply,
-	// before the REST call is spent on a guaranteed 400.
-	discordContentMaxBytes = 2_048
+	// discordContentMaxRunes is Discord's own 2000-character limit, measured
+	// in runes: a byte bound admitted 2048-byte ASCII bodies that ate a
+	// guaranteed 400 on the REST call.
+	discordContentMaxRunes = 2000
 )
 
-// discordChatPacingSpec is rebuilt once at wiring from
-// DISCORD_CHAT_MIN_INTERVAL_MS (setDiscordPacing); the var keeps the default
-// so tests need no wiring.
 var discordChatPacingSpec = ratelimit.NewSpec(discordChatPacingCapacity,
 	discordChatPacingCapacity/discordChatPacingWindow)
 
@@ -55,6 +53,9 @@ type discordAPI interface {
 	SendMessage(ctx context.Context, channelID, content string, tts bool) error
 }
 
+// HasDiscord reports whether a REST client is attached (bot token set).
+func (w *Worker) HasDiscord() bool { return w.discord != nil }
+
 // processDiscordChat posts one message into the target channel
 // (Message.ChannelID). The enabled/disabled decision belongs upstream
 // (sesame), mirroring both chat paths; outgress only gates and fires. There
@@ -66,26 +67,10 @@ func (w *Worker) processDiscordChat(ctx context.Context, payload *outgress.Messa
 		w.log.Error("dropping discord chat: no client")
 		return nil
 	}
-	var body struct {
-		Content string `json:"content"`
-		TTS     bool   `json:"tts"`
-	}
-	if err := codec.Unmarshal(payload.Payload, &body); err != nil {
-		w.log.Error("dropping discord chat: malformed payload",
-			zap.String("channel_id", payload.ChannelID), zap.Error(err))
+	body, ok := w.decodeDiscordChat(payload)
+	if !ok {
 		return nil
 	}
-	if body.Content == "" || len(body.Content) > discordContentMaxBytes {
-		w.log.Error("dropping discord chat: empty or oversized content",
-			zap.String("channel_id", payload.ChannelID),
-			zap.Int("bytes", len(body.Content)))
-		return nil
-	}
-	if payload.ChannelID == "" {
-		w.log.Error("dropping discord chat: no target channel id")
-		return nil
-	}
-
 	if err := w.take(ctx, discordChatPacingSpec.ForDynamicKey(
 		"ratelimit:discord:chat:", "discord:chat", payload.ChannelID)); err != nil {
 		return err
@@ -93,12 +78,50 @@ func (w *Worker) processDiscordChat(ctx context.Context, payload *outgress.Messa
 	// Global last: a shared-bucket refusal here means the fleet as a whole is
 	// saturated, which redelivery paces through without starving any single
 	// channel's order.
-	if err := w.take(ctx, discordGlobalSpec.ForKey("ratelimit:discord:global")); err != nil {
+	if err := w.takeDiscordGlobal(ctx); err != nil {
 		return err
 	}
-
 	return w.classifyDiscordResult(ctx, payload,
 		w.discord.SendMessage(ctx, payload.ChannelID, body.Content, body.TTS))
+}
+
+type discordChatBody struct {
+	Content string `json:"content"`
+	TTS     bool   `json:"tts"`
+}
+
+// decodeDiscordChat validates the payload; a false return was logged and
+// must be acked (dropped), never retried.
+func (w *Worker) decodeDiscordChat(payload *outgress.Message) (discordChatBody, bool) {
+	var body discordChatBody
+	if err := codec.Unmarshal(payload.Payload, &body); err != nil {
+		w.log.Error("dropping discord chat: malformed payload",
+			zap.String("channel_id", payload.ChannelID), zap.Error(err))
+		return body, false
+	}
+	if !discordContentOK(body.Content) {
+		w.log.Error("dropping discord chat: empty or oversized content",
+			zap.String("channel_id", payload.ChannelID),
+			zap.Int("runes", utf8.RuneCountInString(body.Content)))
+		return body, false
+	}
+	if payload.ChannelID == "" {
+		w.log.Error("dropping discord chat: no target channel id")
+		return body, false
+	}
+	return body, true
+}
+
+func discordContentOK(content string) bool {
+	return content != "" && utf8.RuneCountInString(content) <= discordContentMaxRunes
+}
+
+// takeDiscordGlobal pays one token from the fleet-wide bucket. Every REST
+// call outgress makes on the bot token goes through here: chat copies, live
+// and clip embeds, operator posts. A mass go-live burst or an ingress replay
+// fans out through the same budget the chat lanes pay.
+func (w *Worker) takeDiscordGlobal(ctx context.Context) error {
+	return w.take(ctx, discordGlobalSpec.ForKey("ratelimit:discord:global"))
 }
 
 // classifyDiscordResult maps client errors onto the lane discipline:
@@ -122,6 +145,7 @@ func (w *Worker) classifyDiscordResult(ctx context.Context, payload *outgress.Me
 		w.log.Warn("discord action failed, will retry",
 			zap.String("channel_id", payload.ChannelID),
 			zap.String("type", payload.Type),
+			zap.Duration("retry_after", discord.RetryAfterOf(err)),
 			zap.Error(err))
 		return err
 	}
@@ -134,22 +158,19 @@ func isDiscordPermanent(err error) bool {
 		errors.Is(err, discord.ErrBadRequest)
 }
 
-// SetDiscordPacing retunes the per-channel pacing bucket from configuration.
-// Wiring calls it once before any consumer starts; specs are pre-encoded, so
-// this rebuilds the package-level var rather than mutating it.
-func SetDiscordPacing(interval time.Duration) {
-	discordChatPacingSpec = ratelimit.NewSpec(discordChatPacingCapacity,
-		discordChatPacingCapacity/interval.Seconds())
-}
-
 // PostDiscord is the operator/home-server path (changelog, status). It
-// skips the lane: Bagel's own posts are not perishable chat.
+// skips the lane (Bagel's own posts are not perishable chat) but not the
+// global bucket or the content bound: one misbehaving caller must not be
+// able to trip the bot's global 429 for the whole fleet.
 func (w *Worker) PostDiscord(ctx context.Context, channelID, content string) error {
 	if w.discord == nil {
 		return discord.ErrAuth
 	}
-	if channelID == "" || content == "" {
-		return nil
+	if channelID == "" || !discordContentOK(content) {
+		return discord.ErrBadRequest
+	}
+	if err := w.takeDiscordGlobal(ctx); err != nil {
+		return err
 	}
 	return w.discord.SendMessage(ctx, channelID, content, false)
 }

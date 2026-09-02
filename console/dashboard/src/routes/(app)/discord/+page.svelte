@@ -17,7 +17,7 @@
     toast,
     getI18n
   } from '@bagel/shared';
-  import type { DiscordConfig } from '$lib/server/discord-store';
+  import type { DiscordConfig, DiscordEntry } from '$lib/server/discord-store';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -43,11 +43,18 @@
     }
   });
 
-  const ERROR_SLUG_KEYS: Record<string, 'discord.errOauth' | 'discord.errUnconfigured' | 'discord.errSetup' | 'discord.errState'> = {
+  // Discord channel types: 0 text, 2 voice, 4 category.
+  const textChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 0));
+  const voiceChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 2));
+  const roles = $derived((data.layout?.roles ?? []).filter((r: DiscordEntry) => r.name !== '@everyone'));
+  const hasLayout = $derived(textChannels.length > 0);
+
+  const ERROR_SLUG_KEYS: Record<string, 'discord.errOauth' | 'discord.errUnconfigured' | 'discord.errSetup' | 'discord.errState' | 'discord.errBound'> = {
     oauth: 'discord.errOauth',
     unconfigured: 'discord.errUnconfigured',
     setup: 'discord.errSetup',
-    state: 'discord.errState'
+    state: 'discord.errState',
+    bound: 'discord.errBound'
   };
 
   type ActionResult = { ok?: boolean; error?: string; refused?: string };
@@ -94,6 +101,21 @@
   };
 </script>
 
+{#snippet picker(name: keyof DiscordConfig, label: string, options: DiscordEntry[], prefix: string)}
+  <Field {label}>
+    {#if hasLayout}
+      <select class="input" {name} value={config[name]}>
+        <option value="">{t('discord.notSet')}</option>
+        {#each options as opt (opt.id)}
+          <option value={opt.id}>{prefix}{opt.name}</option>
+        {/each}
+      </select>
+    {:else}
+      <input class="input" {name} value={config[name]} placeholder="123456789012345678" inputmode="numeric" />
+    {/if}
+  </Field>
+{/snippet}
+
 <section class="screen active">
   <a class="back" href="/modules"><Icon name="x" size={13} /> {t('discord.back')}</a>
   <PageHead eyebrow={t('discord.eyebrow')} description={t('discord.description')}>
@@ -136,11 +158,17 @@
                 {t('discord.createCta')}
               </ButtonLink>
             {/if}
-            <ButtonLink variant="primary" href="/discord/connect" data-sveltekit-reload>
-              {t('discord.connectCta')}
-            </ButtonLink>
+            {#if data.configured}
+              <ButtonLink variant="primary" href="/discord/connect" data-sveltekit-reload>
+                {t('discord.connectCta')}
+              </ButtonLink>
+            {:else}
+              <Button variant="primary" type="button" disabled>{t('discord.connectCta')}</Button>
+            {/if}
           </div>
-          {#if data.templateURL}
+          {#if !data.configured}
+            <p class="muted-text follow">{t('discord.connectUnconfigured')}</p>
+          {:else if data.templateURL}
             <p class="muted-text follow">{t('discord.createThenConnect')}</p>
           {/if}
         </div>
@@ -166,6 +194,27 @@
     </Card>
 
     <form method="POST" action="?/save" use:enhance={saveSubmit}>
+      <Card>
+        <h2 class="block-title">{t('discord.pickersTitle')}</h2>
+        <p class="muted-text">{t('discord.pickersHelp')}</p>
+        {#if !hasLayout}
+          <p class="muted-text">{t('discord.layoutUnavailable')}</p>
+        {/if}
+        <div class="fields">
+          {@render picker('liveChannelId', t('discord.liveChannelLabel'), textChannels, '#')}
+          {@render picker('clipsChannelId', t('discord.clipsChannelLabel'), textChannels, '#')}
+          {@render picker('alertsChannelId', t('discord.alertsChannelLabel'), textChannels, '#')}
+          {@render picker('welcomeChannelId', t('discord.welcomeChannelLabel'), textChannels, '#')}
+          {@render picker('voiceHubId', t('discord.voiceHubLabel'), voiceChannels, '')}
+          {@render picker('liveRoleId', t('discord.liveRoleLabel'), roles, '@')}
+        </div>
+        <Field label={t('discord.streamerIdLabel')} tag={t('discord.streamerIdTag')}>
+          <input class="input wide" name="streamerDiscordId" value={config.streamerDiscordId} placeholder="123456789012345678" inputmode="numeric" />
+        </Field>
+        <p class="muted-text">{t('discord.streamerIdHelp')}</p>
+        <Button variant="primary" type="submit">{t('discord.save')}</Button>
+      </Card>
+
       <Card>
         <h2 class="block-title">{t('discord.postsTitle')}</h2>
         <p class="muted-text">{t('discord.postsHelp')}</p>
@@ -243,10 +292,10 @@
         </div>
         <div class="fields">
           <Field label={t('discord.giftMinLabel')} tag={t('discord.giftMinTag')}>
-            <input class="input" type="number" name="giftMin" min="1" value={config.giftMin || '5'} />
+            <input class="input" type="number" name="giftMin" min="1" step="1" value={config.giftMin || '5'} />
           </Field>
           <Field label={t('discord.cheerMinLabel')} tag={t('discord.cheerMinTag')}>
-            <input class="input" type="number" name="cheerMin" min="1" value={config.cheerMin || '1000'} />
+            <input class="input" type="number" name="cheerMin" min="1" step="1" value={config.cheerMin || '1000'} />
           </Field>
         </div>
         <Field label={t('discord.allowLabel')} tag={t('discord.allowTag')}>
@@ -378,6 +427,8 @@
     width: 100%;
     box-sizing: border-box;
   }
+  select.input { appearance: auto; }
+  select.input option { color: #1a1814; }
   .input.wide { min-width: 0; }
   .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
 </style>

@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,12 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
+
+// liveMessageTTL bounds how long the go-live message id is remembered. It
+// is refreshed on every go-live touch, so it only has to outlast one
+// stream: 7 days covers a subathon, where the first cut's 36 h left the
+// post stuck on LIVE.
+const liveMessageTTL = 7 * 24 * time.Hour
 
 // discordGuildAPI is the REST slice the live announcer and guild fill need
 // on top of SendMessage. *discapi.Client implements it; the chat-only
@@ -47,7 +54,10 @@ type discordModuleReader interface {
 type discordLiveStore interface {
 	PutLiveMessage(ctx context.Context, broadcasterID, channelID, messageID string) error
 	GetLiveMessage(ctx context.Context, broadcasterID string) (channelID, messageID string, ok bool)
+	DeleteLiveMessage(ctx context.Context, broadcasterID string) error
 	PutGuild(ctx context.Context, guildID, broadcasterID string) error
+	GetGuild(ctx context.Context, guildID string) (broadcasterID string, ok bool)
+	DeleteGuild(ctx context.Context, guildID string) error
 }
 
 type valkeyDiscordLive struct {
@@ -69,7 +79,7 @@ func discordLiveKey(broadcasterID string) string { return "discord:live-msg:" + 
 
 func (s valkeyDiscordLive) PutLiveMessage(ctx context.Context, broadcasterID, channelID, messageID string) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(discordLiveKey(broadcasterID)).
-		Value(channelID+"|"+messageID).Ex(36*time.Hour).Build()).Error()
+		Value(channelID+"|"+messageID).Ex(liveMessageTTL).Build()).Error()
 }
 
 func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, broadcasterID string) (string, string, bool) {
@@ -79,6 +89,10 @@ func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, broadcasterID str
 	}
 	ch, msg, ok := strings.Cut(raw, "|")
 	return ch, msg, ok && ch != "" && msg != ""
+}
+
+func (s valkeyDiscordLive) DeleteLiveMessage(ctx context.Context, broadcasterID string) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(discordLiveKey(broadcasterID)).Build()).Error()
 }
 
 func discordGuildKey(guildID string) string { return "discord:guild:" + guildID }
@@ -91,54 +105,121 @@ func (s valkeyDiscordLive) PutGuild(ctx context.Context, guildID, broadcasterID 
 		Value(broadcasterID).Build()).Error()
 }
 
+func (s valkeyDiscordLive) GetGuild(ctx context.Context, guildID string) (string, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(discordGuildKey(guildID)).Build()).ToString()
+	if err != nil || raw == "" {
+		return "", false
+	}
+	return raw, true
+}
+
+func (s valkeyDiscordLive) DeleteGuild(ctx context.Context, guildID string) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(discordGuildKey(guildID)).Build()).Error()
+}
+
+// guildAPI returns the attached client when it speaks the guild slice.
+func (w *Worker) guildAPI() (discordGuildAPI, bool) {
+	if w.discord == nil {
+		return nil, false
+	}
+	guild, ok := w.discord.(discordGuildAPI)
+	return guild, ok
+}
+
 // HandleStreamEvent also posts the Discord go-live / go-offline embed.
 // This is the load-bearing product rule: live events never pass through
 // sesame. The handler already acks always; Discord failures only log.
 func (w *Worker) announceDiscordLive(ctx context.Context, status eventtwitch.StreamStatus) {
-	if w.discord == nil {
-		return
-	}
-	guild, ok := w.discord.(discordGuildAPI)
+	guild, ok := w.guildAPI()
 	if !ok {
 		return
 	}
-	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 	cfg, enabled := w.discordConfig(ctx, status.BroadcasterID)
 	if !enabled || !cfg.Connected() || !cfg.LiveOn() {
 		return
 	}
+	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 	if !status.Live {
 		w.discordOffline(ctx, guild, broadcasterID)
 		w.discordLiveRole(ctx, guild, cfg, false)
 		return
 	}
+	w.discordOnline(ctx, guild, cfg, broadcasterID)
+}
 
-	info, _ := w.streamInfoGet(ctx, broadcasterID)
+// discordOnline posts the go-live embed once per stream. A repeated
+// stream.online (EventSub retry, AckWait replay, pod restart mid-handler)
+// finds the remembered message and only re-asserts the live role instead of
+// posting a second embed and orphaning the first.
+func (w *Worker) discordOnline(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config, broadcasterID string) {
+	channelID := strings.TrimSpace(cfg.LiveChannelID)
+	login := strings.TrimSpace(cfg.TwitchLogin)
+	if channelID == "" || login == "" {
+		return
+	}
+	if w.liveMessageKnown(ctx, broadcasterID) {
+		w.discordLiveRole(ctx, guild, cfg, true)
+		return
+	}
+	info := w.liveInfo(ctx, cfg, broadcasterID)
 	if !cfg.CategoryAllowed(info.GameName) {
 		return
 	}
-	channelID := strings.TrimSpace(cfg.LiveChannelID)
-	if channelID == "" {
+	if err := w.takeDiscordGlobal(ctx); err != nil {
+		w.log.Warn("discord go-live embed skipped: global bucket",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	login := cfg.TwitchLogin
-	thumb := ""
-	if login != "" {
-		thumb = "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + strings.ToLower(login) + "-640x360.jpg"
-	}
-	embed := ddiscord.LiveEmbed(login, info.Title, info.GameName, thumb, info.ViewerCount)
+	embed := ddiscord.LiveEmbed(ddiscord.LiveEmbedInput{
+		Login:        login,
+		Title:        info.Title,
+		Category:     info.GameName,
+		ThumbnailURL: "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + strings.ToLower(login) + "-640x360.jpg",
+		Viewers:      info.ViewerCount,
+	})
 	msgID, err := guild.SendEmbed(ctx, channelID, "", embed)
 	if err != nil {
 		w.log.Warn("discord go-live embed failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	if w.discordKV != nil && msgID != "" {
+	if w.discordKV != nil {
 		_ = w.discordKV.PutLiveMessage(ctx, broadcasterID, channelID, msgID)
 	}
 	w.discordLiveRole(ctx, guild, cfg, true)
 }
 
+func (w *Worker) liveMessageKnown(ctx context.Context, broadcasterID string) bool {
+	if w.discordKV == nil {
+		return false
+	}
+	_, _, ok := w.discordKV.GetLiveMessage(ctx, broadcasterID)
+	return ok
+}
+
+// liveInfo reads the projected title/category. stream.online lands on this
+// lane before the stream_status job projects the metadata, so with an
+// allow-list set (the one case an unknown category cannot be decided) it
+// pays one system Helix call rather than silently skipping every allow-list
+// user's announcement.
+func (w *Worker) liveInfo(ctx context.Context, cfg ddiscord.Config, broadcasterID string) projection.StreamInfo {
+	info, known := w.streamInfoGet(ctx, broadcasterID)
+	if (known && info.GameName != "") || !cfg.HasCategoryAllow() || w.twitch == nil {
+		return info
+	}
+	if err := w.takeSystemHelix(ctx); err != nil {
+		return info
+	}
+	details, live, err := w.twitch.StreamDetails(ctx, broadcasterID)
+	if err != nil || !live {
+		return info
+	}
+	return projection.StreamInfo{Title: details.Title, GameName: details.GameName, ViewerCount: details.ViewerCount}
+}
+
+// discordOffline edits the remembered go-live message and forgets it. A
+// message the streamer deleted (404) is forgotten too, so the stale key is
+// not re-edited on every later offline event.
 func (w *Worker) discordOffline(ctx context.Context, guild discordGuildAPI, broadcasterID string) {
 	if w.discordKV == nil {
 		return
@@ -147,10 +228,13 @@ func (w *Worker) discordOffline(ctx context.Context, guild discordGuildAPI, broa
 	if !ok {
 		return
 	}
-	if err := guild.EditMessage(ctx, ch, msg, ddiscord.OfflineContent, []ddiscord.Embed{}); err != nil {
+	err := guild.EditMessage(ctx, ch, msg, ddiscord.OfflineContent, []ddiscord.Embed{})
+	if err != nil && !errors.Is(err, discapi.ErrChannelNotFound) {
 		w.log.Warn("discord go-offline edit failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
 	}
+	_ = w.discordKV.DeleteLiveMessage(ctx, broadcasterID)
 }
 
 func (w *Worker) discordLiveRole(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config, live bool) {
@@ -177,7 +261,14 @@ func (w *Worker) discordConfig(ctx context.Context, broadcasterID uint64) (ddisc
 		return ddiscord.Config{}, false
 	}
 	mod, found, err := src.GetModule(ctx, broadcasterID, ddiscord.ModuleName)
-	if err != nil || !found || !mod.IsEnabled {
+	if err != nil {
+		// A Valkey blip must be visible: silently reading as "not connected"
+		// hides every skipped go-live post.
+		w.log.Warn("discord module read failed; treating as not connected",
+			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		return ddiscord.Config{}, false
+	}
+	if !found || !mod.IsEnabled {
 		return ddiscord.Config{}, false
 	}
 	return ddiscord.Parse(mod.Configs), true
@@ -212,13 +303,17 @@ func (w *Worker) announceDiscordClip(ctx context.Context, broadcasterID, clipURL
 	if channelID == "" {
 		return
 	}
+	if err := w.takeDiscordGlobal(ctx); err != nil {
+		w.log.Warn("discord clip embed skipped: global bucket",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
 	guild, ok := w.discord.(discordGuildAPI)
 	if !ok {
 		_ = w.discord.SendMessage(ctx, channelID, clipURL, false)
 		return
 	}
-	embed := ddiscord.ClipEmbed(clipURL, clipper, title)
-	if _, err := guild.SendEmbed(ctx, channelID, "", embed); err != nil {
+	if _, err := guild.SendEmbed(ctx, channelID, "", ddiscord.ClipEmbed(clipURL, clipper, title)); err != nil {
 		w.log.Warn("discord clip embed failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	}

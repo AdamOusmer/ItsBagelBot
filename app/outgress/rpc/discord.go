@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"time"
 
 	"ItsBagelBot/app/outgress/internal/worker"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
@@ -15,8 +16,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// SubscribeDiscord wires guild setup and home-server posts. A nil worker
-// (no bot token) is a no-op so outgress still boots.
+// setupHandleTimeout bounds one guild fill: 4 roles and 17 channels created
+// one REST call at a time at 100-300 ms each, plus whatever Retry-After the
+// create buckets dictate. The 4 s followage budget cancelled mid-fill on
+// every real guild and left a half-built server; 45 s clears a worst-case
+// fill with the dashboard's 60 s client wait still above it.
+const setupHandleTimeout = 45 * time.Second
+
+// layoutHandleTimeout covers two listings.
+const layoutHandleTimeout = 10 * time.Second
+
+// SubscribeDiscord wires guild setup, layout listing, unbind and home-server
+// posts. The worker is always the system lane worker; with no bot token
+// attached every handler answers "discord client unavailable" so the
+// dashboard shows a real error instead of a no-responders timeout.
 func SubscribeDiscord(nc *nats.Conn, w *worker.Worker, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	if w == nil {
 		return nil
@@ -25,7 +38,15 @@ func SubscribeDiscord(nc *nats.Conn, w *worker.Worker, prefix, queueGroup string
 	return subscribeAll(
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
-				nc, prefix+".discord.setup", queueGroup, followageHandleTimeout, app, log, d.handleSetup)
+				nc, prefix+".discord.setup", queueGroup, setupHandleTimeout, app, log, d.handleSetup)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
+				nc, prefix+".discord.layout", queueGroup, layoutHandleTimeout, app, log, d.handleLayout)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
+				nc, prefix+".discord.unbind", queueGroup, handleTimeout, app, log, d.handleUnbind)
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
@@ -40,8 +61,8 @@ type discordRPC struct {
 }
 
 func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSetupRequest) outgressrpc.DiscordSetupReply {
-	if req.GuildID == "" {
-		return outgressrpc.DiscordSetupReply{Error: "missing guild_id"}
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
 	}
 	got, err := d.w.SetupGuild(ctx, req.GuildID, "", req.UserID)
 	if err != nil {
@@ -60,6 +81,38 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		MemberRoleID:     got.MemberRoleID,
 		Refused:          got.Refused,
 	}
+}
+
+func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLayoutRequest) outgressrpc.DiscordLayoutReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordLayoutReply{Error: "missing guild_id or user_id"}
+	}
+	layout, err := d.w.GuildLayout(ctx, req.GuildID, req.UserID)
+	if err != nil {
+		return outgressrpc.DiscordLayoutReply{Error: err.Error()}
+	}
+	return outgressrpc.DiscordLayoutReply{
+		Channels: layoutEntries(layout.Channels),
+		Roles:    layoutEntries(layout.Roles),
+	}
+}
+
+func layoutEntries(in []worker.GuildEntry) []outgressrpc.DiscordLayoutEntry {
+	out := make([]outgressrpc.DiscordLayoutEntry, 0, len(in))
+	for _, e := range in {
+		out = append(out, outgressrpc.DiscordLayoutEntry{ID: e.ID, Name: e.Name, Type: e.Type})
+	}
+	return out
+}
+
+func (d *discordRPC) handleUnbind(ctx context.Context, req outgressrpc.DiscordUnbindRequest) outgressrpc.DiscordUnbindReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordUnbindReply{Error: "missing guild_id or user_id"}
+	}
+	if err := d.w.UnbindGuild(ctx, req.GuildID, req.UserID); err != nil {
+		return outgressrpc.DiscordUnbindReply{Error: err.Error()}
+	}
+	return outgressrpc.DiscordUnbindReply{}
 }
 
 func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPostRequest) outgressrpc.DiscordPostReply {

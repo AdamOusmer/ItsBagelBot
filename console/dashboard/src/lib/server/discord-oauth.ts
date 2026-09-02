@@ -2,15 +2,21 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Discord bot-install OAuth. Discord always shows its own confirm; we cannot
-// skip that. The callback only needs guild_id — the bot token is fleet-wide
-// env, so we never exchange the code.
+// skip that. The callback exchanges the code server-side and takes the guild
+// id from the token response, never from the query string: the query
+// guild_id is caller-supplied, and trusting it let any signed-in user bind
+// (and fill) someone else's server. Only a member who may add bots to a
+// guild can obtain a code for it, which is the ownership proof outgress
+// relies on.
 import { redirect } from '@sveltejs/kit';
 import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
-const DEMO = dev && env.DEMO === '1';
+// process.env, not $env/dynamic/private, for the module-eval read: this
+// file imports module-gate, which sits in the boot import graph.
+const DEMO = dev && process.env.DEMO === '1';
 
 export const DISCORD_STATE_COOKIE = 'discord_oauth_state';
 export const DISCORD_STATE_TTL_SECONDS = 600;
@@ -19,6 +25,9 @@ export const DISCORD_STATE_TTL_SECONDS = 600;
 // embed, attach, view, history, reactions, manage channels, manage roles,
 // connect, move members, slash commands. No Administrator.
 export const DISCORD_BOT_PERMISSIONS = 2433862736;
+
+const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
+const TOKEN_TIMEOUT_MS = 8000;
 
 export function requireDiscordActor(locals: App.Locals): string {
   gateModulePage(locals.session, 'discord');
@@ -36,6 +45,10 @@ export function discordClientId(): string {
   return (env.DISCORD_CLIENT_ID || '').trim();
 }
 
+function discordClientSecret(): string {
+  return (env.DISCORD_CLIENT_SECRET || '').trim();
+}
+
 export function discordRedirectURI(): string {
   return (env.DISCORD_REDIRECT_URI || '').trim();
 }
@@ -45,7 +58,7 @@ export function discordTemplateCode(): string {
 }
 
 export function discordConfigured(): boolean {
-  return discordClientId() !== '' && discordRedirectURI() !== '';
+  return discordClientId() !== '' && discordClientSecret() !== '' && discordRedirectURI() !== '';
 }
 
 export function discordInviteURL(state: string): string {
@@ -65,4 +78,28 @@ export function discordInviteURL(state: string): string {
 export function discordTemplateURL(): string {
   const code = discordTemplateCode();
   return code ? `https://discord.new/${code}` : '';
+}
+
+// exchangeInstallCode redeems the bot-install code. For the bot scope the
+// token response carries the guild the user authorised; that id is the only
+// one the callback may bind. Returns '' when Discord rejects the code or
+// the response names no guild.
+export async function exchangeInstallCode(code: string): Promise<string> {
+  const body = new URLSearchParams({
+    client_id: discordClientId(),
+    client_secret: discordClientSecret(),
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: discordRedirectURI()
+  });
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS)
+  });
+  if (!res.ok) return '';
+  const json = (await res.json()) as { guild?: { id?: unknown } };
+  const id = json.guild?.id;
+  return typeof id === 'string' ? id.trim() : '';
 }

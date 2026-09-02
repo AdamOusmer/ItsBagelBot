@@ -3,14 +3,18 @@
 
 package outgress
 
-// DiscordSetupRequest is bagel.rpc.outgress.discord.setup.
+// DiscordSetupRequest is bagel.rpc.outgress.discord.setup. UserID is the
+// Twitch broadcaster the guild binds to. The dashboard proves the caller
+// installed the bot in GuildID (OAuth code exchange) before asking; outgress
+// only refuses a guild already bound to a different broadcaster.
 type DiscordSetupRequest struct {
 	UserID  string `json:"user_id"`
 	GuildID string `json:"guild_id"`
 }
 
 // DiscordSetupReply is the filled template the dashboard writes into the
-// Discord module blob. Refused is set when the guild already looks lived-in.
+// Discord module blob. Refused is set when the guild already looked lived-in;
+// the ids are then whatever existing channels matched the template by name.
 type DiscordSetupReply struct {
 	GuildID          string `json:"guild_id,omitempty"`
 	LiveChannelID    string `json:"live_channel_id,omitempty"`
@@ -24,6 +28,39 @@ type DiscordSetupReply struct {
 	MemberRoleID     string `json:"member_role_id,omitempty"`
 	Refused          string `json:"refused,omitempty"`
 	Error            string `json:"error,omitempty"`
+}
+
+// DiscordLayoutRequest is bagel.rpc.outgress.discord.layout: the guild's
+// channels and roles so the dashboard can offer pickers on a lived-in server.
+type DiscordLayoutRequest struct {
+	UserID  string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+}
+
+// DiscordLayoutEntry is one channel or role. Type is Discord's channel type
+// (0 text, 2 voice, 4 category); roles carry 0.
+type DiscordLayoutEntry struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type int    `json:"type,omitempty"`
+}
+
+type DiscordLayoutReply struct {
+	Channels []DiscordLayoutEntry `json:"channels,omitempty"`
+	Roles    []DiscordLayoutEntry `json:"roles,omitempty"`
+	Error    string               `json:"error,omitempty"`
+}
+
+// DiscordUnbindRequest is bagel.rpc.outgress.discord.unbind: drop the
+// guild→broadcaster reverse index on disconnect. Only the bound broadcaster
+// can unbind.
+type DiscordUnbindRequest struct {
+	UserID  string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+}
+
+type DiscordUnbindReply struct {
+	Error string `json:"error,omitempty"`
 }
 
 // DiscordPostRequest is bagel.rpc.outgress.discord.post: Bagel's own

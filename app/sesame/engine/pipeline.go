@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -456,9 +455,18 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		replayID := state.replayID()
 		subject := state.subject
 		if o.Type == outgress.TypeDiscordChat {
-			subject = discordOutgressSubject(state.subject)
+			subject = p.discordOutgressSubject(state.subject)
 		}
 		if err := p.publishOutput(ctx, subject, replayID, o); err != nil {
+			if o.Type == outgress.TypeDiscordChat {
+				// A Discord copy is best-effort. Failing the emit here would
+				// NAK the ingress event and replay every Twitch line already
+				// published (replayID is not a broker dedup id), so a missing
+				// stream or a not-yet-pushed ACL must never cost Twitch output.
+				p.log.Warn("discord copy publish failed; twitch output kept",
+					zap.String("subject", subject), zap.Error(err))
+				return
+			}
 			state.err = err
 			return
 		}
@@ -503,11 +511,16 @@ func (p *Pipeline) laneSubject(regress module.Regress) string {
 	return p.outgressStandard
 }
 
-// discordOutgressSubject rewrites a twitch.outgress.* lane onto the Discord
-// announcement stream so raid/gift copies never share the Helix chat queue.
-// Live go-live embeds do not use this path.
-func discordOutgressSubject(twitchSubject string) string {
-	return strings.Replace(twitchSubject, "twitch.outgress.", "discord.outgress.", 1)
+// discordOutgressSubject maps the Twitch lane onto the Discord announcement
+// stream so raid/gift copies never share the Helix chat queue. It keys off
+// the configured lane subjects (env-overridable) rather than rewriting a
+// literal prefix, so a renamed Twitch lane cannot land a Discord copy on
+// TWITCH_OUTGRESS. Live go-live embeds do not use this path.
+func (p *Pipeline) discordOutgressSubject(twitchSubject string) string {
+	if twitchSubject == p.outgressPremium {
+		return bus.DiscordOutgressStream.Subjects[0]
+	}
+	return bus.DiscordOutgressStream.Subjects[1]
 }
 
 // floorSuppressed applies the send-time floor guard: the bot must never SAY

@@ -1,14 +1,21 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Discord module blob + outgress setup RPC. Channel/role snowflakes live in
-// the module row sesame and outgress both read; the bot token never does.
+// Discord module blob + outgress RPCs. Channel/role snowflakes live in the
+// module row sesame and outgress both read; the bot token never does.
 import { rpc } from '@bagel/shared/server/nats';
 import { MOD } from '@bagel/shared';
 import { SUB } from './services';
 import { listModules, upsertModule } from './commands-store';
 
 const DISCORD_MODULE = MOD.discord;
+
+// SETUP_TIMEOUT_MS sits above outgress's 45 s setup handler: a full fill is
+// ~21 sequential Discord creates plus their Retry-After waits.
+const SETUP_TIMEOUT_MS = 60000;
+const LAYOUT_TIMEOUT_MS = 12000;
+
+const BOUND_ELSEWHERE = 'already linked to another Twitch channel';
 
 export type DiscordConfig = {
   guildId: string;
@@ -43,6 +50,10 @@ export type DiscordView = {
   connected: boolean;
   config: DiscordConfig;
 };
+
+export type DiscordEntry = { id: string; name: string; type: number };
+
+export type DiscordLayout = { channels: DiscordEntry[]; roles: DiscordEntry[] };
 
 const EMPTY: DiscordConfig = {
   guildId: '',
@@ -130,8 +141,15 @@ export type DiscordSetup = {
   error: string;
 };
 
-// setupGuild asks outgress to fill the community template (or refuse a
-// lived-in server) and always binds the guild→Twitch reverse index.
+// isBoundElsewhere recognises outgress's refusal of a guild already linked
+// to a different broadcaster.
+export function isBoundElsewhere(error: string): boolean {
+  return error.includes(BOUND_ELSEWHERE);
+}
+
+// setupGuild asks outgress to fill the community template (or, on a lived-in
+// server, adopt the channels it recognises by name) and bind the
+// guild→Twitch reverse index. Outgress refuses a guild bound to someone else.
 export async function setupGuild(
   userId: string,
   guildId: string,
@@ -140,7 +158,7 @@ export async function setupGuild(
   const r = await rpc<SetupReply>(
     `${SUB.outgressRpc}.discord.setup`,
     { user_id: userId, guild_id: guildId },
-    15000
+    SETUP_TIMEOUT_MS
   );
   if (r.error) return { config: current, refused: '', error: r.error };
   const next: DiscordConfig = {
@@ -157,6 +175,38 @@ export async function setupGuild(
     memberRoleId: r.member_role_id || current.memberRoleId
   };
   return { config: next, refused: r.refused ?? '', error: '' };
+}
+
+type LayoutReply = {
+  channels?: { id: string; name: string; type?: number }[];
+  roles?: { id: string; name: string; type?: number }[];
+  error?: string;
+};
+
+function entries(list: LayoutReply['channels']): DiscordEntry[] {
+  return (list ?? []).map((e) => ({ id: e.id, name: e.name, type: e.type ?? 0 }));
+}
+
+// guildLayout lists the bound guild's channels and roles for the pickers.
+export async function guildLayout(userId: string, guildId: string): Promise<DiscordLayout> {
+  const r = await rpc<LayoutReply>(
+    `${SUB.outgressRpc}.discord.layout`,
+    { user_id: userId, guild_id: guildId },
+    LAYOUT_TIMEOUT_MS
+  );
+  if (r.error) throw new Error(r.error);
+  return { channels: entries(r.channels), roles: entries(r.roles) };
+}
+
+// unbindGuild drops the guild→Twitch reverse index on disconnect so outgress
+// stops resolving the guild to this broadcaster.
+export async function unbindGuild(userId: string, guildId: string): Promise<void> {
+  const r = await rpc<{ error?: string }>(
+    `${SUB.outgressRpc}.discord.unbind`,
+    { user_id: userId, guild_id: guildId },
+    5000
+  );
+  if (r.error) throw new Error(r.error);
 }
 
 export function blankDiscordConfig(): DiscordConfig {

@@ -95,22 +95,25 @@ func (c Config) AlertsChannel() string {
 // embed. Names compare case-insensitively, trimmed.
 func (c Config) CategoryAllowed(category string) bool {
 	cat := strings.TrimSpace(strings.ToLower(category))
-	if denied := splitCSV(c.CategoryDeny); len(denied) > 0 && cat != "" {
-		for _, d := range denied {
-			if d == cat {
-				return false
-			}
-		}
-	}
-	allow := splitCSV(c.CategoryAllow)
-	if len(allow) == 0 {
-		return true
-	}
-	if cat == "" {
+	if containsName(splitCSV(c.CategoryDeny), cat) {
 		return false
 	}
-	for _, a := range allow {
-		if a == cat {
+	allow := splitCSV(c.CategoryAllow)
+	return len(allow) == 0 || containsName(allow, cat)
+}
+
+// HasCategoryAllow reports whether an allow-list is set, which is when an
+// unknown category cannot be decided and the caller must fetch it.
+func (c Config) HasCategoryAllow() bool { return len(splitCSV(c.CategoryAllow)) > 0 }
+
+// containsName is a membership test on splitCSV output; an empty needle
+// never matches because splitCSV drops empty entries.
+func containsName(list []string, needle string) bool {
+	if needle == "" {
+		return false
+	}
+	for _, v := range list {
+		if v == needle {
 			return true
 		}
 	}
