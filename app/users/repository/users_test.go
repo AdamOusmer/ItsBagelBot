@@ -270,7 +270,7 @@ func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, 4001, "Gifter", "gifter@example.com"))
 	require.NoError(t, repo.Register(ctx, 4002, "Recipient", "recipient@example.com"))
 
-	when := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+	when := time.Now().UTC().Truncate(time.Second)
 	expires := when.AddDate(0, 1, 0)
 	gift := billingrpc.ApplyRequest{
 		UserID: 4002, EventID: "evt-gift-1", Action: billingrpc.ActionActivate,
@@ -348,7 +348,7 @@ func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 5005, "Chargeback", "chargeback@example.com"))
 
-	started := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 5005, EventID: "evt-start", Action: billingrpc.ActionActivate,
