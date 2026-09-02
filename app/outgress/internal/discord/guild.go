@@ -6,12 +6,10 @@ package discord
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 
 	domain "ItsBagelBot/internal/domain/discord"
-	"ItsBagelBot/pkg/codec"
 )
 
 // ErrNoMessageID means Discord accepted a create but the echo carried no id,
@@ -49,9 +47,31 @@ type RoleCreate struct {
 	Mentionable bool   `json:"mentionable,omitempty"`
 }
 
-// MessageRef is the created-message id we store to edit go-live posts.
-type MessageRef struct {
-	ID string `json:"id"`
+// Message addresses one message: the channel it lives in and its id. It is
+// what the live store remembers so stream.offline can edit the go-live post.
+type Message struct {
+	ChannelID string
+	ID        string
+}
+
+// EmbedPost is one embed (and optional content) to send into a channel.
+type EmbedPost struct {
+	ChannelID string
+	Content   string
+	Embed     domain.Embed
+}
+
+// MemberRole addresses one role grant on one guild member.
+type MemberRole struct {
+	GuildID string
+	UserID  string
+	RoleID  string
+}
+
+// Interaction addresses one slash-command interaction callback.
+type Interaction struct {
+	ID    string
+	Token string
 }
 
 func guildPath(guildID, rest string) string { return "/guilds/" + url.PathEscape(guildID) + rest }
@@ -60,129 +80,104 @@ func channelPath(channelID, rest string) string {
 	return "/channels/" + url.PathEscape(channelID) + rest
 }
 
-func messagePath(channelID, messageID string) string {
-	return channelPath(channelID, "/messages/"+url.PathEscape(messageID))
+func messagePath(m Message) string {
+	return channelPath(m.ChannelID, "/messages/"+url.PathEscape(m.ID))
 }
 
-func memberRolePath(guildID, userID, roleID string) string {
-	return guildPath(guildID, "/members/"+url.PathEscape(userID)+"/roles/"+url.PathEscape(roleID))
+func memberRolePath(r MemberRole) string {
+	return guildPath(r.GuildID, "/members/"+url.PathEscape(r.UserID)+"/roles/"+url.PathEscape(r.RoleID))
 }
 
-// SendEmbed posts one embed (and optional content) and returns the message id
-// so a later stream.offline can edit it.
-func (c *Client) SendEmbed(ctx context.Context, channelID, content string, embed domain.Embed) (string, error) {
-	body := map[string]any{"embeds": []domain.Embed{embed}}
-	if content != "" {
-		body["content"] = content
+// SendEmbed posts one embed and returns the created message so a later
+// stream.offline can edit it.
+func (c *Client) SendEmbed(ctx context.Context, post EmbedPost) (Message, error) {
+	body := map[string]any{"embeds": []domain.Embed{post.Embed}}
+	if post.Content != "" {
+		body["content"] = post.Content
 	}
-	var ref MessageRef
-	if err := c.doInto(ctx, http.MethodPost, channelPath(channelID, "/messages"), body, &ref); err != nil {
-		return "", err
+	var ref struct {
+		ID string `json:"id"`
+	}
+	req := request{method: http.MethodPost, path: channelPath(post.ChannelID, "/messages"), body: body}
+	if err := c.doInto(ctx, req, &ref); err != nil {
+		return Message{}, err
 	}
 	if ref.ID == "" {
-		return "", ErrNoMessageID
+		return Message{}, ErrNoMessageID
 	}
-	return ref.ID, nil
+	return Message{ChannelID: post.ChannelID, ID: ref.ID}, nil
 }
 
 // EditMessage patches content (and optionally replaces embeds).
-func (c *Client) EditMessage(ctx context.Context, channelID, messageID, content string, embeds []domain.Embed) error {
+func (c *Client) EditMessage(ctx context.Context, m Message, content string, embeds []domain.Embed) error {
 	body := map[string]any{"content": content}
 	if embeds != nil {
 		body["embeds"] = embeds
 	}
-	return c.do(ctx, http.MethodPatch, messagePath(channelID, messageID), body)
+	return c.do(ctx, request{method: http.MethodPatch, path: messagePath(m), body: body})
 }
 
 // DeleteMessage removes one message.
-func (c *Client) DeleteMessage(ctx context.Context, channelID, messageID string) error {
-	_, err := c.doBytes(ctx, http.MethodDelete, messagePath(channelID, messageID), nil)
-	return err
+func (c *Client) DeleteMessage(ctx context.Context, m Message) error {
+	return c.do(ctx, request{method: http.MethodDelete, path: messagePath(m)})
 }
 
 // CreateChannel creates one guild channel and returns its snowflake.
 func (c *Client) CreateChannel(ctx context.Context, guildID string, ch ChannelCreate) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, http.MethodPost, guildPath(guildID, "/channels"), ch, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: guildPath(guildID, "/channels"), body: ch}, &out)
 	return out, err
 }
 
 // DeleteChannel removes a voice clone (or any channel the bot created).
 func (c *Client) DeleteChannel(ctx context.Context, channelID string) error {
-	_, err := c.doBytes(ctx, http.MethodDelete, channelPath(channelID, ""), nil)
-	return err
+	return c.do(ctx, request{method: http.MethodDelete, path: channelPath(channelID, "")})
 }
 
 // CreateRole creates a guild role.
 func (c *Client) CreateRole(ctx context.Context, guildID string, role RoleCreate) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, http.MethodPost, guildPath(guildID, "/roles"), role, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: guildPath(guildID, "/roles"), body: role}, &out)
 	return out, err
 }
 
 // AddMemberRole grants one role.
-func (c *Client) AddMemberRole(ctx context.Context, guildID, userID, roleID string) error {
-	return c.do(ctx, http.MethodPut, memberRolePath(guildID, userID, roleID), struct{}{})
+func (c *Client) AddMemberRole(ctx context.Context, r MemberRole) error {
+	return c.do(ctx, request{method: http.MethodPut, path: memberRolePath(r), body: struct{}{}})
 }
 
 // RemoveMemberRole revokes one role.
-func (c *Client) RemoveMemberRole(ctx context.Context, guildID, userID, roleID string) error {
-	_, err := c.doBytes(ctx, http.MethodDelete, memberRolePath(guildID, userID, roleID), nil)
-	return err
+func (c *Client) RemoveMemberRole(ctx context.Context, r MemberRole) error {
+	return c.do(ctx, request{method: http.MethodDelete, path: memberRolePath(r)})
 }
 
 // ListGuildChannels returns the guild's channels (for matching names on fill).
 func (c *Client) ListGuildChannels(ctx context.Context, guildID string) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, http.MethodGet, guildPath(guildID, "/channels"), nil, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "/channels")}, &out)
 	return out, err
 }
 
 // ListGuildRoles returns the guild's roles (for matching names on fill).
 func (c *Client) ListGuildRoles(ctx context.Context, guildID string) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, http.MethodGet, guildPath(guildID, "/roles"), nil, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "/roles")}, &out)
 	return out, err
 }
 
 // GetGuild returns the guild name and channel count (living-community check).
 func (c *Client) GetGuild(ctx context.Context, guildID string) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, http.MethodGet, guildPath(guildID, "?with_counts=false"), nil, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "?with_counts=false")}, &out)
 	return out, err
 }
 
 // InteractionRespond answers a slash command (type 4 channel message).
-func (c *Client) InteractionRespond(ctx context.Context, interactionID, token, content string) error {
+func (c *Client) InteractionRespond(ctx context.Context, in Interaction, content string) error {
 	body := map[string]any{
 		"type": 4,
 		"data": map[string]any{"content": content},
 	}
-	return c.do(ctx, http.MethodPost, "/interactions/"+url.PathEscape(interactionID)+"/"+url.PathEscape(token)+"/callback", body)
-}
-
-func (c *Client) doBytes(ctx context.Context, method, path string, body any) ([]byte, error) {
-	var payload []byte
-	if body != nil {
-		var err error
-		payload, err = codec.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return c.callBytes(ctx, method, path, payload)
-}
-
-// doInto runs the call and decodes the success body into out. A body that
-// does not decode is an error, never a silently zero result: a zero id here
-// used to strand go-live posts as LIVE forever.
-func (c *Client) doInto(ctx context.Context, method, path string, body, out any) error {
-	raw, err := c.doBytes(ctx, method, path, body)
-	if err != nil {
-		return err
-	}
-	if err := codec.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("discord: decode %s %s: %w", method, path, err)
-	}
-	return nil
+	path := "/interactions/" + url.PathEscape(in.ID) + "/" + url.PathEscape(in.Token) + "/callback"
+	return c.do(ctx, request{method: http.MethodPost, path: path, body: body})
 }

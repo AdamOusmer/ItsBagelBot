@@ -61,6 +61,14 @@ type GuildLayout struct {
 	Roles    []GuildEntry
 }
 
+// GuildSetupRequest names the guild to fill and the broadcaster it binds to.
+// EveryoneRoleID may be empty: Discord's @everyone role id equals the guild id.
+type GuildSetupRequest struct {
+	GuildID        string
+	EveryoneRoleID string
+	BroadcasterID  string
+}
+
 // SetupGuild fills the Bagel community template into an existing guild.
 // Proving the caller installed the bot in guildID is the dashboard's job
 // (OAuth code exchange); outgress enforces the one thing it can see, that
@@ -71,10 +79,10 @@ type GuildLayout struct {
 // its channels and roles are adopted by name instead. Template-named
 // channels never count as lived-in, so a fill cut short by a timeout is
 // completed on the next attempt rather than refused forever.
-func (w *Worker) SetupGuild(ctx context.Context, guildID, everyoneRoleID, broadcasterID string) (GuildSetupResult, error) {
-	guildID = strings.TrimSpace(guildID)
-	out := GuildSetupResult{GuildID: guildID}
-	fill, err := w.newGuildFill(ctx, guildID, everyoneRoleID, broadcasterID)
+func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSetupResult, error) {
+	req.GuildID = strings.TrimSpace(req.GuildID)
+	out := GuildSetupResult{GuildID: req.GuildID}
+	fill, err := w.newGuildFill(ctx, req)
 	if err != nil {
 		return GuildSetupResult{}, err
 	}
@@ -168,19 +176,19 @@ type guildFill struct {
 	guildID    string
 	everyone   string
 	existing   []discapi.Snowflake
-	chanByName map[string]discapi.Snowflake
+	chanByName map[string]string
 	roleByName map[string]string
 }
 
-func (w *Worker) newGuildFill(ctx context.Context, guildID, everyoneRoleID, broadcasterID string) (*guildFill, error) {
+func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
 	guild, ok := w.guildAPI()
 	if !ok {
 		return nil, errDiscordUnavailable
 	}
-	if guildID == "" {
+	if req.GuildID == "" {
 		return nil, errors.New("missing guild id")
 	}
-	if err := w.bindGuild(ctx, guildID, broadcasterID); err != nil {
+	if err := w.bindGuild(ctx, req.GuildID, req.BroadcasterID); err != nil {
 		return nil, err
 	}
 	// One global token for the whole fill: it is a one-off admin action of
@@ -189,26 +197,29 @@ func (w *Worker) newGuildFill(ctx context.Context, guildID, everyoneRoleID, broa
 	if err := w.takeDiscordGlobal(ctx); err != nil {
 		return nil, err
 	}
-	if everyoneRoleID == "" {
-		everyoneRoleID = guildID // Discord: @everyone role id equals guild id
+	if req.EveryoneRoleID == "" {
+		req.EveryoneRoleID = req.GuildID
 	}
-	existing, err := guild.ListGuildChannels(ctx, guildID)
+	existing, err := guild.ListGuildChannels(ctx, req.GuildID)
 	if err != nil {
 		return nil, err
 	}
-	roles, err := guild.ListGuildRoles(ctx, guildID)
+	roles, err := guild.ListGuildRoles(ctx, req.GuildID)
 	if err != nil {
 		return nil, err
 	}
-	f := &guildFill{w: w, guild: guild, guildID: guildID, everyone: everyoneRoleID, existing: existing,
-		chanByName: map[string]discapi.Snowflake{}, roleByName: map[string]string{}}
-	for _, ch := range existing {
-		f.chanByName[strings.ToLower(ch.Name)] = ch
+	return &guildFill{
+		w: w, guild: guild, guildID: req.GuildID, everyone: req.EveryoneRoleID, existing: existing,
+		chanByName: idsByName(existing), roleByName: idsByName(roles),
+	}, nil
+}
+
+func idsByName(list []discapi.Snowflake) map[string]string {
+	out := make(map[string]string, len(list))
+	for _, s := range list {
+		out[strings.ToLower(s.Name)] = s.ID
 	}
-	for _, r := range roles {
-		f.roleByName[strings.ToLower(r.Name)] = r.ID
-	}
-	return f, nil
+	return out
 }
 
 // livedIn counts channels that are not part of the template. Template-named
@@ -235,77 +246,81 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 		out.setRole(spec.Name, f.roleByName[strings.ToLower(spec.Name)])
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
-		out.setChannel(spec.Bind, f.chanByName[strings.ToLower(spec.Name)].ID)
+		out.setChannel(spec.Bind, f.chanByName[strings.ToLower(spec.Name)])
 	}
+}
+
+// ensureNamed returns the id of the entry called name in index, creating it
+// when absent. Creation is idempotent by name, which is what lets a fill cut
+// short by a timeout finish on the next attempt.
+func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, name string, create func() (discapi.Snowflake, error)) (string, error) {
+	key := strings.ToLower(name)
+	if id := index[key]; id != "" {
+		return id, nil
+	}
+	created, err := f.create(ctx, create)
+	if err != nil {
+		return "", err
+	}
+	index[key] = created.ID
+	return created.ID, nil
 }
 
 func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityRoles() {
-		key := strings.ToLower(spec.Name)
-		id := f.roleByName[key]
-		if id == "" {
-			created, err := f.create(ctx, func() (discapi.Snowflake, error) {
-				return f.guild.CreateRole(ctx, f.guildID, discapi.RoleCreate{
-					Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
-				})
+		id, err := f.ensureNamed(ctx, f.roleByName, spec.Name, func() (discapi.Snowflake, error) {
+			return f.guild.CreateRole(ctx, f.guildID, discapi.RoleCreate{
+				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
 			})
-			if err != nil {
-				return err
-			}
-			id = created.ID
-			f.roleByName[key] = id
+		})
+		if err != nil {
+			return err
 		}
 		out.setRole(spec.Name, id)
 	}
 	return nil
 }
 
-// ensureChannels creates categories first (children need their parent id),
-// then every other channel under its category.
+// ensureChannels walks the template categories-first (a child needs its
+// parent's id) and records every bound channel on the result.
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
 	parentID := map[string]string{}
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type != ddiscord.ChannelCategory {
-			continue
-		}
-		id, err := f.ensureChannel(ctx, spec, "")
+	for _, spec := range categoriesFirst(ddiscord.CommunityChannels()) {
+		id, err := f.ensureNamed(ctx, f.chanByName, spec.Name, f.channelCreator(spec, parentID[spec.Parent]))
 		if err != nil {
 			return err
 		}
 		parentID[spec.Name] = id
-	}
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type == ddiscord.ChannelCategory {
-			continue
-		}
-		id, err := f.ensureChannel(ctx, spec, parentID[spec.Parent])
-		if err != nil {
-			return err
-		}
 		out.setChannel(spec.Bind, id)
 	}
 	return nil
 }
 
-func (f *guildFill) ensureChannel(ctx context.Context, spec ddiscord.ChannelSpec, parent string) (string, error) {
-	key := strings.ToLower(spec.Name)
-	if id := f.chanByName[key].ID; id != "" {
-		return id, nil
-	}
-	created, err := f.create(ctx, func() (discapi.Snowflake, error) {
-		return f.guild.CreateChannel(ctx, f.guildID, discapi.ChannelCreate{
+func (f *guildFill) channelCreator(spec ddiscord.ChannelSpec, parent string) func() (discapi.Snowflake, error) {
+	return func() (discapi.Snowflake, error) {
+		return f.guild.CreateChannel(context.Background(), f.guildID, discapi.ChannelCreate{
 			Name:                 spec.Name,
 			Type:                 spec.Type,
 			Topic:                spec.Topic,
 			ParentID:             parent,
 			PermissionOverwrites: overwrites(spec, f.everyone),
 		})
-	})
-	if err != nil {
-		return "", err
 	}
-	f.chanByName[key] = created
-	return created.ID, nil
+}
+
+func categoriesFirst(specs []ddiscord.ChannelSpec) []ddiscord.ChannelSpec {
+	out := make([]ddiscord.ChannelSpec, 0, len(specs))
+	for _, spec := range specs {
+		if spec.Type == ddiscord.ChannelCategory {
+			out = append(out, spec)
+		}
+	}
+	for _, spec := range specs {
+		if spec.Type != ddiscord.ChannelCategory {
+			out = append(out, spec)
+		}
+	}
+	return out
 }
 
 // create runs one Discord create, sleeping the server-dictated Retry-After

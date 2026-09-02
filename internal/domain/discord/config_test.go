@@ -38,11 +38,23 @@ func TestAlertsChannelFallsBackToLive(t *testing.T) {
 
 func TestTogglesDefaultOnExceptNoisyOnes(t *testing.T) {
 	var c Config
-	if !c.LiveOn() || !c.ClipsOn() || !c.RaidOn() || !c.WelcomeOn() || !c.VoiceOn() {
-		t.Fatal("companion toggles default on")
+	toggles := map[string]struct {
+		on   func() bool
+		want bool
+	}{
+		"live":      {c.LiveOn, true},
+		"clips":     {c.ClipsOn, true},
+		"raid":      {c.RaidOn, true},
+		"welcome":   {c.WelcomeOn, true},
+		"voice":     {c.VoiceOn, true},
+		"cheer":     {c.CheerOn, false},
+		"goodbye":   {c.GoodbyeOn, false},
+		"milestone": {c.SubMilestoneOn, false},
 	}
-	if c.CheerOn() || c.GoodbyeOn() || c.SubMilestoneOn() {
-		t.Fatal("noisy toggles default off")
+	for name, tc := range toggles {
+		if got := tc.on(); got != tc.want {
+			t.Errorf("%s default = %v, want %v", name, got, tc.want)
+		}
 	}
 }
 

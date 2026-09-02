@@ -204,7 +204,7 @@ func main() {
 	// sesame's loyalty watch tick: one call per live channel per tick.
 	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
 		"failed to subscribe chatters rpc")
-	fatalIf(log, rpc.SubscribeDiscord(nc, system, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+	fatalIf(log, rpc.SubscribeDiscord(system, rpc.Wiring{NC: nc, Prefix: cfg.RPCPrefix, Queue: "outgress-rpc", App: nrApp, Log: log.Named("rpc")}),
 		"failed to subscribe discord rpc")
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 

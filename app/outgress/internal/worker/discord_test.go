@@ -81,33 +81,24 @@ func TestDiscordChatPaysPerChannelThenGlobalBucket(t *testing.T) {
 	}
 }
 
-func TestDiscordChatPacingDenialNacksBeforeAPI(t *testing.T) {
-	client := &discordRecordingClient{}
-	manager := &scriptedLimiter{denied: map[string]bool{"ratelimit:discord:chat:1234567890": true}}
-	w := newDiscordWorker(client, manager)
+func TestDiscordBucketDenialNacksBeforeAPI(t *testing.T) {
+	for name, key := range map[string]string{
+		"pacing": "ratelimit:discord:chat:1234567890",
+		"global": "ratelimit:discord:global",
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := &discordRecordingClient{}
+			w := newDiscordWorker(client, &scriptedLimiter{denied: map[string]bool{key: true}})
 
-	err := w.processDiscordChat(context.Background(), discordChatPayload("hi"))
-	var expected expectedNackError
-	if !errors.As(err, &expected) {
-		t.Fatalf("err = %v, want an expected nack from the pacing bucket", err)
-	}
-	if client.calls != 0 {
-		t.Fatal("API fired despite pacing denial")
-	}
-}
-
-func TestDiscordGlobalDenialNacksBeforeAPI(t *testing.T) {
-	client := &discordRecordingClient{}
-	manager := &scriptedLimiter{denied: map[string]bool{"ratelimit:discord:global": true}}
-	w := newDiscordWorker(client, manager)
-
-	err := w.processDiscordChat(context.Background(), discordChatPayload("hi"))
-	var expected expectedNackError
-	if !errors.As(err, &expected) {
-		t.Fatalf("err = %v, want an expected nack from the global bucket", err)
-	}
-	if client.calls != 0 {
-		t.Fatal("API fired despite global denial")
+			err := w.processDiscordChat(context.Background(), discordChatPayload("hi"))
+			var expected expectedNackError
+			if !errors.As(err, &expected) {
+				t.Fatalf("err = %v, want an expected nack from the %s bucket", err, name)
+			}
+			if client.calls != 0 {
+				t.Fatalf("API fired despite %s denial", name)
+			}
+		})
 	}
 }
 

@@ -453,26 +453,36 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		}
 		state.ordinal++
 		replayID := state.replayID()
-		subject := state.subject
-		if o.Type == outgress.TypeDiscordChat {
-			subject = p.discordOutgressSubject(state.subject)
-		}
-		if err := p.publishOutput(ctx, subject, replayID, o); err != nil {
-			if o.Type == outgress.TypeDiscordChat {
-				// A Discord copy is best-effort. Failing the emit here would
-				// NAK the ingress event and replay every Twitch line already
-				// published (replayID is not a broker dedup id), so a missing
-				// stream or a not-yet-pushed ACL must never cost Twitch output.
-				p.log.Warn("discord copy publish failed; twitch output kept",
-					zap.String("subject", subject), zap.Error(err))
-				return
-			}
-			state.err = err
+		if !p.publishEmission(ctx, state, replayID, o) {
 			return
 		}
 		if replayID == "" {
 			state.needsFlush = true
 		}
+	}
+}
+
+// publishEmission publishes one output on its lane and reports whether the
+// emit may continue. A Discord copy is best-effort: failing the emit for it
+// would NAK the ingress event and replay every Twitch line already published
+// (replayID is not a broker dedup id), so a missing stream or a not-yet-pushed
+// ACL must never cost Twitch output.
+func (p *Pipeline) publishEmission(ctx context.Context, state *emitState, replayID string, o *module.Output) bool {
+	subject := state.subject
+	if o.Type == outgress.TypeDiscordChat {
+		subject = p.discordOutgressSubject(state.subject)
+	}
+	err := p.publishOutput(ctx, subject, replayID, o)
+	switch {
+	case err == nil:
+		return true
+	case o.Type == outgress.TypeDiscordChat:
+		p.log.Warn("discord copy publish failed; twitch output kept",
+			zap.String("subject", subject), zap.Error(err))
+		return false
+	default:
+		state.err = err
+		return false
 	}
 }
 

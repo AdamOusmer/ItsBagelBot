@@ -30,13 +30,13 @@ const liveMessageTTL = 7 * 24 * time.Hour
 // test fake does not, so live tests inject a recorder that does.
 type discordGuildAPI interface {
 	discordAPI
-	SendEmbed(ctx context.Context, channelID, content string, embed ddiscord.Embed) (string, error)
-	EditMessage(ctx context.Context, channelID, messageID, content string, embeds []ddiscord.Embed) error
+	SendEmbed(ctx context.Context, post discapi.EmbedPost) (discapi.Message, error)
+	EditMessage(ctx context.Context, m discapi.Message, content string, embeds []ddiscord.Embed) error
 	CreateChannel(ctx context.Context, guildID string, ch discapi.ChannelCreate) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, channelID string) error
 	CreateRole(ctx context.Context, guildID string, role discapi.RoleCreate) (discapi.Snowflake, error)
-	AddMemberRole(ctx context.Context, guildID, userID, roleID string) error
-	RemoveMemberRole(ctx context.Context, guildID, userID, roleID string) error
+	AddMemberRole(ctx context.Context, r discapi.MemberRole) error
+	RemoveMemberRole(ctx context.Context, r discapi.MemberRole) error
 	ListGuildChannels(ctx context.Context, guildID string) ([]discapi.Snowflake, error)
 	ListGuildRoles(ctx context.Context, guildID string) ([]discapi.Snowflake, error)
 	GetGuild(ctx context.Context, guildID string) (discapi.Snowflake, error)
@@ -52,8 +52,8 @@ type discordModuleReader interface {
 // edit it, and the guild→Twitch reverse index dingress needs. Production
 // uses Valkey; tests use a map.
 type discordLiveStore interface {
-	PutLiveMessage(ctx context.Context, broadcasterID, channelID, messageID string) error
-	GetLiveMessage(ctx context.Context, broadcasterID string) (channelID, messageID string, ok bool)
+	PutLiveMessage(ctx context.Context, broadcasterID string, m discapi.Message) error
+	GetLiveMessage(ctx context.Context, broadcasterID string) (discapi.Message, bool)
 	DeleteLiveMessage(ctx context.Context, broadcasterID string) error
 	PutGuild(ctx context.Context, guildID, broadcasterID string) error
 	GetGuild(ctx context.Context, guildID string) (broadcasterID string, ok bool)
@@ -77,18 +77,21 @@ func newValkeyDiscordLive(client valkey.Client) discordLiveStore {
 
 func discordLiveKey(broadcasterID string) string { return "discord:live-msg:" + broadcasterID }
 
-func (s valkeyDiscordLive) PutLiveMessage(ctx context.Context, broadcasterID, channelID, messageID string) error {
+func (s valkeyDiscordLive) PutLiveMessage(ctx context.Context, broadcasterID string, m discapi.Message) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(discordLiveKey(broadcasterID)).
-		Value(channelID+"|"+messageID).Ex(liveMessageTTL).Build()).Error()
+		Value(m.ChannelID+"|"+m.ID).Ex(liveMessageTTL).Build()).Error()
 }
 
-func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, broadcasterID string) (string, string, bool) {
+func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, broadcasterID string) (discapi.Message, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(discordLiveKey(broadcasterID)).Build()).ToString()
 	if err != nil {
-		return "", "", false
+		return discapi.Message{}, false
 	}
-	ch, msg, ok := strings.Cut(raw, "|")
-	return ch, msg, ok && ch != "" && msg != ""
+	ch, id, ok := strings.Cut(raw, "|")
+	if !ok || ch == "" || id == "" {
+		return discapi.Message{}, false
+	}
+	return discapi.Message{ChannelID: ch, ID: id}, true
 }
 
 func (s valkeyDiscordLive) DeleteLiveMessage(ctx context.Context, broadcasterID string) error {
@@ -177,14 +180,14 @@ func (w *Worker) discordOnline(ctx context.Context, guild discordGuildAPI, cfg d
 		ThumbnailURL: "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + strings.ToLower(login) + "-640x360.jpg",
 		Viewers:      info.ViewerCount,
 	})
-	msgID, err := guild.SendEmbed(ctx, channelID, "", embed)
+	msg, err := guild.SendEmbed(ctx, discapi.EmbedPost{ChannelID: channelID, Embed: embed})
 	if err != nil {
 		w.log.Warn("discord go-live embed failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
 	if w.discordKV != nil {
-		_ = w.discordKV.PutLiveMessage(ctx, broadcasterID, channelID, msgID)
+		_ = w.discordKV.PutLiveMessage(ctx, broadcasterID, msg)
 	}
 	w.discordLiveRole(ctx, guild, cfg, true)
 }
@@ -193,7 +196,7 @@ func (w *Worker) liveMessageKnown(ctx context.Context, broadcasterID string) boo
 	if w.discordKV == nil {
 		return false
 	}
-	_, _, ok := w.discordKV.GetLiveMessage(ctx, broadcasterID)
+	_, ok := w.discordKV.GetLiveMessage(ctx, broadcasterID)
 	return ok
 }
 
@@ -224,11 +227,11 @@ func (w *Worker) discordOffline(ctx context.Context, guild discordGuildAPI, broa
 	if w.discordKV == nil {
 		return
 	}
-	ch, msg, ok := w.discordKV.GetLiveMessage(ctx, broadcasterID)
+	msg, ok := w.discordKV.GetLiveMessage(ctx, broadcasterID)
 	if !ok {
 		return
 	}
-	err := guild.EditMessage(ctx, ch, msg, ddiscord.OfflineContent, []ddiscord.Embed{})
+	err := guild.EditMessage(ctx, msg, ddiscord.OfflineContent, []ddiscord.Embed{})
 	if err != nil && !errors.Is(err, discapi.ErrChannelNotFound) {
 		w.log.Warn("discord go-offline edit failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
@@ -241,11 +244,12 @@ func (w *Worker) discordLiveRole(ctx context.Context, guild discordGuildAPI, cfg
 	if cfg.LiveRoleID == "" || cfg.GuildID == "" || cfg.StreamerDiscordID == "" {
 		return
 	}
+	role := discapi.MemberRole{GuildID: cfg.GuildID, UserID: cfg.StreamerDiscordID, RoleID: cfg.LiveRoleID}
 	var err error
 	if live {
-		err = guild.AddMemberRole(ctx, cfg.GuildID, cfg.StreamerDiscordID, cfg.LiveRoleID)
+		err = guild.AddMemberRole(ctx, role)
 	} else {
-		err = guild.RemoveMemberRole(ctx, cfg.GuildID, cfg.StreamerDiscordID, cfg.LiveRoleID)
+		err = guild.RemoveMemberRole(ctx, role)
 	}
 	if err != nil {
 		w.log.Warn("discord live role update failed", zap.Error(err))
@@ -287,20 +291,13 @@ func (w *Worker) streamInfoGet(ctx context.Context, broadcasterID string) (proje
 
 // announceDiscordClip posts a clip archive embed. Called from processClip
 // after Helix succeeds; failures never nack the clip job.
-func (w *Worker) announceDiscordClip(ctx context.Context, broadcasterID, clipURL, clipper, title string) {
-	if w.discord == nil || clipURL == "" {
+func (w *Worker) announceDiscordClip(ctx context.Context, broadcasterID string, embed ddiscord.Embed) {
+	guild, ok := w.guildAPI()
+	if !ok || embed.URL == "" {
 		return
 	}
-	id, err := strconv.ParseUint(broadcasterID, 10, 64)
-	if err != nil {
-		return
-	}
-	cfg, enabled := w.discordConfig(ctx, id)
-	if !enabled || !cfg.Connected() || !cfg.ClipsOn() {
-		return
-	}
-	channelID := strings.TrimSpace(cfg.ClipsChannelID)
-	if channelID == "" {
+	channelID, ok := w.clipsChannel(ctx, broadcasterID)
+	if !ok {
 		return
 	}
 	if err := w.takeDiscordGlobal(ctx); err != nil {
@@ -308,13 +305,22 @@ func (w *Worker) announceDiscordClip(ctx context.Context, broadcasterID, clipURL
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	guild, ok := w.discord.(discordGuildAPI)
-	if !ok {
-		_ = w.discord.SendMessage(ctx, channelID, clipURL, false)
-		return
-	}
-	if _, err := guild.SendEmbed(ctx, channelID, "", ddiscord.ClipEmbed(clipURL, clipper, title)); err != nil {
+	if _, err := guild.SendEmbed(ctx, discapi.EmbedPost{ChannelID: channelID, Embed: embed}); err != nil {
 		w.log.Warn("discord clip embed failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	}
+}
+
+// clipsChannel resolves where a clip archive post goes, if anywhere.
+func (w *Worker) clipsChannel(ctx context.Context, broadcasterID string) (string, bool) {
+	id, err := strconv.ParseUint(broadcasterID, 10, 64)
+	if err != nil {
+		return "", false
+	}
+	cfg, enabled := w.discordConfig(ctx, id)
+	if !enabled || !cfg.Connected() || !cfg.ClipsOn() {
+		return "", false
+	}
+	channelID := strings.TrimSpace(cfg.ClipsChannelID)
+	return channelID, channelID != ""
 }

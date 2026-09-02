@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import {
   blankDiscordConfig,
   guildLayout,
@@ -95,15 +95,13 @@ async function loadLayout(uid: string, guildId: string): Promise<DiscordLayout> 
   }
 }
 
-type ActionCtx = { uid: string; session: Session | null | undefined; form: FormData };
+type ActionCtx = { uid: string; session: Session | null | undefined; locals: App.Locals; form: FormData };
 
-async function actionContext({ request, locals }: { request: Request; locals: App.Locals }): Promise<ActionCtx | null> {
+async function actionContext({ request, locals }: RequestEvent): Promise<ActionCtx | null> {
   gate(locals.session);
   if (!DEMO && !locals.session) return null;
-  return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
+  return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
 }
-
-const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
 
 type Outcome<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -117,6 +115,29 @@ async function attempt<T>(label: string, failMsg: string, work: () => Promise<T>
     logger.error({ err: e }, `[discord] ${label} failed`);
     return { ok: false, error: failMsg };
   }
+}
+
+type Refusal = { error: string };
+
+// discordAction is the shape every action here shares: gate, sign-in check,
+// demo short-circuit, one backend round trip, one user-facing failure line.
+// work may return a Refusal to fail with a specific message.
+function discordAction<T extends Record<string, unknown>>(
+  label: string,
+  failMsg: string,
+  work: (ctx: ActionCtx) => Promise<T | Refusal>
+) {
+  return async (event: RequestEvent) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (DEMO) return { ok: true, enabled: ctx.form.get('is_enabled') === 'on' };
+    const r = await attempt(label, failMsg, () => work(ctx));
+    if (!r.ok) return fail(400, { ok: false, error: r.error });
+    if ('error' in r.data && typeof r.data.error === 'string' && r.data.error) {
+      return fail(400, { ok: false, error: r.data.error });
+    }
+    return { ok: true, ...r.data };
+  };
 }
 
 function flag(form: FormData, name: string): string {
@@ -170,65 +191,39 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
 }
 
 export const actions: Actions = {
-  toggle: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+  toggle: discordAction('toggle', 'Could not toggle Discord.', async (ctx) => {
     const enabled = ctx.form.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled };
-    const r = await attempt('toggle', 'Could not toggle Discord.', async () => {
-      const view = await readDiscord(ctx.uid);
-      await saveDiscord(ctx.uid, enabled, view.config);
-      auditDashboardImpersonation(ctx.session, 'discord:toggle', String(enabled));
-    });
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    return { ok: true, enabled };
-  },
+    const view = await readDiscord(ctx.uid);
+    await saveDiscord(ctx.uid, enabled, view.config);
+    auditDashboardImpersonation(ctx.session, 'discord:toggle', String(enabled));
+    return { enabled };
+  }),
 
-  save: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    if (DEMO) return { ok: true };
-    const r = await attempt('save', 'Could not save Discord settings.', async () => {
-      const view = await readDiscord(ctx.uid);
-      const config = mergeSettings(view.config, ctx.form);
-      await saveDiscord(ctx.uid, view.enabled, config);
-      auditDashboardImpersonation(ctx.session, 'discord:save', config.guildId);
-    });
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    return { ok: true };
-  },
+  save: discordAction('save', 'Could not save Discord settings.', async (ctx) => {
+    const view = await readDiscord(ctx.uid);
+    const config = mergeSettings(view.config, ctx.form);
+    await saveDiscord(ctx.uid, view.enabled, config);
+    auditDashboardImpersonation(ctx.session, 'discord:save', config.guildId);
+    return {};
+  }),
 
-  setup: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    if (DEMO) return { ok: true };
-    requireDiscordActor(event.locals);
-    const r = await attempt('setup', 'Could not set up this server.', async () => {
-      const view = await readDiscord(ctx.uid);
-      if (!view.config.guildId) return { error: 'Connect a server first.', refused: '' };
-      const login = ctx.session?.login ?? view.config.twitchLogin;
-      const result = await setupGuild(ctx.uid, view.config.guildId, { ...view.config, twitchLogin: login });
-      if (result.error) return { error: result.error, refused: '' };
-      await saveDiscord(ctx.uid, view.enabled, { ...result.config, twitchLogin: login });
-      auditDashboardImpersonation(ctx.session, 'discord:setup', view.config.guildId);
-      return { error: '', refused: result.refused };
-    });
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    if (r.data.error) return fail(400, { ok: false, error: r.data.error });
-    return { ok: true, refused: r.data.refused };
-  },
+  setup: discordAction('setup', 'Could not set up this server.', async (ctx) => {
+    requireDiscordActor(ctx.locals);
+    const view = await readDiscord(ctx.uid);
+    if (!view.config.guildId) return { error: 'Connect a server first.' };
+    const login = ctx.session?.login ?? view.config.twitchLogin;
+    const result = await setupGuild(ctx.uid, view.config.guildId, { ...view.config, twitchLogin: login });
+    if (result.error) return { error: result.error };
+    await saveDiscord(ctx.uid, view.enabled, { ...result.config, twitchLogin: login });
+    auditDashboardImpersonation(ctx.session, 'discord:setup', view.config.guildId);
+    return { refused: result.refused };
+  }),
 
-  disconnect: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    if (DEMO) return { ok: true };
-    const r = await attempt('disconnect', 'Could not disconnect Discord.', async () => {
-      const view = await readDiscord(ctx.uid);
-      if (view.config.guildId) await unbindGuild(ctx.uid, view.config.guildId);
-      await saveDiscord(ctx.uid, false, blankDiscordConfig());
-      auditDashboardImpersonation(ctx.session, 'discord:disconnect', view.config.guildId);
-    });
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    return { ok: true };
-  }
+  disconnect: discordAction('disconnect', 'Could not disconnect Discord.', async (ctx) => {
+    const view = await readDiscord(ctx.uid);
+    if (view.config.guildId) await unbindGuild(ctx.uid, view.config.guildId);
+    await saveDiscord(ctx.uid, false, blankDiscordConfig());
+    auditDashboardImpersonation(ctx.session, 'discord:disconnect', view.config.guildId);
+    return {};
+  })
 };

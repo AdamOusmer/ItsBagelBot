@@ -65,8 +65,11 @@ func TestServerErrorIsTransient(t *testing.T) {
 	}))
 
 	err := client.SendMessage(context.Background(), "1234", "hi", false)
-	if err == nil || errors.Is(err, ErrBadRequest) || errors.Is(err, ErrAuth) {
-		t.Fatalf("err = %v, want an unclassified transient error the worker nacks on", err)
+	if err == nil {
+		t.Fatal("a 502 must surface as an error the worker nacks on")
+	}
+	if permanent(err) {
+		t.Fatalf("err = %v, want an unclassified transient error", err)
 	}
 }
 
@@ -112,4 +115,14 @@ func TestTTSShouldStayOffTheWireWhenUnset(t *testing.T) {
 	if strings.Contains(gotBody, "tts") {
 		t.Fatalf("body %s should omit tts entirely", gotBody)
 	}
+}
+
+// permanent mirrors the worker's drop set.
+func permanent(err error) bool {
+	for _, typed := range []error{ErrAuth, ErrForbidden, ErrChannelNotFound, ErrBadRequest} {
+		if errors.Is(err, typed) {
+			return true
+		}
+	}
+	return false
 }

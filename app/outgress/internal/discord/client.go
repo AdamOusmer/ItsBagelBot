@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -94,26 +93,54 @@ func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts
 	if tts {
 		body["tts"] = true
 	}
-	return c.do(ctx, http.MethodPost, "/channels/"+url.PathEscape(channelID)+"/messages", body)
+	return c.do(ctx, request{method: http.MethodPost, path: channelPath(channelID, "/messages"), body: body})
 }
 
-// do runs one classified API call. There is no refresh dance: the bot token
-// is static, so any rejection classifies once.
-func (c *Client) do(ctx context.Context, method, path string, body any) error {
-	payload, err := codec.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("discord: encode body: %w", err)
+// request is one REST call before encoding. A nil body sends no payload.
+type request struct {
+	method string
+	path   string
+	body   any
+}
+
+func (r request) payload() ([]byte, error) {
+	if r.body == nil {
+		return nil, nil
 	}
-	return c.call(ctx, method, path, payload)
+	raw, err := codec.Marshal(r.body)
+	if err != nil {
+		return nil, fmt.Errorf("discord: encode body: %w", err)
+	}
+	return raw, nil
 }
 
-func (c *Client) call(ctx context.Context, method, path string, payload []byte) error {
-	_, err := c.callBytes(ctx, method, path, payload)
+// do runs one classified API call and discards the body. There is no
+// refresh dance: the bot token is static, so any rejection classifies once.
+func (c *Client) do(ctx context.Context, req request) error {
+	_, err := c.doBytes(ctx, req)
 	return err
 }
 
-func (c *Client) callBytes(ctx context.Context, method, path string, payload []byte) ([]byte, error) {
-	res, err := c.send(ctx, method, path, payload)
+// doInto runs the call and decodes the success body into out. A body that
+// does not decode is an error, never a silently zero result: a zero id here
+// used to strand go-live posts as LIVE forever.
+func (c *Client) doInto(ctx context.Context, req request, out any) error {
+	raw, err := c.doBytes(ctx, req)
+	if err != nil {
+		return err
+	}
+	if err := codec.Unmarshal(raw, out); err != nil {
+		return fmt.Errorf("discord: decode %s %s: %w", req.method, req.path, err)
+	}
+	return nil
+}
+
+func (c *Client) doBytes(ctx context.Context, req request) ([]byte, error) {
+	payload, err := req.payload()
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.send(ctx, req, payload)
 	if err != nil {
 		return nil, err // network/transient: caller nacks
 	}
@@ -126,20 +153,20 @@ func (c *Client) callBytes(ctx context.Context, method, path string, payload []b
 	return nil, classify(res, raw)
 }
 
-func (c *Client) send(ctx context.Context, method, path string, payload []byte) (*http.Response, error) {
+func (c *Client) send(ctx context.Context, req request, payload []byte) (*http.Response, error) {
 	var body io.Reader
 	if payload != nil {
 		body = bytes.NewReader(payload)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
+	httpReq, err := http.NewRequestWithContext(ctx, req.method, c.base+req.path, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bot "+c.token)
+	httpReq.Header.Set("Authorization", "Bot "+c.token)
 	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Content-Type", "application/json")
 	}
-	return c.http.Do(req)
+	return c.http.Do(httpReq)
 }
 
 // classify maps a non-2xx status onto the typed errors above. The body is

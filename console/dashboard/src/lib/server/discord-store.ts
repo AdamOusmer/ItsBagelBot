@@ -161,21 +161,28 @@ export async function setupGuild(
     SETUP_TIMEOUT_MS
   );
   if (r.error) return { config: current, refused: '', error: r.error };
-  const next: DiscordConfig = {
-    ...current,
-    guildId: r.guild_id || guildId,
-    liveChannelId: r.live_channel_id || current.liveChannelId,
-    clipsChannelId: r.clips_channel_id || current.clipsChannelId,
-    welcomeChannelId: r.welcome_channel_id || current.welcomeChannelId,
-    alertsChannelId: r.alerts_channel_id || current.alertsChannelId,
-    voiceHubId: r.voice_hub_id || current.voiceHubId,
-    liveRoleId: r.live_role_id || current.liveRoleId,
-    modsRoleId: r.mods_role_id || current.modsRoleId,
-    regularsRoleId: r.regulars_role_id || current.regularsRoleId,
-    memberRoleId: r.member_role_id || current.memberRoleId
-  };
+  const next: DiscordConfig = { ...current, guildId };
+  for (const [key, replyKey] of SETUP_FIELDS) {
+    const v = r[replyKey];
+    if (typeof v === 'string' && v) next[key] = v;
+  }
   return { config: next, refused: r.refused ?? '', error: '' };
 }
+
+// SETUP_FIELDS maps the reply's snowflakes onto the module blob; a field the
+// fill did not produce keeps its current value.
+const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
+  ['guildId', 'guild_id'],
+  ['liveChannelId', 'live_channel_id'],
+  ['clipsChannelId', 'clips_channel_id'],
+  ['welcomeChannelId', 'welcome_channel_id'],
+  ['alertsChannelId', 'alerts_channel_id'],
+  ['voiceHubId', 'voice_hub_id'],
+  ['liveRoleId', 'live_role_id'],
+  ['modsRoleId', 'mods_role_id'],
+  ['regularsRoleId', 'regulars_role_id'],
+  ['memberRoleId', 'member_role_id']
+];
 
 type LayoutReply = {
   channels?: { id: string; name: string; type?: number }[];

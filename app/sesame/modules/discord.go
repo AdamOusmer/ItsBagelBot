@@ -78,76 +78,61 @@ func isMilestone(months int) bool {
 	return months > 0 && months%12 == 0
 }
 
+// discordCopy is one alert copied into the guild: enabled reads the module
+// toggle, line renders the event (an empty line skips the copy). Every
+// handler shares the connected/toggle/decode preamble through handle.
+type discordCopy[T any] struct {
+	enabled func(ddiscord.Config) bool
+	line    func(ddiscord.Config, T) string
+}
+
+func (h discordCopy[T]) handle(_ context.Context, c *module.Context, emit module.Emit) error {
+	cfg := discordCfg(c)
+	if !cfg.Connected() || !h.enabled(cfg) {
+		return nil
+	}
+	var ev T
+	if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
+		return err
+	}
+	emitDiscord(c, cfg.AlertsChannel(), h.line(cfg, ev), emit)
+	return nil
+}
+
+func raidLine(_ ddiscord.Config, ev discordRaid) string {
+	who := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
+	return who + " is raiding with " + strconv.Itoa(ev.Viewers) + " viewers. Watch on Twitch."
+}
+
+func giftLine(cfg ddiscord.Config, ev discordGift) string {
+	if ev.Total < atoiDefault(cfg.GiftMin, 5) {
+		return ""
+	}
+	return chatName(ev.UserName, ev.UserLogin) + " gifted " + strconv.Itoa(ev.Total) + " subs."
+}
+
+func cheerLine(cfg ddiscord.Config, ev discordCheer) string {
+	if ev.Bits < atoiDefault(cfg.CheerMin, 1000) {
+		return ""
+	}
+	return chatName(ev.UserName, ev.UserLogin) + " cheered " + strconv.Itoa(ev.Bits) + " bits."
+}
+
+func milestoneLine(_ ddiscord.Config, ev discordSubMsg) string {
+	if !isMilestone(ev.CumulativeMonths) {
+		return ""
+	}
+	return chatName(ev.UserName, ev.UserLogin) + " hit " + strconv.Itoa(ev.CumulativeMonths) + " months."
+}
+
 // Discord copies raid / gift-bomb / milestone alerts into the connected
 // guild. Go-live is NOT here: outgress binds twitch.ingress.event.stream
 // directly so live posts never pass through sesame.
 func Discord(_ engine.Deps) module.Module {
 	m := module.NewModule(discordModuleName, module.KindOptIn).Beta()
-
-	m.On("channel.raid", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		cfg := discordCfg(c)
-		if !cfg.Connected() || !cfg.RaidOn() {
-			return nil
-		}
-		var ev discordRaid
-		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		who := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
-		emitDiscord(c, cfg.AlertsChannel(), who+" is raiding with "+strconv.Itoa(ev.Viewers)+" viewers. Watch on Twitch.", emit)
-		return nil
-	})
-
-	m.On("channel.subscription.gift", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		cfg := discordCfg(c)
-		if !cfg.Connected() || !cfg.GiftOn() {
-			return nil
-		}
-		var ev discordGift
-		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.Total < atoiDefault(cfg.GiftMin, 5) {
-			return nil
-		}
-		who := chatName(ev.UserName, ev.UserLogin)
-		emitDiscord(c, cfg.AlertsChannel(), who+" gifted "+strconv.Itoa(ev.Total)+" subs.", emit)
-		return nil
-	})
-
-	m.On("channel.cheer", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		cfg := discordCfg(c)
-		if !cfg.Connected() || !cfg.CheerOn() {
-			return nil
-		}
-		var ev discordCheer
-		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if ev.Bits < atoiDefault(cfg.CheerMin, 1000) {
-			return nil
-		}
-		who := chatName(ev.UserName, ev.UserLogin)
-		emitDiscord(c, cfg.AlertsChannel(), who+" cheered "+strconv.Itoa(ev.Bits)+" bits.", emit)
-		return nil
-	})
-
-	m.On("channel.subscription.message", func(_ context.Context, c *module.Context, emit module.Emit) error {
-		cfg := discordCfg(c)
-		if !cfg.Connected() || !cfg.SubMilestoneOn() {
-			return nil
-		}
-		var ev discordSubMsg
-		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
-			return err
-		}
-		if !isMilestone(ev.CumulativeMonths) {
-			return nil
-		}
-		who := chatName(ev.UserName, ev.UserLogin)
-		emitDiscord(c, cfg.AlertsChannel(), who+" hit "+strconv.Itoa(ev.CumulativeMonths)+" months.", emit)
-		return nil
-	})
-
+	m.On("channel.raid", discordCopy[discordRaid]{enabled: ddiscord.Config.RaidOn, line: raidLine}.handle)
+	m.On("channel.subscription.gift", discordCopy[discordGift]{enabled: ddiscord.Config.GiftOn, line: giftLine}.handle)
+	m.On("channel.cheer", discordCopy[discordCheer]{enabled: ddiscord.Config.CheerOn, line: cheerLine}.handle)
+	m.On("channel.subscription.message", discordCopy[discordSubMsg]{enabled: ddiscord.Config.SubMilestoneOn, line: milestoneLine}.handle)
 	return m.Build()
 }

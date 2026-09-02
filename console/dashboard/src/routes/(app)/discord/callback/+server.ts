@@ -32,25 +32,27 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   });
   if (!guildId) discordFail('oauth');
 
-  const login = locals.session?.login ?? '';
   try {
-    const view = await readDiscord(uid);
-    const seeded = { ...view.config, guildId, twitchLogin: login || view.config.twitchLogin };
-    const result = await setupGuild(uid, guildId, seeded);
-    if (isBoundElsewhere(result.error)) discordFail('bound');
-    if (result.error) {
-      logger.warn({ err: result.error }, '[discord-callback] setup failed; keeping the guild id');
-    }
-    await saveDiscord(uid, true, {
-      ...(result.error ? seeded : result.config),
-      twitchLogin: login || view.config.twitchLogin
-    });
-    auditDashboardImpersonation(locals.session, 'discord:connect', guildId);
-    const q = result.refused ? 'connected=1&refused=1' : 'connected=1';
-    throw redirect(302, `/discord?${q}`);
+    throw redirect(302, `/discord?${await connectGuild(locals, uid, guildId)}`);
   } catch (err) {
     if (isRedirect(err)) throw err;
     logger.error({ err }, '[discord-callback] persist failed');
     discordFail('setup');
   }
 };
+
+// connectGuild binds the guild, fills or adopts its layout, persists the
+// module blob and returns the query string for the dashboard redirect.
+async function connectGuild(locals: App.Locals, uid: string, guildId: string): Promise<string> {
+  const view = await readDiscord(uid);
+  const login = locals.session?.login || view.config.twitchLogin;
+  const seeded = { ...view.config, guildId, twitchLogin: login };
+  const result = await setupGuild(uid, guildId, seeded);
+  if (isBoundElsewhere(result.error)) discordFail('bound');
+  if (result.error) {
+    logger.warn({ err: result.error }, '[discord-callback] setup failed; keeping the guild id');
+  }
+  await saveDiscord(uid, true, { ...(result.error ? seeded : result.config), twitchLogin: login });
+  auditDashboardImpersonation(locals.session, 'discord:connect', guildId);
+  return result.refused ? 'connected=1&refused=1' : 'connected=1';
+}

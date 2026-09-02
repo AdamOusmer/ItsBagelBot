@@ -37,16 +37,16 @@ func (r *guildRecorder) nextSnowflake(prefix string) string {
 	return prefix + strconv.Itoa(r.nextID)
 }
 
-func (r *guildRecorder) SendEmbed(_ context.Context, channelID, _ string, embed ddiscord.Embed) (string, error) {
+func (r *guildRecorder) SendEmbed(_ context.Context, post discapi.EmbedPost) (discapi.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.lastChan = channelID
-	r.embeds = append(r.embeds, embed)
+	r.lastChan = post.ChannelID
+	r.embeds = append(r.embeds, post.Embed)
 	r.calls++
-	return r.nextSnowflake("msg-"), nil
+	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("msg-")}, nil
 }
 
-func (r *guildRecorder) EditMessage(_ context.Context, _, _, content string, _ []ddiscord.Embed) error {
+func (r *guildRecorder) EditMessage(_ context.Context, _ discapi.Message, content string, _ []ddiscord.Embed) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.edits = append(r.edits, content)
@@ -71,17 +71,17 @@ func (r *guildRecorder) CreateRole(_ context.Context, _ string, role discapi.Rol
 	return discapi.Snowflake{ID: r.nextSnowflake("role-"), Name: role.Name}, nil
 }
 
-func (r *guildRecorder) AddMemberRole(_ context.Context, _, _, roleID string) error {
+func (r *guildRecorder) AddMemberRole(_ context.Context, role discapi.MemberRole) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.roles = append(r.roles, "add:"+roleID)
+	r.roles = append(r.roles, "add:"+role.RoleID)
 	return nil
 }
 
-func (r *guildRecorder) RemoveMemberRole(_ context.Context, _, _, roleID string) error {
+func (r *guildRecorder) RemoveMemberRole(_ context.Context, role discapi.MemberRole) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.roles = append(r.roles, "remove:"+roleID)
+	r.roles = append(r.roles, "remove:"+role.RoleID)
 	return nil
 }
 
@@ -105,27 +105,27 @@ var _ discordGuildAPI = (*guildRecorder)(nil)
 
 type memLiveStore struct {
 	mu            sync.Mutex
-	ch, msg       string
+	msg           discapi.Message
 	guild, twitch string
 }
 
-func (s *memLiveStore) PutLiveMessage(_ context.Context, _, channelID, messageID string) error {
+func (s *memLiveStore) PutLiveMessage(_ context.Context, _ string, m discapi.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.ch, s.msg = channelID, messageID
+	s.msg = m
 	return nil
 }
 
-func (s *memLiveStore) GetLiveMessage(_ context.Context, _ string) (string, string, bool) {
+func (s *memLiveStore) GetLiveMessage(_ context.Context, _ string) (discapi.Message, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.ch, s.msg, s.ch != "" && s.msg != ""
+	return s.msg, s.msg.ChannelID != "" && s.msg.ID != ""
 }
 
 func (s *memLiveStore) DeleteLiveMessage(context.Context, string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.ch, s.msg = "", ""
+	s.msg = discapi.Message{}
 	return nil
 }
 
@@ -196,7 +196,7 @@ func TestAnnounceDiscordLivePostsEmbed(t *testing.T) {
 	if guild.lastChan != "now-live" {
 		t.Fatalf("channel = %q", guild.lastChan)
 	}
-	if kv.ch != "now-live" || kv.msg == "" {
+	if kv.msg.ChannelID != "now-live" || kv.msg.ID == "" {
 		t.Fatal("live message was not stored")
 	}
 }
@@ -218,7 +218,7 @@ func TestAnnounceDiscordLiveRespectsCategoryAllow(t *testing.T) {
 
 func TestAnnounceDiscordOfflineEditsLiveMessage(t *testing.T) {
 	guild := &guildRecorder{}
-	kv := &memLiveStore{ch: "now-live", msg: "msg-9"}
+	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-9"}}
 	mods := memModules{
 		found:   true,
 		enabled: true,
@@ -251,7 +251,7 @@ func TestHandleStreamEventOnlinePostsDiscord(t *testing.T) {
 
 func TestHandleStreamEventOfflineStillAnnouncesDiscord(t *testing.T) {
 	guild := &guildRecorder{}
-	kv := &memLiveStore{ch: "now-live", msg: "msg-1"}
+	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-1"}}
 	mods := memModules{
 		found:   true,
 		enabled: true,
@@ -275,7 +275,7 @@ func TestAnnounceDiscordClipPostsEmbed(t *testing.T) {
 		cfg:     ddiscord.Config{GuildID: "g1", ClipsChannelID: "clips"},
 	}
 	w := liveWorker(t, guild, nil, mods)
-	w.announceDiscordClip(context.Background(), "42", "https://clips.twitch.tv/x", "viewer", "huge play")
+	w.announceDiscordClip(context.Background(), "42", ddiscord.ClipEmbed("https://clips.twitch.tv/x", "viewer", "huge play"))
 	if len(guild.embeds) != 1 {
 		t.Fatalf("embeds = %d", len(guild.embeds))
 	}
@@ -316,7 +316,7 @@ func TestAnnounceDiscordLiveIsIdempotentPerStream(t *testing.T) {
 
 func TestAnnounceDiscordOfflineForgetsTheMessage(t *testing.T) {
 	guild := &guildRecorder{}
-	kv := &memLiveStore{ch: "now-live", msg: "msg-9"}
+	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-9"}}
 	mods := memModules{
 		found:   true,
 		enabled: true,
@@ -328,7 +328,7 @@ func TestAnnounceDiscordOfflineForgetsTheMessage(t *testing.T) {
 	if len(guild.edits) != 1 {
 		t.Fatalf("edits = %d, want 1: the key must be dropped after the offline edit", len(guild.edits))
 	}
-	if _, _, ok := kv.GetLiveMessage(context.Background(), "42"); ok {
+	if _, ok := kv.GetLiveMessage(context.Background(), "42"); ok {
 		t.Fatal("live message key survived the offline edit")
 	}
 }

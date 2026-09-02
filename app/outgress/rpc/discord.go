@@ -26,31 +26,41 @@ const setupHandleTimeout = 45 * time.Second
 // layoutHandleTimeout covers two listings.
 const layoutHandleTimeout = 10 * time.Second
 
+// Wiring is what every RPC subscriber needs from main: the connection, the
+// subject prefix and queue group, and the observability handles.
+type Wiring struct {
+	NC     *nats.Conn
+	Prefix string
+	Queue  string
+	App    *newrelic.Application
+	Log    *zap.Logger
+}
+
 // SubscribeDiscord wires guild setup, layout listing, unbind and home-server
 // posts. The worker is always the system lane worker; with no bot token
 // attached every handler answers "discord client unavailable" so the
 // dashboard shows a real error instead of a no-responders timeout.
-func SubscribeDiscord(nc *nats.Conn, w *worker.Worker, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeDiscord(w *worker.Worker, wire Wiring) error {
 	if w == nil {
 		return nil
 	}
-	d := &discordRPC{w: w, log: log}
+	d := &discordRPC{w: w, log: wire.Log}
 	return subscribeAll(
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
-				nc, prefix+".discord.setup", queueGroup, setupHandleTimeout, app, log, d.handleSetup)
+				wire.NC, wire.Prefix+".discord.setup", wire.Queue, setupHandleTimeout, wire.App, wire.Log, d.handleSetup)
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
-				nc, prefix+".discord.layout", queueGroup, layoutHandleTimeout, app, log, d.handleLayout)
+				wire.NC, wire.Prefix+".discord.layout", wire.Queue, layoutHandleTimeout, wire.App, wire.Log, d.handleLayout)
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
-				nc, prefix+".discord.unbind", queueGroup, handleTimeout, app, log, d.handleUnbind)
+				wire.NC, wire.Prefix+".discord.unbind", wire.Queue, handleTimeout, wire.App, wire.Log, d.handleUnbind)
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
-				nc, prefix+".discord.post", queueGroup, handleTimeout, app, log, d.handlePost)
+				wire.NC, wire.Prefix+".discord.post", wire.Queue, handleTimeout, wire.App, wire.Log, d.handlePost)
 		},
 	)
 }
@@ -64,7 +74,7 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if req.GuildID == "" || req.UserID == "" {
 		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
 	}
-	got, err := d.w.SetupGuild(ctx, req.GuildID, "", req.UserID)
+	got, err := d.w.SetupGuild(ctx, worker.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error()}
 	}
