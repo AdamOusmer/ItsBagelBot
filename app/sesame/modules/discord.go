@@ -24,7 +24,10 @@ func discordCfg(c *module.Context) ddiscord.Config {
 }
 
 func emitDiscord(c *module.Context, channelID, text string, emit module.Emit) {
-	if channelID == "" || strings.TrimSpace(text) == "" {
+	if channelID == "" {
+		return
+	}
+	if strings.TrimSpace(text) == "" {
 		return
 	}
 	emit(&module.Output{
@@ -64,7 +67,10 @@ type discordSubMsg struct {
 
 func atoiDefault(s string, fallback int) int {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil || n <= 0 {
+	if err != nil {
+		return fallback
+	}
+	if n <= 0 {
 		return fallback
 	}
 	return n
@@ -75,7 +81,10 @@ func isMilestone(months int) bool {
 	case 1, 6, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120:
 		return true
 	}
-	return months > 0 && months%12 == 0
+	if months <= 0 {
+		return false
+	}
+	return months%12 == 0
 }
 
 // discordCopy is one alert copied into the guild: enabled reads the module
@@ -88,7 +97,10 @@ type discordCopy[T any] struct {
 
 func (h discordCopy[T]) handle(_ context.Context, c *module.Context, emit module.Emit) error {
 	cfg := discordCfg(c)
-	if !cfg.Connected() || !h.enabled(cfg) {
+	if !cfg.Connected() {
+		return nil
+	}
+	if !h.enabled(cfg) {
 		return nil
 	}
 	var ev T

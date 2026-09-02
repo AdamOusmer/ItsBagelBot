@@ -63,10 +63,19 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 		t.Fatal("empty client id must yield no invite")
 	}
 	u := InviteURL("123", "")
-	if u == "" || !strings.Contains(u, "permissions=") || !strings.Contains(u, "scope=bot") {
-		t.Fatalf("invite = %q", u)
+	if u == "" {
+		t.Fatal("invite url must not be empty")
 	}
-	if TemplateURL("") != "" || TemplateURL("abc") != "https://discord.new/abc" {
+	if !strings.Contains(u, "permissions=") {
+		t.Fatalf("invite = %q missing permissions", u)
+	}
+	if !strings.Contains(u, "scope=bot") {
+		t.Fatalf("invite = %q missing scope", u)
+	}
+	if TemplateURL("") != "" {
+		t.Fatal("empty template code must yield no url")
+	}
+	if TemplateURL("abc") != "https://discord.new/abc" {
 		t.Fatal("template url")
 	}
 }

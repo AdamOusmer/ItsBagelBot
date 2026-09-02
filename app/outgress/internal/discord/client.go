@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -93,7 +94,7 @@ func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts
 	if tts {
 		body["tts"] = true
 	}
-	return c.do(ctx, request{method: http.MethodPost, path: channelPath(channelID, "/messages"), body: body})
+	return c.do(ctx, request{method: http.MethodPost, path: "/channels/" + url.PathEscape(channelID) + "/messages", body: body})
 }
 
 // request is one REST call before encoding. A nil body sends no payload.

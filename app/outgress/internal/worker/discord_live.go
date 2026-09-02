@@ -88,7 +88,13 @@ func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, broadcasterID str
 		return discapi.Message{}, false
 	}
 	ch, id, ok := strings.Cut(raw, "|")
-	if !ok || ch == "" || id == "" {
+	if !ok {
+		return discapi.Message{}, false
+	}
+	if ch == "" {
+		return discapi.Message{}, false
+	}
+	if id == "" {
 		return discapi.Message{}, false
 	}
 	return discapi.Message{ChannelID: ch, ID: id}, true
@@ -101,7 +107,10 @@ func (s valkeyDiscordLive) DeleteLiveMessage(ctx context.Context, broadcasterID 
 func discordGuildKey(guildID string) string { return "discord:guild:" + guildID }
 
 func (s valkeyDiscordLive) PutGuild(ctx context.Context, guildID, broadcasterID string) error {
-	if guildID == "" || broadcasterID == "" {
+	if guildID == "" {
+		return nil
+	}
+	if broadcasterID == "" {
 		return nil
 	}
 	return s.client.Do(ctx, s.client.B().Set().Key(discordGuildKey(guildID)).
@@ -110,7 +119,10 @@ func (s valkeyDiscordLive) PutGuild(ctx context.Context, guildID, broadcasterID 
 
 func (s valkeyDiscordLive) GetGuild(ctx context.Context, guildID string) (string, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(discordGuildKey(guildID)).Build()).ToString()
-	if err != nil || raw == "" {
+	if err != nil {
+		return "", false
+	}
+	if raw == "" {
 		return "", false
 	}
 	return raw, true
@@ -138,13 +150,19 @@ func (w *Worker) announceDiscordLive(ctx context.Context, status eventtwitch.Str
 		return
 	}
 	cfg, enabled := w.discordConfig(ctx, status.BroadcasterID)
-	if !enabled || !cfg.Connected() || !cfg.LiveOn() {
+	if !enabled {
+		return
+	}
+	if !cfg.Connected() {
+		return
+	}
+	if !cfg.LiveOn() {
 		return
 	}
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 	if !status.Live {
 		w.discordOffline(ctx, guild, broadcasterID)
-		w.discordLiveRole(ctx, guild, cfg, false)
+		w.revokeLiveRole(ctx, guild, cfg)
 		return
 	}
 	w.discordOnline(ctx, guild, cfg, broadcasterID)
@@ -157,11 +175,14 @@ func (w *Worker) announceDiscordLive(ctx context.Context, status eventtwitch.Str
 func (w *Worker) discordOnline(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config, broadcasterID string) {
 	channelID := strings.TrimSpace(cfg.LiveChannelID)
 	login := strings.TrimSpace(cfg.TwitchLogin)
-	if channelID == "" || login == "" {
+	if channelID == "" {
+		return
+	}
+	if login == "" {
 		return
 	}
 	if w.liveMessageKnown(ctx, broadcasterID) {
-		w.discordLiveRole(ctx, guild, cfg, true)
+		w.grantLiveRole(ctx, guild, cfg)
 		return
 	}
 	info := w.liveInfo(ctx, cfg, broadcasterID)
@@ -189,7 +210,7 @@ func (w *Worker) discordOnline(ctx context.Context, guild discordGuildAPI, cfg d
 	if w.discordKV != nil {
 		_ = w.discordKV.PutLiveMessage(ctx, broadcasterID, msg)
 	}
-	w.discordLiveRole(ctx, guild, cfg, true)
+	w.grantLiveRole(ctx, guild, cfg)
 }
 
 func (w *Worker) liveMessageKnown(ctx context.Context, broadcasterID string) bool {
@@ -207,14 +228,23 @@ func (w *Worker) liveMessageKnown(ctx context.Context, broadcasterID string) boo
 // user's announcement.
 func (w *Worker) liveInfo(ctx context.Context, cfg ddiscord.Config, broadcasterID string) projection.StreamInfo {
 	info, known := w.streamInfoGet(ctx, broadcasterID)
-	if (known && info.GameName != "") || !cfg.HasCategoryAllow() || w.twitch == nil {
+	if known && info.GameName != "" {
+		return info
+	}
+	if !cfg.HasCategoryAllow() {
+		return info
+	}
+	if w.twitch == nil {
 		return info
 	}
 	if err := w.takeSystemHelix(ctx); err != nil {
 		return info
 	}
 	details, live, err := w.twitch.StreamDetails(ctx, broadcasterID)
-	if err != nil || !live {
+	if err != nil {
+		return info
+	}
+	if !live {
 		return info
 	}
 	return projection.StreamInfo{Title: details.Title, GameName: details.GameName, ViewerCount: details.ViewerCount}
@@ -232,28 +262,47 @@ func (w *Worker) discordOffline(ctx context.Context, guild discordGuildAPI, broa
 		return
 	}
 	err := guild.EditMessage(ctx, msg, ddiscord.OfflineContent, []ddiscord.Embed{})
-	if err != nil && !errors.Is(err, discapi.ErrChannelNotFound) {
-		w.log.Warn("discord go-offline edit failed",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-		return
+	if err != nil {
+		if !errors.Is(err, discapi.ErrChannelNotFound) {
+			w.log.Warn("discord go-offline edit failed",
+				zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+			return
+		}
 	}
 	_ = w.discordKV.DeleteLiveMessage(ctx, broadcasterID)
 }
 
-func (w *Worker) discordLiveRole(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config, live bool) {
-	if cfg.LiveRoleID == "" || cfg.GuildID == "" || cfg.StreamerDiscordID == "" {
+func (w *Worker) grantLiveRole(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config) {
+	role, ok := liveRoleOf(cfg)
+	if !ok {
 		return
 	}
-	role := discapi.MemberRole{GuildID: cfg.GuildID, UserID: cfg.StreamerDiscordID, RoleID: cfg.LiveRoleID}
-	var err error
-	if live {
-		err = guild.AddMemberRole(ctx, role)
-	} else {
-		err = guild.RemoveMemberRole(ctx, role)
-	}
-	if err != nil {
+	if err := guild.AddMemberRole(ctx, role); err != nil {
 		w.log.Warn("discord live role update failed", zap.Error(err))
 	}
+}
+
+func (w *Worker) revokeLiveRole(ctx context.Context, guild discordGuildAPI, cfg ddiscord.Config) {
+	role, ok := liveRoleOf(cfg)
+	if !ok {
+		return
+	}
+	if err := guild.RemoveMemberRole(ctx, role); err != nil {
+		w.log.Warn("discord live role update failed", zap.Error(err))
+	}
+}
+
+func liveRoleOf(cfg ddiscord.Config) (discapi.MemberRole, bool) {
+	if cfg.LiveRoleID == "" {
+		return discapi.MemberRole{}, false
+	}
+	if cfg.GuildID == "" {
+		return discapi.MemberRole{}, false
+	}
+	if cfg.StreamerDiscordID == "" {
+		return discapi.MemberRole{}, false
+	}
+	return discapi.MemberRole{GuildID: cfg.GuildID, UserID: cfg.StreamerDiscordID, RoleID: cfg.LiveRoleID}, true
 }
 
 func (w *Worker) discordConfig(ctx context.Context, broadcasterID uint64) (ddiscord.Config, bool) {
@@ -272,7 +321,10 @@ func (w *Worker) discordConfig(ctx context.Context, broadcasterID uint64) (ddisc
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return ddiscord.Config{}, false
 	}
-	if !found || !mod.IsEnabled {
+	if !found {
+		return ddiscord.Config{}, false
+	}
+	if !mod.IsEnabled {
 		return ddiscord.Config{}, false
 	}
 	return ddiscord.Parse(mod.Configs), true
@@ -283,7 +335,10 @@ func (w *Worker) streamInfoGet(ctx context.Context, broadcasterID string) (proje
 		return projection.StreamInfo{}, false
 	}
 	info, known, err := w.streamInfo.GetStreamInfo(ctx, broadcasterID)
-	if err != nil || !known {
+	if err != nil {
+		return projection.StreamInfo{}, false
+	}
+	if !known {
 		return projection.StreamInfo{}, false
 	}
 	return info, true
@@ -293,7 +348,10 @@ func (w *Worker) streamInfoGet(ctx context.Context, broadcasterID string) (proje
 // after Helix succeeds; failures never nack the clip job.
 func (w *Worker) announceDiscordClip(ctx context.Context, broadcasterID string, embed ddiscord.Embed) {
 	guild, ok := w.guildAPI()
-	if !ok || embed.URL == "" {
+	if !ok {
+		return
+	}
+	if embed.URL == "" {
 		return
 	}
 	channelID, ok := w.clipsChannel(ctx, broadcasterID)
@@ -318,7 +376,13 @@ func (w *Worker) clipsChannel(ctx context.Context, broadcasterID string) (string
 		return "", false
 	}
 	cfg, enabled := w.discordConfig(ctx, id)
-	if !enabled || !cfg.Connected() || !cfg.ClipsOn() {
+	if !enabled {
+		return "", false
+	}
+	if !cfg.Connected() {
+		return "", false
+	}
+	if !cfg.ClipsOn() {
 		return "", false
 	}
 	channelID := strings.TrimSpace(cfg.ClipsChannelID)

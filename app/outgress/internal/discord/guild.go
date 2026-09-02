@@ -74,18 +74,12 @@ type Interaction struct {
 	Token string
 }
 
-func guildPath(guildID, rest string) string { return "/guilds/" + url.PathEscape(guildID) + rest }
-
-func channelPath(channelID, rest string) string {
-	return "/channels/" + url.PathEscape(channelID) + rest
+func (m Message) path() string {
+	return "/channels/" + url.PathEscape(m.ChannelID) + "/messages/" + url.PathEscape(m.ID)
 }
 
-func messagePath(m Message) string {
-	return channelPath(m.ChannelID, "/messages/"+url.PathEscape(m.ID))
-}
-
-func memberRolePath(r MemberRole) string {
-	return guildPath(r.GuildID, "/members/"+url.PathEscape(r.UserID)+"/roles/"+url.PathEscape(r.RoleID))
+func (r MemberRole) path() string {
+	return "/guilds/" + url.PathEscape(r.GuildID) + "/members/" + url.PathEscape(r.UserID) + "/roles/" + url.PathEscape(r.RoleID)
 }
 
 // SendEmbed posts one embed and returns the created message so a later
@@ -98,7 +92,7 @@ func (c *Client) SendEmbed(ctx context.Context, post EmbedPost) (Message, error)
 	var ref struct {
 		ID string `json:"id"`
 	}
-	req := request{method: http.MethodPost, path: channelPath(post.ChannelID, "/messages"), body: body}
+	req := request{method: http.MethodPost, path: "/channels/" + url.PathEscape(post.ChannelID) + "/messages", body: body}
 	if err := c.doInto(ctx, req, &ref); err != nil {
 		return Message{}, err
 	}
@@ -114,61 +108,61 @@ func (c *Client) EditMessage(ctx context.Context, m Message, content string, emb
 	if embeds != nil {
 		body["embeds"] = embeds
 	}
-	return c.do(ctx, request{method: http.MethodPatch, path: messagePath(m), body: body})
+	return c.do(ctx, request{method: http.MethodPatch, path: m.path(), body: body})
 }
 
 // DeleteMessage removes one message.
 func (c *Client) DeleteMessage(ctx context.Context, m Message) error {
-	return c.do(ctx, request{method: http.MethodDelete, path: messagePath(m)})
+	return c.do(ctx, request{method: http.MethodDelete, path: m.path()})
 }
 
 // CreateChannel creates one guild channel and returns its snowflake.
 func (c *Client) CreateChannel(ctx context.Context, guildID string, ch ChannelCreate) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodPost, path: guildPath(guildID, "/channels"), body: ch}, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: "/guilds/" + url.PathEscape(guildID) + "/channels", body: ch}, &out)
 	return out, err
 }
 
 // DeleteChannel removes a voice clone (or any channel the bot created).
 func (c *Client) DeleteChannel(ctx context.Context, channelID string) error {
-	return c.do(ctx, request{method: http.MethodDelete, path: channelPath(channelID, "")})
+	return c.do(ctx, request{method: http.MethodDelete, path: "/channels/" + url.PathEscape(channelID)})
 }
 
 // CreateRole creates a guild role.
 func (c *Client) CreateRole(ctx context.Context, guildID string, role RoleCreate) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodPost, path: guildPath(guildID, "/roles"), body: role}, &out)
+	err := c.doInto(ctx, request{method: http.MethodPost, path: "/guilds/" + url.PathEscape(guildID) + "/roles", body: role}, &out)
 	return out, err
 }
 
 // AddMemberRole grants one role.
 func (c *Client) AddMemberRole(ctx context.Context, r MemberRole) error {
-	return c.do(ctx, request{method: http.MethodPut, path: memberRolePath(r), body: struct{}{}})
+	return c.do(ctx, request{method: http.MethodPut, path: r.path(), body: struct{}{}})
 }
 
 // RemoveMemberRole revokes one role.
 func (c *Client) RemoveMemberRole(ctx context.Context, r MemberRole) error {
-	return c.do(ctx, request{method: http.MethodDelete, path: memberRolePath(r)})
+	return c.do(ctx, request{method: http.MethodDelete, path: r.path()})
 }
 
 // ListGuildChannels returns the guild's channels (for matching names on fill).
 func (c *Client) ListGuildChannels(ctx context.Context, guildID string) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "/channels")}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "/channels"}, &out)
 	return out, err
 }
 
 // ListGuildRoles returns the guild's roles (for matching names on fill).
 func (c *Client) ListGuildRoles(ctx context.Context, guildID string) ([]Snowflake, error) {
 	var out []Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "/roles")}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "/roles"}, &out)
 	return out, err
 }
 
 // GetGuild returns the guild name and channel count (living-community check).
 func (c *Client) GetGuild(ctx context.Context, guildID string) (Snowflake, error) {
 	var out Snowflake
-	err := c.doInto(ctx, request{method: http.MethodGet, path: guildPath(guildID, "?with_counts=false")}, &out)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/guilds/" + url.PathEscape(guildID) + "?with_counts=false"}, &out)
 	return out, err
 }
 

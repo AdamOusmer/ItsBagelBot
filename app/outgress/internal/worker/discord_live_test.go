@@ -119,7 +119,13 @@ func (s *memLiveStore) PutLiveMessage(_ context.Context, _ string, m discapi.Mes
 func (s *memLiveStore) GetLiveMessage(_ context.Context, _ string) (discapi.Message, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.msg, s.msg.ChannelID != "" && s.msg.ID != ""
+	if s.msg.ChannelID == "" {
+		return s.msg, false
+	}
+	if s.msg.ID == "" {
+		return s.msg, false
+	}
+	return s.msg, true
 }
 
 func (s *memLiveStore) DeleteLiveMessage(context.Context, string) error {
@@ -139,7 +145,10 @@ func (s *memLiveStore) PutGuild(_ context.Context, guildID, broadcasterID string
 func (s *memLiveStore) GetGuild(_ context.Context, guildID string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.guild != guildID || s.twitch == "" {
+	if s.guild != guildID {
+		return "", false
+	}
+	if s.twitch == "" {
 		return "", false
 	}
 	return s.twitch, true
@@ -161,7 +170,10 @@ type memModules struct {
 }
 
 func (m memModules) GetModule(_ context.Context, _ uint64, name string) (projection.ModuleView, bool, error) {
-	if name != ddiscord.ModuleName || !m.found {
+	if name != ddiscord.ModuleName {
+		return projection.ModuleView{}, false, nil
+	}
+	if !m.found {
 		return projection.ModuleView{}, false, nil
 	}
 	raw, err := codec.Marshal(m.cfg)
@@ -196,7 +208,10 @@ func TestAnnounceDiscordLivePostsEmbed(t *testing.T) {
 	if guild.lastChan != "now-live" {
 		t.Fatalf("channel = %q", guild.lastChan)
 	}
-	if kv.msg.ChannelID != "now-live" || kv.msg.ID == "" {
+	if kv.msg.ChannelID != "now-live" {
+		t.Fatal("live message was not stored")
+	}
+	if kv.msg.ID == "" {
 		t.Fatal("live message was not stored")
 	}
 }
@@ -226,7 +241,10 @@ func TestAnnounceDiscordOfflineEditsLiveMessage(t *testing.T) {
 	}
 	w := liveWorker(t, guild, kv, mods)
 	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
-	if len(guild.edits) != 1 || guild.edits[0] != ddiscord.OfflineContent {
+	if len(guild.edits) != 1 {
+		t.Fatalf("edits = %v, want 1", guild.edits)
+	}
+	if guild.edits[0] != ddiscord.OfflineContent {
 		t.Fatalf("edits = %v, want the offline line", guild.edits)
 	}
 }

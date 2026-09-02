@@ -124,15 +124,11 @@ func (w *Worker) GuildLayout(ctx context.Context, guildID, broadcasterID string)
 // UnbindGuild drops the guild→broadcaster reverse index on disconnect. A
 // guild bound to someone else is left alone.
 func (w *Worker) UnbindGuild(ctx context.Context, guildID, broadcasterID string) error {
+	if err := w.requireOwner(ctx, guildID, broadcasterID, true); err != nil {
+		return err
+	}
 	if w.discordKV == nil {
 		return nil
-	}
-	owner, ok := w.discordKV.GetGuild(ctx, guildID)
-	if !ok {
-		return nil
-	}
-	if owner != broadcasterID {
-		return ErrGuildBoundElsewhere
 	}
 	return w.discordKV.DeleteGuild(ctx, guildID)
 }
@@ -148,21 +144,40 @@ func entries(in []discapi.Snowflake) []GuildEntry {
 // bindGuild writes the reverse index unless the guild already belongs to a
 // different broadcaster.
 func (w *Worker) bindGuild(ctx context.Context, guildID, broadcasterID string) error {
-	if w.discordKV == nil || guildID == "" || broadcasterID == "" {
+	if w.discordKV == nil {
 		return nil
 	}
-	if owner, ok := w.discordKV.GetGuild(ctx, guildID); ok && owner != broadcasterID {
-		return ErrGuildBoundElsewhere
+	if guildID == "" {
+		return nil
+	}
+	if broadcasterID == "" {
+		return nil
+	}
+	if err := w.requireOwner(ctx, guildID, broadcasterID, true); err != nil {
+		return err
 	}
 	return w.discordKV.PutGuild(ctx, guildID, broadcasterID)
 }
 
 func (w *Worker) requireBound(ctx context.Context, guildID, broadcasterID string) error {
+	return w.requireOwner(ctx, guildID, broadcasterID, false)
+}
+
+// requireOwner checks the reverse index. missingOK treats an unbound guild
+// as success (unbind / first bind); otherwise a missing row is the same
+// refusal as a row owned by someone else.
+func (w *Worker) requireOwner(ctx context.Context, guildID, broadcasterID string, missingOK bool) error {
 	if w.discordKV == nil {
 		return nil
 	}
 	owner, ok := w.discordKV.GetGuild(ctx, guildID)
-	if !ok || owner != broadcasterID {
+	if !ok {
+		if missingOK {
+			return nil
+		}
+		return ErrGuildBoundElsewhere
+	}
+	if owner != broadcasterID {
 		return ErrGuildBoundElsewhere
 	}
 	return nil

@@ -59,8 +59,11 @@ func TestDiscordChatSends(t *testing.T) {
 	if err := w.processDiscordChat(context.Background(), discordChatPayload("Stream is live!")); err != nil {
 		t.Fatalf("send failed: %v", err)
 	}
-	if client.lastText != "Stream is live!" || client.lastChan != "1234567890" {
-		t.Fatalf("sent %q to %q", client.lastText, client.lastChan)
+	if client.lastText != "Stream is live!" {
+		t.Fatalf("sent %q", client.lastText)
+	}
+	if client.lastChan != "1234567890" {
+		t.Fatalf("channel %q", client.lastChan)
 	}
 	if client.lastTTS {
 		t.Fatal("tts should default to false")
@@ -76,8 +79,14 @@ func TestDiscordChatPaysPerChannelThenGlobalBucket(t *testing.T) {
 		t.Fatalf("send failed: %v", err)
 	}
 	want := []string{"ratelimit:discord:chat:1234567890", "ratelimit:discord:global"}
-	if n := len(manager.calls); n != 2 || manager.calls[0] != want[0] || manager.calls[1] != want[1] {
-		t.Fatalf("bucket keys = %v, want %v", manager.calls, want)
+	if n := len(manager.calls); n != 2 {
+		t.Fatalf("bucket keys = %v, want 2", manager.calls)
+	}
+	if manager.calls[0] != want[0] {
+		t.Fatalf("first bucket = %q, want %q", manager.calls[0], want[0])
+	}
+	if manager.calls[1] != want[1] {
+		t.Fatalf("second bucket = %q, want %q", manager.calls[1], want[1])
 	}
 }
 
