@@ -27,11 +27,20 @@ type unixNano int64
 
 // wait blocks until the instant arrives; a zero or past instant is immediate.
 
+// wait blocks until this feeder's next group slot comes due. It sleeps once per
+// `every` calls, to a slot that advances by stride*every, because a per-message
+// sleep at sub-100µs strides is all timer granularity and no pacing — see
+// feedPacer.
 func (p *feedPacer) wait() {
 	if !p.on {
 		return
 	}
-	p.slot = p.slot.Add(p.stride)
+	p.n++
+	if p.n < p.every {
+		return
+	}
+	p.n = 0
+	p.slot = p.slot.Add(p.stride * time.Duration(p.every))
 	if d := time.Until(p.slot); d > 0 {
 		time.Sleep(d)
 	}
