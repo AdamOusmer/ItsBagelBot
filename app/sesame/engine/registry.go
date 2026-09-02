@@ -30,10 +30,6 @@ type Registry struct {
 	byEvent   map[string][]module.Module
 	commands  map[string]BoundCommand
 	needViews map[string]bool
-	// beta names the registered modules flagged Beta (premium-only), for the
-	// inline paths that read a module's row without going through enabled()
-	// (automod, see moderate.go) and must honor the same lane gate.
-	beta map[string]bool
 }
 
 // NewRegistry builds the event-type index and the bound-command index from the
@@ -50,20 +46,13 @@ func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 		byEvent:   make(map[string][]module.Module),
 		commands:  make(map[string]BoundCommand),
 		needViews: make(map[string]bool),
-		beta:      make(map[string]bool),
 	}
 	for _, m := range mods {
 		r.indexEvents(m)
 		r.indexCommands(log, m)
-		if m.Beta {
-			r.beta[m.Name] = true
-		}
 	}
 	return r
 }
-
-// Beta reports whether the named registered module is in beta (premium-only).
-func (r *Registry) Beta(name string) bool { return r.beta[name] }
 
 // indexEvents registers a module under every event type it handles, flagging the
 // type as needing ModuleView fetches when the module is name-gated.

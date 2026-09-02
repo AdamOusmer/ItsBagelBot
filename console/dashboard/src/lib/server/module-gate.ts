@@ -8,7 +8,7 @@
 // and a new bespoke page needs no bespoke gate. This stays as defense in depth
 // under the guard: pages call it from load AND every action.
 import { dev } from '$app/environment';
-import { redirect } from '@sveltejs/kit';
+import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/shared';
 import type { Session } from '$lib/server/session';
 import { accountState, type AccountState } from '$lib/server/services';
@@ -68,6 +68,17 @@ export async function moduleLocked(locals: App.Locals, def: ModuleDef): Promise<
 // instead of each bespoke page growing its own tier check.
 export function betaRouteDef(pathname: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((d) => d.beta && d.href && (pathname === d.href || pathname.startsWith(d.href + '/')));
+}
+
+// assertBetaRouteOpen is the route guard's half: a beta module's bespoke page
+// (govee, timers, ...) is premium-only while the catalog flags it, and gating
+// it from guardSession covers the page AND its form actions in one place, so
+// none of the bespoke pages carries a tier check and a module enters or leaves
+// beta by flipping its catalog flag alone. Bounces to the modules index, whose
+// tile shows the lock.
+export async function assertBetaRouteOpen(event: RequestEvent): Promise<void> {
+  const def = betaRouteDef(event.url.pathname);
+  if (def && (await moduleLocked(event.locals, def))) throw redirect(303, '/modules');
 }
 
 // assertModuleWritable reports whether a write action (toggle, save, patch)

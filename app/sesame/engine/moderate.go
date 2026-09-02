@@ -63,7 +63,7 @@ func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views
 // its row directly rather than through enabled(): true when the automod module
 // is registered as Beta and this event rides the standard lane.
 func (p *Pipeline) automodLocked(mctx *module.Context) bool {
-	return p.registry.Beta(automodModuleName) && !mctx.Regress.IsPremium()
+	return p.automodBeta && !mctx.Regress.IsPremium()
 }
 
 // adaptiveEmoteCodes resolves the span-derived emote codes the learned layers

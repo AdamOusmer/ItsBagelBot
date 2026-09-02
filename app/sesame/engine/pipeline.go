@@ -100,6 +100,10 @@ type Pipeline struct {
 
 	automod        *automod.Gate
 	automodEnforce bool
+	// automodBeta mirrors the registered automod module's Beta flag, resolved
+	// once here because the inline gate reads its row without going through
+	// enabled() and must honor the same lane lock (see automodLocked).
+	automodBeta bool
 	reputation     Reputation
 	campaign       Campaign
 
@@ -147,6 +151,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		outgressStandard:  cfg.OutgressStandard,
 		automod:           d.Automod,
 		automodEnforce:    cfg.AutomodEnforce,
+		automodBeta:       automodBeta(registry),
 		reputation:        d.Reputation,
 		campaign:          d.Campaign,
 		shieldEnabled:     cfg.ShieldEnabled,
@@ -603,6 +608,17 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 // its handler is a no-op because the gate runs inline before dispatch, so the
 // pipeline reads the row directly here instead of through enabled().
 const automodModuleName = "automod"
+
+// automodBeta reports whether the registered automod module is in beta. It is
+// found through the chat index since that is the one event it registers.
+func automodBeta(reg *Registry) bool {
+	for _, m := range reg.For(chatType) {
+		if m.Name == automodModuleName {
+			return m.Beta
+		}
+	}
+	return false
+}
 
 // automodConfigFrom extracts the broadcaster's automod Config from the fetched
 // ModuleViews. nil views (no name-gated module needs chat) or an absent row
