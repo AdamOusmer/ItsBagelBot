@@ -25,31 +25,17 @@ func TestCategoryAllowed(t *testing.T) {
 	}
 }
 
-func TestAlertsChannelFallsBackToLive(t *testing.T) {
-	c := Config{LiveChannelID: "live-1"}
-	if c.AlertsChannel() != "live-1" {
-		t.Fatalf("got %q", c.AlertsChannel())
-	}
-	c.AlertsChannelID = "alerts-1"
-	if c.AlertsChannel() != "alerts-1" {
-		t.Fatalf("got %q", c.AlertsChannel())
-	}
-}
-
 func TestTogglesDefaultOnExceptNoisyOnes(t *testing.T) {
 	var c Config
 	toggles := map[string]struct {
 		on   func() bool
 		want bool
 	}{
-		"live":      {c.LiveOn, true},
-		"clips":     {c.ClipsOn, true},
-		"raid":      {c.RaidOn, true},
-		"welcome":   {c.WelcomeOn, true},
-		"voice":     {c.VoiceOn, true},
-		"cheer":     {c.CheerOn, false},
-		"goodbye":   {c.GoodbyeOn, false},
-		"milestone": {c.SubMilestoneOn, false},
+		"live":    {c.LiveOn, true},
+		"clips":   {c.ClipsOn, true},
+		"welcome": {c.WelcomeOn, true},
+		"voice":   {c.VoiceOn, true},
+		"goodbye": {c.GoodbyeOn, false},
 	}
 	for name, tc := range toggles {
 		if got := tc.on(); got != tc.want {

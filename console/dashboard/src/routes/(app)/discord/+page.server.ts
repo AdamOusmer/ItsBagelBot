@@ -162,34 +162,18 @@ function snowflake(field: FormField): string {
   return field.current;
 }
 
-function positiveInt(field: FormField): string {
-  const raw = field.form.get(field.name);
-  if (raw === null) return field.current;
-  const n = Number.parseInt(String(raw), 10);
-  if (!Number.isInteger(n)) return field.current;
-  if (n < 1) return field.current;
-  return String(n);
-}
-
 function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
   return {
     ...current,
     liveEnabled: flag({ form, name: 'liveEnabled', current: current.liveEnabled }),
     clipsEnabled: flag({ form, name: 'clipsEnabled', current: current.clipsEnabled }),
-    raidEnabled: flag({ form, name: 'raidEnabled', current: current.raidEnabled }),
-    giftEnabled: flag({ form, name: 'giftEnabled', current: current.giftEnabled }),
-    cheerEnabled: flag({ form, name: 'cheerEnabled', current: current.cheerEnabled }),
-    subMilestoneEnabled: flag({ form, name: 'subMilestoneEnabled', current: current.subMilestoneEnabled }),
     welcomeEnabled: flag({ form, name: 'welcomeEnabled', current: current.welcomeEnabled }),
     goodbyeEnabled: flag({ form, name: 'goodbyeEnabled', current: current.goodbyeEnabled }),
     voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
-    giftMin: positiveInt({ form, name: 'giftMin', current: current.giftMin }),
-    cheerMin: positiveInt({ form, name: 'cheerMin', current: current.cheerMin }),
     categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
     categoryDeny: String(form.get('categoryDeny') ?? current.categoryDeny),
     liveChannelId: snowflake({ form, name: 'liveChannelId', current: current.liveChannelId }),
     clipsChannelId: snowflake({ form, name: 'clipsChannelId', current: current.clipsChannelId }),
-    alertsChannelId: snowflake({ form, name: 'alertsChannelId', current: current.alertsChannelId }),
     welcomeChannelId: snowflake({ form, name: 'welcomeChannelId', current: current.welcomeChannelId }),
     voiceHubId: snowflake({ form, name: 'voiceHubId', current: current.voiceHubId }),
     liveRoleId: snowflake({ form, name: 'liveRoleId', current: current.liveRoleId }),

@@ -22,7 +22,6 @@ export type DiscordConfig = {
   liveChannelId: string;
   clipsChannelId: string;
   welcomeChannelId: string;
-  alertsChannelId: string;
   voiceHubId: string;
   liveRoleId: string;
   modsRoleId: string;
@@ -30,15 +29,9 @@ export type DiscordConfig = {
   memberRoleId: string;
   liveEnabled: string;
   clipsEnabled: string;
-  raidEnabled: string;
-  giftEnabled: string;
-  cheerEnabled: string;
-  subMilestoneEnabled: string;
   welcomeEnabled: string;
   goodbyeEnabled: string;
   voiceEnabled: string;
-  giftMin: string;
-  cheerMin: string;
   categoryAllow: string;
   categoryDeny: string;
   twitchLogin: string;
@@ -60,7 +53,6 @@ const EMPTY: DiscordConfig = {
   liveChannelId: '',
   clipsChannelId: '',
   welcomeChannelId: '',
-  alertsChannelId: '',
   voiceHubId: '',
   liveRoleId: '',
   modsRoleId: '',
@@ -68,15 +60,9 @@ const EMPTY: DiscordConfig = {
   memberRoleId: '',
   liveEnabled: '',
   clipsEnabled: '',
-  raidEnabled: '',
-  giftEnabled: '',
-  cheerEnabled: '',
-  subMilestoneEnabled: '',
   welcomeEnabled: '',
   goodbyeEnabled: '',
   voiceEnabled: '',
-  giftMin: '',
-  cheerMin: '',
   categoryAllow: '',
   categoryDeny: '',
   twitchLogin: '',
@@ -129,7 +115,6 @@ type SetupReply = {
   live_channel_id?: string;
   clips_channel_id?: string;
   welcome_channel_id?: string;
-  alerts_channel_id?: string;
   voice_hub_id?: string;
   live_role_id?: string;
   mods_role_id?: string;
@@ -181,7 +166,6 @@ const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['liveChannelId', 'live_channel_id'],
   ['clipsChannelId', 'clips_channel_id'],
   ['welcomeChannelId', 'welcome_channel_id'],
-  ['alertsChannelId', 'alerts_channel_id'],
   ['voiceHubId', 'voice_hub_id'],
   ['liveRoleId', 'live_role_id'],
   ['modsRoleId', 'mods_role_id'],

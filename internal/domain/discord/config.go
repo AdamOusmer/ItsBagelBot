@@ -23,7 +23,6 @@ type Config struct {
 	LiveChannelID    string `json:"liveChannelId"`
 	ClipsChannelID   string `json:"clipsChannelId"`
 	WelcomeChannelID string `json:"welcomeChannelId"`
-	AlertsChannelID  string `json:"alertsChannelId"`
 	VoiceHubID       string `json:"voiceHubId"`
 	LiveRoleID       string `json:"liveRoleId"`
 	ModsRoleID       string `json:"modsRoleId"`
@@ -31,20 +30,12 @@ type Config struct {
 	MemberRoleID     string `json:"memberRoleId"`
 
 	// Toggles are dashboard "on"/"off" strings. Empty means the default
-	// documented on each helper (live/clips/raid on; goodbye off).
-	LiveEnabled         string `json:"liveEnabled"`
-	ClipsEnabled        string `json:"clipsEnabled"`
-	RaidEnabled         string `json:"raidEnabled"`
-	GiftEnabled         string `json:"giftEnabled"`
-	CheerEnabled        string `json:"cheerEnabled"`
-	SubMilestoneEnabled string `json:"subMilestoneEnabled"`
-	WelcomeEnabled      string `json:"welcomeEnabled"`
-	GoodbyeEnabled      string `json:"goodbyeEnabled"`
-	VoiceEnabled        string `json:"voiceEnabled"`
-
-	// GiftMin / CheerMin are thresholds so Discord is not a second chat.
-	GiftMin  string `json:"giftMin"`
-	CheerMin string `json:"cheerMin"`
+	// documented on each helper (live/clips on; goodbye off).
+	LiveEnabled    string `json:"liveEnabled"`
+	ClipsEnabled   string `json:"clipsEnabled"`
+	WelcomeEnabled string `json:"welcomeEnabled"`
+	GoodbyeEnabled string `json:"goodbyeEnabled"`
+	VoiceEnabled   string `json:"voiceEnabled"`
 
 	// CategoryAllow / CategoryDeny are comma-separated Twitch category
 	// names (Scenes twin). Empty allow means every category; a deny match
@@ -72,24 +63,11 @@ func (c Config) Connected() bool { return strings.TrimSpace(c.GuildID) != "" }
 
 func alertOn(v string) bool { return v != "off" }
 
-func (c Config) LiveOn() bool         { return alertOn(c.LiveEnabled) }
-func (c Config) ClipsOn() bool        { return alertOn(c.ClipsEnabled) }
-func (c Config) RaidOn() bool         { return alertOn(c.RaidEnabled) }
-func (c Config) GiftOn() bool         { return alertOn(c.GiftEnabled) }
-func (c Config) CheerOn() bool        { return c.CheerEnabled == "on" }
-func (c Config) SubMilestoneOn() bool { return c.SubMilestoneEnabled == "on" }
-func (c Config) WelcomeOn() bool      { return alertOn(c.WelcomeEnabled) }
-func (c Config) GoodbyeOn() bool      { return c.GoodbyeEnabled == "on" }
-func (c Config) VoiceOn() bool        { return alertOn(c.VoiceEnabled) }
-
-// AlertsChannel is where raid/gift/milestone copies land. Falls back to
-// the live channel so a 1-click setup with no extra picker still works.
-func (c Config) AlertsChannel() string {
-	if id := strings.TrimSpace(c.AlertsChannelID); id != "" {
-		return id
-	}
-	return strings.TrimSpace(c.LiveChannelID)
-}
+func (c Config) LiveOn() bool    { return alertOn(c.LiveEnabled) }
+func (c Config) ClipsOn() bool   { return alertOn(c.ClipsEnabled) }
+func (c Config) WelcomeOn() bool { return alertOn(c.WelcomeEnabled) }
+func (c Config) GoodbyeOn() bool { return c.GoodbyeEnabled == "on" }
+func (c Config) VoiceOn() bool   { return alertOn(c.VoiceEnabled) }
 
 // CategoryAllowed reports whether a Twitch category should produce a go-live
 // embed. Names compare case-insensitively, trimmed.

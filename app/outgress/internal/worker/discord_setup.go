@@ -39,7 +39,6 @@ type GuildSetupResult struct {
 	LiveChannelID    string
 	ClipsChannelID   string
 	WelcomeChannelID string
-	AlertsChannelID  string
 	VoiceHubID       string
 	LiveRoleID       string
 	ModsRoleID       string
@@ -422,8 +421,6 @@ func (out *GuildSetupResult) setChannel(ch namedRef) {
 		out.ClipsChannelID = ch.ID
 	case "welcome":
 		out.WelcomeChannelID = ch.ID
-	case "alerts":
-		out.AlertsChannelID = ch.ID
 	case "voice":
 		out.VoiceHubID = ch.ID
 	}

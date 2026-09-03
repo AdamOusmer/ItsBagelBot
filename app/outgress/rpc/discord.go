@@ -86,7 +86,6 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		LiveChannelID:    got.LiveChannelID,
 		ClipsChannelID:   got.ClipsChannelID,
 		WelcomeChannelID: got.WelcomeChannelID,
-		AlertsChannelID:  got.AlertsChannelID,
 		VoiceHubID:       got.VoiceHubID,
 		LiveRoleID:       got.LiveRoleID,
 		ModsRoleID:       got.ModsRoleID,
