@@ -20,7 +20,6 @@ type DiscordSetupReply struct {
 	LiveChannelID    string `json:"live_channel_id,omitempty"`
 	ClipsChannelID   string `json:"clips_channel_id,omitempty"`
 	WelcomeChannelID string `json:"welcome_channel_id,omitempty"`
-	AlertsChannelID  string `json:"alerts_channel_id,omitempty"`
 	VoiceHubID       string `json:"voice_hub_id,omitempty"`
 	LogChannelID     string `json:"log_channel_id,omitempty"`
 	TicketChannelID  string `json:"ticket_channel_id,omitempty"`

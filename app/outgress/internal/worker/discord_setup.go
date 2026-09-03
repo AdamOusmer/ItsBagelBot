@@ -39,7 +39,6 @@ type GuildSetupResult struct {
 	LiveChannelID    string
 	ClipsChannelID   string
 	WelcomeChannelID string
-	AlertsChannelID  string
 	VoiceHubID       string
 	LogChannelID     string
 	TicketChannelID  string
@@ -449,7 +448,6 @@ func (out *GuildSetupResult) channelSlot(name string) *string {
 		"live":      &out.LiveChannelID,
 		"clips":     &out.ClipsChannelID,
 		"welcome":   &out.WelcomeChannelID,
-		"alerts":    &out.AlertsChannelID,
 		"voice":     &out.VoiceHubID,
 		"logs":      &out.LogChannelID,
 		"tickets":   &out.TicketChannelID,

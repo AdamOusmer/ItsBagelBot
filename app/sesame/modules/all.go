@@ -44,7 +44,6 @@ func All(d engine.Deps) []module.Module {
 		Gamble(d),
 		Duel(d),
 		Govee(d),
-		Discord(d),
 		TimeOfDay(d),
 		Triggers(d),
 		EmotePlay(d),

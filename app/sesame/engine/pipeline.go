@@ -456,36 +456,13 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		}
 		state.ordinal++
 		replayID := state.replayID()
-		if !p.publishEmission(ctx, state, replayID, o) {
+		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
+			state.err = err
 			return
 		}
 		if replayID == "" {
 			state.needsFlush = true
 		}
-	}
-}
-
-// publishEmission publishes one output on its lane and reports whether the
-// emit may continue. A Discord copy is best-effort: failing the emit for it
-// would NAK the ingress event and replay every Twitch line already published
-// (replayID is not a broker dedup id), so a missing stream or a not-yet-pushed
-// ACL must never cost Twitch output.
-func (p *Pipeline) publishEmission(ctx context.Context, state *emitState, replayID string, o *module.Output) bool {
-	subject := state.subject
-	if o.Type == outgress.TypeDiscordChat {
-		subject = p.discordOutgressSubject(state.subject)
-	}
-	err := p.publishOutput(ctx, subject, replayID, o)
-	switch {
-	case err == nil:
-		return true
-	case o.Type == outgress.TypeDiscordChat:
-		p.log.Warn("discord copy publish failed; twitch output kept",
-			zap.String("subject", subject), zap.Error(err))
-		return false
-	default:
-		state.err = err
-		return false
 	}
 }
 
@@ -522,18 +499,6 @@ func (p *Pipeline) laneSubject(regress module.Regress) string {
 		return p.outgressPremium
 	}
 	return p.outgressStandard
-}
-
-// discordOutgressSubject maps the Twitch lane onto the Discord announcement
-// stream so raid/gift copies never share the Helix chat queue. It keys off
-// the configured lane subjects (env-overridable) rather than rewriting a
-// literal prefix, so a renamed Twitch lane cannot land a Discord copy on
-// TWITCH_OUTGRESS. Live go-live embeds do not use this path.
-func (p *Pipeline) discordOutgressSubject(twitchSubject string) string {
-	if twitchSubject == p.outgressPremium {
-		return bus.DiscordOutgressStream.Subjects[0]
-	}
-	return bus.DiscordOutgressStream.Subjects[1]
 }
 
 // floorSuppressed applies the send-time floor guard: the bot must never SAY

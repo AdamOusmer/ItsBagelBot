@@ -33,7 +33,7 @@ type ChannelSpec struct {
 	NSFW     bool
 	Staff    bool   // @everyone denied view
 	ReadOnly bool   // @everyone can read, not send
-	Bind     string // Config field this snowflake fills: live, clips, welcome, alerts, voice
+	Bind     string // Config field this snowflake fills: live, clips, welcome, voice
 }
 
 // CommunityRoles is the streamer-ready role set. Live/Mods/Regulars/Member
@@ -57,7 +57,7 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "Announcements", Type: ChannelCategory},
 		{Name: "now-live", Type: ChannelText, Parent: "Announcements", Topic: "Go-live posts. Bagel writes here.", ReadOnly: true, Bind: "live"},
 		{Name: "clips", Type: ChannelText, Parent: "Announcements", Topic: "Clips from the stream.", ReadOnly: true, Bind: "clips"},
-		{Name: "announcements", Type: ChannelText, Parent: "Announcements", Topic: "Raids, gifts, milestones.", ReadOnly: true, Bind: "alerts"},
+		{Name: "announcements", Type: ChannelText, Parent: "Announcements", Topic: "Server announcements.", ReadOnly: true},
 
 		{Name: "Community", Type: ChannelCategory},
 		{Name: "chat", Type: ChannelText, Parent: "Community"},

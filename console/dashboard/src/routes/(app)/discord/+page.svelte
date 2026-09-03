@@ -204,7 +204,6 @@
         <div class="fields">
           {@render picker('liveChannelId', t('discord.liveChannelLabel'), textChannels, '#')}
           {@render picker('clipsChannelId', t('discord.clipsChannelLabel'), textChannels, '#')}
-          {@render picker('alertsChannelId', t('discord.alertsChannelLabel'), textChannels, '#')}
           {@render picker('welcomeChannelId', t('discord.welcomeChannelLabel'), textChannels, '#')}
           {@render picker('voiceHubId', t('discord.voiceHubLabel'), voiceChannels, '')}
           {@render picker('logChannelId', t('discord.logChannelLabel'), textChannels, '#')}
@@ -246,62 +245,6 @@
             label={t('discord.clipsLabel')}
             onchange={(v) => (config = { ...config, clipsEnabled: v ? 'on' : 'off' })}
           />
-        </div>
-        <div class="setting-row">
-          <div class="tr-text">
-            <span class="tr-label">{t('discord.raidLabel')}</span>
-            <span class="tr-help">{t('discord.raidHelp')}</span>
-          </div>
-          <input type="hidden" name="raidEnabled" value={onByDefault(config.raidEnabled) ? 'on' : 'off'} />
-          <Switch
-            checked={onByDefault(config.raidEnabled)}
-            label={t('discord.raidLabel')}
-            onchange={(v) => (config = { ...config, raidEnabled: v ? 'on' : 'off' })}
-          />
-        </div>
-        <div class="setting-row">
-          <div class="tr-text">
-            <span class="tr-label">{t('discord.giftLabel')}</span>
-            <span class="tr-help">{t('discord.giftHelp')}</span>
-          </div>
-          <input type="hidden" name="giftEnabled" value={onByDefault(config.giftEnabled) ? 'on' : 'off'} />
-          <Switch
-            checked={onByDefault(config.giftEnabled)}
-            label={t('discord.giftLabel')}
-            onchange={(v) => (config = { ...config, giftEnabled: v ? 'on' : 'off' })}
-          />
-        </div>
-        <div class="setting-row">
-          <div class="tr-text">
-            <span class="tr-label">{t('discord.cheerLabel')}</span>
-            <span class="tr-help">{t('discord.cheerHelp')}</span>
-          </div>
-          <input type="hidden" name="cheerEnabled" value={offByDefault(config.cheerEnabled) ? 'on' : 'off'} />
-          <Switch
-            checked={offByDefault(config.cheerEnabled)}
-            label={t('discord.cheerLabel')}
-            onchange={(v) => (config = { ...config, cheerEnabled: v ? 'on' : 'off' })}
-          />
-        </div>
-        <div class="setting-row">
-          <div class="tr-text">
-            <span class="tr-label">{t('discord.milestoneLabel')}</span>
-            <span class="tr-help">{t('discord.milestoneHelp')}</span>
-          </div>
-          <input type="hidden" name="subMilestoneEnabled" value={offByDefault(config.subMilestoneEnabled) ? 'on' : 'off'} />
-          <Switch
-            checked={offByDefault(config.subMilestoneEnabled)}
-            label={t('discord.milestoneLabel')}
-            onchange={(v) => (config = { ...config, subMilestoneEnabled: v ? 'on' : 'off' })}
-          />
-        </div>
-        <div class="fields">
-          <Field label={t('discord.giftMinLabel')} tag={t('discord.giftMinTag')}>
-            <input class="input" type="number" name="giftMin" min="1" step="1" value={config.giftMin || '5'} />
-          </Field>
-          <Field label={t('discord.cheerMinLabel')} tag={t('discord.cheerMinTag')}>
-            <input class="input" type="number" name="cheerMin" min="1" step="1" value={config.cheerMin || '1000'} />
-          </Field>
         </div>
         <Field label={t('discord.allowLabel')} tag={t('discord.allowTag')}>
           <input class="input wide" name="categoryAllow" value={config.categoryAllow} placeholder={t('discord.allowPlaceholder')} />

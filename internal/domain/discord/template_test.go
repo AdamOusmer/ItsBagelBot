@@ -12,7 +12,7 @@ func TestCommunityTemplateBindsRequiredChannels(t *testing.T) {
 			binds[ch.Bind] = true
 		}
 	}
-	for _, want := range []string{"live", "clips", "welcome", "alerts", "voice", "logs", "tickets", "ticketcat"} {
+	for _, want := range []string{"live", "clips", "welcome", "voice", "logs", "tickets", "ticketcat"} {
 		if !binds[want] {
 			t.Fatalf("template missing bind %q", want)
 		}
