@@ -157,7 +157,7 @@ spec:
           # block below switches on, PGO, x86-64-v3 on Intel, on the same
           # alpine runtime image as before. Pinned by digest of the multi-arch
           # manifest; the tag names the main build it came from.
-          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1788441027-0ccd411ad3ed@sha256:e815c858006603e89811f44445e408a9a38ff53818eab9af50926de6c717e0bf
+          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1788453248-c6eb95bb57c9@sha256:349ff758446ec2a28a2b3020636dee4923afc106d4ea375b296d206651665c16
 
 
           imagePullPolicy: IfNotPresent
