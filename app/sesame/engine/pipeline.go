@@ -8,10 +8,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
-	"sync"
 	"time"
 
 	"ItsBagelBot/app/sesame/automod"
+	"ItsBagelBot/app/sesame/confcache"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
@@ -104,8 +104,8 @@ type Pipeline struct {
 	// once here because the inline gate reads its row without going through
 	// enabled() and must honor the same lane lock (see automodLocked).
 	automodBeta bool
-	reputation     Reputation
-	campaign       Campaign
+	reputation  Reputation
+	campaign    Campaign
 
 	// shieldEnabled gates the mass-raid Shield Mode escalation; raidGate dedups it
 	// per channel so one raid activates Shield Mode once, not on every folded burst.
@@ -250,12 +250,6 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
 
-	// The views map is pooled and recycled once the stages have run: no stage
-	// retains it (enabled() copies Configs slices into the Context; the automod
-	// config is parsed out by value), so releasing here — before the envelope
-	// goes back — is safe.
-	defer PutModuleViews(views)
-
 	emission := emitState{
 		subject: p.laneSubject(mctx.Regress),
 		env:     env,
@@ -308,32 +302,15 @@ func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broa
 	return views, err
 }
 
-// viewsPool recycles the per-message ModuleView map. With automod wired (the
-// production default) NeedsModuleViews(chatType) is true and every chat line
-// rebuilt this map: one map alloc plus bucket growth per line on the raid-burst
-// path. Pooling it measured 14 -> 12 allocs/op, 1585 -> 705 B/op and
+// The per-message ModuleView map used to be pooled here (GetModuleViews /
+// PutModuleViews): every chat line rebuilt the map from the projection's slice,
+// and pooling it measured 14 -> 12 allocs/op, 1585 -> 705 B/op and
 // 1054 -> 833 ns/op on BenchmarkProcessNoOutputWithViews (M1 Pro, 2026-08-22).
-// Maps are pointer-shaped, so boxing them in the interface does not allocate.
-var viewsPool = sync.Pool{New: func() any {
-	return make(map[string]projection.ModuleView)
-}}
-
-// GetModuleViews returns an empty map from the pool; PutModuleViews clears it,
-// so no reset is needed here.
-func GetModuleViews() map[string]projection.ModuleView {
-	return viewsPool.Get().(map[string]projection.ModuleView)
-}
-
-// PutModuleViews returns a ModuleView map to the pool. The map is cleared here
-// (clear keeps the bucket array, so reuse re-grows nothing); nil is a no-op.
-// The caller must not use m again.
-func PutModuleViews(m map[string]projection.ModuleView) {
-	if m == nil {
-		return
-	}
-	clear(m)
-	viewsPool.Put(m)
-}
+// The rebuild is gone — projection.Reader now hands back the by-name map it
+// already had — so the pool went with it: there is no per-message map left to
+// recycle, and recycling the one we now get back would be a bug, since it is
+// the projection cache's own entry shared by every concurrent message for that
+// broadcaster. clear()ing it into a pool would blank a live cache row.
 
 func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, emission *emitState) {
 	segment := startStage(ctx, "sesame.engine")
@@ -589,17 +566,12 @@ func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcaste
 	if !p.registry.NeedsModuleViews(eventType) {
 		return nil, nil
 	}
-	list, err := p.proj.Modules(ctx, broadcasterID)
-	if err != nil {
-		return nil, err
-	}
-	// Pooled map: the caller releases it with PutModuleViews once the stages
-	// for this message have run.
-	views := GetModuleViews()
-	for _, v := range list {
-		views[v.Name] = v
-	}
-	return views, nil
+	// Returned straight through: this is the projection cache's own by-name map,
+	// shared across every concurrent message for this broadcaster and read-only
+	// for the stages. No stage writes it (enabled() copies the Configs slice it
+	// keeps into the Context, and the automod config is parsed out by value), so
+	// aliasing it is safe and skips the per-line map rebuild this used to do.
+	return p.proj.Modules(ctx, broadcasterID)
 }
 
 // automodModuleName is the module that carries a broadcaster's automod settings
@@ -636,15 +608,44 @@ func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *aut
 	}
 	var cfg *automod.Config
 	if ok {
-		cfg = automod.ParseConfig(mv.Configs)
+		cfg = automodConfigs.Get(mv.Configs, parseAutomodConfig)
 	}
 	if locked || !mv.IsEnabled {
-		if cfg == nil {
-			cfg = &automod.Config{}
-		}
-		cfg.Disabled = true
+		return disabledConfig(cfg)
 	}
 	return cfg
+}
+
+// automodConfigs memoizes ParseConfig per config blob. Before it, every chat
+// line on a channel that had configured automod re-ran the unmarshal plus the
+// term splitting and skeleton normalization: measured on an M1 Pro
+// (2026-09-03) that was 3100 -> 835 ns/op, 2170 -> 705 B/op and 39 -> 12
+// allocs/op on BenchmarkProcessNoOutputWithAutomodConfig: the parse WAS most
+// of the hot path for a configured channel, and a configured channel now costs
+// the same per line as one that never opened the form. Package-level rather than a Pipeline
+// field because the key is the blob's content, not the channel: memoizing a
+// pure function has no tenancy to scope, and two channels with identical
+// configs correctly share the entry.
+var automodConfigs = confcache.New[*automod.Config]()
+
+// parseAutomodConfig adapts ParseConfig to the cache's parse signature
+// (codec.RawMessage is a defined type, so the func values are not assignable).
+func parseAutomodConfig(raw []byte) *automod.Config { return automod.ParseConfig(raw) }
+
+// disabledConfig returns cfg forced into the floor-only Disabled state WITHOUT
+// writing to cfg. This used to be an in-place "cfg.Disabled = true", which was
+// safe only while every caller owned a freshly parsed config; cfg now comes
+// from a cache shared by every channel using the same blob, so the in-place
+// write would have flipped an unrelated broadcaster's automod into floor-only
+// the moment one locked or disabled row touched it. The copy is shallow on
+// purpose: the term slices it shares are only ever read (bytes.Contains).
+func disabledConfig(cfg *automod.Config) *automod.Config {
+	if cfg == nil {
+		return &automod.Config{Disabled: true}
+	}
+	c := *cfg
+	c.Disabled = true
+	return &c
 }
 
 // dispatch runs the command stage; a gate store error is logged and skipped like

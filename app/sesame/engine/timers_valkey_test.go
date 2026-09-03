@@ -31,9 +31,16 @@ type countingReader struct {
 func (r *countingReader) User(context.Context, uint64) (projection.User, error) {
 	return projection.User{}, nil
 }
-func (r *countingReader) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
+func (r *countingReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
 	r.modulesCalls++
 	return nil, nil // no "timers" module: config() bails, arm() (and Valkey) never run
+}
+
+// Module is what config() calls now that it reads one row by name; it counts the
+// same way Modules does, since it is the same read from the test's point of view.
+func (r *countingReader) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
+	r.modulesCalls++
+	return projection.ModuleView{}, false, nil
 }
 func (r *countingReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
 	return projection.Command{}, false, nil

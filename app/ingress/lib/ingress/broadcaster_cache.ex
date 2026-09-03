@@ -75,6 +75,7 @@ defmodule Ingress.BroadcasterCache do
        loader: Keyword.get(opts, :loader, &Ingress.BroadcasterStatus.lane_for/1),
        pending_by_id: %{},
        id_by_ref: %{},
+       ref_by_id: %{},
        stale_refs: MapSet.new()
      }}
   end
@@ -98,10 +99,34 @@ defmodule Ingress.BroadcasterCache do
 
   def handle_call({:invalidate, id}, _from, state) do
     :ets.delete(state.table, id)
+    {:reply, :ok, reload_pending(id, state)}
+  end
+
+  def handle_call(:invalidate_all, _from, state) do
+    :ets.delete_all_objects(state.table)
 
     state =
-      if Map.has_key?(state.pending_by_id, id) do
-        {ref, ^id} = Enum.find(state.id_by_ref, fn {_k, v} -> v == id end)
+      Enum.reduce(state.pending_by_id, state, fn {id, _waiters}, acc_state ->
+        reload_pending(id, acc_state)
+      end)
+
+    {:reply, :ok, state}
+  end
+
+  # Invalidating an id with a load already in flight cannot cancel that load:
+  # it marks the ref stale so its answer is dropped, and starts a fresh one for
+  # the waiters. The in-flight ref comes from `ref_by_id`, the reverse index of
+  # `id_by_ref`; scanning `id_by_ref` by value cost O(N) per id, which made
+  # `:invalidate_all` O(N²) inside the GenServer loop with every lookup queued
+  # behind it. An id with nothing in flight has nothing to supersede — the old
+  # scan matched `{ref, ^id}` against `Enum.find`'s nil there and crashed the
+  # cache.
+  defp reload_pending(id, state) do
+    case Map.fetch(state.ref_by_id, id) do
+      :error ->
+        state
+
+      {:ok, ref} ->
         state = %{state | stale_refs: MapSet.put(state.stale_refs, ref)}
 
         task =
@@ -110,32 +135,29 @@ defmodule Ingress.BroadcasterCache do
           end)
 
         Ingress.Metrics.count("Cache/Loads")
-        %{state | id_by_ref: Map.put(state.id_by_ref, task.ref, id)}
-      else
-        state
-      end
-
-    {:reply, :ok, state}
+        track_task(state, id, task.ref)
+    end
   end
 
-  def handle_call(:invalidate_all, _from, state) do
-    :ets.delete_all_objects(state.table)
+  # Both directions are written together, so `ref_by_id` always names the
+  # newest task for an id: a superseded stale ref stays in `id_by_ref` (its
+  # result still has to be recognised and dropped) but loses the reverse entry.
+  defp track_task(state, id, ref) do
+    %{
+      state
+      | id_by_ref: Map.put(state.id_by_ref, ref, id),
+        ref_by_id: Map.put(state.ref_by_id, id, ref)
+    }
+  end
 
-    state =
-      Enum.reduce(state.pending_by_id, state, fn {id, _waiters}, acc_state ->
-        {ref, ^id} = Enum.find(acc_state.id_by_ref, fn {_k, v} -> v == id end)
-        acc_state = %{acc_state | stale_refs: MapSet.put(acc_state.stale_refs, ref)}
-
-        task =
-          Task.Supervisor.async_nolink(Ingress.BroadcasterCache.TaskSupervisor, fn ->
-            acc_state.loader.(id)
-          end)
-
-        Ingress.Metrics.count("Cache/Loads")
-        %{acc_state | id_by_ref: Map.put(acc_state.id_by_ref, task.ref, id)}
-      end)
-
-    {:reply, :ok, state}
+  # Only drop the reverse entry when it still names this ref. A stale ref
+  # finishing after its replacement was spawned must not unindex the
+  # replacement.
+  defp untrack_ref(ref_by_id, id, ref) do
+    case ref_by_id do
+      %{^id => ^ref} -> Map.delete(ref_by_id, id)
+      _ -> ref_by_id
+    end
   end
 
   @impl true
@@ -174,13 +196,9 @@ defmodule Ingress.BroadcasterCache do
 
       Ingress.Metrics.count("Cache/Loads")
 
-      state = %{
-        state
-        | pending_by_id: Map.put(state.pending_by_id, id, [from]),
-          id_by_ref: Map.put(state.id_by_ref, task.ref, id)
-      }
+      state = %{state | pending_by_id: Map.put(state.pending_by_id, id, [from])}
 
-      {:noreply, state}
+      {:noreply, track_task(state, id, task.ref)}
     end
   end
 
@@ -190,7 +208,11 @@ defmodule Ingress.BroadcasterCache do
         {:noreply, state}
 
       {id, id_by_ref} ->
-        state = %{state | id_by_ref: id_by_ref}
+        state = %{
+          state
+          | id_by_ref: id_by_ref,
+            ref_by_id: untrack_ref(state.ref_by_id, id, ref)
+        }
 
         if MapSet.member?(state.stale_refs, ref) do
           Ingress.Metrics.count("Cache/StaleIgnored")

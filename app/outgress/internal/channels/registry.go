@@ -207,6 +207,29 @@ func (r *Registry) publishInvalidation(broadcasterID string) {
 	}
 }
 
+// channelFromFields decodes one HGETALL reply. An empty reply is a channel that
+// was never registered (or whose hash is gone while the index still lists the
+// id) and decodes to the zero value, which both Get and List read back as
+// not-found through an empty BroadcasterID. Get and List share this so a
+// channel decoded by a List can never differ from the same channel decoded by
+// a Get.
+func channelFromFields(broadcasterID string, fields map[string]string) manage.Channel {
+	if len(fields) == 0 {
+		return manage.Channel{}
+	}
+	return manage.Channel{
+		BroadcasterID: broadcasterID,
+		Enabled:       fields["enabled"] == "1",
+		IsMod:         fields["is_mod"] == "1",
+		ModCheckedAt:  unixField(fields["mod_checked_at"]),
+		UpdatedAt:     unixField(fields["updated_at"]),
+		SubState:      fields["sub_state"],
+		SubError:      fields["sub_error"],
+		SubCheckedAt:  unixField(fields["sub_checked_at"]),
+		GrantState:    manage.GrantState(fields["grant_state"]),
+	}
+}
+
 // Get returns the stored state for one broadcaster. found is false when the
 // channel was never registered, in which case the caller should assume the
 // defaults (enabled, non-mod).
@@ -217,21 +240,7 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 		if err != nil {
 			return manage.Channel{}, err
 		}
-		if len(fields) == 0 {
-			return manage.Channel{}, nil
-		}
-
-		return manage.Channel{
-			BroadcasterID: broadcasterID,
-			Enabled:       fields["enabled"] == "1",
-			IsMod:         fields["is_mod"] == "1",
-			ModCheckedAt:  unixField(fields["mod_checked_at"]),
-			UpdatedAt:     unixField(fields["updated_at"]),
-			SubState:      fields["sub_state"],
-			SubError:      fields["sub_error"],
-			SubCheckedAt:  unixField(fields["sub_checked_at"]),
-			GrantState:    manage.GrantState(fields["grant_state"]),
-		}, nil
+		return channelFromFields(broadcasterID, fields), nil
 	})
 
 	if err != nil {
@@ -455,20 +464,48 @@ func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
 }
 
 // List returns every registered channel.
+//
+// The hashes are read with one pipelined DoMulti instead of one Get per id.
+// Per-id Get made List cost one serial round trip per channel on a cold cache,
+// so its latency grew with the install base even though every one of those
+// HGETALLs was independent and could have shared a flush. DoMulti makes List
+// two round trips (SMEMBERS, then the pipeline) at any channel count.
+//
+// Every id is fetched, cached ones included, because pkg/cache has no
+// peek-without-load: probing it through GetOrLoad would enter the singleflight
+// group for that key and hand a concurrent Get the probe's result. A cached id
+// riding along in an already-flushed pipeline costs no extra round trip, and
+// the client is primary-pinned, so the value written back is never older than
+// the one it replaces.
 func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 
 	ids, err := r.client.Do(ctx, r.client.B().Smembers().Key(indexKey).Build()).AsStrSlice()
 	if err != nil {
 		return nil, err
 	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	gets := make([]valkey.Completed, 0, len(ids))
+	for _, id := range ids {
+		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+	}
 
 	out := make([]manage.Channel, 0, len(ids))
-	for _, id := range ids {
-		ch, found, err := r.Get(ctx, id)
+	for i, res := range r.client.DoMulti(ctx, gets...) {
+		fields, err := res.AsStrMap()
 		if err != nil {
 			return nil, err
 		}
-		if found {
+		ch := channelFromFields(ids[i], fields)
+
+		// Populate exactly what Get's loader would have, negative entries
+		// included: an id in the index whose hash is missing caches as the
+		// zero value, so a following Get answers not-found from memory rather
+		// than re-reading a hash that is not there.
+		r.cache.Set(ids[i], ch)
+		if ch.BroadcasterID != "" {
 			out = append(out, ch)
 		}
 	}

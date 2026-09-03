@@ -224,3 +224,67 @@ func quote(s string) string {
 	b, _ := codec.Marshal(s)
 	return string(b)
 }
+
+// TestTriggersDistinctConfigsDoNotCollide is the rules-cache correctness guard.
+// Both channels' rows are legacy rows (ModuleView.Revision 0), so a
+// revision-keyed cache would answer channel B's chat with channel A's trigger
+// response. The cache keys on the blob's content, so each channel gets its own.
+func TestTriggersDistinctConfigsDoNotCollide(t *testing.T) {
+	h := triggersHandler(t)
+
+	var a collector
+	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from A"), a.emit))
+	var b collector
+	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from B"), b.emit))
+	// Re-read in the opposite order: a hit must still be a hit on its own bytes.
+	var a2 collector
+	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from A"), a2.emit))
+
+	require.Len(t, a.out, 1)
+	require.Len(t, b.out, 1)
+	require.Len(t, a2.out, 1)
+	assert.Equal(t, "from A", a.out[0].Text)
+	assert.Equal(t, "from B", b.out[0].Text)
+	assert.Equal(t, "from A", a2.out[0].Text)
+}
+
+// TestTriggersMalformedConfigStillErrors: the cached parse carries the decode
+// error, so a broken blob reaches the engine as a handler error exactly as it
+// did when triggersOnChat called Context.Decode per message.
+func TestTriggersMalformedConfigStillErrors(t *testing.T) {
+	c := triggersCtx("hello", "x => y")
+	c.Config = []byte(`{"rules":`) // truncated JSON
+
+	var col collector
+	err := triggersHandler(t)(context.Background(), c, col.emit)
+	require.Error(t, err)
+	assert.Empty(t, col.out)
+	// The error is cached with the blob; a second read must report it too.
+	assert.Error(t, triggersHandler(t)(context.Background(), c, col.emit))
+}
+
+// benchTriggerRules is a full-size rule set (maxTriggers entries): the config a
+// broadcaster who leans on the module actually saves, and the worst case the
+// per-message parse used to pay for.
+func benchTriggerRules() string {
+	var b strings.Builder
+	for i := 0; i < maxTriggers; i++ {
+		fmt.Fprintf(&b, "phrase number %d => response number %d\n", i, i)
+	}
+	return b.String()
+}
+
+// BenchmarkTriggersOnChatMiss measures the handler on a line that matches
+// nothing, which is what nearly every chat line does: before the rules cache
+// this decoded the blob and rebuilt all 50 rules per message.
+func BenchmarkTriggersOnChatMiss(b *testing.B) {
+	c := triggersCtx("just chatting about the stream", benchTriggerRules())
+	emit := func(*module.Output) {}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := triggersOnChat(context.Background(), c, emit); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

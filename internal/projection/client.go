@@ -115,7 +115,8 @@ type Command struct {
 // the pipeline be tested against a fake without Valkey or NATS.
 type Reader interface {
 	User(ctx context.Context, userID uint64) (User, error)
-	Modules(ctx context.Context, userID uint64) ([]ModuleView, error)
+	Modules(ctx context.Context, userID uint64) (map[string]ModuleView, error)
+	Module(ctx context.Context, userID uint64, name string) (ModuleView, bool, error)
 	Command(ctx context.Context, userID uint64, name string) (Command, bool, error)
 }
 
@@ -138,7 +139,7 @@ type Client struct {
 	log      *zap.Logger
 
 	users    *cache.Cache[User]
-	modules  *cache.Cache[[]ModuleView]
+	modules  *cache.Cache[map[string]ModuleView]
 	commands *cache.Cache[commandEntry]
 	fetches  *cache.Cache[fetchEntry]
 
@@ -164,7 +165,7 @@ func NewClient(cfg Config) *Client {
 		subjects:   cfg.Subjects,
 		log:        cfg.Log,
 		users:      cache.New[User](usersCacheCapacity, cfg.TTL),
-		modules:    cache.New[[]ModuleView](modulesCacheCapacity, cfg.TTL),
+		modules:    cache.New[map[string]ModuleView](modulesCacheCapacity, cfg.TTL),
 		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL),
 		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL),
 		rpcTimeout: 1500 * time.Millisecond,
@@ -294,8 +295,14 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 // cheap to return: every caller already fails open or nacks on it (the pipeline
 // nacks for redelivery, clip/timers fall open per-call), and none of them cache
 // it, so each keeps its own policy instead of inheriting a poisoned entry.
-func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, error) {
-	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) ([]ModuleView, error) {
+//
+// The cached value is a by-name map, keyed the way GetModules already builds it,
+// and it is shared: callers get the cache's own map and must treat it as
+// read-only. Every consumer does — the pipeline only indexes it, and enabled()
+// copies what it keeps into the module Context — so handing it out costs nothing
+// and saves the per-message map rebuild each caller used to do.
+func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleView, error) {
+	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) (map[string]ModuleView, error) {
 		if mods, projected, err := c.store.GetModules(ctx, userID); err == nil && projected {
 			return mods, nil
 		}
@@ -306,8 +313,28 @@ func (c *Client) Modules(ctx context.Context, userID uint64) ([]ModuleView, erro
 		if err != nil {
 			return nil, err
 		}
-		return reply.Modules, nil
+		return ModuleMap(reply.Modules), nil
 	})
+}
+
+// Module resolves one module row by name. It indexes the cached by-name set
+// rather than issuing a per-module Valkey read (HMGET module:<name>:enabled /
+// :config), which the hash layout would allow: the whole set already sits in
+// one in-process cache entry, so the map index is free while an HMGET would add
+// a network round trip to every call. A per-module cache entry to hide that
+// round trip was rejected too — the "modules" invalidation scope carries no key
+// list (see evictScope), so it can only drop the whole-set key, and a second
+// per-name cache would survive a dashboard save and serve a stale toggle.
+//
+// Missing is not an error: callers decide what an absent row means (clip and
+// followage default a built-in to on, loyalty and timers treat it as off).
+func (c *Client) Module(ctx context.Context, userID uint64, name string) (ModuleView, bool, error) {
+	views, err := c.Modules(ctx, userID)
+	if err != nil {
+		return ModuleView{}, false, err
+	}
+	view, ok := views[name]
+	return view, ok, nil
 }
 
 // Command resolves one custom command by the name (or alias) a viewer typed.

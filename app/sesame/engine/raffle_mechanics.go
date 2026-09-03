@@ -43,36 +43,59 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 
 // pickWinners draws min(n, len(members)) distinct members uniformly at random;
 // fewer entrants than winners means everyone wins. n arrives from chat args or
-// stored JSON, so it is clamped to the winner ceiling first. The shuffle runs
+// stored JSON, so it is clamped to the winner ceiling first. The draw runs
 // entirely in int64 — indices come from big.Int draws, never narrowed through
 // int — so no platform-width conversion can silently truncate a count.
+//
+// Draw-and-reject against a picked set, not the partial Fisher-Yates shuffle
+// this used to run: that materialized and filled an index slice the size of
+// the entrant pool before drawing anything, so the overwhelmingly common
+// single-winner raffle paid O(M) alloc + O(M) fill to consume one index. Cost
+// is now O(n) with one small map, and n=1 is a single rand.Int call.
+// Rejection cannot degrade here because maxRaffleWinners (20) bounds n: the
+// worst case is n = M-1 with M ≤ 21, ~55 expected draws, and the ordinary
+// n ≪ M case rejects almost never.
+//
+// Floyd's algorithm was the other candidate and was rejected: it is O(n) with
+// no rejection at all, but it emits the sample in a non-uniform order, and
+// these winners are announced as an ordered list (mentionList). Uniform
+// membership AND uniform order is the property a raffle has to be able to
+// defend, so the rejection loop's few extra draws buy the stronger claim.
 func pickWinners(members []string, n int64) []string {
+	total := int64(len(members))
 	if n < 0 {
 		n = 0
 	}
 	if n > maxRaffleWinners {
 		n = maxRaffleWinners
 	}
-	if n >= int64(len(members)) {
+	if n >= total {
 		return members
 	}
 
-	idx := make([]int64, len(members))
-	for i := range idx {
-		idx[i] = int64(i)
-	}
+	picked := make(map[int64]struct{}, n)
 	out := make([]string, 0, n)
-	for i := int64(0); i < n; i++ {
-		j, err := rand.Int(rand.Reader, big.NewInt(int64(len(idx))-i))
-		if err != nil {
-			// CSPRNG unavailable is not survivable for a fair draw; fail loudly.
-			panic("raffle: crypto/rand unavailable: " + err.Error())
+	for int64(len(out)) < n {
+		k := drawIndex(total)
+		if _, dup := picked[k]; dup {
+			continue // already a winner: redraw, so every survivor stays equally likely
 		}
-		k := i + j.Int64()
-		idx[i], idx[k] = idx[k], idx[i]
-		out = append(out, members[idx[i]])
+		picked[k] = struct{}{}
+		out = append(out, members[k])
 	}
 	return out
+}
+
+// drawIndex returns a uniform index in [0, total) from the CSPRNG. Split out
+// so pickWinners' loop carries no nested error branch, and kept on big.Int so
+// the value never narrows through int.
+func drawIndex(total int64) int64 {
+	j, err := rand.Int(rand.Reader, big.NewInt(total))
+	if err != nil {
+		// CSPRNG unavailable is not survivable for a fair draw; fail loudly.
+		panic("raffle: crypto/rand unavailable: " + err.Error())
+	}
+	return j.Int64()
 }
 
 // DigestPool is the receipt's tamper-evidence: SHA-256 over the version tag

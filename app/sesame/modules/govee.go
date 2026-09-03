@@ -223,6 +223,10 @@ func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, boo
 		return goveeConfig{}, ev, false
 	}
 	// Drive the binding whose reward was redeemed; unrelated rewards no-op.
+	// Scanned rather than indexed by reward id for the same reason as
+	// findBinding in channelpoints: bindingsOf decodes the blob fresh per
+	// event, so a map built here would be built and discarded per event and
+	// cost strictly more than the scan it replaced.
 	for _, b := range bindings {
 		if goveeConfigured(b) && b.RewardID == ev.Reward.ID {
 			return b, ev, true

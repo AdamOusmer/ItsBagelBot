@@ -224,14 +224,8 @@ func ResolveIdentity(id Identity, endpoint string) Identity {
 	if id != IdentityAuto {
 		return id
 	}
-	path := endpoint
-	if i := strings.IndexByte(path, '?'); i >= 0 {
-		path = path[:i]
-	}
-	for _, prefix := range userScopedPrefixes {
-		if strings.HasPrefix(path, prefix) {
-			return IdentityBot
-		}
+	if isUserScoped(endpoint) {
+		return IdentityBot
 	}
 	return IdentityApp
 }
@@ -255,27 +249,74 @@ func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte) (
 	return c.request(ctx, c.app, HelixCall{Method: method, Endpoint: endpoint, Body: body})
 }
 
-// userScopedPrefixes are Helix path prefixes that must run under the bot's USER
+// helixPrefix is the fixed root every Helix endpoint in this client carries.
+const helixPrefix = "/helix/"
+
+// userScopedRoutes are the Helix routes that must run under the bot's USER
 // token rather than the app token, because they read or act in a moderator/user
 // context the app token cannot satisfy. Cloud-bot chat sends are intentionally
 // absent: Twitch requires the app token for the Chat Bot badge.
-var userScopedPrefixes = []string{
-	"/helix/moderation/",        // moderated channels, bans, etc.
-	"/helix/chat/chatters",      // moderator:read:chatters
-	"/helix/channels/followers", // moderator:read:followers
+//
+// Keys are the route stripped of "/helix/", at the depth that decides the
+// token. The depths differ and that is load-bearing: every /helix/moderation/*
+// route is user-scoped, so "moderation" alone is the key, while under chat and
+// channels exactly one resource each is — keying those on the service alone
+// would route chat sends (/helix/chat/messages) to the user token and lose the
+// Chat Bot badge.
+//
+// This replaced a strings.HasPrefix scan over the three prefixes, which ran on
+// every Helix request and twice per request (sourceFor and ResolveIdentity
+// each did their own). One divergence is deliberate: prefix matching also
+// accepted a path that merely started with a key, e.g. "/helix/chat/chattersX",
+// which is not a Helix route.
+var userScopedRoutes = map[string]struct{}{
+	"moderation":         {}, // moderated channels, bans, etc.
+	"chat/chatters":      {}, // moderator:read:chatters
+	"channels/followers": {}, // moderator:read:followers
+}
+
+// isUserScoped reports whether a Helix endpoint needs the bot user token. It
+// tries the service key first, then service/resource, so both key depths above
+// resolve in at most two map lookups.
+func isUserScoped(endpoint string) bool {
+	service, resource, ok := helixRoute(endpoint)
+	if !ok {
+		return false
+	}
+	if _, found := userScopedRoutes[service]; found {
+		return true
+	}
+	_, found := userScopedRoutes[service+"/"+resource]
+	return found
+}
+
+// helixRoute cuts "/helix/<service>/<resource>..." (query string included) into
+// its first two path segments. ok is false when the path never reaches a second
+// segment: the old prefixes all carried the separator after <service>
+// ("/helix/moderation/"), so a bare "/helix/moderation" was never user-scoped
+// and must not become so now.
+func helixRoute(endpoint string) (service, resource string, ok bool) {
+	path := endpoint
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	rest, found := strings.CutPrefix(path, helixPrefix)
+	if !found {
+		return "", "", false
+	}
+	service, rest, found = strings.Cut(rest, "/")
+	if !found {
+		return "", "", false
+	}
+	resource, _, _ = strings.Cut(rest, "/")
+	return service, resource, true
 }
 
 // sourceFor picks the token an endpoint needs: the bot user token for the
 // moderator/user-scoped reads above, the app token for everything else.
 func (c *Client) sourceFor(endpoint string) *Source {
-	path := endpoint
-	if i := strings.IndexByte(path, '?'); i >= 0 {
-		path = path[:i]
-	}
-	for _, p := range userScopedPrefixes {
-		if strings.HasPrefix(path, p) {
-			return c.user
-		}
+	if isUserScoped(endpoint) {
+		return c.user
 	}
 	return c.app
 }

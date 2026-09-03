@@ -51,8 +51,17 @@ func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
 	return projection.User{}, nil
 }
 
-func (f *fakeProj) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
-	return f.modules, nil
+func (f *fakeProj) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
+	return projection.ModuleMap(f.modules), nil
+}
+
+func (f *fakeProj) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
+	views, err := f.Modules(ctx, id)
+	if err != nil {
+		return projection.ModuleView{}, false, err
+	}
+	view, ok := views[name]
+	return view, ok, nil
 }
 
 func (f *fakeProj) Command(_ context.Context, _ uint64, name string) (projection.Command, bool, error) {

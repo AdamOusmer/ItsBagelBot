@@ -218,18 +218,14 @@ func moduleLog(d engine.Deps) *zap.Logger {
 // on. A missing row (or a projection read error, or no projection at all) fails
 // open: a transient blip must not silently swallow the command.
 func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, moduleName string) bool {
-	if d.Proj == nil {
-		return true
-	}
-	views, err := d.Proj.Modules(ctx, broadcasterID)
+	// absent is ModuleOn because the built-ins ship enabled: a broadcaster who
+	// never touched the toggle has no row, and that must not read as "off".
+	_, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: moduleName, Absent: engine.ModuleOn}.Resolve(ctx)
 	if err != nil {
 		moduleLog(d).Warn(moduleName+": module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return true
 	}
-	for _, v := range views {
-		if v.Name == moduleName {
-			return v.IsEnabled
-		}
-	}
-	return true
+	// Fail open: only an explicit off suppresses the command. ModuleUnavailable
+	// (read error, or no projection wired at all) runs it, which is why this
+	// compares against ModuleOff rather than for ModuleOn.
+	return state != engine.ModuleOff
 }

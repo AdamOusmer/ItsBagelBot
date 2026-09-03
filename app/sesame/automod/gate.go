@@ -54,7 +54,7 @@ type styleLimits struct {
 // after New, the emote set, lexicon, baseline and link checker are swapped
 // atomically, and skeleton buffers come from a pool.
 type Gate struct {
-	cats     []category
+	cats     []category // indexed by moderation.FloorKind, see defaultCategories
 	buf      sync.Pool
 	emotes   atomic.Pointer[EmoteSet]
 	lexicon  atomic.Pointer[moderation.Lexicon]
@@ -458,20 +458,21 @@ func (g *Gate) cleanPathBail(sig signals, flags styleFlags, cfg *Config, text st
 // boundaries ("notgrabify.link" clean, "https://grabify.link/x" caught) and
 // scam bait only as adjacent whole tokens ("FREE,NITRO!!" caught, "free
 // nitrogen" clean), releasing the substring false positives the raw Contains
-// scan was timing people out for. The returned FloorKind.String() is exactly
-// the category name in defaultCategories, so verdicts keep their rule names.
+// scan was timing people out for. The returned FloorKind indexes g.cats
+// directly (see defaultCategories), so the verdict lookup is one array index -
+// it used to call kind.String() and walk the categories comparing names, which
+// is a linear scan plus a string compare per candidate on the deep path.
 // Enforced under every profile, never suppressed by allow.
 func (g *Gate) floorInfra(skel []byte) (Verdict, bool) {
 	kind, _ := moderation.MatchFloor(skel)
-	if kind == moderation.FloorNone {
-		return Verdict{}, false
+	if int(kind) >= len(g.cats) {
+		return Verdict{}, false // a kind this build has no verdict mapping for
 	}
-	for _, c := range g.cats {
-		if c.name == kind.String() {
-			return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, true
-		}
+	c := g.cats[kind]
+	if c.name == "" {
+		return Verdict{}, false // FloorNone's slot, or an unmapped kind
 	}
-	return Verdict{}, false
+	return Verdict{Action: c.action, Seconds: c.seconds, Rule: c.name}, true
 }
 
 // deepSignals gathers the council evidence for a deep-path line. The links
