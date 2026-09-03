@@ -142,9 +142,6 @@ spec:
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
       priorityClassName: bagel-data-plane
-      # The image is a private ghcr package like every service image.
-      imagePullSecrets:
-        - name: ghcr-pull
       containers:
         - name: nats
           # 2.14.6 (sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3)
@@ -152,12 +149,11 @@ spec:
           # (NATS_ATOMIC_ACK_FIRST on): publish-only admit 105k vs 106-123k
           # here, one shared R3 AckNone durable drained 56-66k vs 73k here.
           # No gain on either path, so the pin stays.
-          # Built from deploy/messaging/nats-server by publish-images: upstream
-          # 2.14.4 (pinned commit) plus the ingest patch set the NATS_BENCH_*
-          # block below switches on, PGO, x86-64-v3 on Intel, on the same
-          # alpine runtime image as before. Pinned by digest of the multi-arch
-          # manifest; the tag names the main build it came from.
-          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1788475277-1edecf2b9bd6@sha256:8743b3f8d007341d51956890a7bf5efb0b58cb51a322171b13a92d37001314f7
+          # Stock upstream, pinned by digest. A patched build lived here briefly
+          # (deploy/messaging/nats-server, removed in the same commit): it bought
+          # 87k -> 142k msg/s on one stream, but carrying a 17-file patch against
+          # a broker is a maintenance bill, so the fixes go upstream instead.
+          image: nats:2.14.6-alpine@sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3
 
 
           imagePullPolicy: IfNotPresent
@@ -176,73 +172,6 @@ spec:
             # path that is already lock-heavy. Pinning it to the limit measured
             # lower hub CPU and higher throughput at once. Keep equal to
             # resources.limits.cpu.
-            # NATS_BENCH_* switch on the ingest patch set built into the
-            # nats-server image under deploy/messaging/nats-server. Stock
-            # nats ignores them, so they are safe to carry while the image
-            # line still points at upstream. Measured on the production hubs
-            # on 2026-09-03 (one R3 stream, one shared AckNone durable, the
-            # production 32 MiB byte-cap retention, unpaced publishers):
-            # stock 110.6k msg/s admitted at e2e p50 2.1 s and stored->received
-            # 940 ms; with the image and this block, 141k msg/s at e2e p50
-            # 49 ms, p99 68 ms. The leader's ingest+apply pair stays serialized
-            # on the stream lock either way, these make each message cheaper:
-            #   TLS_COLLAPSE           one TLS record per flush instead of one per 512 B chunk
-            #   PROPOSE_COALESCE       consumer cursor proposals gathered for 200us
-            #   ACKNONE_PROPOSE_EVERY  AckNone durables replicate their cursor every 64 deliveries
-            #   DELIVER_BATCH          32 deliveries per consumer lock hold
-            #   SIGNAL_COALESCE        one consumer signal per applied batch
-            #   HDR_INDEX              parse the header block once per message (was ~30 scans)
-            #   EVICT_BATCH            byte-cap eviction as one head run per 64 appends, one callback
-            #   STAGE_ARENA            atomic batches stage into a slice, not a private memstore
-            #   RING_INDEX             sequence map replaced by a ring (no hashing, no rehash cliff)
-            # NATS_BENCH_HDR_CACHE must stay unset: measured 1.02x and +11
-            # allocations per message. NATS_BENCH_PREFETCH and
-            # NATS_BENCH_APPLY_UNLOCK_STORE measured losses; leave them off.
-            - name: NATS_BENCH_TLS_COLLAPSE
-              value: "1"
-            - name: NATS_BENCH_PROPOSE_COALESCE
-              value: 200us
-            - name: NATS_BENCH_ACKNONE_PROPOSE_EVERY
-              value: "64"
-            - name: NATS_BENCH_DELIVER_BATCH
-              value: "32"
-            - name: NATS_BENCH_SIGNAL_COALESCE
-              value: "1"
-            - name: NATS_BENCH_HDR_INDEX
-              value: "1"
-            - name: NATS_BENCH_EVICT_BATCH
-              value: "64"
-            - name: NATS_BENCH_STAGE_ARENA
-              value: "1"
-            - name: NATS_BENCH_RING_INDEX
-              value: "1"
-            # STORE_SLAB carves the memory store's two per-message allocations
-            # (the StoreMsg header and its payload buffer) out of small slabs.
-            # It applies only to streams that evict oldest-first, so slabs
-            # retire in the order they filled: a stream that also removes
-            # messages from the middle (a TTL or a schedule, which on this
-            # cluster means only the retry lane) would let one survivor pin a
-            # whole slab, 145x its own size at ~450 B per message. Those
-            # streams keep the plain allocation and trade ~3% (measured
-            # 146.4k -> 141.6k msg/s on the retry lane) for bounded memory;
-            # the high-volume ingress lanes have neither and keep the slabs:
-            # 3.3M objects per 15 s run at ~145k msg/s became two allocations
-            # per ~150 messages. Slabs are 64 KiB so a message pinned by a TTL
-            # or a schedule cannot hold much dead space, and a payload larger
-            # than a quarter slab still gets its own exact allocation.
-            # INTERN interns the subject and batch id the RAFT entry decode
-            # allocated for every applied message: a stream has a handful of
-            # subjects and one batch id per cohort, so ~2M string allocations
-            # per run became map lookups (capped at 4096 distinct strings,
-            # after which it just allocates). Owned by the apply goroutine.
-            # Both measured on the production hubs on 2026-09-03: production
-            # retention 141.3k -> 146.4k msg/s admitted at e2e p50 50 ms, and
-            # with no eviction 145.5k -> 151.9k; the leader's apply loop fell
-            # 5.76 -> 5.06 s per 10 s and its store work 3.19 -> 2.60 s.
-            - name: NATS_BENCH_STORE_SLAB
-              value: "1"
-            - name: NATS_BENCH_INTERN
-              value: "1"
             - name: GOMAXPROCS
               value: "5"
             # GOGC 400 (Go default 100) since 2026-09-01. The stream leader
