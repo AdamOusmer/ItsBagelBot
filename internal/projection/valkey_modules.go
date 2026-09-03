@@ -32,6 +32,7 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) er
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
+	configField := "module:" + mod.Name + ":config"
 
 	fields := v.client.B().Hset().
 		Key(key).
@@ -39,10 +40,23 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) er
 		FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
 
 	if len(mod.Configs) > 0 {
-		fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
+		fields = fields.FieldValue(configField, string(mod.Configs))
+		return v.pipelineWithTTL(ctx, key, DefaultTTL, fields.Build())
 	}
 
-	return v.pipelineWithTTL(ctx, key, DefaultTTL, fields.Build())
+	// An emptied config is data, not an absent field. Modules.Set accepts an
+	// empty config and publishes it in ModuleChangedDTO, so simply skipping
+	// the write left the PREVIOUS config in module:<name>:config and
+	// GetModules kept serving it forever — a module is the only section whose
+	// one logical row spans two hash fields, so it is the only one where an
+	// omitted write is not an overwrite. The HDEL rides the same pipeline as
+	// the HSET, so the enabled flag and the config still change in one round
+	// trip; a separate Do would let a reader observe the new flag beside the
+	// old config.
+	return v.pipelineWithTTL(ctx, key, DefaultTTL,
+		fields.Build(),
+		v.client.B().Hdel().Key(key).Field(configField).Build(),
+	)
 }
 
 // SetModules projects a complete module list and records that an empty list is

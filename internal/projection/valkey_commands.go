@@ -66,8 +66,13 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 
 	// The event carries only the new aliases, so retire the previous row's
 	// alias pointers (rename, reword, delete) first. That extra HGET is on the
-	// rare write path; the hot read path stays a single HGET.
-	cmds := v.retireStaleAliases(ctx, key, field)
+	// rare write path; the hot read path stays a single HGET. Its failure
+	// aborts the whole write: see retireStaleAliases for why a half-retired
+	// alias set can never be repaired.
+	cmds, err := v.retireStaleAliases(ctx, key, field)
+	if err != nil {
+		return err
+	}
 
 	if dto.Deleted {
 		cmds = append(cmds, v.client.B().Hdel().Key(key).Field(field).Build())
@@ -94,21 +99,35 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 // list, and the retired aliases stay resolvable forever. Unlike a stale cache
 // read this never converges, because nothing revisits the row. Only the reading
 // side is pinned; the rest of the Store keeps node-local reads.
-func (v *Store) retireStaleAliases(ctx context.Context, key, field string) []valkey.Completed {
+//
+// For the same reason the read error is returned rather than discarded. A
+// discarded error yields old == "", which is indistinguishable from "no
+// previous row": no HDEL is emitted, SetCommand commits the new body anyway,
+// and the removed aliases keep resolving through resolveAlias forever. The
+// error aborts the write instead, so the bus redelivers the event and the
+// retirement is recomputed. A Valkey nil stays non-fatal: an absent field is a
+// genuine first write, not a failure.
+func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]valkey.Completed, error) {
 	cmds := make([]valkey.Completed, 0, 4)
-	old, _ := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(field).Build()).ToString()
+	old, err := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(field).Build()).ToString()
+	if err != nil {
+		if valkey.IsValkeyNil(err) {
+			return cmds, nil
+		}
+		return nil, err
+	}
 	if old == "" {
-		return cmds
+		return cmds, nil
 	}
 	var prev CommandView
 	if codec.Unmarshal([]byte(old), &prev) != nil || len(prev.Aliases) == 0 {
-		return cmds
+		return cmds, nil
 	}
 	stale := make([]string, 0, len(prev.Aliases))
 	for _, a := range prev.Aliases {
 		stale = append(stale, aliasFieldPrefix+strings.ToLower(a))
 	}
-	return append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build())
+	return append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build()), nil
 }
 
 // commandSetCommand builds the HSET writing the command body plus its alias

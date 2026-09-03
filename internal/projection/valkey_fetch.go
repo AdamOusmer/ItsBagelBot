@@ -25,6 +25,20 @@ import (
 // HGET rather than a whole-hash HGETALL (the commandFieldPrefix precedent).
 const fetchFieldPrefix = "fetch:"
 
+// fetchesMarkerField is the fetch section's completeness marker, deliberately
+// PLURAL so it does not share fetchFieldPrefix. $(urlfetch) names are
+// user-supplied, so with the marker at fetch:projected a user naming a
+// definition "projected" made SetFetch write that definition's JSON over the
+// marker; markerProjected accepts only "1", so the section then read as never
+// projected and every GetFetch fell through to the projector RPC for good.
+// commands:projected and modules:projected already keep a plural marker prefix
+// distinct from their singular command:/module: row prefixes — this follows
+// that convention rather than inventing one. Rejected: rejecting "projected"
+// as a definition name, which pushes a Valkey field-layout detail into
+// user-facing validation and would still break every name a future marker
+// takes.
+const fetchesMarkerField = "fetches:projected"
+
 // FetchView is the projected view of one $(urlfetch) definition, stored as
 // the JSON body of the fetch:<name> hash field. Field set and json tags match
 // internal/domain/rpc/fetchkey.FetchView exactly (the CommandView/contract
@@ -43,7 +57,7 @@ type FetchView struct {
 // SetCommand minus alias pointers: definitions have no aliases. A Deleted
 // event (rename or delete; rows hard-delete) retires the fetch:<name> field
 // via the same HDEL path. Like every per-row setter it deliberately does NOT
-// set the fetch:projected marker — only the full-section write may declare
+// set the fetches:projected marker — only the full-section write may declare
 // completeness.
 func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
 	defer segment(ctx, "HSET")()
@@ -98,7 +112,7 @@ func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []
 		}
 		rows = append(rows, [2]string{fetchFieldPrefix + strings.ToLower(f.Name), string(body)})
 	}
-	return v.replaceSection(ctx, userID, sectionWrite{prefix: fetchFieldPrefix, marker: "fetch:projected", ttl: ttl, rows: rows})
+	return v.replaceSection(ctx, userID, sectionWrite{prefix: fetchFieldPrefix, marker: fetchesMarkerField, ttl: ttl, rows: rows})
 }
 
 // GetFetch reads one definition by name in a single round trip. found reports
@@ -113,7 +127,7 @@ func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view 
 
 	res := v.client.DoMulti(ctx,
 		v.client.B().Hget().Key(key).Field(fetchFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field("fetch:projected").Build(),
+		v.client.B().Hget().Key(key).Field(fetchesMarkerField).Build(),
 	)
 
 	projected, err = markerProjected(res[1])
@@ -129,21 +143,24 @@ func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view 
 }
 
 // fetchRowName extracts the definition name from a hash field: "" for
-// anything that is not a fetch row (other sections, or the projected marker,
-// which shares the prefix).
+// anything that is not a fetch row. Every fetch:<name> field is now a row:
+// the section marker moved out of this prefix (see fetchesMarkerField), so the
+// guard that used to drop name == "projected" is gone with it. Keeping it
+// would have made a definition a user legitimately named "projected"
+// permanently invisible in GetFetches — the same bug moved one field over.
+// Hashes written before the rename still carry fetch:projected = "1"; "1" is
+// not a FetchView, so GetFetches' unmarshal skips it like any other corrupt
+// row, and the next full-section write clears it with the rest of the prefix.
 func fetchRowName(field string) string {
 	name, ok := strings.CutPrefix(field, fetchFieldPrefix)
 	if !ok {
-		return ""
-	}
-	if name == "projected" {
 		return ""
 	}
 	return name
 }
 
 // GetFetches reads the complete projected definition list of one user,
-// mirroring GetCommands: the fetch:projected marker alone decides whether a
+// mirroring GetCommands: the fetches:projected marker alone decides whether a
 // missing row means "none" or "not yet hydrated".
 func (v *Store) GetFetches(ctx context.Context, userID uint64) ([]FetchView, bool, error) {
 	defer segment(ctx, "HGETALL")()
@@ -154,7 +171,7 @@ func (v *Store) GetFetches(ctx context.Context, userID uint64) ([]FetchView, boo
 		return nil, false, err
 	}
 
-	projected := fields["fetch:projected"] == "1"
+	projected := fields[fetchesMarkerField] == "1"
 	out := make([]FetchView, 0)
 	for field, value := range fields {
 		if fetchRowName(field) == "" {

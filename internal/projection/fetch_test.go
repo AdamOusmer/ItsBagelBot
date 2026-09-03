@@ -96,7 +96,7 @@ func TestSetFetchesReplacesSectionAndMarksProjected(t *testing.T) {
 	require.NotContains(t, h, "fetch:old", "section replace clears stale rows")
 	assert.NotEmpty(t, h["fetch:a"])
 	assert.NotEmpty(t, h["fetch:b"])
-	assert.Equal(t, "1", h["fetch:projected"])
+	assert.Equal(t, "1", h[fetchesMarkerField])
 	assert.Equal(t, "paid", h["status"], "clear touches only prefixed fields")
 
 	fetches, projected, err := store.GetFetches(ctx, 44)
@@ -137,6 +137,63 @@ func TestGetFetchUnprojectedVsMissing(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "https://x.example", view.URL)
+}
+
+// $(urlfetch) names are user-supplied, so a definition named "projected"
+// must not be able to overwrite the section's completeness marker, and must
+// itself stay readable as an ordinary row.
+func TestFetchNamedProjectedCollidesWithNothing(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+	key := "settings:47"
+
+	require.NoError(t, store.SetFetches(ctx, 47, []FetchView{{Name: "real", URL: "https://x.example"}}))
+	require.NoError(t, store.SetFetch(ctx, fetchDTO(47, "Projected", false)))
+
+	assert.Equal(t, "1", f.hash(key)[fetchesMarkerField], "the marker survives a row of the same name")
+
+	_, _, projected, err := store.GetFetch(ctx, 47, "real")
+	require.NoError(t, err)
+	assert.True(t, projected, "the section stays projected, so reads never fall through to the RPC")
+
+	view, found, projected, err := store.GetFetch(ctx, 47, "projected")
+	require.NoError(t, err)
+	require.True(t, found, "a definition named projected is an ordinary row")
+	assert.True(t, projected)
+	assert.Equal(t, "https://api.example.com/v1?city=berlin", view.URL)
+
+	fetches, projected, err := store.GetFetches(ctx, 47)
+	require.NoError(t, err)
+	assert.True(t, projected)
+	names := map[string]bool{}
+	for _, f2 := range fetches {
+		names[f2.Name] = true
+	}
+	assert.Equal(t, map[string]bool{"real": true, "projected": true}, names, "the row is visible in the list too")
+}
+
+// Hashes written before the marker rename carry fetch:projected = "1". It is
+// not a FetchView, so the list read skips it like any corrupt row instead of
+// emitting a junk definition, and the section correctly reads as unprojected
+// until a full-section write clears the prefix and lays down the new marker.
+func TestLegacyFetchProjectedFieldDecaysHarmlessly(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+	key := "settings:48"
+
+	f.seed(key, fakeField{field: "fetch:projected", value: "1"})
+	f.seed(key, fakeField{field: "fetch:wx", value: `{"name":"wx","url":"https://wx.example"}`})
+
+	fetches, projected, err := store.GetFetches(ctx, 48)
+	require.NoError(t, err)
+	assert.False(t, projected, "the old marker no longer declares completeness")
+	require.Len(t, fetches, 1)
+	assert.Equal(t, "wx", fetches[0].Name)
+
+	require.NoError(t, store.SetFetches(ctx, 48, []FetchView{{Name: "wx", URL: "https://wx.example"}}))
+	h := f.hash(key)
+	assert.NotContains(t, h, "fetch:projected", "the full-section write sweeps the legacy field")
+	assert.Equal(t, "1", h[fetchesMarkerField])
 }
 
 func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
