@@ -142,6 +142,9 @@ spec:
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
       priorityClassName: bagel-data-plane
+      # The image is a private ghcr package like every service image.
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: nats
           # 2.14.6 (sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3)
@@ -149,11 +152,12 @@ spec:
           # (NATS_ATOMIC_ACK_FIRST on): publish-only admit 105k vs 106-123k
           # here, one shared R3 AckNone durable drained 56-66k vs 73k here.
           # No gain on either path, so the pin stays.
-          # Next pin: ghcr.io/adamousmer/itsbagelbot/nats-server (built from
-          # deploy/messaging/nats-server by publish-images) by digest, once
-          # CI has published its first build; the NATS_BENCH_* block below is
-          # already in place for it.
-          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
+          # Built from deploy/messaging/nats-server by publish-images: upstream
+          # 2.14.4 (pinned commit) plus the ingest patch set the NATS_BENCH_*
+          # block below switches on, PGO, x86-64-v3 on Intel, on the same
+          # alpine runtime image as before. Pinned by digest of the multi-arch
+          # manifest; the tag names the main build it came from.
+          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1788441027-0ccd411ad3ed@sha256:e815c858006603e89811f44445e408a9a38ff53818eab9af50926de6c717e0bf
 
 
           imagePullPolicy: IfNotPresent
