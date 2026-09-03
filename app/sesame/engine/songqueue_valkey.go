@@ -149,8 +149,19 @@ func NewValkeySongQueueStore(client valkey.Client, ttl time.Duration, log *zap.L
 	return &ValkeySongQueueStore{client: pkg_valkey.Primary(client), ttl: ttl, log: log}
 }
 
-func songQueueDocKey(id uint64) string {
-	return songQueueDocPrefix + strconv.FormatUint(id, 10)
+// docKey and rawDoc are the two strings the CAS loop threads together: the
+// key a channel's document lives under and the serialized payload stored
+// there. They sit side by side as adjacent fields of docState and as adjacent
+// arguments to the Lua script, where swapping them is silent and ruinous (the
+// CAS would compare the stored document against its own key and overwrite a
+// live queue on every attempt). Distinct types make that swap a compile error.
+type (
+	docKey string
+	rawDoc string // "" denotes an absent document, which the CAS script matches on
+)
+
+func songQueueDocKey(id uint64) docKey {
+	return docKey(songQueueDocPrefix + strconv.FormatUint(id, 10))
 }
 
 // docState is one read of a channel's document: the raw payload the next
@@ -159,13 +170,13 @@ func songQueueDocKey(id uint64) string {
 // commit referring to ONE snapshot instead of threading key/raw/decoded as
 // loose primitives through every hop of the retry loop.
 type docState struct {
-	key string
-	raw string
+	key docKey
+	raw rawDoc
 	doc songQueueDoc
 }
 
-func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key string) (string, error) {
-	resp := s.client.Do(ctx, s.client.B().Get().Key(key).Build())
+func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key docKey) (rawDoc, error) {
+	resp := s.client.Do(ctx, s.client.B().Get().Key(string(key)).Build())
 	b, err := resp.AsBytes()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
@@ -173,16 +184,16 @@ func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key string) (string,
 		}
 		return "", err
 	}
-	return string(b), nil
+	return rawDoc(b), nil
 }
 
-func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc string) (bool, error) {
+func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc rawDoc) (bool, error) {
 	n, err := s.client.Do(ctx, s.client.B().Eval().
 		Script(casScript).
 		Numkeys(1).
-		Key(st.key).
-		Arg(st.raw).
-		Arg(newDoc).
+		Key(string(st.key)).
+		Arg(string(st.raw)).
+		Arg(string(newDoc)).
 		Arg(strconv.FormatInt(int64(s.ttl.Seconds()), 10)).
 		Build()).AsInt64()
 	if err != nil {
@@ -246,7 +257,7 @@ func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, e
 	if err != nil {
 		return false, err
 	}
-	newDoc := string(newB)
+	newDoc := rawDoc(newB)
 	if newDoc == st.raw {
 		return true, nil
 	}
@@ -256,10 +267,10 @@ func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, e
 func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, limits SongQueueLimits) (int, error) {
 	var pos int
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		if limits.PerRequester > 0 && atRequesterQuota(d.Up, entry.RequesterID, limits.PerRequester) {
+		if limits.requesterAtQuota(d.Up, entry.RequesterID) {
 			return ErrSongQuotaReached
 		}
-		if limits.MaxDepth > 0 && len(d.Up) >= limits.MaxDepth {
+		if limits.queueFull(d.Up) {
 			return ErrSongQueueFull
 		}
 		entry.EnqueuedAt = time.Now().UnixMilli()
@@ -270,28 +281,42 @@ func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, en
 	return pos, err
 }
 
-// atRequesterQuota reports whether requesterID already holds limit entries in
-// up. It stops at the limit instead of tallying the whole queue: only the "at
-// or over" answer is observable, so a MaxDepth-deep queue costs the walk up to
-// the requester's limit-th entry rather than the full length. The exact count
-// was never used, only compared.
+// requesterAtQuota reports whether requesterID already holds l.PerRequester
+// entries in up. It stops at the cap instead of tallying the whole queue: only
+// the "at or over" answer is observable, so a MaxDepth-deep queue costs the
+// walk up to the requester's cap-th entry rather than the full length. The
+// exact count was never used, only compared.
 //
-// Deliberately still ahead of the O(1) MaxDepth check even though hoisting
-// depth would skip this walk entirely on a full queue: a requester who is BOTH
-// at quota and facing a full queue must keep hearing the quota message, which
-// is the copy songqueue.go and songqueue_redeem.go branch on.
-func atRequesterQuota(up []SongEntry, requesterID string, limit int) bool {
+// Both caps hang off SongQueueLimits rather than passing the number as a bare
+// int, for the reason the type exists at all: MaxDepth and PerRequester are
+// both plain ints, and a helper taking one of them positionally puts them one
+// mistyped call site apart again. As methods the 0-means-unlimited rule also
+// lives with the fields that define it instead of being respelled in Add.
+//
+// The quota walk is deliberately still ahead of the O(1) queueFull check even
+// though hoisting depth would skip it entirely on a full queue: a requester
+// who is BOTH at quota and facing a full queue must keep hearing the quota
+// message, which is the copy songqueue.go and songqueue_redeem.go branch on.
+func (l SongQueueLimits) requesterAtQuota(up []SongEntry, requesterID string) bool {
+	if l.PerRequester <= 0 {
+		return false
+	}
 	mine := 0
 	for i := range up {
 		if up[i].RequesterID != requesterID {
 			continue
 		}
 		mine++
-		if mine >= limit {
+		if mine >= l.PerRequester {
 			return true
 		}
 	}
 	return false
+}
+
+// queueFull reports whether the line has reached the channel-wide depth cap.
+func (l SongQueueLimits) queueFull(up []SongEntry) bool {
+	return l.MaxDepth > 0 && len(up) >= l.MaxDepth
 }
 
 // RetractOwn keeps its scan-then-shift shape on purpose. Fusing the backward

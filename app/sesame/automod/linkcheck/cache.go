@@ -193,9 +193,25 @@ func (c *cache) dropExpired(now int64) {
 func (c *cache) earliestHead() *entry {
 	var best *entry
 	for _, e := range c.head {
-		if e != nil && (best == nil || e.exp < best.exp) {
-			best = e
-		}
+		best = earlier(best, e)
+	}
+	return best
+}
+
+// earlier folds two candidate heads into the one that lapses first, treating
+// nil as "no candidate". Split out of earliestHead's loop so the nil-vs-nil and
+// the expiry comparison are separate one-clause tests instead of one conditional
+// mixing both: the folded form reads the same and costs the same, and the
+// combined test was the kind of clause pile-up that reviews keep catching.
+func earlier(best, e *entry) *entry {
+	if e == nil {
+		return best
+	}
+	if best == nil {
+		return e
+	}
+	if e.exp < best.exp {
+		return e
 	}
 	return best
 }

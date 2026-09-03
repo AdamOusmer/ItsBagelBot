@@ -20,6 +20,11 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
+// fetchFieldPrefix holds the fetch definition JSON keyed by its lower-cased
+// name, addressable individually so resolving one definition is a single
+// HGET rather than a whole-hash HGETALL (the commandFieldPrefix precedent).
+const fetchFieldPrefix = "fetch:"
+
 // FetchView is the projected view of one $(urlfetch) definition, stored as
 // the JSON body of the fetch:<name> hash field. Field set and json tags match
 // internal/domain/rpc/fetchkey.FetchView exactly (the CommandView/contract

@@ -121,23 +121,19 @@ type clipConfig struct {
 // chat path. On a projection error it fails open (enabled, no template): a
 // transient read blip must not silently swallow a viewer's clip.
 func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log *zap.Logger) (enabled bool, reply string) {
-	if d.Proj == nil {
-		return true, ""
-	}
-	// Keyed read: Module indexes the cached by-name map instead of walking the
-	// broadcaster's whole module set for the one row this command needs.
-	view, ok, err := d.Proj.Module(ctx, broadcasterID, clipModuleName)
+	// absent is ModuleOn because the built-in ships enabled; ModuleUnavailable
+	// (read error, or no projection wired) also runs, hence the comparison
+	// against ModuleOff rather than for ModuleOn. Both of those states carry a
+	// zero view, so the template below comes out empty on its own and needs no
+	// second branch.
+	view, state, err := engine.ModuleGate(ctx, d.Proj, broadcasterID, clipModuleName, engine.ModuleOn)
 	if err != nil {
 		log.Warn("clip: module state read failed, allowing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return true, ""
-	}
-	if !ok {
-		return true, ""
 	}
 	var cfg clipConfig
 	if len(view.Configs) > 0 {
 		_ = codec.Unmarshal(view.Configs, &cfg)
 	}
-	return view.IsEnabled, strings.TrimSpace(cfg.Reply)
+	return state != engine.ModuleOff, strings.TrimSpace(cfg.Reply)
 }

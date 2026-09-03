@@ -334,14 +334,21 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 // config resolves the broadcaster's "timers" ModuleView, reporting false when
 // the module is missing, disabled, unconfigured, or the read failed.
 func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (timersConfig, bool) {
-	// Keyed read: Module indexes the cached by-name map instead of scanning the
-	// whole set for the one row the timer clock needs on every tick.
-	view, ok, err := s.proj.Module(ctx, broadcasterID, timersModuleName)
+	// Fails closed on everything but an enabled row: a missing row means no
+	// timers were ever configured (absent -> ModuleOff), and a read failure
+	// must not arm or fire anything, because a timer fired off a config we
+	// could not read posts the wrong message into chat.
+	view, state, err := ModuleGate(ctx, s.proj, broadcasterID, timersModuleName, ModuleOff)
 	if err != nil {
 		s.log.Warn("timers: failed to read module views", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+	if state != ModuleOn {
 		return timersConfig{}, false
 	}
-	if !ok || !view.IsEnabled || len(view.Configs) == 0 {
+	// An enabled module with an empty blob is "on but unconfigured": there is
+	// nothing to arm, and it is kept distinct from a bad blob so it does not
+	// log a warning on every tick of a freshly toggled-on module.
+	if len(view.Configs) == 0 {
 		return timersConfig{}, false
 	}
 	var cfg timersConfig

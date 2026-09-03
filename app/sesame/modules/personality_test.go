@@ -389,3 +389,52 @@ func TestFeedCommandsSilentWithoutStore(t *testing.T) {
 		assert.Empty(t, col.out, name)
 	}
 }
+
+// --- the derived gate ---
+
+// TestPersonalityGateCoversEveryTablePhrase pins the derivation rather than
+// the three terms it currently produces: the gate exists so that adding a
+// reaction row cannot leave that row unreachable, and only a walk of the table
+// itself can catch a row the greedy cover missed. "good bot" and "bad bot" are
+// the rows that make this more than a formality — they name no bagel, so a
+// hand-written bagel-only gate would silently kill them.
+func TestPersonalityGateCoversEveryTablePhrase(t *testing.T) {
+	for _, r := range personalityReactions {
+		for _, p := range r.phrases {
+			assert.True(t, personalityGate.screens(p), "%s row: %q outside the gate", r.name, p)
+		}
+	}
+
+	pinPersonalityRand(t)
+	h := personalityHandler(t, engine.Deps{})
+	for text, want := range map[string]string{
+		"good bot": personalityGoodPack[0],
+		"bad bot":  personalityBadPack[0],
+	} {
+		var col collector
+		require.NoError(t, h(context.Background(), personalityCtx(text), col.emit))
+		require.Len(t, col.out, 1, text)
+		assert.Equal(t, expandFor(want), col.out[0].Text, text)
+	}
+
+	// The other half of the screen: a line holding no gate term never reaches
+	// the table, which is the whole point of running it first.
+	assert.False(t, personalityGate.screens("nice weather for a croissant"))
+	_, ok := matchReaction("nice weather for a croissant")
+	assert.False(t, ok)
+}
+
+// TestPersonalityFirstMatchWinsThroughGate keeps the gate a screen and not a
+// reorder. The line is the exact counterexample recorded on
+// personalityReactions: an automaton reporting the earliest-ENDING pattern
+// would answer praise here, where the table answers goodnight because gn sits
+// above good.
+func TestPersonalityFirstMatchWinsThroughGate(t *testing.T) {
+	r, ok := matchReaction("good bagel, gn bagel")
+	require.True(t, ok)
+	assert.Equal(t, "gn", r.name)
+
+	r, ok = matchReaction("good bagel")
+	require.True(t, ok)
+	assert.Equal(t, "good", r.name)
+}
