@@ -22,6 +22,7 @@ type fakeREST struct {
 	deleted  []string
 	roles    []string
 	replies  []string
+	buttons  []string
 	commands int
 	kick     int
 	ban      int
@@ -38,8 +39,11 @@ func (f *fakeREST) SendEmbed(_ context.Context, post discordapi.EmbedPost) (disc
 	f.embeds = append(f.embeds, post.Embed.Title+"|"+post.Embed.Description)
 	return discordapi.Message{ChannelID: post.ChannelID, ID: "msg-1"}, nil
 }
-func (f *fakeREST) SendPanel(_ context.Context, post discordapi.EmbedPost, _ []discordapi.Button) (discordapi.Message, error) {
+func (f *fakeREST) SendPanel(_ context.Context, post discordapi.EmbedPost, buttons []discordapi.Button) (discordapi.Message, error) {
 	f.embeds = append(f.embeds, post.Embed.Title)
+	for _, btn := range buttons {
+		f.buttons = append(f.buttons, btn.CustomID)
+	}
 	return discordapi.Message{ChannelID: post.ChannelID, ID: "panel-1"}, nil
 }
 func (f *fakeREST) CreateChannel(_ context.Context, ch discordapi.GuildChannel) (discordapi.Snowflake, error) {
@@ -74,7 +78,12 @@ func (f *fakeREST) ListMessages(_ context.Context, _ discordapi.MessageQuery) ([
 	return f.listed, nil
 }
 func (f *fakeREST) InteractionCallback(_ context.Context, cb discordapi.Callback) error {
-	f.replies = append(f.replies, cb.Content)
+	if cb.Content != "" {
+		f.replies = append(f.replies, cb.Content)
+	}
+	for _, e := range cb.Embeds {
+		f.replies = append(f.replies, e.Description)
+	}
 	return nil
 }
 func (f *fakeREST) BulkOverwriteCommands(context.Context, discordapi.CommandCatalog) error {
@@ -193,6 +202,9 @@ func TestJoinToCreateVoice(t *testing.T) {
 	if len(rest.moved) != 1 {
 		t.Fatalf("move = %v", rest.moved)
 	}
+	if len(rest.buttons) < 2 {
+		t.Fatalf("voice room buttons = %v", rest.buttons)
+	}
 }
 
 func TestTicketOpenAndClose(t *testing.T) {
@@ -201,7 +213,7 @@ func TestTicketOpenAndClose(t *testing.T) {
 	})
 	open := map[string]any{
 		"id": "i1", "token": "tok", "guild_id": "g1", "channel_id": "support",
-		"data":   map[string]any{"custom_id": customTicketOpen},
+		"data":   map[string]any{"custom_id": discordapi.CustomTicketOpen},
 		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"},
 	}
 	if err := dispatch(t, bot, "INTERACTION_CREATE", open); err != nil {
@@ -210,9 +222,12 @@ func TestTicketOpenAndClose(t *testing.T) {
 	if len(rest.channels) != 1 {
 		t.Fatalf("ticket channel = %v", rest.channels)
 	}
+	if !containsID(rest.buttons, discordapi.CustomTicketClose) {
+		t.Fatalf("opened ticket missing close button: %v", rest.buttons)
+	}
 	closeEv := map[string]any{
 		"id": "i2", "token": "tok", "guild_id": "g1", "channel_id": rest.channels[0],
-		"data":   map[string]any{"name": "ticket", "options": []any{map[string]any{"name": "close", "type": 1}}},
+		"data":   map[string]any{"custom_id": discordapi.CustomTicketClose},
 		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"},
 	}
 	if err := dispatch(t, bot, "INTERACTION_CREATE", closeEv); err != nil {
@@ -281,8 +296,8 @@ func TestLevelUpOnChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rest.messages) != 1 {
-		t.Fatalf("level-up messages = %v", rest.messages)
+	if len(rest.embeds) != 1 {
+		t.Fatalf("level-up embeds = %v", rest.embeds)
 	}
 }
 
@@ -311,4 +326,52 @@ func TestReadyRegistersSlash(t *testing.T) {
 	if rest.commands != 1 {
 		t.Fatalf("commands registered = %d", rest.commands)
 	}
+}
+
+func TestTicketDeskPostedOnce(t *testing.T) {
+	bot, rest, _ := testBot(ddiscord.Config{
+		GuildID: "g1", TicketsEnabled: "", TicketChannelID: "support", WelcomeEnabled: "off",
+	})
+	_ = dispatch(t, bot, "GUILD_MEMBER_ADD", memberPayload("g1"))
+	_ = dispatch(t, bot, "GUILD_MEMBER_ADD", memberPayload("g1"))
+	n := 0
+	for _, e := range rest.embeds {
+		if e == "Need help?" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("desk posts = %d embeds=%v", n, rest.embeds)
+	}
+	if !containsID(rest.buttons, discordapi.CustomTicketOpen) {
+		t.Fatalf("desk buttons = %v", rest.buttons)
+	}
+}
+
+func TestVoiceLockButton(t *testing.T) {
+	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub", VoiceEnabled: ""})
+	_ = dispatch(t, bot, "VOICE_STATE_UPDATE", map[string]any{
+		"guild_id": "g1", "channel_id": "hub", "user_id": "u1",
+		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
+	})
+	lock := map[string]any{
+		"id": "i1", "token": "tok", "guild_id": "g1", "channel_id": rest.channels[0],
+		"data":   map[string]any{"custom_id": discordapi.CustomVoiceLock},
+		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"},
+	}
+	if err := dispatch(t, bot, "INTERACTION_CREATE", lock); err != nil {
+		t.Fatal(err)
+	}
+	if !containsID(rest.replies, "Locked.") {
+		t.Fatalf("lock reply = %v", rest.replies)
+	}
+}
+
+func containsID(ids []string, want string) bool {
+	for _, id := range ids {
+		if id == want {
+			return true
+		}
+	}
+	return false
 }

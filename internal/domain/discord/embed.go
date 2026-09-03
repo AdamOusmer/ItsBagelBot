@@ -108,7 +108,104 @@ func GoodbyeContent(display string) string {
 func TicketPanelEmbed() Embed {
 	return Embed{
 		Title:       "Need help?",
-		Description: "Open a private ticket. Mods will see it.",
+		Description: "Open a private ticket with the button. Mods will see it.",
+		Color:       LiveColor,
+		Footer:      &EmbedFooter{Text: "Bagel tickets"},
+	}
+}
+
+// TicketOpened is the card posted into a newly created ticket channel.
+type TicketOpened struct {
+	Opener string
+}
+
+// TicketOpenedEmbed greets the opener and points at the Close button.
+func TicketOpenedEmbed(in TicketOpened) Embed {
+	who := in.Opener
+	if who == "" {
+		who = "Someone"
+	}
+	return Embed{
+		Title:       "Ticket",
+		Description: who + " opened this ticket. Mods will reply here.",
+		Color:       LiveColor,
+		Footer:      &EmbedFooter{Text: "Close with the button when you are done."},
+	}
+}
+
+// VoiceRoom is the control card posted into a join-to-create clone.
+type VoiceRoom struct {
+	Owner string
+}
+
+// VoiceRoomEmbed sits in the clone's chat with Lock and Unlock buttons.
+func VoiceRoomEmbed(in VoiceRoom) Embed {
+	who := in.Owner
+	if who == "" {
+		who = "Voice"
+	}
+	return Embed{
+		Title:       who + "'s room",
+		Description: "Lock or unlock this channel with the buttons.",
+		Color:       LiveColor,
+	}
+}
+
+// RankCard is one crumb rank embed.
+type RankCard struct {
+	Who   string
+	Level int
+	XP    int
+}
+
+// RankEmbed is the public rank card. Callers attach Claim daily when it is
+// the caller's own rank.
+func RankEmbed(card RankCard) Embed {
+	who := card.Who
+	if who == "" {
+		who = "This member"
+	}
+	return Embed{
+		Title:       "Rank",
+		Description: who + " is level " + itoa(card.Level) + ".",
+		Color:       LiveColor,
+		Fields:      []EmbedField{{Name: "Crumbs", Value: itoa(card.XP), Inline: true}},
+	}
+}
+
+// DailyCard is the daily-claim result.
+type DailyCard struct {
+	XP    int
+	Fresh bool
+}
+
+// DailyEmbed is the daily crumbs card.
+func DailyEmbed(card DailyCard) Embed {
+	if !card.Fresh {
+		return Embed{Title: "Daily crumbs", Description: "Already claimed today.", Color: LiveColor}
+	}
+	return Embed{
+		Title:       "Daily crumbs",
+		Description: "Claimed. You have " + itoa(card.XP) + " crumbs.",
+		Color:       LiveColor,
+	}
+}
+
+// LevelUp is a chat level-up card.
+type LevelUp struct {
+	Who   string
+	Level int
+}
+
+// LevelUpEmbed celebrates a crumb level.
+func LevelUpEmbed(in LevelUp) Embed {
+	who := in.Who
+	if who == "" {
+		who = "Someone"
+	}
+	return Embed{
+		Title:       "Level up",
+		Description: who + " reached level " + itoa(in.Level) + ".",
 		Color:       LiveColor,
 	}
 }

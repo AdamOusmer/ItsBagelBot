@@ -25,9 +25,25 @@ func (b *Bot) onInteraction(ctx context.Context, raw []byte) error {
 		return nil
 	}
 	if in.Data.CustomID != "" {
-		return b.onTicketButton(ctx, cfg, in)
+		return b.onButton(ctx, cfg, in)
 	}
 	return b.slash(ctx, cfg, in)
+}
+
+func (b *Bot) onButton(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
+	h, ok := buttonCmds[in.Data.CustomID]
+	if !ok {
+		return nil
+	}
+	return h(b, ctx, cfg, in)
+}
+
+var buttonCmds = map[string]slashFn{
+	discordapi.CustomTicketOpen:  (*Bot).openTicket,
+	discordapi.CustomTicketClose: (*Bot).ticketCloseSlash,
+	discordapi.CustomVoiceLock:   (*Bot).voiceLockButton,
+	discordapi.CustomVoiceUnlock: (*Bot).voiceUnlockButton,
+	discordapi.CustomDailyClaim:  (*Bot).daily,
 }
 
 func (b *Bot) slash(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
@@ -165,10 +181,7 @@ func (b *Bot) daily(ctx context.Context, cfg ddiscord.Config, in interactionEven
 		return b.reply(ctx, in, "Levels are off.")
 	}
 	ok, xp := b.Store.ClaimDaily(ctx, store.Member{GuildID: in.GuildID, UserID: in.Member.User.ID})
-	if !ok {
-		return b.reply(ctx, in, "Already claimed today.")
-	}
-	return b.reply(ctx, in, "Daily claimed. You have "+strconv.Itoa(xp)+" crumbs.")
+	return b.replyEmbed(ctx, in, ddiscord.DailyEmbed(ddiscord.DailyCard{XP: xp, Fresh: ok}), nil)
 }
 
 func (b *Bot) rank(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
@@ -180,7 +193,14 @@ func (b *Bot) rank(ctx context.Context, cfg ddiscord.Config, in interactionEvent
 		userID = in.Member.User.ID
 	}
 	xp, level := b.Store.Rank(ctx, store.Member{GuildID: in.GuildID, UserID: userID})
-	return b.reply(ctx, in, mention(userRef{ID: userID})+" is level "+strconv.Itoa(level)+" ("+strconv.Itoa(xp)+" crumbs).")
+	card := ddiscord.RankEmbed(ddiscord.RankCard{
+		Who: mention(userRef{ID: userID}), Level: level, XP: xp,
+	})
+	buttons := []discordapi.Button{}
+	if userID == in.Member.User.ID {
+		buttons = discordapi.DailyClaimButtons()
+	}
+	return b.replyEmbed(ctx, in, card, buttons)
 }
 
 func (b *Bot) reply(ctx context.Context, in interactionEvent, content string) error {
@@ -188,6 +208,16 @@ func (b *Bot) reply(ctx context.Context, in interactionEvent, content string) er
 		Interaction: discordapi.Interaction{ID: in.ID, Token: in.Token},
 		Type:        4,
 		Content:     content,
+		Ephemeral:   true,
+	})
+}
+
+func (b *Bot) replyEmbed(ctx context.Context, in interactionEvent, embed ddiscord.Embed, buttons []discordapi.Button) error {
+	return b.REST.InteractionCallback(ctx, discordapi.Callback{
+		Interaction: discordapi.Interaction{ID: in.ID, Token: in.Token},
+		Type:        4,
+		Embeds:      []ddiscord.Embed{embed},
+		Buttons:     buttons,
 	})
 }
 

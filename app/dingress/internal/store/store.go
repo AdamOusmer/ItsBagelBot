@@ -61,6 +61,8 @@ type Store interface {
 	TrackTicket(ctx context.Context, t Ticket) error
 	Ticket(ctx context.Context, ch Channel) (Ticket, bool)
 	ForgetTicket(ctx context.Context, ch Channel) error
+	ClaimDesk(ctx context.Context, g Guild) bool
+	RememberDesk(ctx context.Context, g Guild) error
 	AddXP(ctx context.Context, m Member) (xp int, leveled bool, level int)
 	ClaimDaily(ctx context.Context, m Member) (ok bool, xp int)
 	Rank(ctx context.Context, m Member) (xp, level int)
@@ -86,6 +88,8 @@ func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
 func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
 
 func ticketKey(ch Channel) string { return "discord:ticket:" + ch.ID }
+
+func deskKey(g Guild) string { return "discord:ticketdesk:" + g.ID }
 
 func xpKey(m Member) string { return "discord:xp:" + m.key() }
 
@@ -167,6 +171,15 @@ func (s valkeyStore) ForgetTicket(ctx context.Context, ch Channel) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(ch)).Build()).Error()
 }
 
+func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
+	err := s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Nx().Build()).Error()
+	return err == nil
+}
+
+func (s valkeyStore) RememberDesk(ctx context.Context, g Guild) error {
+	return s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Build()).Error()
+}
+
 func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
 	if err != nil {
@@ -224,6 +237,7 @@ type Mem struct {
 	clones     map[string]Clone
 	cloneCount map[string]int
 	tickets    map[string]Ticket
+	desk       map[string]bool
 	xp         map[string]int
 	xpCD       map[string]bool
 	daily      map[string]bool
@@ -236,6 +250,7 @@ func NewMem() *Mem {
 		clones:     map[string]Clone{},
 		cloneCount: map[string]int{},
 		tickets:    map[string]Ticket{},
+		desk:       map[string]bool{},
 		xp:         map[string]int{},
 		xpCD:       map[string]bool{},
 		daily:      map[string]bool{},
@@ -305,6 +320,23 @@ func (m *Mem) ForgetTicket(_ context.Context, ch Channel) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.tickets, ch.ID)
+	return nil
+}
+
+func (m *Mem) ClaimDesk(_ context.Context, g Guild) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.desk[g.ID] {
+		return false
+	}
+	m.desk[g.ID] = true
+	return true
+}
+
+func (m *Mem) RememberDesk(_ context.Context, g Guild) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.desk[g.ID] = true
 	return nil
 }
 

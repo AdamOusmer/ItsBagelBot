@@ -92,6 +92,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
 		fill.adopt(&out)
+		fill.postTicketDesk(ctx, out)
 		return out, nil
 	}
 	if err := fill.ensureRoles(ctx, &out); err != nil {
@@ -100,6 +101,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	if err := fill.ensureChannels(ctx, &out); err != nil {
 		return out, err
 	}
+	fill.postTicketDesk(ctx, out)
 	return out, nil
 }
 
@@ -344,6 +346,23 @@ func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) e
 		out.setChannel(namedRef{Name: spec.Bind, ID: id})
 	}
 	return f.ensureChildChannels(ctx, parentID, out)
+}
+
+func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
+	if out.TicketChannelID == "" {
+		return
+	}
+	_, err := f.api.SendPanel(ctx, discapi.EmbedPost{
+		ChannelID: out.TicketChannelID,
+		Embed:     ddiscord.TicketPanelEmbed(),
+	}, discapi.TicketDeskButtons())
+	if err != nil {
+		return
+	}
+	if f.w.discordKV == nil {
+		return
+	}
+	_ = f.w.discordKV.PutTicketDesk(ctx, discapi.Guild{ID: out.GuildID})
 }
 
 func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {

@@ -64,6 +64,10 @@ func (b *Bot) cloneAndMove(ctx context.Context, ev voiceEvent) error {
 	if err := b.Store.TrackClone(ctx, store.Clone{ChannelID: ch.ID, GuildID: ev.GuildID, OwnerID: ev.UserID}); err != nil {
 		return err
 	}
+	_, _ = b.REST.SendPanel(ctx, discordapi.EmbedPost{
+		ChannelID: ch.ID,
+		Embed:     ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: name}),
+	}, discordapi.VoiceRoomButtons())
 	return b.REST.MoveMember(ctx, discordapi.VoiceMove{
 		GuildID: ev.GuildID, UserID: ev.UserID, ChannelID: ch.ID,
 	})
@@ -112,6 +116,25 @@ func (b *Bot) applyVoice(ctx context.Context, in interactionEvent, cl store.Clon
 	default:
 		return b.reply(ctx, in, "Unknown voice command.")
 	}
+}
+
+func (b *Bot) voiceLockButton(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
+	return b.voiceToggle(ctx, in, true)
+}
+
+func (b *Bot) voiceUnlockButton(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
+	return b.voiceToggle(ctx, in, false)
+}
+
+func (b *Bot) voiceToggle(ctx context.Context, in interactionEvent, lock bool) error {
+	cl, ok := b.Store.Clone(ctx, store.Channel{ID: in.ChannelID})
+	if !ok {
+		return b.reply(ctx, in, "You can only do that in a temporary voice channel.")
+	}
+	if !ownsVoice(cl, in) {
+		return b.reply(ctx, in, "Only the channel owner can do that.")
+	}
+	return b.lockVoice(ctx, in, cl, lock)
 }
 
 func (b *Bot) renameVoice(ctx context.Context, in interactionEvent, cl store.Clone, sub interactionOption) error {

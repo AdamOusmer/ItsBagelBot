@@ -69,6 +69,21 @@ func TestMemClones(t *testing.T) {
 	}
 }
 
+func TestMemDeskClaim(t *testing.T) {
+	m := NewMem()
+	g := Guild{ID: "g1"}
+	if !m.ClaimDesk(context.Background(), g) {
+		t.Fatal("first desk claim")
+	}
+	if m.ClaimDesk(context.Background(), g) {
+		t.Fatal("second desk claim")
+	}
+	_ = m.RememberDesk(context.Background(), Guild{ID: "g2"})
+	if m.ClaimDesk(context.Background(), Guild{ID: "g2"}) {
+		t.Fatal("remembered desk")
+	}
+}
+
 func TestLevelOf(t *testing.T) {
 	cases := []struct {
 		xp   int

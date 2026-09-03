@@ -26,9 +26,6 @@ const (
 	permConnect  int64  = 1048576
 	permView     int64  = 1024
 	permSend     int64  = 2048
-
-	customTicketOpen  = "bagel:ticket:open"
-	customTicketClose = "bagel:ticket:close"
 )
 
 // REST is the Discord write surface community ops need.
@@ -150,7 +147,12 @@ func (b *Bot) bound(ctx context.Context, g store.Guild) (ddiscord.Config, bool) 
 	if b.Modules == nil {
 		return ddiscord.Config{}, false
 	}
-	return b.Modules.Config(ctx, broadcaster)
+	cfg, ok := b.Modules.Config(ctx, broadcaster)
+	if !ok {
+		return ddiscord.Config{}, false
+	}
+	b.ensureDesk(ctx, cfg)
+	return cfg, true
 }
 
 type display struct {

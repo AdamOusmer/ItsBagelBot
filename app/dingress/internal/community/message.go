@@ -5,10 +5,10 @@ package community
 
 import (
 	"context"
-	"strconv"
 
 	"ItsBagelBot/app/dingress/internal/store"
 	"ItsBagelBot/internal/discordapi"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
 func (b *Bot) onMessage(ctx context.Context, raw []byte) error {
@@ -34,10 +34,13 @@ func (b *Bot) onMessage(ctx context.Context, raw []byte) error {
 		return nil
 	}
 	_ = xp
-	return b.REST.SendChat(ctx, discordapi.ChatPost{
+	_, err = b.REST.SendEmbed(ctx, discordapi.EmbedPost{
 		ChannelID: ev.ChannelID,
-		Content:   mention(ev.Author) + " reached level " + strconv.Itoa(level) + ".",
+		Embed: ddiscord.LevelUpEmbed(ddiscord.LevelUp{
+			Who: mention(ev.Author), Level: level,
+		}),
 	})
+	return err
 }
 
 func (b *Bot) onMessageDelete(ctx context.Context, raw []byte) error {

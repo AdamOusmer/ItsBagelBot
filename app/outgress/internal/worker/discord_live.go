@@ -23,6 +23,7 @@ import (
 type discordGuildAPI interface {
 	discordAPI
 	SendEmbed(ctx context.Context, post discapi.EmbedPost) (discapi.Message, error)
+	SendPanel(ctx context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error)
 	EditMessage(ctx context.Context, m discapi.Message, patch discapi.MessagePatch) error
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, ch discapi.Snowflake) error

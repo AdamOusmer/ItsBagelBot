@@ -29,6 +29,7 @@ type guildRecorder struct {
 	channels  []discapi.Snowflake
 	createdCh []string
 	createdRo []string
+	panels    []string
 	nextID    int
 }
 
@@ -44,6 +45,18 @@ func (r *guildRecorder) SendEmbed(_ context.Context, post discapi.EmbedPost) (di
 	r.embeds = append(r.embeds, post.Embed)
 	r.calls++
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("msg-")}, nil
+}
+
+func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastChan = post.ChannelID
+	r.embeds = append(r.embeds, post.Embed)
+	for _, btn := range buttons {
+		r.panels = append(r.panels, btn.CustomID)
+	}
+	r.calls++
+	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("panel-")}, nil
 }
 
 func (r *guildRecorder) EditMessage(_ context.Context, _ discapi.Message, patch discapi.MessagePatch) error {
@@ -162,6 +175,8 @@ func (s *memLiveStore) DeleteGuild(_ context.Context, req GuildSetupRequest) err
 	}
 	return nil
 }
+
+func (s *memLiveStore) PutTicketDesk(context.Context, discapi.Guild) error { return nil }
 
 type memModules struct {
 	cfg     ddiscord.Config

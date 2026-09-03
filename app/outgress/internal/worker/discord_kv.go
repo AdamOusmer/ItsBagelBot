@@ -47,6 +47,7 @@ type discordLiveStore interface {
 	PutGuild(ctx context.Context, req GuildSetupRequest) error
 	GetGuild(ctx context.Context, req GuildSetupRequest) (broadcasterID string, ok bool)
 	DeleteGuild(ctx context.Context, req GuildSetupRequest) error
+	PutTicketDesk(ctx context.Context, guild discapi.Guild) error
 }
 
 type valkeyDiscordLive struct {
@@ -67,6 +68,8 @@ func newValkeyDiscordLive(client valkey.Client) discordLiveStore {
 func discordLiveKey(key liveMsgKey) string { return "discord:live-msg:" + key.BroadcasterID }
 
 func discordGuildKey(req GuildSetupRequest) string { return "discord:guild:" + req.GuildID }
+
+func discordTicketDeskKey(guild discapi.Guild) string { return "discord:ticketdesk:" + guild.ID }
 
 func (s valkeyDiscordLive) PutLiveMessage(ctx context.Context, key liveMsgKey, m discapi.Message) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(discordLiveKey(key)).
@@ -119,4 +122,11 @@ func (s valkeyDiscordLive) GetGuild(ctx context.Context, req GuildSetupRequest) 
 
 func (s valkeyDiscordLive) DeleteGuild(ctx context.Context, req GuildSetupRequest) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(discordGuildKey(req)).Build()).Error()
+}
+
+func (s valkeyDiscordLive) PutTicketDesk(ctx context.Context, guild discapi.Guild) error {
+	if guild.ID == "" {
+		return nil
+	}
+	return s.client.Do(ctx, s.client.B().Set().Key(discordTicketDeskKey(guild)).Value("1").Build()).Error()
 }

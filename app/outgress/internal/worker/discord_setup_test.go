@@ -96,6 +96,12 @@ func TestSetupGuildCreatesMissingRolesAndBindsChannels(t *testing.T) {
 	if len(wantRoles) != 0 {
 		t.Fatalf("missing roles %v", wantRoles)
 	}
+	if len(guild.panels) == 0 {
+		t.Fatal("setup must post the ticket desk button")
+	}
+	if guild.panels[0] != discapi.CustomTicketOpen {
+		t.Fatalf("desk button = %v", guild.panels)
+	}
 }
 
 func TestSetupGuildRefusesALivedInServerButStillBinds(t *testing.T) {

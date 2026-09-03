@@ -16,10 +16,10 @@ One Bagel bot stands in for the usual streamer Discord stack:
 | Instead of | Bagel does |
 |---|---|
 | Welcomer | Welcome embed in `#welcome`, Member autorole, optional goodbye |
-| TempVoice | Join-to-create on `+ Create voice`, cap 12 clones, `/voice name\|limit\|lock\|unlock` |
-| Ticket Tool | `/ticket open\|close\|panel` and the panel button `bagel:ticket:open` |
+| TempVoice | Join-to-create on `+ Create voice`, cap 12 clones, Lock/Unlock buttons in the room |
+| Ticket Tool | Support-desk embed with **Open a ticket**; each ticket is an embed with **Close ticket** |
 | Sapphire (mod/logs) | `/timeout` `/kick` `/ban` `/purge` and `#logs` |
-| OwO | Chat crumbs (15/msg, 60s cooldown), `/daily`, `/rank` — not hunt/zoo |
+| OwO | Chat crumbs (15/msg, 60s cooldown); rank and daily are embed cards with **Claim daily** |
 | Urchin | Already a Twitch sesame module (`!daily` and friends). Discord slash for Urchin is deferred until gossip can answer from dingress. |
 
 Go-live, clips, raids, gifts, and milestone copies stay on the companion REST path in [Outgress](/microservices/outgress/).
@@ -39,9 +39,9 @@ Empty `DISCORD_BOT_TOKEN` leaves the process idle: health still serves, the gate
 
 Server Members Intent and Message Content Intent must be enabled on the Discord application. Without them, welcomes and crumb ranks never fire.
 
-### Slash catalog
+### Member-facing panels
 
-Registered once on `READY` via bulk overwrite: `/ticket`, `/voice`, `/timeout`, `/kick`, `/ban`, `/purge`, `/daily`, `/rank`.
+Tickets, voice rooms, and crumbs are **embeds with buttons**. Slash commands still register (`/ticket`, `/voice`, `/timeout`, `/kick`, `/ban`, `/purge`, `/daily`, `/rank`) as a fallback and for rename/limit, which need typed input.
 
 ## Deploy
 
