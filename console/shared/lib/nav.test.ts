@@ -107,104 +107,73 @@ describe('nav registry', () => {
   });
 });
 
+// Table-driven on purpose: each of these three functions is a pure
+// sections -> verdict map, so the cases ARE the specification. Written out one
+// assertion per line they were near-identical blocks that a reader has to diff
+// by eye to spot the one differing id.
 describe('delegateAllowedPaths', () => {
-  test('empty sections allow no paths', () => {
-    expect(delegateAllowedPaths([])).toEqual([]);
+  // A grant that opens an exact, closed set of paths.
+  test.each([
+    [[], []],
+    [['invalid_sec', 'admin'], []],
+    [['billing'], ['/billing']]
+  ] as [string[], string[]][])('%o opens exactly %o', (sections, paths) => {
+    expect(delegateAllowedPaths(sections)).toEqual(paths);
   });
 
-  test('unknown sections are filtered out', () => {
-    expect(delegateAllowedPaths(['invalid_sec', 'admin'])).toEqual([]);
-  });
-
-  test('commands grant allows commands, counters list, and commands-scoped modules', () => {
-    const allowed = delegateAllowedPaths(['commands']);
-    expect(allowed).toContain('/commands');
-    expect(allowed).toContain('/counters/list');
-    expect(allowed).toContain('/quotes');
-    expect(allowed).toContain('/timers');
-    expect(allowed).not.toContain('/billing');
-    expect(allowed).not.toContain('/settings');
-    expect(allowed).not.toContain('/channelpoints');
-  });
-
-  test('billing grant allows only billing', () => {
-    const allowed = delegateAllowedPaths(['billing']);
-    expect(allowed).toEqual(['/billing']);
-    expect(allowed).not.toContain('/commands');
-    expect(allowed).not.toContain('/counters/list');
-    expect(allowed).not.toContain('/modules');
-    expect(allowed).not.toContain('/settings');
-  });
-
-  test('channelpoints grant allows channel points and song queue', () => {
-    const allowed = delegateAllowedPaths(['channelpoints']);
-    expect(allowed).toContain('/channelpoints');
-    expect(allowed).toContain('/songqueue');
-    expect(allowed).not.toContain('/commands');
-    expect(allowed).not.toContain('/billing');
-    expect(allowed).not.toContain('/counters/list');
-  });
-
-  test('modules grant allows modules and module pages', () => {
-    const allowed = delegateAllowedPaths(['modules']);
-    expect(allowed).toContain('/modules');
-    expect(allowed).toContain('/counters');
-    expect(allowed).toContain('/loyalty');
-    expect(allowed).toContain('/quotes');
-    expect(allowed).toContain('/timers');
-    expect(allowed).not.toContain('/billing');
-    expect(allowed).not.toContain('/settings');
+  // A grant that also pulls in every module page scoped to it.
+  test.each([
+    ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints']],
+    ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list']],
+    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers'], ['/billing', '/settings']]
+  ] as [string, string[], string[]][])('the %s grant opens its own pages and no others', (section, open, shut) => {
+    const allowed = delegateAllowedPaths([section]);
+    for (const path of open) expect(allowed).toContain(path);
+    for (const path of shut) expect(allowed).not.toContain(path);
   });
 });
 
 describe('pathnameAllowed', () => {
-  test('owner-only paths are strictly denied to delegates', () => {
-    const allSections = ['commands', 'modules', 'channelpoints', 'billing'] as const;
-    const allowed = delegateAllowedPaths(allSections);
-
-    expect(pathnameAllowed('/', allowed, allSections)).toBe(false);
-    expect(pathnameAllowed('/settings', allowed, allSections)).toBe(false);
-    expect(pathnameAllowed('/settings/import', allowed, allSections)).toBe(false);
-    expect(pathnameAllowed('/substate', allowed, allSections)).toBe(false);
-    expect(pathnameAllowed('/overview/stream', allowed, allSections)).toBe(false);
-    expect(pathnameAllowed('/events', allowed, allSections)).toBe(false);
+  test('owner-only paths stay denied even to a delegate holding every grant', () => {
+    const sections = ['commands', 'modules', 'channelpoints', 'billing'];
+    const allowed = delegateAllowedPaths(sections);
+    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events']) {
+      expect(pathnameAllowed(path, allowed, sections)).toBe(false);
+    }
   });
 
-  test('exact hits and legitimate subpaths pass', () => {
-    const allowed = delegateAllowedPaths(['commands']);
-    expect(pathnameAllowed('/commands', allowed, ['commands'])).toBe(true);
-    expect(pathnameAllowed('/counters/list', allowed, ['commands'])).toBe(true);
-    expect(pathnameAllowed('/billing', allowed, ['commands'])).toBe(false);
+  test.each([
+    ['/commands', true],
+    ['/counters/list', true],
+    ['/billing', false]
+  ] as [string, boolean][])('a commands delegate on %s -> %p', (path, want) => {
+    expect(pathnameAllowed(path, delegateAllowedPaths(['commands']), ['commands'])).toBe(want);
   });
 
-  test('narrower module scope blocks access under /modules prefix without the grant', () => {
-    // Channelpoints requires channelpoints section, even under /modules
-    const modulesOnlyAllowed = delegateAllowedPaths(['modules']);
-    expect(pathnameAllowed('/modules', modulesOnlyAllowed, ['modules'])).toBe(true);
-    expect(pathnameAllowed('/modules/quotes', modulesOnlyAllowed, ['modules'])).toBe(true);
-    expect(pathnameAllowed('/modules/channelpoints', modulesOnlyAllowed, ['modules'])).toBe(false);
-
-    // With channelpoints section, access is permitted
-    const cpAllowed = delegateAllowedPaths(['modules', 'channelpoints']);
-    expect(pathnameAllowed('/modules/channelpoints', cpAllowed, ['modules', 'channelpoints'])).toBe(true);
+  // The '/modules' prefix covers every catalog module's generic page, so a
+  // module with its own narrower delegateSections must be rechecked by id
+  // rather than admitted on the bare 'modules' grant.
+  test.each([
+    [['modules'], '/modules', true],
+    [['modules'], '/modules/quotes', true],
+    [['modules'], '/modules/channelpoints', false],
+    [['modules', 'channelpoints'], '/modules/channelpoints', true]
+  ] as [string[], string, boolean][])('%o on %s -> %p', (sections, path, want) => {
+    expect(pathnameAllowed(path, delegateAllowedPaths(sections), sections)).toBe(want);
   });
 });
 
 describe('moduleSubpathAllowed', () => {
-  test('blocks channelpoints when delegate lacks channelpoints section', () => {
-    expect(moduleSubpathAllowed('channelpoints', ['modules'])).toBe(false);
-    expect(moduleSubpathAllowed('channelpoints', ['channelpoints'])).toBe(true);
-  });
-
-  test('permits quotes for both modules and commands delegates', () => {
-    expect(moduleSubpathAllowed('quotes', ['commands'])).toBe(true);
-    expect(moduleSubpathAllowed('quotes', ['modules'])).toBe(true);
-    expect(moduleSubpathAllowed('quotes', ['billing'])).toBe(false);
-  });
-
-  test('permits timers for both modules and commands delegates', () => {
-    expect(moduleSubpathAllowed('timers', ['commands'])).toBe(true);
-    expect(moduleSubpathAllowed('timers', ['modules'])).toBe(true);
-    expect(moduleSubpathAllowed('timers', ['billing'])).toBe(false);
+  test.each([
+    ['channelpoints', 'modules', false],
+    ['channelpoints', 'channelpoints', true],
+    ['quotes', 'commands', true],
+    ['quotes', 'modules', true],
+    ['quotes', 'billing', false],
+    ['timers', 'commands', true],
+    ['timers', 'modules', true],
+    ['timers', 'billing', false]
+  ] as [string, string, boolean][])('module %s under a %s grant -> %p', (id, section, want) => {
+    expect(moduleSubpathAllowed(id, [section])).toBe(want);
   });
 });

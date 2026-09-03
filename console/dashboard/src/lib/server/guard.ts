@@ -102,6 +102,70 @@ async function assertAccountUsable(event: RequestEvent, s: Session): Promise<voi
   throw redirect(303, `/login?e=${slug}`);
 }
 
+// The delegate's live grant on the board they are browsing, as the three
+// callers below need it: the grant itself, null when the board is
+// authoritatively gone (owner banned, or the share revoked), and undefined on a
+// transport blip — fail open there, exactly as the account gates above do.
+type Grant = { owner_user_id: string; owner_login: string; sections: string[] };
+
+async function liveGrant(s: Session, ownerId: string): Promise<Grant | null | undefined> {
+  if (await isBanned(ownerId)) return null;
+  try {
+    const grants = await delegationAccess(s.user_id);
+    return grants.find((g) => g.owner_user_id === ownerId) ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+function sameSections(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((sec, i) => sec === b[i]);
+}
+
+// An owner who re-scopes a live grant (dropping billing, say) used to be
+// ignored until the delegate's 7-day cookie expired, because the section list
+// is carried IN that cookie. Re-seal it here from the authoritative grant so
+// the scope check below — and every per-page gate after it — reads the
+// narrowed list on this very request. iat and expires_at ride through
+// unchanged, so a re-seal never extends the session's own life.
+function resealSections(event: RequestEvent, s: Session, sections: string[]): void {
+  if (sameSections(s.sections ?? [], sections)) return;
+  s.sections = sections;
+  try {
+    event.cookies.set(COOKIE, seal(s), {
+      path: '/',
+      httpOnly: true,
+      secure: event.url.protocol === 'https:',
+      sameSite: 'lax',
+      maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
+    });
+  } catch {
+    /* seal failure: the in-memory session still carries the narrowed grant */
+  }
+}
+
+// guardDelegateBoard runs the gates that only a delegated session faces: the
+// board still exists, the cookie's sections still match the grant, and the
+// requested (app) path is inside them.
+async function guardDelegateBoard(event: RequestEvent, s: Session, ownerId: string): Promise<void> {
+  // A delegate board dies out from under the session when the owner is banned
+  // or revokes the share. Bounce through /delegate/exit, which re-seals the
+  // visitor's own normal session; delegationAccess is push-invalidated on the
+  // delegation scope, so a revoke lands within one request.
+  const grant = await liveGrant(s, ownerId);
+  if (grant === null) throw redirect(303, '/delegate/exit');
+  if (grant) resealSections(event, s, grant.sections ?? []);
+
+  // Section scope for everything under (app) — pages AND their actions
+  // (the per-page gates remain as defense in depth).
+  if (!event.route.id?.startsWith('/(app)')) return;
+  const sections = s.sections ?? [];
+  const allowed = delegateAllowedPaths(sections);
+  if (!pathnameAllowed(event.url.pathname, allowed, sections)) {
+    throw redirect(303, allowed[0] ?? '/delegate/exit');
+  }
+}
+
 // guardSession validates an already-opened session against authoritative
 // account state. Returns the session to keep in locals, or throws a redirect
 // (wiping the cookie when the session itself is dead). Anonymous requests
@@ -113,57 +177,7 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
   await assertAccountUsable(event, s);
 
   if (s.delegate_of && event.url.pathname !== '/delegate/exit') {
-    // A delegate board dies out from under the session when the owner is
-    // banned or revokes the share. Bounce through /delegate/exit, which
-    // re-seals the visitor's own normal session; delegationAccess is
-    // push-invalidated on the delegation scope, so a revoke lands within one
-    // request. Fail open on transport blips, matching the gates above.
-    let boardGone = await isBanned(s.delegate_of);
-    let activeGrant: { owner_user_id: string; owner_login: string; sections: string[] } | undefined;
-    if (!boardGone) {
-      try {
-        const grants = await delegationAccess(s.user_id);
-        activeGrant = grants.find((g) => g.owner_user_id === s.delegate_of);
-        boardGone = !activeGrant;
-      } catch {
-        /* transport blip: keep the session */
-      }
-    }
-    if (boardGone) throw redirect(303, '/delegate/exit');
-
-    // Synchronize active session sections with authoritative grant if changed:
-    if (activeGrant) {
-      const cookieSections = s.sections ?? [];
-      const currentSections = activeGrant.sections ?? [];
-      const changed =
-        cookieSections.length !== currentSections.length ||
-        cookieSections.some((sec, i) => sec !== currentSections[i]);
-      if (changed) {
-        s.sections = currentSections;
-        try {
-          const value = seal(s);
-          event.cookies.set(COOKIE, value, {
-            path: '/',
-            httpOnly: true,
-            secure: event.url.protocol === 'https:',
-            sameSite: 'lax',
-            maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
-          });
-        } catch {
-          /* transport/seal failure: keep updated in-memory session */
-        }
-      }
-    }
-
-    // Section scope for everything under (app) — pages AND their actions
-    // (the per-page gates remain as defense in depth).
-    if (event.route.id?.startsWith('/(app)')) {
-      const sections = s.sections ?? [];
-      const allowed = delegateAllowedPaths(sections);
-      if (!pathnameAllowed(event.url.pathname, allowed, sections)) {
-        throw redirect(303, allowed[0] ?? '/delegate/exit');
-      }
-    }
+    await guardDelegateBoard(event, s, s.delegate_of);
   }
 
   // After the delegate block so a dead board exits first; the beta gate reads
