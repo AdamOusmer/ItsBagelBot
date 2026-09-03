@@ -245,3 +245,28 @@ func TestEndpointNamesAndDefaultConfig(t *testing.T) {
 	assert.Equal(t, "clashroyale", p.Name())
 	assert.Equal(t, "https://proxy.royaleapi.dev/v1", defaultBaseURL)
 }
+
+// The tag alphabet lookup is a 128-entry array, and parsePlayerTag uppercases
+// before validating. unicode.ToUpper can map a rune ABOVE the table's range
+// ('ÿ' U+00FF becomes 'Ÿ' U+0178, 376), so a bare tagRuneTable[r] would panic
+// on input a user can simply type in chat. isTagRune's unsigned bounds check
+// is what turns that into a plain rejection; nothing else in the file covers a
+// non-ASCII tag, which is why this test exists.
+func TestPlayerTagRejectsNonASCIIWithoutPanicking(t *testing.T) {
+	for _, tag := range []string{"ÿÿÿ", "2ÿ9", "#2ÿ9", "ñññ", "２８９"} {
+		got, reason := parsePlayerTag(tag)
+		assert.Empty(t, got, "non-ASCII tag %q must not parse", tag)
+		assert.Equal(t, "invalid player tag", reason, "tag %q", tag)
+	}
+}
+
+// isTagRune is the bounds check itself: every one of these indexes past the
+// table and must answer false rather than panic.
+func TestIsTagRuneRejectsOutOfRangeRunes(t *testing.T) {
+	for _, r := range []rune{'Ÿ', 'Ñ', rune(128), rune(0x10FFFF), -1} {
+		assert.False(t, isTagRune(r), "rune %d must be rejected", r)
+	}
+	for _, r := range tagAlphabet {
+		assert.True(t, isTagRune(r), "alphabet rune %q must be accepted", r)
+	}
+}
