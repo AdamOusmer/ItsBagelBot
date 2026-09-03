@@ -19,7 +19,7 @@ func (b *Bot) onGuildCreate(ctx context.Context, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	_, ok := b.bound(ctx, ev.ID)
+	_, ok := b.bound(ctx, store.Guild{ID: ev.ID})
 	if !ok {
 		return nil
 	}
@@ -53,11 +53,11 @@ func (b *Bot) openTicket(ctx context.Context, cfg ddiscord.Config, in interactio
 		name = "ticket-" + in.Member.User.ID
 	}
 	overwrites := []discordapi.PermissionOverwrite{
-		overwriteDeny(in.GuildID, 0, permView),
-		overwriteAllow(in.Member.User.ID, 1, permView|permSend),
+		overwriteDeny(overwriteSpec{TargetID: in.GuildID, Kind: 0, Bits: permView}),
+		overwriteAllow(overwriteSpec{TargetID: in.Member.User.ID, Kind: 1, Bits: permView | permSend}),
 	}
 	if cfg.ModsRoleID != "" {
-		overwrites = append(overwrites, overwriteAllow(cfg.ModsRoleID, 0, permView|permSend))
+		overwrites = append(overwrites, overwriteAllow(overwriteSpec{TargetID: cfg.ModsRoleID, Kind: 0, Bits: permView | permSend}))
 	}
 	ch, err := b.REST.CreateChannel(ctx, discordapi.GuildChannel{
 		Guild: discordapi.Guild{ID: in.GuildID},
@@ -75,29 +75,41 @@ func (b *Bot) openTicket(ctx context.Context, cfg ddiscord.Config, in interactio
 	if err := b.reply(ctx, in, "Ticket opened: <#"+ch.ID+">"); err != nil {
 		return err
 	}
-	return b.REST.SendMessage(ctx, ch.ID, mention(in.Member.User.ID)+" opened this ticket. Close it with /ticket close.", false)
+	return b.REST.SendChat(ctx, discordapi.ChatPost{
+		ChannelID: ch.ID,
+		Content:   mention(in.Member.User) + " opened this ticket. Close it with /ticket close.",
+	})
 }
 
 func (b *Bot) closeTicket(ctx context.Context, in interactionEvent) error {
-	t, ok := b.Store.Ticket(ctx, in.ChannelID)
+	t, ok := b.Store.Ticket(ctx, store.Channel{ID: in.ChannelID})
 	if !ok {
 		return b.reply(ctx, in, "This is not a ticket.")
 	}
-	if t.OpenerID != in.Member.User.ID && !canMod(in.Member.Permissions) {
+	if !canCloseTicket(t, in) {
 		return b.reply(ctx, in, "Only the opener or a mod can close this.")
 	}
-	_ = b.Store.ForgetTicket(ctx, t.ChannelID)
+	_ = b.Store.ForgetTicket(ctx, store.Channel{ID: t.ChannelID})
 	_ = b.reply(ctx, in, "Closing.")
 	return b.REST.DeleteChannel(ctx, discordapi.Snowflake{ID: t.ChannelID})
 }
 
+func canCloseTicket(t store.Ticket, in interactionEvent) bool {
+	if t.OpenerID == in.Member.User.ID {
+		return true
+	}
+	return canMod(permBits{Raw: in.Member.Permissions})
+}
+
 func (b *Bot) onTicketButton(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
-	switch in.Data.CustomID {
-	case customTicketOpen:
-		return b.openTicket(ctx, cfg, in)
-	case customTicketClose:
-		return b.closeTicket(ctx, in)
-	default:
+	h, ok := ticketButtons[in.Data.CustomID]
+	if !ok {
 		return nil
 	}
+	return h(b, ctx, cfg, in)
+}
+
+var ticketButtons = map[string]slashFn{
+	customTicketOpen:  (*Bot).openTicket,
+	customTicketClose: (*Bot).ticketCloseSlash,
 }

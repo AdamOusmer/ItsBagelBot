@@ -418,24 +418,25 @@ func (out *GuildSetupResult) setChannel(ch namedRef) {
 	if ch.ID == "" {
 		return
 	}
-	switch ch.Name {
-	case "live":
-		out.LiveChannelID = ch.ID
-	case "clips":
-		out.ClipsChannelID = ch.ID
-	case "welcome":
-		out.WelcomeChannelID = ch.ID
-	case "alerts":
-		out.AlertsChannelID = ch.ID
-	case "voice":
-		out.VoiceHubID = ch.ID
-	case "logs":
-		out.LogChannelID = ch.ID
-	case "tickets":
-		out.TicketChannelID = ch.ID
-	case "ticketcat":
-		out.TicketCategoryID = ch.ID
+	field := out.channelSlot(ch.Name)
+	if field == nil {
+		return
 	}
+	*field = ch.ID
+}
+
+func (out *GuildSetupResult) channelSlot(name string) *string {
+	slots := map[string]*string{
+		"live":      &out.LiveChannelID,
+		"clips":     &out.ClipsChannelID,
+		"welcome":   &out.WelcomeChannelID,
+		"alerts":    &out.AlertsChannelID,
+		"voice":     &out.VoiceHubID,
+		"logs":      &out.LogChannelID,
+		"tickets":   &out.TicketChannelID,
+		"ticketcat": &out.TicketCategoryID,
+	}
+	return slots[name]
 }
 
 func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOverwrite {

@@ -54,27 +54,31 @@ func assertFilled(t *testing.T, got GuildSetupResult) {
 	if got.Refused != "" {
 		t.Fatalf("refused = %q", got.Refused)
 	}
+	if msg := filledGaps(got); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
+func filledGaps(got GuildSetupResult) string {
 	if got.GuildID != "guild-1" {
-		t.Fatalf("guild = %q", got.GuildID)
+		return "guild = " + got.GuildID
 	}
-	if got.LiveChannelID == "" {
-		t.Fatal("missing live channel")
+	for _, slot := range []struct {
+		id   string
+		name string
+	}{
+		{got.LiveChannelID, "live channel"},
+		{got.ClipsChannelID, "clips channel"},
+		{got.VoiceHubID, "voice hub"},
+		{got.LogChannelID, "logs channel"},
+		{got.TicketChannelID, "ticket channel"},
+		{got.TicketCategoryID, "ticket category"},
+	} {
+		if slot.id == "" {
+			return "missing " + slot.name
+		}
 	}
-	if got.ClipsChannelID == "" {
-		t.Fatal("missing clips channel")
-	}
-	if got.VoiceHubID == "" {
-		t.Fatal("missing voice hub")
-	}
-	if got.LogChannelID == "" {
-		t.Fatal("missing logs channel")
-	}
-	if got.TicketChannelID == "" {
-		t.Fatal("missing ticket channel")
-	}
-	if got.TicketCategoryID == "" {
-		t.Fatal("missing ticket category")
-	}
+	return ""
 }
 
 func TestSetupGuildCreatesMissingRolesAndBindsChannels(t *testing.T) {

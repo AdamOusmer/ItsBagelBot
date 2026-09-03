@@ -45,9 +45,9 @@ type recHandler struct {
 	types []string
 }
 
-func (r *recHandler) Ready(context.Context, string, string) error { r.ready = true; return nil }
-func (r *recHandler) Dispatch(_ context.Context, t string, _ []byte) error {
-	r.types = append(r.types, t)
+func (r *recHandler) Ready(context.Context, Identity) error { r.ready = true; return nil }
+func (r *recHandler) Dispatch(_ context.Context, ev Event) error {
+	r.types = append(r.types, ev.Type)
 	return nil
 }
 

@@ -383,13 +383,20 @@ func (c *Client) BulkDeleteMessages(ctx context.Context, p Purge) error {
 	})
 }
 
+// MessageQuery is GET /channels/{id}/messages?limit=n.
+type MessageQuery struct {
+	ChannelID string
+	Limit     int
+}
+
 // ListMessages is GET /channels/{id}/messages?limit=n.
-func (c *Client) ListMessages(ctx context.Context, channelID string, limit int) ([]Snowflake, error) {
+func (c *Client) ListMessages(ctx context.Context, q MessageQuery) ([]Snowflake, error) {
+	limit := q.Limit
 	if limit <= 0 {
 		limit = 50
 	}
 	var out []Snowflake
-	path := "/channels/" + url.PathEscape(channelID) + "/messages?limit=" + itoa(limit)
+	path := "/channels/" + url.PathEscape(q.ChannelID) + "/messages?limit=" + itoa(limit)
 	err := c.doInto(ctx, request{method: http.MethodGet, path: path}, &out)
 	return out, err
 }
@@ -424,8 +431,14 @@ type AppCommandOption struct {
 	Options     []AppCommandOption `json:"options,omitempty"`
 }
 
+// CommandCatalog is PUT /applications/{id}/commands.
+type CommandCatalog struct {
+	ApplicationID string
+	Commands      []AppCommand
+}
+
 // BulkOverwriteCommands is PUT /applications/{id}/commands.
-func (c *Client) BulkOverwriteCommands(ctx context.Context, appID string, cmds []AppCommand) error {
-	path := "/applications/" + url.PathEscape(appID) + "/commands"
-	return c.do(ctx, request{method: http.MethodPut, path: path, body: cmds})
+func (c *Client) BulkOverwriteCommands(ctx context.Context, cat CommandCatalog) error {
+	path := "/applications/" + url.PathEscape(cat.ApplicationID) + "/commands"
+	return c.do(ctx, request{method: http.MethodPut, path: path, body: cat.Commands})
 }

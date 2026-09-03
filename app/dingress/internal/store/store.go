@@ -20,6 +20,23 @@ const (
 	dailyTTL     = 24 * 60 * 60
 )
 
+// Guild is a Discord guild snowflake.
+type Guild struct{ ID string }
+
+// Channel is a Discord channel snowflake.
+type Channel struct{ ID string }
+
+// Member is one Discord user in one guild. Crumbs and dailies are keyed on this pair.
+type Member struct {
+	GuildID string
+	UserID  string
+}
+
+func (m Member) key() string { return m.GuildID + ":" + m.UserID }
+
+// Broadcaster is the Twitch user id the guild reverse-index points at.
+type Broadcaster struct{ ID string }
+
 // Clone is one join-to-create voice channel.
 type Clone struct {
 	ChannelID string
@@ -36,17 +53,17 @@ type Ticket struct {
 
 // Store is the Valkey-backed (or in-memory) reverse index dingress needs.
 type Store interface {
-	Broadcaster(ctx context.Context, guildID string) (string, bool)
+	Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
 	TrackClone(ctx context.Context, c Clone) error
-	Clone(ctx context.Context, channelID string) (Clone, bool)
-	CloneCount(ctx context.Context, guildID string) int
+	Clone(ctx context.Context, ch Channel) (Clone, bool)
+	CloneCount(ctx context.Context, g Guild) int
 	ForgetClone(ctx context.Context, c Clone) error
 	TrackTicket(ctx context.Context, t Ticket) error
-	Ticket(ctx context.Context, channelID string) (Ticket, bool)
-	ForgetTicket(ctx context.Context, channelID string) error
-	AddXP(ctx context.Context, guildID, userID string) (xp int, leveled bool, level int)
-	ClaimDaily(ctx context.Context, guildID, userID string) (ok bool, xp int)
-	Rank(ctx context.Context, guildID, userID string) (xp, level int)
+	Ticket(ctx context.Context, ch Channel) (Ticket, bool)
+	ForgetTicket(ctx context.Context, ch Channel) error
+	AddXP(ctx context.Context, m Member) (xp int, leveled bool, level int)
+	ClaimDaily(ctx context.Context, m Member) (ok bool, xp int)
+	Rank(ctx context.Context, m Member) (xp, level int)
 }
 
 type valkeyStore struct {
@@ -62,49 +79,57 @@ func New(client valkey.Client) Store {
 	return valkeyStore{client: client}
 }
 
-func guildKey(id string) string { return "discord:guild:" + id }
+func guildKey(g Guild) string { return "discord:guild:" + g.ID }
 
-func cloneKey(id string) string { return "discord:voice:" + id }
+func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
 
-func cloneSet(guildID string) string { return "discord:voices:" + guildID }
+func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
 
-func ticketKey(id string) string { return "discord:ticket:" + id }
+func ticketKey(ch Channel) string { return "discord:ticket:" + ch.ID }
 
-func xpKey(guildID, userID string) string { return "discord:xp:" + guildID + ":" + userID }
+func xpKey(m Member) string { return "discord:xp:" + m.key() }
 
-func xpCDKey(guildID, userID string) string { return "discord:xpcd:" + guildID + ":" + userID }
+func xpCDKey(m Member) string { return "discord:xpcd:" + m.key() }
 
-func dailyKey(guildID, userID string) string { return "discord:daily:" + guildID + ":" + userID }
+func dailyKey(m Member) string { return "discord:daily:" + m.key() }
 
-func (s valkeyStore) Broadcaster(ctx context.Context, guildID string) (string, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildKey(guildID)).Build()).ToString()
-	if err != nil || raw == "" {
-		return "", false
+func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildKey(g)).Build()).ToString()
+	if err != nil {
+		return Broadcaster{}, false
 	}
-	return raw, true
+	if raw == "" {
+		return Broadcaster{}, false
+	}
+	return Broadcaster{ID: raw}, true
 }
 
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
-	if err := s.client.Do(ctx, s.client.B().Set().Key(cloneKey(c.ChannelID)).Value(c.GuildID+"|"+c.OwnerID).Build()).Error(); err != nil {
+	ch := Channel{ID: c.ChannelID}
+	g := Guild{ID: c.GuildID}
+	if err := s.client.Do(ctx, s.client.B().Set().Key(cloneKey(ch)).Value(c.GuildID+"|"+c.OwnerID).Build()).Error(); err != nil {
 		return err
 	}
-	return s.client.Do(ctx, s.client.B().Sadd().Key(cloneSet(c.GuildID)).Member(c.ChannelID).Build()).Error()
+	return s.client.Do(ctx, s.client.B().Sadd().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
 }
 
-func (s valkeyStore) Clone(ctx context.Context, channelID string) (Clone, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(cloneKey(channelID)).Build()).ToString()
-	if err != nil || raw == "" {
+func (s valkeyStore) Clone(ctx context.Context, ch Channel) (Clone, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(cloneKey(ch)).Build()).ToString()
+	if err != nil {
+		return Clone{}, false
+	}
+	if raw == "" {
 		return Clone{}, false
 	}
 	guildID, ownerID, ok := strings.Cut(raw, "|")
 	if !ok {
 		return Clone{}, false
 	}
-	return Clone{ChannelID: channelID, GuildID: guildID, OwnerID: ownerID}, true
+	return Clone{ChannelID: ch.ID, GuildID: guildID, OwnerID: ownerID}, true
 }
 
-func (s valkeyStore) CloneCount(ctx context.Context, guildID string) int {
-	n, err := s.client.Do(ctx, s.client.B().Scard().Key(cloneSet(guildID)).Build()).AsInt64()
+func (s valkeyStore) CloneCount(ctx context.Context, g Guild) int {
+	n, err := s.client.Do(ctx, s.client.B().Scard().Key(cloneSet(g)).Build()).AsInt64()
 	if err != nil {
 		return 0
 	}
@@ -112,67 +137,73 @@ func (s valkeyStore) CloneCount(ctx context.Context, guildID string) int {
 }
 
 func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
-	_ = s.client.Do(ctx, s.client.B().Del().Key(cloneKey(c.ChannelID)).Build()).Error()
-	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(c.GuildID)).Member(c.ChannelID).Build()).Error()
+	ch := Channel{ID: c.ChannelID}
+	g := Guild{ID: c.GuildID}
+	_ = s.client.Do(ctx, s.client.B().Del().Key(cloneKey(ch)).Build()).Error()
+	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
 }
 
 func (s valkeyStore) TrackTicket(ctx context.Context, t Ticket) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(t.ChannelID)).Value(t.GuildID+"|"+t.OpenerID).Build()).Error()
+	ch := Channel{ID: t.ChannelID}
+	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(t.GuildID+"|"+t.OpenerID).Build()).Error()
 }
 
-func (s valkeyStore) Ticket(ctx context.Context, channelID string) (Ticket, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(channelID)).Build()).ToString()
-	if err != nil || raw == "" {
+func (s valkeyStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
+	if err != nil {
+		return Ticket{}, false
+	}
+	if raw == "" {
 		return Ticket{}, false
 	}
 	guildID, openerID, ok := strings.Cut(raw, "|")
 	if !ok {
 		return Ticket{}, false
 	}
-	return Ticket{ChannelID: channelID, GuildID: guildID, OpenerID: openerID}, true
+	return Ticket{ChannelID: ch.ID, GuildID: guildID, OpenerID: openerID}, true
 }
 
-func (s valkeyStore) ForgetTicket(ctx context.Context, channelID string) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(channelID)).Build()).Error()
+func (s valkeyStore) ForgetTicket(ctx context.Context, ch Channel) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(ch)).Build()).Error()
 }
 
-func (s valkeyStore) AddXP(ctx context.Context, guildID, userID string) (int, bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(guildID, userID)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
+func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
+	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
 	if err != nil {
-		// Nil is SET NX declined (cooldown). Any other error fails closed.
-		xp, level := s.Rank(ctx, guildID, userID)
+		xp, level := s.Rank(ctx, m)
 		return xp, false, level
 	}
-	before, _ := s.Rank(ctx, guildID, userID)
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(guildID, userID)).Increment(xpPerMessage).Build()).AsInt64()
+	before, _ := s.Rank(ctx, m)
+	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(xpPerMessage).Build()).AsInt64()
 	if err != nil {
 		return before, false, levelOf(before)
 	}
 	xp := int(n)
-	oldLevel := levelOf(before)
-	newLevel := levelOf(xp)
-	return xp, newLevel > oldLevel, newLevel
+	return xp, levelOf(xp) > levelOf(before), levelOf(xp)
 }
 
-func (s valkeyStore) ClaimDaily(ctx context.Context, guildID, userID string) (bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(dailyKey(guildID, userID)).Value("1").Nx().ExSeconds(dailyTTL).Build()).Error()
+func (s valkeyStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
+	err := s.client.Do(ctx, s.client.B().Set().Key(dailyKey(m)).Value("1").Nx().ExSeconds(dailyTTL).Build()).Error()
 	if valkey.IsValkeyNil(err) {
-		xp, _ := s.Rank(ctx, guildID, userID)
+		xp, _ := s.Rank(ctx, m)
 		return false, xp
 	}
 	if err != nil {
 		return false, 0
 	}
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(guildID, userID)).Increment(dailyXP).Build()).AsInt64()
+	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(dailyXP).Build()).AsInt64()
 	if err != nil {
 		return true, dailyXP
 	}
 	return true, int(n)
 }
 
-func (s valkeyStore) Rank(ctx context.Context, guildID, userID string) (int, int) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(xpKey(guildID, userID)).Build()).ToString()
-	if err != nil || raw == "" {
+func (s valkeyStore) Rank(ctx context.Context, m Member) (int, int) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(xpKey(m)).Build()).ToString()
+	if err != nil {
+		return 0, 0
+	}
+	if raw == "" {
 		return 0, 0
 	}
 	xp, _ := strconv.Atoi(raw)
@@ -212,17 +243,17 @@ func NewMem() *Mem {
 }
 
 // PutGuild is the test helper that stands in for outgress's reverse index.
-func (m *Mem) PutGuild(guildID, broadcasterID string) {
+func (m *Mem) PutGuild(g Guild, b Broadcaster) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.guild[guildID] = broadcasterID
+	m.guild[g.ID] = b.ID
 }
 
-func (m *Mem) Broadcaster(_ context.Context, guildID string) (string, bool) {
+func (m *Mem) Broadcaster(_ context.Context, g Guild) (Broadcaster, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	v, ok := m.guild[guildID]
-	return v, ok
+	v, ok := m.guild[g.ID]
+	return Broadcaster{ID: v}, ok
 }
 
 func (m *Mem) TrackClone(_ context.Context, c Clone) error {
@@ -233,17 +264,17 @@ func (m *Mem) TrackClone(_ context.Context, c Clone) error {
 	return nil
 }
 
-func (m *Mem) Clone(_ context.Context, channelID string) (Clone, bool) {
+func (m *Mem) Clone(_ context.Context, ch Channel) (Clone, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	c, ok := m.clones[channelID]
+	c, ok := m.clones[ch.ID]
 	return c, ok
 }
 
-func (m *Mem) CloneCount(_ context.Context, guildID string) int {
+func (m *Mem) CloneCount(_ context.Context, g Guild) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.cloneCount[guildID]
+	return m.cloneCount[g.ID]
 }
 
 func (m *Mem) ForgetClone(_ context.Context, c Clone) error {
@@ -263,24 +294,24 @@ func (m *Mem) TrackTicket(_ context.Context, t Ticket) error {
 	return nil
 }
 
-func (m *Mem) Ticket(_ context.Context, channelID string) (Ticket, bool) {
+func (m *Mem) Ticket(_ context.Context, ch Channel) (Ticket, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	t, ok := m.tickets[channelID]
+	t, ok := m.tickets[ch.ID]
 	return t, ok
 }
 
-func (m *Mem) ForgetTicket(_ context.Context, channelID string) error {
+func (m *Mem) ForgetTicket(_ context.Context, ch Channel) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.tickets, channelID)
+	delete(m.tickets, ch.ID)
 	return nil
 }
 
-func (m *Mem) AddXP(_ context.Context, guildID, userID string) (int, bool, int) {
+func (m *Mem) AddXP(_ context.Context, mem Member) (int, bool, int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	k := guildID + ":" + userID
+	k := mem.key()
 	if m.xpCD[k] {
 		xp := m.xp[k]
 		return xp, false, levelOf(xp)
@@ -288,14 +319,13 @@ func (m *Mem) AddXP(_ context.Context, guildID, userID string) (int, bool, int) 
 	m.xpCD[k] = true
 	before := m.xp[k]
 	m.xp[k] = before + xpPerMessage
-	oldL, newL := levelOf(before), levelOf(m.xp[k])
-	return m.xp[k], newL > oldL, newL
+	return m.xp[k], levelOf(m.xp[k]) > levelOf(before), levelOf(m.xp[k])
 }
 
-func (m *Mem) ClaimDaily(_ context.Context, guildID, userID string) (bool, int) {
+func (m *Mem) ClaimDaily(_ context.Context, mem Member) (bool, int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	k := guildID + ":" + userID
+	k := mem.key()
 	if m.daily[k] {
 		return false, m.xp[k]
 	}
@@ -304,16 +334,21 @@ func (m *Mem) ClaimDaily(_ context.Context, guildID, userID string) (bool, int) 
 	return true, m.xp[k]
 }
 
-func (m *Mem) Rank(_ context.Context, guildID, userID string) (int, int) {
+func (m *Mem) Rank(_ context.Context, mem Member) (int, int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	xp := m.xp[guildID+":"+userID]
+	xp := m.xp[mem.key()]
 	return xp, levelOf(xp)
 }
 
+type XPSeed struct {
+	Member Member
+	Amount int
+}
+
 // SeedXP is a test helper that sets crumbs without touching the cooldown.
-func (m *Mem) SeedXP(guildID, userID string, xp int) {
+func (m *Mem) SeedXP(s XPSeed) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.xp[guildID+":"+userID] = xp
+	m.xp[s.Member.key()] = s.Amount
 }

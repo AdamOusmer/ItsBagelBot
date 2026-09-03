@@ -6,6 +6,9 @@ package community
 import (
 	"context"
 	"strconv"
+
+	"ItsBagelBot/app/dingress/internal/store"
+	"ItsBagelBot/internal/discordapi"
 )
 
 func (b *Bot) onMessage(ctx context.Context, raw []byte) error {
@@ -19,19 +22,22 @@ func (b *Bot) onMessage(ctx context.Context, raw []byte) error {
 	if ev.GuildID == "" {
 		return nil
 	}
-	cfg, ok := b.bound(ctx, ev.GuildID)
+	cfg, ok := b.bound(ctx, store.Guild{ID: ev.GuildID})
 	if !ok {
 		return nil
 	}
 	if !cfg.LevelsOn() {
 		return nil
 	}
-	xp, leveled, level := b.Store.AddXP(ctx, ev.GuildID, ev.Author.ID)
+	xp, leveled, level := b.Store.AddXP(ctx, store.Member{GuildID: ev.GuildID, UserID: ev.Author.ID})
 	if !leveled {
 		return nil
 	}
 	_ = xp
-	return b.REST.SendMessage(ctx, ev.ChannelID, mention(ev.Author.ID)+" reached level "+strconv.Itoa(level)+".", false)
+	return b.REST.SendChat(ctx, discordapi.ChatPost{
+		ChannelID: ev.ChannelID,
+		Content:   mention(ev.Author) + " reached level " + strconv.Itoa(level) + ".",
+	})
 }
 
 func (b *Bot) onMessageDelete(ctx context.Context, raw []byte) error {
@@ -39,7 +45,7 @@ func (b *Bot) onMessageDelete(ctx context.Context, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	cfg, ok := b.bound(ctx, ev.GuildID)
+	cfg, ok := b.bound(ctx, store.Guild{ID: ev.GuildID})
 	if !ok {
 		return nil
 	}
@@ -47,7 +53,7 @@ func (b *Bot) onMessageDelete(ctx context.Context, raw []byte) error {
 	if ev.Content != "" {
 		body += ": " + clip(ev.Content, 200)
 	}
-	return b.logLine(ctx, cfg, "Message deleted", body)
+	return b.logLine(ctx, cfg, logEntry{Title: "Message deleted", Body: body})
 }
 
 func (b *Bot) onMessageUpdate(ctx context.Context, raw []byte) error {
@@ -58,7 +64,7 @@ func (b *Bot) onMessageUpdate(ctx context.Context, raw []byte) error {
 	if ev.Author.Bot {
 		return nil
 	}
-	cfg, ok := b.bound(ctx, ev.GuildID)
+	cfg, ok := b.bound(ctx, store.Guild{ID: ev.GuildID})
 	if !ok {
 		return nil
 	}
@@ -66,7 +72,7 @@ func (b *Bot) onMessageUpdate(ctx context.Context, raw []byte) error {
 	if ev.Content != "" {
 		body += ": " + clip(ev.Content, 200)
 	}
-	return b.logLine(ctx, cfg, "Message edited", body)
+	return b.logLine(ctx, cfg, logEntry{Title: "Message edited", Body: body})
 }
 
 func clip(s string, n int) string {

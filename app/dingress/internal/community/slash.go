@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/dingress/internal/store"
 	"ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
@@ -19,7 +20,7 @@ func (b *Bot) onInteraction(ctx context.Context, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	cfg, ok := b.bound(ctx, in.GuildID)
+	cfg, ok := b.bound(ctx, store.Guild{ID: in.GuildID})
 	if !ok {
 		return nil
 	}
@@ -30,47 +31,51 @@ func (b *Bot) onInteraction(ctx context.Context, raw []byte) error {
 }
 
 func (b *Bot) slash(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
-	switch in.Data.Name {
-	case "ticket":
-		return b.ticketSlash(ctx, cfg, in)
-	case "voice":
-		return b.voiceSlash(ctx, in)
-	case "timeout":
-		return b.modTimeout(ctx, cfg, in)
-	case "kick":
-		return b.modKick(ctx, cfg, in)
-	case "ban":
-		return b.modBan(ctx, cfg, in)
-	case "purge":
-		return b.modPurge(ctx, cfg, in)
-	case "daily":
-		return b.daily(ctx, cfg, in)
-	case "rank":
-		return b.rank(ctx, cfg, in)
-	default:
+	h, ok := slashCmds[in.Data.Name]
+	if !ok {
 		return b.reply(ctx, in, "Unknown command.")
 	}
+	return h(b, ctx, cfg, in)
+}
+
+type slashFn func(*Bot, context.Context, ddiscord.Config, interactionEvent) error
+
+var slashCmds = map[string]slashFn{
+	"ticket":  (*Bot).ticketSlash,
+	"voice":   (*Bot).voiceSlash,
+	"timeout": (*Bot).modTimeout,
+	"kick":    (*Bot).modKick,
+	"ban":     (*Bot).modBan,
+	"purge":   (*Bot).modPurge,
+	"daily":   (*Bot).daily,
+	"rank":    (*Bot).rank,
 }
 
 func (b *Bot) ticketSlash(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
-	sub := firstSub(in.Data.Options)
-	switch sub.Name {
-	case "open":
-		return b.openTicket(ctx, cfg, in)
-	case "close":
-		return b.closeTicket(ctx, in)
-	case "panel":
-		return b.postTicketPanel(ctx, cfg, in)
-	default:
+	h, ok := ticketSubs[firstSub(in.Data.Options).Name]
+	if !ok {
 		return b.reply(ctx, in, "Use /ticket open, close, or panel.")
 	}
+	return h(b, ctx, cfg, in)
 }
 
-func (b *Bot) voiceSlash(ctx context.Context, in interactionEvent) error {
+var ticketSubs = map[string]slashFn{
+	"open":  (*Bot).openTicket,
+	"close": (*Bot).ticketCloseSlash,
+	"panel": (*Bot).postTicketPanel,
+}
+
+func (b *Bot) ticketCloseSlash(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
+	return b.closeTicket(ctx, in)
+}
+
+func (b *Bot) voiceSlash(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
 	return b.voiceCommand(ctx, in, firstSub(in.Data.Options))
 }
 
-func (b *Bot) requireMod(in interactionEvent) bool { return canMod(in.Member.Permissions) }
+func (b *Bot) requireMod(in interactionEvent) bool {
+	return canMod(permBits{Raw: in.Member.Permissions})
+}
 
 func (b *Bot) modTimeout(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
 	if !b.requireMod(in) {
@@ -78,7 +83,10 @@ func (b *Bot) modTimeout(ctx context.Context, cfg ddiscord.Config, in interactio
 	}
 	userID := optionUser(in.Data.Options, "user")
 	mins := optionIntFrom(in.Data.Options, "minutes")
-	if userID == "" || mins <= 0 {
+	if userID == "" {
+		return b.reply(ctx, in, "Need a user and a duration in minutes.")
+	}
+	if mins <= 0 {
 		return b.reply(ctx, in, "Need a user and a duration in minutes.")
 	}
 	until := time.Now().UTC().Add(time.Duration(mins) * time.Minute).Format(time.RFC3339)
@@ -88,27 +96,26 @@ func (b *Bot) modTimeout(ctx context.Context, cfg ddiscord.Config, in interactio
 	if err != nil {
 		return err
 	}
-	_ = b.logLine(ctx, cfg, "Timeout", mention(userID)+" for "+strconv.Itoa(mins)+" minutes")
-	return b.reply(ctx, in, "Timed out "+mention(userID)+" for "+strconv.Itoa(mins)+" minutes.")
+	line := mention(userRef{ID: userID}) + " for " + strconv.Itoa(mins) + " minutes"
+	_ = b.logLine(ctx, cfg, logEntry{Title: "Timeout", Body: line})
+	return b.reply(ctx, in, "Timed out "+line+".")
 }
 
 func (b *Bot) modKick(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
-	if !b.requireMod(in) {
-		return b.reply(ctx, in, "Mods only.")
-	}
-	userID := optionUser(in.Data.Options, "user")
-	if userID == "" {
-		return b.reply(ctx, in, "Need a user.")
-	}
-	err := b.REST.KickMember(ctx, discordapi.GuildMember{GuildID: in.GuildID, UserID: userID})
-	if err != nil {
-		return err
-	}
-	_ = b.logLine(ctx, cfg, "Kick", mention(userID))
-	return b.reply(ctx, in, "Kicked "+mention(userID)+".")
+	return b.modRemove(ctx, cfg, in, "Kick", "Kicked ", b.REST.KickMember)
 }
 
 func (b *Bot) modBan(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
+	return b.modRemove(ctx, cfg, in, "Ban", "Banned ", b.REST.BanMember)
+}
+
+func (b *Bot) modRemove(
+	ctx context.Context,
+	cfg ddiscord.Config,
+	in interactionEvent,
+	title, prefix string,
+	act func(context.Context, discordapi.GuildMember) error,
+) error {
 	if !b.requireMod(in) {
 		return b.reply(ctx, in, "Mods only.")
 	}
@@ -116,12 +123,12 @@ func (b *Bot) modBan(ctx context.Context, cfg ddiscord.Config, in interactionEve
 	if userID == "" {
 		return b.reply(ctx, in, "Need a user.")
 	}
-	err := b.REST.BanMember(ctx, discordapi.GuildMember{GuildID: in.GuildID, UserID: userID})
-	if err != nil {
+	if err := act(ctx, discordapi.GuildMember{GuildID: in.GuildID, UserID: userID}); err != nil {
 		return err
 	}
-	_ = b.logLine(ctx, cfg, "Ban", mention(userID))
-	return b.reply(ctx, in, "Banned "+mention(userID)+".")
+	who := mention(userRef{ID: userID})
+	_ = b.logLine(ctx, cfg, logEntry{Title: title, Body: who})
+	return b.reply(ctx, in, prefix+who+".")
 }
 
 func (b *Bot) modPurge(ctx context.Context, cfg ddiscord.Config, in interactionEvent) error {
@@ -135,7 +142,7 @@ func (b *Bot) modPurge(ctx context.Context, cfg ddiscord.Config, in interactionE
 	if n > 100 {
 		n = 100
 	}
-	msgs, err := b.REST.ListMessages(ctx, in.ChannelID, n)
+	msgs, err := b.REST.ListMessages(ctx, discordapi.MessageQuery{ChannelID: in.ChannelID, Limit: n})
 	if err != nil {
 		return err
 	}
@@ -149,7 +156,7 @@ func (b *Bot) modPurge(ctx context.Context, cfg ddiscord.Config, in interactionE
 	if err := b.REST.BulkDeleteMessages(ctx, discordapi.Purge{ChannelID: in.ChannelID, MessageIDs: ids}); err != nil {
 		return err
 	}
-	_ = b.logLine(ctx, cfg, "Purge", strconv.Itoa(len(ids))+" messages in <#"+in.ChannelID+">")
+	_ = b.logLine(ctx, cfg, logEntry{Title: "Purge", Body: strconv.Itoa(len(ids)) + " messages in <#" + in.ChannelID + ">"})
 	return b.reply(ctx, in, "Deleted "+strconv.Itoa(len(ids))+" messages.")
 }
 
@@ -157,7 +164,7 @@ func (b *Bot) daily(ctx context.Context, cfg ddiscord.Config, in interactionEven
 	if !cfg.LevelsOn() {
 		return b.reply(ctx, in, "Levels are off.")
 	}
-	ok, xp := b.Store.ClaimDaily(ctx, in.GuildID, in.Member.User.ID)
+	ok, xp := b.Store.ClaimDaily(ctx, store.Member{GuildID: in.GuildID, UserID: in.Member.User.ID})
 	if !ok {
 		return b.reply(ctx, in, "Already claimed today.")
 	}
@@ -172,8 +179,8 @@ func (b *Bot) rank(ctx context.Context, cfg ddiscord.Config, in interactionEvent
 	if userID == "" {
 		userID = in.Member.User.ID
 	}
-	xp, level := b.Store.Rank(ctx, in.GuildID, userID)
-	return b.reply(ctx, in, mention(userID)+" is level "+strconv.Itoa(level)+" ("+strconv.Itoa(xp)+" crumbs).")
+	xp, level := b.Store.Rank(ctx, store.Member{GuildID: in.GuildID, UserID: userID})
+	return b.reply(ctx, in, mention(userRef{ID: userID})+" is level "+strconv.Itoa(level)+" ("+strconv.Itoa(xp)+" crumbs).")
 }
 
 func (b *Bot) reply(ctx context.Context, in interactionEvent, content string) error {

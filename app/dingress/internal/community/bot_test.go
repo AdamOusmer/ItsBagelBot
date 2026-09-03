@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"ItsBagelBot/app/dingress/internal/gateway"
 	"ItsBagelBot/app/dingress/internal/store"
 	"ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -29,8 +30,8 @@ type fakeREST struct {
 	listed   []discordapi.Snowflake
 }
 
-func (f *fakeREST) SendMessage(_ context.Context, _, content string, _ bool) error {
-	f.messages = append(f.messages, content)
+func (f *fakeREST) SendChat(_ context.Context, post discordapi.ChatPost) error {
+	f.messages = append(f.messages, post.Content)
 	return nil
 }
 func (f *fakeREST) SendEmbed(_ context.Context, post discordapi.EmbedPost) (discordapi.Message, error) {
@@ -69,21 +70,21 @@ func (f *fakeREST) BulkDeleteMessages(context.Context, discordapi.Purge) error {
 	f.purge++
 	return nil
 }
-func (f *fakeREST) ListMessages(context.Context, string, int) ([]discordapi.Snowflake, error) {
+func (f *fakeREST) ListMessages(_ context.Context, _ discordapi.MessageQuery) ([]discordapi.Snowflake, error) {
 	return f.listed, nil
 }
 func (f *fakeREST) InteractionCallback(_ context.Context, cb discordapi.Callback) error {
 	f.replies = append(f.replies, cb.Content)
 	return nil
 }
-func (f *fakeREST) BulkOverwriteCommands(context.Context, string, []discordapi.AppCommand) error {
+func (f *fakeREST) BulkOverwriteCommands(context.Context, discordapi.CommandCatalog) error {
 	f.commands++
 	return nil
 }
 
 type staticModules struct{ cfg ddiscord.Config }
 
-func (s staticModules) Config(context.Context, string) (ddiscord.Config, bool) {
+func (s staticModules) Config(context.Context, store.Broadcaster) (ddiscord.Config, bool) {
 	if s.cfg.GuildID == "" {
 		return ddiscord.Config{}, false
 	}
@@ -93,7 +94,7 @@ func (s staticModules) Config(context.Context, string) (ddiscord.Config, bool) {
 func testBot(cfg ddiscord.Config) (*Bot, *fakeREST, *store.Mem) {
 	rest := &fakeREST{listed: []discordapi.Snowflake{{ID: "m1"}, {ID: "m2"}}}
 	mem := store.NewMem()
-	mem.PutGuild(cfg.GuildID, "42")
+	mem.PutGuild(store.Guild{ID: cfg.GuildID}, store.Broadcaster{ID: "42"})
 	return &Bot{REST: rest, Store: mem, Modules: staticModules{cfg: cfg}}, rest, mem
 }
 
@@ -106,14 +107,23 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
+func dispatch(t *testing.T, bot *Bot, typ string, payload any) error {
+	t.Helper()
+	return bot.Dispatch(context.Background(), gateway.Event{Type: typ, Raw: mustJSON(t, payload)})
+}
+
+func memberPayload(guildID string) map[string]any {
+	return map[string]any{
+		"guild_id": guildID,
+		"user":     map[string]any{"id": "u1", "username": "Ada"},
+	}
+}
+
 func TestWelcomeAndAutorole(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{
 		GuildID: "g1", WelcomeChannelID: "welcome", MemberRoleID: "member", WelcomeEnabled: "",
 	})
-	err := bot.Dispatch(context.Background(), "GUILD_MEMBER_ADD", mustJSON(t, map[string]any{
-		"guild_id": "g1",
-		"user":     map[string]any{"id": "u1", "username": "Ada"},
-	}))
+	err := dispatch(t, bot, "GUILD_MEMBER_ADD", memberPayload("g1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,23 +135,55 @@ func TestWelcomeAndAutorole(t *testing.T) {
 	}
 }
 
-func TestGoodbyeOffByDefault(t *testing.T) {
-	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"})
-	_ = bot.Dispatch(context.Background(), "GUILD_MEMBER_REMOVE", mustJSON(t, map[string]any{
-		"guild_id": "g1",
-		"user":     map[string]any{"id": "u1", "username": "Ada"},
-	}))
-	if len(rest.messages) != 0 {
-		t.Fatalf("goodbye posted while off: %v", rest.messages)
+func TestMemberDispatchGuards(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     ddiscord.Config
+		event   string
+		guildID string
+		wantMsg int
+		wantEmb int
+	}{
+		{
+			name:    "goodbye off by default",
+			cfg:     ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"},
+			event:   "GUILD_MEMBER_REMOVE",
+			guildID: "g1",
+		},
+		{
+			name:    "join logs when welcome off",
+			cfg:     ddiscord.Config{GuildID: "g1", WelcomeEnabled: "off", LogsEnabled: "", LogChannelID: "logs"},
+			event:   "GUILD_MEMBER_ADD",
+			guildID: "g1",
+			wantEmb: 1,
+		},
+		{
+			name:    "unbound guild ignored",
+			cfg:     ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"},
+			event:   "GUILD_MEMBER_ADD",
+			guildID: "other",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bot, rest, _ := testBot(tc.cfg)
+			_ = dispatch(t, bot, tc.event, memberPayload(tc.guildID))
+			if len(rest.messages) != tc.wantMsg {
+				t.Fatalf("messages = %v", rest.messages)
+			}
+			if len(rest.embeds) != tc.wantEmb {
+				t.Fatalf("embeds = %v", rest.embeds)
+			}
+		})
 	}
 }
 
 func TestJoinToCreateVoice(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub", VoiceEnabled: ""})
-	err := bot.Dispatch(context.Background(), "VOICE_STATE_UPDATE", mustJSON(t, map[string]any{
+	err := dispatch(t, bot, "VOICE_STATE_UPDATE", map[string]any{
 		"guild_id": "g1", "channel_id": "hub", "user_id": "u1",
 		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
-	}))
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,23 +199,23 @@ func TestTicketOpenAndClose(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{
 		GuildID: "g1", TicketsEnabled: "", TicketCategoryID: "cat",
 	})
-	open := mustJSON(t, map[string]any{
+	open := map[string]any{
 		"id": "i1", "token": "tok", "guild_id": "g1", "channel_id": "support",
 		"data":   map[string]any{"custom_id": customTicketOpen},
 		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"},
-	})
-	if err := bot.Dispatch(context.Background(), "INTERACTION_CREATE", open); err != nil {
+	}
+	if err := dispatch(t, bot, "INTERACTION_CREATE", open); err != nil {
 		t.Fatal(err)
 	}
 	if len(rest.channels) != 1 {
 		t.Fatalf("ticket channel = %v", rest.channels)
 	}
-	closeEv := mustJSON(t, map[string]any{
+	closeEv := map[string]any{
 		"id": "i2", "token": "tok", "guild_id": "g1", "channel_id": rest.channels[0],
 		"data":   map[string]any{"name": "ticket", "options": []any{map[string]any{"name": "close", "type": 1}}},
 		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"},
-	})
-	if err := bot.Dispatch(context.Background(), "INTERACTION_CREATE", closeEv); err != nil {
+	}
+	if err := dispatch(t, bot, "INTERACTION_CREATE", closeEv); err != nil {
 		t.Fatal(err)
 	}
 	if len(rest.deleted) != 1 {
@@ -183,18 +225,18 @@ func TestTicketOpenAndClose(t *testing.T) {
 
 func TestDailyAndRank(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", LevelsEnabled: ""})
-	daily := mustJSON(t, map[string]any{
+	daily := map[string]any{
 		"id": "i1", "token": "tok", "guild_id": "g1",
 		"data":   map[string]any{"name": "daily"},
 		"member": map[string]any{"user": map[string]any{"id": "u1"}},
-	})
-	if err := bot.Dispatch(context.Background(), "INTERACTION_CREATE", daily); err != nil {
+	}
+	if err := dispatch(t, bot, "INTERACTION_CREATE", daily); err != nil {
 		t.Fatal(err)
 	}
 	if len(rest.replies) != 1 {
 		t.Fatalf("daily reply = %v", rest.replies)
 	}
-	if err := bot.Dispatch(context.Background(), "INTERACTION_CREATE", daily); err != nil {
+	if err := dispatch(t, bot, "INTERACTION_CREATE", daily); err != nil {
 		t.Fatal(err)
 	}
 	if rest.replies[1] != "Already claimed today." {
@@ -204,25 +246,25 @@ func TestDailyAndRank(t *testing.T) {
 
 func TestModerationRequiresPerms(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1"})
-	kick := mustJSON(t, map[string]any{
+	kick := map[string]any{
 		"id": "i1", "token": "tok", "guild_id": "g1",
 		"data": map[string]any{"name": "kick", "options": []any{
 			map[string]any{"name": "user", "type": 6, "value": "u2"},
 		}},
 		"member": map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"},
-	})
-	_ = bot.Dispatch(context.Background(), "INTERACTION_CREATE", kick)
+	}
+	_ = dispatch(t, bot, "INTERACTION_CREATE", kick)
 	if rest.kick != 0 {
 		t.Fatal("kick without perms")
 	}
-	kick2 := mustJSON(t, map[string]any{
+	kick2 := map[string]any{
 		"id": "i2", "token": "tok", "guild_id": "g1",
 		"data": map[string]any{"name": "kick", "options": []any{
 			map[string]any{"name": "user", "type": 6, "value": "u2"},
 		}},
 		"member": map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"},
-	})
-	_ = bot.Dispatch(context.Background(), "INTERACTION_CREATE", kick2)
+	}
+	_ = dispatch(t, bot, "INTERACTION_CREATE", kick2)
 	if rest.kick != 1 {
 		t.Fatal("admin kick")
 	}
@@ -230,12 +272,12 @@ func TestModerationRequiresPerms(t *testing.T) {
 
 func TestLevelUpOnChat(t *testing.T) {
 	bot, rest, mem := testBot(ddiscord.Config{GuildID: "g1", LevelsEnabled: ""})
-	mem.SeedXP("g1", "u1", 90)
-	err := bot.Dispatch(context.Background(), "MESSAGE_CREATE", mustJSON(t, map[string]any{
+	mem.SeedXP(store.XPSeed{Member: store.Member{GuildID: "g1", UserID: "u1"}, Amount: 90})
+	err := dispatch(t, bot, "MESSAGE_CREATE", map[string]any{
 		"id": "m1", "guild_id": "g1", "channel_id": "chat",
 		"content": "hi",
 		"author":  map[string]any{"id": "u1", "username": "Ada"},
-	}))
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,54 +288,27 @@ func TestLevelUpOnChat(t *testing.T) {
 
 func TestEmptyCloneIsDeleted(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub", VoiceEnabled: ""})
-	_ = bot.Dispatch(context.Background(), "VOICE_STATE_UPDATE", mustJSON(t, map[string]any{
-		"guild_id": "g1", "channel_id": "hub", "user_id": "u1",
-		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
-	}))
+	voice := func(channelID string) map[string]any {
+		return map[string]any{
+			"guild_id": "g1", "channel_id": channelID, "user_id": "u1",
+			"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
+		}
+	}
+	_ = dispatch(t, bot, "VOICE_STATE_UPDATE", voice("hub"))
 	cloneID := rest.channels[0]
-	_ = bot.Dispatch(context.Background(), "VOICE_STATE_UPDATE", mustJSON(t, map[string]any{
-		"guild_id": "g1", "channel_id": cloneID, "user_id": "u1",
-		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
-	}))
-	_ = bot.Dispatch(context.Background(), "VOICE_STATE_UPDATE", mustJSON(t, map[string]any{
-		"guild_id": "g1", "channel_id": "", "user_id": "u1",
-		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
-	}))
+	_ = dispatch(t, bot, "VOICE_STATE_UPDATE", voice(cloneID))
+	_ = dispatch(t, bot, "VOICE_STATE_UPDATE", voice(""))
 	if len(rest.deleted) != 1 || rest.deleted[0] != cloneID {
 		t.Fatalf("deleted = %v want %s", rest.deleted, cloneID)
 	}
 }
 
-func TestJoinLogsWhenWelcomeOff(t *testing.T) {
-	bot, rest, _ := testBot(ddiscord.Config{
-		GuildID: "g1", WelcomeEnabled: "off", LogsEnabled: "", LogChannelID: "logs",
-	})
-	_ = bot.Dispatch(context.Background(), "GUILD_MEMBER_ADD", mustJSON(t, map[string]any{
-		"guild_id": "g1",
-		"user":     map[string]any{"id": "u1", "username": "Ada"},
-	}))
-	if len(rest.embeds) != 1 {
-		t.Fatalf("log embeds = %v", rest.embeds)
-	}
-}
-
 func TestReadyRegistersSlash(t *testing.T) {
 	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1"})
-	if err := bot.Ready(context.Background(), "app-1", "bot-1"); err != nil {
+	if err := bot.Ready(context.Background(), gateway.Identity{ApplicationID: "app-1", BotUserID: "bot-1"}); err != nil {
 		t.Fatal(err)
 	}
 	if rest.commands != 1 {
 		t.Fatalf("commands registered = %d", rest.commands)
-	}
-}
-
-func TestUnboundGuildIsIgnored(t *testing.T) {
-	bot, rest, _ := testBot(ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"})
-	_ = bot.Dispatch(context.Background(), "GUILD_MEMBER_ADD", mustJSON(t, map[string]any{
-		"guild_id": "other",
-		"user":     map[string]any{"id": "u1", "username": "Ada"},
-	}))
-	if len(rest.embeds) != 0 {
-		t.Fatal("unbound guild posted")
 	}
 }

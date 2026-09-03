@@ -87,6 +87,18 @@ func NewClient(botToken string) *Client {
 // SetTransport swaps the HTTP transport (tests inject fakes here).
 func (c *Client) SetTransport(rt http.RoundTripper) { c.http.Transport = rt }
 
+// ChatPost is one text message into a channel.
+type ChatPost struct {
+	ChannelID string
+	Content   string
+	TTS       bool
+}
+
+// SendChat posts one text message into a channel.
+func (c *Client) SendChat(ctx context.Context, post ChatPost) error {
+	return c.SendMessage(ctx, post.ChannelID, post.Content, post.TTS)
+}
+
 // SendMessage posts one text message into a channel. tts passes through to
 // Discord's TTS flag; content is validated upstream (the worker bounds it).
 func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts bool) error {

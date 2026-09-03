@@ -15,8 +15,20 @@ import (
 
 // Handler receives one dispatched gateway event.
 type Handler interface {
-	Dispatch(ctx context.Context, eventType string, raw []byte) error
-	Ready(ctx context.Context, applicationID, botUserID string) error
+	Dispatch(ctx context.Context, ev Event) error
+	Ready(ctx context.Context, ident Identity) error
+}
+
+// Event is one Discord gateway dispatch payload.
+type Event struct {
+	Type string
+	Raw  []byte
+}
+
+// Identity is the application and bot user from READY.
+type Identity struct {
+	ApplicationID string
+	BotUserID     string
 }
 
 // Conn is one WebSocket. Tests inject a scripted implementation.
@@ -78,29 +90,45 @@ func (s Session) pump(ctx context.Context, conn Conn) error {
 	beats := make(chan struct{}, 1)
 	defer close(beats)
 	for {
-		raw, err := conn.Read(ctx)
+		pkt, err := readPacket(ctx, conn)
 		if err != nil {
 			return err
 		}
-		var pkt packet
-		if err := codec.Unmarshal(raw, &pkt); err != nil {
-			return fmt.Errorf("dingress: decode gateway packet: %w", err)
+		if err := s.handlePacket(ctx, conn, pkt, beats); err != nil {
+			return err
 		}
-		if pkt.Op == opHello {
-			if err := s.onHello(ctx, conn, pkt, beats); err != nil {
-				return err
-			}
-			continue
-		}
-		if pkt.Op == opReconnect || pkt.Op == opInvalidSession {
-			return fmt.Errorf("dingress: gateway requested reconnect (op %d)", pkt.Op)
-		}
-		if pkt.Op != opDispatch {
-			continue
-		}
-		if err := s.onDispatch(ctx, pkt); err != nil {
-			s.log().Warn("discord dispatch failed", zap.String("t", pkt.T), zap.Error(err))
-		}
+	}
+}
+
+func readPacket(ctx context.Context, conn Conn) (packet, error) {
+	raw, err := conn.Read(ctx)
+	if err != nil {
+		return packet{}, err
+	}
+	var pkt packet
+	if err := codec.Unmarshal(raw, &pkt); err != nil {
+		return packet{}, fmt.Errorf("dingress: decode gateway packet: %w", err)
+	}
+	return pkt, nil
+}
+
+func (s Session) handlePacket(ctx context.Context, conn Conn, pkt packet, beats chan struct{}) error {
+	switch pkt.Op {
+	case opHello:
+		return s.onHello(ctx, conn, pkt, beats)
+	case opReconnect, opInvalidSession:
+		return fmt.Errorf("dingress: gateway requested reconnect (op %d)", pkt.Op)
+	case opDispatch:
+		s.warnDispatch(ctx, pkt)
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (s Session) warnDispatch(ctx context.Context, pkt packet) {
+	if err := s.onDispatch(ctx, pkt); err != nil {
+		s.log().Warn("discord dispatch failed", zap.String("t", pkt.T), zap.Error(err))
 	}
 }
 
@@ -118,19 +146,27 @@ func (s Session) onHello(ctx context.Context, conn Conn, pkt packet, beats chan 
 
 func (s Session) onDispatch(ctx context.Context, pkt packet) error {
 	if pkt.T == eventReady {
-		var ready readyData
-		if err := codec.Unmarshal(pkt.D, &ready); err != nil {
-			return err
-		}
-		if s.Handle == nil {
-			return nil
-		}
-		return s.Handle.Ready(ctx, ready.Application.ID, ready.User.ID)
+		return s.readyFrom(ctx, pkt)
+	}
+	return s.dispatchEvent(ctx, pkt)
+}
+
+func (s Session) readyFrom(ctx context.Context, pkt packet) error {
+	var ready readyData
+	if err := codec.Unmarshal(pkt.D, &ready); err != nil {
+		return err
 	}
 	if s.Handle == nil {
 		return nil
 	}
-	return s.Handle.Dispatch(ctx, pkt.T, pkt.D)
+	return s.Handle.Ready(ctx, Identity{ApplicationID: ready.Application.ID, BotUserID: ready.User.ID})
+}
+
+func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
+	if s.Handle == nil {
+		return nil
+	}
+	return s.Handle.Dispatch(ctx, Event{Type: pkt.T, Raw: pkt.D})
 }
 
 func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop <-chan struct{}) {

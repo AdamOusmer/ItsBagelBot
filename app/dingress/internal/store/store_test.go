@@ -8,50 +8,80 @@ import (
 	"testing"
 )
 
-func TestMemXPDailyAndClones(t *testing.T) {
+func TestMemBroadcaster(t *testing.T) {
 	m := NewMem()
-	m.PutGuild("g1", "42")
-	id, ok := m.Broadcaster(context.Background(), "g1")
-	if !ok || id != "42" {
-		t.Fatalf("guild = %s %v", id, ok)
+	g := Guild{ID: "g1"}
+	m.PutGuild(g, Broadcaster{ID: "42"})
+	got, ok := m.Broadcaster(context.Background(), g)
+	if !ok {
+		t.Fatal("missing guild")
 	}
-	xp, leveled, level := m.AddXP(context.Background(), "g1", "u1")
-	if xp != xpPerMessage || leveled || level != 0 {
-		t.Fatalf("first xp = %d leveled=%v level=%d", xp, leveled, level)
+	if got.ID != "42" {
+		t.Fatalf("guild = %s", got.ID)
 	}
-	xp2, _, _ := m.AddXP(context.Background(), "g1", "u1")
+}
+
+func TestMemXPCooldown(t *testing.T) {
+	m := NewMem()
+	mem := Member{GuildID: "g1", UserID: "u1"}
+	xp, leveled, level := m.AddXP(context.Background(), mem)
+	if xp != xpPerMessage {
+		t.Fatalf("first xp = %d", xp)
+	}
+	if leveled {
+		t.Fatal("first message must not level")
+	}
+	if level != 0 {
+		t.Fatalf("level = %d", level)
+	}
+	xp2, _, _ := m.AddXP(context.Background(), mem)
 	if xp2 != xp {
 		t.Fatalf("cooldown should skip, got %d", xp2)
 	}
-	ok, total := m.ClaimDaily(context.Background(), "g1", "u1")
-	if !ok || total != xp+dailyXP {
-		t.Fatalf("daily = %v %d", ok, total)
+}
+
+func TestMemDaily(t *testing.T) {
+	m := NewMem()
+	mem := Member{GuildID: "g1", UserID: "u1"}
+	ok, total := m.ClaimDaily(context.Background(), mem)
+	if !ok {
+		t.Fatal("first daily")
 	}
-	ok, _ = m.ClaimDaily(context.Background(), "g1", "u1")
+	if total != dailyXP {
+		t.Fatalf("daily total = %d", total)
+	}
+	ok, _ = m.ClaimDaily(context.Background(), mem)
 	if ok {
 		t.Fatal("second daily")
 	}
-	_ = m.TrackClone(context.Background(), Clone{ChannelID: "c1", GuildID: "g1", OwnerID: "u1"})
-	if m.CloneCount(context.Background(), "g1") != 1 {
+}
+
+func TestMemClones(t *testing.T) {
+	m := NewMem()
+	g := Guild{ID: "g1"}
+	_ = m.TrackClone(context.Background(), Clone{ChannelID: "c1", GuildID: g.ID, OwnerID: "u1"})
+	if m.CloneCount(context.Background(), g) != 1 {
 		t.Fatal("clone count")
 	}
-	_ = m.ForgetClone(context.Background(), Clone{ChannelID: "c1", GuildID: "g1"})
-	if m.CloneCount(context.Background(), "g1") != 0 {
+	_ = m.ForgetClone(context.Background(), Clone{ChannelID: "c1", GuildID: g.ID})
+	if m.CloneCount(context.Background(), g) != 0 {
 		t.Fatal("clone forgotten")
 	}
 }
 
 func TestLevelOf(t *testing.T) {
-	if levelOf(0) != 0 {
-		t.Fatal("zero")
+	cases := []struct {
+		xp   int
+		want int
+	}{
+		{0, 0},
+		{99, 0},
+		{100, 1},
+		{400, 2},
 	}
-	if levelOf(99) != 0 {
-		t.Fatal("below 100")
-	}
-	if levelOf(100) != 1 {
-		t.Fatal("level 1")
-	}
-	if levelOf(400) != 2 {
-		t.Fatal("level 2")
+	for _, tc := range cases {
+		if got := levelOf(tc.xp); got != tc.want {
+			t.Fatalf("levelOf(%d) = %d, want %d", tc.xp, got, tc.want)
+		}
 	}
 }
