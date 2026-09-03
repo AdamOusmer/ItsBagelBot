@@ -44,6 +44,7 @@ func main() {
 		duration     = flag.Duration("duration", 20*time.Second, "")
 		startAt      = flag.Int64("start-at", 0, "")
 		payloadSize  = flag.Int("payload-size", 256, "")
+		idPad        = flag.Int("id-pad", 0, "extra bytes appended to the message id header (header-length sensitivity)")
 		confirmEvery = flag.Int("confirm-every", 512, "")
 		rate         = flag.Int("rate", 0, "per-pod offered msg/s; 0 = unbounded")
 		paceEvery    = flag.Int("pace-every", 64, "messages per pacer sleep; one sleep per message is below timer granularity at high rates")
@@ -77,7 +78,7 @@ func main() {
 	case "publish":
 		err = runPublish(publishOpts{
 			lane: lane, duration: *duration, startAt: unixNano(*startAt),
-			payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate,
+			payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate, idPad: *idPad,
 			paceEvery: *paceEvery, podIndex: *podIndex, feeders: *feeders,
 		})
 	case "consume":

@@ -35,6 +35,14 @@ type collector struct {
 	secs   [][]int64
 	secIdx []atomic.Int64
 
+	pubLat    []int64
+	delLat    []int64
+	splitIdx  atomic.Int64
+	pubSecs   [][]int64
+	pubSecIdx []atomic.Int64
+	delSecs   [][]int64
+	delSecIdx []atomic.Int64
+
 	// Per-message accounting is lock-free: a mutex here serialized every
 	// handler goroutine twice per delivery inside the measurement window.
 	bits     [benchPods][]uint64 // per publisher pod index (high 16 bits of seq)
@@ -68,7 +76,18 @@ func (c *collector) handle(msg *bus.Message) error {
 			c.lat[i-1] = int64(now - sentNs)
 		}
 	}
-	c.noteSecond(int((now-c.winStart)/1e9), int64(now-sentNs))
+	sec := int((now - c.winStart) / 1e9)
+	c.noteSecond(sec, int64(now-sentNs))
+	if ts := storedAt(msg); ts != 0 {
+		if now >= c.warmEnd {
+			if i := c.splitIdx.Add(1); i <= int64(len(c.pubLat)) {
+				c.pubLat[i-1] = int64(ts - sentNs)
+				c.delLat[i-1] = int64(now - ts)
+			}
+		}
+		noteSecondIn(c.pubSecs, c.pubSecIdx, sec, int64(ts-sentNs))
+		noteSecondIn(c.delSecs, c.delSecIdx, sec, int64(now-ts))
+	}
 	c.consumed.Add(1)
 	c.noteSeq(seq)
 	return nil
@@ -114,6 +133,40 @@ func popcount(x uint64) int {
 }
 
 // perSecondP99 returns each window second's p99 in milliseconds.
+// storedAt is the broker's store time for the delivery, zero when the wire
+// carried none; the split it enables (pub_latency_ns vs deliver_latency_ns)
+// is what separates publisher queueing from consumer lag in a report.
+func storedAt(msg *bus.Message) unixNano {
+	if t := msg.StoredAt(); !t.IsZero() {
+		return unixNano(t.UnixNano())
+	}
+	return 0
+}
+
+func noteSecondIn(secs [][]int64, idx []atomic.Int64, sec int, lat int64) {
+	if sec < 0 || sec >= len(secs) {
+		return
+	}
+	if i := idx[sec].Add(1); i <= int64(len(secs[sec])) {
+		secs[sec][i-1] = lat
+	}
+}
+
+func perSecondQ(secs [][]int64, idx []atomic.Int64, q float64) []float64 {
+	out := make([]float64, 0, len(secs))
+	for i, s := range secs {
+		n := min(int(idx[i].Load()), len(s))
+		if n == 0 {
+			out = append(out, 0)
+			continue
+		}
+		s = s[:n]
+		sortAsc(s)
+		out = append(out, float64(nearestRank(s, q))/1e6)
+	}
+	return out
+}
+
 func (c *collector) perSecondP99() []float64 {
 	out := make([]float64, 0, len(c.secs))
 	for i, s := range c.secs {
@@ -226,16 +279,24 @@ func runConsume(lane benchLane, o consumeOptions) error {
 	}
 
 	c := &collector{
-		winStart: winStart,
-		winEnd:   winEnd,
-		warmEnd:  winStart + unixNano(o.warmup.Nanoseconds()),
-		lat:      make([]int64, maxLatencySamples),
-		secs:     make([][]int64, int(o.duration.Seconds())+1),
-		secIdx:   make([]atomic.Int64, int(o.duration.Seconds())+1),
-		tracking: true,
+		winStart:  winStart,
+		winEnd:    winEnd,
+		warmEnd:   winStart + unixNano(o.warmup.Nanoseconds()),
+		lat:       make([]int64, maxLatencySamples),
+		secs:      make([][]int64, int(o.duration.Seconds())+1),
+		secIdx:    make([]atomic.Int64, int(o.duration.Seconds())+1),
+		tracking:  true,
+		pubLat:    make([]int64, maxLatencySamples),
+		delLat:    make([]int64, maxLatencySamples),
+		pubSecs:   make([][]int64, int(o.duration.Seconds())+1),
+		pubSecIdx: make([]atomic.Int64, int(o.duration.Seconds())+1),
+		delSecs:   make([][]int64, int(o.duration.Seconds())+1),
+		delSecIdx: make([]atomic.Int64, int(o.duration.Seconds())+1),
 	}
 	for i := range c.secs {
 		c.secs[i] = make([]int64, secSampleCap)
+		c.pubSecs[i] = make([]int64, secSampleCap)
+		c.delSecs[i] = make([]int64, secSampleCap)
 	}
 
 	// One consumption path only: ConsumeWeighted owns the lane binding. A
@@ -262,11 +323,19 @@ func runConsume(lane benchLane, o consumeOptions) error {
 
 	measured := c.lat[:c.latIdx.Load()]
 	sortAsc(measured)
+	split := min(int(c.splitIdx.Load()), len(c.pubLat))
+	pubM, delM := c.pubLat[:split], c.delLat[:split]
+	sortAsc(pubM)
+	sortAsc(delM)
 	emit(consumeReport{
-		Consumed:   uint64(c.consumed.Load()),
-		Rate:       float64(c.consumed.Load()) / o.duration.Seconds(),
-		E2ENs:      summarize(measured),
-		Duplicates: c.dupes.Load(),
+		Consumed:     uint64(c.consumed.Load()),
+		Rate:         float64(c.consumed.Load()) / o.duration.Seconds(),
+		E2ENs:        summarize(measured),
+		PubNs:        summarize(pubM),
+		DelNs:        summarize(delM),
+		PerSecPubP50: perSecondQ(c.pubSecs, c.pubSecIdx, 50),
+		PerSecDelP50: perSecondQ(c.delSecs, c.delSecIdx, 50),
+		Duplicates:   c.dupes.Load(),
 
 		PerSecP99:   c.perSecondP99(),
 		Missing:     c.missing(o.feeders),

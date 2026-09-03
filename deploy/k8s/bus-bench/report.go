@@ -41,13 +41,17 @@ type publishReport struct {
 }
 
 type consumeReport struct {
-	Consumed    uint64       `json:"consumed"`
-	Rate        float64      `json:"rate"`
-	E2ENs       latencyStats `json:"e2e_latency_ns"`
-	Duplicates  uint64       `json:"duplicates"`
-	PerSecP99   []float64    `json:"e2e_p99_ms_per_second,omitempty"`
-	Missing     uint64       `json:"missing_sequences"`
-	CPUUsPerMsg float64      `json:"cpu_us_per_msg"`
+	Consumed     uint64       `json:"consumed"`
+	Rate         float64      `json:"rate"`
+	E2ENs        latencyStats `json:"e2e_latency_ns"`
+	PubNs        latencyStats `json:"pub_latency_ns"`
+	DelNs        latencyStats `json:"deliver_latency_ns"`
+	PerSecPubP50 []float64    `json:"pub_p50_ms_per_second,omitempty"`
+	PerSecDelP50 []float64    `json:"deliver_p50_ms_per_second,omitempty"`
+	Duplicates   uint64       `json:"duplicates"`
+	PerSecP99    []float64    `json:"e2e_p99_ms_per_second,omitempty"`
+	Missing      uint64       `json:"missing_sequences"`
+	CPUUsPerMsg  float64      `json:"cpu_us_per_msg"`
 }
 
 // cpuMicrosPerMessage is this process's user+system CPU time divided by the

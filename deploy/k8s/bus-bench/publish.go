@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,9 +27,15 @@ type publishOpts struct {
 	payloadSize  int
 	confirmEvery int
 	rate         int
-	paceEvery    int
-	podIndex     int
-	feeders      int
+	// idPad lengthens the message id header by that many bytes. The broker
+	// scans the whole header block once per key it checks (~30 bytes.Index
+	// calls per message on the stream leader), so header length is a direct
+	// cost on the serialized ingest path: measured 2026-09-03, +300 bytes took
+	// one R3 stream from 127k to 117k msg/s with nothing else changed.
+	idPad     int
+	paceEvery int
+	podIndex  int
+	feeders   int
 }
 
 func buildPayload(seq uint64, sent unixNano, size int) []byte {
@@ -56,7 +63,7 @@ func runPublish(o publishOpts) error {
 	defer pub.Close()
 
 	ctx := context.Background()
-	run := &sampleRun{pub: pub, opts: o, deadline: deadline}
+	run := &sampleRun{pub: pub, opts: o, deadline: deadline, pad: strings.Repeat("x", o.idPad)}
 	samples := run.drive(ctx)
 
 	flushCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -189,6 +196,7 @@ func (l *confirmLane) drain() []int64 {
 // sampleRun is one publish-mode measurement: the publisher under test, its
 // options and deadline, and the admission tally the feeder fleet fills in.
 type sampleRun struct {
+	pad      string
 	pub      bus.Publisher
 	opts     publishOpts
 	deadline time.Time
@@ -227,7 +235,7 @@ func (r *sampleRun) message(seq uint64) benchMessage {
 	globalSeq := uint64(r.opts.podIndex)<<48 | seq
 	return benchMessage{
 		subject:   r.opts.lane.subject,
-		id:        fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq),
+		id:        fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq) + r.pad,
 		body:      buildPayload(globalSeq, unixNano(time.Now().UnixNano()), r.opts.payloadSize),
 		confirmed: r.opts.confirmEvery > 0 && seq%uint64(r.opts.confirmEvery) == 0,
 	}

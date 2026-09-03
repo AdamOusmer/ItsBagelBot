@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -475,7 +477,35 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 		id:       messageIdentity(wire),
 		payload:  wire.Data,
 		metadata: metadata,
+		storedAt: jetStreamStoredAt(wire.Reply),
 	}), nil
+}
+
+// jetStreamStoredAt reads the broker's store time out of a $JS.ACK reply
+// subject: token 7 of the 9-token v1 shape, token 9 of the domain-qualified
+// v2 shape (11 tokens, or 12 with the optional trailing token). nats.go's own
+// Msg.Metadata parses the same subject but insists on a bound subscription,
+// which the pull lane's pooled envelopes never carry, so it is not usable on
+// the hot lane. Anything that is not a JetStream reply yields the zero time.
+func jetStreamStoredAt(reply string) time.Time {
+	if !strings.HasPrefix(reply, "$JS.ACK.") {
+		return time.Time{}
+	}
+	tokens := strings.Split(reply, ".")
+	var position int
+	switch {
+	case len(tokens) == 9:
+		position = 7
+	case len(tokens) >= 11:
+		position = 9
+	default:
+		return time.Time{}
+	}
+	ns, err := strconv.ParseInt(tokens[position], 10, 64)
+	if err != nil || ns <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, ns)
 }
 
 // fleetMetadata copies the non-identity headers into delivery metadata. A
