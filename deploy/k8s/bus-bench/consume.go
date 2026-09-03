@@ -26,14 +26,13 @@ type collector struct {
 	// series but not the whole-run percentiles.
 	warmEnd unixNano
 
-	lat      []int64
-	latIdx   atomic.Int64
+	// Three histograms of one shape: end to end, produced -> stored and
+	// stored -> received. The split is what separates publisher queueing
+	// from consumer lag in a report (see bus.Message.StoredAt).
+	e2e      *latencySeries
+	pub      *latencySeries
+	del      *latencySeries
 	consumed atomic.Int64
-	// secs is one latency slice per elapsed second of the window, so a run's
-	// tail can be placed in time: a periodic spike reads differently from a
-	// one-off, and neither is visible in the whole-run percentiles.
-	secs   [][]int64
-	secIdx []atomic.Int64
 
 	// Per-message accounting is lock-free: a mutex here serialized every
 	// handler goroutine twice per delivery inside the measurement window.
@@ -63,24 +62,22 @@ func (c *collector) handle(msg *bus.Message) error {
 	}
 	seq := binary.BigEndian.Uint64(p[0:8])
 	sentNs := unixNano(binary.BigEndian.Uint64(p[8:16]))
-	if now >= c.warmEnd {
-		if i := c.latIdx.Add(1); i <= int64(len(c.lat)) {
-			c.lat[i-1] = int64(now - sentNs)
-		}
-	}
-	c.noteSecond(int((now-c.winStart)/1e9), int64(now-sentNs))
+	c.record(now, sentNs, storedAt(msg))
 	c.consumed.Add(1)
 	c.noteSeq(seq)
 	return nil
 }
 
-func (c *collector) noteSecond(sec int, lat int64) {
-	if sec < 0 || sec >= len(c.secs) {
+// record files the e2e latency and, when the wire carried the broker's store
+// time, the two halves it splits into.
+func (c *collector) record(now, sentNs, storedNs unixNano) {
+	sec, warm := int((now-c.winStart)/1e9), now >= c.warmEnd
+	c.e2e.note(sec, int64(now-sentNs), warm)
+	if storedNs == 0 {
 		return
 	}
-	if i := c.secIdx[sec].Add(1); i <= int64(len(c.secs[sec])) {
-		c.secs[sec][i-1] = lat
-	}
+	c.pub.note(sec, int64(storedNs-sentNs), warm)
+	c.del.note(sec, int64(now-storedNs), warm)
 }
 
 // missing counts sequences below the highest seen that never arrived. Feeders
@@ -114,17 +111,74 @@ func popcount(x uint64) int {
 }
 
 // perSecondP99 returns each window second's p99 in milliseconds.
-func (c *collector) perSecondP99() []float64 {
-	out := make([]float64, 0, len(c.secs))
-	for i, s := range c.secs {
-		n := min(int(c.secIdx[i].Load()), len(s))
+// storedAt is the broker's store time for the delivery, zero when the wire
+// carried none; the split it enables (pub_latency_ns vs deliver_latency_ns)
+// is what separates publisher queueing from consumer lag in a report.
+func storedAt(msg *bus.Message) unixNano {
+	if t := msg.StoredAt(); !t.IsZero() {
+		return unixNano(t.UnixNano())
+	}
+	return 0
+}
+
+// latencySeries is one lock-free latency histogram plus its per-second
+// slices: a fixed sample array with an atomic cursor for the whole window
+// (after warmup) and a capped array per second for the per-second traces.
+type latencySeries struct {
+	samples []int64
+	idx     atomic.Int64
+	secs    [][]int64
+	secIdx  []atomic.Int64
+}
+
+func newLatencySeries(seconds int) *latencySeries {
+	s := &latencySeries{
+		samples: make([]int64, maxLatencySamples),
+		secs:    make([][]int64, seconds),
+		secIdx:  make([]atomic.Int64, seconds),
+	}
+	for i := range s.secs {
+		s.secs[i] = make([]int64, secSampleCap)
+	}
+	return s
+}
+
+// note records one latency: into the window histogram when warm, and into
+// the per-second slice for sec when that second lies inside the window.
+func (s *latencySeries) note(sec int, lat int64, warm bool) {
+	if warm {
+		if i := s.idx.Add(1); i <= int64(len(s.samples)) {
+			s.samples[i-1] = lat
+		}
+	}
+	if sec < 0 || sec >= len(s.secs) {
+		return
+	}
+	if i := s.secIdx[sec].Add(1); i <= int64(len(s.secs[sec])) {
+		s.secs[sec][i-1] = lat
+	}
+}
+
+// sorted hands back the window samples in ascending order; call it once, at
+// the end of the run.
+func (s *latencySeries) sorted() []int64 {
+	measured := s.samples[:min(int(s.idx.Load()), len(s.samples))]
+	sortAsc(measured)
+	return measured
+}
+
+// perSecond is the q-th percentile of every second, in milliseconds.
+func (s *latencySeries) perSecond(q float64) []float64 {
+	out := make([]float64, 0, len(s.secs))
+	for i, sec := range s.secs {
+		n := min(int(s.secIdx[i].Load()), len(sec))
 		if n == 0 {
 			out = append(out, 0)
 			continue
 		}
-		s = s[:n]
-		sortAsc(s)
-		out = append(out, float64(nearestRank(s, 99))/1e6)
+		sec = sec[:n]
+		sortAsc(sec)
+		out = append(out, float64(nearestRank(sec, q))/1e6)
 	}
 	return out
 }
@@ -225,17 +279,15 @@ func runConsume(lane benchLane, o consumeOptions) error {
 		return err
 	}
 
+	seconds := int(o.duration.Seconds()) + 1
 	c := &collector{
 		winStart: winStart,
 		winEnd:   winEnd,
 		warmEnd:  winStart + unixNano(o.warmup.Nanoseconds()),
-		lat:      make([]int64, maxLatencySamples),
-		secs:     make([][]int64, int(o.duration.Seconds())+1),
-		secIdx:   make([]atomic.Int64, int(o.duration.Seconds())+1),
+		e2e:      newLatencySeries(seconds),
+		pub:      newLatencySeries(seconds),
+		del:      newLatencySeries(seconds),
 		tracking: true,
-	}
-	for i := range c.secs {
-		c.secs[i] = make([]int64, secSampleCap)
 	}
 
 	// One consumption path only: ConsumeWeighted owns the lane binding. A
@@ -260,17 +312,18 @@ func runConsume(lane benchLane, o consumeOptions) error {
 	drainCancel()
 	_ = sub.Close()
 
-	measured := c.lat[:c.latIdx.Load()]
-	sortAsc(measured)
 	emit(consumeReport{
-		Consumed:   uint64(c.consumed.Load()),
-		Rate:       float64(c.consumed.Load()) / o.duration.Seconds(),
-		E2ENs:      summarize(measured),
-		Duplicates: c.dupes.Load(),
-
-		PerSecP99:   c.perSecondP99(),
-		Missing:     c.missing(o.feeders),
-		CPUUsPerMsg: cpuMicrosPerMessage(uint64(c.consumed.Load())),
+		Consumed:     uint64(c.consumed.Load()),
+		Rate:         float64(c.consumed.Load()) / o.duration.Seconds(),
+		E2ENs:        summarize(c.e2e.sorted()),
+		PubNs:        summarize(c.pub.sorted()),
+		DelNs:        summarize(c.del.sorted()),
+		PerSecP99:    c.e2e.perSecond(99),
+		PerSecPubP50: c.pub.perSecond(50),
+		PerSecDelP50: c.del.perSecond(50),
+		Duplicates:   c.dupes.Load(),
+		Missing:      c.missing(o.feeders),
+		CPUUsPerMsg:  cpuMicrosPerMessage(uint64(c.consumed.Load())),
 	})
 	return nil
 }

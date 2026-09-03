@@ -301,6 +301,15 @@ var TwitchIngressStream = StreamSpec{
 	// p99 in the hundreds of ms. Any lane expected to run above ~90k msg/s
 	// needs one of: a shorter MaxAge, a larger share of the 1 GiB, or a raised
 	// budget (max_mem and the pod limit move together). Not changed here.
+	//
+	// Follow-up on 2026-09-03 (same hub, e2e split at the broker's store
+	// timestamp via Message.StoredAt): with no eviction during the run one R3
+	// stream ingests 126-130k msg/s and stored->received stays 6-10 ms; the
+	// moment either regime evicts (the byte cap inline on every apply, MaxAge
+	// from its own goroutine with a lock pair per message) admission caps
+	// near 105k and every extra millisecond is publisher queueing. Retention
+	// is the first wall; the leader's lock-serialized ingest+apply path (97%
+	// duty at 127k msg/s, 40% of it header scanning) is the second.
 	MaxBytes: 384 << 20, // 384 MiB
 	// The premium, stream and status subjects share this stream, and MaxBytes
 	// eviction is stream-wide oldest-first: without a per-subject cap a

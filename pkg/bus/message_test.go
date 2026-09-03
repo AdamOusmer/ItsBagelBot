@@ -191,6 +191,47 @@ func TestMessageFromNATSUsesStableJetStreamSequenceFallback(t *testing.T) {
 	}
 }
 
+func TestJetStreamStoredAt(t *testing.T) {
+	cases := []struct {
+		name  string
+		reply string
+		want  int64
+	}{
+		{"v1 reply", "$JS.ACK.STREAM.CONSUMER.1.42.7.1000000000.0", 1000000000},
+		{"v2 reply", "$JS.ACK.hub.acchash.STREAM.CONSUMER.1.42.7.1700000000000000000.5", 1700000000000000000},
+		{"v2 reply with trailing token", "$JS.ACK.hub.acchash.STREAM.CONSUMER.1.42.7.1700000000000000000.5.x", 1700000000000000000},
+		{"malformed timestamp", "$JS.ACK.STREAM.CONSUMER.1.42.7.soon.0", 0},
+		{"core reply", "_INBOX.abc", 0},
+		{"empty", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := jetStreamStoredAt(tc.reply)
+			if tc.want == 0 && !got.IsZero() {
+				t.Fatalf("stored at = %v, want zero", got)
+			}
+			if tc.want != 0 && got.UnixNano() != tc.want {
+				t.Fatalf("stored at = %d, want %d", got.UnixNano(), tc.want)
+			}
+		})
+	}
+}
+
+func TestMessageFromNATSExposesStoredAt(t *testing.T) {
+	wire := nats.NewMsg("data.test")
+	wire.Reply = "$JS.ACK.STREAM.CONSUMER.1.42.7.1000000000.0"
+	msg, err := messageFromNATS(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.StoredAt().UnixNano() != 1000000000 {
+		t.Fatalf("stored at = %v, want the ack reply timestamp", msg.StoredAt())
+	}
+	if plain, _ := messageFromNATS(nats.NewMsg("data.test")); !plain.StoredAt().IsZero() {
+		t.Fatalf("stored at = %v for a core delivery, want zero", plain.StoredAt())
+	}
+}
+
 func TestMessageFromNATSRejectsMultiValueMetadata(t *testing.T) {
 	wire := nats.NewMsg("data.test")
 	wire.Header["Traceparent"] = []string{"one", "two"}
