@@ -310,6 +310,26 @@ spec:
             # default 4 a worker stalls on its slot at ~3 ms commit RTT.
             - name: NATS_PUBLISH_INFLIGHT_COHORTS
               value: "16"
+            # NATS_PUBLISH_QUEUE_SIZE bounds each worker's admission queue.
+            # Measured on the production hub on 2026-09-03 with the e2e split
+            # at the broker's store time: the 16,384 default parked 61k
+            # messages per pod (1.5 s) at 150k msg/s offered against a ~127k
+            # msg/s stream, and that queue was the whole 0.4-1.4 s e2e p50; at
+            # 256 the same stream admitted 119-131k msg/s with e2e p50 47-60
+            # ms. One cohort's worth under-fills cohorts on a paced source
+            # (112k vs 127k), so two cohorts (512 with the 256 atomic batch):
+            # overload surfaces as backpressure on the caller within ~40 ms
+            # instead of as a hidden second of queueing.
+            - name: NATS_PUBLISH_QUEUE_SIZE
+              value: "512"
+            # NATS_PUBLISH_ACK_WAIT: an expired commit wait is an at-most-once
+            # loss (the broker may have committed; atomicFallback refuses to
+            # replay), reported only through the publisher's error log. Same
+            # bench: commit p99 hit 2.7 s at 150k offered with AckFirst off
+            # against the 2 s default. 5s sits above every commit tail seen
+            # while a stuck slot still frees within the lane's own timeouts.
+            - name: NATS_PUBLISH_ACK_WAIT
+              value: 5s
             - name: SESAME_SCALE_UP_AFTER
               value: 2s
             - name: SESAME_SCALE_DOWN_AFTER

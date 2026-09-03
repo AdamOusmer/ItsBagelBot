@@ -25,6 +25,8 @@ const (
 	defaultPublishBatchSize = 128
 	defaultPublishBatchWait = time.Millisecond
 	defaultPublishAckWait   = 2 * time.Second
+	minPublishAckWait       = time.Second
+	maxPublishAckWait       = 30 * time.Second
 	defaultPublishQueueSize = 16_384
 	maxInflightCohorts      = 4
 	maxInflightCohortSlots  = 64
@@ -177,6 +179,21 @@ type publishBatchWorker struct {
 	newAtomic func() (atomicCohortPublisher, error)
 }
 
+// publishAckWait is how long a cohort waits for its commit (and, with
+// AckFirst, its first-message reply), NATS_PUBLISH_ACK_WAIT (default
+// defaultPublishAckWait, clamped 1s..30s).
+//
+// A wait that expires is an at-most-once failure: the broker may or may not
+// have committed the cohort, so atomicFallback refuses to replay it and the
+// whole cohort is reported lost through complete(). Measured on the
+// production hub on 2026-09-03 at 150k msg/s offered with AckFirst off,
+// commit p99 reached 2.7 s against this 2 s default, i.e. overload turned
+// into cohort loss rather than backpressure. Lanes that would rather queue
+// than lose set this above their worst commit tail (sesame runs 5s).
+func publishAckWait() time.Duration {
+	return min(max(env.GetDuration("NATS_PUBLISH_ACK_WAIT", defaultPublishAckWait), minPublishAckWait), maxPublishAckWait)
+}
+
 // publishQueueSize bounds one worker's admission queue, NATS_PUBLISH_QUEUE_SIZE
 // (default defaultPublishQueueSize, clamped 64..65536).
 //
@@ -188,6 +205,14 @@ type publishBatchWorker struct {
 // wants that wait bounded: at 1,024 per worker the same overload surfaces as
 // backpressure within ~40 ms and the caller's context decides. The default is
 // unchanged so throughput-first services keep their absorption.
+//
+// Re-measured on 2026-09-03 with the e2e split at the broker's store time:
+// at 150k msg/s offered against a ~127k msg/s stream, the default queue held
+// 61k messages per pod (1.5 s) and every millisecond of the 0.4-1.4 s e2e
+// p50 was this queue; at 256 the same stream admitted 119-131k with e2e p50
+// 47-60 ms. A queue equal to one cohort under-fills cohorts when the source
+// is paced (112k at 256 paced vs 127k unbounded), so bound it at two cohorts
+// or more (512 with the 256-message atomic cohort).
 func publishQueueSize() int {
 	return min(max(env.GetInt("NATS_PUBLISH_QUEUE_SIZE", defaultPublishQueueSize), 64), 65_536)
 }

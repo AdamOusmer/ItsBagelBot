@@ -110,16 +110,25 @@ func mgmtConnect(url string) (*nats.Conn, jsapi.JetStream, error) {
 func benchStreamConfig(name string, maxBytes int64) jsapi.StreamConfig {
 	spec := bus.TwitchIngressRetryStream
 	return jsapi.StreamConfig{
-		Name:               name,
-		Subjects:           append([]string(nil), spec.Subjects...),
-		Retention:          jsapi.LimitsPolicy,
-		Storage:            jsapi.MemoryStorage,
-		Replicas:           spec.Replicas,
-		MaxAge:             spec.MaxAge,
-		MaxBytes:           maxBytes,
-		Duplicates:         10 * time.Second,
-		AllowMsgSchedules:  spec.MsgSchedules,
-		AllowMsgTTL:        spec.MsgSchedules,
+		Name:       name,
+		Subjects:   append([]string(nil), spec.Subjects...),
+		Retention:  jsapi.LimitsPolicy,
+		Storage:    jsapi.MemoryStorage,
+		Replicas:   spec.Replicas,
+		MaxAge:     spec.MaxAge,
+		MaxBytes:   maxBytes,
+		Duplicates: 10 * time.Second,
+		// Deliberately NOT spec.MsgSchedules. The high-volume ingress lane
+		// (TwitchIngressStream) carries neither schedules nor TTLs; only the
+		// retry stream needs them for its own retry mechanics. On the stream
+		// leader both flags cost the serialized ingest+apply path ~0.6 s per
+		// 10 s at 127k msg/s (getMessageSchedule runs unconditionally before
+		// the allow check in jetstream_batching.go, memstore checks the TTL
+		// wheel on every store), so a bench stream that copies them
+		// under-reports the ingress lane by ~7%. Numbers taken on the retry
+		// stream itself (the canary subject) stay conservative for that reason.
+		AllowMsgSchedules:  false,
+		AllowMsgTTL:        false,
 		AllowAtomicPublish: spec.BatchPublish,
 		AllowBatchPublish:  spec.BatchPublish,
 	}

@@ -188,3 +188,25 @@ func TestCollectBatchUngatedWireClosesOnTheWindow(t *testing.T) {
 		t.Fatal("an ungated wire took an inflight slot")
 	}
 }
+
+func TestPublishAckWaitKnob(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want time.Duration
+	}{
+		{"default", "", defaultPublishAckWait},
+		{"explicit", "5s", 5 * time.Second},
+		{"clamped low", "100ms", minPublishAckWait},
+		{"clamped high", "2m", maxPublishAckWait},
+		{"garbage", "soon", defaultPublishAckWait},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NATS_PUBLISH_ACK_WAIT", tc.env)
+			if got := publishAckWait(); got != tc.want {
+				t.Fatalf("publishAckWait() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
