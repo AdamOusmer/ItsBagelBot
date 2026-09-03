@@ -5,13 +5,13 @@ package community
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"ItsBagelBot/app/dingress/internal/gateway"
 	"ItsBagelBot/app/dingress/internal/store"
 	"ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/pkg/codec"
 )
 
 type fakeREST struct {
@@ -100,7 +100,7 @@ func testBot(cfg ddiscord.Config) (*Bot, *fakeREST, *store.Mem) {
 
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
-	raw, err := json.Marshal(v)
+	raw, err := codec.Marshal(v)
 	if err != nil {
 		t.Fatal(err)
 	}
