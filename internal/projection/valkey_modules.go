@@ -32,16 +32,34 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) er
 	defer segment(ctx, "HSET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
+	configField := "module:" + mod.Name + ":config"
 
 	fields := v.client.B().Hset().
 		Key(key).
 		FieldValue().
 		FieldValue("module:"+mod.Name+":enabled", utils.BoolField(mod.IsEnabled))
 
-	if len(mod.Configs) > 0 {
-		fields = fields.FieldValue("module:"+mod.Name+":config", string(mod.Configs))
-	}
-
+	// Always write the config field, empty string and all, rather than
+	// skipping the write when the config is cleared. Skipping it left the
+	// PREVIOUS config in module:<name>:config and GetModules kept serving it
+	// forever: a module is the only section whose one logical row spans two
+	// hash fields, so it is the only one where an omitted write is not an
+	// overwrite.
+	//
+	// Rejected HSET-then-HDEL in one pipelineWithTTL: DoMulti pipelines, it
+	// does not open a transaction, so a concurrent HGETALL could land between
+	// the two and read the new enabled flag beside the stale config — the very
+	// state this fixes, made transient instead of permanent. Rejected MULTI/
+	// EXEC over a dedicated connection for the same pair: it borrows a
+	// connection per cleared config and still has to leave expiryCommands
+	// outside the transaction. One HSET carrying both fields is atomic by
+	// being one command.
+	//
+	// An empty field reads back exactly like an absent one: GetModules assigns
+	// the raw value straight to Configs, so both yield a zero-length blob, and
+	// nothing anywhere does HEXISTS on a config field. The stray empty field
+	// costs a few bytes until the next full-section write sweeps the prefix.
+	fields = fields.FieldValue(configField, string(mod.Configs))
 	return v.pipelineWithTTL(ctx, key, DefaultTTL, fields.Build())
 }
 
