@@ -21,7 +21,7 @@ RUN git clone --depth 1 --branch v2.14.4 https://github.com/nats-io/nats-server.
  && test "$(git rev-parse HEAD)" = "${NATS_SERVER_COMMIT}"
 COPY deploy/messaging/nats-server/nats-server-2.14.4-bench.patch /tmp/bench.patch
 COPY deploy/messaging/nats-server/default.pgo ./default.pgo
-RUN git apply --index /tmp/bench.patch && git diff --cached --stat | tail -1
+RUN git apply /tmp/bench.patch && git add -A server && git diff --cached --stat | tail -1
 RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
 # GOAMD64=v3 only on the Intel build: the ARM build (cp1) takes the default.
 RUN if [ "$(go env GOARCH)" = "amd64" ]; then export GOAMD64=v3; fi; \
