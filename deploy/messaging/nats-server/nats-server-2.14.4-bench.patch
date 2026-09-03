@@ -658,10 +658,10 @@ index 0000000..b121de6
 +}
 diff --git a/server/bench_storeslab.go b/server/bench_storeslab.go
 new file mode 100644
-index 0000000..3634627
+index 0000000..c6611e1
 --- /dev/null
 +++ b/server/bench_storeslab.go
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,54 @@
 +package server
 +
 +// BENCH: NATS_BENCH_STORE_SLAB=1 carves the memory store's two per-message
@@ -684,7 +684,11 @@ index 0000000..3634627
 +// newStoreMsg hands back a *StoreMsg whose buf has capacity n and length 0.
 +// Lock should be held (it mutates the store's slab cursors).
 +func (ms *memStore) newStoreMsg(subj string, n int, seq uint64, ts int64) *StoreMsg {
-+	if !benchStoreSlab {
++	// Only for stores that delete oldest-first. A TTL wheel or a message
++	// scheduler removes messages from the middle, and one surviving message
++	// holds its whole slab: at 450 B a message that is 145x its own size.
++	// Those stores (the retry lane) keep the plain per-message allocation.
++	if !benchStoreSlab || ms.ttls != nil || ms.scheduling != nil {
 +		return &StoreMsg{subj, nil, nil, make([]byte, 0, n), seq, ts}
 +	}
 +	if len(ms.slabMsgs) == 0 {
@@ -714,19 +718,32 @@ index 0000000..3634627
 +}
 diff --git a/server/bench_storeslab_test.go b/server/bench_storeslab_test.go
 new file mode 100644
-index 0000000..4a83645
+index 0000000..b211412
 --- /dev/null
 +++ b/server/bench_storeslab_test.go
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,46 @@
 +package server
 +
-+import "testing"
++import (
++	"testing"
++
++	"github.com/nats-io/nats-server/v2/server/thw"
++)
 +
 +func TestBenchStoreSlabIsolation(t *testing.T) {
 +	if !benchStoreSlab {
 +		t.Skip("NATS_BENCH_STORE_SLAB not set")
 +	}
 +	ms := &memStore{}
++	// A store with a TTL wheel keeps the plain allocation: its messages die
++	// out of order, so a survivor would pin a whole slab.
++	ttlStore := &memStore{ttls: thw.NewHashWheel()}
++	if sm := ttlStore.newStoreMsg("x.y", 64, 1, 1); cap(sm.buf) != 64 {
++		t.Fatalf("ttl store cap = %d, want an exact 64", cap(sm.buf))
++	}
++	if ttlStore.slabBuf != nil {
++		t.Fatal("ttl store took a slab")
++	}
 +	var prev *StoreMsg
 +	for i := range 5000 {
 +		n := 1 + i%700

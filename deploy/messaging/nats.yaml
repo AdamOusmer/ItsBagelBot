@@ -217,7 +217,15 @@ spec:
             - name: NATS_BENCH_RING_INDEX
               value: "1"
             # STORE_SLAB carves the memory store's two per-message allocations
-            # (the StoreMsg header and its payload buffer) out of small slabs:
+            # (the StoreMsg header and its payload buffer) out of small slabs.
+            # It applies only to streams that evict oldest-first, so slabs
+            # retire in the order they filled: a stream that also removes
+            # messages from the middle (a TTL or a schedule, which on this
+            # cluster means only the retry lane) would let one survivor pin a
+            # whole slab, 145x its own size at ~450 B per message. Those
+            # streams keep the plain allocation and trade ~3% (measured
+            # 146.4k -> 141.6k msg/s on the retry lane) for bounded memory;
+            # the high-volume ingress lanes have neither and keep the slabs:
             # 3.3M objects per 15 s run at ~145k msg/s became two allocations
             # per ~150 messages. Slabs are 64 KiB so a message pinned by a TTL
             # or a schedule cannot hold much dead space, and a payload larger
