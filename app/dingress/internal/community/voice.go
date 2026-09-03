@@ -86,14 +86,9 @@ func (b *Bot) deleteEmptyClone(ctx context.Context, ch store.Channel) error {
 }
 
 func (b *Bot) voiceCommand(ctx context.Context, in interactionEvent, sub interactionOption) error {
-	cl, ok := b.Store.Clone(ctx, store.Channel{ID: in.ChannelID})
-	if !ok {
-		return b.reply(ctx, in, "You can only do that in a temporary voice channel.")
-	}
-	if !ownsVoice(cl, in) {
-		return b.reply(ctx, in, "Only the channel owner can do that.")
-	}
-	return b.applyVoice(ctx, in, cl, sub)
+	return b.withOwnedClone(ctx, in, func(cl store.Clone) error {
+		return b.applyVoice(ctx, in, cl, sub)
+	})
 }
 
 func ownsVoice(cl store.Clone, in interactionEvent) bool {
@@ -119,14 +114,14 @@ func (b *Bot) applyVoice(ctx context.Context, in interactionEvent, cl store.Clon
 }
 
 func (b *Bot) voiceLockButton(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
-	return b.voiceToggle(ctx, in, true)
+	return b.voiceCommand(ctx, in, interactionOption{Name: "lock"})
 }
 
 func (b *Bot) voiceUnlockButton(ctx context.Context, _ ddiscord.Config, in interactionEvent) error {
-	return b.voiceToggle(ctx, in, false)
+	return b.voiceCommand(ctx, in, interactionOption{Name: "unlock"})
 }
 
-func (b *Bot) voiceToggle(ctx context.Context, in interactionEvent, lock bool) error {
+func (b *Bot) withOwnedClone(ctx context.Context, in interactionEvent, act func(store.Clone) error) error {
 	cl, ok := b.Store.Clone(ctx, store.Channel{ID: in.ChannelID})
 	if !ok {
 		return b.reply(ctx, in, "You can only do that in a temporary voice channel.")
@@ -134,7 +129,7 @@ func (b *Bot) voiceToggle(ctx context.Context, in interactionEvent, lock bool) e
 	if !ownsVoice(cl, in) {
 		return b.reply(ctx, in, "Only the channel owner can do that.")
 	}
-	return b.lockVoice(ctx, in, cl, lock)
+	return act(cl)
 }
 
 func (b *Bot) renameVoice(ctx context.Context, in interactionEvent, cl store.Clone, sub interactionOption) error {

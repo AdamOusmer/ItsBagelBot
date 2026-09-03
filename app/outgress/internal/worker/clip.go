@@ -151,7 +151,7 @@ func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta c
 	}
 	w.announceDiscordClip(ctx, clipJob{
 		BroadcasterID: broadcasterID,
-		Embed:         ddiscord.ClipEmbed(clipURL, meta.Clipper, strings.TrimSpace(meta.Title)),
+		Embed:         ddiscord.ClipEmbed(ddiscord.ClipCard{URL: clipURL, Clipper: meta.Clipper, Title: strings.TrimSpace(meta.Title)}),
 	})
 	w.scheduleClipVerify(broadcasterID, meta.Clipper, id)
 }

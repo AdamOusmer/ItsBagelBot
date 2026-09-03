@@ -310,7 +310,7 @@ func TestAnnounceDiscordClipPostsEmbed(t *testing.T) {
 	w := liveWorker(t, guild, nil, mods)
 	w.announceDiscordClip(context.Background(), clipJob{
 		BroadcasterID: "42",
-		Embed:         ddiscord.ClipEmbed("https://clips.twitch.tv/x", "viewer", "huge play"),
+		Embed:         ddiscord.ClipEmbed(ddiscord.ClipCard{URL: "https://clips.twitch.tv/x", Clipper: "viewer", Title: "huge play"}),
 	})
 	if len(guild.embeds) != 1 {
 		t.Fatalf("embeds = %d", len(guild.embeds))

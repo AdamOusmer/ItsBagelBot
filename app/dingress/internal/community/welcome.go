@@ -30,7 +30,7 @@ func (b *Bot) onMemberAdd(ctx context.Context, raw []byte) error {
 	shown := displayName(display{User: ev.User, Nick: ev.Nick})
 	_, err = b.REST.SendEmbed(ctx, discordapi.EmbedPost{
 		ChannelID: cfg.WelcomeChannelID,
-		Embed:     ddiscord.WelcomeEmbed(shown, avatarURL(ev.User)),
+		Embed:     ddiscord.WelcomeEmbed(ddiscord.WelcomeCard{Display: shown, AvatarURL: avatarURL(ev.User)}),
 	})
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (b *Bot) onMemberRemove(ctx context.Context, raw []byte) error {
 	shown := displayName(display{User: ev.User, Nick: ev.Nick})
 	if shouldGoodbye(cfg) {
 		_ = b.REST.SendChat(ctx, discordapi.ChatPost{
-			ChannelID: cfg.WelcomeChannelID, Content: ddiscord.GoodbyeContent(shown),
+			ChannelID: cfg.WelcomeChannelID, Content: ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown}),
 		})
 	}
 	return b.logLine(ctx, cfg, logEntry{Title: "Member left", Body: shown + " (" + ev.User.ID + ")"})
@@ -101,7 +101,7 @@ func (b *Bot) logLine(ctx context.Context, cfg ddiscord.Config, entry logEntry) 
 	}
 	_, err := b.REST.SendEmbed(ctx, discordapi.EmbedPost{
 		ChannelID: cfg.LogChannelID,
-		Embed:     ddiscord.LogEmbed(entry.Title, entry.Body),
+		Embed:     ddiscord.LogEmbed(ddiscord.LogLine{Title: entry.Title, Body: entry.Body}),
 	})
 	return err
 }

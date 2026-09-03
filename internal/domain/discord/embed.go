@@ -74,34 +74,52 @@ func LiveEmbed(in LiveEmbedInput) Embed {
 // ends so Discord is not stuck on LIVE.
 const OfflineContent = "Stream ended."
 
+// ClipCard is a compact clip archive post.
+type ClipCard struct {
+	URL     string
+	Clipper string
+	Title   string
+}
+
 // ClipEmbed is a compact clip archive post.
-func ClipEmbed(clipURL, clipper, title string) Embed {
-	e := Embed{Title: "New clip", URL: clipURL, Color: LiveColor}
-	if title != "" {
-		e.Title = title
+func ClipEmbed(in ClipCard) Embed {
+	e := Embed{Title: "New clip", URL: in.URL, Color: LiveColor}
+	if in.Title != "" {
+		e.Title = in.Title
 	}
-	if clipper != "" {
-		e.Description = clipper + " clipped this"
+	if in.Clipper != "" {
+		e.Description = in.Clipper + " clipped this"
 	}
 	return e
 }
 
-// WelcomeEmbed greets a joiner in #welcome. AvatarURL may be empty.
-func WelcomeEmbed(display, avatarURL string) Embed {
+// WelcomeCard greets a joiner in #welcome. AvatarURL may be empty.
+type WelcomeCard struct {
+	Display   string
+	AvatarURL string
+}
+
+// WelcomeEmbed greets a joiner in #welcome.
+func WelcomeEmbed(in WelcomeCard) Embed {
 	e := Embed{
 		Title:       "Welcome",
-		Description: display + " just joined.",
+		Description: in.Display + " just joined.",
 		Color:       LiveColor,
 	}
-	if avatarURL != "" {
-		e.Thumbnail = &EmbedImage{URL: avatarURL}
+	if in.AvatarURL != "" {
+		e.Thumbnail = &EmbedImage{URL: in.AvatarURL}
 	}
 	return e
+}
+
+// Goodbye is the leave line when goodbye is on.
+type Goodbye struct {
+	Display string
 }
 
 // GoodbyeContent is the leave line when goodbye is on.
-func GoodbyeContent(display string) string {
-	return display + " left."
+func GoodbyeContent(in Goodbye) string {
+	return in.Display + " left."
 }
 
 // TicketPanelEmbed is the persistent support-desk message.
@@ -210,7 +228,13 @@ func LevelUpEmbed(in LevelUp) Embed {
 	}
 }
 
+// LogLine is one audit line in #logs.
+type LogLine struct {
+	Title string
+	Body  string
+}
+
 // LogEmbed is one audit line in #logs.
-func LogEmbed(title, body string) Embed {
-	return Embed{Title: title, Description: body, Color: LiveColor}
+func LogEmbed(in LogLine) Embed {
+	return Embed{Title: in.Title, Description: in.Body, Color: LiveColor}
 }
