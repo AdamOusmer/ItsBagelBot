@@ -15,6 +15,7 @@ const DEMO = dev && env.DEMO === '1';
 // until outgress flips the channel's enroll state off "pending" (to "ok" or
 // "failing"). Kept tiny because the page hits it on a short interval.
 export const GET: RequestHandler = async ({ locals }) => {
+  if (locals.session?.delegate_of) return json({ state: 'unknown', error: 'forbidden' }, { status: 403 });
   const uid = locals.session?.user_id;
   if (!uid) return json({ state: 'unknown', error: '' }, { status: 401 });
   if (DEMO) return json({ state: 'ok', error: '' });

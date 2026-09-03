@@ -207,7 +207,20 @@ function shareDigest(uid: string): Promise<ShareDigest> {
     .catch(() => ({ people: 0, pending: 0, ok: false }));
 }
 
+// A delegate has no owner overview to read, so this page always bounces them:
+// to the first section their grant actually opened (guard.ts keeps that list
+// in the delegate's own grant order, so it is the same landing the rail shows
+// first), or off the board entirely when the grant opened none.
+function delegateLanding(s: App.Locals['session']): string | null {
+  if (!s?.delegate_of) return null;
+  const first = s.sections?.[0];
+  return first ? `/${first}` : '/delegate/exit';
+}
+
 export const load: PageServerLoad = ({ locals }) => {
+  const landing = delegateLanding(locals.session);
+  if (landing) throw redirect(302, landing);
+
   // No session and no demo build means no board to read: the layout's login
   // redirect is the only correct outcome, so never fall back to a placeholder
   // id that a real account could one day occupy.

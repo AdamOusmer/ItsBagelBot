@@ -86,6 +86,9 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 	if err != nil {
 		return DelegationView{}, err
 	}
+	if d.OwnerID == delegateID {
+		return DelegationView{}, errors.New("cannot delegate to yourself")
+	}
 	if d.ConsumedAt != nil {
 		return DelegationView{}, errors.New("link already used")
 	}
@@ -193,57 +196,99 @@ func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]
 }
 
 // DeleteDelegationsByOwner removes every grant an owner created. Used when the
-// owner deletes their account so no dangling links survive the user row.
-func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		_, err := r.client.Delegation.Delete().
+// owner deletes their account so no dangling links survive the user row. Returns
+// all consumed delegateIDs so callers can invalidate their access caches.
+func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([]uint64, error) {
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
+		return r.client.Delegation.Query().
+			Where(
+				delegation.OwnerIDEQ(ownerID),
+				delegation.ConsumedAtNotNil(),
+			).
+			All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	delegateIDs := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		if row.DelegateID != 0 {
+			delegateIDs = append(delegateIDs, row.DelegateID)
+		}
+	}
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		_, derr := r.client.Delegation.Delete().
 			Where(delegation.OwnerIDEQ(ownerID)).
 			Exec(ctx)
-		return err
+		return derr
 	})
+	if err != nil {
+		return nil, err
+	}
+	return delegateIDs, nil
 }
 
 // UpdateDelegationSections replaces the granted sections of a grant, scoped to
 // its owner so a token alone (held by an invitee) can never re-scope someone
-// else's grant. Applies to pending and consumed grants alike; a consumed grant's
-// delegate picks up the change the next time they open the board.
-func (r *Users) UpdateDelegationSections(ctx context.Context, token string, ownerID uint64, sections []string) error {
-	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		return r.client.Delegation.Update().
+// else's grant. Applies to pending and consumed grants alike. Returns the
+// consumed delegateID (if any) so callers can invalidate the delegate's cache.
+func (r *Users) UpdateDelegationSections(ctx context.Context, token string, ownerID uint64, sections []string) (uint64, error) {
+	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
+		return r.client.Delegation.Query().
 			Where(
 				delegation.TokenEQ(token),
 				delegation.OwnerIDEQ(ownerID),
 			).
-			SetSections(sections).
-			Save(ctx)
+			Only(ctx)
 	})
 	if err != nil {
-		return err
+		if ent.IsNotFound(err) {
+			return 0, errors.New("not found")
+		}
+		return 0, err
 	}
-	if n == 0 {
-		return errors.New("not found")
+	var delegateID uint64
+	if d.ConsumedAt != nil {
+		delegateID = d.DelegateID
 	}
-	return nil
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return d.Update().SetSections(sections).Exec(ctx)
+	})
+	if err != nil {
+		return 0, err
+	}
+	return delegateID, nil
 }
 
 // RevokeDelegation deletes a grant, scoped to its owner so a token alone (held
-// by an invitee) can never revoke someone else's grant.
-func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) error {
-	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		return r.client.Delegation.Delete().
+// by an invitee) can never revoke someone else's grant. Returns the consumed
+// delegateID (if any) so callers can invalidate the delegate's access cache.
+func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) (uint64, error) {
+	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
+		return r.client.Delegation.Query().
 			Where(
 				delegation.TokenEQ(token),
 				delegation.OwnerIDEQ(ownerID),
 			).
-			Exec(ctx)
+			Only(ctx)
 	})
 	if err != nil {
-		return err
+		if ent.IsNotFound(err) {
+			return 0, errors.New("not found")
+		}
+		return 0, err
 	}
-	if n == 0 {
-		return errors.New("not found")
+	var delegateID uint64
+	if d.ConsumedAt != nil {
+		delegateID = d.DelegateID
 	}
-	return nil
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		return r.client.Delegation.DeleteOne(d).Exec(ctx)
+	})
+	if err != nil {
+		return 0, err
+	}
+	return delegateID, nil
 }
 
 // OptOutDelegation removes a consumed grant from the delegate side. It is

@@ -179,22 +179,30 @@ export const delegationList = defineRead({
 
 // Re-scope an existing grant (pending or consumed) to a new set of sections.
 export async function delegationUpdate(ownerId: string, token: string, sections: string[]): Promise<void> {
-  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.update`, {
+  const r = await rpc<{ ok?: boolean; error?: string; delegate_user_id?: string }>(`${SUB.delegation}.update`, {
     owner_user_id: ownerId,
     token,
     sections
   });
   if (!r.ok) throw new Error(r.error ?? 'update failed');
-  invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
+  if (r.delegate_user_id) {
+    invalidate(`delegation-token:${token}`, `delegations:${ownerId}`, `delegations:${r.delegate_user_id}`);
+  } else {
+    invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
+  }
 }
 
 export async function delegationRevoke(ownerId: string, token: string): Promise<void> {
-  const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.delegation}.revoke`, {
+  const r = await rpc<{ ok?: boolean; error?: string; delegate_user_id?: string }>(`${SUB.delegation}.revoke`, {
     owner_user_id: ownerId,
     token
   });
   if (!r.ok) throw new Error(r.error ?? 'revoke failed');
-  invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
+  if (r.delegate_user_id) {
+    invalidate(`delegation-token:${token}`, `delegations:${ownerId}`, `delegations:${r.delegate_user_id}`);
+  } else {
+    invalidate(`delegation-token:${token}`, `delegations:${ownerId}`);
+  }
 }
 
 export async function delegationOptOut(delegateId: string, ownerId: string): Promise<void> {

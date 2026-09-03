@@ -15,7 +15,7 @@ import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
 // Both are pure data/pure functions -- no import.meta.glob, no Vite-only
 // entry points -- so they are safe in guard.ts's boot import graph.
-import { MODULE_CATALOG } from './types';
+import { MODULE_CATALOG, moduleDelegateSections } from './types';
 import { MODULE_CATEGORY_I18N, MODULE_CATEGORY_ORDER, categoryHref } from './module-index';
 
 // The label translator defaults to identity rather than pulling in
@@ -178,4 +178,48 @@ export function dashboardNavGroups(
   t?: (key: MessageKey) => string
 ): NavGroupDef[] {
   return [{ label: (t ?? identity)('nav.manage'), items: [...items] }];
+}
+
+/**
+ * delegateAllowedPaths lists the (app) path prefixes a delegate may open: each
+ * granted section's own page, plus every bespoke module page whose catalog def
+ * is opened by one of those grants (moduleDelegateSections). The read-only
+ * counter name list also opens to the commands grant so commands-only delegates
+ * can use the picker.
+ */
+export function delegateAllowedPaths(sections: readonly string[]): string[] {
+  const allowed = sections
+    .filter((sec) => (GRANTABLE_SECTIONS as readonly string[]).includes(sec))
+    .map((sec) => `/${sec}`);
+  for (const def of MODULE_CATALOG) {
+    if (def.href && moduleDelegateSections(def).some((sec) => sections.includes(sec))) {
+      allowed.push(def.href);
+    }
+  }
+  if (sections.includes('commands')) allowed.push('/counters/list');
+  return allowed;
+}
+
+/**
+ * pathnameAllowed checks a request path against the delegate's allowed-path
+ * list. An exact hit always passes; a prefix hit (a sub-route under a
+ * granted section) usually does too, EXCEPT under '/modules': that prefix
+ * covers the generic per-module reply page for every catalog module, but a
+ * module can declare its own narrower delegateSections (channel points), so
+ * admitting '/modules/<id>' on the strength of the bare 'modules' grant
+ * would let it reach a module it was never granted.
+ */
+export function pathnameAllowed(pathname: string, allowed: string[], sections: readonly string[]): boolean {
+  if (allowed.includes(pathname)) return true;
+  const prefix = allowed.find((p) => pathname.startsWith(p + '/'));
+  if (!prefix) return false;
+  if (prefix !== '/modules') return true;
+  const id = pathname.slice(prefix.length + 1).split('/')[0];
+  return moduleSubpathAllowed(id, sections);
+}
+
+export function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean {
+  const def = MODULE_CATALOG.find((d) => d.id === id);
+  if (!def) return true;
+  return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
