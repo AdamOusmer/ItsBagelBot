@@ -33,7 +33,11 @@ func TestSetModuleClearsAnEmptiedConfig(t *testing.T) {
 
 	require.NoError(t, store.SetModule(ctx, 81, ModuleView{Name: "govee", IsEnabled: true}))
 
-	assert.NotContains(t, f.hash(key), "module:govee:config", "an emptied config is deleted, not left behind")
+	// The contract is what a reader sees, not how the field is stored: the
+	// cleared config is written as an empty field, which GetModules reads back
+	// as a zero-length blob exactly like an absent one. Asserting deletion
+	// would pin the storage detail and fail the atomic single-HSET form.
+	assert.Empty(t, f.hash(key)["module:govee:config"], "the old config is gone from the hash")
 
 	byName, _, err := store.GetModules(ctx, 81)
 	require.NoError(t, err)
@@ -56,7 +60,7 @@ func TestSetModuleConfigDeleteIsScopedToOneModule(t *testing.T) {
 	h := f.hash(key)
 	assert.Equal(t, `{"n":1}`, h["module:timers:config"], "a sibling module's config is untouched")
 	assert.Equal(t, "0", h["module:govee:enabled"])
-	assert.NotContains(t, h, "module:govee:config")
+	assert.Empty(t, h["module:govee:config"], "the cleared module's config is gone")
 }
 
 // SetModule is a per-row write and must never declare the section complete.

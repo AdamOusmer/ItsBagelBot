@@ -119,8 +119,16 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]va
 	if old == "" {
 		return cmds, nil
 	}
+	// An unparseable prior row is returned, not skipped: its aliases cannot be
+	// computed, so committing the new body would strand them exactly as the
+	// discarded read error did, and the never-converges note above applies
+	// just as much. SetCommand never writes invalid JSON, so reaching this
+	// means the row was corrupted by something else and is worth surfacing.
 	var prev CommandView
-	if codec.Unmarshal([]byte(old), &prev) != nil || len(prev.Aliases) == 0 {
+	if err := codec.Unmarshal([]byte(old), &prev); err != nil {
+		return nil, err
+	}
+	if len(prev.Aliases) == 0 {
 		return cmds, nil
 	}
 	stale := make([]string, 0, len(prev.Aliases))

@@ -85,3 +85,21 @@ func TestSetCommandRetiresDroppedAliases(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 }
+
+// A prior row that will not decode leaves the alias retirement uncomputable.
+// Skipping it commits the new body and strands the old aliases exactly as a
+// discarded read error did, and nothing revisits the row to notice. SetCommand
+// never writes invalid JSON, so a row in this state was corrupted elsewhere
+// and is worth surfacing rather than half-applying over.
+func TestSetCommandFailsWhenThePriorRowDoesNotDecode(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+	key := "settings:79"
+
+	f.seed(key, fakeField{field: "command:hello", value: "{not json"})
+
+	err := store.SetCommand(ctx, commandDTO(79, "hello", "hi there", "hi"))
+
+	require.Error(t, err, "an undecodable prior row must fail the write, not be skipped")
+	assert.NotEqual(t, "hello", f.hash(key)["cmdalias:hi"], "the new body must not commit over it")
+}
