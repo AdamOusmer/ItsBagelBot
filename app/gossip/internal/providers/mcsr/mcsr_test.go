@@ -472,3 +472,20 @@ func TestWeeklyRaceSharesOneUpstreamCallAcrossPlayers(t *testing.T) {
 	_ = endpoint(t, p, "weekly_race")(context.Background(), gossiprpc.Request{Account: "gharfyy"}).(gossiprpc.McsrWeeklyRaceReply)
 	assert.Equal(t, 1, calls)
 }
+
+// TestASCIIEqualFoldDoesNotFoldUnicode pins the reason asciiEqualFold exists
+// rather than strings.EqualFold. EqualFold applies Unicode simple folding, so
+// it reports "ſome" (long s) equal to "Some" — a non-ASCII account would
+// then take an unrelated player's rank and time off the weekly board. The
+// previous strings.ToLower comparison did not do that, and neither does this.
+func TestASCIIEqualFoldDoesNotFoldUnicode(t *testing.T) {
+	if !asciiEqualFold("Nickname", "nIcKnAmE") {
+		t.Fatal("ASCII case must fold")
+	}
+	if asciiEqualFold("ſome", "Some") {
+		t.Fatal("long s must not fold to ASCII s")
+	}
+	if asciiEqualFold("abc", "ab") {
+		t.Fatal("length mismatch must not match")
+	}
+}

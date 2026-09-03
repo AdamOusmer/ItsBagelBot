@@ -138,11 +138,15 @@ func (c *cache) put(key string, v Verdict, short bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := nowNanos()
-	if len(c.m) >= maxEntries {
-		c.sweepLocked(now)
-	}
+	// Drop the existing node BEFORE the cap check: a re-put frees its own slot,
+	// so sweeping first would evict an unrelated live entry and then leave the
+	// cache under the cap anyway once remove() ran - a hit-rate loss bought for
+	// nothing.
 	if old, ok := c.m[key]; ok {
 		c.remove(old) // re-put: the old node carries the old class and expiry
+	}
+	if len(c.m) >= maxEntries {
+		c.sweepLocked(now)
 	}
 	cls, ttl := retention(v, short)
 	e := &entry{v: v, exp: now + int64(ttl), cls: cls, key: key}

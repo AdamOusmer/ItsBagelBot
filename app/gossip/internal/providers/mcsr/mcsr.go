@@ -1030,15 +1030,16 @@ func buildWeeklyRaceReply(account string, board []weeklyRaceEntry) gossiprpc.Mcs
 		LeaderName: board[0].Player.Nickname,
 		LeaderTime: mcsrFormatTime(board[0].Time),
 	}
-	// EqualFold instead of lowering both sides: the old form allocated a new
-	// string per board entry (~150 entries per !mcsr call) purely to throw it
-	// away. Rejected building a nickname->entry map: the board is decoded fresh
-	// per upstream fetch and looked up exactly once, so a map costs a full pass
-	// plus allocations to save part of one pass. Unicode simple folding is a
-	// superset of the previous ToLower comparison for the ASCII-only Minecraft
-	// nickname alphabet, so no accepted match becomes a miss.
+	// asciiEqualFold instead of lowering both sides: the old form allocated a
+	// new string per board entry (~150 entries per !mcsr call) purely to throw
+	// it away. Rejected building a nickname->entry map: the board is decoded
+	// fresh per upstream fetch and looked up exactly once, so a map costs a
+	// full pass plus allocations to save part of one pass. Also rejected
+	// strings.EqualFold, which folds Unicode: it matches "\u017fome" to "Some"
+	// where the old ToLower compare did not, so a non-ASCII account could take
+	// an unrelated player's rank and time.
 	for _, e := range board {
-		if strings.EqualFold(e.Player.Nickname, account) {
+		if asciiEqualFold(e.Player.Nickname, account) {
 			reply.PlayerTime = mcsrFormatTime(e.Time)
 			reply.PlayerRank = e.Rank
 			reply.HasPlayer = true
@@ -1046,4 +1047,30 @@ func buildWeeklyRaceReply(account string, board []weeklyRaceEntry) gossiprpc.Mcs
 		}
 	}
 	return reply
+}
+
+// asciiEqualFold reports whether a and b are equal ignoring ASCII case only.
+// It is exactly strings.ToLower(a) == strings.ToLower(b) for the ASCII
+// alphabet Minecraft nicknames use, without either allocation, and unlike
+// strings.EqualFold it folds nothing outside A-Z: a non-ASCII byte compares
+// literally, so no account outside that alphabet can match a nickname inside
+// it.
+func asciiEqualFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if lowerASCII(a[i]) != lowerASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// lowerASCII lowercases one ASCII letter and leaves every other byte alone.
+func lowerASCII(c byte) byte {
+	if c >= 'A' && c <= 'Z' {
+		return c + ('a' - 'A')
+	}
+	return c
 }
