@@ -356,12 +356,68 @@ index 0000000..26ca109
 +	}
 +	return append(make([]byte, 0, len(v)), v...)
 +}
+diff --git a/server/bench_intern.go b/server/bench_intern.go
+new file mode 100644
+index 0000000..67efef0
+--- /dev/null
++++ b/server/bench_intern.go
+@@ -0,0 +1,50 @@
++package server
++
++// BENCH: NATS_BENCH_INTERN=1 interns the two strings the RAFT entry decode
++// allocates for every applied message: the subject and, for atomic batches,
++// the batch id. A stream carries a handful of distinct subjects and one batch
++// id per cohort, so on the stream leader at ~145k msg/s this replaced ~2M
++// string allocations per 15 s run with map lookups that allocate only on a
++// first sight. Lookups key on the byte slice directly, which the compiler
++// does without allocating.
++//
++// The interner is owned by the stream's apply goroutine (applyStreamEntries
++// and nothing else), so it needs no lock. It is capped: past the cap it stops
++// remembering and simply allocates, so an unexpected fan-out of distinct
++// subjects cannot grow it without bound.
++const strInternMax = 4096
++
++type strInterner struct {
++	m map[string]string
++}
++
++// str returns an interned copy of b. A nil interner (every caller outside the
++// apply loop) allocates, matching the stock behaviour.
++func (in *strInterner) str(b []byte) string {
++	if in == nil {
++		return string(b)
++	}
++	if s, ok := in.m[string(b)]; ok {
++		return s
++	}
++	s := string(b)
++	if len(in.m) < strInternMax {
++		if in.m == nil {
++			in.m = make(map[string]string, 64)
++		}
++		in.m[s] = s
++	}
++	return s
++}
++
++// applyIntern is the stream's apply-goroutine interner, or nil when the knob
++// is off.
++func (mset *stream) applyIntern() *strInterner {
++	if !benchIntern {
++		return nil
++	}
++	if mset.benchIntern == nil {
++		mset.benchIntern = &strInterner{}
++	}
++	return mset.benchIntern
++}
 diff --git a/server/bench_knobs.go b/server/bench_knobs.go
 new file mode 100644
-index 0000000..a9feec7
+index 0000000..a13b751
 --- /dev/null
 +++ b/server/bench_knobs.go
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,58 @@
 +package server
 +
 +import (
@@ -383,6 +439,8 @@ index 0000000..a9feec7
 +	benchHdrIndex        = os.Getenv("NATS_BENCH_HDR_INDEX") == "1"
 +	benchStageArena      = os.Getenv("NATS_BENCH_STAGE_ARENA") == "1"
 +	benchRingIndex       = os.Getenv("NATS_BENCH_RING_INDEX") == "1"
++	benchStoreSlab       = os.Getenv("NATS_BENCH_STORE_SLAB") == "1"
++	benchIntern          = os.Getenv("NATS_BENCH_INTERN") == "1"
 +	benchTLSCollapse     = os.Getenv("NATS_BENCH_TLS_COLLAPSE") == "1"
 +	benchProposeCoalesce = benchDuration("NATS_BENCH_PROPOSE_COALESCE")
 +	benchAckNoneEvery    = benchUint("NATS_BENCH_ACKNONE_PROPOSE_EVERY")
@@ -597,6 +655,101 @@ index 0000000..b121de6
 +		return func(func(*StoreMsg) bool) {}
 +	}
 +	return ms.msgs.all()
++}
+diff --git a/server/bench_storeslab.go b/server/bench_storeslab.go
+new file mode 100644
+index 0000000..3634627
+--- /dev/null
++++ b/server/bench_storeslab.go
+@@ -0,0 +1,50 @@
++package server
++
++// BENCH: NATS_BENCH_STORE_SLAB=1 carves the memory store's two per-message
++// allocations out of slabs instead of the heap. Every stored message used to
++// cost one *StoreMsg plus one exact-sized payload buffer: 2.2M and 1.1M
++// objects per 15 s run on the stream leader at ~145k msg/s, and mallocgc is
++// ~20% of the lock-serialized ingest+apply path.
++//
++// Slabs are deliberately small (below), and a slab stays alive only while one
++// of its messages is still referenced. This store evicts oldest-first, so
++// slabs retire in the order they were filled; a message pinned by a TTL or a
++// schedule can hold its own slab, which is why the slab is sized in tens of
++// kilobytes rather than megabytes. Messages larger than the buffer slab get
++// their own exact allocation, as before.
++const (
++	storeSlabMsgs  = 256   // StoreMsg headers per slab
++	storeSlabBytes = 65536 // payload bytes per slab
++)
++
++// newStoreMsg hands back a *StoreMsg whose buf has capacity n and length 0.
++// Lock should be held (it mutates the store's slab cursors).
++func (ms *memStore) newStoreMsg(subj string, n int, seq uint64, ts int64) *StoreMsg {
++	if !benchStoreSlab {
++		return &StoreMsg{subj, nil, nil, make([]byte, 0, n), seq, ts}
++	}
++	if len(ms.slabMsgs) == 0 {
++		ms.slabMsgs = make([]StoreMsg, storeSlabMsgs)
++	}
++	sm := &ms.slabMsgs[0]
++	ms.slabMsgs = ms.slabMsgs[1:]
++	*sm = StoreMsg{subj: subj, buf: ms.slabBytes(n), seq: seq, ts: ts}
++	return sm
++}
++
++// slabBytes returns an empty slice with capacity n and no aliasing to any
++// other message: the three-index slice caps it at exactly n so an append
++// inside that capacity can never reach into the next message's bytes.
++func (ms *memStore) slabBytes(n int) []byte {
++	if n > storeSlabBytes/4 {
++		return make([]byte, 0, n)
++	}
++	// The slab is held at full length so the cut below stays in range; the
++	// handed-out slice is len 0 with capacity exactly n.
++	if len(ms.slabBuf) < n {
++		ms.slabBuf = make([]byte, storeSlabBytes)
++	}
++	buf := ms.slabBuf[:0:n]
++	ms.slabBuf = ms.slabBuf[n:]
++	return buf
++}
+diff --git a/server/bench_storeslab_test.go b/server/bench_storeslab_test.go
+new file mode 100644
+index 0000000..4a83645
+--- /dev/null
++++ b/server/bench_storeslab_test.go
+@@ -0,0 +1,33 @@
++package server
++
++import "testing"
++
++func TestBenchStoreSlabIsolation(t *testing.T) {
++	if !benchStoreSlab {
++		t.Skip("NATS_BENCH_STORE_SLAB not set")
++	}
++	ms := &memStore{}
++	var prev *StoreMsg
++	for i := range 5000 {
++		n := 1 + i%700
++		sm := ms.newStoreMsg("x.y", n, uint64(i), int64(i))
++		if cap(sm.buf) != n || len(sm.buf) != 0 {
++			t.Fatalf("i=%d cap=%d len=%d want cap %d len 0", i, cap(sm.buf), len(sm.buf), n)
++		}
++		sm.buf = append(sm.buf, make([]byte, n)...)
++		for j := range sm.buf {
++			sm.buf[j] = byte(i)
++		}
++		if prev != nil {
++			for j := range prev.buf {
++				if prev.buf[j] != byte(i-1) {
++					t.Fatalf("i=%d overwrote the previous message's bytes at %d: %d", i, j, prev.buf[j])
++				}
++			}
++			if prev.seq != uint64(i-1) {
++				t.Fatalf("i=%d previous StoreMsg header reused: seq=%d", i, prev.seq)
++			}
++		}
++		prev = sm
++	}
 +}
 diff --git a/server/client.go b/server/client.go
 index b5c5fcf..075cc68 100644
@@ -891,6 +1044,25 @@ index 760bd9d..070b310 100644
  func (o *consumer) processStreamSignal(seq uint64) {
  	// We can get called here now when not leader, so bail fast
  	// and without acquiring any locks.
+diff --git a/server/disk_avail_solaris.go b/server/disk_avail_solaris.go
+index e0febd1..ff1277b 100644
+--- a/server/disk_avail_solaris.go
++++ b/server/disk_avail_solaris.go
+@@ -16,8 +16,8 @@
+ package server
+ 
+ import (
+-	"os"
+ 	"golang.org/x/sys/unix"
++	"os"
+ )
+ 
+ func diskAvailable(storeDir string) int64 {
+@@ -35,4 +35,3 @@ func diskAvailable(storeDir string) int64 {
+ 	}
+ 	return ba
+ }
+-
 diff --git a/server/jetstream_batching.go b/server/jetstream_batching.go
 index 1968ce8..a435206 100644
 --- a/server/jetstream_batching.go
@@ -1287,11 +1459,82 @@ index 13834c7..72b0926 100644
  	if err != nil {
  		batches.mu.Unlock()
  		require_NoError(t, err)
+diff --git a/server/jetstream_cluster.go b/server/jetstream_cluster.go
+index e97b36a..69fbb3f 100644
+--- a/server/jetstream_cluster.go
++++ b/server/jetstream_cluster.go
+@@ -4015,7 +4015,7 @@ func (js *jetStream) applyStreamEntries(mset *stream, ce *CommittedEntry, isReco
+ 			}
+ 			buf, op := e.Data, entryOp(e.Data[0])
+ 			if op == batchMsgOp {
+-				batchId, batchSeq, _, _, err := decodeBatchMsg(buf[1:])
++				batchId, batchSeq, _, _, err := decodeBatchMsgIntern(buf[1:], mset.applyIntern())
+ 				if err != nil {
+ 					panic(err.Error())
+ 				}
+@@ -4075,7 +4075,7 @@ func (js *jetStream) applyStreamEntries(mset *stream, ce *CommittedEntry, isReco
+ 				batch.mu.Unlock()
+ 				continue
+ 			} else if op == batchCommitMsgOp {
+-				batchId, batchSeq, _, _, err := decodeBatchMsg(buf[1:])
++				batchId, batchSeq, _, _, err := decodeBatchMsgIntern(buf[1:], mset.applyIntern())
+ 				if err != nil {
+ 					panic(err.Error())
+ 				}
+@@ -4470,7 +4470,7 @@ func (js *jetStream) applyStreamMsgOp(mset *stream, op entryOp, mbuf []byte, isR
+ 		}
+ 	}
+ 
+-	subject, reply, hdr, msg, lseq, ts, sourced, err := decodeStreamMsg(mbuf)
++	subject, reply, hdr, msg, lseq, ts, sourced, err := decodeStreamMsgIntern(mbuf, mset.applyIntern())
+ 	if err != nil {
+ 		// We're going to panic below, but if we're already holding the stream lock, we should let go now.
+ 		// Otherwise we'll deadlock when trying to get the raft node.
+@@ -9939,6 +9939,10 @@ func decodeConsumerAssignmentCompressed(buf []byte) (*consumerAssignment, error)
+ var errBadStreamMsg = errors.New("jetstream cluster bad replicated stream msg")
+ 
+ func decodeStreamMsg(buf []byte) (subject, reply string, hdr, msg []byte, lseq uint64, ts int64, sourced bool, err error) {
++	return decodeStreamMsgIntern(buf, nil)
++}
++
++func decodeStreamMsgIntern(buf []byte, in *strInterner) (subject, reply string, hdr, msg []byte, lseq uint64, ts int64, sourced bool, err error) {
+ 	var le = binary.LittleEndian
+ 	if len(buf) < 26 {
+ 		return _EMPTY_, _EMPTY_, nil, nil, 0, 0, false, errBadStreamMsg
+@@ -9952,7 +9956,7 @@ func decodeStreamMsg(buf []byte) (subject, reply string, hdr, msg []byte, lseq u
+ 	if len(buf) < sl {
+ 		return _EMPTY_, _EMPTY_, nil, nil, 0, 0, false, errBadStreamMsg
+ 	}
+-	subject = string(buf[:sl])
++	subject = in.str(buf[:sl])
+ 	buf = buf[sl:]
+ 	if len(buf) < 2 {
+ 		return _EMPTY_, _EMPTY_, nil, nil, 0, 0, false, errBadStreamMsg
+@@ -9999,6 +10003,10 @@ func decodeStreamMsg(buf []byte) (subject, reply string, hdr, msg []byte, lseq u
+ }
+ 
+ func decodeBatchMsg(buf []byte) (batchId string, batchSeq uint64, op entryOp, mbuf []byte, err error) {
++	return decodeBatchMsgIntern(buf, nil)
++}
++
++func decodeBatchMsgIntern(buf []byte, in *strInterner) (batchId string, batchSeq uint64, op entryOp, mbuf []byte, err error) {
+ 	var le = binary.LittleEndian
+ 	if len(buf) < 2 {
+ 		return _EMPTY_, 0, 0, nil, errBadStreamMsg
+@@ -10008,7 +10016,7 @@ func decodeBatchMsg(buf []byte) (batchId string, batchSeq uint64, op entryOp, mb
+ 	if len(buf) < bl {
+ 		return _EMPTY_, 0, 0, nil, errBadStreamMsg
+ 	}
+-	batchId = string(buf[:bl])
++	batchId = in.str(buf[:bl])
+ 	buf = buf[bl:]
+ 	var n int
+ 	batchSeq, n = binary.Uvarint(buf)
 diff --git a/server/memstore.go b/server/memstore.go
-index d60db1d..d4434ab 100644
+index d60db1d..23198da 100644
 --- a/server/memstore.go
 +++ b/server/memstore.go
-@@ -32,24 +32,26 @@ import (
+@@ -32,24 +32,28 @@ import (
  
  // TODO(dlc) - This is a fairly simplistic approach but should do for now.
  type memStore struct {
@@ -1322,6 +1565,8 @@ index d60db1d..d4434ab 100644
 +	maxp              int64
 +	scb               StorageUpdateHandler
 +	evictPendingMsgs  int64
++	slabMsgs          []StoreMsg
++	slabBuf           []byte
 +	evictPendingBytes int64
 +	rmcb              StorageRemoveMsgHandler
 +	pmsgcb            ProcessJetStreamMsgHandler
@@ -1336,7 +1581,7 @@ index d60db1d..d4434ab 100644
  }
  
  func newMemStore(cfg *StreamConfig) (*memStore, error) {
-@@ -60,7 +62,7 @@ func newMemStore(cfg *StreamConfig) (*memStore, error) {
+@@ -60,7 +64,7 @@ func newMemStore(cfg *StreamConfig) (*memStore, error) {
  		return nil, fmt.Errorf("memStore requires memory storage type in config")
  	}
  	ms := &memStore{
@@ -1345,7 +1590,7 @@ index d60db1d..d4434ab 100644
  		fss:  stree.NewSubjectTree[SimpleState](),
  		maxp: cfg.MaxMsgsPer,
  		cfg:  *cfg,
-@@ -231,7 +233,7 @@ func (ms *memStore) storeRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
+@@ -231,7 +235,7 @@ func (ms *memStore) storeRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
  			if ss.firstNeedsUpdate || ss.lastNeedsUpdate {
  				ms.recalculateForSubj(subj, ss)
  			}
@@ -1354,7 +1599,7 @@ index d60db1d..d4434ab 100644
  			if !ok || memStoreMsgSize(sm.subj, sm.hdr, sm.msg) < memStoreMsgSize(subj, hdr, msg) {
  				return ErrMaxBytes
  			}
-@@ -252,15 +254,10 @@ func (ms *memStore) storeRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
+@@ -252,24 +256,19 @@ func (ms *memStore) storeRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
  		ms.state.FirstTime = now
  	}
  
@@ -1372,9 +1617,11 @@ index d60db1d..d4434ab 100644
 +	// twice (11% of all leader allocations at 127k msg/s, 0.80 s of a 9.6 s
 +	// serialized ingest+apply budget per 10 s). Present verbatim in 2.14.6.
  	// FIXME(dlc) - Could pool at this level?
- 	sm := &StoreMsg{subj, nil, nil, make([]byte, 0, len(hdr)+len(msg)), seq, ts}
+-	sm := &StoreMsg{subj, nil, nil, make([]byte, 0, len(hdr)+len(msg)), seq, ts}
++	sm := ms.newStoreMsg(subj, len(hdr)+len(msg), seq, ts)
  	sm.buf = append(sm.buf, hdr...)
-@@ -269,7 +266,7 @@ func (ms *memStore) storeRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
+ 	sm.buf = append(sm.buf, msg...)
+ 	if len(hdr) > 0 {
  		sm.hdr = sm.buf[:len(hdr)]
  	}
  	sm.msg = sm.buf[len(hdr):]
@@ -1383,7 +1630,7 @@ index d60db1d..d4434ab 100644
  	ms.state.Msgs++
  	ms.state.Bytes += memStoreMsgSize(subj, hdr, msg)
  	ms.state.LastSeq = seq
-@@ -340,8 +337,12 @@ func (ms *memStore) StoreRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
+@@ -340,8 +339,12 @@ func (ms *memStore) StoreRawMsg(subj string, hdr, msg []byte, seq uint64, ts, tt
  		// Calculate duration when the next expireMsgs should be called.
  		ms.resetAgeChk(int64(time.Millisecond) * 50)
  	}
@@ -1396,7 +1643,7 @@ index d60db1d..d4434ab 100644
  	if err == nil && cb != nil {
  		cb(1, int64(memStoreMsgSize(subj, hdr, msg)), seq, subj)
  	}
-@@ -356,7 +357,11 @@ func (ms *memStore) StoreMsg(subj string, hdr, msg []byte, ttl int64) (uint64, i
+@@ -356,7 +359,11 @@ func (ms *memStore) StoreMsg(subj string, hdr, msg []byte, ttl int64) (uint64, i
  	// This is called for a R1 with no expected sequence number, so perform DiscardNew checks on the store-level.
  	err := ms.storeRawMsg(subj, hdr, msg, seq, ts, ttl, true)
  	cb := ms.scb
@@ -1408,7 +1655,7 @@ index d60db1d..d4434ab 100644
  
  	if err != nil {
  		seq, ts = 0, 0
-@@ -469,16 +474,16 @@ func (ms *memStore) GetSeqFromTime(t time.Time) uint64 {
+@@ -469,16 +476,16 @@ func (ms *memStore) GetSeqFromTime(t time.Time) uint64 {
  	ts := t.UnixNano()
  	ms.mu.RLock()
  	defer ms.mu.RUnlock()
@@ -1428,7 +1675,7 @@ index d60db1d..d4434ab 100644
  			break
  		}
  	}
-@@ -511,7 +516,7 @@ loop:
+@@ -511,7 +518,7 @@ loop:
  		// Potentially skip over gaps. We keep the original middle but keep track of a
  		// potential delete range with an offset.
  		for {
@@ -1437,7 +1684,7 @@ index d60db1d..d4434ab 100644
  			if msg == nil {
  				off++
  				if mid+off <= lseq {
-@@ -672,15 +677,15 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
+@@ -672,15 +679,15 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
  		}
  		// Check if easier to just scan msgs vs the sequence range.
  		// This can happen with lots of interior deletes.
@@ -1456,7 +1703,7 @@ index d60db1d..d4434ab 100644
  					update(sm)
  				}
  			}
-@@ -707,22 +712,22 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
+@@ -707,22 +714,22 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
  			}
  		}
  		// Check if easier to just scan msgs vs the sequence range.
@@ -1483,7 +1730,7 @@ index d60db1d..d4434ab 100644
  				adjust++
  				if seen != nil {
  					seen[sm.subj] = true
-@@ -734,9 +739,9 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
+@@ -734,9 +741,9 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
  			// Check if easier to just scan msgs vs the sequence range.
  			// Since we will need to scan all of the msgs vs below where we break on the first match,
  			// we will only do so if a few orders of magnitude lower.
@@ -1495,7 +1742,7 @@ index d60db1d..d4434ab 100644
  					if sm.seq >= first && sm.seq < last && isMatch(sm.subj) {
  						if sm.seq < low {
  							low = sm.seq
-@@ -748,7 +753,7 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
+@@ -748,7 +755,7 @@ func (ms *memStore) filteredStateLocked(sseq uint64, filter string, lastPerSubje
  				}
  			} else {
  				for seq := first; seq < last; seq++ {
@@ -1504,7 +1751,7 @@ index d60db1d..d4434ab 100644
  						ss.First = seq
  						break
  					}
-@@ -803,7 +808,7 @@ func (ms *memStore) AllLastSeqs() ([]uint64, error) {
+@@ -803,7 +810,7 @@ func (ms *memStore) AllLastSeqs() ([]uint64, error) {
  // subjects, but won't take the lock to do it, to avoid the issue of compounding
  // read locks causing a deadlock with a write lock.
  func (ms *memStore) allLastSeqsLocked() ([]uint64, error) {
@@ -1513,7 +1760,7 @@ index d60db1d..d4434ab 100644
  		return nil, nil
  	}
  
-@@ -846,7 +851,7 @@ func (ms *memStore) MultiLastSeqs(filters []string, maxSeq uint64, maxAllowed in
+@@ -846,7 +853,7 @@ func (ms *memStore) MultiLastSeqs(filters []string, maxSeq uint64, maxAllowed in
  	ms.mu.Lock()
  	defer ms.mu.Unlock()
  
@@ -1522,7 +1769,7 @@ index d60db1d..d4434ab 100644
  		return nil, nil
  	}
  
-@@ -881,7 +886,7 @@ func (ms *memStore) MultiLastSeqs(filters []string, maxSeq uint64, maxAllowed in
+@@ -881,7 +888,7 @@ func (ms *memStore) MultiLastSeqs(filters []string, maxSeq uint64, maxAllowed in
  				// The last is greater than maxSeq.
  				s := bytesToString(subj)
  				for seq := maxSeq; seq > 0; seq-- {
@@ -1531,7 +1778,7 @@ index d60db1d..d4434ab 100644
  						addIfNotDupe(seq)
  						break
  					}
-@@ -1027,15 +1032,15 @@ func (ms *memStore) NumPendingMulti(sseq uint64, sl *gsl.SimpleSublist, lastPerS
+@@ -1027,15 +1034,15 @@ func (ms *memStore) NumPendingMulti(sseq uint64, sl *gsl.SimpleSublist, lastPerS
  		}
  		// Check if easier to just scan msgs vs the sequence range.
  		// This can happen with lots of interior deletes.
@@ -1550,7 +1797,7 @@ index d60db1d..d4434ab 100644
  					update(sm)
  				}
  			}
-@@ -1062,22 +1067,22 @@ func (ms *memStore) NumPendingMulti(sseq uint64, sl *gsl.SimpleSublist, lastPerS
+@@ -1062,22 +1069,22 @@ func (ms *memStore) NumPendingMulti(sseq uint64, sl *gsl.SimpleSublist, lastPerS
  			}
  		}
  		// Check if easier to just scan msgs vs the sequence range.
@@ -1577,7 +1824,7 @@ index d60db1d..d4434ab 100644
  				adjust++
  				if seen != nil {
  					seen[sm.subj] = true
-@@ -1108,6 +1113,76 @@ func (ms *memStore) enforcePerSubjectLimit(subj string, ss *SimpleState) {
+@@ -1108,6 +1115,76 @@ func (ms *memStore) enforcePerSubjectLimit(subj string, ss *SimpleState) {
  
  // Will check the msg limit and drop firstSeq msg if needed.
  // Lock should be held.
@@ -1654,7 +1901,7 @@ index d60db1d..d4434ab 100644
  func (ms *memStore) enforceMsgLimit() {
  	if ms.cfg.Discard != DiscardOld {
  		return
-@@ -1129,6 +1204,10 @@ func (ms *memStore) enforceBytesLimit() {
+@@ -1129,6 +1206,10 @@ func (ms *memStore) enforceBytesLimit() {
  	if ms.cfg.MaxBytes <= 0 || ms.state.Bytes <= uint64(ms.cfg.MaxBytes) {
  		return
  	}
@@ -1665,7 +1912,7 @@ index d60db1d..d4434ab 100644
  	for bs := ms.state.Bytes; bs > uint64(ms.cfg.MaxBytes); bs = ms.state.Bytes {
  		ms.deleteFirstMsgOrPanic()
  	}
-@@ -1485,7 +1564,7 @@ func (ms *memStore) PurgeEx(subject string, sequence, keep uint64) (purged uint6
+@@ -1485,7 +1566,7 @@ func (ms *memStore) PurgeEx(subject string, sequence, keep uint64) (purged uint6
  	var lowSubj string
  	ms.mu.Lock()
  	for seq := ss.First; seq <= last; seq++ {
@@ -1674,7 +1921,7 @@ index d60db1d..d4434ab 100644
  			if subj, sz, ok := ms.removeMsgNoCB(sm.seq, false); ok {
  				purged++
  				bytes += sz
-@@ -1519,7 +1598,7 @@ func (ms *memStore) Purge() (uint64, error) {
+@@ -1519,7 +1600,7 @@ func (ms *memStore) Purge() (uint64, error) {
  
  func (ms *memStore) purge(fseq uint64) (uint64, error) {
  	ms.mu.Lock()
@@ -1683,7 +1930,7 @@ index d60db1d..d4434ab 100644
  	cb := ms.scb
  	bytes := int64(ms.state.Bytes)
  	if fseq == 0 {
-@@ -1534,7 +1613,7 @@ func (ms *memStore) purge(fseq uint64) (uint64, error) {
+@@ -1534,7 +1615,7 @@ func (ms *memStore) purge(fseq uint64) (uint64, error) {
  	ms.state.Bytes = 0
  	ms.state.Msgs = 0
  	if ms.msgs != nil {
@@ -1692,7 +1939,7 @@ index d60db1d..d4434ab 100644
  	}
  	ms.fss = stree.NewSubjectTree[SimpleState]()
  	ms.dmap.Empty()
-@@ -1574,19 +1653,19 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
+@@ -1574,19 +1655,19 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
  		fseq := ms.state.FirstSeq
  		// Determine new first sequence.
  		for ; seq <= ms.state.LastSeq; seq++ {
@@ -1715,7 +1962,7 @@ index d60db1d..d4434ab 100644
  			} else if !ms.dmap.IsEmpty() {
  				ms.dmap.Delete(seq)
  			}
-@@ -1606,7 +1685,7 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
+@@ -1606,7 +1687,7 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
  	} else {
  		// We are compacting past the end of our range. Do purge and set sequences correctly
  		// such that the next message placed will have seq.
@@ -1724,7 +1971,7 @@ index d60db1d..d4434ab 100644
  		bytes = ms.state.Bytes
  		ms.state.Bytes = 0
  		ms.state.Msgs = 0
-@@ -1614,7 +1693,7 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
+@@ -1614,7 +1695,7 @@ func (ms *memStore) compact(seq uint64) (uint64, error) {
  		ms.state.FirstTime = time.Time{}
  		ms.state.LastSeq = seq - 1
  		// Reset msgs, fss and dmap.
@@ -1733,7 +1980,7 @@ index d60db1d..d4434ab 100644
  		ms.fss = stree.NewSubjectTree[SimpleState]()
  		ms.dmap.Empty()
  		ms.sdm.empty()
-@@ -1634,7 +1713,7 @@ func (ms *memStore) reset() error {
+@@ -1634,7 +1715,7 @@ func (ms *memStore) reset() error {
  	var purged, bytes uint64
  	cb := ms.scb
  	if cb != nil {
@@ -1742,7 +1989,7 @@ index d60db1d..d4434ab 100644
  			purged++
  			bytes += memStoreMsgSize(sm.subj, sm.hdr, sm.msg)
  		}
-@@ -1649,7 +1728,7 @@ func (ms *memStore) reset() error {
+@@ -1649,7 +1730,7 @@ func (ms *memStore) reset() error {
  	ms.state.Msgs = 0
  	ms.state.Bytes = 0
  	// Reset msgs, fss and dmap.
@@ -1751,7 +1998,7 @@ index d60db1d..d4434ab 100644
  	ms.fss = stree.NewSubjectTree[SimpleState]()
  	ms.dmap.Empty()
  	ms.sdm.empty()
-@@ -1673,19 +1752,19 @@ func (ms *memStore) Truncate(seq uint64) error {
+@@ -1673,19 +1754,19 @@ func (ms *memStore) Truncate(seq uint64) error {
  	var purged, bytes uint64
  
  	ms.mu.Lock()
@@ -1774,7 +2021,7 @@ index d60db1d..d4434ab 100644
  		} else if !ms.dmap.IsEmpty() {
  			ms.dmap.Delete(i)
  		}
-@@ -1730,7 +1809,7 @@ func (ms *memStore) SubjectForSeq(seq uint64) (string, error) {
+@@ -1730,7 +1811,7 @@ func (ms *memStore) SubjectForSeq(seq uint64) (string, error) {
  	if seq < ms.state.FirstSeq {
  		return _EMPTY_, ErrStoreMsgNotFound
  	}
@@ -1783,7 +2030,7 @@ index d60db1d..d4434ab 100644
  		// Copy the subject, as it's used elsewhere, and we've released the lock in the meantime.
  		return copyString(sm.subj), nil
  	}
-@@ -1747,7 +1826,7 @@ func (ms *memStore) loadMsgLocked(seq uint64, smp *StoreMsg, needMSLock bool) (*
+@@ -1747,7 +1828,7 @@ func (ms *memStore) loadMsgLocked(seq uint64, smp *StoreMsg, needMSLock bool) (*
  	if needMSLock {
  		ms.mu.RLock()
  	}
@@ -1792,7 +2039,7 @@ index d60db1d..d4434ab 100644
  	last := ms.state.LastSeq
  	if needMSLock {
  		ms.mu.RUnlock()
-@@ -1784,7 +1863,7 @@ func (ms *memStore) loadLastLocked(subject string, smp *StoreMsg) (*StoreMsg, er
+@@ -1784,7 +1865,7 @@ func (ms *memStore) loadLastLocked(subject string, smp *StoreMsg) (*StoreMsg, er
  	var ok bool
  
  	if subject == _EMPTY_ || subject == fwcs {
@@ -1801,7 +2048,7 @@ index d60db1d..d4434ab 100644
  	} else if subjectIsLiteral(subject) {
  		var ss *SimpleState
  		if ss, ok = ms.fss.Find(stringToBytes(subject)); ok && ss.Msgs > 0 {
-@@ -1792,10 +1871,10 @@ func (ms *memStore) loadLastLocked(subject string, smp *StoreMsg) (*StoreMsg, er
+@@ -1792,10 +1873,10 @@ func (ms *memStore) loadLastLocked(subject string, smp *StoreMsg) (*StoreMsg, er
  			if ss.lastNeedsUpdate {
  				ms.recalculateForSubj(subject, ss)
  			}
@@ -1814,7 +2061,7 @@ index d60db1d..d4434ab 100644
  	}
  	if !ok || sm == nil {
  		return nil, ErrStoreMsgNotFound
-@@ -1827,7 +1906,7 @@ func (ms *memStore) LoadNextMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
+@@ -1827,7 +1908,7 @@ func (ms *memStore) LoadNextMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
  	fseq, lseq := start, ms.state.LastSeq
  
  	for nseq := fseq; nseq <= lseq; nseq++ {
@@ -1823,7 +2070,7 @@ index d60db1d..d4434ab 100644
  		if !ok {
  			continue
  		}
-@@ -1844,6 +1923,27 @@ func (ms *memStore) LoadNextMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
+@@ -1844,6 +1925,27 @@ func (ms *memStore) LoadNextMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
  
  // LoadNextMsg will find the next message matching the filter subject starting at the start sequence.
  // The filter subject can be a wildcard.
@@ -1851,7 +2098,7 @@ index d60db1d..d4434ab 100644
  func (ms *memStore) LoadNextMsg(filter string, wc bool, start uint64, smp *StoreMsg) (*StoreMsg, uint64, error) {
  	ms.mu.Lock()
  	defer ms.mu.Unlock()
-@@ -1959,7 +2059,7 @@ func (ms *memStore) loadNextMsgLocked(filter string, wc bool, start uint64, smp
+@@ -1959,7 +2061,7 @@ func (ms *memStore) loadNextMsgLocked(filter string, wc bool, start uint64, smp
  	}
  
  	for nseq := fseq; nseq <= lseq; nseq++ {
@@ -1860,7 +2107,7 @@ index d60db1d..d4434ab 100644
  			if smp == nil {
  				smp = new(StoreMsg)
  			}
-@@ -1996,7 +2096,7 @@ func (ms *memStore) LoadPrevMsg(filter string, wc bool, start uint64, smp *Store
+@@ -1996,7 +2098,7 @@ func (ms *memStore) LoadPrevMsg(filter string, wc bool, start uint64, smp *Store
  	}
  
  	for seq := start; seq >= ms.state.FirstSeq; seq-- {
@@ -1869,7 +2116,7 @@ index d60db1d..d4434ab 100644
  			if smp == nil {
  				smp = new(StoreMsg)
  			}
-@@ -2026,7 +2126,7 @@ func (ms *memStore) LoadPrevMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
+@@ -2026,7 +2128,7 @@ func (ms *memStore) LoadPrevMsgMulti(sl *gsl.SimpleSublist, start uint64, smp *S
  	fseq, lseq := start, ms.state.FirstSeq
  
  	for nseq := fseq; nseq >= lseq; nseq-- {
@@ -1878,7 +2125,7 @@ index d60db1d..d4434ab 100644
  		if !ok {
  			continue
  		}
-@@ -2068,7 +2168,7 @@ func (ms *memStore) updateFirstSeq(seq uint64) {
+@@ -2068,7 +2170,7 @@ func (ms *memStore) updateFirstSeq(seq uint64) {
  	var nsm *StoreMsg
  	var ok bool
  	for nseq := ms.state.FirstSeq + 1; nseq <= ms.state.LastSeq; nseq++ {
@@ -1887,7 +2134,7 @@ index d60db1d..d4434ab 100644
  			break
  		}
  	}
-@@ -2133,7 +2233,7 @@ func (ms *memStore) recalculateForSubj(subj string, ss *SimpleState) {
+@@ -2133,7 +2235,7 @@ func (ms *memStore) recalculateForSubj(subj string, ss *SimpleState) {
  			tseq = ms.state.FirstSeq
  		}
  		for ; tseq <= ss.Last; tseq++ {
@@ -1896,7 +2143,7 @@ index d60db1d..d4434ab 100644
  				ss.First = tseq
  				ss.firstNeedsUpdate = false
  				if ss.Msgs == 1 {
-@@ -2151,7 +2251,7 @@ func (ms *memStore) recalculateForSubj(subj string, ss *SimpleState) {
+@@ -2151,7 +2253,7 @@ func (ms *memStore) recalculateForSubj(subj string, ss *SimpleState) {
  			tseq = ms.state.LastSeq
  		}
  		for ; tseq >= ss.First; tseq-- {
@@ -1905,7 +2152,7 @@ index d60db1d..d4434ab 100644
  				ss.Last = tseq
  				ss.lastNeedsUpdate = false
  				if ss.Msgs == 1 {
-@@ -2186,7 +2286,7 @@ func (ms *memStore) removeMsg(seq uint64, secure bool) bool {
+@@ -2186,7 +2288,7 @@ func (ms *memStore) removeMsg(seq uint64, secure bool) bool {
  // Returns the removed message's subject and size.
  // Lock should be held.
  func (ms *memStore) removeMsgNoCB(seq uint64, secure bool) (subj string, size uint64, ok bool) {
@@ -1914,7 +2161,7 @@ index d60db1d..d4434ab 100644
  	if !ok {
  		return _EMPTY_, 0, false
  	}
-@@ -2225,7 +2325,7 @@ func (ms *memStore) removeMsgNoCB(seq uint64, secure bool) (subj string, size ui
+@@ -2225,7 +2327,7 @@ func (ms *memStore) removeMsgNoCB(seq uint64, secure bool) (subj string, size ui
  	}
  
  	// Must delete message after updating per-subject info, to be consistent with file store.
@@ -1946,10 +2193,44 @@ index 367547d..e69558c 100644
  		t.Fatalf("Expected %d msgs, got %d", toStore, state.Msgs)
  	}
 diff --git a/server/stream.go b/server/stream.go
-index 4ff6cb4..8629348 100644
+index 4ff6cb4..8e95b84 100644
 --- a/server/stream.go
 +++ b/server/stream.go
-@@ -5379,22 +5379,38 @@ func (mset *stream) storeMsgIdLocked(dde *ddentry) {
+@@ -548,19 +548,20 @@ type stream struct {
+ 
+ 	// TODO(dlc) - Hide everything below behind two pointers.
+ 	// Clustered mode.
+-	sa        *streamAssignment // What the meta controller uses to assign streams to peers.
+-	node      RaftNode          // Our RAFT node for the stream's group.
+-	catchup   atomic.Bool       // Used to signal we are in catchup mode.
+-	catchups  map[string]uint64 // The number of messages that need to be caught per peer.
+-	syncSub   *subscription     // Internal subscription for sync messages (on "$JSC.SYNC").
+-	infoSub   *subscription     // Internal subscription for stream info requests.
+-	clMu      sync.Mutex        // The mutex for clseq and clfs.
+-	clseq     uint64            // The current last seq being proposed to the NRG layer.
+-	clfs      uint64            // The count (offset) of the number of failed NRG sequences used to compute clseq.
+-	lqsent    time.Time         // The time at which the last lost quorum advisory was sent. Used to rate limit.
+-	uch       chan struct{}     // The channel to signal updates to the monitor routine.
+-	inMonitor bool              // True if the monitor routine has been started.
+-	werr      error             // If a write error was encountered, and if so what error.
++	sa          *streamAssignment // What the meta controller uses to assign streams to peers.
++	node        RaftNode          // Our RAFT node for the stream's group.
++	catchup     atomic.Bool       // Used to signal we are in catchup mode.
++	catchups    map[string]uint64 // The number of messages that need to be caught per peer.
++	syncSub     *subscription     // Internal subscription for sync messages (on "$JSC.SYNC").
++	infoSub     *subscription     // Internal subscription for stream info requests.
++	clMu        sync.Mutex        // The mutex for clseq and clfs.
++	clseq       uint64            // The current last seq being proposed to the NRG layer.
++	benchIntern *strInterner      // BENCH: apply-goroutine string interner (NATS_BENCH_INTERN)
++	clfs        uint64            // The count (offset) of the number of failed NRG sequences used to compute clseq.
++	lqsent      time.Time         // The time at which the last lost quorum advisory was sent. Used to rate limit.
++	uch         chan struct{}     // The channel to signal updates to the monitor routine.
++	inMonitor   bool              // True if the monitor routine has been started.
++	werr        error             // If a write error was encountered, and if so what error.
+ 
+ 	inflight                    map[string]*inflightSubjectRunningTotal // Inflight message sizes per subject.
+ 	inflightTransform           map[uint64]string                       // Inflight message's optional transformed subject.
+@@ -5379,22 +5380,38 @@ func (mset *stream) storeMsgIdLocked(dde *ddentry) {
  
  // Fast lookup of msgId.
  func getMsgId(hdr []byte) string {
@@ -1992,7 +2273,7 @@ index 4ff6cb4..8629348 100644
  	if len(bseq) == 0 {
  		return 0, false
  	}
-@@ -5403,7 +5419,11 @@ func getExpectedLastSeq(hdr []byte) (uint64, bool) {
+@@ -5403,7 +5420,11 @@ func getExpectedLastSeq(hdr []byte) (uint64, bool) {
  
  // Fast lookup of rollups.
  func getRollup(hdr []byte) string {
@@ -2005,7 +2286,7 @@ index 4ff6cb4..8629348 100644
  	if len(r) == 0 {
  		return _EMPTY_
  	}
-@@ -5412,7 +5432,11 @@ func getRollup(hdr []byte) string {
+@@ -5412,7 +5433,11 @@ func getRollup(hdr []byte) string {
  
  // Fast lookup of expected stream sequence per subject.
  func getExpectedLastSeqPerSubject(hdr []byte) (uint64, bool) {
@@ -2018,7 +2299,7 @@ index 4ff6cb4..8629348 100644
  	if len(bseq) == 0 {
  		return 0, false
  	}
-@@ -5421,7 +5445,11 @@ func getExpectedLastSeqPerSubject(hdr []byte) (uint64, bool) {
+@@ -5421,7 +5446,11 @@ func getExpectedLastSeqPerSubject(hdr []byte) (uint64, bool) {
  
  // Fast lookup of expected subject for the expected stream sequence per subject.
  func getExpectedLastSeqPerSubjectForSubject(hdr []byte) string {
@@ -2031,7 +2312,7 @@ index 4ff6cb4..8629348 100644
  }
  
  // Fast lookup of the message TTL from headers:
-@@ -5429,7 +5457,11 @@ func getExpectedLastSeqPerSubjectForSubject(hdr []byte) string {
+@@ -5429,7 +5458,11 @@ func getExpectedLastSeqPerSubjectForSubject(hdr []byte) string {
  // - Zero return value: no TTL or parse error.
  // - Negative return value: never expires.
  func getMessageTTL(hdr []byte) (int64, error) {
@@ -2044,7 +2325,7 @@ index 4ff6cb4..8629348 100644
  	if len(ttl) == 0 {
  		return 0, nil
  	}
-@@ -5464,7 +5496,11 @@ func parseMessageTTL(ttl string) (int64, error) {
+@@ -5464,7 +5497,11 @@ func parseMessageTTL(ttl string) (int64, error) {
  // Fast lookup of the message Incr from headers.
  // Return includes the value or nil, and success.
  func getMessageIncr(hdr []byte) (*big.Int, bool) {
@@ -2057,7 +2338,7 @@ index 4ff6cb4..8629348 100644
  	if len(incr) == 0 {
  		return nil, true
  	}
-@@ -5518,7 +5554,11 @@ func loadMessageScheduleLocation(hdr []byte) (*time.Location, *ApiError) {
+@@ -5518,7 +5555,11 @@ func loadMessageScheduleLocation(hdr []byte) (*time.Location, *ApiError) {
  // Fast lookup of the message schedule TTL from headers.
  // The TTL is confirmed to be valid, but the raw TTL string is returned.
  func getMessageScheduleTTL(hdr []byte) (string, bool) {
@@ -2070,7 +2351,7 @@ index 4ff6cb4..8629348 100644
  	if len(ttl) == 0 {
  		return _EMPTY_, true
  	}
-@@ -5530,39 +5570,59 @@ func getMessageScheduleTTL(hdr []byte) (string, bool) {
+@@ -5530,39 +5571,59 @@ func getMessageScheduleTTL(hdr []byte) (string, bool) {
  
  // Fast lookup of the message schedule rollup from headers.
  func getMessageScheduleRollup(hdr []byte) string {
@@ -2135,7 +2416,7 @@ index 4ff6cb4..8629348 100644
  		return string(atomicBatchId)
  	}
  	return _EMPTY_
-@@ -5708,7 +5768,11 @@ func getFastBatch(reply string, hdr []byte) (*FastBatch, bool) {
+@@ -5708,7 +5769,11 @@ func getFastBatch(reply string, hdr []byte) (*FastBatch, bool) {
  
  // Fast lookup of batch sequence.
  func getBatchSequence(hdr []byte) (uint64, bool) {
@@ -2148,7 +2429,7 @@ index 4ff6cb4..8629348 100644
  	if len(bseq) == 0 {
  		return 0, false
  	}
-@@ -6188,6 +6252,7 @@ func (mset *stream) processJetStreamMsg(subject, reply string, hdr, msg []byte,
+@@ -6188,6 +6253,7 @@ func (mset *stream) processJetStreamMsg(subject, reply string, hdr, msg []byte,
  }
  
  func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg []byte, lseq uint64, ts int64, mt *msgTrace, sourced bool, needLock bool, fastBatch *FastBatch) (retErr error) {
@@ -2156,7 +2437,7 @@ index 4ff6cb4..8629348 100644
  	if mt != nil {
  		// Only the leader/standalone will have mt!=nil. On exit, send the
  		// message trace event.
-@@ -6248,13 +6313,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6248,13 +6314,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	canRespond := doAck && len(reply) > 0 && isLeader
  	outq := mset.outq
  
@@ -2183,7 +2464,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, response)
  		}
  		return ErrMsgTooLarge
-@@ -6279,8 +6353,10 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6279,8 +6354,10 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		canConsistencyCheck = traceOnly
  	}
  	if len(hdr) > 0 && batchId == _EMPTY_ {
@@ -2196,7 +2477,7 @@ index 4ff6cb4..8629348 100644
  			// Disable consistency checking if this was already done
  			// earlier as part of the batch consistency check.
  			canConsistencyCheck = traceOnly
-@@ -6290,16 +6366,18 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6290,16 +6367,18 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	// Bail here if sealed.
  	if canConsistencyCheck && isSealed {
  		if canRespond && outq != nil {
@@ -2220,7 +2501,7 @@ index 4ff6cb4..8629348 100644
  
  	// If this is a non-clustered msg and we are not considered active, meaning no active subscription, do not process.
  	if lseq == 0 && ts == 0 && !mset.active {
-@@ -6328,9 +6406,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6328,9 +6407,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			// Really is a mismatch.
  			if isMisMatch {
  				if canRespond && outq != nil {
@@ -2233,7 +2514,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return errLastSeqMismatch
-@@ -6342,6 +6420,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6342,6 +6421,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	// For now remove. TODO(dlc) - Should this be opt-in or opt-out?
  	if len(hdr) > 0 {
  		hdr = removeHeaderIfPresent(hdr, ClientInfoHdr)
@@ -2241,7 +2522,7 @@ index 4ff6cb4..8629348 100644
  	}
  
  	// Process additional msg headers if still present.
-@@ -6357,12 +6436,12 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6357,12 +6437,12 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			// Counter increments.
  			// Only supported on counter streams, and payload must be empty (if not coming from a source).
  			var ok bool
@@ -2258,7 +2539,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return apiErr
-@@ -6371,41 +6450,41 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6371,41 +6451,41 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				if !allowMsgCounter {
  					apiErr := NewJSMessageIncrDisabledError()
  					if canRespond {
@@ -2315,7 +2596,7 @@ index 4ff6cb4..8629348 100644
  							outq.sendMsg(reply, b)
  						}
  						return apiErr
-@@ -6414,11 +6493,11 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6414,11 +6494,11 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			}
  
  			// Expected stream.
@@ -2331,7 +2612,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return errStreamMismatch
-@@ -6427,21 +6506,21 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6427,21 +6507,21 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			// TTL'd messages are rejected entirely if TTLs are not enabled on the stream.
  			// Shouldn't happen in clustered mode since we should have already caught this
  			// in processClusteredInboundMsg, but needed here for non-clustered etc.
@@ -2359,7 +2640,7 @@ index 4ff6cb4..8629348 100644
  					seqSubj = optSubj
  				}
  
-@@ -6457,31 +6536,31 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6457,31 +6537,31 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				}
  				if err != nil || fseq != seq {
  					if canRespond {
@@ -2402,7 +2683,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return fmt.Errorf("last sequence mismatch: %d vs %d", seq, mlseq)
-@@ -6495,9 +6574,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6495,9 +6575,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  					apiErr = NewJSMessageSchedulesDisabledError()
  				}
  				if canRespond {
@@ -2415,7 +2696,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return apiErr
-@@ -6505,55 +6584,55 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6505,55 +6585,55 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				if !allowMsgSchedules {
  					apiErr := NewJSMessageSchedulesDisabledError()
  					if canRespond {
@@ -2493,7 +2774,7 @@ index 4ff6cb4..8629348 100644
  						outq.sendMsg(reply, b)
  					}
  					return apiErr
-@@ -6564,9 +6643,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6564,9 +6644,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  					if !match {
  						apiErr := NewJSMessageSchedulesTargetInvalidError()
  						if canRespond {
@@ -2506,7 +2787,7 @@ index 4ff6cb4..8629348 100644
  							outq.sendMsg(reply, b)
  						}
  						return apiErr
-@@ -6578,9 +6657,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6578,9 +6658,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  						if !match {
  							apiErr := NewJSMessageSchedulesSourceInvalidError()
  							if canRespond {
@@ -2519,7 +2800,7 @@ index 4ff6cb4..8629348 100644
  								outq.sendMsg(reply, b)
  							}
  							return apiErr
-@@ -6589,28 +6668,29 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6589,28 +6669,29 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  
  					// Add a rollup sub header if it doesn't already exist.
  					// Otherwise, it must exist already as a rollup on the subject.
@@ -2557,7 +2838,7 @@ index 4ff6cb4..8629348 100644
  						outq.sendMsg(reply, b)
  					}
  					return apiErr
-@@ -6618,22 +6698,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6618,22 +6699,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				// Nats-Scheduler must accompany the purge and:
  				// - it must NOT be empty.
  				// - it must NOT match the publish subject.
@@ -2587,7 +2868,7 @@ index 4ff6cb4..8629348 100644
  						outq.sendMsg(reply, b)
  					}
  					return apiErr
-@@ -6647,21 +6727,21 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6647,21 +6728,21 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  					if sm != nil && len(sliceHeader(JSSchedulePattern, sm.hdr)) == 0 {
  						apiErr := NewJSMessageSchedulesSchedulerInvalidError()
  						if canRespond {
@@ -2616,7 +2897,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return apiErr
-@@ -6670,7 +6750,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6670,7 +6751,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  
  		// Dedupe detection. This is done at the cluster level for dedupe detection above the
  		// lower layers. But we still need to pull out the msgId.
@@ -2625,7 +2906,7 @@ index 4ff6cb4..8629348 100644
  			// Do real check only if not clustered or traceOnly flag is set.
  			// If we're mirroring we can't deduplicate on our own.
  			if canConsistencyCheck && !isMirror {
-@@ -6693,27 +6773,27 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6693,27 +6774,27 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		}
  
  		// Expected last msgId.
@@ -2661,7 +2942,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return err
-@@ -6727,9 +6807,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6727,9 +6808,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				if canConsistencyCheck {
  					err := fmt.Errorf("rollup value invalid: %q", rollup)
  					if canRespond {
@@ -2674,7 +2955,7 @@ index 4ff6cb4..8629348 100644
  						outq.sendMsg(reply, b)
  					}
  					return err
-@@ -6741,9 +6821,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6741,9 +6822,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	if canConsistencyCheck && incr == nil && allowMsgCounter {
  		apiErr := NewJSMessageIncrMissingError()
  		if canRespond {
@@ -2687,7 +2968,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, b)
  		}
  		return apiErr
-@@ -6769,9 +6849,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6769,9 +6850,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			if json.Unmarshal(sm.msg, &val) != nil {
  				apiErr := NewJSMessageCounterBrokenError()
  				if canRespond {
@@ -2700,7 +2981,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return apiErr
-@@ -6780,9 +6860,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6780,9 +6861,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  				if err := json.Unmarshal(ncs, &sources); err != nil {
  					apiErr := NewJSMessageCounterBrokenError()
  					if canRespond {
@@ -2713,7 +2994,7 @@ index 4ff6cb4..8629348 100644
  						outq.sendMsg(reply, b)
  					}
  					return apiErr
-@@ -6790,7 +6870,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6790,7 +6871,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			}
  			initial.SetString(val.Value, 10)
  		}
@@ -2722,7 +3003,7 @@ index 4ff6cb4..8629348 100644
  		if len(srchdr) > 0 {
  			// This is a sourced message, so we can't apply Nats-Incr but
  			// instead should just update the source count header.
-@@ -6804,9 +6884,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6804,9 +6885,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			if json.Unmarshal(msg, &val) != nil {
  				apiErr := NewJSMessageCounterBrokenError()
  				if canRespond {
@@ -2735,7 +3016,7 @@ index 4ff6cb4..8629348 100644
  					outq.sendMsg(reply, b)
  				}
  				return apiErr
-@@ -6828,6 +6908,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6828,6 +6909,7 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			previous.SetString(prevVal, 10)
  			incr.Sub(&sourced, &previous)
  			hdr = setHeader(JSMessageIncr, incr.String(), hdr)
@@ -2743,7 +3024,7 @@ index 4ff6cb4..8629348 100644
  		}
  		// Now make the change.
  		initial.Add(&initial, incr)
-@@ -6839,14 +6920,15 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6839,14 +6921,15 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			nhdr, err := json.Marshal(sources)
  			if err != nil {
  				if canRespond {
@@ -2762,7 +3043,7 @@ index 4ff6cb4..8629348 100644
  		}
  
  		// Check to see if we are over the max msg size.
-@@ -6855,9 +6937,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6855,9 +6938,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		hdrLen, msgLen := int64(len(hdr)), int64(len(msg))
  		if hdrLen > maxPayload || msgLen > maxPayload-hdrLen {
  			if canRespond {
@@ -2775,7 +3056,7 @@ index 4ff6cb4..8629348 100644
  				outq.sendMsg(reply, response)
  			}
  			return ErrMaxPayload
-@@ -6868,9 +6950,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6868,9 +6951,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	// Subtract to prevent against overflows.
  	if canConsistencyCheck && maxMsgSize >= 0 && (len(hdr) > maxMsgSize || len(msg) > maxMsgSize-len(hdr)) {
  		if canRespond {
@@ -2788,7 +3069,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, response)
  		}
  		return ErrMaxPayload
-@@ -6878,9 +6960,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6878,9 +6961,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  
  	if canConsistencyCheck && len(hdr) > math.MaxUint16 {
  		if canRespond {
@@ -2801,7 +3082,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, response)
  		}
  		return ErrMaxPayload
-@@ -6891,9 +6973,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6891,9 +6974,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	if !isClustered && js.limitsExceeded(stype) {
  		s.resourcesExceededError(stype)
  		if canRespond {
@@ -2814,7 +3095,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, response)
  		}
  		// Stepdown regardless.
-@@ -6995,9 +7077,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -6995,9 +7078,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  			}
  			s.RateLimitWarnf("JetStream %s resource limits exceeded for account: %q", strings.ToLower(stype.String()), accName)
  			if canRespond {
@@ -2827,7 +3108,7 @@ index 4ff6cb4..8629348 100644
  				outq.send(newJSPubMsg(reply, _EMPTY_, _EMPTY_, nil, response, nil, 0))
  			}
  			return err
-@@ -7005,12 +7087,12 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -7005,12 +7088,12 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	}
  
  	// Find the message TTL if any.
@@ -2844,7 +3125,7 @@ index 4ff6cb4..8629348 100644
  			outq.send(newJSPubMsg(reply, _EMPTY_, _EMPTY_, nil, response, nil, 0))
  		}
  		return err
-@@ -7023,7 +7105,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -7023,7 +7106,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		if minTtl := int64(mset.cfg.SubjectDeleteMarkerTTL.Seconds()); ttl < minTtl {
  			ttl = minTtl
  			hdr = removeHeaderIfPresent(hdr, JSMessageTTL)
@@ -2854,7 +3135,7 @@ index 4ff6cb4..8629348 100644
  		}
  	}
  
-@@ -7033,7 +7117,13 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -7033,7 +7118,13 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  	} else {
  		// Make sure to take into account any message assignments that we had to skip (clfs).
  		seq = lseq + 1 - clfs
@@ -2869,7 +3150,7 @@ index 4ff6cb4..8629348 100644
  	}
  
  	if err != nil {
-@@ -7061,9 +7151,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -7061,9 +7152,9 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		// If we did not succeed increment clfs in case we are clustered.
  		bumpCLFS()
  		if canRespond {
@@ -2882,7 +3163,7 @@ index 4ff6cb4..8629348 100644
  			outq.sendMsg(reply, response)
  		}
  		return err
-@@ -7121,18 +7211,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
+@@ -7121,18 +7212,22 @@ func (mset *stream) processJetStreamMsgWithBatch(subject, reply string, hdr, msg
  		if len(hdr) == 0 {
  			if !thdrsOnly {
  				hdr = fmt.Appendf(nil, ht, name, subject, seq, tsStr, tlseq)
@@ -2905,7 +3186,33 @@ index 4ff6cb4..8629348 100644
  			}
  		}
  		outq.send(newJSPubMsg(tsubj, _EMPTY_, _EMPTY_, hdr, rpMsg, nil, seq))
-@@ -7356,6 +7450,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+@@ -7207,6 +7302,7 @@ func (mset *stream) processJetStreamMsgWithRollup(subject string, rollupSub, rol
+ // processJetStreamAtomicBatchMsg processes a JetStream message that's part of an atomic batch publish.
+ // Handles constraints around the batch, storing messages, doing consistency checks, and performing the commit.
+ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply string, hdr, msg []byte, mt *msgTrace) (retErr error) {
++	hx := indexHeader(hdr)
+ 	mset.mu.RLock()
+ 	canRespond := !mset.cfg.NoAck && len(reply) > 0
+ 	name, stype := mset.cfg.Name, mset.cfg.Storage
+@@ -7283,7 +7379,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+ 		return respondError(NewJSAtomicPublishInvalidBatchIDError())
+ 	}
+ 
+-	batchSeq, exists := getBatchSequence(hdr)
++	batchSeq, exists := getBatchSequencei(hdr, &hx)
+ 	if !exists {
+ 		return respondError(NewJSAtomicPublishMissingSeqError())
+ 	}
+@@ -7319,7 +7415,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+ 			}
+ 			size := batchSeq
+ 			// Don't count the "End Of Batch" marker toward the batch size.
+-			if bytes.Equal(sliceHeader(JSBatchCommit, hdr), []byte("eob")) {
++			if bytes.Equal(hx.slice(JSBatchCommit, hdr), []byte("eob")) {
+ 				size--
+ 			}
+ 			if size > uint64(maxBatchSize) {
+@@ -7356,6 +7452,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
  		}
  
  		var err error
@@ -2913,7 +3220,33 @@ index 4ff6cb4..8629348 100644
  		b, err = batches.newAtomicBatch(mset, batchId, r, stype, storeDir, name)
  		if err != nil {
  			globalInflightAtomicBatches.Add(-1)
-@@ -7430,8 +7525,8 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+@@ -7370,7 +7467,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+ 	}
+ 
+ 	var commit, commitEob bool
+-	if c := sliceHeader(JSBatchCommit, hdr); c != nil {
++	if c := hx.slice(JSBatchCommit, hdr); c != nil {
+ 		commitEob = bytes.Equal(c, []byte("eob"))
+ 		// Reject the batch if the commit is not recognized.
+ 		if !commitEob && !bytes.Equal(c, []byte("1")) {
+@@ -7384,7 +7481,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+ 	}
+ 
+ 	// The required API level can have the batch be rejected. But the header is always removed.
+-	if len(sliceHeader(JSRequiredApiLevel, hdr)) != 0 {
++	if len(hx.slice(JSRequiredApiLevel, hdr)) != 0 {
+ 		if errorOnRequiredApiLevel(hdr) {
+ 			b.cleanupLocked(batchId, batches)
+ 			batches.mu.Unlock()
+@@ -7394,6 +7491,7 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+ 			return respondError(err)
+ 		}
+ 		hdr = removeHeaderIfPresent(hdr, JSRequiredApiLevel)
++		hx.refresh(hdr)
+ 	}
+ 
+ 	// If cleanup has already happened, we can't continue.
+@@ -7430,8 +7528,8 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
  
  	// Persist, but optimize if we're committing because we already know last.
  	// If the underlying store is file-based we need to persist everything to survive hard kills, because we're R1.
@@ -2924,7 +3257,7 @@ index 4ff6cb4..8629348 100644
  		if err != nil || seq != batchSeq {
  			b.cleanupLocked(batchId, batches)
  			batches.mu.Unlock()
-@@ -7522,9 +7617,9 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
+@@ -7522,9 +7620,9 @@ func (mset *stream) processJetStreamAtomicBatchMsg(batchId, subject, reply strin
  
  	diff := &batchStagedDiff{}
  	for seq := uint64(1); seq <= batchSeq; seq++ {
@@ -2936,7 +3269,7 @@ index 4ff6cb4..8629348 100644
  			bsubj, bhdr, bmsg = sm.subj, sm.hdr, sm.msg
  		} else {
  			rollback()
-@@ -8016,11 +8111,14 @@ func (mset *stream) signalConsumersLoop() {
+@@ -8016,11 +8114,14 @@ func (mset *stream) signalConsumersLoop() {
  			return
  		case <-sch:
  			cms := msgs.pop()
@@ -2956,7 +3289,7 @@ index 4ff6cb4..8629348 100644
  			}
  			msgs.recycle(&cms)
  		}
-@@ -8028,6 +8126,33 @@ func (mset *stream) signalConsumersLoop() {
+@@ -8028,6 +8129,33 @@ func (mset *stream) signalConsumersLoop() {
  }
  
  // This will update and signal all consumers that match.
@@ -2990,7 +3323,7 @@ index 4ff6cb4..8629348 100644
  func (mset *stream) signalConsumers(subj string, seq uint64) {
  	mset.clsMu.RLock()
  	defer mset.clsMu.RUnlock()
-@@ -8268,7 +8393,9 @@ func (mset *stream) internalLoop() {
+@@ -8268,7 +8396,9 @@ func (mset *stream) internalLoop() {
  				if batch, err := getFastBatch(im.rply, im.hdr); batch != nil || err {
  					mset.processJetStreamFastBatchMsg(batch, im.subj, im.rply, im.hdr, im.msg, im.mt)
  					batch.returnToPool()
