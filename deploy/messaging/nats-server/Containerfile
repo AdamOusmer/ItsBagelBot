@@ -30,5 +30,8 @@ RUN if [ "$(go env GOARCH)" = "amd64" ]; then export GOAMD64=v3; fi; \
 
 # Same runtime image the hubs run today, with only the binary replaced, so
 # the config reloader sidecar, the pid file and the entrypoint stay as-is.
+# The entrypoint script execs /usr/local/bin/nats-server, so that is the
+# path to replace; a copy anywhere else leaves the stock binary running
+# (caught by the local build: --version still said v2.14.4).
 FROM docker.io/library/nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
-COPY --from=build /nats-server /nats-server
+COPY --from=build /nats-server /usr/local/bin/nats-server
