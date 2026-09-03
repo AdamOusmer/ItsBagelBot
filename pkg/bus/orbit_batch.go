@@ -388,7 +388,7 @@ func (w *publishBatchWorker) atomicPublisher() (atomicCohortPublisher, error) {
 		// its necessity (typed rejection proof enabling safe replay) trades
 		// against confirmed-publish latency under load — measured decomposition
 		// lives with the bench. NATS_ATOMIC_ACK_FIRST tunes it.
-		jetstreamext.BatchFlowControl{AckFirst: w.ackFirst, AckTimeout: defaultPublishAckWait},
+		jetstreamext.BatchFlowControl{AckFirst: w.ackFirst, AckTimeout: publishAckWait()},
 	)
 	if err != nil {
 		return nil, err
@@ -406,7 +406,7 @@ func addAtomicBatch(publisher atomicCohortPublisher, batch []publishRequest) err
 }
 
 func (w *publishBatchWorker) commitAtomic(publisher atomicCohortPublisher, batch []publishRequest, commit *nats.Msg) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultPublishAckWait)
+	ctx, cancel := context.WithTimeout(context.Background(), publishAckWait())
 	ack, err := publisher.CommitMsg(ctx, commit)
 	cancel()
 	if err != nil {
@@ -504,7 +504,7 @@ func (w *publishBatchWorker) publishFast(batch []publishRequest) fastCohortOutco
 		jetstreamext.FastPublishFlowControl{
 			Flow:               fastPublishFlow(w.batchSize, outstanding),
 			MaxOutstandingAcks: outstanding,
-			AckTimeout:         defaultPublishAckWait,
+			AckTimeout:         publishAckWait(),
 		},
 		jetstreamext.WithFastPublisherErrorHandler(asyncErr.set),
 	)
@@ -599,7 +599,7 @@ func commitFastCohort(
 	outcome fastCohortOutcome,
 ) fastCohortOutcome {
 	last := len(batch) - 1
-	ctx, cancel := context.WithTimeout(context.Background(), defaultPublishAckWait)
+	ctx, cancel := context.WithTimeout(context.Background(), publishAckWait())
 	ack, err := publisher.CommitMsg(ctx, batch[last].msg)
 	cancel()
 	outcome.recordTerminal(ack)
@@ -666,7 +666,7 @@ func (o fastCohortOutcome) settle(ack *jetstreamext.BatchAck, size int) fastCoho
 // context cancellation too. Every Close error is expected on some abort path and
 // nothing can act on it, so it is deliberately dropped.
 func closeFastSession(publisher fastCohortPublisher) *jetstreamext.BatchAck {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultPublishAckWait)
+	ctx, cancel := context.WithTimeout(context.Background(), publishAckWait())
 	defer cancel()
 	ack, _ := publisher.Close(ctx)
 	return ack
