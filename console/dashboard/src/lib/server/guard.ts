@@ -21,8 +21,8 @@
 // importing the dynamic-env proxy there deadlocks server.init (exit 13).
 import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { GRANTABLE_SECTIONS, MODULE_CATALOG, moduleDelegateSections } from '@bagel/shared';
-import { COOKIE, type Session } from '$lib/server/session';
+import { delegateAllowedPaths, pathnameAllowed } from '@bagel/shared';
+import { COOKIE, seal, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
 import { RpcError } from '@bagel/shared/server/nats';
 import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
@@ -44,54 +44,6 @@ function isPublic(pathname: string): boolean {
 
 function wipe(event: RequestEvent): void {
   event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
-}
-
-// delegateAllowedPaths lists the (app) path prefixes a delegate may open: each
-// granted section's own page, plus every bespoke module page whose catalog def
-// is opened by one of those grants (moduleDelegateSections — the same source
-// the per-page gates and the tile grid read, so the three can never drift and
-// a new module page needs no edit here). The read-only counter name list also
-// opens to the commands grant so commands-only delegates can use the picker.
-function delegateAllowedPaths(sections: readonly string[]): string[] {
-  // Only registry-known sections earn their own path candidate; the filter
-  // keeps each delegate's own grant order, so the bounce target (allowed[0])
-  // stays the first thing that delegate was actually granted.
-  const allowed = sections
-    .filter((sec) => (GRANTABLE_SECTIONS as readonly string[]).includes(sec))
-    .map((sec) => `/${sec}`);
-  for (const def of MODULE_CATALOG) {
-    if (def.href && moduleDelegateSections(def).some((sec) => sections.includes(sec))) {
-      allowed.push(def.href);
-    }
-  }
-  if (sections.includes('commands')) allowed.push('/counters/list');
-  return allowed;
-}
-
-// pathnameAllowed checks a request path against the delegate's allowed-path
-// list. An exact hit always passes; a prefix hit (a sub-route under a
-// granted section) usually does too, EXCEPT under '/modules': that prefix
-// covers the generic per-module reply page for every catalog module, but a
-// module can declare its own narrower delegateSections (channel points), so
-// admitting '/modules/<id>' on the strength of the bare 'modules' grant
-// would let it reach a module it was never granted. Recheck the specific
-// module's own scope in that one case; every other prefix (the counters
-// list, a bespoke href) carries no per-item scope of its own.
-function pathnameAllowed(pathname: string, allowed: string[], sections: readonly string[]): boolean {
-  if (allowed.includes(pathname)) return true;
-  const prefix = allowed.find((p) => pathname.startsWith(p + '/'));
-  if (!prefix) return false;
-  if (prefix !== '/modules') return true;
-  const id = pathname.slice(prefix.length + 1).split('/')[0];
-  return moduleSubpathAllowed(id, sections);
-}
-
-function moduleSubpathAllowed(id: string, sections: readonly string[]): boolean {
-  const def = MODULE_CATALOG.find((d) => d.id === id);
-  // An id the catalog has never heard of 404s at the route itself; let the
-  // request through rather than duplicating that check here.
-  if (!def) return true;
-  return moduleDelegateSections(def).some((sec) => sections.includes(sec));
 }
 
 // assertAccountUsable runs the three gates that judge the session itself.
@@ -167,15 +119,41 @@ export async function guardSession(event: RequestEvent, s: Session): Promise<Ses
     // push-invalidated on the delegation scope, so a revoke lands within one
     // request. Fail open on transport blips, matching the gates above.
     let boardGone = await isBanned(s.delegate_of);
+    let activeGrant: { owner_user_id: string; owner_login: string; sections: string[] } | undefined;
     if (!boardGone) {
       try {
         const grants = await delegationAccess(s.user_id);
-        boardGone = !grants.some((g) => g.owner_user_id === s.delegate_of);
+        activeGrant = grants.find((g) => g.owner_user_id === s.delegate_of);
+        boardGone = !activeGrant;
       } catch {
         /* transport blip: keep the session */
       }
     }
     if (boardGone) throw redirect(303, '/delegate/exit');
+
+    // Synchronize active session sections with authoritative grant if changed:
+    if (activeGrant) {
+      const cookieSections = s.sections ?? [];
+      const currentSections = activeGrant.sections ?? [];
+      const changed =
+        cookieSections.length !== currentSections.length ||
+        cookieSections.some((sec, i) => sec !== currentSections[i]);
+      if (changed) {
+        s.sections = currentSections;
+        try {
+          const value = seal(s);
+          event.cookies.set(COOKIE, value, {
+            path: '/',
+            httpOnly: true,
+            secure: event.url.protocol === 'https:',
+            sameSite: 'lax',
+            maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
+          });
+        } catch {
+          /* transport/seal failure: keep updated in-memory session */
+        }
+      }
+    }
 
     // Section scope for everything under (app) — pages AND their actions
     // (the per-page gates remain as defense in depth).

@@ -17,7 +17,11 @@ const DEMO = dev && env.DEMO === '1';
 // so the reply carries names and scopes only: values are channel metrics
 // and stay on the modules-gated /counters page.
 export const GET: RequestHandler = async ({ locals }) => {
-  const uid = locals.session?.delegate_of ?? locals.session?.user_id;
+  const s = locals.session;
+  if (s?.delegate_of && !s.sections?.includes('commands') && !s.sections?.includes('modules')) {
+    return json({ counters: [] }, { status: 403 });
+  }
+  const uid = s?.delegate_of ?? s?.user_id;
   if (DEMO) return json({ counters: [] });
   if (!uid) return json({ counters: [] }, { status: 401 });
   try {

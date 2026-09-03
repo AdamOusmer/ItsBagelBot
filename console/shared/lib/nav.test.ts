@@ -2,7 +2,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { DASHBOARD_SECTIONS, GRANTABLE_SECTIONS, dashboardNavGroups, dashboardNavItems, moduleSectionLinks, sectionForPath } from './nav';
+import {
+  DASHBOARD_SECTIONS,
+  GRANTABLE_SECTIONS,
+  dashboardNavGroups,
+  dashboardNavItems,
+  moduleSectionLinks,
+  sectionForPath,
+  delegateAllowedPaths,
+  pathnameAllowed,
+  moduleSubpathAllowed
+} from './nav';
 import { MODULE_CATALOG } from './types';
 import { MODULE_CATEGORY_ORDER } from './module-index';
 
@@ -94,5 +104,107 @@ describe('nav registry', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
     expect(groups[0].items).toHaveLength(5);
+  });
+});
+
+describe('delegateAllowedPaths', () => {
+  test('empty sections allow no paths', () => {
+    expect(delegateAllowedPaths([])).toEqual([]);
+  });
+
+  test('unknown sections are filtered out', () => {
+    expect(delegateAllowedPaths(['invalid_sec', 'admin'])).toEqual([]);
+  });
+
+  test('commands grant allows commands, counters list, and commands-scoped modules', () => {
+    const allowed = delegateAllowedPaths(['commands']);
+    expect(allowed).toContain('/commands');
+    expect(allowed).toContain('/counters/list');
+    expect(allowed).toContain('/quotes');
+    expect(allowed).toContain('/timers');
+    expect(allowed).not.toContain('/billing');
+    expect(allowed).not.toContain('/settings');
+    expect(allowed).not.toContain('/channelpoints');
+  });
+
+  test('billing grant allows only billing', () => {
+    const allowed = delegateAllowedPaths(['billing']);
+    expect(allowed).toEqual(['/billing']);
+    expect(allowed).not.toContain('/commands');
+    expect(allowed).not.toContain('/counters/list');
+    expect(allowed).not.toContain('/modules');
+    expect(allowed).not.toContain('/settings');
+  });
+
+  test('channelpoints grant allows channel points and song queue', () => {
+    const allowed = delegateAllowedPaths(['channelpoints']);
+    expect(allowed).toContain('/channelpoints');
+    expect(allowed).toContain('/songqueue');
+    expect(allowed).not.toContain('/commands');
+    expect(allowed).not.toContain('/billing');
+    expect(allowed).not.toContain('/counters/list');
+  });
+
+  test('modules grant allows modules and module pages', () => {
+    const allowed = delegateAllowedPaths(['modules']);
+    expect(allowed).toContain('/modules');
+    expect(allowed).toContain('/counters');
+    expect(allowed).toContain('/loyalty');
+    expect(allowed).toContain('/quotes');
+    expect(allowed).toContain('/timers');
+    expect(allowed).not.toContain('/billing');
+    expect(allowed).not.toContain('/settings');
+  });
+});
+
+describe('pathnameAllowed', () => {
+  test('owner-only paths are strictly denied to delegates', () => {
+    const allSections = ['commands', 'modules', 'channelpoints', 'billing'] as const;
+    const allowed = delegateAllowedPaths(allSections);
+
+    expect(pathnameAllowed('/', allowed, allSections)).toBe(false);
+    expect(pathnameAllowed('/settings', allowed, allSections)).toBe(false);
+    expect(pathnameAllowed('/settings/import', allowed, allSections)).toBe(false);
+    expect(pathnameAllowed('/substate', allowed, allSections)).toBe(false);
+    expect(pathnameAllowed('/overview/stream', allowed, allSections)).toBe(false);
+    expect(pathnameAllowed('/events', allowed, allSections)).toBe(false);
+  });
+
+  test('exact hits and legitimate subpaths pass', () => {
+    const allowed = delegateAllowedPaths(['commands']);
+    expect(pathnameAllowed('/commands', allowed, ['commands'])).toBe(true);
+    expect(pathnameAllowed('/counters/list', allowed, ['commands'])).toBe(true);
+    expect(pathnameAllowed('/billing', allowed, ['commands'])).toBe(false);
+  });
+
+  test('narrower module scope blocks access under /modules prefix without the grant', () => {
+    // Channelpoints requires channelpoints section, even under /modules
+    const modulesOnlyAllowed = delegateAllowedPaths(['modules']);
+    expect(pathnameAllowed('/modules', modulesOnlyAllowed, ['modules'])).toBe(true);
+    expect(pathnameAllowed('/modules/quotes', modulesOnlyAllowed, ['modules'])).toBe(true);
+    expect(pathnameAllowed('/modules/channelpoints', modulesOnlyAllowed, ['modules'])).toBe(false);
+
+    // With channelpoints section, access is permitted
+    const cpAllowed = delegateAllowedPaths(['modules', 'channelpoints']);
+    expect(pathnameAllowed('/modules/channelpoints', cpAllowed, ['modules', 'channelpoints'])).toBe(true);
+  });
+});
+
+describe('moduleSubpathAllowed', () => {
+  test('blocks channelpoints when delegate lacks channelpoints section', () => {
+    expect(moduleSubpathAllowed('channelpoints', ['modules'])).toBe(false);
+    expect(moduleSubpathAllowed('channelpoints', ['channelpoints'])).toBe(true);
+  });
+
+  test('permits quotes for both modules and commands delegates', () => {
+    expect(moduleSubpathAllowed('quotes', ['commands'])).toBe(true);
+    expect(moduleSubpathAllowed('quotes', ['modules'])).toBe(true);
+    expect(moduleSubpathAllowed('quotes', ['billing'])).toBe(false);
+  });
+
+  test('permits timers for both modules and commands delegates', () => {
+    expect(moduleSubpathAllowed('timers', ['commands'])).toBe(true);
+    expect(moduleSubpathAllowed('timers', ['modules'])).toBe(true);
+    expect(moduleSubpathAllowed('timers', ['billing'])).toBe(false);
   });
 });

@@ -208,6 +208,11 @@ function shareDigest(uid: string): Promise<ShareDigest> {
 }
 
 export const load: PageServerLoad = ({ locals }) => {
+  if (locals.session?.delegate_of) {
+    const next = locals.session.sections?.[0] ? `/${locals.session.sections[0]}` : '/delegate/exit';
+    throw redirect(302, next);
+  }
+
   // No session and no demo build means no board to read: the layout's login
   // redirect is the only correct outcome, so never fall back to a placeholder
   // id that a real account could one day occupy.

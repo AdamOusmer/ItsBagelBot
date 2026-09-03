@@ -254,7 +254,7 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, applied)
 
-	grantExpiry := expires.AddDate(0, 1, 0)
+	grantExpiry := time.Now().AddDate(0, 1, 0)
 	require.NoError(t, repo.SetAdminStatus(ctx, 1001, user.StatusPaid, &grantExpiry))
 	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 1001, EventID: "evt-refund", Action: billingrpc.ActionRevoke,
@@ -507,6 +507,67 @@ func TestConsumeStillBindsDistinctBoards(t *testing.T) {
 	access, err := repo.ListAccessByDelegate(ctx, 2002)
 	require.NoError(t, err)
 	assert.Len(t, access, 2, "different owners are separate grants, not a reclaim")
+}
+
+func TestCannotDelegateToYourself(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "self-token", 1001, "owner", []string{"commands"}, nil))
+
+	_, err := repo.ConsumeDelegation(ctx, "self-token", 1001, "owner")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot delegate to yourself")
+}
+
+func TestRevokeAndMutationReturnsConsumedDelegateID(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "token-a", 1001, "owner", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, "token-b", 1001, "owner", []string{"billing"}, nil))
+
+	// Before consumption, delegateID should be 0 on revoke/update
+	delID, err := repo.RevokeDelegation(ctx, "token-b", 1001)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), delID, "unconsumed token has no delegateID")
+
+	// Consume token-a
+	_, err = repo.ConsumeDelegation(ctx, "token-a", 2002, "delegate")
+	require.NoError(t, err)
+
+	// Update sections on consumed token should return delegateID
+	delID, err = repo.UpdateDelegationSections(ctx, "token-a", 1001, []string{"commands", "modules"})
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2002), delID)
+
+	// Revoke on consumed token should return delegateID
+	delID, err = repo.RevokeDelegation(ctx, "token-a", 1001)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2002), delID)
+}
+
+func TestDeleteDelegationsByOwnerReturnsAllConsumedDelegateIDs(t *testing.T) {
+	_, _, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateDelegation(ctx, "tok-1", 1001, "owner", []string{"commands"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, "tok-2", 1001, "owner", []string{"billing"}, nil))
+	require.NoError(t, repo.CreateDelegation(ctx, "tok-pending", 1001, "owner", []string{"modules"}, nil))
+
+	_, err := repo.ConsumeDelegation(ctx, "tok-1", 2002, "delegate1")
+	require.NoError(t, err)
+	_, err = repo.ConsumeDelegation(ctx, "tok-2", 3003, "delegate2")
+	require.NoError(t, err)
+
+	delegateIDs, err := repo.DeleteDelegationsByOwner(ctx, 1001)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []uint64{2002, 3003}, delegateIDs)
+
+	// Verify all deleted
+	grants, err := repo.ListDelegationsByOwner(ctx, 1001)
+	require.NoError(t, err)
+	assert.Empty(t, grants)
 }
 
 // --- login -> id resolve (public command page) ---
