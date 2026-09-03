@@ -1,0 +1,11 @@
+{
+  "name": "itsbagelbot-zelios-spot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.15.0"
+  }
+}

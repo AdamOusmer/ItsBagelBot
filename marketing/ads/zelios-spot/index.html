@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
+     Proprietary. No license granted. See LICENSE.md.
+
+     ItsBagelBot 16:9 Zelios-style motion-graphics spot.
+     Open with ?play=1 to preview; render.mjs drives window.setAdTime. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, height=1080" />
+  <title>ItsBagelBot — Zelios-style spot</title>
+  <style>
+    @font-face {
+      font-family: "Syne";
+      src: url("fonts/syne-latin-wght-normal.woff2") format("woff2");
+      font-weight: 400 800;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "DM Sans";
+      src: url("fonts/dm-sans-latin-wght-normal.woff2") format("woff2");
+      font-weight: 400 700;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "DM Mono";
+      src: url("fonts/dm-mono-latin-400-normal.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "Inter";
+      src: url("fonts/Inter-SemiBold.ttf") format("truetype");
+      font-weight: 600;
+      font-display: block;
+    }
+
+    :root {
+      --black: #0a0a0a;
+      --green: #2d6a4f;
+      --green-light: #40916c;
+      --green-glow: #52b788;
+      --tan: #c9a87c;
+      --tan-light: #e0c49a;
+      --white: #f0ece4;
+      --muted: #888077;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: var(--black);
+      color: var(--white);
+      font-family: "DM Sans", "Inter", sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: #0a0a0a;
+      overflow: hidden;
+    }
+
+    .plate {
+      position: absolute;
+      inset: -6%;
+      background: #0a0a0a center / cover no-repeat;
+      opacity: 0;
+      will-change: transform, opacity, filter;
+    }
+    #plate-chaos { background-image: url("plates/ad-chaos.png"); }
+    #plate-calm { background-image: url("plates/ad-calm-studio.png"); }
+    #plate-hero { background-image: url("plates/ad-env-hero.png"); }
+    #plate-chat { background-image: url("plates/ad-chat-mod.png"); }
+    #plate-dash { background-image: url("plates/ad-dashboard.png"); }
+    #plate-stats { background-image: url("plates/ad-stats.png"); }
+    #plate-end { background-image: url("plates/ad-end-env.png"); }
+
+    #vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 70% at 50% 50%, transparent 40%, rgba(0,0,0,.55) 100%),
+        linear-gradient(180deg, rgba(0,0,0,.28) 0%, transparent 18%, transparent 82%, rgba(0,0,0,.4) 100%);
+      z-index: 8;
+    }
+
+    #glow {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 7;
+      mix-blend-mode: screen;
+      opacity: 0;
+    }
+    #glow .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+    }
+    #glow .a {
+      width: 720px; height: 720px; left: -80px; top: -120px;
+      background: rgba(201, 168, 124, 0.35);
+    }
+    #glow .b {
+      width: 640px; height: 640px; right: -60px; bottom: -80px;
+      background: rgba(82, 183, 136, 0.32);
+    }
+
+    #wipe {
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      background: #0a0a0a url("plates/ad-calm-studio.png") center / cover no-repeat;
+      clip-path: circle(0% at 50% 50%);
+    }
+
+    #mascot-wrap {
+      position: absolute;
+      z-index: 12;
+      left: 50%;
+      top: 42%;
+      width: 420px;
+      height: 420px;
+      margin-left: -210px;
+      margin-top: -210px;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+    #mascot-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      mix-blend-mode: screen;
+      filter: drop-shadow(0 30px 60px rgba(0,0,0,.65));
+    }
+    #mascot-ring {
+      position: absolute;
+      inset: -18px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(201,168,124,.28);
+      box-shadow: 0 0 80px rgba(82,183,136,.18), inset 0 0 60px rgba(201,168,124,.08);
+    }
+
+    #copy {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .kicker {
+      position: absolute;
+      left: 120px;
+      top: 96px;
+      font-family: "DM Mono", ui-monospace, monospace;
+      font-size: 18px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--green-glow);
+      opacity: 0;
+    }
+
+    .headline {
+      position: absolute;
+      font-family: "Syne", "Inter", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 0.94;
+      white-space: nowrap;
+      color: var(--white);
+      opacity: 0;
+      will-change: transform, opacity, filter;
+      text-shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    .headline.left {
+      left: 120px;
+      top: 168px;
+      width: 1400px;
+      font-size: 96px;
+    }
+    .headline.center {
+      left: 50%;
+      top: 50%;
+      width: 1600px;
+      text-align: center;
+      transform: translate(-50%, -50%);
+      font-size: 96px;
+    }
+    .headline.tan { color: var(--tan); }
+    .headline.green { color: var(--green-glow); }
+    .headline.cream { color: var(--white); }
+    .headline.stack {
+      left: 50%;
+      width: 1600px;
+      text-align: center;
+      transform: translateX(-50%);
+      font-size: 92px;
+    }
+
+    .sub {
+      position: absolute;
+      font-family: "DM Sans", sans-serif;
+      font-weight: 500;
+      color: var(--tan-light);
+      opacity: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .wordmark {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: 92px;
+      letter-spacing: -0.045em;
+      color: var(--white);
+      opacity: 0;
+      z-index: 21;
+    }
+
+    /* Product UI cards */
+    .ui {
+      position: absolute;
+      z-index: 18;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .chat {
+      right: 110px;
+      top: 180px;
+      width: 520px;
+      background: rgba(11,11,10,.82);
+      border: 1px solid rgba(201,168,124,.16);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 28px 80px rgba(0,0,0,.5);
+      backdrop-filter: blur(12px);
+    }
+    .chat .bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(201,168,124,.1);
+      font-family: "DM Mono", monospace;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .chat .bar i {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #e06262;
+      box-shadow: 0 0 8px #e06262;
+    }
+    .chat .bar b { margin-left: auto; color: var(--green-glow); font-weight: 400; letter-spacing: .12em; text-transform: uppercase; font-size: 11px; }
+    .chat .feed { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 11px; }
+    .msg { font-size: 22px; line-height: 1.25; }
+    .msg .n { font-weight: 700; margin-right: 8px; }
+    .msg .n.v { color: #9b8cff; }
+    .msg .n.v2 { color: #ff7eb3; }
+    .msg .n.mod { color: #57d68a; }
+    .msg .n.bot { color: var(--green-glow); }
+    .msg .t { color: var(--white); }
+    .msg.spam .t { text-decoration: line-through; color: var(--muted); }
+    .sys {
+      font-family: "DM Mono", monospace;
+      font-size: 15px;
+      color: var(--tan);
+      letter-spacing: .04em;
+    }
+
+    .cmd {
+      right: 120px;
+      top: 250px;
+      width: 560px;
+      padding: 22px 26px;
+      background: rgba(13,13,12,.86);
+      border: 1px solid rgba(201,168,124,.18);
+      border-radius: 18px;
+      box-shadow: 0 28px 80px rgba(0,0,0,.5);
+    }
+    .cmd .who { font-family: "DM Mono", monospace; font-size: 13px; color: var(--green-glow); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 8px; }
+    .cmd .body { font-size: 28px; font-weight: 600; color: var(--white); letter-spacing: -.02em; }
+    .cmd .body em { font-style: normal; color: var(--tan); }
+
+    .statgrid {
+      right: 100px;
+      top: 220px;
+      display: flex;
+      gap: 18px;
+    }
+    .stat {
+      width: 210px;
+      padding: 22px 20px 20px;
+      background: rgba(13,13,12,.84);
+      border: 1px solid rgba(201,168,124,.16);
+      border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    }
+    .stat .ch { font-family: "DM Mono", monospace; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .stat .v { font-family: "Syne", sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -.04em; color: var(--tan); }
+    .stat .l { margin-top: 6px; font-size: 16px; color: var(--white); }
+
+    .pills {
+      position: absolute;
+      left: 50%;
+      bottom: 120px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 14px;
+      z-index: 22;
+      opacity: 0;
+    }
+    .pill {
+      border: 1px solid rgba(201,168,124,.28);
+      border-radius: 100px;
+      padding: 10px 22px;
+      font-family: "DM Mono", monospace;
+      font-size: 15px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--tan);
+      background: rgba(10,10,10,.35);
+    }
+
+    #endlock {
+      position: absolute;
+      inset: 0;
+      z-index: 24;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+    }
+    #endlock .logo {
+      width: 148px;
+      height: 148px;
+      margin-bottom: 22px;
+      filter: drop-shadow(0 18px 40px rgba(0,0,0,.5));
+    }
+    #endlock h1 {
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: 76px;
+      letter-spacing: -.045em;
+      line-height: 1;
+    }
+    #endlock .cta {
+      margin-top: 18px;
+      font-family: "Syne", sans-serif;
+      font-weight: 700;
+      font-size: 36px;
+      color: var(--green-glow);
+      letter-spacing: -.02em;
+    }
+    #endlock .url {
+      margin-top: 14px;
+      font-family: "DM Mono", monospace;
+      font-size: 20px;
+      letter-spacing: .18em;
+      text-transform: lowercase;
+      color: var(--tan);
+    }
+
+    #grain {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+      opacity: .11;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.9'/></svg>");
+    }
+
+    canvas#motes {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div class="plate" id="plate-chaos"></div>
+    <div class="plate" id="plate-calm"></div>
+    <div class="plate" id="plate-hero"></div>
+    <div class="plate" id="plate-chat"></div>
+    <div class="plate" id="plate-dash"></div>
+    <div class="plate" id="plate-stats"></div>
+    <div class="plate" id="plate-end"></div>
+    <canvas id="motes" width="1920" height="1080"></canvas>
+    <div id="glow"><div class="orb a"></div><div class="orb b"></div></div>
+    <div id="wipe"></div>
+    <div id="vignette"></div>
+
+    <div id="mascot-wrap">
+      <div id="mascot-ring"></div>
+      <img src="plates/ad-mascot.png" alt="" />
+    </div>
+
+    <div class="ui chat" id="ui-chat">
+      <div class="bar"><i></i><span>#your_channel</span><b>live</b></div>
+      <div class="feed">
+        <div class="msg"><span class="n v">night_owl</span><span class="t">this soundtrack is so good</span></div>
+        <div class="msg"><span class="n v2">first_run</span><span class="t">LETS GOOO</span></div>
+        <div class="msg spam" id="spam-line"><span class="n v">l1nk_drop</span><span class="t">free vbucks .ru/xxxx</span></div>
+        <div class="sys" id="spam-sys">⌁ removed · link spam · 0 viewers saw it</div>
+        <div class="msg"><span class="n bot">ItsBagelBot</span><span class="t">chat stays yours.</span></div>
+      </div>
+    </div>
+
+    <div class="ui cmd" id="ui-cmd">
+      <div class="who">ItsBagelBot · command</div>
+      <div class="body">welcome in, <em>moth_lamp</em>. grab a seat 🥯</div>
+    </div>
+
+    <div class="ui statgrid" id="ui-stats">
+      <div class="stat"><div class="ch">chat · 02</div><div class="v">2.4</div><div class="l">K/D, in chat</div></div>
+      <div class="stat"><div class="ch">rank · 03</div><div class="v">1842</div><div class="l">Elo, no alt-tab</div></div>
+      <div class="stat"><div class="ch">shop · 04</div><div class="v">live</div><div class="l">Daily rotation</div></div>
+    </div>
+
+    <div id="copy">
+      <div class="kicker" id="kicker">Freshly baked for Twitch chat</div>
+
+      <div class="headline left cream" id="h1">Five bots.</div>
+      <div class="headline left cream" id="h2" style="top: 318px">Five dashboards.</div>
+      <div class="headline left tan" id="h3" style="top: 468px">One chaotic chat.</div>
+
+      <div class="headline center tan" id="h-better">There's a better way.</div>
+
+      <div class="wordmark" id="wm" style="top: 72px">ItsBagelBot</div>
+      <div class="headline stack tan" id="h-comp" style="top: 720px">One companion.</div>
+      <div class="headline stack cream" id="h-tool" style="top: 812px">Every tool.</div>
+      <div class="headline stack green" id="h-rules" style="top: 904px">Your rules.</div>
+
+      <div class="headline left cream" id="h-mod" style="top: 380px; font-size: 68px; width: 900px; white-space: normal;">Moderation that<br>runs itself.</div>
+      <div class="headline left cream" id="h-cmd" style="top: 380px; font-size: 68px; width: 900px; white-space: normal;">Commands that<br>sound like you.</div>
+      <div class="headline left cream" id="h-stats" style="top: 380px; font-size: 68px; width: 900px; white-space: normal;">Stats, right<br>in chat.</div>
+
+      <div class="headline center cream" id="h-track" style="font-size: 84px;">No trackers.</div>
+      <div class="headline center cream" id="h-fees" style="font-size: 84px;">No monthly fees.</div>
+      <div class="headline center green" id="h-free" style="font-size: 100px;">Free means free.</div>
+    </div>
+
+    <div class="pills" id="pills">
+      <span class="pill">Privacy-first</span>
+      <span class="pill">One-time setup</span>
+      <span class="pill">Source available</span>
+    </div>
+
+    <div id="endlock">
+      <img class="logo" src="plates/logo.png" alt="" />
+      <h1>ItsBagelBot</h1>
+      <div class="cta">Add it to Twitch.</div>
+      <div class="url">itsbagelbot.com</div>
+    </div>
+
+    <div id="grain"></div>
+  </div>
+
+  <script>
+    const DURATION = 22;
+
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+    const remap = (t, a, b) => (b === a ? 1 : clamp01((t - a) / (b - a)));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const easeOutExpo = (t) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeOutBack = (t) => {
+      const c1 = 1.70158, c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    };
+    const easeInCubic = (t) => t * t * t;
+
+    function popIn(t, start, dur = 0.42) {
+      const p = remap(t, start, start + dur);
+      return { o: easeOutExpo(p), y: lerp(28, 0, easeOutBack(p)), s: lerp(0.94, 1, easeOutBack(p)), blur: lerp(8, 0, easeOutCubic(p)) };
+    }
+    function holdFade(t, start, end, fadeOut = 0.28) {
+      if (t < start) return 0;
+      if (t < end - fadeOut) return 1;
+      return 1 - easeInCubic(remap(t, end - fadeOut, end));
+    }
+    function applyPop(el, t, start, end, extra = {}) {
+      const p = popIn(t, start);
+      const o = p.o * holdFade(t, start, end);
+      const y = (extra.y0 ?? 0) + p.y;
+      el.style.opacity = o;
+      el.style.filter = `blur(${p.blur}px)`;
+      const base = extra.center
+        ? `translate(-50%, calc(-50% + ${y}px))`
+        : extra.stack
+          ? `translate(-50%, ${y}px)`
+          : `translate3d(${extra.x ?? 0}px, ${y}px, 0)`;
+      el.style.transform = `${base} scale(${p.s})`;
+    }
+    function ken(el, t, start, end, from, to) {
+      const p = remap(t, start, end);
+      const s = lerp(from.s, to.s, p);
+      const x = lerp(from.x, to.x, p);
+      const y = lerp(from.y, to.y, p);
+      el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    }
+    function plateOp(el, t, start, end, fi = 0.35, fo = 0.4) {
+      const a = remap(t, start, start + fi);
+      const b = 1 - remap(t, end - fo, end);
+      el.style.opacity = Math.min(easeOutCubic(a), b);
+    }
+
+    const motes = document.getElementById("motes");
+    const mctx = motes.getContext("2d");
+    const seeds = Array.from({ length: 70 }, (_, i) => ({
+      x: (Math.sin(i * 12.9898) * 43758.5453) % 1,
+      y: (Math.sin(i * 78.233) * 12345.678) % 1,
+      r: 0.6 + ((i * 17) % 13) / 13 * 1.8,
+      s: 8 + (i % 20),
+      c: i % 3 === 0 ? "201,168,124" : i % 3 === 1 ? "82,183,136" : "240,236,228",
+    }));
+
+    function drawMotes(t) {
+      mctx.clearRect(0, 0, 1920, 1080);
+      for (const m of seeds) {
+        const x = ((m.x + t / m.s * 0.04) % 1) * 1920;
+        const y = ((m.y + Math.sin(t * 0.15 + m.x * 6) * 0.02) % 1) * 1080;
+        const a = 0.12 + 0.18 * (0.5 + 0.5 * Math.sin(t * 0.7 + m.x * 10));
+        mctx.beginPath();
+        mctx.fillStyle = `rgba(${m.c},${a})`;
+        mctx.arc(x, y, m.r, 0, Math.PI * 2);
+        mctx.fill();
+      }
+    }
+
+    const el = (id) => document.getElementById(id);
+
+    window.setAdTime = function setAdTime(t) {
+      t = Math.max(0, Math.min(DURATION, t));
+
+      // plates
+      plateOp(el("plate-chaos"), t, 0.0, 4.25, 0.2, 0.45);
+      ken(el("plate-chaos"), t, 0, 4.25, { s: 1.14, x: 18, y: -8 }, { s: 1.02, x: -24, y: 10 });
+
+      plateOp(el("plate-calm"), t, 3.85, 5.55, 0.2, 0.35);
+      ken(el("plate-calm"), t, 3.85, 5.55, { s: 1.08, x: 0, y: 0 }, { s: 1.02, x: 0, y: -6 });
+
+      plateOp(el("plate-hero"), t, 5.05, 9.85, 0.35, 0.4);
+      ken(el("plate-hero"), t, 5.05, 9.85, { s: 1.1, x: 0, y: 8 }, { s: 1.0, x: 0, y: -12 });
+
+      plateOp(el("plate-chat"), t, 9.45, 11.95, 0.28, 0.32);
+      ken(el("plate-chat"), t, 9.45, 11.95, { s: 1.08, x: 20, y: 0 }, { s: 1.02, x: -8, y: 0 });
+
+      plateOp(el("plate-dash"), t, 11.55, 13.5, 0.28, 0.32);
+      ken(el("plate-dash"), t, 11.55, 13.5, { s: 1.07, x: -16, y: 6 }, { s: 1.01, x: 8, y: -4 });
+
+      plateOp(el("plate-stats"), t, 13.1, 15.35, 0.28, 0.35);
+      ken(el("plate-stats"), t, 13.1, 15.35, { s: 1.08, x: 10, y: -8 }, { s: 1.02, x: -10, y: 6 });
+
+      plateOp(el("plate-end"), t, 14.9, 22.0, 0.45, 0.01);
+      ken(el("plate-end"), t, 14.9, 22.0, { s: 1.06, x: 0, y: 0 }, { s: 1.0, x: 0, y: 0 });
+
+      // bagel circular wipe into calm
+      const wr = lerp(0, 160, easeOutCubic(remap(t, 3.72, 4.55)));
+      el("wipe").style.clipPath = `circle(${wr}% at 50% 50%)`;
+      el("wipe").style.opacity = holdFade(t, 3.72, 5.35, 0.4);
+
+      // glow
+      el("glow").style.opacity = (
+        0.25 * holdFade(t, 0, 4.0, 0.4) +
+        0.85 * holdFade(t, 5.1, 9.8, 0.4) +
+        0.7 * holdFade(t, 15.0, 22, 0.01)
+      );
+
+      // mascot
+      const mpop = popIn(t, 5.22, 0.55);
+      const mo = mpop.o * holdFade(t, 5.22, 9.55, 0.35);
+      el("mascot-wrap").style.opacity = mo;
+      el("mascot-wrap").style.transform =
+        `translateY(${lerp(40, -4, mpop.o)}px) scale(${lerp(0.84, 1, mpop.s)})`;
+      el("mascot-ring").style.transform = `rotate(${t * 28}deg)`;
+
+      // kicker
+      applyPop(el("kicker"), t, 5.15, 9.4);
+
+      // problem type
+      applyPop(el("h1"), t, 0.05, 3.95);
+      applyPop(el("h2"), t, 1.105, 3.95);
+      applyPop(el("h3"), t, 2.553, 3.95);
+
+      applyPop(el("h-better"), t, 3.987, 5.28, { center: true });
+
+      {
+        const p = popIn(t, 5.224, 0.5);
+        const o = p.o * holdFade(t, 5.224, 9.5, 0.3);
+        el("wm").style.opacity = o;
+        el("wm").style.transform = `translate(-50%, ${p.y}px) scale(${p.s})`;
+        el("wm").style.filter = `blur(${p.blur}px)`;
+      }
+
+      applyPop(el("h-comp"), t, 6.474, 9.55, { stack: true });
+      applyPop(el("h-tool"), t, 7.632, 9.55, { stack: true });
+      applyPop(el("h-rules"), t, 8.632, 9.55, { stack: true });
+
+      applyPop(el("h-mod"), t, 9.632, 11.72);
+      applyPop(el("h-cmd"), t, 11.724, 13.26);
+      applyPop(el("h-stats"), t, 13.263, 15.07);
+
+      applyPop(el("h-track"), t, 15.066, 16.22, { center: true });
+      applyPop(el("h-fees"), t, 16.32, 17.62, { center: true });
+      applyPop(el("h-free"), t, 17.74, 19.12, { center: true });
+
+      // UI cards
+      const uiIn = (node, start, end, xFrom = 80) => {
+        const p = popIn(t, start, 0.48);
+        const o = p.o * holdFade(t, start, end, 0.28);
+        node.style.opacity = o;
+        node.style.transform = `translate3d(${lerp(xFrom, 0, easeOutBack(remap(t, start, start + 0.48)))}px, ${p.y * 0.3}px, 0)`;
+      };
+      uiIn(el("ui-chat"), 9.70, 11.78, 90);
+      uiIn(el("ui-cmd"), 11.80, 13.32, 90);
+      uiIn(el("ui-stats"), 13.32, 15.12, 70);
+
+      // spam strike intensifies shortly after chat in
+      el("spam-line").style.opacity = t > 10.15 ? 1 : 0.55;
+      el("spam-sys").style.opacity = remap(t, 10.2, 10.55);
+
+      // pills under free / into end
+      {
+        const p = popIn(t, 17.85, 0.45);
+        const o = p.o * holdFade(t, 17.85, 19.2, 0.25);
+        el("pills").style.opacity = o;
+        el("pills").style.transform = `translate(-50%, ${p.y}px)`;
+      }
+
+      // end lockup
+      {
+        const p = popIn(t, 19.08, 0.55);
+        const o = p.o * holdFade(t, 19.08, 22.0, 0.01);
+        el("endlock").style.opacity = o;
+        el("endlock").style.transform = `translateY(${p.y}px) scale(${p.s})`;
+        el("endlock").style.filter = `blur(${p.blur}px)`;
+      }
+
+      drawMotes(t);
+    };
+
+    // Preview clock when opened in a browser (not used by the renderer).
+    if (!window.__FRAME_MODE__) {
+      const params = new URLSearchParams(location.search);
+      if (params.has("t")) {
+        window.setAdTime(parseFloat(params.get("t")));
+      } else if (params.has("play")) {
+        const t0 = performance.now();
+        const tick = () => {
+          const t = ((performance.now() - t0) / 1000) % DURATION;
+          window.setAdTime(t);
+          requestAnimationFrame(tick);
+        };
+        document.fonts.ready.then(() => requestAnimationFrame(tick));
+      } else {
+        document.fonts.ready.then(() => window.setAdTime(6.8));
+      }
+    }
+  </script>
+</body>
+</html>
