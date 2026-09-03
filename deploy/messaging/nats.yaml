@@ -149,6 +149,10 @@ spec:
           # (NATS_ATOMIC_ACK_FIRST on): publish-only admit 105k vs 106-123k
           # here, one shared R3 AckNone durable drained 56-66k vs 73k here.
           # No gain on either path, so the pin stays.
+          # Next pin: ghcr.io/adamousmer/itsbagelbot/nats-server (built from
+          # deploy/messaging/nats-server by publish-images) by digest, once
+          # CI has published its first build; the NATS_BENCH_* block below is
+          # already in place for it.
           image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
 
 
@@ -168,6 +172,46 @@ spec:
             # path that is already lock-heavy. Pinning it to the limit measured
             # lower hub CPU and higher throughput at once. Keep equal to
             # resources.limits.cpu.
+            # NATS_BENCH_* switch on the ingest patch set built into the
+            # nats-server image under deploy/messaging/nats-server. Stock
+            # nats ignores them, so they are safe to carry while the image
+            # line still points at upstream. Measured on the production hubs
+            # on 2026-09-03 (one R3 stream, one shared AckNone durable, the
+            # production 32 MiB byte-cap retention, unpaced publishers):
+            # stock 110.6k msg/s admitted at e2e p50 2.1 s and stored->received
+            # 940 ms; with the image and this block, 141k msg/s at e2e p50
+            # 49 ms, p99 68 ms. The leader's ingest+apply pair stays serialized
+            # on the stream lock either way, these make each message cheaper:
+            #   TLS_COLLAPSE           one TLS record per flush instead of one per 512 B chunk
+            #   PROPOSE_COALESCE       consumer cursor proposals gathered for 200us
+            #   ACKNONE_PROPOSE_EVERY  AckNone durables replicate their cursor every 64 deliveries
+            #   DELIVER_BATCH          32 deliveries per consumer lock hold
+            #   SIGNAL_COALESCE        one consumer signal per applied batch
+            #   HDR_INDEX              parse the header block once per message (was ~30 scans)
+            #   EVICT_BATCH            byte-cap eviction as one head run per 64 appends, one callback
+            #   STAGE_ARENA            atomic batches stage into a slice, not a private memstore
+            #   RING_INDEX             sequence map replaced by a ring (no hashing, no rehash cliff)
+            # NATS_BENCH_HDR_CACHE must stay unset: measured 1.02x and +11
+            # allocations per message. NATS_BENCH_PREFETCH and
+            # NATS_BENCH_APPLY_UNLOCK_STORE measured losses; leave them off.
+            - name: NATS_BENCH_TLS_COLLAPSE
+              value: "1"
+            - name: NATS_BENCH_PROPOSE_COALESCE
+              value: 200us
+            - name: NATS_BENCH_ACKNONE_PROPOSE_EVERY
+              value: "64"
+            - name: NATS_BENCH_DELIVER_BATCH
+              value: "32"
+            - name: NATS_BENCH_SIGNAL_COALESCE
+              value: "1"
+            - name: NATS_BENCH_HDR_INDEX
+              value: "1"
+            - name: NATS_BENCH_EVICT_BATCH
+              value: "64"
+            - name: NATS_BENCH_STAGE_ARENA
+              value: "1"
+            - name: NATS_BENCH_RING_INDEX
+              value: "1"
             - name: GOMAXPROCS
               value: "5"
             # GOGC 400 (Go default 100) since 2026-09-01. The stream leader
