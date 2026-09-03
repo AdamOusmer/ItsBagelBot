@@ -338,7 +338,7 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 	// timers were ever configured (absent -> ModuleOff), and a read failure
 	// must not arm or fire anything, because a timer fired off a config we
 	// could not read posts the wrong message into chat.
-	view, state, err := ModuleGate(ctx, s.proj, broadcasterID, timersModuleName, ModuleOff)
+	view, state, err := ModuleLookup{Proj: s.proj, BroadcasterID: broadcasterID, Name: timersModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if err != nil {
 		s.log.Warn("timers: failed to read module views", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}

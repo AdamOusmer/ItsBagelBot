@@ -142,7 +142,7 @@ func loyaltyModuleConfig(ctx context.Context, proj projection.Reader, broadcaste
 	// out of an economy whose rates we could not read. Nothing is logged here
 	// on purpose - this runs per wager and per watch tick, and the callers
 	// already treat "no loyalty" as a normal, quiet outcome.
-	view, state, _ := ModuleGate(ctx, proj, broadcasterID, LoyaltyModuleName, ModuleOff)
+	view, state, _ := ModuleLookup{Proj: proj, BroadcasterID: broadcasterID, Name: LoyaltyModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if state != ModuleOn {
 		return LoyaltyModuleConfig{}, false
 	}

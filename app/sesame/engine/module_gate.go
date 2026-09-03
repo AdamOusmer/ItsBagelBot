@@ -33,8 +33,28 @@ const (
 	ModuleOn
 )
 
-// ModuleGate resolves one broadcaster's module row into the decision every
-// module consumer needs: run or don't, plus the view carrying the config blob.
+// ModuleLookup names the row to resolve and the policy for resolving it.
+//
+// A struct rather than four parameters: the call takes a uint64, a string and
+// a ModuleState, and every ordering of those compiles. Transposing the id and
+// the name is the kind of swap that reads fine and gates the wrong module, so
+// the fields are named at the call site. (This shape is also what the
+// code-health gate asks for over a five-argument function.)
+type ModuleLookup struct {
+	// Proj may be nil: a build with no projection wired resolves every row as
+	// ModuleUnavailable rather than panicking.
+	Proj          projection.Reader
+	BroadcasterID uint64
+	Name          string
+	// Absent is what a MISSING row means to this caller, the one piece of the
+	// preamble that is not shared: a built-in command ships enabled, so no row
+	// means ModuleOn, while a dashboard-configured module has nothing to run
+	// without its row, so no row means ModuleOff.
+	Absent ModuleState
+}
+
+// Resolve turns the lookup into the decision every module consumer needs: run
+// or don't, plus the view carrying the config blob.
 //
 // It exists because four call sites had grown the same four-clause preamble
 // (read error, row missing, row disabled, blob empty) inlined into one
@@ -43,25 +63,20 @@ const (
 // here once and each caller keeps only the part that is genuinely its own: its
 // fail-open/fail-closed policy and what it does with the blob.
 //
-// absent is what a MISSING row means to this caller, which is the one piece of
-// the preamble that is not shared: a built-in command ships enabled, so no row
-// means ModuleOn, while a dashboard-configured module has nothing to run
-// without its row, so no row means ModuleOff.
-//
 // err is returned rather than logged here: the callers log with their own
 // prefix and fields, and the loyalty path deliberately logs nothing at all.
-func ModuleGate(ctx context.Context, proj projection.Reader, broadcasterID uint64, name string, absent ModuleState) (projection.ModuleView, ModuleState, error) {
-	if proj == nil {
+func (l ModuleLookup) Resolve(ctx context.Context) (projection.ModuleView, ModuleState, error) {
+	if l.Proj == nil {
 		return projection.ModuleView{}, ModuleUnavailable, nil
 	}
 	// Keyed read: Module indexes the cached by-name map, so this costs a map
 	// lookup instead of a walk over every module the broadcaster has.
-	view, ok, err := proj.Module(ctx, broadcasterID, name)
+	view, ok, err := l.Proj.Module(ctx, l.BroadcasterID, l.Name)
 	if err != nil {
 		return projection.ModuleView{}, ModuleUnavailable, err
 	}
 	if !ok {
-		return projection.ModuleView{}, absent, nil
+		return projection.ModuleView{}, l.Absent, nil
 	}
 	if !view.IsEnabled {
 		return view, ModuleOff, nil

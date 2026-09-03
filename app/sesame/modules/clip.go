@@ -126,7 +126,7 @@ func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log 
 	// against ModuleOff rather than for ModuleOn. Both of those states carry a
 	// zero view, so the template below comes out empty on its own and needs no
 	// second branch.
-	view, state, err := engine.ModuleGate(ctx, d.Proj, broadcasterID, clipModuleName, engine.ModuleOn)
+	view, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: clipModuleName, Absent: engine.ModuleOn}.Resolve(ctx)
 	if err != nil {
 		log.Warn("clip: module state read failed, allowing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))

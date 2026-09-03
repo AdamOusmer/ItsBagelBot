@@ -220,7 +220,7 @@ func moduleLog(d engine.Deps) *zap.Logger {
 func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, moduleName string) bool {
 	// absent is ModuleOn because the built-ins ship enabled: a broadcaster who
 	// never touched the toggle has no row, and that must not read as "off".
-	_, state, err := engine.ModuleGate(ctx, d.Proj, broadcasterID, moduleName, engine.ModuleOn)
+	_, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: moduleName, Absent: engine.ModuleOn}.Resolve(ctx)
 	if err != nil {
 		moduleLog(d).Warn(moduleName+": module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
