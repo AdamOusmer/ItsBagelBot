@@ -221,15 +221,16 @@ func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, mod
 	if d.Proj == nil {
 		return true
 	}
-	views, err := d.Proj.Modules(ctx, broadcasterID)
+	// One keyed read instead of fetching the whole set and scanning it: Module
+	// indexes the same cached by-name map Modules returns, so this costs a map
+	// lookup rather than a walk over every module the broadcaster has.
+	view, ok, err := d.Proj.Module(ctx, broadcasterID, moduleName)
 	if err != nil {
 		moduleLog(d).Warn(moduleName+": module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return true
 	}
-	for _, v := range views {
-		if v.Name == moduleName {
-			return v.IsEnabled
-		}
+	if !ok {
+		return true
 	}
-	return true
+	return view.IsEnabled
 }

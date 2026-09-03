@@ -86,6 +86,9 @@ func (g gameReplier) reply(emit module.Emit, override string, key replyKey, toke
 		tmpl = i18n.T(g.c.Locale, string(key))
 	}
 	text := module.ExpandString(tmpl, func(k string) (string, bool) {
+		// tokens is the variadic list this one call was given (never more
+		// than a handful), so the scan is shorter than building a map would
+		// be — and the map would be rebuilt for every reply anyway.
 		for _, t := range tokens {
 			if t.name == k {
 				return t.value, true

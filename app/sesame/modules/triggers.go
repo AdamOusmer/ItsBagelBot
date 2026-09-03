@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"ItsBagelBot/app/sesame/confcache"
 	"ItsBagelBot/app/sesame/engine"
 	"ItsBagelBot/app/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
@@ -30,10 +31,28 @@ type triggersConfig struct {
 
 // triggerWord is one parsed phrase→response rule. Match is the comparison mode
 // (word/contains/exact/prefix); Phrase and Response are already trimmed.
+//
+// lower is Phrase pre-lowercased at parse time. Matching is case-insensitive and
+// runs up to maxTriggers (50) times per chat line, so lowercasing the phrase
+// inside matches() meant 50 throwaway allocations on every message for a value
+// that never changes between them. Phrase itself is kept verbatim: it is what
+// the dashboard round-trips, and callers other than matching read it.
 type triggerWord struct {
 	Phrase   string
 	Response string
 	Match    string
+	lower    string
+}
+
+// newTriggerWord is the only way a rule is built, so lower can never drift from
+// Phrase. Both parse paths (JSON and legacy lines) go through it.
+func newTriggerWord(phrase, response, match string) triggerWord {
+	return triggerWord{
+		Phrase:   phrase,
+		Response: response,
+		Match:    match,
+		lower:    strings.ToLower(phrase),
+	}
 }
 
 // triggerLine is one chat message under evaluation: its trimmed text plus the
@@ -65,12 +84,12 @@ func triggersOnChat(_ context.Context, c *module.Context, emit module.Emit) erro
 	if !ok {
 		return nil
 	}
-	var cfg triggersConfig
-	if err := c.Decode(&cfg); err != nil {
-		return err
+	parsed := triggerRules.Get(c.Config, parseTriggerRules)
+	if parsed.err != nil {
+		return parsed.err
 	}
 	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@")}
-	reply, ok := line.firstReply(cfg.rules())
+	reply, ok := line.firstReply(parsed.rules)
 	if !ok {
 		return nil
 	}
@@ -80,6 +99,45 @@ func triggersOnChat(_ context.Context, c *module.Context, emit module.Emit) erro
 		Text:          reply,
 	})
 	return nil
+}
+
+// triggerRules memoizes the config blob -> rules parse per blob. rules() ran on
+// EVERY chat line of every channel with the module on; the JSON decode plus the
+// per-rule trimming and lowercasing is pure in its input, and that input changes
+// only when the broadcaster saves the dashboard. Measured on an M1 Pro
+// (2026-09-03, BenchmarkTriggersOnChatMiss, a full 50-rule config): 6380 ->
+// 600 ns/op, 20KB -> 0 B/op, 13 -> 0 allocs per non-matching chat line, and a
+// non-matching line is nearly every line. Package-level rather than
+// captured per Triggers() instance because the cache key is the blob's content,
+// which has no per-channel and no per-registration scope: one process building
+// the module twice would otherwise parse the same bytes twice.
+var triggerRules = confcache.New[parsedTriggers]()
+
+// parsedTriggers is the cached parse. It carries the decode error alongside the
+// rules because triggersOnChat used to return c.Decode's error to the engine
+// (logged as a handler error, never nacked) and swallowing it here would be a
+// silent behaviour change. The error is a pure function of the same bytes, so
+// it caches exactly as soundly as the rules do.
+//
+// Both fields are READ-ONLY for callers: the slice is shared by every message
+// on every channel using this blob, and firstReply only ranges it by value.
+type parsedTriggers struct {
+	rules []triggerWord
+	err   error
+}
+
+// parseTriggerRules is the cache's parse function: decode the blob, then build
+// the rules. An empty blob decodes to the zero config, exactly as Context.Decode
+// does, so an unconfigured channel still yields no rules and no error.
+func parseTriggerRules(raw []byte) parsedTriggers {
+	if len(raw) == 0 {
+		return parsedTriggers{}
+	}
+	var cfg triggersConfig
+	if err := codec.Unmarshal(raw, &cfg); err != nil {
+		return parsedTriggers{err: err}
+	}
+	return parsedTriggers{rules: cfg.rules()}
 }
 
 // triggerCandidate returns the trimmed chat text and whether the line is eligible
@@ -121,6 +179,15 @@ type triggerRuleJSON struct {
 // A legacy line is "[mode:] phrase => response". Blank lines, "#" comments, lines
 // without "=>", and lines with an empty phrase or response are skipped. At most
 // maxTriggers rules are returned in either format.
+//
+// This no longer runs per chat message: triggersOnChat resolves the rules
+// through the confcache above, so this runs once per distinct config blob.
+// Indexing the exact-match rules into a map[string]triggerWord is still not
+// worth it — the scan is already capped at maxTriggers and now happens off the
+// per-message path entirely. Keying that cache on ModuleView.Revision, which an
+// earlier note here proposed, was REJECTED: revision is 0 for legacy rows, so
+// two different configs would collide on it and one channel would answer with
+// another channel's triggers; the cache keys on the blob's content instead.
 func (cfg triggersConfig) rules() []triggerWord {
 	s := strings.TrimSpace(cfg.Rules)
 	if s == "" {
@@ -161,7 +228,7 @@ func jsonRules(s string) []triggerWord {
 		if phrase == "" || response == "" {
 			continue
 		}
-		out = append(out, triggerWord{Phrase: phrase, Response: response, Match: normalizeMatch(r.Match)})
+		out = append(out, newTriggerWord(phrase, response, normalizeMatch(r.Match)))
 		if len(out) >= maxTriggers {
 			break
 		}
@@ -196,7 +263,7 @@ func parseRuleLine(ln string) (triggerWord, bool) {
 	if phrase == "" || response == "" {
 		return triggerWord{}, false
 	}
-	return triggerWord{Phrase: phrase, Response: response, Match: mode}, true
+	return newTriggerWord(phrase, response, mode), true
 }
 
 // splitMode peels an optional "mode:" prefix (word/contains/exact/prefix) off a
@@ -219,8 +286,13 @@ func splitMode(phrase string) (mode, rest string) {
 // line, or ok=false when none do. {user} resolves to the chatter name; {random}
 // and {choice:…} resolve through the shared dynamic vars.
 func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
+	// Lowercased once for the whole scan rather than once per rule: the loop
+	// runs up to maxTriggers (50) times per chat message and every mode wants
+	// the same case-folded text, so the old per-rule strings.ToLower(l.text)
+	// allocated a full copy of the message 50 times over for no gain.
+	text := strings.ToLower(l.text)
 	for _, tw := range rules {
-		if !tw.matches(l) {
+		if !tw.matches(text) {
 			continue
 		}
 		msg := module.ExpandString(tw.Response, func(key string) (string, bool) {
@@ -237,11 +309,12 @@ func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
 	return "", false
 }
 
-// matches reports whether tw fires on the line under its mode. The comparison is
-// case-insensitive. An unknown mode is treated as "word".
-func (tw triggerWord) matches(l triggerLine) bool {
-	text := strings.ToLower(l.text)
-	phrase := strings.ToLower(tw.Phrase)
+// matches reports whether tw fires on text under its mode. text is the chat line
+// already lowercased by the caller and tw.lower is the phrase lowercased at parse
+// time, which is what makes the comparison case-insensitive without either side
+// being re-folded per rule. An unknown mode is treated as "word".
+func (tw triggerWord) matches(text string) bool {
+	phrase := tw.lower
 	switch tw.Match {
 	case "contains":
 		return strings.Contains(text, phrase)

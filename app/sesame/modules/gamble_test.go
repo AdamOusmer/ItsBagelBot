@@ -219,11 +219,20 @@ func (p loyaltyProj) Command(context.Context, uint64, string) (projection.Comman
 	return projection.Command{}, false, nil
 }
 
-func (p loyaltyProj) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
+func (p loyaltyProj) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
 	raw, _ := codec.Marshal(engine.LoyaltyModuleConfig{PointsName: p.name})
-	return []projection.ModuleView{{
+	return projection.ModuleMap([]projection.ModuleView{{
 		Name:      engine.LoyaltyModuleName,
 		IsEnabled: p.on,
 		Configs:   raw,
-	}}, nil
+	}}), nil
+}
+
+func (p loyaltyProj) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
+	views, err := p.Modules(ctx, id)
+	if err != nil {
+		return projection.ModuleView{}, false, err
+	}
+	view, ok := views[name]
+	return view, ok, nil
 }

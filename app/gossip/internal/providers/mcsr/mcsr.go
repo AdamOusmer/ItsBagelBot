@@ -1030,9 +1030,15 @@ func buildWeeklyRaceReply(account string, board []weeklyRaceEntry) gossiprpc.Mcs
 		LeaderName: board[0].Player.Nickname,
 		LeaderTime: mcsrFormatTime(board[0].Time),
 	}
-	needle := strings.ToLower(account)
+	// EqualFold instead of lowering both sides: the old form allocated a new
+	// string per board entry (~150 entries per !mcsr call) purely to throw it
+	// away. Rejected building a nickname->entry map: the board is decoded fresh
+	// per upstream fetch and looked up exactly once, so a map costs a full pass
+	// plus allocations to save part of one pass. Unicode simple folding is a
+	// superset of the previous ToLower comparison for the ASCII-only Minecraft
+	// nickname alphabet, so no accepted match becomes a miss.
 	for _, e := range board {
-		if strings.ToLower(e.Player.Nickname) == needle {
+		if strings.EqualFold(e.Player.Nickname, account) {
 			reply.PlayerTime = mcsrFormatTime(e.Time)
 			reply.PlayerRank = e.Rank
 			reply.HasPlayer = true

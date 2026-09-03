@@ -58,13 +58,18 @@ defmodule Ingress.Nats.CohortSender do
   defp assign(requests, workers) do
     lane_count = min(length(requests), length(workers))
 
+    # One conversion up front, then O(1) `elem/2` per lane. `Enum.at(workers,
+    # index)` walked the worker list once per lane, making assignment O(lanes²)
+    # on a path every publish goes through.
+    workers = List.to_tuple(workers)
+
     requests
     |> Enum.with_index()
     |> Enum.reduce(%{}, fn {request, index}, lanes ->
       Map.update(lanes, rem(index, lane_count), [request], &[request | &1])
     end)
     |> Enum.sort_by(&elem(&1, 0))
-    |> Enum.map(fn {index, lane} -> {Enum.at(workers, index), Enum.reverse(lane)} end)
+    |> Enum.map(fn {index, lane} -> {elem(workers, index), Enum.reverse(lane)} end)
   end
 
   defp collect(_reference, 0, results), do: results

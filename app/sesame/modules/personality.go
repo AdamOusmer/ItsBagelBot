@@ -95,6 +95,14 @@ func withNames(names []string, patterns ...string) []string {
 // explicit goodnight always beats a praise phrase sharing the line. Phrases
 // are lowercase; matching is word-boundary via containsWord on normalized
 // text (see normalizeChat), except the raw-text emoji and fact rows.
+//
+// Order is load-bearing and cannot be traded for speed. The obvious speedup, a
+// single Aho-Corasick pass over every phrase (internal/moderation has one), was
+// rejected: its automaton reports whichever pattern ends earliest in the text,
+// so "good bagel, gn bagel" would answer praise where this table answers
+// goodnight, and it reports a pattern index without the byte offsets
+// containsWord needs to check word edges. personalityGate below is the cheap
+// screen used instead.
 var personalityReactions = []reaction{
 	{name: "gn", phrases: withNames(botNames, "gn {name}", "goodnight {name}", "good night {name}", "night {name}", "bonne nuit {name}"), cooldown: 60 * time.Second, reply: packReply(personalityGnPack)},
 	{name: "good", phrases: append(withNames(botNames, "good {name}"), "good bot"), cooldown: 15 * time.Second, reply: packReply(personalityGoodPack)},
@@ -139,7 +147,16 @@ func personalityOnChat(d engine.Deps) module.EventHandler {
 // message at word boundaries. Most rows match the normalized text so "gn,
 // @ItsBagelBot!!" reads as "gn itsbagelbot"; raw rows see the lowercased
 // original, "@" and emoji intact.
+//
+// The gate runs first because everything after it is expensive and almost never
+// pays: normalizeChat allocates three times (Map, Fields, Join) and the table
+// expands to ~150 phrases, each a full containsWord pass. Ordinary chat, which
+// is nearly every line on the non-command path, now costs three substring scans
+// and no allocation.
 func matchReaction(raw string) (reaction, bool) {
+	if !personalityGated(raw) {
+		return reaction{}, false
+	}
 	norm := normalizeChat(raw)
 	for _, r := range personalityReactions {
 		text := norm
@@ -151,6 +168,103 @@ func matchReaction(raw string) (reaction, bool) {
 		}
 	}
 	return reaction{}, false
+}
+
+// personalityGate is the set of literal substrings that screen a chat line
+// before any reaction matching runs: a line containing none of them cannot
+// match any phrase in the table, so matchReaction can return before it
+// normalizes or scans anything. Derived from personalityReactions rather than
+// written out, so a new row cannot silently fall outside the gate and go dead.
+// As of the current table it resolves to three terms: "bagel" (every
+// name-bearing phrase), "bot" ("good bot" and "bad bot", which name no bagel)
+// and the bare "🥟" of the emoji row.
+var personalityGate = buildPersonalityGate(personalityReactions)
+
+// personalityGated reports whether raw (already lowercased) holds any gate
+// term. Substring, not word-boundary: the gate only has to be permissive enough
+// never to drop a line the table would have matched.
+func personalityGated(raw string) bool {
+	for _, a := range personalityGate {
+		if strings.Contains(raw, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildPersonalityGate greedily covers every phrase with as few anchors as
+// possible: walk the phrases, and whenever one is not already covered add its
+// most widely shared anchor. Greedy is enough here because the phrases are one
+// table of a known shape, not arbitrary input, and the result is checked into
+// the comment above.
+func buildPersonalityGate(rs []reaction) []string {
+	phrases := allPhrases(rs)
+	var gate []string
+	for _, p := range phrases {
+		if gateCovers(gate, p) {
+			continue
+		}
+		gate = append(gate, bestAnchor(p, phrases))
+	}
+	return gate
+}
+
+// allPhrases flattens the table's phrases into one list.
+func allPhrases(rs []reaction) []string {
+	var out []string
+	for _, r := range rs {
+		out = append(out, r.phrases...)
+	}
+	return out
+}
+
+// phraseAnchors returns the substrings of p that any matching line must also
+// contain literally. Whole words qualify: normalizeChat only turns non-word
+// runes into spaces, so a word that survives into the normalized text was
+// present verbatim in the raw line too, which is what the gate scans. A phrase
+// with no word runes at all (the emoji row) anchors on itself, which is sound
+// because that row matches the raw text anyway.
+func phraseAnchors(p string) []string {
+	words := strings.FieldsFunc(p, func(r rune) bool { return !isWordRune(r) })
+	if len(words) > 0 {
+		return words
+	}
+	return []string{p}
+}
+
+// gateCovers reports whether an already-chosen anchor sits inside p. Anchors are
+// single words, so an anchor inside p lies inside one of p's words and cannot
+// straddle a separator that normalization invented.
+func gateCovers(gate []string, p string) bool {
+	for _, a := range gate {
+		if strings.Contains(p, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// bestAnchor picks the anchor of p that covers the most phrases overall, which
+// is what collapses the 25 name variants onto the single term "bagel".
+func bestAnchor(p string, phrases []string) string {
+	best, bestN := "", -1
+	for _, a := range phraseAnchors(p) {
+		if n := countCovered(a, phrases); n > bestN {
+			best, bestN = a, n
+		}
+	}
+	return best
+}
+
+// countCovered counts the phrases anchor would screen for.
+func countCovered(anchor string, phrases []string) int {
+	n := 0
+	for _, p := range phrases {
+		if strings.Contains(p, anchor) {
+			n++
+		}
+	}
+	return n
 }
 
 // matchesAny reports whether any phrase occurs in text at word boundaries.

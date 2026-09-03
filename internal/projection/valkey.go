@@ -689,7 +689,17 @@ func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (Hydration
 	}, nil
 }
 
-func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bool, error) {
+// GetModules returns the user's module rows keyed by name. By-name is the shape
+// every consumer actually wants: the pipeline indexes it once per chat line and
+// the single-row readers (clip, timers, loyalty, followage) pick one entry out
+// of it. This used to flatten the map below into a []ModuleView, which every
+// caller then re-scanned or rebuilt into a map — a map build per chat message
+// for a map this function had already built. Ordering was never a contract to
+// break: the slice was emitted in Go map iteration order, and the one caller
+// whose wire reply is still a list (the projector dashboard RPC, which converts
+// with ModuleList) feeds a console that renders from its own static
+// MODULE_CATALOG and looks module state up by name.
+func (v *Store) GetModules(ctx context.Context, userID uint64) (map[string]ModuleView, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
@@ -702,7 +712,10 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 	// events (SetModule) never set it, so a partial hash correctly reads as
 	// not-yet-projected and the caller falls through to the full hydration.
 	projected := fields["modules:projected"] == "1"
-	byName := map[string]ModuleView{}
+	// Sized from the hash: two fields (enabled + config) per module, plus the
+	// section markers, so len(fields)/2 is a close upper bound that skips the
+	// rehash the zero-sized literal paid on every read.
+	byName := make(map[string]ModuleView, len(fields)/2)
 	for field, value := range fields {
 		name, suffix, ok := parseModuleField(field)
 		if !ok {
@@ -719,11 +732,31 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) ([]ModuleView, bo
 		byName[name] = mod
 	}
 
+	return byName, projected, nil
+}
+
+// ModuleList flattens a by-name module map into the list shape the projector's
+// dashboard RPC reply carries on the wire. It lives at that one boundary on
+// purpose: the reply contract is a list, while every read path wants the map.
+// Order is unspecified, as it was before GetModules stopped flattening.
+func ModuleList(byName map[string]ModuleView) []ModuleView {
 	out := make([]ModuleView, 0, len(byName))
 	for _, mod := range byName {
 		out = append(out, mod)
 	}
-	return out, projected, nil
+	return out
+}
+
+// ModuleMap keys a module list by name. Used where a list arrives from outside
+// the store and has to be turned into the read shape: the projector RPC
+// fallback in Client.Modules, and test readers that spell their fixtures as a
+// list.
+func ModuleMap(list []ModuleView) map[string]ModuleView {
+	byName := make(map[string]ModuleView, len(list))
+	for _, mod := range list {
+		byName[mod.Name] = mod
+	}
+	return byName
 }
 
 func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {

@@ -124,20 +124,20 @@ func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log 
 	if d.Proj == nil {
 		return true, ""
 	}
-	views, err := d.Proj.Modules(ctx, broadcasterID)
+	// Keyed read: Module indexes the cached by-name map instead of walking the
+	// broadcaster's whole module set for the one row this command needs.
+	view, ok, err := d.Proj.Module(ctx, broadcasterID, clipModuleName)
 	if err != nil {
 		log.Warn("clip: module state read failed, allowing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return true, ""
 	}
-	for _, v := range views {
-		if v.Name == clipModuleName {
-			var cfg clipConfig
-			if len(v.Configs) > 0 {
-				_ = codec.Unmarshal(v.Configs, &cfg)
-			}
-			return v.IsEnabled, strings.TrimSpace(cfg.Reply)
-		}
+	if !ok {
+		return true, ""
 	}
-	return true, ""
+	var cfg clipConfig
+	if len(view.Configs) > 0 {
+		_ = codec.Unmarshal(view.Configs, &cfg)
+	}
+	return view.IsEnabled, strings.TrimSpace(cfg.Reply)
 }

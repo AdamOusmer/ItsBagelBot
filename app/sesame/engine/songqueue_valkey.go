@@ -256,16 +256,8 @@ func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, e
 func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, entry SongEntry, limits SongQueueLimits) (int, error) {
 	var pos int
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		if limits.PerRequester > 0 {
-			mine := 0
-			for i := range d.Up {
-				if d.Up[i].RequesterID == entry.RequesterID {
-					mine++
-				}
-			}
-			if mine >= limits.PerRequester {
-				return ErrSongQuotaReached
-			}
+		if limits.PerRequester > 0 && atRequesterQuota(d.Up, entry.RequesterID, limits.PerRequester) {
+			return ErrSongQuotaReached
 		}
 		if limits.MaxDepth > 0 && len(d.Up) >= limits.MaxDepth {
 			return ErrSongQueueFull
@@ -278,6 +270,37 @@ func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, en
 	return pos, err
 }
 
+// atRequesterQuota reports whether requesterID already holds limit entries in
+// up. It stops at the limit instead of tallying the whole queue: only the "at
+// or over" answer is observable, so a MaxDepth-deep queue costs the walk up to
+// the requester's limit-th entry rather than the full length. The exact count
+// was never used, only compared.
+//
+// Deliberately still ahead of the O(1) MaxDepth check even though hoisting
+// depth would skip this walk entirely on a full queue: a requester who is BOTH
+// at quota and facing a full queue must keep hearing the quota message, which
+// is the copy songqueue.go and songqueue_redeem.go branch on.
+func atRequesterQuota(up []SongEntry, requesterID string, limit int) bool {
+	mine := 0
+	for i := range up {
+		if up[i].RequesterID != requesterID {
+			continue
+		}
+		mine++
+		if mine >= limit {
+			return true
+		}
+	}
+	return false
+}
+
+// RetractOwn keeps its scan-then-shift shape on purpose. Fusing the backward
+// scan with the removal is not possible without speculatively moving entries
+// the walk has not yet justified moving (the match is the LAST occurrence, so
+// it is only known once the tail has been visited), and it would buy nothing:
+// mutate has already unmarshalled the whole document at O(N) and will
+// re-marshal it at O(N), so one extra memmove over the tail is noise against
+// that. The storage model, not the shift, is what sets the cost here.
 func (s *ValkeySongQueueStore) RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error) {
 	var (
 		out SongEntry

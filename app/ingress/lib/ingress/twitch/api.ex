@@ -100,11 +100,15 @@ defmodule Ingress.Twitch.Api do
     path = "/eventsub/conduits/shards?conduit_id=" <> conduit_id <> cursor_param(cursor)
 
     with {:ok, body} <- request(:get, path, nil) do
-      shards = acc ++ (body["data"] || [])
+      # Pages accumulate as a list of pages, newest first, flattened once at the
+      # end. `acc ++ page` copied the whole accumulator on every page, so a full
+      # listing cost O(pages²) in copying; Twitch returns 100 shards per page and
+      # conduits here run to thousands of shards. Order is unchanged.
+      acc = [body["data"] || [] | acc]
 
       case get_in(body, ["pagination", "cursor"]) do
-        cursor when cursor in [nil, ""] -> {:ok, shards}
-        next -> get_shards_page(conduit_id, next, shards)
+        cursor when cursor in [nil, ""] -> {:ok, acc |> Enum.reverse() |> Enum.concat()}
+        next -> get_shards_page(conduit_id, next, acc)
       end
     end
   end

@@ -18,7 +18,6 @@ package automod
 
 import (
 	"math"
-	"sort"
 	"sync"
 	"time"
 )
@@ -216,31 +215,96 @@ func (b *Baseline) ceilingOf(kind StyleKind) float64 {
 	}
 }
 
+// ageKey pairs a channel id with its lastSeen stamp for the overflow eviction.
+type ageKey struct {
+	id   uint64
+	seen int64
+}
+
+// olderAge is the eviction order: stalest first, ties broken on id. Channel ids
+// are unique within a shard map, so this is a TOTAL order - that is what makes
+// eviction deterministic, and it is why the quickselect below drops exactly the
+// same half the old full sort did.
+func olderAge(x, y ageKey) bool {
+	if x.seen != y.seen {
+		return x.seen < y.seen
+	}
+	return x.id < y.id
+}
+
 // evictStalestHalf drops the oldest half of m by lastSeen when a shard map
-// hits maxKeys. Runs only on the overflow path, so its sort allocation never
+// hits maxKeys. Runs only on the overflow path, so its allocation never
 // touches the steady state. maxKeys is the PER-SHARD share of the documented
 // global cap - callers pass cap/shards (2026-08-30: this used to hardcode
 // baselineChanCap per shard, silently making the real backstop 64x the
 // documented 4096 and leaving vocabChanCap decorative).
+//
+// Selection, not sorting: only the MEDIAN matters, so quickselect partitions in
+// O(n) expected where sort.Slice paid O(n log n) plus a closure call and a
+// reflect-based swap per comparison. The ages slice itself stays - enumerating
+// a Go map needs somewhere to put the keys - so this removes the log factor,
+// not the O(n) allocation.
 func evictStalestHalf[V any](m map[uint64]V, maxKeys int, lastSeen func(V) int64) {
 	if len(m) < maxKeys {
 		return
-	}
-	type ageKey struct {
-		id   uint64
-		seen int64
 	}
 	ages := make([]ageKey, 0, len(m))
 	for id, v := range m {
 		ages = append(ages, ageKey{id, lastSeen(v)})
 	}
-	sort.Slice(ages, func(i, j int) bool {
-		if ages[i].seen != ages[j].seen {
-			return ages[i].seen < ages[j].seen
-		}
-		return ages[i].id < ages[j].id // tie-break keeps eviction deterministic
-	})
-	for _, a := range ages[:len(ages)/2] {
+	half := len(ages) / 2
+	selectStalest(ages, half)
+	for _, a := range ages[:half] {
 		delete(m, a.id)
+	}
+}
+
+// selectStalest partitions ages in place so ages[:k] holds exactly the k
+// stalest entries under olderAge (in arbitrary order among themselves, which is
+// all the caller needs: it deletes all of them).
+func selectStalest(ages []ageKey, k int) {
+	lo, hi := 0, len(ages)-1
+	for lo < hi {
+		p := partitionAges(ages, lo, hi)
+		switch {
+		case p == k:
+			return
+		case p > k:
+			hi = p - 1
+		default:
+			lo = p + 1
+		}
+	}
+}
+
+// partitionAges is Lomuto partitioning around a median-of-three pivot. The
+// median-of-three is not decoration: shard maps fill in arrival order, so
+// lastSeen is very often ALREADY ascending, which is precisely the input that
+// makes a first/last-element pivot degrade to O(n^2). Sampling three positions
+// costs three compares and removes that case without a random source (eviction
+// must stay deterministic, so rand is not an option here).
+func partitionAges(a []ageKey, lo, hi int) int {
+	mid := lo + (hi-lo)/2
+	orderAgePair(a, mid, lo)
+	orderAgePair(a, hi, lo)
+	orderAgePair(a, hi, mid)
+	pivot := a[mid]
+	a[mid], a[hi] = a[hi], a[mid]
+	i := lo
+	for j := lo; j < hi; j++ {
+		if olderAge(a[j], pivot) {
+			a[i], a[j] = a[j], a[i]
+			i++
+		}
+	}
+	a[i], a[hi] = a[hi], a[i]
+	return i
+}
+
+// orderAgePair swaps a[x] and a[y] when a[x] sorts before a[y], so a[y] ends up
+// holding the older of the two. Split out to keep partitionAges flat.
+func orderAgePair(a []ageKey, x, y int) {
+	if olderAge(a[x], a[y]) {
+		a[x], a[y] = a[y], a[x]
 	}
 }

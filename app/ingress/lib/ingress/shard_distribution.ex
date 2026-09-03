@@ -55,8 +55,10 @@ defmodule Ingress.ShardDistribution do
   def target_node(_shard_id, []), do: nil
 
   def target_node(shard_id, nodes) do
-    nodes = Enum.sort(nodes)
-    Enum.at(nodes, rem(shard_id, length(nodes)))
+    # Tuple form so the modulus and the pick both read the size for free;
+    # `Enum.at/2` plus `length/1` walked the list twice per placement.
+    nodes = nodes |> Enum.sort() |> List.to_tuple()
+    elem(nodes, rem(shard_id, tuple_size(nodes)))
   end
 
   @doc """

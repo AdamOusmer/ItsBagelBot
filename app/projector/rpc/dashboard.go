@@ -140,10 +140,15 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 		return rpcprojection.ModulesReply{Error: err.Error()}
 	}
 
-	modules, projected, err := d.store.GetModules(ctx, userID)
+	// GetModules hands back the by-name map every read path wants; this reply is
+	// the one place a list is still on the wire, so flatten here rather than
+	// making every hot-path consumer rebuild a map. Order is unspecified and
+	// always was (map iteration order), and the console renders from its own
+	// static catalog keyed by name.
+	byName, projected, err := d.store.GetModules(ctx, userID)
 	if err == nil && projected {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: modules}
+		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: projection.ModuleList(byName)}
 	}
 	if err != nil && log != nil {
 		log.Warn("projector module valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))

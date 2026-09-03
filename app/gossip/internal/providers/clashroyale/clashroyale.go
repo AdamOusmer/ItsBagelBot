@@ -135,6 +135,30 @@ type playerTag string
 
 const tagAlphabet = "0289PYLQGRJCUV"
 
+// tagRuneTable answers "is this rune in tagAlphabet" in one indexed load.
+// strings.ContainsRune rescanned the 14-byte alphabet for every character of
+// every tag; the table is built once at package init and the alphabet is a
+// compile-time constant, so there is nothing to invalidate. Rejected a
+// map[rune]bool: hashing a rune costs more than the array load and the set is
+// dense in a 128-entry span.
+var tagRuneTable = buildTagRuneTable()
+
+func buildTagRuneTable() [128]bool {
+	var table [128]bool
+	for _, r := range tagAlphabet {
+		table[r] = true
+	}
+	return table
+}
+
+// isTagRune keeps the accept set byte-identical to the old ContainsRune scan,
+// non-ASCII included: tags are uppercased before validation and ToUpper can
+// map a rune past the table's range, so the unsigned bounds check rejects it
+// rather than panicking on the index.
+func isTagRune(r rune) bool {
+	return uint32(r) < uint32(len(tagRuneTable)) && tagRuneTable[r]
+}
+
 func parsePlayerTag(account string) (playerTag, string) {
 	tag := strings.ToUpper(strings.TrimSpace(account))
 	if tag == "" {
@@ -148,7 +172,7 @@ func parsePlayerTag(account string) (playerTag, string) {
 		return "", "invalid player tag"
 	}
 	for _, r := range tag {
-		if !strings.ContainsRune(tagAlphabet, r) {
+		if !isTagRune(r) {
 			return "", "invalid player tag"
 		}
 	}

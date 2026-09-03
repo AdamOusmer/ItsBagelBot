@@ -50,10 +50,10 @@ func gatedSilent() module.Module {
 // benchViewsReader carries the minimum row set of a real broadcaster: the
 // automod toggle plus the gated module's own enable row.
 func benchViewsReader() fakeReader {
-	return fakeReader{modules: []projection.ModuleView{
+	return fakeReader{modules: projection.ModuleMap([]projection.ModuleView{
 		{Name: automodModuleName, IsEnabled: true},
 		{Name: "gated", IsEnabled: true},
-	}}
+	})}
 }
 
 // benchMsg wraps the representative chat envelope in one bus message: the
@@ -125,9 +125,10 @@ func TestProcessNoOutputAllocCeiling(t *testing.T) {
 }
 
 // TestProcessWithViewsAllocCeiling guards the automod-wired shape of the hot
-// path: the ModuleView map must come from the pool (cleared on release), so
-// only the projection read's own rows may allocate above the decoder floor.
-// A jump means the map is being rebuilt per line or retained past its message.
+// path: the ModuleView map must be the projection cache's own map, passed
+// through untouched, so nothing above the decoder floor allocates for it. A jump
+// means the map is being rebuilt per line again — which is exactly what the
+// removed pool existed to soften, and what returning the cached map removed.
 func TestProcessWithViewsAllocCeiling(t *testing.T) {
 	p, msg := benchPipeline(t, benchViewsReader(), gatedSilent())
 
@@ -154,4 +155,59 @@ func BenchmarkProcessNoOutputWithRecording(b *testing.B) {
 		OutgressPremium: premiumSubj, OutgressStandard: standardSubj,
 	})
 	benchProcess(b, p, benchMsg())
+}
+
+// benchAutomodConfigBlob is a representative automod Configs blob: the preset
+// plus two section overrides and a modest channel term list, i.e. what a
+// broadcaster who actually opened the automod form saves. The other view-path
+// benchmarks carry an EMPTY Configs blob, which ParseConfig rejects on its
+// length check before it ever unmarshals — so they measure the view-map
+// plumbing and nothing of the parse. This one exists to measure the parse.
+func benchAutomodConfigBlob() codec.RawMessage {
+	blob, err := codec.Marshal(map[string]string{
+		"level":       "strict",
+		"harassment":  "on",
+		"clips_only":  "off",
+		"block_terms": "kappa scam, free follows, discord.gg/x, buy viewers, cheap prime",
+		"allow_terms": "gg, poggers, kekw",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return blob
+}
+
+// benchConfiguredViewsReader is benchViewsReader with a real automod config on
+// the row, so Process pays the config parse the way a configured channel does.
+func benchConfiguredViewsReader() fakeReader {
+	return fakeReader{modules: projection.ModuleMap([]projection.ModuleView{
+		{Name: automodModuleName, IsEnabled: true, Configs: benchAutomodConfigBlob()},
+		{Name: "gated", IsEnabled: true},
+	})}
+}
+
+// BenchmarkProcessNoOutputWithAutomodConfig is the hot path for a channel that
+// configured automod: same silent chat line, but the automod row carries a real
+// Configs blob, so automodConfigFrom has an actual blob to resolve per message.
+func BenchmarkProcessNoOutputWithAutomodConfig(b *testing.B) {
+	p, msg := benchPipeline(b, benchConfiguredViewsReader(), gatedSilent())
+	benchProcess(b, p, msg)
+}
+
+// TestProcessWithAutomodConfigAllocCeiling guards the parsed-config cache: a
+// channel WITH an automod config must allocate no more per line than one
+// without, because the blob is parsed once per config version and every later
+// line reads the memoized result. A jump means the cache stopped hitting —
+// most likely because something started keying it on anything but the blob's
+// content, or because a caller began mutating what it returns.
+func TestProcessWithAutomodConfigAllocCeiling(t *testing.T) {
+	p, msg := benchPipeline(t, benchConfiguredViewsReader(), gatedSilent())
+
+	avg := testing.AllocsPerRun(500, func() {
+		_ = p.Process(msg)
+	})
+
+	if avg > allocViewsCeiling {
+		t.Fatalf("configured-automod hot path allocates %.1f allocs/op, ceiling %.0f: the config cache is missing", avg, allocViewsCeiling)
+	}
 }

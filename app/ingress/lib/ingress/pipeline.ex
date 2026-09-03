@@ -308,7 +308,16 @@ defmodule Ingress.Pipeline do
   # graphemes instead, so every span after a flag or ZWJ emoji would drift
   # below its true position, while byte_size over-counts all non-ASCII text;
   # both were wrong against the IRC-style indices Twitch itself emits.
-  defp codepoint_width(text) when is_binary(text), do: text |> String.to_charlist() |> length()
+  #
+  # The comprehension counts exactly the codepoints String.to_charlist/1 would
+  # have produced, without building the charlist: one cons cell per codepoint,
+  # per fragment, per chat message is pure garbage on the hottest path here.
+  # It differs from the charlist only on invalid UTF-8, where it stops counting
+  # instead of raising UnicodeConversionError; nothing upstream feeds this
+  # anything but Twitch's own JSON strings, and no caller wanted the raise.
+  defp codepoint_width(text) when is_binary(text),
+    do: for(<<_::utf8 <- text>>, reduce: 0, do: (n -> n + 1))
+
   defp codepoint_width(_text), do: 0
 
   defp fragment_id(%{"emote" => %{"id" => id}}) when is_binary(id), do: id

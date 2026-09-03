@@ -136,22 +136,15 @@ func ReadLoyaltyConfig(ctx context.Context, proj projection.Reader, broadcasterI
 // false when the module is missing, disabled or unreadable. An enabled module
 // with an empty blob returns the zero config (all defaults).
 func loyaltyModuleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) (LoyaltyModuleConfig, bool) {
-	views, err := proj.Modules(ctx, broadcasterID)
-	if err != nil {
+	// Keyed read: Module indexes the cached by-name map, so a wager game asking
+	// for the loyalty row no longer walks every module the broadcaster has.
+	view, ok, err := proj.Module(ctx, broadcasterID, LoyaltyModuleName)
+	if err != nil || !ok || !view.IsEnabled {
 		return LoyaltyModuleConfig{}, false
 	}
-	for _, v := range views {
-		if v.Name != LoyaltyModuleName {
-			continue
-		}
-		if !v.IsEnabled {
-			return LoyaltyModuleConfig{}, false
-		}
-		var cfg LoyaltyModuleConfig
-		if len(v.Configs) > 0 {
-			_ = codec.Unmarshal(v.Configs, &cfg)
-		}
-		return cfg, true
+	var cfg LoyaltyModuleConfig
+	if len(view.Configs) > 0 {
+		_ = codec.Unmarshal(view.Configs, &cfg)
 	}
-	return LoyaltyModuleConfig{}, false
+	return cfg, true
 }

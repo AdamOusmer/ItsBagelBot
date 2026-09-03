@@ -53,15 +53,41 @@ const (
 // thousands per day across all channels, so 16384 holds days of tail traffic;
 // the cap exists because the alternative to a bound is unbounded growth from
 // one flood of random hosts. When the cap bites, expired entries sweep first
-// and live entries evict arbitrarily (Go map range order): chat host popularity
-// is heavily Zipf, so an evicted hot host re-enqueues off its very next mention
-// and re-resolves within seconds — eviction self-heals at the cost of one
+// and the live entry closest to lapsing evicts next: chat host popularity is
+// heavily Zipf, so an evicted hot host re-enqueues off its very next mention
+// and re-resolves within seconds - eviction self-heals at the cost of one
 // lookup, which no lock-free scheme would remove either.
 const maxEntries = 16384
 
+// ttlClass indexes the per-class expiry queues. One queue PER RETENTION CLASS
+// is the whole trick behind O(1) sweeping: a single insertion-ordered queue is
+// NOT in expiry order here (a 1h shortener written after a 24h Bad entry lapses
+// first), but WITHIN a class every entry gets the same TTL off a monotone
+// clock, so insertion order IS expiry order and the head is always the next
+// entry to lapse. Three lists cost three head/tail pointer pairs; keeping the
+// whole cache in one expiry-sorted list would need an ordered insert.
+type ttlClass uint8
+
+const (
+	classShort ttlClass = iota // shortener tokens, shortTTL
+	classClean                 // clean hosts, cleanTTL
+	classBad                   // flagged hosts, badTTL
+)
+
+const numTTLClasses = 3
+
+// entry is an intrusive list node as well as a cached verdict: prev/next thread
+// it onto its class queue, and key lets the sweeper delete the map slot without
+// a reverse lookup. Intrusive rather than a separate index because the whole
+// point is that unlinking on eviction, on re-put and on lazy expiry-at-read is
+// O(1) with no second map to keep in step.
 type entry struct {
-	v   Verdict
-	exp int64 // unix nanos; lazily deleted on read past this
+	v    Verdict
+	exp  int64 // unix nanos; lazily deleted on read past this
+	cls  ttlClass
+	key  string
+	prev *entry
+	next *entry
 }
 
 // cache maps cache keys (hosts, folded hosts, or lowercased shortener tokens)
@@ -69,13 +95,24 @@ type entry struct {
 // that already accepted a dot pre-filter, writes come only from the checker's
 // worker goroutines, and contention at chat scale never registers next to the
 // network calls those workers just made.
+//
+// 2026-09-03: the sweep used to range the ENTIRE 16384-slot map under this
+// mutex every time the cap bit, which parks every concurrent get() - and get()
+// sits on the automod deep path. The per-class queues below make the sweep pop
+// off three heads instead, so the lock is held for the number of entries that
+// actually lapsed rather than for the size of the cache. The cost is two
+// pointers plus the key string per entry (~40 bytes x 16384 ~= 650KB worst
+// case) and one heap allocation per put; put is the worker-goroutine path that
+// just finished a DNS round trip, so that allocation is free in context.
 type cache struct {
-	mu sync.Mutex
-	m  map[string]entry
+	mu   sync.Mutex
+	m    map[string]*entry
+	head [numTTLClasses]*entry
+	tail [numTTLClasses]*entry
 }
 
 func newCache() *cache {
-	return &cache{m: make(map[string]entry, 256)}
+	return &cache{m: make(map[string]*entry, 256)}
 }
 
 // get returns the cached verdict for key, dropping expired entries lazily.
@@ -89,7 +126,7 @@ func (c *cache) get(key string) (Verdict, bool) {
 		return Clean, false
 	}
 	if nowNanos() > e.exp {
-		delete(c.m, key)
+		c.remove(e)
 		return Clean, false
 	}
 	return e.v, true
@@ -100,46 +137,102 @@ func (c *cache) get(key string) (Verdict, bool) {
 func (c *cache) put(key string, v Verdict, short bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	now := nowNanos()
 	if len(c.m) >= maxEntries {
-		c.sweepLocked()
+		c.sweepLocked(now)
 	}
-	ttl := cleanTTL
+	if old, ok := c.m[key]; ok {
+		c.remove(old) // re-put: the old node carries the old class and expiry
+	}
+	cls, ttl := retention(v, short)
+	e := &entry{v: v, exp: now + int64(ttl), cls: cls, key: key}
+	c.m[key] = e
+	c.pushBack(e)
+}
+
+// retention maps a verdict onto its queue and TTL (see the retention block).
+func retention(v Verdict, short bool) (ttlClass, time.Duration) {
 	switch {
 	case short:
-		ttl = shortTTL
+		return classShort, shortTTL
 	case v == Bad:
-		ttl = badTTL
+		return classBad, badTTL
+	default:
+		return classClean, cleanTTL
 	}
-	c.m[key] = entry{v: v, exp: nowNanos() + int64(ttl)}
 }
 
 // sweepLocked makes room under the hard cap: expired entries go first, and
-// only if the cap still binds do arbitrary live entries go too (see
-// maxEntries for why arbitrary is acceptable here).
-func (c *cache) sweepLocked() {
-	c.dropExpired(nowNanos())
-	if len(c.m) >= maxEntries {
-		c.evictArbitrary()
-	}
-}
-
-// dropExpired deletes every entry past its TTL.
-func (c *cache) dropExpired(now int64) {
-	for k, e := range c.m {
-		if now > e.exp {
-			delete(c.m, k)
-		}
-	}
-}
-
-// evictArbitrary deletes live entries until the cap holds.
-func (c *cache) evictArbitrary() {
-	for k := range c.m {
-		if len(c.m) < maxEntries {
+// only if the cap still binds do live entries go too (see maxEntries for why
+// dropping a live entry is acceptable here).
+func (c *cache) sweepLocked(now int64) {
+	c.dropExpired(now)
+	for len(c.m) >= maxEntries {
+		e := c.earliestHead()
+		if e == nil {
 			return
 		}
-		delete(c.m, k)
+		c.remove(e)
 	}
+}
+
+// dropExpired pops lapsed entries off each class head. O(1) amortized per
+// dropped entry: the head is that class's oldest, so each loop stops at the
+// first live node instead of touching entries that are nowhere near their TTL.
+func (c *cache) dropExpired(now int64) {
+	for cls := range c.head {
+		for e := c.head[cls]; e != nil && now > e.exp; e = c.head[cls] {
+			c.remove(e)
+		}
+	}
+}
+
+// earliestHead returns the live entry closest to lapsing across all classes,
+// or nil when the cache is empty. Three comparisons, not a scan of the map:
+// each class head is already that class's minimum expiry.
+func (c *cache) earliestHead() *entry {
+	var best *entry
+	for _, e := range c.head {
+		if e != nil && (best == nil || e.exp < best.exp) {
+			best = e
+		}
+	}
+	return best
+}
+
+// remove unlinks e from its class queue and deletes its map slot.
+func (c *cache) remove(e *entry) {
+	c.unlink(e)
+	delete(c.m, e.key)
+}
+
+// pushBack appends e to the tail of its class queue, where its expiry is by
+// construction the latest in that class.
+func (c *cache) pushBack(e *entry) {
+	cls := e.cls
+	e.prev, e.next = c.tail[cls], nil
+	if c.tail[cls] != nil {
+		c.tail[cls].next = e
+	} else {
+		c.head[cls] = e
+	}
+	c.tail[cls] = e
+}
+
+// unlink detaches e from its class queue, fixing up the head/tail pointers.
+func (c *cache) unlink(e *entry) {
+	cls := e.cls
+	if e.prev != nil {
+		e.prev.next = e.next
+	} else {
+		c.head[cls] = e.next
+	}
+	if e.next != nil {
+		e.next.prev = e.prev
+	} else {
+		c.tail[cls] = e.prev
+	}
+	e.prev, e.next = nil, nil
 }
 
 // nowNanos is split out so tests can pin time instead of sleeping.
