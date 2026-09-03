@@ -153,6 +153,12 @@ jobs:
               "context": "console",
               "containerfile": "console/admin/Containerfile",
               "description": "ItsBagelBot console admin (SvelteKit SSR)"
+            },
+            {
+              "image": "nats-server",
+              "context": ".",
+              "containerfile": "deploy/messaging/nats-server/Containerfile",
+              "description": "nats-server 2.14.4 with the ItsBagelBot ingest patch set (PGO, x86-64-v3)"
             }
           ]'
 
@@ -197,6 +203,7 @@ jobs:
             add "twitch-ingress"
             add "console-dashboard"
             add "console-admin"
+            add "nats-server"
           }
 
           select_for_path() {
@@ -215,6 +222,9 @@ jobs:
               # sesame image without its matching projector.
               internal/*)
                 add_root_go_services
+                ;;
+              deploy/messaging/nats-server/*)
+                add "nats-server"
                 ;;
               app/commands/*)
                 add "commands"

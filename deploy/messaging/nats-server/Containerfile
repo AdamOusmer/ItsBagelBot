@@ -1,0 +1,34 @@
+# nats-server 2.14.4 with the ItsBagelBot ingest patch set, built the way the
+# hubs measured it: PGO from the stream leader's own CPU profiles, and the
+# x86-64-v3 instruction set on Intel nodes.
+#
+# The patch is the whole difference to upstream v2.14.4 (server/ only). Two
+# changes are always on: the redundant double copy in the memory store's
+# storeRawMsg (11% of all leader allocations at 127k msg/s) and the schedule
+# scan that ran before the allow check on every batch message. Everything
+# else is off unless the StatefulSet sets its NATS_BENCH_* knob; the knob
+# table and the measurements behind each live next to the env block in
+# nats.yaml. Measured on the production hubs on 2026-09-03, one R3 stream
+# and one shared durable in the production retention shape: stock admitted
+# 110.6k msg/s at e2e p50 2.1 s, this image 141k at p50 49 ms, p99 68 ms.
+#
+# Upstream is pinned to the v2.14.4 commit, not the tag, and the build fails
+# if the checkout does not match.
+FROM docker.io/library/golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+WORKDIR /src
+ARG NATS_SERVER_COMMIT=bbd6dc5e903f3505a1d9a7a21c50e0131901afd7
+RUN git clone --depth 1 --branch v2.14.4 https://github.com/nats-io/nats-server.git . \
+ && test "$(git rev-parse HEAD)" = "${NATS_SERVER_COMMIT}"
+COPY deploy/messaging/nats-server/nats-server-2.14.4-bench.patch /tmp/bench.patch
+COPY deploy/messaging/nats-server/default.pgo ./default.pgo
+RUN git apply --index /tmp/bench.patch && git diff --cached --stat | tail -1
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
+# GOAMD64=v3 only on the Intel build: the ARM build (cp1) takes the default.
+RUN if [ "$(go env GOARCH)" = "amd64" ]; then export GOAMD64=v3; fi; \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -pgo=default.pgo -o /nats-server . \
+ && /nats-server --version
+
+# Same runtime image the hubs run today, with only the binary replaced, so
+# the config reloader sidecar, the pid file and the entrypoint stay as-is.
+FROM docker.io/library/nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
+COPY --from=build /nats-server /nats-server
