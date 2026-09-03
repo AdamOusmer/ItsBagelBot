@@ -216,6 +216,25 @@ spec:
               value: "1"
             - name: NATS_BENCH_RING_INDEX
               value: "1"
+            # STORE_SLAB carves the memory store's two per-message allocations
+            # (the StoreMsg header and its payload buffer) out of small slabs:
+            # 3.3M objects per 15 s run at ~145k msg/s became two allocations
+            # per ~150 messages. Slabs are 64 KiB so a message pinned by a TTL
+            # or a schedule cannot hold much dead space, and a payload larger
+            # than a quarter slab still gets its own exact allocation.
+            # INTERN interns the subject and batch id the RAFT entry decode
+            # allocated for every applied message: a stream has a handful of
+            # subjects and one batch id per cohort, so ~2M string allocations
+            # per run became map lookups (capped at 4096 distinct strings,
+            # after which it just allocates). Owned by the apply goroutine.
+            # Both measured on the production hubs on 2026-09-03: production
+            # retention 141.3k -> 146.4k msg/s admitted at e2e p50 50 ms, and
+            # with no eviction 145.5k -> 151.9k; the leader's apply loop fell
+            # 5.76 -> 5.06 s per 10 s and its store work 3.19 -> 2.60 s.
+            - name: NATS_BENCH_STORE_SLAB
+              value: "1"
+            - name: NATS_BENCH_INTERN
+              value: "1"
             - name: GOMAXPROCS
               value: "5"
             # GOGC 400 (Go default 100) since 2026-09-01. The stream leader
