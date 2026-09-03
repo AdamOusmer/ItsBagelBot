@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	discapi "ItsBagelBot/app/outgress/internal/discord"
+	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
@@ -41,6 +41,9 @@ type GuildSetupResult struct {
 	WelcomeChannelID string
 	AlertsChannelID  string
 	VoiceHubID       string
+	LogChannelID     string
+	TicketChannelID  string
+	TicketCategoryID string
 	LiveRoleID       string
 	ModsRoleID       string
 	RegularsRoleID   string
@@ -426,6 +429,12 @@ func (out *GuildSetupResult) setChannel(ch namedRef) {
 		out.AlertsChannelID = ch.ID
 	case "voice":
 		out.VoiceHubID = ch.ID
+	case "logs":
+		out.LogChannelID = ch.ID
+	case "tickets":
+		out.TicketChannelID = ch.ID
+	case "ticketcat":
+		out.TicketCategoryID = ch.ID
 	}
 }
 

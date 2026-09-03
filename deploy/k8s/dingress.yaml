@@ -1,0 +1,181 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+#
+# dingress is the Discord gateway singleton: one Identify session for the
+# fleet bot token. Outgress keeps REST (go-live, clips, 1-click fill);
+# dingress handles welcomes, join-to-create voice, tickets, staff logs,
+# slash commands, and crumb ranks. It reads the guild→Twitch reverse index
+# outgress writes (Valkey discord:guild:{id}) and the Discord module blob
+# from the projector store. No NATS — two Identify sessions would fight.
+#
+# replicas MUST stay 1. Recreate (not RollingUpdate) so the outgoing
+# session disconnects before the replacement Identifies.
+#
+# dingress-env (Doppler) carries DISCORD_BOT_TOKEN (same value as
+# outgress-env), VALKEY_PASSWORD, and NEW_RELIC_*. Empty DISCORD_BOT_TOKEN
+# leaves the gateway idle (health still serves). Privileged intents
+# (Server Members + Message Content) must be enabled on the Discord
+# application or GUILD_MEMBER_ADD / MESSAGE_CREATE never arrive.
+#
+# Image: replace with the real tag@digest from the first publish-images run
+# at rollout time. Flux digest-pins after that.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: dingress-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: dingress-doppler-token
+  managedSecret:
+    name: dingress-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dingress
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dingress
+  template:
+    metadata:
+      labels:
+        app: dingress
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: dingress
+          image: ghcr.io/adamousmer/itsbagelbot/dingress:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: GOMEMLIMIT
+              value: 128MiB
+            - name: TLS_CERT_FILE
+              value: /etc/dingress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/dingress/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: dingress-env
+          volumeMounts:
+            - {name: health-tls, mountPath: /etc/dingress/tls, readOnly: true}
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: health-tls
+          secret:
+            secretName: dingress-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dingress
+  namespace: app
+spec:
+  # Singleton gateway: a voluntary drain is allowed (Recreate brings it
+  # back). minAvailable: 1 would block every node drain.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: dingress

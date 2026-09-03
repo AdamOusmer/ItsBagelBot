@@ -23,6 +23,7 @@ resources:
   - loyalty.yaml
   - modules.yaml
   - notifications.yaml
+  - dingress.yaml
   - outgress.yaml
   - projector.yaml
   - transactions.yaml

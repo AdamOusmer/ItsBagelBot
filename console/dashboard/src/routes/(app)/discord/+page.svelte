@@ -46,6 +46,7 @@
   // Discord channel types: 0 text, 2 voice, 4 category.
   const textChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 0));
   const voiceChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 2));
+  const categories = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 4));
   const roles = $derived((data.layout?.roles ?? []).filter((r: DiscordEntry) => r.name !== '@everyone'));
   const hasLayout = $derived(textChannels.length > 0);
 
@@ -206,7 +207,11 @@
           {@render picker('alertsChannelId', t('discord.alertsChannelLabel'), textChannels, '#')}
           {@render picker('welcomeChannelId', t('discord.welcomeChannelLabel'), textChannels, '#')}
           {@render picker('voiceHubId', t('discord.voiceHubLabel'), voiceChannels, '')}
+          {@render picker('logChannelId', t('discord.logChannelLabel'), textChannels, '#')}
+          {@render picker('ticketChannelId', t('discord.ticketChannelLabel'), textChannels, '#')}
+          {@render picker('ticketCategoryId', t('discord.ticketCategoryLabel'), categories, '')}
           {@render picker('liveRoleId', t('discord.liveRoleLabel'), roles, '@')}
+          {@render picker('memberRoleId', t('discord.memberRoleLabel'), roles, '@')}
         </div>
         <Field label={t('discord.streamerIdLabel')} tag={t('discord.streamerIdTag')}>
           <input class="input wide" name="streamerDiscordId" value={config.streamerDiscordId} placeholder="123456789012345678" inputmode="numeric" />
@@ -344,6 +349,42 @@
             checked={onByDefault(config.voiceEnabled)}
             label={t('discord.voiceLabel')}
             onchange={(v) => (config = { ...config, voiceEnabled: v ? 'on' : 'off' })}
+          />
+        </div>
+        <div class="setting-row">
+          <div class="tr-text">
+            <span class="tr-label">{t('discord.ticketsLabel')}</span>
+            <span class="tr-help">{t('discord.ticketsHelp')}</span>
+          </div>
+          <input type="hidden" name="ticketsEnabled" value={onByDefault(config.ticketsEnabled) ? 'on' : 'off'} />
+          <Switch
+            checked={onByDefault(config.ticketsEnabled)}
+            label={t('discord.ticketsLabel')}
+            onchange={(v) => (config = { ...config, ticketsEnabled: v ? 'on' : 'off' })}
+          />
+        </div>
+        <div class="setting-row">
+          <div class="tr-text">
+            <span class="tr-label">{t('discord.logsLabel')}</span>
+            <span class="tr-help">{t('discord.logsHelp')}</span>
+          </div>
+          <input type="hidden" name="logsEnabled" value={onByDefault(config.logsEnabled) ? 'on' : 'off'} />
+          <Switch
+            checked={onByDefault(config.logsEnabled)}
+            label={t('discord.logsLabel')}
+            onchange={(v) => (config = { ...config, logsEnabled: v ? 'on' : 'off' })}
+          />
+        </div>
+        <div class="setting-row">
+          <div class="tr-text">
+            <span class="tr-label">{t('discord.levelsLabel')}</span>
+            <span class="tr-help">{t('discord.levelsHelp')}</span>
+          </div>
+          <input type="hidden" name="levelsEnabled" value={onByDefault(config.levelsEnabled) ? 'on' : 'off'} />
+          <Switch
+            checked={onByDefault(config.levelsEnabled)}
+            label={t('discord.levelsLabel')}
+            onchange={(v) => (config = { ...config, levelsEnabled: v ? 'on' : 'off' })}
           />
         </div>
         <Button variant="primary" type="submit">{t('discord.save')}</Button>

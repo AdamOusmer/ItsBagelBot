@@ -47,6 +47,9 @@ func TestTogglesDefaultOnExceptNoisyOnes(t *testing.T) {
 		"raid":      {c.RaidOn, true},
 		"welcome":   {c.WelcomeOn, true},
 		"voice":     {c.VoiceOn, true},
+		"tickets":   {c.TicketsOn, true},
+		"logs":      {c.LogsOn, true},
+		"levels":    {c.LevelsOn, true},
 		"cheer":     {c.CheerOn, false},
 		"goodbye":   {c.GoodbyeOn, false},
 		"milestone": {c.SubMilestoneOn, false},
@@ -66,8 +69,8 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 	if u == "" {
 		t.Fatal("invite url must not be empty")
 	}
-	if !strings.Contains(u, "permissions=") {
-		t.Fatalf("invite = %q missing permissions", u)
+	if !strings.Contains(u, "permissions=1101945498710") {
+		t.Fatalf("invite permissions drifted (keep in sync with dashboard DISCORD_BOT_PERMISSIONS): %q", u)
 	}
 	if !strings.Contains(u, "scope=bot") {
 		t.Fatalf("invite = %q missing scope", u)

@@ -141,7 +141,7 @@ func milestoneLine(_ ddiscord.Config, ev discordSubMsg) string {
 // guild. Go-live is NOT here: outgress binds twitch.ingress.event.stream
 // directly so live posts never pass through sesame.
 func Discord(_ engine.Deps) module.Module {
-	m := module.NewModule(discordModuleName, module.KindOptIn).Beta()
+	m := module.NewModule(discordModuleName, module.KindOptIn)
 	m.On("channel.raid", discordCopy[discordRaid]{enabled: ddiscord.Config.RaidOn, line: raidLine}.handle)
 	m.On("channel.subscription.gift", discordCopy[discordGift]{enabled: ddiscord.Config.GiftOn, line: giftLine}.handle)
 	m.On("channel.cheer", discordCopy[discordCheer]{enabled: ddiscord.Config.CheerOn, line: cheerLine}.handle)

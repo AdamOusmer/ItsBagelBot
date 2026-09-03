@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package discord
+package discordapi
 
 import (
 	"context"
@@ -136,6 +136,31 @@ func (c *Client) SendEmbed(ctx context.Context, post EmbedPost) (Message, error)
 	return Message{ChannelID: post.ChannelID, ID: ref.ID}, nil
 }
 
+// SendPanel posts an embed with buttons (the ticket desk).
+func (c *Client) SendPanel(ctx context.Context, post EmbedPost, buttons []Button) (Message, error) {
+	body := map[string]any{"embeds": []domain.Embed{post.Embed}}
+	if post.Content != "" {
+		body["content"] = post.Content
+	}
+	if len(buttons) > 0 {
+		body["components"] = []map[string]any{{
+			"type":       1,
+			"components": buttonRows(buttons),
+		}}
+	}
+	var ref struct {
+		ID string `json:"id"`
+	}
+	req := request{method: http.MethodPost, path: "/channels/" + url.PathEscape(post.ChannelID) + "/messages", body: body}
+	if err := c.doInto(ctx, req, &ref); err != nil {
+		return Message{}, err
+	}
+	if ref.ID == "" {
+		return Message{}, ErrNoMessageID
+	}
+	return Message{ChannelID: post.ChannelID, ID: ref.ID}, nil
+}
+
 // EditMessage patches content (and optionally replaces embeds).
 func (c *Client) EditMessage(ctx context.Context, m Message, patch MessagePatch) error {
 	body := map[string]any{"content": patch.Content}
@@ -202,11 +227,205 @@ func (c *Client) GetGuild(ctx context.Context, guild Guild) (Snowflake, error) {
 
 // InteractionRespond answers a slash command (type 4 channel message).
 func (c *Client) InteractionRespond(ctx context.Context, reply InteractionReply) error {
-	body := map[string]any{
-		"type": 4,
-		"data": map[string]any{"content": reply.Content},
+	return c.InteractionCallback(ctx, Callback{
+		Interaction: reply.Interaction,
+		Type:        4,
+		Content:     reply.Content,
+	})
+}
+
+// Button is one Discord message-component button.
+type Button struct {
+	Style    int
+	Label    string
+	CustomID string
+}
+
+// Callback is a type-4 interaction response that may carry embeds and buttons.
+type Callback struct {
+	Interaction Interaction
+	Type        int
+	Content     string
+	Embeds      []domain.Embed
+	Buttons     []Button
+	Ephemeral   bool
+}
+
+// InteractionCallback posts /interactions/{id}/{token}/callback.
+func (c *Client) InteractionCallback(ctx context.Context, cb Callback) error {
+	if cb.Type == 0 {
+		cb.Type = 4
 	}
-	in := reply.Interaction
+	data := map[string]any{}
+	if cb.Content != "" {
+		data["content"] = cb.Content
+	}
+	if len(cb.Embeds) > 0 {
+		data["embeds"] = cb.Embeds
+	}
+	if len(cb.Buttons) > 0 {
+		data["components"] = []map[string]any{{
+			"type":       1,
+			"components": buttonRows(cb.Buttons),
+		}}
+	}
+	if cb.Ephemeral {
+		data["flags"] = 64
+	}
+	body := map[string]any{"type": cb.Type, "data": data}
+	in := cb.Interaction
 	path := "/interactions/" + url.PathEscape(in.ID) + "/" + url.PathEscape(in.Token) + "/callback"
 	return c.do(ctx, request{method: http.MethodPost, path: path, body: body})
+}
+
+func buttonRows(buttons []Button) []map[string]any {
+	out := make([]map[string]any, 0, len(buttons))
+	for _, b := range buttons {
+		style := b.Style
+		if style == 0 {
+			style = 1
+		}
+		out = append(out, map[string]any{
+			"type": 2, "style": style, "label": b.Label, "custom_id": b.CustomID,
+		})
+	}
+	return out
+}
+
+// VoiceMove is PATCH /guilds/{guild}/members/{user} with a channel_id.
+type VoiceMove struct {
+	GuildID   string
+	UserID    string
+	ChannelID string
+}
+
+// MoveMember puts a member into a voice channel (empty ChannelID disconnects).
+func (c *Client) MoveMember(ctx context.Context, move VoiceMove) error {
+	body := map[string]any{"channel_id": nil}
+	if move.ChannelID != "" {
+		body["channel_id"] = move.ChannelID
+	}
+	path := "/guilds/" + url.PathEscape(move.GuildID) + "/members/" + url.PathEscape(move.UserID)
+	return c.do(ctx, request{method: http.MethodPatch, path: path, body: body})
+}
+
+// ChannelPatch is PATCH /channels/{id}.
+type ChannelPatch struct {
+	ID                   string
+	Name                 string
+	UserLimit            int
+	PermissionOverwrites []PermissionOverwrite
+}
+
+// ModifyChannel updates a channel's name, user limit, or overwrites.
+func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
+	body := map[string]any{}
+	if patch.Name != "" {
+		body["name"] = patch.Name
+	}
+	if patch.UserLimit > 0 {
+		body["user_limit"] = patch.UserLimit
+	}
+	if patch.PermissionOverwrites != nil {
+		body["permission_overwrites"] = patch.PermissionOverwrites
+	}
+	return c.do(ctx, request{method: http.MethodPatch, path: "/channels/" + url.PathEscape(patch.ID), body: body})
+}
+
+// MemberTimeout is PATCH /guilds/{guild}/members/{user} communication_disabled_until.
+type MemberTimeout struct {
+	GuildID  string
+	UserID   string
+	UntilISO string
+	Reason   string
+}
+
+// TimeoutMember applies Discord's timeout. Empty UntilISO clears it.
+func (c *Client) TimeoutMember(ctx context.Context, t MemberTimeout) error {
+	body := map[string]any{"communication_disabled_until": nil}
+	if t.UntilISO != "" {
+		body["communication_disabled_until"] = t.UntilISO
+	}
+	path := "/guilds/" + url.PathEscape(t.GuildID) + "/members/" + url.PathEscape(t.UserID)
+	return c.do(ctx, request{method: http.MethodPatch, path: path, body: body})
+}
+
+// KickMember is DELETE /guilds/{guild}/members/{user}.
+func (c *Client) KickMember(ctx context.Context, m GuildMember) error {
+	path := "/guilds/" + url.PathEscape(m.GuildID) + "/members/" + url.PathEscape(m.UserID)
+	return c.do(ctx, request{method: http.MethodDelete, path: path})
+}
+
+// BanMember is PUT /guilds/{guild}/bans/{user}.
+func (c *Client) BanMember(ctx context.Context, m GuildMember) error {
+	path := "/guilds/" + url.PathEscape(m.GuildID) + "/bans/" + url.PathEscape(m.UserID)
+	return c.do(ctx, request{method: http.MethodPut, path: path, body: map[string]any{"delete_message_seconds": 0}})
+}
+
+// GuildMember addresses one user in one guild without a role.
+type GuildMember struct {
+	GuildID string
+	UserID  string
+}
+
+// Purge is bulk-delete of 2–100 messages.
+type Purge struct {
+	ChannelID  string
+	MessageIDs []string
+}
+
+// BulkDeleteMessages is POST /channels/{id}/messages/bulk-delete.
+func (c *Client) BulkDeleteMessages(ctx context.Context, p Purge) error {
+	return c.do(ctx, request{
+		method: http.MethodPost,
+		path:   "/channels/" + url.PathEscape(p.ChannelID) + "/messages/bulk-delete",
+		body:   map[string]any{"messages": p.MessageIDs},
+	})
+}
+
+// ListMessages is GET /channels/{id}/messages?limit=n.
+func (c *Client) ListMessages(ctx context.Context, channelID string, limit int) ([]Snowflake, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var out []Snowflake
+	path := "/channels/" + url.PathEscape(channelID) + "/messages?limit=" + itoa(limit)
+	err := c.doInto(ctx, request{method: http.MethodGet, path: path}, &out)
+	return out, err
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b [20]byte
+	i := len(b)
+	for n > 0 {
+		i--
+		b[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(b[i:])
+}
+
+// AppCommand is one slash-command definition for bulk overwrite.
+type AppCommand struct {
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Options     []AppCommandOption `json:"options,omitempty"`
+}
+
+// AppCommandOption is one slash option or subcommand.
+type AppCommandOption struct {
+	Type        int                `json:"type"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Required    bool               `json:"required,omitempty"`
+	Options     []AppCommandOption `json:"options,omitempty"`
+}
+
+// BulkOverwriteCommands is PUT /applications/{id}/commands.
+func (c *Client) BulkOverwriteCommands(ctx context.Context, appID string, cmds []AppCommand) error {
+	path := "/applications/" + url.PathEscape(appID) + "/commands"
+	return c.do(ctx, request{method: http.MethodPut, path: path, body: cmds})
 }

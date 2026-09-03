@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	discapi "ItsBagelBot/app/outgress/internal/discord"
+	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"go.uber.org/zap"
@@ -65,6 +65,15 @@ func assertFilled(t *testing.T, got GuildSetupResult) {
 	}
 	if got.VoiceHubID == "" {
 		t.Fatal("missing voice hub")
+	}
+	if got.LogChannelID == "" {
+		t.Fatal("missing logs channel")
+	}
+	if got.TicketChannelID == "" {
+		t.Fatal("missing ticket channel")
+	}
+	if got.TicketCategoryID == "" {
+		t.Fatal("missing ticket category")
 	}
 }
 

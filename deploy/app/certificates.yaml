@@ -10,12 +10,12 @@
 # which provisions and rotates its own cert, so there is no traefik-facing
 # secret left for cert-manager to own.
 #
-# The ten <svc>-tls certs below back the per-service /status health listeners
-# added in PR #591. Same shape: tls.crt/tls.key/ca.crt in an app-namespace
-# Secret, reloaded by each service (Go handshake hook or the BEAM ssl pem
-# cache) without a pod restart. SANs cover the four forms a ClusterIP Service
-# name resolves to, since traefik's ServersTransport per service pins
-# serverName to the short form (deploy/k8s/status-routes.yaml).
+# The <svc>-tls certs below back the per-service /status health listeners
+# added in PR #591 (dingress joined later). Same shape: tls.crt/tls.key/ca.crt
+# in an app-namespace Secret, reloaded by each service (Go handshake hook or
+# the BEAM ssl pem cache) without a pod restart. SANs cover the four forms a
+# ClusterIP Service name resolves to, since traefik's ServersTransport per
+# service pins serverName to the short form (deploy/k8s/status-routes.yaml).
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -188,6 +188,28 @@ spec:
     - outgress-status.app
     - outgress-status.app.svc
     - outgress-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dingress-tls
+  namespace: app
+spec:
+  secretName: dingress-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - dingress-status
+    - dingress-status.app
+    - dingress-status.app.svc
+    - dingress-status.app.svc.cluster.local
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate

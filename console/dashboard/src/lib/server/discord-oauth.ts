@@ -21,10 +21,11 @@ const DEMO = dev && process.env.DEMO === '1';
 export const DISCORD_STATE_COOKIE = 'discord_oauth_state';
 export const DISCORD_STATE_TTL_SECONDS = 600;
 
-// BotPermissions matches internal/domain/discord.BotPermissions: send,
-// embed, attach, view, history, reactions, manage channels, manage roles,
-// connect, move members, slash commands. No Administrator.
-export const DISCORD_BOT_PERMISSIONS = 2433862736;
+// BotPermissions matches internal/domain/discord.BotPermissions: kick, ban,
+// manage channels, reactions, view, send, manage messages, embed, attach,
+// history, connect, move members, manage roles, slash commands, timeout.
+// No Administrator. Bit 40 (MODERATE_MEMBERS) is still a safe JS integer.
+export const DISCORD_BOT_PERMISSIONS = 1101945498710;
 
 const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
 const TOKEN_TIMEOUT_MS = 8000;

@@ -22,6 +22,7 @@ on:
           - loyalty
           - modules
           - notifications
+          - dingress
           - outgress
           - projector
           - transactions
@@ -93,6 +94,12 @@ jobs:
               "context": ".",
               "containerfile": "app/notifications/Containerfile",
               "description": "ItsBagelBot notifications data service"
+            },
+            {
+              "image": "dingress",
+              "context": ".",
+              "containerfile": "app/dingress/Containerfile",
+              "description": "ItsBagelBot Discord gateway service"
             },
             {
               "image": "outgress",
@@ -174,6 +181,7 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "dingress"
             add "outgress"
             add "projector"
             add "transactions"
@@ -187,6 +195,7 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "dingress"
             add "outgress"
             add "projector"
             add "transactions"
@@ -230,6 +239,9 @@ jobs:
                 ;;
               app/notifications/*)
                 add "notifications"
+                ;;
+              app/dingress/*)
+                add "dingress"
                 ;;
               app/outgress/*)
                 add "outgress"

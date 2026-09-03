@@ -54,6 +54,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: dingress-status
+  namespace: app
+spec:
+  selector:
+    app: dingress
+  ports:
+    - name: http
+      port: 443
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: sesame-status
   namespace: app
 spec:
@@ -155,6 +168,14 @@ spec:
           port: 443
           scheme: https
           serversTransport: outgress-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/dingress`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: dingress-status
+          port: 443
+          scheme: https
+          serversTransport: dingress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
       middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
@@ -248,6 +269,19 @@ spec:
   serverName: outgress-status
   rootCAsSecrets:
     - outgress-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: dingress-status-transport
+  namespace: app
+spec:
+  # Verify the pod's TLS cert against the fleet CA, same shape as
+  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
+  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
+  serverName: dingress-status
+  rootCAsSecrets:
+    - dingress-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport

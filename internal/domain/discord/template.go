@@ -3,10 +3,10 @@
 
 package discord
 
-// BotPermissions is the invite integer: send, embed, attach, view, history,
-// reactions, manage channels, manage roles, connect, move members, slash
-// commands. No Administrator.
-const BotPermissions = 16 | 64 | 1024 | 2048 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 268435456 | 2147483648
+// BotPermissions is the invite integer: kick, ban, manage channels, add
+// reactions, view, send, manage messages, embed, attach, history, connect,
+// move members, manage roles, slash commands, timeout. No Administrator.
+const BotPermissions = 2 | 4 | 16 | 64 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 268435456 | 2147483648 | 1<<40
 
 // Channel type values Discord's REST API uses.
 const (
@@ -62,6 +62,7 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "Community", Type: ChannelCategory},
 		{Name: "chat", Type: ChannelText, Parent: "Community"},
 		{Name: "clips-talk", Type: ChannelText, Parent: "Community"},
+		{Name: "support", Type: ChannelText, Parent: "Community", Topic: "Open a ticket. Bagel posts the panel here.", ReadOnly: true, Bind: "tickets"},
 
 		{Name: "Voice", Type: ChannelCategory},
 		{Name: "General", Type: ChannelVoice, Parent: "Voice"},
@@ -69,8 +70,11 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "AFK", Type: ChannelVoice, Parent: "Voice"},
 		{Name: "+ Create voice", Type: ChannelVoice, Parent: "Voice", Bind: "voice"},
 
+		{Name: "Tickets", Type: ChannelCategory, Bind: "ticketcat"},
+
 		{Name: "Staff", Type: ChannelCategory, Staff: true},
 		{Name: "mods", Type: ChannelText, Parent: "Staff", Staff: true},
+		{Name: "logs", Type: ChannelText, Parent: "Staff", Staff: true, Topic: "Joins, leaves, edits, deletes.", Bind: "logs"},
 	}
 }
 

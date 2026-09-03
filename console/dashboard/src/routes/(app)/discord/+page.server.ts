@@ -183,6 +183,9 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
     welcomeEnabled: flag({ form, name: 'welcomeEnabled', current: current.welcomeEnabled }),
     goodbyeEnabled: flag({ form, name: 'goodbyeEnabled', current: current.goodbyeEnabled }),
     voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
+    ticketsEnabled: flag({ form, name: 'ticketsEnabled', current: current.ticketsEnabled }),
+    logsEnabled: flag({ form, name: 'logsEnabled', current: current.logsEnabled }),
+    levelsEnabled: flag({ form, name: 'levelsEnabled', current: current.levelsEnabled }),
     giftMin: positiveInt({ form, name: 'giftMin', current: current.giftMin }),
     cheerMin: positiveInt({ form, name: 'cheerMin', current: current.cheerMin }),
     categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
@@ -192,7 +195,11 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
     alertsChannelId: snowflake({ form, name: 'alertsChannelId', current: current.alertsChannelId }),
     welcomeChannelId: snowflake({ form, name: 'welcomeChannelId', current: current.welcomeChannelId }),
     voiceHubId: snowflake({ form, name: 'voiceHubId', current: current.voiceHubId }),
+    logChannelId: snowflake({ form, name: 'logChannelId', current: current.logChannelId }),
+    ticketChannelId: snowflake({ form, name: 'ticketChannelId', current: current.ticketChannelId }),
+    ticketCategoryId: snowflake({ form, name: 'ticketCategoryId', current: current.ticketCategoryId }),
     liveRoleId: snowflake({ form, name: 'liveRoleId', current: current.liveRoleId }),
+    memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId }),
     streamerDiscordId: snowflake({ form, name: 'streamerDiscordId', current: current.streamerDiscordId })
   };
 }

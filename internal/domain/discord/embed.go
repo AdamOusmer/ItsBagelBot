@@ -85,3 +85,35 @@ func ClipEmbed(clipURL, clipper, title string) Embed {
 	}
 	return e
 }
+
+// WelcomeEmbed greets a joiner in #welcome. AvatarURL may be empty.
+func WelcomeEmbed(display, avatarURL string) Embed {
+	e := Embed{
+		Title:       "Welcome",
+		Description: display + " just joined.",
+		Color:       LiveColor,
+	}
+	if avatarURL != "" {
+		e.Thumbnail = &EmbedImage{URL: avatarURL}
+	}
+	return e
+}
+
+// GoodbyeContent is the leave line when goodbye is on.
+func GoodbyeContent(display string) string {
+	return display + " left."
+}
+
+// TicketPanelEmbed is the persistent support-desk message.
+func TicketPanelEmbed() Embed {
+	return Embed{
+		Title:       "Need help?",
+		Description: "Open a private ticket. Mods will see it.",
+		Color:       LiveColor,
+	}
+}
+
+// LogEmbed is one audit line in #logs.
+func LogEmbed(title, body string) Embed {
+	return Embed{Title: title, Description: body, Color: LiveColor}
+}

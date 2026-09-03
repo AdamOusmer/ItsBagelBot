@@ -9,6 +9,7 @@ require (
 	github.com/buger/jsonparser v1.6.1
 	github.com/bytedance/sonic v1.15.3
 	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/coder/websocket v1.8.14
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0

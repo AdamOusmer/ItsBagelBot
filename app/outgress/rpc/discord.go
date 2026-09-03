@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// setupHandleTimeout bounds one guild fill: 4 roles and 17 channels created
+// setupHandleTimeout bounds one guild fill: 4 roles and 20 channels created
 // one REST call at a time at 100-300 ms each, plus whatever Retry-After the
 // create buckets dictate. The 4 s followage budget cancelled mid-fill on
 // every real guild and left a half-built server; 45 s clears a worst-case
@@ -88,6 +88,9 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		WelcomeChannelID: got.WelcomeChannelID,
 		AlertsChannelID:  got.AlertsChannelID,
 		VoiceHubID:       got.VoiceHubID,
+		LogChannelID:     got.LogChannelID,
+		TicketChannelID:  got.TicketChannelID,
+		TicketCategoryID: got.TicketCategoryID,
 		LiveRoleID:       got.LiveRoleID,
 		ModsRoleID:       got.ModsRoleID,
 		RegularsRoleID:   got.RegularsRoleID,

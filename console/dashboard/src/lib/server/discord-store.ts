@@ -11,7 +11,7 @@ import { listModules, upsertModule } from './commands-store';
 const DISCORD_MODULE = MOD.discord;
 
 // SETUP_TIMEOUT_MS sits above outgress's 45 s setup handler: a full fill is
-// ~21 sequential Discord creates plus their Retry-After waits.
+// ~24 sequential Discord creates plus their Retry-After waits.
 const SETUP_TIMEOUT_MS = 60000;
 const LAYOUT_TIMEOUT_MS = 12000;
 
@@ -28,6 +28,9 @@ export type DiscordConfig = {
   modsRoleId: string;
   regularsRoleId: string;
   memberRoleId: string;
+  logChannelId: string;
+  ticketChannelId: string;
+  ticketCategoryId: string;
   liveEnabled: string;
   clipsEnabled: string;
   raidEnabled: string;
@@ -37,6 +40,9 @@ export type DiscordConfig = {
   welcomeEnabled: string;
   goodbyeEnabled: string;
   voiceEnabled: string;
+  ticketsEnabled: string;
+  logsEnabled: string;
+  levelsEnabled: string;
   giftMin: string;
   cheerMin: string;
   categoryAllow: string;
@@ -66,6 +72,9 @@ const EMPTY: DiscordConfig = {
   modsRoleId: '',
   regularsRoleId: '',
   memberRoleId: '',
+  logChannelId: '',
+  ticketChannelId: '',
+  ticketCategoryId: '',
   liveEnabled: '',
   clipsEnabled: '',
   raidEnabled: '',
@@ -75,6 +84,9 @@ const EMPTY: DiscordConfig = {
   welcomeEnabled: '',
   goodbyeEnabled: '',
   voiceEnabled: '',
+  ticketsEnabled: '',
+  logsEnabled: '',
+  levelsEnabled: '',
   giftMin: '',
   cheerMin: '',
   categoryAllow: '',
@@ -131,6 +143,9 @@ type SetupReply = {
   welcome_channel_id?: string;
   alerts_channel_id?: string;
   voice_hub_id?: string;
+  log_channel_id?: string;
+  ticket_channel_id?: string;
+  ticket_category_id?: string;
   live_role_id?: string;
   mods_role_id?: string;
   regulars_role_id?: string;
@@ -183,6 +198,9 @@ const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['welcomeChannelId', 'welcome_channel_id'],
   ['alertsChannelId', 'alerts_channel_id'],
   ['voiceHubId', 'voice_hub_id'],
+  ['logChannelId', 'log_channel_id'],
+  ['ticketChannelId', 'ticket_channel_id'],
+  ['ticketCategoryId', 'ticket_category_id'],
   ['liveRoleId', 'live_role_id'],
   ['modsRoleId', 'mods_role_id'],
   ['regularsRoleId', 'regulars_role_id'],

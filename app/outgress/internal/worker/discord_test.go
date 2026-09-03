@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"ItsBagelBot/app/outgress/internal/discord"
+	discord "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/ratelimit"
 

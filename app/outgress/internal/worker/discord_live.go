@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	discapi "ItsBagelBot/app/outgress/internal/discord"
+	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/projection"

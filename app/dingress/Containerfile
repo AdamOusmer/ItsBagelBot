@@ -1,8 +1,8 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# outgress (Go, root module) - build from the REPO ROOT:
-#   podman build -t itsbagelbot/outgress -f app/outgress/Containerfile .
+# dingress (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/dingress -f app/dingress/Containerfile .
 FROM docker.io/library/golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
 
 WORKDIR /src
@@ -18,19 +18,18 @@ COPY go.mod go.sum ./
 # of masking it with GOFLAGS/GONOSUMCHECK.
 RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
 
-COPY internal/activity internal/activity
 COPY internal/discordapi internal/discordapi
 COPY internal/domain internal/domain
 COPY internal/projection internal/projection
 COPY internal/utils internal/utils
 COPY pkg pkg
-COPY app/outgress app/outgress
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /outgress ./app/outgress
+COPY app/dingress app/dingress
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dingress ./app/dingress
 
 # ---------------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
-COPY --from=build /outgress /outgress
+COPY --from=build /dingress /dingress
 
 USER nonroot
-ENTRYPOINT ["/outgress"]
+ENTRYPOINT ["/dingress"]

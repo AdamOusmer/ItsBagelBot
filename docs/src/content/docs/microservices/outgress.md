@@ -9,6 +9,8 @@ The Outgress service (`app/outgress/`) is the bottleneck for all outbound commun
 
 Discord go-live and go-offline embeds bind the same `twitch.ingress.event.stream` lane the mod-status re-verify already consumes. They never pass through sesame. Raid, gift-bomb, and milestone copies still hop sesame → `discord.outgress.*`.
 
+The Discord **gateway** (welcomes, join-to-create voice, tickets, staff logs, slash commands, crumb ranks) is a separate singleton: [Dingress](/microservices/dingress/). Outgress stays REST-only so its replicas never Identify.
+
 ## Architecture
 
 Outgress consumes action payloads from NATS (e.g., `twitch.outgress.premium` and `twitch.outgress.standard` emitted by the [Sesame](/microservices/sesame/) pipeline). It serves as a unified gateway for translating internal module outputs into actual API requests or IRC messages.

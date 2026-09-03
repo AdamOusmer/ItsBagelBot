@@ -3,7 +3,7 @@
 
 // Package discord holds the module blob and community-template contracts
 // shared by outgress (live posts, setup fill), sesame (raid/gift copies),
-// dingress (welcomes, auto-voice, slash), and the dashboard.
+// dingress (welcomes, auto-voice, tickets, slash), and the dashboard.
 package discord
 
 import (
@@ -25,6 +25,9 @@ type Config struct {
 	WelcomeChannelID string `json:"welcomeChannelId"`
 	AlertsChannelID  string `json:"alertsChannelId"`
 	VoiceHubID       string `json:"voiceHubId"`
+	LogChannelID     string `json:"logChannelId"`
+	TicketChannelID  string `json:"ticketChannelId"`
+	TicketCategoryID string `json:"ticketCategoryId"`
 	LiveRoleID       string `json:"liveRoleId"`
 	ModsRoleID       string `json:"modsRoleId"`
 	RegularsRoleID   string `json:"regularsRoleId"`
@@ -41,6 +44,9 @@ type Config struct {
 	WelcomeEnabled      string `json:"welcomeEnabled"`
 	GoodbyeEnabled      string `json:"goodbyeEnabled"`
 	VoiceEnabled        string `json:"voiceEnabled"`
+	TicketsEnabled      string `json:"ticketsEnabled"`
+	LogsEnabled         string `json:"logsEnabled"`
+	LevelsEnabled       string `json:"levelsEnabled"`
 
 	// GiftMin / CheerMin are thresholds so Discord is not a second chat.
 	GiftMin  string `json:"giftMin"`
@@ -81,6 +87,9 @@ func (c Config) SubMilestoneOn() bool { return c.SubMilestoneEnabled == "on" }
 func (c Config) WelcomeOn() bool      { return alertOn(c.WelcomeEnabled) }
 func (c Config) GoodbyeOn() bool      { return c.GoodbyeEnabled == "on" }
 func (c Config) VoiceOn() bool        { return alertOn(c.VoiceEnabled) }
+func (c Config) TicketsOn() bool      { return alertOn(c.TicketsEnabled) }
+func (c Config) LogsOn() bool         { return alertOn(c.LogsEnabled) }
+func (c Config) LevelsOn() bool       { return alertOn(c.LevelsEnabled) }
 
 // AlertsChannel is where raid/gift/milestone copies land. Falls back to
 // the live channel so a 1-click setup with no extra picker still works.

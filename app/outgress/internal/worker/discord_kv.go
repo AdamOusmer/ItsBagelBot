@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	discapi "ItsBagelBot/app/outgress/internal/discord"
+	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/valkey-io/valkey-go"

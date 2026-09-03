@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package discord is the Discord REST API v10 client. Outgress uses it for
+// Package discordapi is the Discord REST API v10 client. Outgress uses it for
 // live embeds, clip posts, and the 1-click guild fill; dingress uses the
 // same types for welcomes, auto-voice, and slash replies. Every call
 // authenticates with the static bot token, which never rotates through
@@ -12,7 +12,7 @@
 // Error classification is the load-bearing contract: the worker maps these
 // onto the lane's ack/nack discipline, where a wrong class either spins a
 // dead message forever or silently drops a retryable one.
-package discord
+package discordapi
 
 import (
 	"ItsBagelBot/pkg/codec"

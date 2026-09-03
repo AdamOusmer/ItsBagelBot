@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	discapi "ItsBagelBot/app/outgress/internal/discord"
+	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/rpc/projection"
