@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/outgress/internal/channels"
 	"ItsBagelBot/app/outgress/internal/conduit"
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/app/outgress/internal/youtube"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
@@ -124,6 +125,20 @@ type Worker struct {
 	// pre-fix status quo, so dropping under saturation costs nothing but the
 	// optimization.
 	tokenWarm chan struct{}
+	// guards is the direct central limiter backing the guard buckets (see
+	// guards.go for why these deliberately do NOT ride the lease manager).
+	// Nil (unset) disables guarding; every allow helper fails open.
+	guards ratelimit.Manager
+	// youtube is the Data API client slice the YouTube handlers fire through,
+	// attached with its budget and chat directory via SetYouTube. Nil until
+	// then: the four youtube_* types are absent from the action registry, so
+	// no message can reach the handlers.
+	youtube  youtubeAPI
+	ytBudget ytBudget
+	ytChats  *youtube.ChatDirectory
+	// discord is the REST client slice processDiscordChat fires through,
+	// attached via SetDiscord. Same nil-until-attach contract as youtube.
+	discord discordAPI
 }
 
 // Config wires one lane worker's collaborators.
@@ -193,6 +208,55 @@ func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 // broadcaster-identity call proves the grant dead.
 func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
 
+// rebuildActions redeclares the immutable registry from the same builder
+// buildActions uses, plus whatever a late-attached platform adds. The four
+// YouTube types and the Discord type are only registered once their client is
+// attached (SetYouTube/SetDiscord), so a bare worker drops them as unknown
+// instead of panicking on a nil client mid-dispatch. The swap is a single
+// assignment done at wiring time before any consumer starts, which keeps
+// lookups lock-free without adding mutation discipline around a shared map.
+func (w *Worker) rebuildActions(extend func(b *action.Builder)) {
+	b := action.NewSet()
+	w.declareActions(b)
+	if extend != nil {
+		extend(b)
+	}
+	w.actions = b.Build()
+}
+
+// SetYouTube attaches the Data API client, the fleet-shared daily-quota budget,
+// and the lifecycle-learned chat directory, then registers the four youtube_*
+// actions. Wiring calls it once per lane worker that drains YouTube subjects,
+// passing the SAME collaborators to each so one budget and one directory serve
+// every lane.
+func (w *Worker) SetYouTube(client youtubeAPI, budget ytBudget, chats *youtube.ChatDirectory) {
+	w.youtube, w.ytBudget, w.ytChats = client, budget, chats
+	w.rebuildActions(w.extendLatePlatforms)
+}
+
+// SetDiscord attaches the Discord REST client and registers the discord_chat
+// action. Unwired in main for now: no Discord deployment exists yet.
+func (w *Worker) SetDiscord(client discordAPI) {
+	w.discord = client
+	w.rebuildActions(w.extendLatePlatforms)
+}
+
+// extendLatePlatforms re-registers every late platform that is already
+// attached. rebuildActions starts from the Twitch set, so SetYouTube then
+// SetDiscord (or the reverse) would otherwise drop the first platform's
+// actions.
+func (w *Worker) extendLatePlatforms(b *action.Builder) {
+	if w.youtube != nil {
+		b.Action(outgress.TypeYouTubeChat).Internal().Run(w.processYouTubeChat)
+		b.Action(outgress.TypeYouTubeDelete).Internal().Run(w.processYouTubeDelete)
+		b.Action(outgress.TypeYouTubeBan).Internal().Run(w.processYouTubeBan)
+		b.Action(outgress.TypeYouTubeTimeout).Internal().Run(w.processYouTubeTimeout)
+	}
+	if w.discord != nil {
+		b.Action(outgress.TypeDiscordChat).Internal().Run(w.processDiscordChat)
+	}
+}
+
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
 // so wiring builds one bounded cache and injects it into every lane worker
 // instead of each holding a default-capacity copy. Capacity and TTL are kept
@@ -223,13 +287,17 @@ func noticeError(ctx context.Context, err error) {
 }
 
 // botIdentity resolves the bot identity a job acts as (chat sender or acting
-// moderator): an explicit message sender wins, else the configured bot id.
+// moderator): the configured bot id wins, else the message's sender id.
 // ok=false means neither is set - there is nobody to act as, so the caller
 // must drop the job (already logged here, ack).
 func (w *Worker) botIdentity(action string, payload *outgress.Message) (string, bool) {
-	id := payload.SenderID
+	// Prefer the configured identity over producer-controlled wire data: a
+	// compromised producer must not be able to re-persona the bot by setting
+	// sender_id on the wire. SenderID stays the fallback for deployments that
+	// run without TWITCH_BOT_USER_ID.
+	id := w.botID
 	if id == "" {
-		id = w.botID
+		id = payload.SenderID
 	}
 	if id == "" {
 		w.log.Error("dropping "+action+": no bot identity configured",

@@ -5,6 +5,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -411,13 +412,15 @@ func (r *Users) Reproject(ctx context.Context) error {
 //
 // accessTokenExpiresAt is plaintext (a timestamp, not a secret) and optional:
 // nil means the caller doesn't know when accessToken expires (the admin
-// token-set and dashboard OAuth-callback callers, today) and clears any
-// previously stored expiry, because a stale expiry left over from a
-// different access token would let a reader wrongly treat the new one as
-// still valid. Callers that do know it (outgress's stored-token refresh
-// path, from Twitch's expires_in) pass it so Token can serve it back without
-// a mint -- see Token's doc and app/outgress/internal/twitch/token.go.
-func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform, accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time) error {
+// token-set path, today) and clears any previously stored expiry, because a
+// stale expiry left over from a different access token would let a reader
+// wrongly treat the new one as still valid. Callers that do know it pass it so
+// Token can serve it back without a mint -- see Token's doc.
+//
+// Options carry platform-specific extras without widening the positional
+// signature every twitch caller compiles against; WithYouTubeChannelID is the
+// only one today.
+func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens.Type, platform tokens.Platform, accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, opts ...TokenOption) error {
 
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -427,6 +430,19 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 	}
 	if len(refreshToken) > 0 {
 		if err := validate.Token(refreshToken); err != nil {
+			return err
+		}
+	}
+
+	var extra tokenExtra
+	for _, opt := range opts {
+		opt(&extra)
+	}
+	if extra.youtubeChannelID != "" {
+		if platform != tokens.PlatformYoutube {
+			return ErrChannelIDOnNonYouTube
+		}
+		if err := ValidateYouTubeChannelID(extra.youtubeChannelID); err != nil {
 			return err
 		}
 	}
@@ -468,6 +484,9 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 				if len(sealedRefresh.Ciphertext) > 0 {
 					create.SetRefreshToken(sealedRefresh.Ciphertext)
 				}
+				if extra.youtubeChannelID != "" {
+					create.SetYoutubeChannelID(extra.youtubeChannelID)
+				}
 
 				if err := create.Exec(ctx); err != nil {
 					if ent.IsConstraintError(err) {
@@ -485,6 +504,9 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 						if len(sealedRefresh.Ciphertext) > 0 {
 							update.SetRefreshToken(sealedRefresh.Ciphertext)
 						}
+						if extra.youtubeChannelID != "" {
+							update.SetYoutubeChannelID(extra.youtubeChannelID)
+						}
 						return update.Exec(ctx)
 					}
 					return err
@@ -499,6 +521,9 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 
 			if len(sealedRefresh.Ciphertext) > 0 {
 				update.SetRefreshToken(sealedRefresh.Ciphertext)
+			}
+			if extra.youtubeChannelID != "" {
+				update.SetYoutubeChannelID(extra.youtubeChannelID)
 			}
 
 			return update.Exec(ctx)
@@ -544,6 +569,105 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 	}
 
 	return accessToken, refreshToken, row.AccessTokenExpiresAt, nil
+}
+
+// TokenOption carries optional per-platform extras into UpsertToken without
+// widening the positional signature every existing twitch caller compiles
+// against. Zero-value (no options) is exactly the pre-youtube behaviour.
+type TokenOption func(*tokenExtra)
+
+type tokenExtra struct {
+	youtubeChannelID string
+}
+
+// WithYouTubeChannelID records which YouTube channel a Google grant speaks
+// for, making the row resolvable by the token lease RPC (which is addressed
+// by channel id -- consumers never learn our internal user ids). Re-linking
+// the same user overwrites the column; linking a channel another user
+// already holds fails on the unique index rather than silently stealing the
+// lease mapping.
+func WithYouTubeChannelID(channelID string) TokenOption {
+	return func(x *tokenExtra) { x.youtubeChannelID = channelID }
+}
+
+// ErrChannelIDOnNonYouTube guards against a caller attaching a YouTube
+// channel to a twitch grant -- always a bug in the caller, never a state we
+// should persist.
+var ErrChannelIDOnNonYouTube = errors.New("youtube_channel_id is only valid for platform=youtube")
+
+// ValidateYouTubeChannelID accepts the opaque "UC..." ids Google mints and
+// rejects anything else early enough that a bad console payload can't write
+// an unresolvable row (a row with a garbage id would be invisible to the
+// lease RPC forever). Length-capped at 64: real ids are 24 chars, but Google
+// treats them as opaque strings and has widened formats before; only the
+// prefix is load-bearing for lookup confidence, so the rest is length and
+// printable-ASCII hygiene rather than format enforcement.
+func ValidateYouTubeChannelID(id string) error {
+	if len(id) < 3 || len(id) > 64 {
+		return ErrYouTubeChannelInvalid
+	}
+	if !strings.HasPrefix(id, "UC") {
+		return ErrYouTubeChannelInvalid
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if c < 0x20 || c > 0x7e {
+			return ErrYouTubeChannelInvalid
+		}
+	}
+	return nil
+}
+
+var ErrYouTubeChannelInvalid = errors.New("invalid youtube channel id")
+
+// TokenByYouTubeChannel resolves the youtube grant row owning a channel and
+// decrypts it. It backs bagel.rpc.youtube.token.get, whose request keys off
+// channel id alone: consumers hold no notion of our internal user ids, so
+// this is the only path from a wire request to a credential.
+//
+// The returned userID is required by callers that re-persist rotated access
+// tokens (UpsertToken's AAD binds ciphertexts to the user), and refreshToken/
+// accessTokenExpiresAt follow exactly Token's semantics -- nil expiry means
+// "unknown, treat as expired".
+func (r *Users) TokenByYouTubeChannel(ctx context.Context, channelID string) (userID uint64, accessToken []byte, refreshToken []byte, accessTokenExpiresAt *time.Time, err error) {
+	if err := ValidateYouTubeChannelID(channelID); err != nil {
+		return 0, nil, nil, nil, err
+	}
+
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Tokens, error) {
+		return r.client.Tokens.Query().
+			Where(
+				tokens.TypeEQ(tokens.TypeUserToken),
+				tokens.PlatformEQ(tokens.PlatformYoutube),
+				tokens.YoutubeChannelIDEQ(channelID),
+			).
+			Only(ctx)
+	})
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+
+	// The owning user id rides the edge (the generated struct keeps the FK
+	// private); OnlyID fetches just the column.
+	userID, err = row.QueryUser().OnlyID(ctx)
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+
+	aad := tokenAAD(userID, tokens.TypeUserToken, tokens.PlatformYoutube)
+
+	accessToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+
+	if len(row.RefreshToken) > 0 {
+		if refreshToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.RefreshToken, AttachedData: aad}); err != nil {
+			return 0, nil, nil, nil, err
+		}
+	}
+
+	return userID, accessToken, refreshToken, row.AccessTokenExpiresAt, nil
 }
 
 // applyTokenExpiry sets or clears access_token_expires_at on an update

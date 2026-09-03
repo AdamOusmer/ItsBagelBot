@@ -104,7 +104,8 @@ var (
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"access_token", "user_token"}, Default: "access_token"},
 		{Name: "token", Type: field.TypeBytes},
 		{Name: "refresh_token", Type: field.TypeBytes, Nullable: true},
-		{Name: "platform", Type: field.TypeEnum, Enums: []string{"twitch"}, Default: "twitch"},
+		{Name: "platform", Type: field.TypeEnum, Enums: []string{"twitch", "youtube"}, Default: "twitch"},
+		{Name: "youtube_channel_id", Type: field.TypeString, Unique: true, Nullable: true},
 		{Name: "access_token_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "user_tokens", Type: field.TypeUint64},
 	}
@@ -116,7 +117,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tokens_users_tokens",
-				Columns:    []*schema.Column{TokensColumns[6]},
+				Columns:    []*schema.Column{TokensColumns[7]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -125,7 +126,7 @@ var (
 			{
 				Name:    "tokens_type_platform_user_tokens",
 				Unique:  true,
-				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[6]},
+				Columns: []*schema.Column{TokensColumns[1], TokensColumns[4], TokensColumns[7]},
 			},
 		},
 	}

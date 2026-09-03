@@ -7,7 +7,10 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/outgress/internal/action"
+	"ItsBagelBot/app/outgress/internal/validate"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
@@ -55,6 +58,20 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
 		return nil
 	}
+	// Trust boundary before any key is built or bucket paid: broadcaster ids
+	// flow into dynamic Valkey keys and the registry index (see
+	// validate.BroadcasterID for the injection shape this closes). Only routed
+	// Twitch actions are checked — their ids must be numeric, while internal
+	// jobs carry either no id or a foreign platform's id shape ("UC…",
+	// Discord snowflakes aside) that digits-only would wrongly reject. An
+	// empty id stays legal here: several system paths legitimately omit it.
+	if act.Kind != action.KindInternal && payload.BroadcasterID != "" &&
+		!validate.BroadcasterID(payload.BroadcasterID) {
+		w.log.Error("dropping message with invalid broadcaster id",
+			zap.String("type", payload.Type),
+			zap.String("broadcaster_id", payload.BroadcasterID))
+		return nil
+	}
 	if !act.FillRoute(payload) {
 		w.log.Error("dropping message with invalid request",
 			zap.String("type", payload.Type),
@@ -73,6 +90,9 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 // no usable payload (empty announce/pin message, shoutout without a target)
 // is dropped rather than sent for Twitch to reject.
 func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {
+	if !w.botSpeechAllowed(ctx, broadcasterID, text) {
+		return nil
+	}
 	sc, ok := outgress.CutSlash(text)
 	if !ok {
 		return w.sendBotChat(ctx, broadcasterID, text)
@@ -148,6 +168,9 @@ func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, err
 // sender injection, per-channel chat rate bucket — exactly as if a lane job
 // carried it.
 func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) error {
+	if !w.botSpeechAllowed(ctx, broadcasterID, text) {
+		return nil
+	}
 	body, err := codec.Marshal(&struct {
 		BroadcasterID string `json:"broadcaster_id"`
 		Message       string `json:"message"`
@@ -161,6 +184,26 @@ func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) er
 		Payload:       body,
 	}
 	return w.processPayload(ctx, &chat)
+}
+
+// botSpeechAllowed is the last-mile floor gate over the two composition
+// funnels above: the only send paths where outgress itself authors the text
+// (clip replies, reauth beacon, module outputs routed through here), splicing
+// in viewer-controlled fragments such as clip titles and URLs. Everything
+// upstream already filters its own output, but a compromised upstream or a
+// crafted clip title must not turn the bot's own account into the delivery
+// vehicle for an IP logger or worse, so both funnels re-check with the same
+// immovable-floor predicate the save-time validators use (hate lexicon +
+// IP-logger hosts; scam phrasing is deliberately excluded there because
+// giveaway commands legitimately say "claim your prize"). A hit drops the
+// line silently — it is a defense, not an error condition.
+func (w *Worker) botSpeechAllowed(_ context.Context, _, text string) bool {
+	if term, hit := moderation.CheckFloor(text); hit {
+		w.log.Warn("dropping bot line: immovable floor content",
+			zap.String("term", term))
+		return false
+	}
+	return true
 }
 
 func (w *Worker) decodePayload(ctx context.Context, data []byte, payload *outgress.Message) bool {

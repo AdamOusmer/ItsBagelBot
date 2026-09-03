@@ -36,6 +36,14 @@ type Message struct {
 	RewardID     string `json:"reward_id,omitempty"`
 	RedemptionID string `json:"redemption_id,omitempty"`
 	Status       string `json:"status,omitempty"`
+	// LiveChatID is the YouTube live chat id a youtube_* action targets. An
+	// explicit id wins; when empty the worker resolves the chat through the
+	// directory learned from the watcher's stream lifecycle events.
+	LiveChatID string `json:"live_chat_id,omitempty"`
+	// ChannelID is the Discord snowflake a discord_chat posts into. Producers
+	// carry it from their own configuration: Discord has no per-broadcaster
+	// identity outgress could resolve one from.
+	ChannelID string `json:"channel_id,omitempty"`
 }
 
 // Batch is the shared producer/consumer contract for an ordered, at-most-once
@@ -136,6 +144,18 @@ const (
 	// broadcaster token (channel:manage:redemptions); RewardID + RedemptionID +
 	// Status ride the query string / body.
 	TypeRedemptionUpdate = "redemption_update"
+	// YouTube action types. Every one is an Internal job whose handler owns its
+	// Data API call (see internal/worker/youtube.go): sends and moderation cost
+	// a flat 50 quota units each, so admission runs through the daily-quota
+	// budget, not a Helix route. Their BroadcasterID is an opaque "UC…" channel
+	// id that must never route through the numeric Twitch id boundary.
+	TypeYouTubeChat    = "youtube_chat"
+	TypeYouTubeDelete  = "youtube_delete"
+	TypeYouTubeBan     = "youtube_ban"
+	TypeYouTubeTimeout = "youtube_timeout"
+	// TypeDiscordChat posts one message into a Discord channel; the target
+	// snowflake rides Message.ChannelID and the body carries {"content", "tts"}.
+	TypeDiscordChat = "discord_chat"
 )
 
 // Redemption status values for a TypeRedemptionUpdate Message.Status.

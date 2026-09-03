@@ -17,6 +17,7 @@ import {
   notificationMarkRead,
   notificationMarkPeeked,
   userLocale,
+  youtubeGrantHas,
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
@@ -79,7 +80,11 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
   return { fetchKeys: result.value.keys, fetchKeyRefs };
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+// OAuth round-trip notices ride ?youtube=<slug>; anything outside the set the
+// callback can send is dropped so a hand-typed param renders as nothing.
+const YOUTUBE_SLUGS = ['connected', 'state', 'oauth', 'notoken', 'nochannel', 'store', 'unconfigured'];
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
   // page renders and is exercisable without OAuth + NATS.
   if (DEMO) {
@@ -92,7 +97,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       savedLocale: d.demoSavedLocale,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
-      fetchKeyRefs: { weather_api: ['weather'] }
+      fetchKeyRefs: { weather_api: ['weather'] },
+      youtubeConnected: false,
+      youtubeNotice: ''
     };
   }
 
@@ -107,12 +114,13 @@ export const load: PageServerLoad = async ({ locals }) => {
   let notifications: NotificationWire[] = [];
   let degraded = false;
 
-  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult, youtubeResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
     userLocale(self),
-    listFetches(self)
+    listFetches(self),
+    youtubeGrantHas(self)
   ]);
 
   if (givenResult.status === 'fulfilled') given = givenResult.value;
@@ -127,6 +135,12 @@ export const load: PageServerLoad = async ({ locals }) => {
     : DEFAULT_LOCALE;
   if (localeResult.status === 'rejected') degraded = true;
 
+  // YouTube connect state is a nice-to-have like notifications: a failed
+  // lookup renders as not-connected, never degrades the page.
+  const youtubeConnected = youtubeResult.status === 'fulfilled' && youtubeResult.value;
+  const rawNotice = url.searchParams.get('youtube') ?? '';
+  const youtubeNotice = YOUTUBE_SLUGS.includes(rawNotice) ? rawNotice : '';
+
   return {
     given,
     received,
@@ -134,7 +148,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     notifications,
     savedLocale,
     degraded,
-    ...readFetchKeys(fetchKeyResult)
+    ...readFetchKeys(fetchKeyResult),
+    youtubeConnected,
+    youtubeNotice
   };
 };
 

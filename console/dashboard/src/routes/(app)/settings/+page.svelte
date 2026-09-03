@@ -281,6 +281,27 @@
       </div>
       <ButtonLink href="/auth/login?reauth=1" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
     </div>
+    <div class="row">
+      <div>
+        <b>{t('settings.connectYouTube')}</b>
+        <p class="hint">{t('settings.connectYouTubeHint')}</p>
+      </div>
+      <div class="actions">
+        {#if data.youtubeConnected}
+          <span class="ok-pill"><Icon name="check" size={13} /> {t('settings.youTubeConnectedPill')}</span>
+        {/if}
+        <ButtonLink href="/youtube/connect" variant="ghost" icon="link">
+          {data.youtubeConnected ? t('common.reconnect') : t('common.connect')}
+        </ButtonLink>
+      </div>
+    </div>
+    {#if data.youtubeNotice && data.youtubeNotice !== 'connected'}
+      <p class="hint">
+        {data.youtubeNotice === 'nochannel'
+          ? t('settings.youTubeNoChannel')
+          : t('settings.youTubeFailed')}
+      </p>
+    {/if}
   </Card>
 
   <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->

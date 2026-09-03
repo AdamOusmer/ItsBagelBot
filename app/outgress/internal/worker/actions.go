@@ -13,7 +13,8 @@ import (
 // Helix route per type, so producers send intent ("chat", "ban", "ad", "clip")
 // plus the body instead of hardcoding paths; Build panics at boot on a
 // misdeclared action. Handlers capture the worker by method value, so the set
-// is built once per lane worker in New.
+// is built once per lane worker in New (and redeclared by rebuildActions when
+// a platform client is attached late).
 //
 //   - chat/announce/shoutout/pin: cloud-bot chat actions on the app token.
 //     Twitch only awards the Chat Bot badge to Send Chat Message calls made
@@ -36,9 +37,18 @@ import (
 // The broadcaster-token pre-warm is NOT here: it rides the core-NATS
 // token-warm fan-out (see tokenwarm.go's SubscribeTokenWarm), not a lane
 // message, because every replica's independent token cache needs its own
-// warm and a lane job only ever reaches one replica.
+// warm and a lane job only ever reaches one replica. The YouTube and Discord
+// types are likewise absent until SetYouTube/SetDiscord attach their clients
+// (see rebuildActions in worker.go).
 func (w *Worker) buildActions() action.Registry {
 	b := action.NewSet()
+	w.declareActions(b)
+	return b.Build()
+}
+
+// declareActions writes every Twitch-typed declaration onto b; the YouTube and
+// Discord entries are appended by SetYouTube/SetDiscord through rebuildActions.
+func (w *Worker) declareActions(b *action.Builder) {
 	b.Action(outgress.TypeChat).Post("/helix/chat/messages").As(outgress.AsApp).Run(w.processChat)
 	b.Action(outgress.TypeAnnounce).Post("/helix/chat/announcements").As(outgress.AsApp).Run(w.processAnnounce)
 	b.Action(outgress.TypeShoutout).Post("/helix/chat/shoutouts").As(outgress.AsApp).Run(w.processShoutout)
@@ -58,5 +68,4 @@ func (w *Worker) buildActions() action.Registry {
 	b.Action(outgress.TypeEventSub).Internal().Run(w.processEventSub)
 	b.Action(outgress.TypeStreamStatus).Internal().Run(w.processStreamStatus)
 	b.Action(outgress.TypeRedemptionUpdate).Internal().Run(w.processRedemptionUpdate)
-	return b.Build()
 }
