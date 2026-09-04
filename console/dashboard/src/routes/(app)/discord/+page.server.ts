@@ -187,8 +187,7 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
     vipRoleId: snowflake({ form, name: 'vipRoleId', current: current.vipRoleId }),
     subscriberRoleId: snowflake({ form, name: 'subscriberRoleId', current: current.subscriberRoleId }),
     leadModRoleId: snowflake({ form, name: 'leadModRoleId', current: current.leadModRoleId }),
-    memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId }),
-    streamerDiscordId: snowflake({ form, name: 'streamerDiscordId', current: current.streamerDiscordId })
+    memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId })
   };
 }
 

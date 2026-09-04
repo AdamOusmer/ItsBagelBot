@@ -230,10 +230,15 @@
           {@render picker('subscriberRoleId', t('discord.subscriberRoleLabel'), roles, '@')}
           {@render picker('memberRoleId', t('discord.memberRoleLabel'), roles, '@')}
         </div>
-        <Field label={t('discord.streamerIdLabel')} tag={t('discord.streamerIdTag')}>
-          <input class="input wide" name="streamerDiscordId" value={config.streamerDiscordId} placeholder="123456789012345678" inputmode="numeric" />
-        </Field>
-        <p class="muted-text">{t('discord.streamerIdHelp')}</p>
+        <!--
+          Stated here rather than left as a surprise: Bagel creates these
+          roles and their locked channels and never assigns them. There is no
+          Twitch role sync of any kind -- not mods, not VIPs, not subs. The
+          only automatic option is Discord's own Twitch integration, and
+          Discord exposes no API to enable it (a linked role still has to be
+          attached by a server admin), so it cannot be turned on from here.
+        -->
+        <p class="muted-text">{t('discord.tierRolesHelp')}</p>
         <Button variant="primary" type="submit">{t('discord.save')}</Button>
       </Card>
 

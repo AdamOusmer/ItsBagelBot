@@ -366,7 +366,6 @@ export function demoDiscordView() {
       categoryAllow: '',
       categoryDeny: '',
       twitchLogin: 'demo',
-      streamerDiscordId: ''
     }
   };
 }

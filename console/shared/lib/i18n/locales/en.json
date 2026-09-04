@@ -488,8 +488,9 @@
   "discord.reauthCta": "Re-authorize Bagel",
   "discord.reauthNeeded": "This server was added before Bagel asked for the Change Nickname permission, so the premium name cannot be applied here. The premium avatar still works. Re-authorize to finish it.",
   "discord.subscriberRoleLabel": "Subscriber role",
-  "discord.subscribersHelp": "Creates a Subscriber role and a locked subscriber area. Leave off if you do not use it.",
+  "discord.subscribersHelp": "Creates a Subscriber role and a private subscriber area during setup. Turn it off if you do not use it: an empty locked category helps nobody. Subscribers are not synced automatically, see the note under Roles.",
   "discord.subscribersLabel": "Subscriber tier",
+  "discord.tierRolesHelp": "Bagel creates these roles and their private channels, but it never assigns them and never syncs them from Twitch. Your Twitch mods, VIPs and subscribers do not become Discord Mods, VIP or Subscriber on their own: give those roles out yourself. The one exception you can add is Discord's own Twitch integration, under Server Settings, Integrations, which syncs subscribers only and needs a Twitch Affiliate or Partner account. Discord gives no way to switch that on from here.",
   "discord.vipRoleLabel": "VIP role",
   "fetches": {
     "builderNew": "+ New data source",

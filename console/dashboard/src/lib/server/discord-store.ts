@@ -45,7 +45,6 @@ export type DiscordConfig = {
   categoryAllow: string;
   categoryDeny: string;
   twitchLogin: string;
-  streamerDiscordId: string;
 };
 
 export type DiscordView = {
@@ -91,7 +90,6 @@ const EMPTY: DiscordConfig = {
   categoryAllow: '',
   categoryDeny: '',
   twitchLogin: '',
-  streamerDiscordId: ''
 };
 
 function asRecord(raw: unknown): Record<string, string> {

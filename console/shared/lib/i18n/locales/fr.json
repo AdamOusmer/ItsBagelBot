@@ -488,8 +488,9 @@
   "discord.reauthCta": "Réautoriser Bagel",
   "discord.reauthNeeded": "Ce serveur a été ajouté avant que Bagel ne demande la permission Changer de pseudo, le nom premium ne peut donc pas être appliqué ici. L'avatar premium fonctionne toujours. Réautorisez pour terminer.",
   "discord.subscriberRoleLabel": "Rôle Abonné",
-  "discord.subscribersHelp": "Crée un rôle Abonné et un espace réservé aux abonnés. Laissez désactivé si vous ne l'utilisez pas.",
+  "discord.subscribersHelp": "Crée un rôle Abonné et un espace privé pour les abonnés lors de la configuration. Désactivez-le si vous ne l'utilisez pas : une catégorie verrouillée et vide n'aide personne. Les abonnés ne sont pas synchronisés automatiquement, voir la note sous Rôles.",
   "discord.subscribersLabel": "Palier abonnés",
+  "discord.tierRolesHelp": "Bagel crée ces rôles et leurs salons privés, mais ne les attribue jamais et ne les synchronise jamais depuis Twitch. Vos modérateurs, VIP et abonnés Twitch ne deviennent pas automatiquement Mods, VIP ou Abonné sur Discord : attribuez ces rôles vous-même. Seule exception possible : l'intégration Twitch native de Discord, dans Paramètres du serveur, Intégrations, qui synchronise uniquement les abonnés et nécessite un compte Affilié ou Partenaire Twitch. Discord ne permet pas de l'activer depuis ici.",
   "discord.vipRoleLabel": "Rôle VIP",
   "fetches": {
     "builderNew": "+ Nouvelle source",

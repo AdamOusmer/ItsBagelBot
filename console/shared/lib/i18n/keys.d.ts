@@ -459,6 +459,7 @@ export type KnownMessageKey =
   | 'discord.ticketChannelLabel'
   | 'discord.ticketsHelp'
   | 'discord.ticketsLabel'
+  | 'discord.tierRolesHelp'
   | 'discord.titleEm'
   | 'discord.titlePre'
   | 'discord.toastDisconnectFailed'
