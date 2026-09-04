@@ -149,10 +149,14 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 		decode.OverwriteDeny(decode.OverwriteSpec{TargetID: in.GuildID, Kind: 0, Bits: decode.PermView}),
 		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: in.Member.User.ID, Kind: 1, Bits: decode.PermView | decode.PermSend}),
 	}
-	if cfg.ModsRoleID == "" {
-		return overwrites
+	// Every staff tier, not just Mods: a ticket only Mods can read is
+	// invisible to the Lead Mods and the Owner who are meant to escalate to.
+	for _, roleID := range cfg.StaffRoleIDs() {
+		overwrites = append(overwrites, decode.OverwriteAllow(decode.OverwriteSpec{
+			TargetID: roleID, Kind: 0, Bits: decode.PermView | decode.PermSend,
+		}))
 	}
-	return append(overwrites, decode.OverwriteAllow(decode.OverwriteSpec{TargetID: cfg.ModsRoleID, Kind: 0, Bits: decode.PermView | decode.PermSend}))
+	return overwrites
 }
 
 func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.Emit) error {

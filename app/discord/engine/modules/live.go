@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"ItsBagelBot/app/discord/engine/internal/cmd"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
@@ -61,7 +60,6 @@ type Live struct {
 	StreamInfo streamInfoReader
 	Fallback   streamInfoFallback
 	RPC        liveRPC
-	Publish    Publish
 	Log        *zap.Logger
 }
 
@@ -111,7 +109,6 @@ func (l *Live) online(ctx context.Context, cfg ddiscord.Config, broadcasterID st
 		l.Log.Warn("discord go-live rpc failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err), zap.String("outgress_error", reply.Error))
 		return
 	}
-	l.grantLiveRole(ctx, cfg)
 }
 
 // liveInfo mirrors egress's liveInfo unchanged: the projection is read
@@ -145,32 +142,4 @@ func (l *Live) offline(ctx context.Context, cfg ddiscord.Config) {
 	if err != nil || reply.Error != "" {
 		l.Log.Warn("discord go-offline rpc failed", zap.String("guild_id", cfg.GuildID), zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	l.revokeLiveRole(ctx, cfg)
-}
-
-func (l *Live) grantLiveRole(ctx context.Context, cfg ddiscord.Config) {
-	if role, ok := liveRoleOf(cfg); ok {
-		l.publishRole(ctx, cmd.AddRole(role.guildID, role.userID, role.roleID))
-	}
-}
-
-func (l *Live) revokeLiveRole(ctx context.Context, cfg ddiscord.Config) {
-	if role, ok := liveRoleOf(cfg); ok {
-		l.publishRole(ctx, cmd.RemoveRole(role.guildID, role.userID, role.roleID))
-	}
-}
-
-func (l *Live) publishRole(ctx context.Context, c ddiscord.Command) {
-	if err := l.Publish(ctx, c); err != nil {
-		l.Log.Warn("discord live role command publish failed", zap.Error(err))
-	}
-}
-
-type liveRole struct{ guildID, userID, roleID string }
-
-func liveRoleOf(cfg ddiscord.Config) (liveRole, bool) {
-	if cfg.LiveRoleID == "" || cfg.GuildID == "" || cfg.StreamerDiscordID == "" {
-		return liveRole{}, false
-	}
-	return liveRole{guildID: cfg.GuildID, userID: cfg.StreamerDiscordID, roleID: cfg.LiveRoleID}, true
 }

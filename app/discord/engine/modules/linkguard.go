@@ -90,7 +90,7 @@ func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit m
 	if len(links) == 0 {
 		return nil
 	}
-	moderator := decode.HasRole(ev.Member.Roles, c.Config.ModsRoleID)
+	moderator := decode.HasAnyRole(ev.Member.Roles, c.Config.StaffRoleIDs())
 	if reason := h.observeLinks(ctx, c, ev, links, moderator); reason != "" {
 		h.act(c, emit, ev, reason)
 	}

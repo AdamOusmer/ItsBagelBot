@@ -44,7 +44,8 @@ type GuildSetupResult struct {
 	LogChannelID     string
 	TicketChannelID  string
 	TicketCategoryID string
-	LiveRoleID       string
+	OwnerRoleID      string
+	LeadModRoleID    string
 	ModsRoleID       string
 	RegularsRoleID   string
 	MemberRoleID     string
@@ -313,7 +314,7 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 		return f.api.CreateRole(ctx, discapi.GuildRole{
 			Guild: f.target,
 			Spec: discapi.RoleCreate{
-				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
+				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable, Color: spec.Color,
 			},
 		})
 	}
@@ -411,8 +412,10 @@ func (out *GuildSetupResult) setRole(role namedRef) {
 		return
 	}
 	switch role.Name {
-	case "Live":
-		out.LiveRoleID = role.ID
+	case "Owner":
+		out.OwnerRoleID = role.ID
+	case "Lead Mod":
+		out.LeadModRoleID = role.ID
 	case "Mods":
 		out.ModsRoleID = role.ID
 	case "Regulars":

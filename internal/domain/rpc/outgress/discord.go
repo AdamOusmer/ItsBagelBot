@@ -24,7 +24,8 @@ type DiscordSetupReply struct {
 	LogChannelID     string `json:"log_channel_id,omitempty"`
 	TicketChannelID  string `json:"ticket_channel_id,omitempty"`
 	TicketCategoryID string `json:"ticket_category_id,omitempty"`
-	LiveRoleID       string `json:"live_role_id,omitempty"`
+	OwnerRoleID      string `json:"owner_role_id,omitempty"`
+	LeadModRoleID    string `json:"lead_mod_role_id,omitempty"`
 	ModsRoleID       string `json:"mods_role_id,omitempty"`
 	RegularsRoleID   string `json:"regulars_role_id,omitempty"`
 	MemberRoleID     string `json:"member_role_id,omitempty"`

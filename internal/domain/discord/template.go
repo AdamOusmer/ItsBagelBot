@@ -39,6 +39,12 @@ type RoleSpec struct {
 	Name        string
 	Hoist       bool
 	Mentionable bool
+	// Color is the role colour as a Discord RGB integer. 0 means "no colour",
+	// which Discord renders as the default grey and, unlike a real colour,
+	// does not win the member-list name colour from a lower role. Member is
+	// deliberately 0 for that reason: everyone has it, so colouring it would
+	// override every other role for anyone who has nothing else.
+	Color int
 }
 
 // ChannelSpec is one channel or category the fill creates (or matches by name).
@@ -53,13 +59,46 @@ type ChannelSpec struct {
 	Bind     string // Config field this snowflake fills: live, clips, welcome, voice
 }
 
-// CommunityRoles is the streamer-ready role set. Live/Mods/Regulars/Member
-// sit below the bot role so Bagel can grant them.
+// Role colours. Distinct hues rather than shades so the member list is
+// readable at a glance: Discord shows a member in the colour of their highest
+// COLOURED role, so two roles a shade apart are indistinguishable in the one
+// place the colour actually appears.
+const (
+	// RoleColorOwner is the brand amber, matching the embed accent, because
+	// the owner is the channel the whole server belongs to.
+	RoleColorOwner = 0xC47A3A
+	// RoleColorLeadMod is a deep red: the escalation tier, and the one
+	// people need to find fast when something is going wrong.
+	RoleColorLeadMod = 0xC0392B
+	// RoleColorMods is a cool teal, clearly not the red above it, so the two
+	// staff tiers do not read as one block.
+	RoleColorMods = 0x3B8EA5
+	// RoleColorRegulars is a muted green: present, friendly, not staff.
+	RoleColorRegulars = 0x5FA85F
+)
+
+// CommunityRoles is the streamer-ready role set, in descending authority.
+// Every one of them is created below the bot's own role so Bagel can still
+// grant and revoke them; a role above the bot is untouchable to it.
+//
+// Order matters twice over. Discord positions newly created roles from the
+// bottom, and it renders a member in their highest COLOURED role, so this
+// slice is also the visual hierarchy.
 func CommunityRoles() []RoleSpec {
 	return []RoleSpec{
-		{Name: "Live", Hoist: true, Mentionable: false},
-		{Name: "Mods", Hoist: true, Mentionable: true},
-		{Name: "Regulars", Hoist: false, Mentionable: false},
+		// The streamer. Hoisted so it sits at the top of the member list,
+		// not mentionable because pinging the owner should be a deliberate
+		// act, not an @-autocomplete away for everyone in the server.
+		{Name: "Owner", Hoist: true, Mentionable: false, Color: RoleColorOwner},
+		// Lead Mod is the admin tier: the people who action other mods and
+		// hold the destructive permissions. Mentionable, because reaching
+		// them quickly is the entire point of the tier existing.
+		{Name: "Lead Mod", Hoist: true, Mentionable: true, Color: RoleColorLeadMod},
+		{Name: "Mods", Hoist: true, Mentionable: true, Color: RoleColorMods},
+		{Name: "Regulars", Hoist: false, Mentionable: false, Color: RoleColorRegulars},
+		// No colour: see RoleSpec.Color. Member is held by everyone, so a
+		// colour here would override every other role for anyone whose only
+		// other roles are uncoloured.
 		{Name: "Member", Hoist: false, Mentionable: false},
 	}
 }

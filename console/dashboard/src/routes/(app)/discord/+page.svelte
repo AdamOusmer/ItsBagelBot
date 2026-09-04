@@ -224,7 +224,8 @@
           {@render picker('logChannelId', t('discord.logChannelLabel'), textChannels, '#')}
           {@render picker('ticketChannelId', t('discord.ticketChannelLabel'), textChannels, '#')}
           {@render picker('ticketCategoryId', t('discord.ticketCategoryLabel'), categories, '')}
-          {@render picker('liveRoleId', t('discord.liveRoleLabel'), roles, '@')}
+          {@render picker('ownerRoleId', t('discord.ownerRoleLabel'), roles, '@')}
+          {@render picker('leadModRoleId', t('discord.leadModRoleLabel'), roles, '@')}
           {@render picker('memberRoleId', t('discord.memberRoleLabel'), roles, '@')}
         </div>
         <Field label={t('discord.streamerIdLabel')} tag={t('discord.streamerIdTag')}>

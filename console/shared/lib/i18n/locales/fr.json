@@ -483,6 +483,8 @@
     "streamerIdHelp": "Bagel te donne le rôle Live pendant ton stream. Mode développeur, clic droit sur ton nom, Copier l’identifiant.",
     "errBound": "Ce serveur Discord est déjà lié à une autre chaîne Twitch."
   },
+  "discord.leadModRoleLabel": "Rôle Lead Mod",
+  "discord.ownerRoleLabel": "Rôle Propriétaire",
   "discord.reauthCta": "Réautoriser Bagel",
   "discord.reauthNeeded": "Ce serveur a été ajouté avant que Bagel ne demande la permission Changer de pseudo, le nom premium ne peut donc pas être appliqué ici. L'avatar premium fonctionne toujours. Réautorisez pour terminer.",
   "fetches": {

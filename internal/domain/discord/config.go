@@ -27,7 +27,8 @@ type Config struct {
 	LogChannelID     string `json:"logChannelId"`
 	TicketChannelID  string `json:"ticketChannelId"`
 	TicketCategoryID string `json:"ticketCategoryId"`
-	LiveRoleID       string `json:"liveRoleId"`
+	OwnerRoleID      string `json:"ownerRoleId"`
+	LeadModRoleID    string `json:"leadModRoleId"`
 	ModsRoleID       string `json:"modsRoleId"`
 	RegularsRoleID   string `json:"regularsRoleId"`
 	MemberRoleID     string `json:"memberRoleId"`
@@ -57,8 +58,7 @@ type Config struct {
 	// LinkAllowed.
 	LinkAllowList string `json:"linkAllowList"`
 
-	TwitchLogin       string `json:"twitchLogin"`
-	StreamerDiscordID string `json:"streamerDiscordId"`
+	TwitchLogin string `json:"twitchLogin"`
 }
 
 // Parse decodes a module blob. An empty or malformed blob is a zero Config
@@ -156,6 +156,25 @@ func splitCSV(s string) []string {
 	for _, p := range parts {
 		if t := strings.ToLower(strings.TrimSpace(p)); t != "" {
 			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// StaffRoleIDs are the roles that count as staff: Owner, Lead Mod and Mods,
+// in that order. It exists so "is this member staff" has ONE answer. The
+// checks that need it are spread across modules (linkguard's exemption,
+// ticket channel access, anything added later), and a new tier added to one
+// list but not the others is a silent authorization gap, not a visible bug.
+//
+// Empty ids are skipped rather than matched: a guild that never ran the fill,
+// or picked no role, must not grant staff to everyone whose role list happens
+// to contain "".
+func (c Config) StaffRoleIDs() []string {
+	out := make([]string, 0, 3)
+	for _, id := range []string{c.OwnerRoleID, c.LeadModRoleID, c.ModsRoleID} {
+		if id != "" {
+			out = append(out, id)
 		}
 	}
 	return out

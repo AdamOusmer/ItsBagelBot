@@ -23,7 +23,8 @@ export type DiscordConfig = {
   clipsChannelId: string;
   welcomeChannelId: string;
   voiceHubId: string;
-  liveRoleId: string;
+  ownerRoleId: string;
+  leadModRoleId: string;
   modsRoleId: string;
   regularsRoleId: string;
   memberRoleId: string;
@@ -65,7 +66,8 @@ const EMPTY: DiscordConfig = {
   clipsChannelId: '',
   welcomeChannelId: '',
   voiceHubId: '',
-  liveRoleId: '',
+  ownerRoleId: '',
+  leadModRoleId: '',
   modsRoleId: '',
   regularsRoleId: '',
   memberRoleId: '',
@@ -136,7 +138,8 @@ type SetupReply = {
   log_channel_id?: string;
   ticket_channel_id?: string;
   ticket_category_id?: string;
-  live_role_id?: string;
+  owner_role_id?: string;
+  lead_mod_role_id?: string;
   mods_role_id?: string;
   regulars_role_id?: string;
   member_role_id?: string;
@@ -190,7 +193,8 @@ const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['logChannelId', 'log_channel_id'],
   ['ticketChannelId', 'ticket_channel_id'],
   ['ticketCategoryId', 'ticket_category_id'],
-  ['liveRoleId', 'live_role_id'],
+  ['ownerRoleId', 'owner_role_id'],
+  ['leadModRoleId', 'lead_mod_role_id'],
   ['modsRoleId', 'mods_role_id'],
   ['regularsRoleId', 'regulars_role_id'],
   ['memberRoleId', 'member_role_id']

@@ -58,3 +58,48 @@ func TestBotPermissionsIncludeModeration(t *testing.T) {
 		t.Fatal("bot must request timeout (MODERATE_MEMBERS)")
 	}
 }
+
+// The role set is a product decision, so it is pinned rather than left to
+// drift: the fill creates these and only these, in this order, and the order
+// is also the visual hierarchy Discord renders from.
+func TestCommunityRolesAreTheAgreedSet(t *testing.T) {
+	want := []string{"Owner", "Lead Mod", "Mods", "Regulars", "Member"}
+	got := CommunityRoles()
+	if len(got) != len(want) {
+		t.Fatalf("roles = %d, want %d", len(got), len(want))
+	}
+	for i, name := range want {
+		if got[i].Name != name {
+			t.Fatalf("role[%d] = %q, want %q (order is the hierarchy)", i, got[i].Name, name)
+		}
+	}
+}
+
+// Discord renders a member in their highest COLOURED role, so two staff
+// tiers sharing a colour would be indistinguishable in the only place the
+// colour appears.
+func TestCommunityRoleColorsAreDistinct(t *testing.T) {
+	seen := map[int]string{}
+	for _, r := range CommunityRoles() {
+		if r.Color == 0 {
+			continue // uncoloured by design; see RoleSpec.Color
+		}
+		if prev, dup := seen[r.Color]; dup {
+			t.Fatalf("%q and %q share colour %#06x", prev, r.Name, r.Color)
+		}
+		seen[r.Color] = r.Name
+	}
+	if len(seen) != 4 {
+		t.Fatalf("coloured roles = %d, want 4 (Member is deliberately uncoloured)", len(seen))
+	}
+}
+
+// Member is held by everyone. A colour there would win the name colour for
+// anyone whose only other roles are uncoloured, flattening the hierarchy.
+func TestMemberRoleHasNoColor(t *testing.T) {
+	for _, r := range CommunityRoles() {
+		if r.Name == "Member" && r.Color != 0 {
+			t.Fatalf("Member colour = %#06x, want none", r.Color)
+		}
+	}
+}

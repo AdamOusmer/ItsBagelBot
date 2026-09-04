@@ -45,6 +45,10 @@ type RoleCreate struct {
 	Name        string `json:"name"`
 	Hoist       bool   `json:"hoist,omitempty"`
 	Mentionable bool   `json:"mentionable,omitempty"`
+	// Color is Discord's RGB integer. Omitted when 0, which is also Discord's
+	// own "no colour" value, so the two agree and an uncoloured role never
+	// sends a redundant field.
+	Color int `json:"color,omitempty"`
 }
 
 // Message addresses one message: the channel it lives in and its id. It is

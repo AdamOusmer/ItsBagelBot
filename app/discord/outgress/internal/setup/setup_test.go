@@ -144,7 +144,7 @@ func TestSetupGuildCreatesMissingRolesAndBindsChannels(t *testing.T) {
 
 	assertFilled(t, got)
 	assertBound(t, store, "42")
-	wantRoles := map[string]bool{"Live": true, "Mods": true, "Regulars": true, "Member": true}
+	wantRoles := map[string]bool{"Owner": true, "Lead Mod": true, "Mods": true, "Regulars": true, "Member": true}
 	for _, name := range guild.createdRo {
 		delete(wantRoles, name)
 	}

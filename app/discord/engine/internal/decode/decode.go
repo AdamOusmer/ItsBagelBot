@@ -251,3 +251,15 @@ func Clip(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// HasAnyRole reports whether any of roleIDs is among roles. Callers pass
+// Config.StaffRoleIDs so every staff check asks the same question; see that
+// method for why the set is defined in one place.
+func HasAnyRole(roles []string, roleIDs []string) bool {
+	for _, id := range roleIDs {
+		if HasRole(roles, id) {
+			return true
+		}
+	}
+	return false
+}

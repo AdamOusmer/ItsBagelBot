@@ -171,7 +171,6 @@ func startTwitchConsumers(
 		StreamInfo: projStore,
 		Fallback:   streaminfo.New(nc, cfg.TwitchOutgressRPCPrefix),
 		RPC:        rpc,
-		Publish:    publish,
 		Log:        log,
 	}
 	clip := &modules.Clip{Resolve: resolver.ByBroadcaster, Publish: publish, Log: log}
