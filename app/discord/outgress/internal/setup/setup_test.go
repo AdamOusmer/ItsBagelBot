@@ -292,3 +292,25 @@ func TestPostDiscordRequiresAClient(t *testing.T) {
 		t.Fatalf("err = %v, want ErrAuth", err)
 	}
 }
+
+// The permission bitfield must reach Discord as a decimal STRING, not a
+// number: role permissions exceed 53 bits, so a JSON number would lose
+// precision, and Discord rejects the field outright if it is not a string.
+// An unprivileged role sends nothing rather than "0".
+func TestRolePermissionsAreStringEncoded(t *testing.T) {
+	var leadMod, mods ddiscord.RoleSpec
+	for _, r := range ddiscord.CommunityRoles() {
+		switch r.Name {
+		case "Lead Mod":
+			leadMod = r
+		case "Mods":
+			mods = r
+		}
+	}
+	if got := rolePermissions(leadMod); got != "8" {
+		t.Fatalf("Lead Mod permissions = %q, want \"8\" (Administrator)", got)
+	}
+	if got := rolePermissions(mods); got != "" {
+		t.Fatalf("Mods permissions = %q, want empty (grants nothing)", got)
+	}
+}

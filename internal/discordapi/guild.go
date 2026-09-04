@@ -49,6 +49,12 @@ type RoleCreate struct {
 	// own "no colour" value, so the two agree and an uncoloured role never
 	// sends a redundant field.
 	Color int `json:"color,omitempty"`
+	// Permissions is the role's permission bitfield. Discord sends role
+	// permissions as a STRING, not a number, because the field exceeds 53 bits
+	// and would lose precision in a JSON double -- the same reason
+	// PermissionOverwrite's Allow and Deny are strings. Omitted when empty so
+	// a role granting nothing does not send "0".
+	Permissions string `json:"permissions,omitempty"`
 }
 
 // Message addresses one message: the channel it lives in and its id. It is

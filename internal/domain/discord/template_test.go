@@ -103,3 +103,47 @@ func TestMemberRoleHasNoColor(t *testing.T) {
 		}
 	}
 }
+
+// Lead Mod is the admin tier. This is pinned because the grant is the single
+// most consequential line in the template: it cannot be narrowed later for
+// anyone who already holds the role, since Discord evaluates Administrator
+// ahead of every overwrite.
+func TestLeadModHoldsAdministrator(t *testing.T) {
+	var found bool
+	for _, r := range CommunityRoles() {
+		if r.Name != "Lead Mod" {
+			continue
+		}
+		found = true
+		if r.Permissions&PermAdministrator == 0 {
+			t.Fatalf("Lead Mod permissions = %d, want Administrator", r.Permissions)
+		}
+	}
+	if !found {
+		t.Fatal("Lead Mod role missing from the template")
+	}
+}
+
+// Every other tier holds nothing. Mods moderates through the bot's slash
+// commands, which check the role, rate-limit the call and write an audit
+// reason; raw Discord permissions would put those actions outside anything
+// we can see or revoke.
+func TestOnlyLeadModHoldsPermissions(t *testing.T) {
+	for _, r := range CommunityRoles() {
+		if r.Name == "Lead Mod" {
+			continue
+		}
+		if r.Permissions != 0 {
+			t.Fatalf("%q permissions = %d, want 0", r.Name, r.Permissions)
+		}
+	}
+}
+
+// The BOT must never hold Administrator even though it creates a role that
+// does. Its own grant is the specific set in BotPermissions, so a stolen bot
+// token cannot do what a compromised Lead Mod account could.
+func TestBotStillRefusesAdministratorItself(t *testing.T) {
+	if BotPermissions&int(PermAdministrator) != 0 {
+		t.Fatal("the bot invite now requests Administrator")
+	}
+}

@@ -39,6 +39,10 @@ type RoleSpec struct {
 	Name        string
 	Hoist       bool
 	Mentionable bool
+	// Permissions is the role's Discord permission bitfield. 0 means the role
+	// grants nothing on its own, which is correct for every tier that acts
+	// through the bot's slash commands rather than through Discord's own UI.
+	Permissions int64
 	// Color is the role colour as a Discord RGB integer. 0 means "no colour",
 	// which Discord renders as the default grey and, unlike a real colour,
 	// does not win the member-list name colour from a lower role. Member is
@@ -58,6 +62,24 @@ type ChannelSpec struct {
 	ReadOnly bool   // @everyone can read, not send
 	Bind     string // Config field this snowflake fills: live, clips, welcome, voice
 }
+
+// PermAdministrator is Discord's Administrator bit. It bypasses every channel
+// overwrite and every other permission check in the guild, and it cannot be
+// narrowed: a role holding it can delete channels, ban anyone below it in the
+// hierarchy, and change the server itself.
+//
+// It is granted to Lead Mod only, deliberately and with the cost understood: a
+// compromised Lead Mod account is exactly the nuke scenario the audit-log
+// watching exists to catch, and no permission tuning can prevent it once the
+// bit is held. The mitigation is the response path (strip the actor's roles
+// fast), not the grant.
+//
+// Mods deliberately holds NOTHING. That tier moderates through the bot's slash
+// commands, which check the role themselves, so every action it takes is
+// rate-limited, logged with an audit reason, and revocable by turning the bot
+// off. Handing Mods raw Discord permissions would move all of that outside
+// anything we can see.
+const PermAdministrator int64 = 1 << 3
 
 // Role colours. Distinct hues rather than shades so the member list is
 // readable at a glance: Discord shows a member in the colour of their highest
@@ -93,7 +115,7 @@ func CommunityRoles() []RoleSpec {
 		// Lead Mod is the admin tier: the people who action other mods and
 		// hold the destructive permissions. Mentionable, because reaching
 		// them quickly is the entire point of the tier existing.
-		{Name: "Lead Mod", Hoist: true, Mentionable: true, Color: RoleColorLeadMod},
+		{Name: "Lead Mod", Hoist: true, Mentionable: true, Color: RoleColorLeadMod, Permissions: PermAdministrator},
 		{Name: "Mods", Hoist: true, Mentionable: true, Color: RoleColorMods},
 		{Name: "Regulars", Hoist: false, Mentionable: false, Color: RoleColorRegulars},
 		// No colour: see RoleSpec.Color. Member is held by everyone, so a

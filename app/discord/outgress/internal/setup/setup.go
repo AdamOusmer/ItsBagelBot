@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -314,7 +315,8 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 		return f.api.CreateRole(ctx, discapi.GuildRole{
 			Guild: f.target,
 			Spec: discapi.RoleCreate{
-				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable, Color: spec.Color,
+				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
+				Color: spec.Color, Permissions: rolePermissions(spec),
 			},
 		})
 	}
@@ -461,4 +463,14 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 		}}
 	}
 	return nil
+}
+
+// rolePermissions renders a role's permission bitfield the way Discord wants
+// it: a decimal string, or empty for a role that grants nothing. See
+// discapi.RoleCreate.Permissions for why it is a string and not a number.
+func rolePermissions(spec ddiscord.RoleSpec) string {
+	if spec.Permissions == 0 {
+		return ""
+	}
+	return strconv.FormatInt(spec.Permissions, 10)
 }
