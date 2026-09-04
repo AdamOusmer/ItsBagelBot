@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
@@ -36,6 +37,43 @@ type Conn interface {
 	Read(ctx context.Context) ([]byte, error)
 	Write(ctx context.Context, data []byte) error
 	Close() error
+	// CloseCode reports the WebSocket close code carried by err, or 0 when
+	// err is not a close frame at all (a plain network drop, a decode
+	// failure, a cancelled context). It hangs off the connection because
+	// only the connection knows how to read a code off its own transport,
+	// and the code is the entire difference between "dial again" and "a
+	// human has to fix the token" -- see discord.FatalCloseCode.
+	CloseCode(err error) int
+}
+
+// Up describes a gateway connection that just came up.
+type Up struct {
+	SessionID string
+	// Resumed separates RESUMED from READY: a resume keeps the session, its
+	// presence and Discord's buffered backlog, a ready starts fresh.
+	Resumed    bool
+	GuildCount int
+}
+
+// Down describes a gateway connection that just died.
+type Down struct {
+	Code   int
+	Reason string
+	Fatal  bool
+}
+
+// Status observes the connection lifecycle so something outside this package
+// can publish it (app/discord/ingress/internal/botstatus writes the Valkey
+// key the dashboard reads). Nil disables reporting entirely: the loop
+// behaves identically with or without it, which is what keeps every existing
+// test wiring valid.
+type Status interface {
+	Up(ctx context.Context, up Up)
+	Down(ctx context.Context, down Down)
+	// Event notes one dispatch arriving. An open socket carrying no traffic
+	// and a wedged one look identical from the outside; this is the only
+	// evidence that separates them.
+	Event(ctx context.Context)
 }
 
 // Dial opens a gateway WebSocket.
@@ -77,29 +115,90 @@ type Session struct {
 	// (app/discord/ingress/internal/presence.RefreshInterval) for why that
 	// value. Zero/negative falls back to defaultPresenceInterval.
 	PresenceInterval time.Duration
+
+	// Status, if set, is told every time the socket comes up or goes down
+	// and every time a dispatch lands. Nil is a no-op.
+	Status Status
 }
 
 // defaultPresenceInterval only applies if a caller wires a PresenceSource
 // but forgets PresenceInterval; production wiring always sets it explicitly.
 const defaultPresenceInterval = 5 * time.Minute
 
-// Run identifies and pumps events until ctx is done.
+// Run identifies and pumps events until ctx is done, or until Discord
+// closes with a code no reconnect can fix (see parkOnFatal).
 func (s Session) Run(ctx context.Context) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
 	url := s.gatewayURL()
 	st := &resumeState{}
+	rc := newReconnect()
 	for {
-		err := s.oneSocket(ctx, dialURLFor(url, st), st)
+		up, code, err := s.connect(ctx, url, st)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		s.log().Warn("discord gateway socket ended; reconnecting", zap.Error(err))
-		if err := waitBeforeReconnect(ctx); err != nil {
+		s.reportDown(ctx, code, err)
+		if ddiscord.FatalCloseCode(code) {
+			return s.parkOnFatal(ctx, code, err)
+		}
+		s.log().Warn("discord gateway socket ended; reconnecting",
+			zap.Int("close_code", code), zap.Error(err))
+		if err := waitBeforeReconnect(ctx, rc.next(up)); err != nil {
 			return err
 		}
 	}
+}
+
+// connect runs one socket and reports how long it stayed up next to the
+// close code it died with. The uptime is what resets the backoff schedule
+// (see reconnect.next), so it is measured around the dial too: a dial that
+// fails instantly is as much a failed attempt as a socket that dies.
+func (s Session) connect(ctx context.Context, url string, st *resumeState) (time.Duration, int, error) {
+	start := time.Now()
+	code, err := s.oneSocket(ctx, dialURLFor(url, st), st)
+	return time.Since(start), code, err
+}
+
+// parkOnFatal logs the one ERROR line for a fatal close and then blocks
+// until the process is shut down.
+//
+// Blocking rather than returning is deliberate: main treats a Run error as
+// log.Fatal, and crash-looping is strictly worse than sitting still here.
+// Every fatal code (bad token, wrong intents, resharding) is fixed by a
+// secret or an application-portal change, and a Doppler secret change
+// restarts this pod on its own. Until that lands the pod stays up, /readyz
+// unready, with the explanation still in its logs; liveness fails after
+// discord.BotFatalGrace so a pod nobody ever rotates is restarted anyway.
+func (s Session) parkOnFatal(ctx context.Context, code int, err error) error {
+	s.log().Error("discord gateway closed fatally; not reconnecting",
+		zap.Int("close_code", code),
+		zap.String("meaning", ddiscord.CloseCodeMessage(code)),
+		zap.Error(err))
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s Session) reportDown(ctx context.Context, code int, err error) {
+	if s.Status == nil {
+		return
+	}
+	s.Status.Down(ctx, Down{Code: code, Reason: errText(err), Fatal: ddiscord.FatalCloseCode(code)})
+}
+
+func (s Session) reportUp(ctx context.Context, up Up) {
+	if s.Status == nil {
+		return
+	}
+	s.Status.Up(ctx, up)
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // validate reports the two misconfigurations Run cannot recover from by
@@ -133,25 +232,34 @@ func dialURLFor(url string, st *resumeState) string {
 	return url
 }
 
-// waitBeforeReconnect pauses between reconnect attempts, returning ctx's own
-// error if it is cancelled first so Run's caller sees the real reason it
-// stopped rather than a timer firing.
-func waitBeforeReconnect(ctx context.Context) error {
+// waitBeforeReconnect pauses for d between reconnect attempts, returning
+// ctx's own error if it is cancelled first so Run's caller sees the real
+// reason it stopped rather than a timer firing.
+func waitBeforeReconnect(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(2 * time.Second):
+	case <-t.C:
 		return nil
 	}
 }
 
-func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) error {
+// oneSocket dials, pumps, and reports the close code the socket died with.
+// The code is read off the connection before the deferred Close runs,
+// because Close is what replaces a peer's close frame with our own.
+func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) (int, error) {
 	conn, err := s.Dial(ctx, url)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() { _ = conn.Close() }()
-	return s.pump(ctx, conn, st)
+	perr := s.pump(ctx, conn, st)
+	return conn.CloseCode(perr), perr
 }
 
 func (s Session) pump(ctx context.Context, conn Conn, st *resumeState) error {
@@ -320,6 +428,8 @@ func (s Session) onDispatch(ctx context.Context, pkt packet, st *resumeState) er
 		// Everything buffered during the gap has now been replayed onto this
 		// socket as ordinary dispatches. Nothing to do but say so.
 		s.log().Info("discord gateway session resumed")
+		sessionID, _, _ := st.resumable()
+		s.reportUp(ctx, Up{SessionID: sessionID, Resumed: true})
 		return nil
 	}
 	return s.dispatchEvent(ctx, pkt)
@@ -331,6 +441,7 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 		return err
 	}
 	st.ready(ready.SessionID, ready.ResumeGatewayURL)
+	s.reportUp(ctx, Up{SessionID: ready.SessionID, GuildCount: len(ready.Guilds)})
 	if s.Handle == nil {
 		return nil
 	}
@@ -338,6 +449,9 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 }
 
 func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
+	if s.Status != nil {
+		s.Status.Event(ctx)
+	}
 	if s.Handle == nil {
 		return nil
 	}

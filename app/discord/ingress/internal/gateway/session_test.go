@@ -17,12 +17,22 @@ type scriptedConn struct {
 	mu    sync.Mutex
 	reads [][]byte
 	wrote [][]byte
+	// readErr, when set, is what Read returns once the scripted reads run
+	// out, instead of blocking on ctx. closeCode is the code CloseCode then
+	// reports for it -- together they script a socket dying the way Discord
+	// kills one.
+	readErr   error
+	closeCode int
 }
 
 func (s *scriptedConn) Read(ctx context.Context) ([]byte, error) {
 	s.mu.Lock()
 	if len(s.reads) == 0 {
+		err := s.readErr
 		s.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
@@ -48,6 +58,10 @@ func (s *scriptedConn) Write(_ context.Context, data []byte) error {
 }
 
 func (s *scriptedConn) Close() error { return nil }
+
+// CloseCode reports whatever code the script attached to this connection,
+// mirroring wsConn: a non-close error carries no code.
+func (s *scriptedConn) CloseCode(error) int { return s.closeCode }
 
 // wroteSnapshot returns a lock-protected copy of what has been written so
 // far. Presence tests read this after a background heartbeat/presenceLoop
@@ -84,7 +98,7 @@ func TestSessionIdentifiesAndDispatches(t *testing.T) {
 		Dial:   func(context.Context, string) (Conn, error) { return conn, nil },
 		Handle: h,
 	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 	if !h.ready {
 		t.Fatal("ready not delivered")
 	}
@@ -188,7 +202,7 @@ func TestPresenceSentOnConnect(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: time.Hour,
 	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) != 1 || names[0] != "watch-1 streams" {
@@ -215,7 +229,7 @@ func TestPresenceRefreshesOnTicker(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 20 * time.Millisecond,
 	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) < 2 {
@@ -243,7 +257,7 @@ func TestPresenceSkippedWhenSourceReportsNoChange(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 15 * time.Millisecond,
 	}
-	err := sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_, err := sess.oneSocket(ctx, "ws://example", &resumeState{})
 	if err == nil || ctx.Err() == nil {
 		t.Fatalf("oneSocket should end on context cancellation, err=%v ctxErr=%v", err, ctx.Err())
 	}
@@ -297,7 +311,7 @@ func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }, Handle: &recHandler{}}
-	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
+	_, _ = sess.oneSocket(ctx, "ws://x", &resumeState{})
 	if ops := opsWritten(t, conn.wroteSnapshot()); !firstOpIs(ops, opIdentify) {
 		t.Fatalf("first frame ops = %v, want Identify (%d) first", ops, opIdentify)
 	}
@@ -320,7 +334,7 @@ func TestSessionResumesAfterReady(t *testing.T) {
 
 	first := &scriptedConn{reads: [][]byte{helloFrame(t), ready}}
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return first, nil }, Handle: &recHandler{}}
-	_ = sess.oneSocket(ctx, "ws://x", st)
+	_, _ = sess.oneSocket(ctx, "ws://x", st)
 
 	sessionID, resumeURL, ok := st.resumable()
 	got := resumeSnapshot{SessionID: sessionID, ResumeURL: resumeURL, OK: ok}
@@ -330,7 +344,7 @@ func TestSessionResumesAfterReady(t *testing.T) {
 
 	second := &scriptedConn{reads: [][]byte{helloFrame(t)}}
 	sess.Dial = func(context.Context, string) (Conn, error) { return second, nil }
-	_ = sess.oneSocket(ctx, resumeURL, st)
+	_, _ = sess.oneSocket(ctx, resumeURL, st)
 	if ops := opsWritten(t, second.wroteSnapshot()); !firstOpIs(ops, opResume) {
 		t.Fatalf("reconnect ops = %v, want Resume (%d) first", ops, opResume)
 	}
