@@ -90,3 +90,33 @@ func TestNormalizeLinkNonInviteHostPathNotTreatedAsInvite(t *testing.T) {
 		t.Fatalf("non-invite discord.com path misclassified as an invite")
 	}
 }
+
+// TestInviteCodePreservesCase is InviteCode's entire reason to exist
+// (rather than just reusing NormalizeLink's own, folded return value): a
+// code sent to Discord's GET /invites/{code} must match byte for byte, and
+// NormalizeLink deliberately lowercases for counting.
+func TestInviteCodePreservesCase(t *testing.T) {
+	code, ok := InviteCode("https://discord.gg/AbC123XyZ")
+	if !ok {
+		t.Fatal("ok = false, want true")
+	}
+	if code != "AbC123XyZ" {
+		t.Fatalf("code = %q, want case preserved AbC123XyZ", code)
+	}
+}
+
+func TestInviteCodeDiscordComInviteSegment(t *testing.T) {
+	code, ok := InviteCode("https://discord.com/invite/MixedCase1")
+	if !ok || code != "MixedCase1" {
+		t.Fatalf("InviteCode = (%q, %v), want (MixedCase1, true)", code, ok)
+	}
+}
+
+func TestInviteCodeNonInviteLinkNotOK(t *testing.T) {
+	if _, ok := InviteCode("https://example.com/AbC123"); ok {
+		t.Fatal("ok = true for a non-invite host, want false")
+	}
+	if _, ok := InviteCode("https://discord.com/download"); ok {
+		t.Fatal("ok = true for a non-invite discord.com path, want false")
+	}
+}

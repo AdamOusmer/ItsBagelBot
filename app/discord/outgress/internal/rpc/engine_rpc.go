@@ -34,6 +34,7 @@ type engineREST interface {
 	BulkDeleteMessages(ctx context.Context, p discapi.Purge) error
 	SendEmbed(ctx context.Context, post discapi.EmbedPost) (discapi.Message, error)
 	EditMessage(ctx context.Context, m discapi.Message, patch discapi.MessagePatch) error
+	GetInvite(ctx context.Context, code string) (discapi.Invite, error)
 }
 
 // EngineWiring is what SubscribeEngine needs from main.
@@ -74,8 +75,12 @@ func SubscribeEngine(rest engineREST, live kv.LiveStore, wire EngineWiring) erro
 		wire.NC, wire.Prefix+".live.online", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleLiveOnline); err != nil {
 		return err
 	}
-	return bus.QueueSubscribeJSON[discordoutgress.LiveOfflineRequest, discordoutgress.LiveOfflineReply](
-		wire.NC, wire.Prefix+".live.offline", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleLiveOffline)
+	if err := bus.QueueSubscribeJSON[discordoutgress.LiveOfflineRequest, discordoutgress.LiveOfflineReply](
+		wire.NC, wire.Prefix+".live.offline", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleLiveOffline); err != nil {
+		return err
+	}
+	return bus.QueueSubscribeJSON[discordoutgress.InviteResolveRequest, discordoutgress.InviteResolveReply](
+		wire.NC, wire.Prefix+".invite.resolve", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleInviteResolve)
 }
 
 type engineRPC struct {
@@ -184,6 +189,27 @@ func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.L
 	}
 	_ = h.live.DeleteLiveMessage(ctx, req.GuildID)
 	return discordoutgress.LiveOfflineReply{}
+}
+
+// handleInviteResolve is GET /invites/{code}, classified down to exactly
+// what linkguard needs: a guild id, or NotFound. A 404 (dead code) and a
+// resolved invite with no Guild (a group-DM code) both become NotFound --
+// see InviteResolveReply's doc for why that collapse is safe here. Any
+// other error (network, 5xx, the shared rate-limit bucket) is returned as
+// Error so engine can tell "confirmed no guild" from "could not check" and
+// fail safe on the latter (see linkguard.go's tripIsOwnInvite doc).
+func (h *engineRPC) handleInviteResolve(ctx context.Context, req discordoutgress.InviteResolveRequest) discordoutgress.InviteResolveReply {
+	inv, err := h.rest.GetInvite(ctx, req.Code)
+	if err != nil {
+		if errors.Is(err, discapi.ErrChannelNotFound) {
+			return discordoutgress.InviteResolveReply{NotFound: true}
+		}
+		return discordoutgress.InviteResolveReply{Error: err.Error()}
+	}
+	if inv.Guild == nil {
+		return discordoutgress.InviteResolveReply{NotFound: true}
+	}
+	return discordoutgress.InviteResolveReply{GuildID: inv.Guild.ID}
 }
 
 func keepLiveMessage(err error) bool {

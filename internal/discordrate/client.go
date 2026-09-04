@@ -41,6 +41,7 @@ type rest interface {
 	InteractionFollowup(ctx context.Context, f discordapi.Followup) error
 	BulkOverwriteCommands(ctx context.Context, cat discordapi.CommandCatalog) error
 	GetCurrentApplication(ctx context.Context) (discordapi.Snowflake, error)
+	GetInvite(ctx context.Context, code string) (discordapi.Invite, error)
 }
 
 // LimitedClient decorates a Discord REST client with the shared global
@@ -225,4 +226,11 @@ func (c *LimitedClient) GetCurrentApplication(ctx context.Context) (discordapi.S
 		return discordapi.Snowflake{}, err
 	}
 	return c.rest.GetCurrentApplication(ctx)
+}
+
+func (c *LimitedClient) GetInvite(ctx context.Context, code string) (discordapi.Invite, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.Invite{}, err
+	}
+	return c.rest.GetInvite(ctx, code)
 }

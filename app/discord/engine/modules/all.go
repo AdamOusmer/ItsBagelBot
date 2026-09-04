@@ -15,11 +15,12 @@ import (
 // they are driven off Twitch subjects, not a Discord gateway dispatch type,
 // so they never go through the module.Builder/Registry at all.
 type Deps struct {
-	Store    discordstore.Store
-	Channels voiceClient
-	Purge    purgeClient
-	Guard    Guarder
-	Log      *zap.Logger
+	Store     discordstore.Store
+	Channels  voiceClient
+	Purge     purgeClient
+	Guard     Guarder
+	OwnInvite OwnInviteChecker
+	Log       *zap.Logger
 }
 
 // All returns every module the dispatcher indexes, mirroring
@@ -32,6 +33,6 @@ func All(d Deps) []module.Module {
 		Moderation(d.Purge, d.Log),
 		Ticket(d.Store, d.Channels, d.Log),
 		Voice(d.Store, d.Channels, d.Log),
-		LinkGuard(d.Guard, d.Log),
+		LinkGuard(d.Guard, d.OwnInvite, d.Log),
 	}
 }

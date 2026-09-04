@@ -225,6 +225,33 @@ func (c *Client) GetGuild(ctx context.Context, guild Guild) (Snowflake, error) {
 	return out, err
 }
 
+// Invite is GET /invites/{code}'s response body, trimmed to what
+// linkguard's own-invite resolution needs (see
+// internal/domain/rpc/discordoutgress.InviteResolveRequest). Guild is a nil
+// pointer, not a zero Snowflake, when Discord's response omits the field
+// entirely -- a group-DM invite (discord.gg codes are not guild-exclusive)
+// has no guild at all, and that must stay distinguishable from "guild id
+// happens to be empty".
+type Invite struct {
+	Code  string     `json:"code"`
+	Guild *Snowflake `json:"guild"`
+}
+
+// GetInvite is GET /invites/{code} (verified against
+// docs.discord.com/developers/resources/invite: the invite object nests
+// the target guild under "guild", there is no top-level "guild_id").
+// with_counts=false keeps the reply minimal -- the caller only ever reads
+// Guild.ID, matching GetGuild's own with_counts=false above for the same
+// reason. An invalid, expired, or revoked code classifies as
+// ErrChannelNotFound like any other 404 this client sees (see classify) --
+// the caller treats that as a confirmed "no such invite" rather than an
+// unresolvable error, and is free to cache it.
+func (c *Client) GetInvite(ctx context.Context, code string) (Invite, error) {
+	var out Invite
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/invites/" + url.PathEscape(code) + "?with_counts=false"}, &out)
+	return out, err
+}
+
 // InteractionRespond answers a slash command (type 4 channel message).
 func (c *Client) InteractionRespond(ctx context.Context, reply InteractionReply) error {
 	return c.InteractionCallback(ctx, Callback{

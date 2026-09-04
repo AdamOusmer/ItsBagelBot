@@ -18,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/discord/engine/internal/config"
 	"ItsBagelBot/app/discord/engine/internal/dispatch"
+	"ItsBagelBot/app/discord/engine/internal/invitecache"
 	"ItsBagelBot/app/discord/engine/internal/registry"
 	"ItsBagelBot/app/discord/engine/internal/resolve"
 	"ItsBagelBot/app/discord/engine/internal/rpcclient"
@@ -108,8 +109,16 @@ func main() {
 
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
 	resolver := resolve.Resolver{Store: store, Modules: projStore, Log: log}
+	// ownInvite shares valkeyClient with guard and store above -- it is
+	// just another Valkey-backed cache, not a second connection -- and
+	// shares rpc (rpcclient.Client) with Channels/Purge below, since
+	// ResolveInvite is one more method on the same outgress RPC client
+	// those already use.
+	ownInvite := modules.NewOwnInviteChecker(rpc, invitecache.New(valkeyClient))
 
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: rpc, Purge: rpc, Guard: guard, Log: log})...)
+	reg := registry.New(modules.All(modules.Deps{
+		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite, Log: log,
+	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
 
 	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)

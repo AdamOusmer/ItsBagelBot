@@ -136,3 +136,39 @@ type LiveOfflineRequest struct {
 type LiveOfflineReply struct {
 	Error string `json:"error,omitempty"`
 }
+
+// InviteResolveRequest is bagel.rpc.discord-outgress.invite.resolve:
+// linkguard (internal/domain/discord/linkguard) needs to tell a guild's own
+// invite from anyone else's before it deletes a message over it (see that
+// package's Sighting.OwnGuildInvite doc), and that answer only exists on
+// Discord's side -- GET /invites/{code}. Code is exactly as posted (case
+// preserved): Discord invite codes are case-sensitive base62, unlike
+// linkguard's own NormalizeLink identity, which folds case for counting and
+// so cannot be replayed here without risking a false 404 on a real invite.
+//
+// Engine calls this LAZILY -- only for a link that already tripped a
+// linkguard threshold and looks like an invite (see linkguard.go's module
+// doc) -- and caches the answer (see linkguard.go's invitePositiveTTL/
+// inviteNegativeTTL), so this is not a call outgress needs to expect on
+// every posted link, only on the rare one that is about to be acted on.
+type InviteResolveRequest struct {
+	Code string `json:"code"`
+}
+
+// InviteResolveReply carries the guild GuildID targets, or NotFound when
+// Discord returned 404 for the code (expired, revoked, or never valid) or
+// the invite resolved but named no guild at all (a group-DM invite --
+// discord.gg codes are not guild-exclusive). Both collapse to NotFound
+// because engine's only question is "does this code target guild X", and
+// neither case can ever answer yes -- see outgress's handleInviteResolve.
+// Error is set only when the call could not be classified as found or not
+// found at all (network failure, 5xx, a 429 the shared bucket already
+// exhausted): engine treats that as unresolvable and does NOT cache it,
+// unlike NotFound or a resolved GuildID, both of which it does cache (see
+// linkguard.go's invitePositiveTTL/inviteNegativeTTL doc for why caching a
+// dead code matters as much as caching a live one).
+type InviteResolveReply struct {
+	GuildID  string `json:"guild_id,omitempty"`
+	NotFound bool   `json:"not_found,omitempty"`
+	Error    string `json:"error,omitempty"`
+}

@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	discapi "ItsBagelBot/internal/discordapi"
@@ -22,6 +23,10 @@ type fakeEngineREST struct {
 	bulkDel  []discapi.Purge
 	sent     []discapi.EmbedPost
 	edited   []discapi.Message
+
+	inviteCodes []string
+	inviteReply discapi.Invite
+	inviteErr   error
 }
 
 func (f *fakeEngineREST) CreateChannel(_ context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error) {
@@ -55,6 +60,10 @@ func (f *fakeEngineREST) SendEmbed(_ context.Context, post discapi.EmbedPost) (d
 func (f *fakeEngineREST) EditMessage(_ context.Context, m discapi.Message, _ discapi.MessagePatch) error {
 	f.edited = append(f.edited, m)
 	return nil
+}
+func (f *fakeEngineREST) GetInvite(_ context.Context, code string) (discapi.Invite, error) {
+	f.inviteCodes = append(f.inviteCodes, code)
+	return f.inviteReply, f.inviteErr
 }
 
 type memLive struct {
@@ -164,5 +173,62 @@ func TestHandleLiveOfflineWithNoKnownMessageIsANoOp(t *testing.T) {
 	}
 	if len(rest.edited) != 0 {
 		t.Fatal("must not edit anything when no go-live message is known")
+	}
+}
+
+func TestHandleInviteResolveReturnsTheTargetGuild(t *testing.T) {
+	rest := &fakeEngineREST{inviteReply: discapi.Invite{Code: "abc", Guild: &discapi.Snowflake{ID: "g1"}}}
+	h := &engineRPC{rest: rest, log: zap.NewNop()}
+	reply := h.handleInviteResolve(context.Background(), discordoutgress.InviteResolveRequest{Code: "abc"})
+	if reply.Error != "" || reply.NotFound {
+		t.Fatalf("reply = %+v, want a resolved guild", reply)
+	}
+	if reply.GuildID != "g1" {
+		t.Fatalf("guild id = %q, want g1", reply.GuildID)
+	}
+	if len(rest.inviteCodes) != 1 || rest.inviteCodes[0] != "abc" {
+		t.Fatalf("GetInvite called with %v, want [abc]", rest.inviteCodes)
+	}
+}
+
+// TestHandleInviteResolve404IsNotFoundNotError proves a dead code (revoked,
+// expired, never existed) is reported as NotFound rather than Error --
+// engine caches NotFound but never caches Error (see InviteResolveReply's
+// doc), and a dead invite is exactly the amplification case (a spam wave of
+// junk codes) that caching needs to hold.
+func TestHandleInviteResolve404IsNotFoundNotError(t *testing.T) {
+	rest := &fakeEngineREST{inviteErr: discapi.ErrChannelNotFound}
+	h := &engineRPC{rest: rest, log: zap.NewNop()}
+	reply := h.handleInviteResolve(context.Background(), discordoutgress.InviteResolveRequest{Code: "dead"})
+	if !reply.NotFound || reply.Error != "" {
+		t.Fatalf("reply = %+v, want NotFound with no Error", reply)
+	}
+}
+
+// TestHandleInviteResolveGroupDMInviteIsNotFound proves an invite that
+// resolved successfully but named no guild (a group-DM invite -- discord.gg
+// codes are not guild-exclusive) also collapses to NotFound: linkguard's
+// only question is "does this code target guild X", and a codeless-of-guild
+// invite can never answer yes.
+func TestHandleInviteResolveGroupDMInviteIsNotFound(t *testing.T) {
+	rest := &fakeEngineREST{inviteReply: discapi.Invite{Code: "dm1"}}
+	h := &engineRPC{rest: rest, log: zap.NewNop()}
+	reply := h.handleInviteResolve(context.Background(), discordoutgress.InviteResolveRequest{Code: "dm1"})
+	if !reply.NotFound || reply.GuildID != "" {
+		t.Fatalf("reply = %+v, want NotFound with no guild id", reply)
+	}
+}
+
+// TestHandleInviteResolveTransientErrorIsError proves an unclassified
+// failure (network, 5xx, the shared rate-limit bucket) comes back as Error,
+// not NotFound -- engine must not cache this as a confirmed answer (see
+// linkguard.go's tripIsOwnInvite doc for the fail-safe this distinction
+// drives).
+func TestHandleInviteResolveTransientErrorIsError(t *testing.T) {
+	rest := &fakeEngineREST{inviteErr: errors.New("boom")}
+	h := &engineRPC{rest: rest, log: zap.NewNop()}
+	reply := h.handleInviteResolve(context.Background(), discordoutgress.InviteResolveRequest{Code: "x"})
+	if reply.Error == "" || reply.NotFound {
+		t.Fatalf("reply = %+v, want a non-empty Error and NotFound false", reply)
 	}
 }

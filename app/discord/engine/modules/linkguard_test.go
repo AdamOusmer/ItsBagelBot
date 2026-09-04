@@ -5,12 +5,13 @@ package modules
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"testing"
 
 	"ItsBagelBot/app/discord/engine/module"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/discord/linkguard"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -39,12 +40,33 @@ func trip(link, reason string) linkguard.Verdict {
 	return linkguard.Verdict{Allow: false, Reason: reason, NormalizedLink: norm, IsInvite: invite, GuildTripped: true}
 }
 
+// fakeOwnInvite is an OwnInviteChecker that returns a canned answer (or a
+// canned error) per raw link, and records every link it was asked about --
+// this is what proves resolution only ever happens lazily: never for an
+// Allowed link, never for a non-invite link, at most once per tripped
+// invite link in one message. It never touches Valkey or the RPC bus, the
+// same "no network" style as fakeGuard above.
+type fakeOwnInvite struct {
+	own map[string]bool // raw link -> IsOwnGuildInvite's answer
+	err error           // returned instead of a canned answer when set
+
+	calls []string // raw links this was asked about, in call order
+}
+
+func (f *fakeOwnInvite) IsOwnGuildInvite(_ context.Context, _ string, rawLink string) (bool, error) {
+	f.calls = append(f.calls, rawLink)
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.own[rawLink], nil
+}
+
 // messageEventRaw marshals the minimal MESSAGE_CREATE JSON shape
 // decode.MessageEvent reads, roles included, matching what ingress relays
 // verbatim from Discord's gateway.
 func messageEventRaw(t *testing.T, id, guildID, channelID, authorID, content string, bot bool, roles []string) []byte {
 	t.Helper()
-	raw, err := json.Marshal(map[string]any{
+	raw, err := codec.Marshal(map[string]any{
 		"id": id, "guild_id": guildID, "channel_id": channelID, "content": content,
 		"author": map[string]any{"id": authorID, "bot": bot},
 		"member": map[string]any{"roles": roles},
@@ -68,11 +90,19 @@ func onGuardConfig() ddiscord.Config {
 	return ddiscord.Config{GuildID: "g1", ModsRoleID: "modsrole", LinkGuardEnabled: "on"}
 }
 
-// run drives one MESSAGE_CREATE through LinkGuard's handler and collects
-// whatever Commands it emits.
+// runLinkGuard drives one MESSAGE_CREATE through LinkGuard's handler and
+// collects whatever Commands it emits, using an OwnInviteChecker that is
+// never consulted for a non-tripping run (returns false, nil if it is).
+// Tests that care about invite resolution itself use runLinkGuardWithOwn
+// directly so they can inspect fakeOwnInvite.calls afterward.
 func runLinkGuard(t *testing.T, guard *fakeGuard, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
 	t.Helper()
-	mod := LinkGuard(guard, zap.NewNop())
+	return runLinkGuardWithOwn(t, guard, &fakeOwnInvite{}, cfg, raw)
+}
+
+func runLinkGuardWithOwn(t *testing.T, guard *fakeGuard, own *fakeOwnInvite, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
+	t.Helper()
+	mod := LinkGuard(guard, own, zap.NewNop())
 	handler, ok := mod.Events["MESSAGE_CREATE"]
 	if !ok {
 		t.Fatal("LinkGuard did not register MESSAGE_CREATE")
@@ -129,7 +159,7 @@ func TestLinkGuardThresholdTripDeletesWithReason(t *testing.T) {
 		t.Error("Reason is empty, want the tripped threshold recorded for the audit log")
 	}
 	var payload ddiscord.DeletePayload
-	if err := json.Unmarshal(d.Payload, &payload); err != nil {
+	if err := codec.Unmarshal(d.Payload, &payload); err != nil {
 		t.Fatalf("unmarshal delete payload: %v", err)
 	}
 	if payload.MessageID != "m1" {
@@ -169,28 +199,93 @@ func TestLinkGuardAllowListedExempt(t *testing.T) {
 	}
 }
 
-// TestLinkGuardOwnGuildInviteAlwaysFalse pins a known limitation rather
-// than asserting untested behavior: this module cannot resolve an
-// arbitrary invite code to the guild it targets (see observeLinks'
-// OwnGuildInvite comment for why -- no Discord REST client in engine, and
-// no invite-code cache anywhere in this codebase today), so
-// Sighting.OwnGuildInvite is always false. linkguard's own
-// TestObserveOwnGuildInviteExempt already proves the exemption fires
-// correctly once that field IS true; this test guards against this module
-// silently starting to fabricate a true value it cannot actually verify.
-// A guild that needs this exemption in practice gets the same Allow
-// outcome via LinkAllowList today (see TestLinkGuardAllowListedExempt).
-func TestLinkGuardOwnGuildInviteAlwaysFalse(t *testing.T) {
+// TestLinkGuardOwnInviteTripIsNotDeleted is the regression test for the bug
+// this RPC exists to fix: a guild pinning its OWN invite across enough
+// channels to trip ChannelThreshold (e.g. #rules, #welcome,
+// #announcements) must not have that message deleted. The Verdict still
+// trips (guard.Observe was called with OwnGuildInvite always false -- see
+// observeLinks' doc), but tripIsOwnInvite resolves it afterward and
+// suppresses the action.
+func TestLinkGuardOwnInviteTripIsNotDeleted(t *testing.T) {
+	const link = "discord.gg/ourownserver"
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	raw := messageEventRaw(t, "m1", "g1", "c1", "u1", "discord.gg/ourownserver", false, nil)
+	norm, _ := linkguard.NormalizeLink(link)
+	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
+	own := &fakeOwnInvite{own: map[string]bool{link: true}}
+	raw := messageEventRaw(t, "m1", "g1", "c1", "u1", link, false, nil)
 
-	runLinkGuard(t, guard, onGuardConfig(), raw)
+	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
 
-	if len(guard.seen) != 1 {
-		t.Fatalf("guard.Observe called %d times, want 1", len(guard.seen))
+	if len(deleteCommands(cmds)) != 0 {
+		t.Fatalf("delete commands present for the guild's own invite, want none (cmds %+v)", cmds)
 	}
-	if guard.seen[0].OwnGuildInvite {
-		t.Fatal("Sighting.OwnGuildInvite = true, want false (see the comment on this test)")
+	if len(own.calls) != 1 || own.calls[0] != link {
+		t.Fatalf("IsOwnGuildInvite calls = %v, want exactly [%q]", own.calls, link)
+	}
+	// The sighting itself is still counted -- see tripIsOwnInvite's doc for
+	// why that is acceptable rather than a corrupted verdict.
+	if len(guard.seen) != 1 {
+		t.Fatalf("guard.Observe called %d times, want 1 (the trip is still counted)", len(guard.seen))
+	}
+}
+
+// TestLinkGuardOtherGuildInviteStillDeleted proves the fix is narrow: an
+// invite that resolves to some OTHER guild still gets deleted once
+// tripped, exactly like before this RPC existed.
+func TestLinkGuardOtherGuildInviteStillDeleted(t *testing.T) {
+	const link = "discord.gg/someoneelses"
+	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
+	norm, _ := linkguard.NormalizeLink(link)
+	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
+	own := &fakeOwnInvite{own: map[string]bool{link: false}}
+	raw := messageEventRaw(t, "m1", "g1", "c1", "u1", link, false, nil)
+
+	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+
+	if len(deleteCommands(cmds)) != 1 {
+		t.Fatalf("delete commands = %d, want exactly 1 for another guild's invite (cmds %+v)", len(deleteCommands(cmds)), cmds)
+	}
+	if len(own.calls) != 1 {
+		t.Fatalf("IsOwnGuildInvite calls = %d, want 1", len(own.calls))
+	}
+}
+
+// TestLinkGuardResolutionNotAttemptedForNonTrippingLink proves the lazy
+// half of the cost guard: a link that never crosses a linkguard threshold
+// (guard.Observe's default fake Verdict is Allow) must never trigger
+// invite resolution at all -- resolving on every posted link, rather than
+// only a tripped one, is exactly the REST-call amplification LinkGuard's
+// own doc warns about.
+func TestLinkGuardResolutionNotAttemptedForNonTrippingLink(t *testing.T) {
+	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
+	own := &fakeOwnInvite{}
+	raw := messageEventRaw(t, "m1", "g1", "c1", "u1", "check out discord.gg/abc123", false, nil)
+
+	runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+
+	if len(own.calls) != 0 {
+		t.Fatalf("IsOwnGuildInvite called %d times for a non-tripping link, want 0", len(own.calls))
+	}
+}
+
+// TestLinkGuardOwnInviteRPCFailureSkipsAction proves the documented
+// fail-safe direction: when resolution itself cannot be completed (the RPC
+// or the Discord call behind it failed), the module treats the link as the
+// guild's own -- i.e. it does NOT delete -- rather than proceeding with the
+// trip. See tripIsOwnInvite's doc for why a false delete against a real
+// community was judged worse than a missed spam message during an outage.
+func TestLinkGuardOwnInviteRPCFailureSkipsAction(t *testing.T) {
+	const link = "discord.gg/unresolvable"
+	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
+	norm, _ := linkguard.NormalizeLink(link)
+	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
+	own := &fakeOwnInvite{err: errors.New("outgress rpc timeout")}
+	raw := messageEventRaw(t, "m1", "g1", "c1", "u1", link, false, nil)
+
+	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+
+	if len(deleteCommands(cmds)) != 0 {
+		t.Fatalf("delete commands present after an unresolvable invite check, want none -- must fail safe (cmds %+v)", cmds)
 	}
 }
 

@@ -54,8 +54,13 @@ var linkPattern = regexp.MustCompile(`(?i)[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:/\S*)
 // or kick -- is the automod response (see act's doc). Gated on
 // Config.LinkGuardOn so a guild can turn it off, the same way every other
 // Discord feature here reads its own cfg.XOn() flag.
-func LinkGuard(guard Guarder, log *zap.Logger) module.Module {
-	h := linkGuardModule{guard: guard, log: log}
+//
+// own is consulted only after a Verdict has already tripped and only for a
+// link NormalizeLink tags as a Discord invite -- see tripIsOwnInvite's doc
+// for exactly when and why, and OwnInviteChecker's doc in
+// linkguard_invite.go for the cost this guards against.
+func LinkGuard(guard Guarder, own OwnInviteChecker, log *zap.Logger) module.Module {
+	h := linkGuardModule{guard: guard, own: own, log: log}
 	b := module.NewModule("linkguard")
 	b.On("MESSAGE_CREATE", h.onCreate)
 	return b.Build()
@@ -63,6 +68,7 @@ func LinkGuard(guard Guarder, log *zap.Logger) module.Module {
 
 type linkGuardModule struct {
 	guard Guarder
+	own   OwnInviteChecker
 	log   *zap.Logger
 }
 
@@ -92,18 +98,23 @@ func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit m
 }
 
 // observeLinks reports every link in links to guard.Observe and returns
-// the first tripped Verdict's Reason, or "" when every link was allowed.
-// Every link is observed, not just the first -- linkguard's counters are
-// per (guild, link), so a message's second or third link still needs its
-// own count recorded even after an earlier link in the same message
-// already tripped -- but the return value collapses to a single reason,
-// which is what lets onCreate emit at most one delete for the message
-// regardless of how many links it carried or how many of them tripped.
-// Identical links within one message (normalized) are only sent to
-// guard.Observe once: recording the same channel+link pair a second time
-// would be a no-op on linkguard's side anyway (its sets are keyed on
+// the first tripped, still-actionable Verdict's Reason, or "" when every
+// link was allowed, exempted, or (via tripIsOwnInvite) resolved to be the
+// posting guild's own invite. Every link is observed, not just the first
+// -- linkguard's counters are per (guild, link), so a message's second or
+// third link still needs its own count recorded even after an earlier link
+// in the same message already tripped -- but the return value collapses to
+// a single reason, which is what lets onCreate emit at most one delete for
+// the message regardless of how many links it carried or how many of them
+// tripped. Identical links within one message (normalized) are only sent
+// to guard.Observe once: recording the same channel+link pair a second
+// time would be a no-op on linkguard's side anyway (its sets are keyed on
 // membership, see guard.go's addAndExpire), so skipping the repeat here
 // just saves the redundant Valkey round trip.
+//
+// Sighting.OwnGuildInvite is always false on this call, unconditionally --
+// see tripIsOwnInvite's doc for why that check happens AFTER Observe
+// instead of before, and what it costs to run it that way.
 func (h linkGuardModule) observeLinks(ctx context.Context, c *module.Context, ev decode.MessageEvent, links []string, moderator bool) string {
 	reason := ""
 	seen := make(map[string]bool, len(links))
@@ -126,33 +137,92 @@ func (h linkGuardModule) observeLinks(ctx context.Context, c *module.Context, ev
 			// dispatch.go already resolved it before any Handler ran, and
 			// a Handler only ever runs for a guild that resolution
 			// succeeded for.
-			OwnerID: c.BroadcasterID,
-			// OwnGuildInvite is always false: telling "this invite points
-			// back to GuildID itself" from "some other server's invite"
-			// needs either a Discord API call (GET /invites/{code}) or a
-			// locally maintained cache of invite codes this guild is
-			// known to have issued, and this codebase has neither --
-			// engine deliberately holds no Discord REST client (see
-			// app/discord/engine's package doc), and nothing in
-			// discordstore, discordapi, or the outgress setup fill
-			// tracks a guild's invite codes today (the bot never creates
-			// one). Building either would be new infrastructure well
-			// beyond wiring linkguard in. The practical consequence is
-			// narrow: a guild that legitimately cross-posts its own
-			// invite in several channels needs that invite on
-			// LinkAllowList (Config.LinkAllowed) to avoid tripping
-			// ChannelThreshold, which is a one-time admin action with the
-			// same end result (Allow) as this field would have given it,
-			// just under ReasonAllowListed instead of ReasonOwnInvite.
-			OwnGuildInvite: false,
-			Moderator:      moderator,
-			Allowed:        c.Config.LinkAllowed(raw),
+			OwnerID:   c.BroadcasterID,
+			Moderator: moderator,
+			Allowed:   c.Config.LinkAllowed(raw),
 		})
-		if !v.Allow && reason == "" {
-			reason = v.Reason
+		if v.Allow || reason != "" {
+			continue
 		}
+		if h.tripIsOwnInvite(ctx, ev.GuildID, raw, v) {
+			continue
+		}
+		reason = v.Reason
 	}
 	return reason
+}
+
+// tripIsOwnInvite is the Discord-aware half of the OwnGuildInvite exemption
+// that internal/domain/discord/linkguard's Sighting doc explicitly leaves
+// to the caller (see that package's "Scope" doc: it makes no Discord API
+// calls of its own). It runs ONLY for v, a Verdict that ALREADY tripped a
+// threshold (Observe was called with OwnGuildInvite always false -- see
+// observeLinks), and only when v.IsInvite -- a non-invite URL has no guild
+// for it to resolve to, and an already-Allowed verdict needs no resolving
+// at all.
+//
+// That ordering -- resolve after the trip, never before -- is deliberate,
+// for two reasons:
+//
+//  1. Cost. Resolving on every posted invite link (rather than only a
+//     tripped one) turns a spam wave of hundreds of junk codes into an
+//     equal-sized wave of outgress REST calls against the shared ~50 req/s
+//     bot-token budget -- exactly the amplification LinkGuard's own doc
+//     warns about. A trip is rare (ChannelThreshold needs 3 distinct
+//     channels inside one Window); a message is not. Gating resolution on
+//     "already tripped" is what keeps this module's Discord-call rate tied
+//     to actual suspicious activity instead of ordinary chat volume.
+//  2. Package boundary. Resolving before Observe would need a second,
+//     Valkey-free "would this trip" peek added to linkguard.Guarder next
+//     to Observe, purely so this one caller could decide whether resolving
+//     is worth it -- see linkguard's own package doc, "Scope", for why it
+//     stays a pure function of a Sighting plus Valkey state and nothing
+//     else. Resolving after keeps Observe linkguard's only entry point.
+//
+// What ordering it this way costs: a guild's own invite, pinned across
+// enough channels to trip ChannelThreshold, is still recorded in
+// linkguard's channel/author sets (and, if this guild has a Twitch-
+// broadcaster binding, still contributes one trip toward fleet
+// corroboration) even though no action follows -- the sighting is counted,
+// just not acted on. That is judged acceptable, not a correctness bug,
+// because a Discord invite code is unique to the guild it was created for:
+// this guild's own pinned code can only ever inflate ITS OWN counters for
+// THAT ONE CODE, and can never collide with, or poison, any other guild's
+// count. Fleet promotion of that code still requires FleetOwnerThreshold
+// (2) DISTINCT owners independently tripping on it (see
+// linkguard.FleetOwnerThreshold's doc); this guild alone can only ever
+// supply one. A second owner tripping on the SAME code is, by
+// construction, some other guild spamming or cross-posting THIS guild's
+// invite -- exactly the cross-guild pattern fleet promotion exists to
+// catch, regardless of whose invite it targets. Resolving BEFORE Observe
+// instead, so an own-invite sighting were never counted at all, was
+// rejected because it cannot be made lazy the way point 1 requires:
+// "should I even bother resolving" is not answerable until Observe has
+// already said whether this sighting matters.
+//
+// On an unresolvable answer (IsOwnGuildInvite's RPC, or the Discord call
+// behind it, failed), this treats the link as the guild's OWN invite --
+// i.e. it skips the delete -- rather than proceeding with it. That is the
+// deliberate choice, not the default one: a false delete during a Discord/
+// outgress hiccup is visible and damaging to a real community (their own
+// pinned invite starts vanishing from #rules for a reason no moderator can
+// see), while a missed spam message during that same hiccup is one
+// message, and ChannelThreshold's own design means a genuine attack keeps
+// spraying the same link into more channels -- the very next sighting gets
+// a fresh chance to resolve and act once the outage clears. Erring toward
+// the reversible cost (a delayed action) over the visible one (an
+// incorrect action against innocent behavior) matches act's own doc for
+// why deletion, never a ban, is this module's ceiling in the first place.
+func (h linkGuardModule) tripIsOwnInvite(ctx context.Context, guildID, raw string, v linkguard.Verdict) bool {
+	if !v.IsInvite || h.own == nil {
+		return false
+	}
+	own, err := h.own.IsOwnGuildInvite(ctx, guildID, raw)
+	if err != nil {
+		h.log.Warn("linkguard: invite resolve failed, not deleting", zap.String("guild_id", guildID), zap.Error(err))
+		return true
+	}
+	return own
 }
 
 // act deletes the offending message and logs why. Deletion, never a ban or

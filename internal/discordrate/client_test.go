@@ -103,6 +103,10 @@ func (f *fakeRest) GetCurrentApplication(context.Context) (discordapi.Snowflake,
 	f.sends++
 	return discordapi.Snowflake{}, nil
 }
+func (f *fakeRest) GetInvite(context.Context, string) (discordapi.Invite, error) {
+	f.sends++
+	return discordapi.Invite{}, nil
+}
 
 var _ rest = (*fakeRest)(nil)
 
@@ -170,6 +174,7 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		{"BulkOverwriteCommands", func(c *LimitedClient) error { return c.BulkOverwriteCommands(ctx, discordapi.CommandCatalog{}) }},
 		{"InteractionFollowup", func(c *LimitedClient) error { return c.InteractionFollowup(ctx, discordapi.Followup{}) }},
 		{"GetCurrentApplication", func(c *LimitedClient) error { _, err := c.GetCurrentApplication(ctx); return err }},
+		{"GetInvite", func(c *LimitedClient) error { _, err := c.GetInvite(ctx, "code"); return err }},
 	}
 
 	for _, tc := range cases {

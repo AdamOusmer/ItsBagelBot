@@ -81,3 +81,16 @@ func (c *Client) LiveOffline(ctx context.Context, req discordoutgress.LiveOfflin
 	defer cancel()
 	return bus.RequestJSON[discordoutgress.LiveOfflineReply](ctx, c.nc, c.subject("live.offline"), req)
 }
+
+// ResolveInvite calls bagel.rpc.discord-outgress.invite.resolve (see
+// internal/domain/rpc/discordoutgress's InviteResolveRequest doc). Callers
+// are expected to have already gated this behind a tripped, invite-shaped
+// linkguard Verdict and a cache miss (see
+// app/discord/engine/modules/linkguard.go's ownInvite) -- this method
+// itself has no notion of "only sometimes call me", it always makes the
+// round trip.
+func (c *Client) ResolveInvite(ctx context.Context, req discordoutgress.InviteResolveRequest) (discordoutgress.InviteResolveReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.InviteResolveReply](ctx, c.nc, c.subject("invite.resolve"), req)
+}

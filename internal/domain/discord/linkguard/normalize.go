@@ -113,6 +113,41 @@ func inviteCode(host, path string) (string, bool) {
 	return firstSegment(rest), true
 }
 
+// InviteCode extracts a Discord invite code from raw exactly as written,
+// case preserved -- unlike NormalizeLink's own return value, which folds
+// case into the identity it counts on (deliberately, see NormalizeLink's
+// doc). Discord invite codes are case-sensitive base62, so replaying a
+// folded code against GET /invites/{code} risks a false 404 on a real,
+// merely mixed-case invite. This exists solely for the caller
+// (app/discord/engine/modules/linkguard.go's tripIsOwnInvite) that needs to
+// hand a code to that endpoint; it shares NormalizeLink's own scheme/
+// bracket stripping and inviteHosts/inviteCode host recognition so the two
+// functions can never disagree about what counts as an invite, only about
+// the casing of the result. ok is false for anything NormalizeLink would
+// not report isInvite for.
+func InviteCode(raw string) (code string, ok bool) {
+	trimmed := strings.Trim(strings.TrimSpace(raw), "<>")
+	if trimmed == "" {
+		return "", false
+	}
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "https://" + trimmed
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Host == "" {
+		return "", false
+	}
+	host := strings.ToLower(strings.TrimPrefix(u.Hostname(), "www."))
+	if !inviteHosts[host] {
+		return "", false
+	}
+	rawCode, ok := inviteCode(host, u.EscapedPath())
+	if !ok {
+		return "", false
+	}
+	return strings.TrimRight(rawCode, trailingCutset), true
+}
+
 func firstSegment(path string) string {
 	if i := strings.IndexByte(path, '/'); i >= 0 {
 		return path[:i]
