@@ -13,9 +13,12 @@ describe('nav registry', () => {
     expect(sectionForPath('/')).toBe('overview');
     expect(sectionForPath('/commands')).toBe('commands');
     expect(sectionForPath('/commands/new')).toBe('commands');
-    for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/discord']) {
+    for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty']) {
       expect(sectionForPath(p)).toBe('modules');
     }
+    // Discord graduated out of Modules into its own section (see
+    // DASHBOARD_SECTIONS): it must NOT resolve as 'modules' any more.
+    expect(sectionForPath('/discord')).toBe('discord');
     expect(sectionForPath('/billing')).toBe('billing');
     expect(sectionForPath('/settings')).toBe('settings');
     expect(sectionForPath('/access')).toBe('settings');
@@ -27,12 +30,13 @@ describe('nav registry', () => {
       '/',
       '/commands',
       '/modules',
+      '/discord',
       '/billing',
       '/settings'
     ]);
   });
 
-  test('an owner sees all five entries with active following the section', () => {
+  test('an owner sees all six entries with active following the section', () => {
     const items = dashboardNavItems({
       isDelegate: false,
       sections: [],
@@ -43,10 +47,11 @@ describe('nav registry', () => {
       'en:nav.overview',
       'en:nav.commands',
       'en:nav.modules',
+      'en:nav.discord',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.active)).toEqual([false, false, false, true, false]);
+    expect(items.map((i) => i.active)).toEqual([false, false, false, false, true, false]);
   });
 
   // Delegate visibility: ownerOnly entries (Overview, Settings) drop; grants
@@ -62,8 +67,8 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
-    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/billing']);
-    expect(full.map((i) => i.active)).toEqual([false, true, false]);
+    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/discord', '/billing']);
+    expect(full.map((i) => i.active)).toEqual([false, true, false, false]);
   });
 
   test('the rail nests the /modules sections, not the modules themselves', () => {
@@ -94,6 +99,6 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(5);
+    expect(groups[0].items).toHaveLength(6);
   });
 });

@@ -13,5 +13,10 @@ export const DISCORD_MODULE: ModuleDef = {
   category: 'Gear',
   defaultEnabled: false,
   href: '/discord',
-  replies: []
+  replies: [],
+  // Discord is its own sidebar section now (see DASHBOARD_SECTIONS in nav.ts),
+  // so its bespoke page rides its own grant instead of the default 'modules'
+  // fallback. A pre-existing 'modules' delegation no longer opens /discord —
+  // intended, but a real behavior change; see the GRANTABLE_SECTIONS comment.
+  delegateSections: ['discord']
 };

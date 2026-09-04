@@ -33,6 +33,7 @@
     "overview": "Aperçu",
     "commands": "Commandes",
     "modules": "Modules",
+    "discord": "Discord",
     "counters": "Compteurs",
     "channelpoints": "Points de chaîne",
     "timers": "Minuteries",
@@ -1446,7 +1447,6 @@
     "saving": "Enregistrement…"
   },
   "discord": {
-    "back": "Tous les modules",
     "eyebrow": "Communauté",
     "description": "Connectez un serveur Discord ou créez-en un depuis le modèle Bagel. Live, clips, bienvenues, tickets, voix temporaire, journaux staff et rangs — un seul bot.",
     "titlePre": "Discord",

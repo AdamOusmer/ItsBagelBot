@@ -33,6 +33,7 @@
     "overview": "Overview",
     "commands": "Commands",
     "modules": "Modules",
+    "discord": "Discord",
     "counters": "Counters",
     "channelpoints": "Channel Points",
     "timers": "Timers",
@@ -1446,7 +1447,6 @@
     "saving": "Saving…"
   },
   "discord": {
-    "back": "All modules",
     "eyebrow": "Community",
     "description": "Connect a Discord server or create one from Bagel’s template. Go-live, clips, welcomes, tickets, temporary voice, staff logs, and crumb ranks — one bot.",
     "titlePre": "Discord",

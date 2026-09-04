@@ -5,7 +5,6 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Card,
     PageHead,
     MasterToggle,
@@ -118,7 +117,6 @@
 {/snippet}
 
 <section class="screen active">
-  <a class="back" href="/modules"><Icon name="x" size={13} /> {t('discord.back')}</a>
   <PageHead eyebrow={t('discord.eyebrow')} description={t('discord.description')}>
     {t('discord.titlePre')} <em>{t('discord.titleEm')}</em>
   </PageHead>
@@ -337,19 +335,6 @@
 </section>
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    text-decoration: none;
-    margin-bottom: 10px;
-  }
-  .back:hover { color: var(--bb-white); }
-  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: 4px; }
-
   .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
   .step { display: flex; gap: 14px; align-items: flex-start; }

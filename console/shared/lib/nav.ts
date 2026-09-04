@@ -32,11 +32,16 @@ const identity =
  * Billing is view-only for a delegate (the money actions stay owner-only — see
  * billing/+page.server.ts). Counters ride under 'modules'; timers also ride
  * under 'commands' (see the catalog's delegateSections and module-gate.ts).
+ * Discord got its own grant when it got its own section (see DASHBOARD_SECTIONS
+ * below): its catalog entry now declares delegateSections: ['discord'], so a
+ * pre-existing 'modules' grant no longer opens /discord — a deliberate,
+ * visible narrowing, not a bug. An owner who wants a delegate back on Discord
+ * re-shares with the new Discord checkbox.
  */
-export const GRANTABLE_SECTIONS = ['commands', 'modules', 'channelpoints', 'billing'] as const;
+export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'modules' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'modules' | 'discord' | 'billing' | 'settings';
 
 export interface DashboardSectionDef {
   id: SectionId;
@@ -44,6 +49,7 @@ export interface DashboardSectionDef {
     | 'nav.overview'
     | 'nav.commands'
     | 'nav.modules'
+    | 'nav.discord'
     | 'nav.billing'
     | 'nav.settings';
   icon: IconName;
@@ -87,8 +93,16 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/songqueue', '/discord'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/songqueue'],
     grant: 'modules'
+  },
+  {
+    id: 'discord',
+    labelKey: 'nav.discord',
+    icon: 'server',
+    href: '/discord',
+    match: ['/discord'],
+    grant: 'discord'
   },
   {
     id: 'billing',

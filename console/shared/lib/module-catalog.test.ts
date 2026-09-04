@@ -86,6 +86,16 @@ describe('module catalog', () => {
     expect(moduleDef('discord')?.icon).toBe('server');
   });
 
+  // Discord got promoted to its own dashboard section and its own delegation
+  // grant (nav.ts's DASHBOARD_SECTIONS/GRANTABLE_SECTIONS), so it must NOT
+  // fall back to the default ['modules'] scope any more: a pre-existing
+  // 'modules' grant no longer opens /discord.
+  test('discord delegates on its own grant, not modules', () => {
+    const discord = moduleDef('discord');
+    expect(discord).toBeDefined();
+    expect(moduleDelegateSections(discord!)).toEqual(['discord']);
+  });
+
   test('AutoMod stays a visible Moderation row', () => {
     const def = moduleDef('automod');
     expect(def?.hidden).toBeFalsy();
