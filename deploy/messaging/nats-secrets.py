@@ -85,36 +85,60 @@ def doppler_set(project: str, kv: dict[str, str]) -> None:
     print(f"  wrote {len(kv)} keys to {project}/{CONFIG}: {keys}")
 
 
+def plain_keys(_stem: str) -> dict[str, tuple[str, str]]:
+    """Env key names for a service that owns its Doppler project."""
+    return {
+        "BUS": ("NATS_USER", "NATS_PASSWORD"),
+        "RPC": ("NATS_RPC_USER", "NATS_RPC_PASSWORD"),
+    }
+
+
+def prefixed_keys(stem: str) -> dict[str, tuple[str, str]]:
+    """Env key names for a runtime sharing a Doppler project with its siblings."""
+    prefix = stem.upper()
+    return {
+        "BUS": (f"{prefix}_BUS_USER", f"{prefix}_BUS_PASSWORD"),
+        "RPC": (f"{prefix}_RPC_USER", f"{prefix}_RPC_PASSWORD"),
+    }
+
+
+def account(
+    stem: str,
+    names: dict[str, tuple[str, str]],
+    service: dict[str, str],
+    broker: dict[str, str],
+) -> None:
+    """Mint the planes this account holds.
+
+    Plaintext lands in the service's own Doppler keys, the matching bcrypt hash
+    in the broker's. The two callers differ only in `names`, so the plane loop,
+    the NO_BUS/NO_RPC skips and the NATS_BCRYPT_<STEM>_<PLANE> convention live
+    here once rather than being repeated per call site.
+    """
+    skip = {"BUS": NO_BUS, "RPC": NO_RPC}
+    for plane, user_key_pair in names.items():
+        if stem in skip[plane]:
+            continue
+        password = gen()
+        user_key, password_key = user_key_pair
+        service[user_key] = f"{stem}_{plane.lower()}"
+        service[password_key] = password
+        broker[f"NATS_BCRYPT_{stem.upper()}_{plane}"] = bcrypt_hash(password)
+
+
 def main() -> None:
     broker: dict[str, str] = {}  # nats project -> nats-auth-env
 
     print("== per-service credentials ==")
     for svc, project in SERVICES.items():
         kv: dict[str, str] = {}
-        if svc not in NO_BUS:
-            bus_pw = gen()
-            kv["NATS_USER"] = f"{svc}_bus"
-            kv["NATS_PASSWORD"] = bus_pw
-            broker[f"NATS_BCRYPT_{svc.upper()}_BUS"] = bcrypt_hash(bus_pw)
-        if svc not in NO_RPC:
-            rpc_pw = gen()
-            kv["NATS_RPC_USER"] = f"{svc}_rpc"
-            kv["NATS_RPC_PASSWORD"] = rpc_pw
-            broker[f"NATS_BCRYPT_{svc.upper()}_RPC"] = bcrypt_hash(rpc_pw)
+        account(svc, plain_keys(svc), kv, broker)
         doppler_set(project, kv)
 
     for project, stems in SHARED_PROJECTS.items():
         kv = {}
         for stem in stems:
-            prefix = stem.upper()
-            bus_pw = gen()
-            rpc_pw = gen()
-            kv[f"{prefix}_BUS_USER"] = f"{stem}_bus"
-            kv[f"{prefix}_BUS_PASSWORD"] = bus_pw
-            kv[f"{prefix}_RPC_USER"] = f"{stem}_rpc"
-            kv[f"{prefix}_RPC_PASSWORD"] = rpc_pw
-            broker[f"NATS_BCRYPT_{prefix}_BUS"] = bcrypt_hash(bus_pw)
-            broker[f"NATS_BCRYPT_{prefix}_RPC"] = bcrypt_hash(rpc_pw)
+            account(stem, prefixed_keys(stem), kv, broker)
         doppler_set(project, kv)
 
     # System account (server monitoring; no fleet service uses it).
