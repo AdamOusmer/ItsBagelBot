@@ -11,14 +11,22 @@ import "ItsBagelBot/pkg/codec"
 const Intents = 1 | 2 | 128 | 512 | 32768
 
 const (
-	opDispatch             = 0
-	opHeartbeat            = 1
-	opIdentify             = 2
-	opReconnect            = 7
-	opInvalidSession       = 9
-	opHello                = 10
-	opHeartbeatAck         = 11
-	gatewayURL             = "wss://gateway.discord.gg/?v=10&encoding=json"
+	opDispatch       = 0
+	opHeartbeat      = 1
+	opIdentify       = 2
+	opPresenceUpdate = 3
+	opReconnect      = 7
+	opInvalidSession = 9
+	opHello          = 10
+	opHeartbeatAck   = 11
+	gatewayURL       = "wss://gateway.discord.gg/?v=10&encoding=json"
+	// activityTypeWatching is Discord's Activity Type 3, "Watching {name}" --
+	// the client prepends "Watching" itself, so the activity name we send
+	// must not repeat it (see presenceUpdateBody). Verified against
+	// https://docs.discord.com/developers/events/gateway-events, the current
+	// home of what used to be discord.com/developers/docs/topics/gateway-events
+	// (that path now 301s here).
+	activityTypeWatching   = 3
 	eventReady             = "READY"
 	eventGuildCreate       = "GUILD_CREATE"
 	eventMemberAdd         = "GUILD_MEMBER_ADD"
@@ -68,4 +76,25 @@ func identifyBody(token string) map[string]any {
 
 func heartbeatBody(seq *int) map[string]any {
 	return map[string]any{"op": opHeartbeat, "d": seq}
+}
+
+// presenceUpdateBody builds a Gateway Update Presence (op 3) frame showing a
+// single "Watching <name>" activity, per the Gateway Presence Update
+// Structure (since/activities/status/afk) and Activity Object documented at
+// https://docs.discord.com/developers/events/gateway-events. since/afk are
+// meaningless for a bot account (they describe a human user going idle), so
+// they are sent at their "not idle" zero values rather than omitted --
+// Discord's docs don't mark either optional on this op.
+func presenceUpdateBody(name string) map[string]any {
+	return map[string]any{
+		"op": opPresenceUpdate,
+		"d": map[string]any{
+			"since": nil,
+			"activities": []map[string]any{
+				{"name": name, "type": activityTypeWatching},
+			},
+			"status": "online",
+			"afk":    false,
+		},
+	}
 }

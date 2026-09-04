@@ -41,6 +41,25 @@ type Conn interface {
 // Dial opens a gateway WebSocket.
 type Dial func(ctx context.Context, url string) (Conn, error)
 
+// PresenceSource supplies the bot's Discord activity status. Session owns
+// sending it because sending it needs the live gateway socket (Update
+// Presence, op 3), which only Session holds -- see internal/domain/discord's
+// Event doc for why ingress otherwise never acts on anything, and this
+// package doc's presenceLoop for why presence is the second deliberate
+// exception (the interaction defer in relay/ack.go is the first).
+type PresenceSource interface {
+	// Refresh reports the activity name to send ("1,234 streams"), or
+	// ok=false when nothing should go out right now: the value is unchanged
+	// since the last successful send, or computing it failed. A failure is
+	// swallowed here, not returned as an error, because presence is
+	// cosmetic -- an RPC hiccup must never stall the heartbeat/dispatch loop
+	// it shares a goroutine budget with, only skip one status refresh.
+	Refresh(ctx context.Context) (name string, ok bool)
+	// Forget clears any dedup state so the next Refresh reports ok=true even
+	// when the value has not changed.
+	Forget()
+}
+
 // Session is the long-lived Discord gateway loop: Hello, Identify,
 // heartbeat, dispatch. A dropped socket reconnects until ctx is cancelled.
 type Session struct {
@@ -49,7 +68,20 @@ type Session struct {
 	Handle Handler
 	Log    *zap.Logger
 	URL    string
+
+	// Presence, if set, is refreshed once immediately after every successful
+	// Identify and again on every PresenceInterval tick thereafter. Nil
+	// disables presence entirely (no field wired, no behavior change).
+	Presence PresenceSource
+	// PresenceInterval paces the ticker; see the constant that feeds it
+	// (app/discord/ingress/internal/presence.RefreshInterval) for why that
+	// value. Zero/negative falls back to defaultPresenceInterval.
+	PresenceInterval time.Duration
 }
+
+// defaultPresenceInterval only applies if a caller wires a PresenceSource
+// but forgets PresenceInterval; production wiring always sets it explicitly.
+const defaultPresenceInterval = 5 * time.Minute
 
 // Run identifies and pumps events until ctx is done.
 func (s Session) Run(ctx context.Context) error {
@@ -141,7 +173,65 @@ func (s Session) onHello(ctx context.Context, conn Conn, pkt packet, beats chan 
 		return err
 	}
 	go s.heartbeat(ctx, conn, hello.HeartbeatInterval, beats)
+	go s.presenceLoop(ctx, conn, beats)
 	return nil
+}
+
+// presenceLoop resends the bot's activity status on this socket. It hooks
+// here, alongside heartbeat, because Hello->Identify is the one point in the
+// gateway lifecycle that fires exactly once per connection AND every
+// reconnect (this Session never resumes -- opReconnect/opInvalidSession both
+// fall through to a brand new socket and a brand new Identify, see
+// handlePacket): that is exactly "every successful connect", the moment
+// constraint the presence feature needs, with no extra signal to invent.
+//
+// The immediate, forced send below is what makes presence survive a
+// reconnect: a fresh IDENTIFY otherwise starts the session with no activity,
+// and silently sitting blank until the next ticker fire (up to
+// PresenceInterval later) is the exact failure mode this loop exists to
+// close. beats is heartbeat's own stop channel, reused rather than plumbing a
+// second one: closing it (pump's defer) ends both goroutines together when
+// this socket dies, which is correct -- there is nothing left to refresh
+// presence on until the next Identify starts a new presenceLoop.
+func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct{}) {
+	if s.Presence == nil {
+		return
+	}
+	interval := s.PresenceInterval
+	if interval <= 0 {
+		interval = defaultPresenceInterval
+	}
+	s.sendPresence(ctx, conn, true)
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-stop:
+			return
+		case <-t.C:
+			s.sendPresence(ctx, conn, false)
+		}
+	}
+}
+
+// sendPresence asks Presence for the current status and writes it if there
+// is anything to send. force clears Presence's own dedup first (see
+// PresenceSource.Forget) so a reconnect resends even an unchanged count; a
+// plain ticker tick leaves the dedup alone so an unchanged count sends
+// nothing, staying well inside Discord's 5-updates-per-20s budget.
+func (s Session) sendPresence(ctx context.Context, conn Conn, force bool) {
+	if force {
+		s.Presence.Forget()
+	}
+	name, ok := s.Presence.Refresh(ctx)
+	if !ok {
+		return
+	}
+	if err := writeJSON(ctx, conn, presenceUpdateBody(name)); err != nil {
+		s.log().Warn("discord presence update failed", zap.Error(err))
+	}
 }
 
 func (s Session) onDispatch(ctx context.Context, pkt packet) error {

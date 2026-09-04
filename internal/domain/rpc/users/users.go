@@ -198,6 +198,23 @@ type EmailGetReply struct {
 	Error string `json:"error,omitempty"`
 }
 
+// CountsRequest asks for the public enrollment counts. Empty: unlike the
+// admin surface's stats verb, this endpoint takes no filters -- it exists to
+// answer exactly one question (how many streams total, how many active) for
+// callers that must not see anything more, so there is nothing to parameterize.
+type CountsRequest struct{}
+
+// CountsReply carries the narrow public subset of repository.UserStats:
+// enough for a cosmetic count (Discord bot presence, a public counter) and
+// nothing that identifies who those users are. This deliberately excludes
+// PremiumUsers/VIPUsers/PaidUsers -- see bagel.rpc.internal.users.counts.get's
+// doc for why those stay behind the admin-authenticated stats verb.
+type CountsReply struct {
+	TotalUsers  int    `json:"total_users"`
+	ActiveUsers int    `json:"active_users"`
+	Error       string `json:"error,omitempty"`
+}
+
 // GrantSaveRequest is the payload for the dashboard grant_save verb.
 type GrantSaveRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`

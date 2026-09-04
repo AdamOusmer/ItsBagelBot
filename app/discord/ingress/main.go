@@ -22,6 +22,7 @@ import (
 
 	"ItsBagelBot/app/discord/ingress/internal/config"
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
+	"ItsBagelBot/app/discord/ingress/internal/presence"
 	"ItsBagelBot/app/discord/ingress/internal/relay"
 	"ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordrate"
@@ -82,6 +83,15 @@ func main() {
 
 	r := &relay.Relay{REST: rest, Pub: pub, Log: log}
 
+	// RPC connection, separate from pub above: pub is the fire-and-forget
+	// event publisher (no reply subject), while the counts lookup behind
+	// gateway presence is a request/reply call. See presence.NewFetch's doc.
+	rpcConn, err := bus.Connect(bus.RPCURL(cfg.NATSRPCURL), serviceName)
+	if err != nil {
+		log.Fatal("failed to connect to nats rpc", zap.Error(err))
+	}
+	defer rpcConn.Close()
+
 	health.Serve(cfg.ListenAddr, serviceName)
 
 	sess := gateway.Session{
@@ -89,6 +99,11 @@ func main() {
 		Dial:   gateway.DialWS,
 		Handle: r,
 		Log:    log,
+		Presence: &presence.Source{
+			Fetch: presence.NewFetch(rpcConn, cfg.UsersCountsSubject),
+			Log:   log,
+		},
+		PresenceInterval: presence.RefreshInterval,
 	}
 	log.Info("discord ingress ready")
 	if err := sess.Run(ctx); err != nil && ctx.Err() == nil {
