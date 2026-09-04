@@ -51,8 +51,14 @@ func shouldWelcome(cfg ddiscord.Config) bool {
 	return cfg.WelcomeChannelID != ""
 }
 
+// autorole grants the member role on join. That is the only role Bagel
+// ever assigns on its own: tier roles (subscriber, VIP, regulars) are
+// created by the fill and pinned in the dashboard but never applied by the
+// engine. That was decided on 2026-09-04 -- there is no Discord-to-Twitch
+// viewer link to drive it, and guessing a tier would take roles away from
+// people a streamer granted by hand.
 func autorole(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
-	if c.Config.MemberRoleID == "" {
+	if c.Config.MemberRoleID == "" || !c.Config.AutoRoleOn() {
 		return
 	}
 	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), cmd.RoleID(c.Config.MemberRoleID)))

@@ -252,6 +252,12 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "+ Create voice", Type: ChannelVoice, Parent: "Voice", Bind: "voice"},
 
 		{Name: "Tickets", Type: ChannelCategory, Bind: "ticketcat"},
+		// Archive holds closed tickets. Staff-only AND read-only: the point
+		// of keeping a closed ticket is the record, and a channel anyone can
+		// still post into is not a record. Deleting the channel instead
+		// would be simpler, but it destroys the only copy of a conversation
+		// a moderation decision was based on.
+		{Name: "Archive", Type: ChannelCategory, AllowRoles: StaffRoles, ReadOnly: true, Bind: "ticketarchive"},
 
 		{Name: "Staff", Type: ChannelCategory, AllowRoles: StaffRoles},
 		{Name: "mods", Type: ChannelText, Parent: "Staff", AllowRoles: StaffRoles},

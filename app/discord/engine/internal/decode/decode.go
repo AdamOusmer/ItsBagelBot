@@ -92,6 +92,11 @@ type InteractionEvent struct {
 		User        UserRef `json:"user"`
 		Permissions string  `json:"permissions"`
 		Nick        string  `json:"nick"`
+		// Roles is the interacting member's role ids. Discord sends both
+		// this and the computed Permissions bitfield on an interaction; the
+		// two answer different questions (see domain discord.IsModStaff), so
+		// staff gates read the roles and moderation gates read the bits.
+		Roles []string `json:"roles"`
 	} `json:"member"`
 }
 

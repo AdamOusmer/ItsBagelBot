@@ -31,6 +31,11 @@ type rest interface {
 	ModifyCurrentMember(ctx context.Context, m discapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discapi.MemberRole) error
 	InteractionFollowup(ctx context.Context, f discapi.Followup) error
+	GetGuildMember(ctx context.Context, m discapi.GuildMember) (discapi.GuildMemberInfo, error)
+	ListGuildRoles(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
+	ListGuildChannelsFull(ctx context.Context, guild discapi.Guild) ([]discapi.ChannelInfo, error)
+	ModifyGuild(ctx context.Context, patch discapi.GuildPatch) error
+	SetChannelOverwrite(ctx context.Context, o discapi.ChannelOverwrite) error
 }
 
 // Handlers dispatches one Command onto its REST call. ApplicationID is
@@ -72,8 +77,8 @@ var dispatchTable = map[string]commandHandler{
 	ddiscord.TypeBanMember:           banMember,
 	ddiscord.TypeKickMember:          kickMember,
 	ddiscord.TypeTimeoutMember:       (*Handlers).timeoutMember,
-	ddiscord.TypeStripRoles:          notImplemented,
-	ddiscord.TypeLockdown:            notImplemented,
+	ddiscord.TypeStripRoles:          stripRoles,
+	ddiscord.TypeLockdown:            lockdown,
 	ddiscord.TypePostChat:            (*Handlers).postChat,
 	ddiscord.TypePostEmbed:           (*Handlers).postEmbed,
 	ddiscord.TypePostPanel:           (*Handlers).postPanel,
@@ -99,14 +104,6 @@ func banMember(h *Handlers, ctx context.Context, c ddiscord.Command) error {
 
 func kickMember(h *Handlers, ctx context.Context, c ddiscord.Command) error {
 	return h.Rest.KickMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
-}
-
-// notImplemented stands in for TypeStripRoles/TypeLockdown until their REST
-// calls exist; it warns rather than erroring so an undelivered lockdown
-// never nacks its lane forever.
-func notImplemented(h *Handlers, _ context.Context, c ddiscord.Command) error {
-	h.Log.Warn("discord command type not yet implemented", zap.String("type", c.Type))
-	return nil
 }
 
 func addRole(h *Handlers, ctx context.Context, c ddiscord.Command) error {

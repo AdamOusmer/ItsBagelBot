@@ -21,6 +21,12 @@ type Snowflake struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type,omitempty"`
+	// Managed is set on a role Discord itself owns: a bot's own role, a
+	// Nitro booster role, an integration's role. None of them can be
+	// removed from a member through the roles API (Discord answers 403), so
+	// StripRoles has to skip them rather than pointlessly burning a call and
+	// a retry on each.
+	Managed bool `json:"managed,omitempty"`
 }
 
 // PermissionOverwrite is a Discord channel overwrite.

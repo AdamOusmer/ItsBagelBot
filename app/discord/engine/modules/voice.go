@@ -185,18 +185,18 @@ func (h voiceModule) command(ctx context.Context, v voiceInvocation, sub decode.
 		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "You can only do that in a temporary voice channel.", true))
 		return nil
 	}
-	if !ownsVoice(cl, v.In) {
+	if !ownsVoice(cl, v.In, v.Module.Config) {
 		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Only the channel owner can do that.", true))
 		return nil
 	}
 	return h.apply(ctx, v, cl, sub)
 }
 
-func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent) bool {
+func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent, cfg ddiscord.Config) bool {
 	if cl.OwnerID == in.Member.User.ID {
 		return true
 	}
-	return decode.CanMod(in.Member.Permissions)
+	return isStaffOrMod(cfg, in)
 }
 
 func (h voiceModule) apply(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {

@@ -6,6 +6,7 @@ package setup
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -25,6 +26,9 @@ type guildRecorder struct {
 	createdRo []string
 	panels    []string
 	nextID    int
+	// specs keeps each created channel's full spec (by lowercased name) so a
+	// test can assert the permission overwrites a gate actually sent.
+	specs map[string]discapi.ChannelCreate
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -47,6 +51,10 @@ func (r *guildRecorder) CreateChannel(_ context.Context, ch discapi.GuildChannel
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Spec.Name, Type: ch.Spec.Type}
+	if r.specs == nil {
+		r.specs = map[string]discapi.ChannelCreate{}
+	}
+	r.specs[strings.ToLower(ch.Spec.Name)] = ch.Spec
 	r.channels = append(r.channels, out)
 	r.createdCh = append(r.createdCh, ch.Spec.Name)
 	return out, nil
