@@ -21,17 +21,14 @@ type Deps struct {
 	Guard     Guarder
 	OwnInvite OwnInviteChecker
 	Identity  *Identity
-	// Tiers resolves a Discord member's linked Twitch tier for autorole.
-	// Nil today: see TierReader for why there is no implementation yet.
-	Tiers TierReader
-	Log   *zap.Logger
+	Log       *zap.Logger
 }
 
 // All returns every module the dispatcher indexes, mirroring
 // app/twitch/sesame/modules.All's role as the single assembly point.
 func All(d Deps) []module.Module {
 	return []module.Module{
-		Welcome(d.Tiers),
+		Welcome(),
 		Message(d.Store),
 		Rank(d.Store),
 		Moderation(d.Purge, d.Log),
