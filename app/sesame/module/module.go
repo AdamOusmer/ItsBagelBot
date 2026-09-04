@@ -97,10 +97,6 @@ type Output struct {
 	TargetUserID string
 	Reason       string
 	MsgID        string
-	// ChannelID is the Discord channel snowflake for a TypeDiscordChat
-	// output (raid/gift copies). Empty means outgress looks the channel up
-	// from the Discord module blob.
-	ChannelID string
 	// Channel-points redemption-resolution fields, set only for a
 	// redemption_update Output (outgress.TypeRedemptionUpdate): RewardID is the
 	// custom reward, RedemptionID the specific redemption to resolve, and Status

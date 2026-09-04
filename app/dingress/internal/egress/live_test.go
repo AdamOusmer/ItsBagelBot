@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package worker
+package egress
 
 import (
 	"context"
@@ -12,17 +12,19 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
-	"ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
 
-// guildRecorder is a discordGuildAPI that captures live/clip/setup calls.
+// guildRecorder is a discordGuildAPI that captures every call a handler
+// fires, mirroring outgress's own test recorder
+// (app/outgress/internal/worker/discord_live_test.go /discord_setup_test.go).
 type guildRecorder struct {
-	discordRecordingClient
 	mu        sync.Mutex
+	lastChan  string
 	embeds    []ddiscord.Embed
 	edits     []string
 	roles     []string
@@ -38,12 +40,13 @@ func (r *guildRecorder) nextSnowflake(prefix string) string {
 	return prefix + strconv.Itoa(r.nextID)
 }
 
+func (r *guildRecorder) SendChat(context.Context, discapi.ChatPost) error { return nil }
+
 func (r *guildRecorder) SendEmbed(_ context.Context, post discapi.EmbedPost) (discapi.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lastChan = post.ChannelID
 	r.embeds = append(r.embeds, post.Embed)
-	r.calls++
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("msg-")}, nil
 }
 
@@ -55,7 +58,6 @@ func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, but
 	for _, btn := range buttons {
 		r.panels = append(r.panels, btn.CustomID)
 	}
-	r.calls++
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("panel-")}, nil
 }
 
@@ -116,6 +118,7 @@ func (r *guildRecorder) GetGuild(_ context.Context, guild discapi.Guild) (discap
 
 var _ discordGuildAPI = (*guildRecorder)(nil)
 
+// memLiveStore is a map-backed liveStore, mirroring outgress's memLiveStore.
 type memLiveStore struct {
 	mu            sync.Mutex
 	msg           discapi.Message
@@ -132,10 +135,7 @@ func (s *memLiveStore) PutLiveMessage(_ context.Context, _ liveMsgKey, m discapi
 func (s *memLiveStore) GetLiveMessage(_ context.Context, _ liveMsgKey) (discapi.Message, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.msg.ChannelID == "" {
-		return s.msg, false
-	}
-	if s.msg.ID == "" {
+	if s.msg.ChannelID == "" || s.msg.ID == "" {
 		return s.msg, false
 	}
 	return s.msg, true
@@ -158,10 +158,7 @@ func (s *memLiveStore) PutGuild(_ context.Context, req GuildSetupRequest) error 
 func (s *memLiveStore) GetGuild(_ context.Context, req GuildSetupRequest) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.guild != req.GuildID {
-		return "", false
-	}
-	if s.twitch == "" {
+	if s.guild != req.GuildID || s.twitch == "" {
 		return "", false
 	}
 	return s.twitch, true
@@ -178,6 +175,10 @@ func (s *memLiveStore) DeleteGuild(_ context.Context, req GuildSetupRequest) err
 
 func (s *memLiveStore) PutTicketDesk(context.Context, discapi.Guild) error { return nil }
 
+var _ liveStore = (*memLiveStore)(nil)
+
+// memModules is a map-backed discordModuleReader, mirroring outgress's
+// memModules.
 type memModules struct {
 	cfg     ddiscord.Config
 	enabled bool
@@ -185,10 +186,7 @@ type memModules struct {
 }
 
 func (m memModules) GetModule(_ context.Context, _ uint64, name string) (projection.ModuleView, bool, error) {
-	if name != ddiscord.ModuleName {
-		return projection.ModuleView{}, false, nil
-	}
-	if !m.found {
+	if name != ddiscord.ModuleName || !m.found {
 		return projection.ModuleView{}, false, nil
 	}
 	raw, err := codec.Marshal(m.cfg)
@@ -198,23 +196,15 @@ func (m memModules) GetModule(_ context.Context, _ uint64, name string) (project
 	return projection.ModuleView{Name: name, IsEnabled: m.enabled, Configs: raw}, true, nil
 }
 
-func liveWorker(t *testing.T, guild *guildRecorder, kv discordLiveStore, mods discordModuleReader) *Worker {
-	t.Helper()
-	w := New(Config{Log: zap.NewNop(), Limiter: &scriptedLimiter{}})
-	w.SetDiscord(guild, kv)
-	w.discordMods = mods
-	return w
+func liveWorker(guild *guildRecorder, kv liveStore, mods discordModuleReader) *Worker {
+	return New(Config{Discord: guild, DiscordKV: kv, DiscordMods: mods, Log: zap.NewNop()})
 }
 
 func TestAnnounceDiscordLivePostsEmbed(t *testing.T) {
 	guild := &guildRecorder{}
 	kv := &memLiveStore{}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
-	}
-	w := liveWorker(t, guild, kv, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
 
 	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
 	if len(guild.embeds) != 1 {
@@ -223,22 +213,15 @@ func TestAnnounceDiscordLivePostsEmbed(t *testing.T) {
 	if guild.lastChan != "now-live" {
 		t.Fatalf("channel = %q", guild.lastChan)
 	}
-	if kv.msg.ChannelID != "now-live" {
-		t.Fatal("live message was not stored")
-	}
-	if kv.msg.ID == "" {
+	if kv.msg.ChannelID != "now-live" || kv.msg.ID == "" {
 		t.Fatal("live message was not stored")
 	}
 }
 
 func TestAnnounceDiscordLiveRespectsCategoryAllow(t *testing.T) {
 	guild := &guildRecorder{}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer", CategoryAllow: "Minecraft"},
-	}
-	w := liveWorker(t, guild, &memLiveStore{}, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer", CategoryAllow: "Minecraft"}}
+	w := liveWorker(guild, &memLiveStore{}, mods)
 	// No stream-info store means GameName is empty, which an allow-list rejects.
 	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
 	if len(guild.embeds) != 0 {
@@ -249,12 +232,8 @@ func TestAnnounceDiscordLiveRespectsCategoryAllow(t *testing.T) {
 func TestAnnounceDiscordOfflineEditsLiveMessage(t *testing.T) {
 	guild := &guildRecorder{}
 	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-9"}}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
-	}
-	w := liveWorker(t, guild, kv, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
 	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
 	if len(guild.edits) != 1 {
 		t.Fatalf("edits = %v, want 1", guild.edits)
@@ -267,47 +246,83 @@ func TestAnnounceDiscordOfflineEditsLiveMessage(t *testing.T) {
 func TestHandleStreamEventOnlinePostsDiscord(t *testing.T) {
 	guild := &guildRecorder{}
 	kv := &memLiveStore{}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
-	}
-	w := liveWorker(t, guild, kv, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
 	payload := []byte(`{"subscription":{"type":"stream.online"},"event":{"broadcaster_user_id":"42"}}`)
 	if err := w.HandleStreamEvent(&bus.Message{Payload: payload}); err != nil {
 		t.Fatalf("HandleStreamEvent: %v", err)
 	}
 	if len(guild.embeds) != 1 {
-		t.Fatal("stream.online must post the go-live embed on this lane, not via sesame")
+		t.Fatal("stream.online must post the go-live embed on this lane")
 	}
 }
 
 func TestHandleStreamEventOfflineStillAnnouncesDiscord(t *testing.T) {
 	guild := &guildRecorder{}
 	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-1"}}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
-	}
-	w := liveWorker(t, guild, kv, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
 	payload := []byte(`{"subscription":{"type":"stream.offline"},"event":{"broadcaster_user_id":"42"}}`)
 	if err := w.HandleStreamEvent(&bus.Message{Payload: payload}); err != nil {
 		t.Fatalf("HandleStreamEvent: %v", err)
 	}
 	if len(guild.edits) != 1 {
-		t.Fatal("offline must edit the go-live message even though mod re-verify is skipped")
+		t.Fatal("offline must edit the go-live message")
+	}
+}
+
+func TestAnnounceDiscordLiveSkipsWhenModuleOff(t *testing.T) {
+	guild := &guildRecorder{}
+	mods := memModules{found: true, enabled: false, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, &memLiveStore{}, mods)
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+	if len(guild.embeds) != 0 {
+		t.Fatal("disabled module must not post")
+	}
+}
+
+func TestAnnounceDiscordLiveIsIdempotentPerStream(t *testing.T) {
+	guild := &guildRecorder{}
+	kv := &memLiveStore{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
+	for i := 0; i < 3; i++ {
+		w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+	}
+	if len(guild.embeds) != 1 {
+		t.Fatalf("embeds = %d, want 1: a replayed stream.online must not post twice", len(guild.embeds))
+	}
+}
+
+func TestAnnounceDiscordOfflineForgetsTheMessage(t *testing.T) {
+	guild := &guildRecorder{}
+	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-9"}}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
+	w := liveWorker(guild, kv, mods)
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
+	if len(guild.edits) != 1 {
+		t.Fatalf("edits = %d, want 1: the key must be dropped after the offline edit", len(guild.edits))
+	}
+	if _, ok := kv.GetLiveMessage(context.Background(), liveMsgKey{BroadcasterID: "42"}); ok {
+		t.Fatal("live message key survived the offline edit")
+	}
+}
+
+func TestAnnounceDiscordLiveSkipsWithoutLogin(t *testing.T) {
+	guild := &guildRecorder{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live"}}
+	w := liveWorker(guild, &memLiveStore{}, mods)
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+	if len(guild.embeds) != 0 {
+		t.Fatal("no login means no watch link; the embed must be skipped")
 	}
 }
 
 func TestAnnounceDiscordClipPostsEmbed(t *testing.T) {
 	guild := &guildRecorder{}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", ClipsChannelID: "clips"},
-	}
-	w := liveWorker(t, guild, nil, mods)
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", ClipsChannelID: "clips"}}
+	w := liveWorker(guild, nil, mods)
 	w.announceDiscordClip(context.Background(), clipJob{
 		BroadcasterID: "42",
 		Embed:         ddiscord.ClipEmbed(ddiscord.ClipCard{URL: "https://clips.twitch.tv/x", Clipper: "viewer", Title: "huge play"}),
@@ -323,58 +338,34 @@ func TestAnnounceDiscordClipPostsEmbed(t *testing.T) {
 	}
 }
 
-func TestAnnounceDiscordLiveSkipsWhenModuleOff(t *testing.T) {
+func TestHandleClipCreatedPostsEmbed(t *testing.T) {
 	guild := &guildRecorder{}
-	mods := memModules{found: true, enabled: false, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"}}
-	w := liveWorker(t, guild, &memLiveStore{}, mods)
-	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
-	if len(guild.embeds) != 0 {
-		t.Fatal("disabled module must not post")
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", ClipsChannelID: "clips"}}
+	w := liveWorker(guild, nil, mods)
+	payload, err := codec.Marshal(map[string]any{
+		"broadcaster_id": "42", "clip_id": "c1", "url": "https://clips.twitch.tv/x", "clipper": "viewer", "title": "huge play",
+	})
+	if err != nil {
+		t.Fatalf("marshal fixture: %v", err)
 	}
-}
-
-func TestAnnounceDiscordLiveIsIdempotentPerStream(t *testing.T) {
-	guild := &guildRecorder{}
-	kv := &memLiveStore{}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
-	}
-	w := liveWorker(t, guild, kv, mods)
-	for i := 0; i < 3; i++ {
-		w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+	if err := w.HandleClipCreated(&bus.Message{Payload: payload}); err != nil {
+		t.Fatalf("HandleClipCreated: %v", err)
 	}
 	if len(guild.embeds) != 1 {
-		t.Fatalf("embeds = %d, want 1: a replayed stream.online must not post twice", len(guild.embeds))
+		t.Fatalf("embeds = %d, want 1", len(guild.embeds))
+	}
+	if guild.lastChan != "clips" {
+		t.Fatalf("channel = %q", guild.lastChan)
 	}
 }
 
-func TestAnnounceDiscordOfflineForgetsTheMessage(t *testing.T) {
+func TestHandleClipCreatedDropsMalformedPayload(t *testing.T) {
 	guild := &guildRecorder{}
-	kv := &memLiveStore{msg: discapi.Message{ChannelID: "now-live", ID: "msg-9"}}
-	mods := memModules{
-		found:   true,
-		enabled: true,
-		cfg:     ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer"},
+	w := liveWorker(guild, nil, memModules{found: true, enabled: true})
+	if err := w.HandleClipCreated(&bus.Message{Payload: []byte("not json")}); err != nil {
+		t.Fatalf("HandleClipCreated must ack malformed payloads, got err = %v", err)
 	}
-	w := liveWorker(t, guild, kv, mods)
-	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
-	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: false})
-	if len(guild.edits) != 1 {
-		t.Fatalf("edits = %d, want 1: the key must be dropped after the offline edit", len(guild.edits))
-	}
-	if _, ok := kv.GetLiveMessage(context.Background(), liveMsgKey{BroadcasterID: "42"}); ok {
-		t.Fatal("live message key survived the offline edit")
-	}
-}
-
-func TestAnnounceDiscordLiveSkipsWithoutLogin(t *testing.T) {
-	guild := &guildRecorder{}
-	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{GuildID: "g1", LiveChannelID: "now-live"}}
-	w := liveWorker(t, guild, &memLiveStore{}, mods)
-	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
 	if len(guild.embeds) != 0 {
-		t.Fatal("no login means no watch link; the embed must be skipped")
+		t.Fatal("malformed payload must not post")
 	}
 }

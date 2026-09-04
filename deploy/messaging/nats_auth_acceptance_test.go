@@ -96,7 +96,7 @@ func (h *acceptanceHarness) reconcileOwnedStreams(t *testing.T, ctx context.Cont
 	owners := []streamOwner{
 		{serviceIdentity{"users_bus"}, []bus.StreamSpec{localStream(bus.BagelDataStream)}},
 		{serviceIdentity{"worker_bus"}, []bus.StreamSpec{localStream(bus.TwitchIngressStream)}},
-		{serviceIdentity{"outgress_bus"}, []bus.StreamSpec{localStream(bus.OutgressStream), localStream(bus.OutgressSystemStream), localStream(bus.DiscordOutgressStream)}},
+		{serviceIdentity{"outgress_bus"}, []bus.StreamSpec{localStream(bus.OutgressStream), localStream(bus.OutgressSystemStream)}},
 	}
 	for _, owner := range owners {
 		h.activate(t, owner.identity)
@@ -122,13 +122,17 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"worker_bus"}, "authz_worker", "twitch.ingress.event.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.system"},
-		{serviceIdentity{"outgress_bus"}, "authz_outgress", "discord.outgress.premium"},
-		{serviceIdentity{"outgress_bus"}, "authz_outgress", "discord.outgress.standard"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.event.stream"},
 		// Authorization lifecycle consumers (revocation marking + grant re-enroll).
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.revoked"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.subrevoked"},
+		// dingress-egress binds its OWN durable on the same stream-status
+		// subject, independent of outgress's — one posts the go-live/offline
+		// embed, the other re-verifies mod status. Its BAGEL_DATA consumer is
+		// pull-mode (see assertPullFetchPermission) and has no core-subscribe
+		// binding to assert here.
+		{serviceIdentity{"dingress_egress_bus"}, "authz_dingress", "twitch.ingress.event.stream"},
 	}
 	for _, binding := range bindings {
 		binding := binding
@@ -163,6 +167,7 @@ func (h *acceptanceHarness) assertRequiredAckPermissions(t *testing.T) {
 		{serviceIdentity{"projector_bus"}, []string{"BAGEL_DATA", "TWITCH_INGRESS"}},
 		{serviceIdentity{"worker_bus"}, []string{"TWITCH_INGRESS"}},
 		{serviceIdentity{"outgress_bus"}, []string{"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"}},
+		{serviceIdentity{"dingress_egress_bus"}, []string{"BAGEL_DATA", "TWITCH_INGRESS"}},
 	}
 	for _, grant := range grants {
 		h.assertStreamAcks(t, grant)
@@ -204,10 +209,20 @@ func (h *acceptanceHarness) assertPublishAllowed(t *testing.T, probe publishProb
 // subject only has to be inside the granted prefix.
 func (h *acceptanceHarness) assertPullFetchPermission(t *testing.T) {
 	t.Helper()
-	identity := serviceIdentity{"worker_bus"}
-	for _, stream := range []string{"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"} {
-		subject := "$JS.API.CONSUMER.MSG.NEXT." + stream + ".worker_twitch_ingress_event_standard"
-		h.assertPublishAllowed(t, publishProbe{identity, subject})
+	cases := []struct {
+		identity serviceIdentity
+		stream   string
+		consumer string
+	}{
+		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS", "worker_twitch_ingress_event_standard"},
+		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS_STANDARD", "worker_twitch_ingress_event_standard"},
+		// dingress-egress's clip-fact consumer: pull-mode, scoped to BAGEL_DATA
+		// alone (see the streamGrants comment on pullFetchStreams).
+		{serviceIdentity{"dingress_egress_bus"}, "BAGEL_DATA", "dingress_egress_data_twitch_clip_created"},
+	}
+	for _, c := range cases {
+		subject := "$JS.API.CONSUMER.MSG.NEXT." + c.stream + "." + c.consumer
+		h.assertPublishAllowed(t, publishProbe{c.identity, subject})
 	}
 }
 
@@ -243,7 +258,7 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 	identities := []serviceIdentity{
 		{"users_bus"}, {"commands_bus"}, {"modules_bus"}, {"loyalty_bus"},
 		{"projector_bus"}, {"worker_bus"}, {"outgress_bus"},
-		{"twitch_ingress_bus"}, {"dashboard_bus"},
+		{"twitch_ingress_bus"}, {"dashboard_bus"}, {"dingress_egress_bus"},
 	}
 	for _, identity := range identities {
 		h.assertDestructiveOperationsDeniedFor(t, identity)

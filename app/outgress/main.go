@@ -18,7 +18,6 @@ import (
 	"ItsBagelBot/app/outgress/internal/worker"
 	"ItsBagelBot/app/outgress/rpc"
 	"ItsBagelBot/internal/activity"
-	discord "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -52,12 +51,6 @@ const (
 
 	systemNakDelay        = 15 * time.Second
 	systemMaxRedeliveries = 6
-
-	// Discord copies are announcement-shaped, not chat: a 429 there carries a
-	// multi-second Retry-After, so redelivery waits 3 s and gets 6 tries
-	// inside DISCORD_OUTGRESS's 30 s MaxAge.
-	discordNakDelay        = 3 * time.Second
-	discordMaxRedeliveries = 6
 )
 
 // fatalIf aborts startup on err: outgress cannot run degraded without any of
@@ -104,12 +97,6 @@ func main() {
 	// EventSub enroll survives a rollout gap instead of being purged.
 	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
 		"failed to provision outgress streams")
-	// The Discord stream is provisioned on its own and never fatally: its
-	// $JS.API.STREAM.CREATE grant lands with a NATS config push, and an
-	// outgress rolled ahead of that push must keep serving Twitch instead of
-	// CrashLooping until the ACL catches up. Discord stays dark until the
-	// next restart after the grant.
-	discordStreamReady := ensureDiscordStream(ctx, cfg.NATSURL, log)
 
 	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
 	fatalIf(log, err, "failed to connect to valkey")
@@ -128,6 +115,15 @@ func main() {
 	fatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
 		"failed to subscribe channel cache invalidation")
 	defer registry.Close()
+
+	// pub is the pooled async publisher for derived-fact events outgress
+	// fires after a lane handler's own work is done -- currently only the
+	// clip-created fact (see worker/clip.go's publishClipCreated). It is a
+	// separate connection pool from nc above (request-reply/RPC) because
+	// bus.Publisher batches and pools independently of core-NATS requests.
+	pub, err := bus.NewPublisher(cfg.NATSURL, log)
+	fatalIf(log, err, "failed to connect publisher")
+	defer func() { _ = pub.Close() }()
 
 	host := podIdentity(log)
 	// Label every worker transaction with this pod's region and the Kubernetes
@@ -169,18 +165,18 @@ func main() {
 	standard.SetReauthNotifier(reauth)
 	system.SetReauthNotifier(reauth)
 
-	// Discord attaches BEFORE any consumer goroutine starts: SetDiscord
-	// writes worker fields the lane handlers read without a lock.
-	discordOn := d.attachDiscord(premium, standard, system)
+	// Only the chat lanes ever process TypeClip (sesame routes !clip to
+	// premium/standard by broadcaster tier, never to system), so only those
+	// two need the fact publisher. Attaches before any consumer goroutine
+	// starts, same as every other Set* above.
+	premium.SetFactPublisher(pub)
+	standard.SetFactPublisher(pub)
 
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
 		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
 	})
 	d.startSystemLane(ctx, systemSub, system)
-
-	closeDiscord := d.startDiscordLanes(ctx, premium, standard, discordOn && discordStreamReady)
-	defer closeDiscord()
 
 	// The client-scoped user.authorization.* subscriptions that feed the
 	// notifier are ensured in the background below.
@@ -204,8 +200,6 @@ func main() {
 	// sesame's loyalty watch tick: one call per live channel per tick.
 	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
 		"failed to subscribe chatters rpc")
-	fatalIf(log, rpc.SubscribeDiscord(system, rpc.Wiring{NC: nc, Prefix: cfg.RPCPrefix, Queue: "outgress-rpc", App: nrApp, Log: log.Named("rpc")}),
-		"failed to subscribe discord rpc")
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.NATS("nats", nc))
@@ -466,14 +460,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
 	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
-	// Chat lanes need the same projection reader as the system lane: Discord
-	// clip posts run on premium/standard after Helix Create Clip, and they
-	// look up the Discord module blob here. Live go-live still fires on the
-	// system worker's stream-lane handler (no sesame hop).
-	streamInfo := projection.NewStore(d.valkey)
-	premium.SetStreamInfoStore(streamInfo)
-	standard.SetStreamInfoStore(streamInfo)
-	system.SetStreamInfoStore(streamInfo)
+	system.SetStreamInfoStore(projection.NewStore(d.valkey))
 
 	return premium, standard, system, modVerifier.Close
 }
@@ -592,88 +579,6 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 	}
 
 	return func() { _ = authzSub.Close() }
-}
-
-// ensureDiscordStream reconciles DISCORD_OUTGRESS separately so a denied
-// grant degrades Discord instead of crashing Twitch output (see main).
-func ensureDiscordStream(ctx context.Context, natsURL string, log *zap.Logger) bool {
-	if err := bus.EnsureStreams(ctx, natsURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log); err != nil {
-		log.Error("discord outgress stream unavailable; Discord disabled until restart", zap.Error(err))
-		return false
-	}
-	return true
-}
-
-// attachDiscord hands the REST client and the live-message store to every
-// lane worker (live embeds fire on the system worker's stream-lane handler;
-// raid copies drain the Discord outgress lanes). It must run before any
-// consumer starts. No token means Discord stays dark: outgress still boots
-// for Twitch.
-func (d *deps) attachDiscord(premium, standard, system *worker.Worker) bool {
-	token := d.cfg.DiscordBotToken
-	if token == "" {
-		d.log.Info("DISCORD_BOT_TOKEN unset; Discord outgress disabled")
-		return false
-	}
-	client := discord.NewClient(token)
-	kv := worker.NewDiscordLiveStore(d.valkey)
-	premium.SetDiscord(client, kv)
-	standard.SetDiscord(client, kv)
-	system.SetDiscord(client, kv)
-	return true
-}
-
-// startDiscordLanes drains the Discord outgress lanes. Failures are logged,
-// never fatal: a NATS hiccup on the Discord stream must not take Twitch chat
-// output down with it. ready is false when the token is unset or the stream
-// could not be provisioned.
-func (d *deps) startDiscordLanes(ctx context.Context, premium, standard *worker.Worker, ready bool) func() {
-	noop := func() {}
-	if !ready {
-		return noop
-	}
-	premiumSub, err := d.discordLane(d.cfg.DiscordPremiumSubject, "outgress-discord-premium")
-	if err != nil {
-		d.log.Error("discord premium lane unavailable; Discord copies disabled", zap.Error(err))
-		return noop
-	}
-	standardSub, err := d.discordLane(d.cfg.DiscordStandardSubject, "outgress-discord-standard")
-	if err != nil {
-		_ = premiumSub.Close()
-		d.log.Error("discord standard lane unavailable; Discord copies disabled", zap.Error(err))
-		return noop
-	}
-	closeAll := func() {
-		_ = standardSub.Close()
-		_ = premiumSub.Close()
-	}
-	_, err = bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
-		{Sub: premiumSub, Subject: d.cfg.DiscordPremiumSubject, Handle: premium.Process, Reserve: d.cfg.PremiumReserve},
-		{Sub: standardSub, Subject: d.cfg.DiscordStandardSubject, Handle: standard.Process},
-	}, bus.ScalePolicy{
-		MinRoutines:    d.cfg.MinRoutines,
-		MaxRoutines:    d.cfg.MaxRoutines,
-		MaxConsumers:   d.cfg.MaxConsumers,
-		ScaleUpAfter:   d.cfg.ScaleUpAfter,
-		ScaleDownAfter: d.cfg.ScaleDownAfter,
-	}, d.log)
-	if err != nil {
-		closeAll()
-		d.log.Error("failed to consume discord outgress lanes; Discord copies disabled", zap.Error(err))
-		return noop
-	}
-	return closeAll
-}
-
-// discordLane binds one Discord outgress lane. Discord dictates its own
-// backoff on a 429 (seconds, not the 1 s Helix chat retries), so the lane
-// paces redelivery at discordNakDelay under the stream's 30 s MaxAge instead
-// of burning three tries in three seconds.
-func (d *deps) discordLane(subject, group string) (bus.Subscriber, error) {
-	return bus.NewLaneSubscriber(bus.LaneConfig{
-		URL: d.cfg.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: subject,
-		Group: group, NakDelay: discordNakDelay, MaxRedeliveries: discordMaxRedeliveries,
-	}, d.log)
 }
 
 func (d *deps) logReady(tw *twitch.Client) {

@@ -57,8 +57,12 @@ metadata:
   name: dingress-status
   namespace: app
 spec:
+  # component: dingress, not app: dingress -- dingress is now two Deployments
+  # (dingress-gateway, dingress-egress; deploy/k8s/dingress.yaml), and this
+  # one status Service fans out to both: any pod answering /status is enough
+  # to prove the shared image is healthy on that role.
   selector:
-    app: dingress
+    component: dingress
   ports:
     - name: http
       port: 443

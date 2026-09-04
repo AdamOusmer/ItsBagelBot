@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package worker
+package egress
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	discapi "ItsBagelBot/internal/discordapi"
-	"ItsBagelBot/internal/projection"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -25,22 +24,11 @@ type liveMsgKey struct {
 	BroadcasterID string
 }
 
-// discordUser is one Twitch user id the Discord module is keyed by.
-type discordUser struct {
-	ID uint64
-}
-
-// discordModuleReader is the GetModule slice live/clip announcers need.
-// *projection.Store implements it; tests inject a map. The signature
-// matches projection.Store so production can assign streamInfo directly.
-type discordModuleReader interface {
-	GetModule(ctx context.Context, userID uint64, name string) (projection.ModuleView, bool, error)
-}
-
-// discordLiveStore remembers the go-live message so stream.offline can
-// edit it, and the guild→Twitch reverse index dingress needs. Production
-// uses Valkey; tests use a map.
-type discordLiveStore interface {
+// liveStore remembers the go-live message so stream.offline can edit it,
+// and the guild->Twitch reverse index the guild-setup RPC needs. Production
+// uses Valkey; tests use a map. Ported from outgress's discordLiveStore
+// (app/outgress/internal/worker/discord_kv.go) unchanged in shape.
+type liveStore interface {
 	PutLiveMessage(ctx context.Context, key liveMsgKey, m discapi.Message) error
 	GetLiveMessage(ctx context.Context, key liveMsgKey) (discapi.Message, bool)
 	DeleteLiveMessage(ctx context.Context, key liveMsgKey) error
@@ -50,19 +38,19 @@ type discordLiveStore interface {
 	PutTicketDesk(ctx context.Context, guild discapi.Guild) error
 }
 
-type valkeyDiscordLive struct {
+type valkeyLiveStore struct {
 	client valkey.Client
 }
 
-func NewDiscordLiveStore(client valkey.Client) discordLiveStore {
-	return newValkeyDiscordLive(client)
-}
-
-func newValkeyDiscordLive(client valkey.Client) discordLiveStore {
+// NewLiveStore builds the Valkey-backed liveStore. A nil client (Valkey
+// unreachable at boot) returns a nil store rather than panicking later --
+// callers already nil-check w.discordKV before every use, matching
+// outgress's newValkeyDiscordLive.
+func NewLiveStore(client valkey.Client) liveStore {
 	if client == nil {
 		return nil
 	}
-	return valkeyDiscordLive{client: client}
+	return valkeyLiveStore{client: client}
 }
 
 func discordLiveKey(key liveMsgKey) string { return "discord:live-msg:" + key.BroadcasterID }
@@ -71,12 +59,12 @@ func discordGuildKey(req GuildSetupRequest) string { return "discord:guild:" + r
 
 func discordTicketDeskKey(guild discapi.Guild) string { return "discord:ticketdesk:" + guild.ID }
 
-func (s valkeyDiscordLive) PutLiveMessage(ctx context.Context, key liveMsgKey, m discapi.Message) error {
+func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, key liveMsgKey, m discapi.Message) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(discordLiveKey(key)).
 		Value(m.ChannelID+"|"+m.ID).Ex(liveMessageTTL).Build()).Error()
 }
 
-func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, key liveMsgKey) (discapi.Message, bool) {
+func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, key liveMsgKey) (discapi.Message, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(discordLiveKey(key)).Build()).ToString()
 	if err != nil {
 		return discapi.Message{}, false
@@ -94,11 +82,11 @@ func (s valkeyDiscordLive) GetLiveMessage(ctx context.Context, key liveMsgKey) (
 	return discapi.Message{ChannelID: ch, ID: id}, true
 }
 
-func (s valkeyDiscordLive) DeleteLiveMessage(ctx context.Context, key liveMsgKey) error {
+func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, key liveMsgKey) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(discordLiveKey(key)).Build()).Error()
 }
 
-func (s valkeyDiscordLive) PutGuild(ctx context.Context, req GuildSetupRequest) error {
+func (s valkeyLiveStore) PutGuild(ctx context.Context, req GuildSetupRequest) error {
 	if req.GuildID == "" {
 		return nil
 	}
@@ -109,7 +97,7 @@ func (s valkeyDiscordLive) PutGuild(ctx context.Context, req GuildSetupRequest) 
 		Value(req.BroadcasterID).Build()).Error()
 }
 
-func (s valkeyDiscordLive) GetGuild(ctx context.Context, req GuildSetupRequest) (string, bool) {
+func (s valkeyLiveStore) GetGuild(ctx context.Context, req GuildSetupRequest) (string, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(discordGuildKey(req)).Build()).ToString()
 	if err != nil {
 		return "", false
@@ -120,11 +108,11 @@ func (s valkeyDiscordLive) GetGuild(ctx context.Context, req GuildSetupRequest) 
 	return raw, true
 }
 
-func (s valkeyDiscordLive) DeleteGuild(ctx context.Context, req GuildSetupRequest) error {
+func (s valkeyLiveStore) DeleteGuild(ctx context.Context, req GuildSetupRequest) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(discordGuildKey(req)).Build()).Error()
 }
 
-func (s valkeyDiscordLive) PutTicketDesk(ctx context.Context, guild discapi.Guild) error {
+func (s valkeyLiveStore) PutTicketDesk(ctx context.Context, guild discapi.Guild) error {
 	if guild.ID == "" {
 		return nil
 	}

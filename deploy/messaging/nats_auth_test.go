@@ -33,7 +33,12 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"loyalty_bus":   {"BAGEL_DATA"},
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS", "DISCORD_OUTGRESS"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
+		// dingress-egress owns nothing: a durable pull consumer on BAGEL_DATA
+		// (data.twitch.clip.created) and a second, independent durable push
+		// consumer on TWITCH_INGRESS (twitch.ingress.event.stream), alongside
+		// outgress's own. dingress-gateway has no BUS connection at all.
+		"dingress_egress_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
 	}
 	owners := map[string][]string{
 		"users_bus":  {"BAGEL_DATA"},
@@ -42,12 +47,12 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		// users/sesame boot order; identical catalog specs make the concurrent
 		// reconciles converge.
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "DISCORD_OUTGRESS"},
+		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
 		"projector_bus", "worker_bus", "outgress_bus",
-		"twitch_ingress_bus", "dashboard_bus",
+		"twitch_ingress_bus", "dashboard_bus", "dingress_egress_bus",
 	}
 
 	for _, user := range serviceUsers {
@@ -125,12 +130,10 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
 			// the partition ordering holds here exactly as it does in sesame.
 			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)"},
-			// Two calls: the Twitch pair is fatal, DISCORD_OUTGRESS is reconciled
-			// on its own and non-fatally so an outgress rolled ahead of the ACL
-			// push keeps serving Twitch (app/outgress/main.go ensureDiscordStream).
+			// outgress owns only its two Twitch work-queue streams now;
+			// DISCORD_OUTGRESS is gone with the rest of the Discord split.
 			"outgress": {
 				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
-				"[]bus.StreamSpec{bus.DiscordOutgressStream}",
 			},
 		},
 		seen: make(map[string]bool, 4),
@@ -176,6 +179,12 @@ var flowControlStreams = map[string][]string{
 // replay lane is drained with the same shared-durable pull mechanism.
 var pullFetchStreams = map[string][]string{
 	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+	// dingress-egress's BAGEL_DATA consumer is pull-mode: BAGEL_DATA is
+	// LimitsPolicy and every subscriber binds its own durable, so there is no
+	// work-queue competition to avoid the way there is on the hot ingress
+	// lanes -- pull was simply the natural shape for a fresh consumer with no
+	// push-consumer history to match.
+	"dingress_egress_bus": {"BAGEL_DATA"},
 }
 
 type streamGrants struct {

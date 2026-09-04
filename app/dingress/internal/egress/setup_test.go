@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package worker
+package egress
 
 import (
 	"context"
@@ -14,10 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func setupWorker(guild *guildRecorder, kv discordLiveStore) *Worker {
-	w := New(Config{Log: zap.NewNop(), Limiter: &scriptedLimiter{}})
-	w.SetDiscord(guild, kv)
-	return w
+func setupWorker(guild *guildRecorder, kv liveStore) *Worker {
+	return New(Config{Discord: guild, DiscordKV: kv, Log: zap.NewNop()})
 }
 
 func setupGuild1(t *testing.T, w *Worker, broadcasterID string) GuildSetupResult {
@@ -63,10 +61,7 @@ func filledGaps(got GuildSetupResult) string {
 	if got.GuildID != "guild-1" {
 		return "guild = " + got.GuildID
 	}
-	for _, slot := range []struct {
-		id   string
-		name string
-	}{
+	for _, slot := range []struct{ id, name string }{
 		{got.LiveChannelID, "live channel"},
 		{got.ClipsChannelID, "clips channel"},
 		{got.VoiceHubID, "voice hub"},
@@ -158,10 +153,7 @@ func TestSetupGuildCompletesAPartialFill(t *testing.T) {
 		t.Fatalf("existing clips channel must be reused: %+v", got)
 	}
 	for _, name := range guild.createdCh {
-		if name == "now-live" {
-			t.Fatalf("%s was created twice", name)
-		}
-		if name == "clips" {
+		if name == "now-live" || name == "clips" {
 			t.Fatalf("%s was created twice", name)
 		}
 	}
@@ -214,5 +206,24 @@ func TestGuildLayoutRequiresTheBinding(t *testing.T) {
 	}
 	if layout.Channels[0].ID != "c1" {
 		t.Fatalf("channels = %+v", layout.Channels)
+	}
+}
+
+func TestPostDiscordRequiresChannelAndContent(t *testing.T) {
+	guild := &guildRecorder{}
+	w := setupWorker(guild, &memLiveStore{})
+
+	if err := w.PostDiscord(context.Background(), "", "hi"); err != discapi.ErrBadRequest {
+		t.Fatalf("err = %v, want ErrBadRequest", err)
+	}
+	if err := w.PostDiscord(context.Background(), "chan", ""); err != discapi.ErrBadRequest {
+		t.Fatalf("err = %v, want ErrBadRequest", err)
+	}
+}
+
+func TestPostDiscordRequiresAClient(t *testing.T) {
+	w := New(Config{Log: zap.NewNop()})
+	if err := w.PostDiscord(context.Background(), "chan", "hi"); err != discapi.ErrAuth {
+		t.Fatalf("err = %v, want ErrAuth", err)
 	}
 }

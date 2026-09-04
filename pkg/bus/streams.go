@@ -456,25 +456,6 @@ var YouTubeOutgressStream = StreamSpec{
 	Replicas:     3,
 }
 
-// MaxBytes is 32 MiB, not the 64 MiB the YouTube twin carries: each memory
-// stream costs its byte cap three times per hub peer (replica + RAFT WAL) plus
-// one 128 MiB ingest queue, and TestMemoryStreamsFitTheHubMemoryBudget holds
-// the sum under the pod's 5 GiB limit. At announcement volume 32 MiB under R3
-// is a deep lag budget; growing it is a deliberate edit there.
-var DiscordOutgressStream = StreamSpec{
-	Name:      "DISCORD_OUTGRESS",
-	Subjects:  []string{"discord.outgress.premium", "discord.outgress.standard"},
-	Retention: nats.WorkQueuePolicy,
-	// 30 s, not Twitch chat's 5 s: a raid or gift-bomb copy is still worth
-	// posting half a minute late, and Discord answers a 429 with a
-	// multi-second Retry-After that a 5 s lifetime could never wait out.
-	MaxAge:       30 * time.Second,
-	MaxBytes:     32 << 20, // 32 MiB: announcement volume is far below Twitch chat's
-	Storage:      nats.MemoryStorage,
-	BatchPublish: true,
-	Replicas:     3,
-}
-
 // Ownership is deliberately outgress for now: it is the only consumer of
 // these subjects today (the lifecycle lane feeds the live-chat directory).
 // When a YouTube sesame exists, reconciliation moves there.
@@ -599,7 +580,7 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, DiscordOutgressStream, YouTubeIngressStream)
+		YouTubeOutgressStream, YouTubeIngressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

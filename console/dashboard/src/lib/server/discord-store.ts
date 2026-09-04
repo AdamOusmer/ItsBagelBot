@@ -159,7 +159,7 @@ export async function setupGuild(
   current: DiscordConfig
 ): Promise<DiscordSetup> {
   const r = await rpc<SetupReply>(
-    `${SUB.outgressRpc}.discord.setup`,
+    `${SUB.dingressRpc}.discord.setup`,
     { user_id: target.userId, guild_id: target.guildId },
     SETUP_TIMEOUT_MS
   );
@@ -204,7 +204,7 @@ function entries(list: LayoutReply['channels']): DiscordEntry[] {
 // guildLayout lists the bound guild's channels and roles for the pickers.
 export async function guildLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
   const r = await rpc<LayoutReply>(
-    `${SUB.outgressRpc}.discord.layout`,
+    `${SUB.dingressRpc}.discord.layout`,
     { user_id: target.userId, guild_id: target.guildId },
     LAYOUT_TIMEOUT_MS
   );
@@ -216,7 +216,7 @@ export async function guildLayout(target: DiscordGuildTarget): Promise<DiscordLa
 // stops resolving the guild to this broadcaster.
 export async function unbindGuild(target: DiscordGuildTarget): Promise<void> {
   const r = await rpc<{ error?: string }>(
-    `${SUB.outgressRpc}.discord.unbind`,
+    `${SUB.dingressRpc}.discord.unbind`,
     { user_id: target.userId, guild_id: target.guildId },
     5000
   );

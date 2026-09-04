@@ -12,7 +12,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -50,20 +50,41 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: app
-    # NATS hub + leaf live in messaging
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: messaging
     # Valkey lives in cache
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cache
 ---
+# NATS (hub + leaf, namespace messaging) is its own allowlist, not part of the
+# blanket default-deny-apps egress above, because one workload deliberately
+# has no NATS connection: dingress-gateway is the Discord gateway singleton
+# and holds no BUS/RPC account at all (deploy/k8s/dingress.yaml,
+# deploy/messaging/nats-auth.conf). Its sibling dingress-egress does need
+# NATS, so the two are split apart everywhere they differ, not just here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats
+  namespace: app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+---
 # Every long-running application currently exports APM directly to New Relic
 # over HTTPS. Product integrations also use HTTPS from gossip, ingress,
-# outgress, dingress, sesame, transactions and the consoles. Keep this grant explicit so
+# outgress, dingress-gateway (Discord gateway WSS), dingress-egress (Discord
+# REST), sesame, transactions and the consoles. Keep this grant explicit so
 # a workload cannot silently inherit it merely by joining default-deny-apps.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -75,7 +96,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications]
   policyTypes:
     - Egress
   egress:
@@ -164,7 +185,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
   ingress:

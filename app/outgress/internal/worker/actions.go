@@ -58,6 +58,5 @@ func (w *Worker) buildActions() action.Registry {
 	b.Action(outgress.TypeEventSub).Internal().Run(w.processEventSub)
 	b.Action(outgress.TypeStreamStatus).Internal().Run(w.processStreamStatus)
 	b.Action(outgress.TypeRedemptionUpdate).Internal().Run(w.processRedemptionUpdate)
-	b.Action(outgress.TypeDiscordChat).Internal().Run(w.processDiscordChat)
 	return b.Build()
 }

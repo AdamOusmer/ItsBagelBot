@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package worker
+package egress
 
 import (
 	"context"
@@ -33,7 +33,7 @@ var ErrGuildBoundElsewhere = errors.New("this Discord server is already linked t
 var errDiscordUnavailable = errors.New("discord client unavailable")
 
 // GuildSetupResult is the snowflakes the dashboard writes into the Discord
-// module blob after a fill. Outgress does not write modules.
+// module blob after a fill. Egress does not write modules.
 type GuildSetupResult struct {
 	GuildID          string
 	LiveChannelID    string
@@ -73,7 +73,7 @@ type GuildSetupRequest struct {
 
 // SetupGuild fills the Bagel community template into an existing guild.
 // Proving the caller installed the bot in guildID is the dashboard's job
-// (OAuth code exchange); outgress enforces the one thing it can see, that
+// (OAuth code exchange); egress enforces the one thing it can see, that
 // the guild is not already bound to another broadcaster, and binds BEFORE
 // any write so a refused caller never touches the server.
 //
@@ -81,6 +81,14 @@ type GuildSetupRequest struct {
 // its channels and roles are adopted by name instead. Template-named
 // channels never count as lived-in, so a fill cut short by a timeout is
 // completed on the next attempt rather than refused forever.
+//
+// Ported unchanged from outgress's worker.SetupGuild, except that the
+// one-token-for-the-whole-fill pre-pay (outgress's takeDiscordGlobal call in
+// newGuildFill) is gone: every individual REST call below now pays the
+// shared bucket itself, at the discordrate.LimitedClient layer both dingress
+// roles share (see app/dingress/internal/discordrate). Paying per call
+// instead of once for the ~21-call fill is strictly more accurate, not a
+// behavior loss.
 func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSetupResult, error) {
 	req.GuildID = strings.TrimSpace(req.GuildID)
 	out := GuildSetupResult{GuildID: req.GuildID}
@@ -107,18 +115,17 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 // GuildLayout lists a bound guild's channels and roles for the dashboard
 // pickers. Only the bound broadcaster may read it.
 func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildLayout, error) {
-	guild, ok := w.guildAPI()
-	if !ok {
+	if w.discord == nil {
 		return GuildLayout{}, errDiscordUnavailable
 	}
 	if err := w.requireBound(ctx, req); err != nil {
 		return GuildLayout{}, err
 	}
-	channels, err := guild.ListGuildChannels(ctx, req.guild())
+	channels, err := w.discord.ListGuildChannels(ctx, req.guild())
 	if err != nil {
 		return GuildLayout{}, err
 	}
-	roles, err := guild.ListGuildRoles(ctx, req.guild())
+	roles, err := w.discord.ListGuildRoles(ctx, req.guild())
 	if err != nil {
 		return GuildLayout{}, err
 	}
@@ -133,7 +140,7 @@ type ownerCheck struct {
 	MissingOK bool
 }
 
-// UnbindGuild drops the guild→broadcaster reverse index on disconnect. A
+// UnbindGuild drops the guild->broadcaster reverse index on disconnect. A
 // guild bound to someone else is left alone.
 func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
@@ -209,8 +216,7 @@ type guildFill struct {
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
-	guild, ok := w.guildAPI()
-	if !ok {
+	if w.discord == nil {
 		return nil, errDiscordUnavailable
 	}
 	if req.GuildID == "" {
@@ -219,25 +225,19 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	if err := w.bindGuild(ctx, req); err != nil {
 		return nil, err
 	}
-	// One global token for the whole fill: it is a one-off admin action of
-	// ~21 calls, and the create buckets Discord actually enforces are paced
-	// per call through Retry-After in create.
-	if err := w.takeDiscordGlobal(ctx); err != nil {
-		return nil, err
-	}
 	if req.EveryoneRoleID == "" {
 		req.EveryoneRoleID = req.GuildID
 	}
-	existing, err := guild.ListGuildChannels(ctx, req.guild())
+	existing, err := w.discord.ListGuildChannels(ctx, req.guild())
 	if err != nil {
 		return nil, err
 	}
-	roles, err := guild.ListGuildRoles(ctx, req.guild())
+	roles, err := w.discord.ListGuildRoles(ctx, req.guild())
 	if err != nil {
 		return nil, err
 	}
 	return &guildFill{
-		w: w, api: guild, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
+		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
 	}, nil
 }

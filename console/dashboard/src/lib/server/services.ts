@@ -36,6 +36,12 @@ export const SUB = {
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
+  // Discord guild setup/layout/unbind moved off outgress when Discord became
+  // its own vertical: dingress-egress serves them now, under its own account.
+  // Hard cutover, no outgress fallback -- outgress deleted the handlers and
+  // the dashboard's NATS account no longer imports bagel.rpc.outgress.discord.>,
+  // so a fallback could only ever time out.
+  dingressRpc: process.env.NATS_DINGRESS_RPC_PREFIX || 'bagel.rpc.dingress',
   // Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
   // fallback (the old account/user no longer exist).
   gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'bagel.rpc.gossip',

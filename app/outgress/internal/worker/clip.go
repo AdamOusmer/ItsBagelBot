@@ -4,7 +4,6 @@
 package worker
 
 import (
-	ddiscord "ItsBagelBot/internal/domain/discord"
 	"context"
 	"fmt"
 	"io"
@@ -14,7 +13,9 @@ import (
 	"strings"
 
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
@@ -149,11 +150,40 @@ func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta c
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	w.announceDiscordClip(ctx, clipJob{
-		BroadcasterID: broadcasterID,
-		Embed:         ddiscord.ClipEmbed(ddiscord.ClipCard{URL: clipURL, Clipper: meta.Clipper, Title: strings.TrimSpace(meta.Title)}),
-	})
+	w.publishClipCreated(ctx, broadcasterID, id, clipURL, meta)
 	w.scheduleClipVerify(broadcasterID, meta.Clipper, id)
+}
+
+// publishClipCreated announces the clip as a fact on BAGEL_DATA rather than
+// posting a Discord embed directly: see data.SubjectClipCreated's doc comment
+// for why this has to be a fact and not a discord_chat command -- in short, a
+// work-queue Discord lane could only ever hand the clip to one subscriber,
+// and outgress would have to learn Discord exists (module blob, embed
+// builder, enabled check) just to make an announcement someone else cares
+// about. Best-effort, exactly like the Discord post it replaces: the clip
+// already exists and the chat reply already went out, so a failed publish
+// only logs and moves on.
+func (w *Worker) publishClipCreated(ctx context.Context, broadcasterID, clipID, clipURL string, meta clipMeta) {
+	if w.factPub == nil {
+		return
+	}
+	evt := data.ClipCreated{
+		BroadcasterID: broadcasterID,
+		ClipID:        clipID,
+		URL:           clipURL,
+		Clipper:       meta.Clipper,
+		Title:         strings.TrimSpace(meta.Title),
+	}
+	// Warn, not Debug: best-effort means the clip still exists and chat was
+	// still answered, NOT that the loss is uninteresting. This publish is the
+	// only signal any subscriber gets, so a dropped one is a silently missing
+	// archive post with nothing downstream able to notice -- the same reason
+	// the Discord path this replaced logged its skipped posts rather than
+	// swallowing them.
+	if err := bus.PublishJSON(ctx, w.factPub, data.SubjectClipCreated, evt); err != nil {
+		w.log.Warn("failed to publish clip created fact",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
 }
 
 // clipID decodes the Create Clip response body and returns the new clip's id
