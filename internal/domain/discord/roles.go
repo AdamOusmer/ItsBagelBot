@@ -52,8 +52,10 @@ func ValidSlot(slot string) bool {
 	return false
 }
 
-// PinnedRoleMap parses PinnedRoles into slot -> role id. Malformed entries
-// are dropped rather than failing the whole parse: this runs on the hot
+// PinnedRoleMap parses PinnedRoles into slot -> role id. A slot pinned twice
+// keeps the LAST pair (the map write order), which ValidateConfig reports as
+// duplicate_slot rather than silently picking for the streamer. Malformed
+// entries are dropped rather than failing the whole parse: this runs on the hot
 // config path where a zero Config already means "do nothing", and
 // ValidateConfig is where a streamer is told about a bad pair.
 func (c Config) PinnedRoleMap() map[string]string {
@@ -72,13 +74,26 @@ func (c Config) PinnedRoleMap() map[string]string {
 	return out
 }
 
-// splitPin splits one "slot=roleId" pair. Both halves must be non-empty and
-// the slot must be a known one.
-func splitPin(entry string) (slot, id string, ok bool) {
+// cutPin splits one "slot=roleId" pair into its trimmed halves. ok is false
+// when the entry is not a PAIR at all -- no "=", or a half left empty --
+// which is a different mistake from naming a slot that does not exist, and
+// the validator reports the two under different codes so the dashboard can
+// say "write slot=roleId" rather than "unknown slot" for `owner`.
+func cutPin(entry string) (slot, id string, ok bool) {
 	slot, id, found := strings.Cut(entry, "=")
 	slot = strings.TrimSpace(slot)
 	id = strings.TrimSpace(id)
-	if !found || slot == "" || id == "" || !ValidSlot(slot) {
+	if !found || slot == "" || id == "" {
+		return "", "", false
+	}
+	return slot, id, true
+}
+
+// splitPin splits one "slot=roleId" pair. Both halves must be non-empty and
+// the slot must be a known one.
+func splitPin(entry string) (slot, id string, ok bool) {
+	slot, id, ok = cutPin(entry)
+	if !ok || !ValidSlot(slot) {
 		return "", "", false
 	}
 	return slot, id, true

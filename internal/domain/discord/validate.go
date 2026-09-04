@@ -26,7 +26,18 @@ const (
 	CodeTooLong      = "too_long"
 	CodeInvalidSlot  = "invalid_slot"
 	CodeInvalidFlag  = "invalid_flag"
+	// CodeDuplicateSlot is the same slot pinned twice. Refused rather than
+	// resolved: PinnedRoleMap keeps the last pair, so silently accepting it
+	// means the dashboard shows one role and setup adopts the other.
+	CodeDuplicateSlot = "duplicate_slot"
+	// CodeMalformedPair is an entry that is not "slot=roleId" at all -- no
+	// "=", or an empty half. Distinct from CodeInvalidSlot so the console
+	// can tell a typo'd separator from an unknown slot name.
+	CodeMalformedPair = "malformed_pair"
 )
+
+// pinnedRolesField is the JSON tag every pinned-role error is reported under.
+const pinnedRolesField = "pinnedRoles"
 
 // Snowflake bounds. Discord ids are 64-bit millisecond-epoch snowflakes,
 // which are 17 digits from 2016 and 19 today; 20 leaves room for the whole
@@ -131,17 +142,32 @@ func tooLong(field, value string, max int) []FieldError {
 
 func validatePinnedRoles(raw string) []FieldError {
 	var out []FieldError
+	seen := make(map[string]bool)
 	for _, entry := range splitList(raw) {
-		_, id, ok := splitPin(entry)
-		if !ok {
-			out = append(out, FieldError{Field: "pinnedRoles", Code: CodeInvalidSlot})
-			continue
-		}
-		if !ValidSnowflake(id) {
-			out = append(out, FieldError{Field: "pinnedRoles", Code: CodeInvalidID})
-		}
+		out = append(out, validatePin(entry, seen)...)
 	}
 	return out
+}
+
+// validatePin reports the FIRST thing wrong with one pair and stops: an
+// entry that is not a pair has no slot to check for a duplicate, and piling
+// three codes onto the same field tells the streamer nothing extra.
+func validatePin(entry string, seen map[string]bool) []FieldError {
+	slot, id, ok := cutPin(entry)
+	if !ok {
+		return []FieldError{{Field: pinnedRolesField, Code: CodeMalformedPair}}
+	}
+	if !ValidSlot(slot) {
+		return []FieldError{{Field: pinnedRolesField, Code: CodeInvalidSlot}}
+	}
+	if seen[slot] {
+		return []FieldError{{Field: pinnedRolesField, Code: CodeDuplicateSlot}}
+	}
+	seen[slot] = true
+	if !ValidSnowflake(id) {
+		return []FieldError{{Field: pinnedRolesField, Code: CodeInvalidID}}
+	}
+	return nil
 }
 
 // toggleFields is every "on"/"off" string field, by JSON tag.
