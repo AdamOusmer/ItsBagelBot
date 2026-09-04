@@ -83,7 +83,24 @@ describe('module catalog', () => {
     expect(moduleDef('songqueue')?.category).toBe('Gear');
     expect(moduleDef('discord')?.category).toBe('Gear');
     expect(moduleDef('discord')?.href).toBe('/discord');
-    expect(moduleDef('discord')?.icon).toBe('server');
+    expect(moduleDef('discord')?.icon).toBe('discord');
+  });
+
+  // Discord owns a sidebar section, so it must not ALSO be a tile: it was
+  // rendering in both places, which reads as two features sharing a name.
+  // section is not hidden -- the row stays writable and the page reachable,
+  // which is why catalogIndexable checks a separate flag.
+  test('a sectioned module is kept out of the modules grid', () => {
+    const discord = moduleDef('discord');
+    expect(discord?.section).toBe(true);
+    expect(discord && catalogIndexable(discord)).toBe(false);
+    expect(discord?.hidden).toBeUndefined();
+  });
+
+  test('every other listed module still indexes', () => {
+    const listed = MODULE_CATALOG.filter((d) => !d.hidden && !d.parent && !d.section);
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.every(catalogIndexable)).toBe(true);
   });
 
   // Discord got promoted to its own dashboard section and its own delegation

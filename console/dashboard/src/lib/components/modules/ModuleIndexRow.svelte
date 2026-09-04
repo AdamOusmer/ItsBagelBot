@@ -180,20 +180,25 @@
   }
   .cmd.more { color: var(--bb-muted); border-color: var(--rule); background: transparent; }
 
+  /* Filled rather than a hairline outline, and a size up: at 9.5px with a
+     45%-alpha border this read as decoration and people missed that the
+     module was gated at all. The label carries "Premium" too, so the chip
+     answers "why can I not turn this on" without a hover or a click. */
   .beta {
     display: inline-block;
-    vertical-align: 2px;
-    margin-left: 6px;
+    vertical-align: 1px;
+    margin-left: 8px;
     font-family: var(--bb-font-mono);
-    font-size: 9.5px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.45);
-    border-radius: 4px;
-    padding: 1px 5px;
-    line-height: 1.4;
+    color: var(--bb-ink, #1b1409);
+    background: var(--bb-tan-light);
+    border: 1px solid var(--bb-tan-light);
+    border-radius: 5px;
+    padding: 2px 7px;
+    line-height: 1.35;
   }
   .locked .icon { opacity: 0.6; }
 

@@ -111,6 +111,17 @@ export interface ModuleDef {
   toggleable?: boolean;
   // If true, the module is hidden from the dashboard and unreachable.
   hidden?: boolean;
+  // If true, this module owns its own dashboard section (see
+  // DASHBOARD_SECTIONS in nav.ts) and must NOT also appear as a tile in the
+  // modules grid. It is still a real module row underneath: the config lives
+  // in the same store, moduleDef resolves it, and its page and write gates
+  // work exactly as before.
+  //
+  // This is not `hidden`. Hidden means unreachable, and moduleWritable checks
+  // it, so marking a sectioned module hidden would block its own page from
+  // saving. The two flags answer different questions: hidden is "does this
+  // exist for broadcasters", section is "where does it live".
+  section?: boolean;
   // If true, the module is in beta: listed to everyone with a Beta chip, but
   // premium-only (paid/vip) until the flag is removed. Free channels see the
   // tile locked, cannot toggle or write it, and its bespoke page (href)

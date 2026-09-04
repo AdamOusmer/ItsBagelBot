@@ -20,7 +20,18 @@ import {
 } from '$lib/server/discord-oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
+import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
+import type { ModuleDef } from '@bagel/shared';
+import { moduleDef } from '@bagel/shared';
+
+// Resolved once. moduleDef returns undefined for an unknown id, and a silent
+// undefined here would disable the beta gate rather than fail, so this throws
+// at import time if the catalog ever drops the entry.
+const DISCORD_DEF: ModuleDef = (() => {
+  const def = moduleDef('discord');
+  if (!def) throw new Error('discord module missing from MODULE_CATALOG');
+  return def;
+})();
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -46,9 +57,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
   const refused = url.searchParams.get('refused') === '1';
 
+  // Discord is premium-only while it is in beta. The route guard lets a
+  // sectioned module through so the page can explain that rather than
+  // bouncing the visitor to a grid Discord is no longer in; the page renders
+  // a locked panel and every action refuses (see discordAction).
+  const locked = await moduleLocked(locals, DISCORD_DEF);
+
   if (DEMO) {
     const { demoDiscordView, demoDiscordLayout } = await import('$lib/server/demo-data');
     return {
+      locked: false,
       ...demoDiscordView(),
       layout: demoDiscordLayout(),
       templateURL: 'https://discord.new/demo',
@@ -62,6 +80,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   try {
     const view = await readDiscord({ userId: uid });
     return {
+      locked,
       ...view,
       layout: view.connected ? await loadLayout({ userId: uid, guildId: view.config.guildId }) : NO_LAYOUT,
       templateURL: discordTemplateURL(),
@@ -136,6 +155,12 @@ function discordAction<T extends Record<string, unknown>>(
   return async (event: RequestEvent) => {
     const ctx = await actionContext(event);
     if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
+    // The page is reachable while locked so it can explain itself; its writes
+    // are not. Without this, a stale form on a downgraded board would still
+    // save.
+    if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
+      return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
+    }
     if (DEMO) return { ok: true, enabled: ctx.form.get('is_enabled') === 'on' };
     const r = await attempt(work, () => run(ctx));
     if (!r.ok) return fail(400, { ok: false, error: r.error });

@@ -78,7 +78,21 @@ export function betaRouteDef(pathname: string): ModuleDef | undefined {
 // tile shows the lock.
 export async function assertBetaRouteOpen(event: RequestEvent): Promise<void> {
   const def = betaRouteDef(event.url.pathname);
-  if (def && (await moduleLocked(event.locals, def))) throw redirect(303, '/modules');
+  if (!def || !(await moduleLocked(event.locals, def))) return;
+  // A sectioned module has no tile to bounce to. Redirecting one to /modules
+  // drops the visitor on a grid that does not mention the thing they clicked,
+  // with nothing explaining why they were moved -- so those pages render their
+  // own locked state and this guard leaves them alone. Their write actions are
+  // gated separately (see assertModuleUnlocked).
+  if (def.section) return;
+  throw redirect(303, '/modules');
+}
+
+// assertModuleUnlocked is the write half for sectioned beta modules, which
+// assertBetaRouteOpen deliberately lets through so they can render an
+// explanation. The page being reachable must never mean its actions are.
+export async function assertModuleUnlocked(locals: App.Locals, def: ModuleDef): Promise<boolean> {
+  return !(await moduleLocked(locals, def));
 }
 
 // assertModuleWritable reports whether a write action (toggle, save, patch)

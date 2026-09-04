@@ -121,6 +121,24 @@
     {t('discord.titlePre')} <em>{t('discord.titleEm')}</em>
   </PageHead>
 
+  <!-- Discord is premium-only while in beta. The route guard lets this page
+       load rather than bouncing to /modules, because Discord has no tile
+       there any more and a silent redirect explains nothing. So the panel
+       says it here, on the page they clicked, and every action refuses
+       server-side regardless of what this renders. -->
+  {#if data.locked}
+    <Card>
+      <div class="locked-beta">
+        <span class="locked-chip">{t('modules.betaChip')}</span>
+        <h2>{t('modules.betaLocked')}</h2>
+        <p class="muted-text">{t('modules.betaLockedBody')}</p>
+        <div class="row">
+          <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
+        </div>
+      </div>
+    </Card>
+  {:else}
+
   {#if data.degraded}
     <AlertBanner>{t('discord.degraded')}</AlertBanner>
   {/if}
@@ -369,10 +387,31 @@
       </Card>
     </form>
   {/if}
+  {/if}
 </section>
 
 <style>
-  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  /* The section stacked banners, the toolbar and every Card with no gap of
+     its own, so spacing came from whatever margin each child happened to
+     carry and blocks ran together. One column gap here is the whole rule;
+     the toolbar's own bottom margin goes with it so they do not add up. */
+  .screen { display: flex; flex-direction: column; gap: 18px; }
+  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+
+  .locked-beta { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 4px 0; }
+  .locked-beta h2 { margin: 0; font-size: 1.15rem; }
+  .locked-beta p { margin: 0; max-width: 46ch; }
+  .locked-chip {
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-ink, #1b1409);
+    background: var(--bb-tan-light);
+    border-radius: 5px;
+    padding: 3px 9px;
+  }
 
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {
