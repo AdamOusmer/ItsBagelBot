@@ -84,7 +84,7 @@ func TestSessionIdentifiesAndDispatches(t *testing.T) {
 		Dial:   func(context.Context, string) (Conn, error) { return conn, nil },
 		Handle: h,
 	}
-	_ = sess.oneSocket(ctx, "ws://example")
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 	if !h.ready {
 		t.Fatal("ready not delivered")
 	}
@@ -188,7 +188,7 @@ func TestPresenceSentOnConnect(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: time.Hour,
 	}
-	_ = sess.oneSocket(ctx, "ws://example")
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) != 1 || names[0] != "watch-1 streams" {
@@ -215,7 +215,7 @@ func TestPresenceRefreshesOnTicker(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 20 * time.Millisecond,
 	}
-	_ = sess.oneSocket(ctx, "ws://example")
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) < 2 {
@@ -243,7 +243,7 @@ func TestPresenceSkippedWhenSourceReportsNoChange(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 15 * time.Millisecond,
 	}
-	err := sess.oneSocket(ctx, "ws://example")
+	err := sess.oneSocket(ctx, "ws://example", &resumeState{})
 	if err == nil || ctx.Err() == nil {
 		t.Fatalf("oneSocket should end on context cancellation, err=%v ctxErr=%v", err, ctx.Err())
 	}
@@ -258,3 +258,119 @@ func TestPresenceSkippedWhenSourceReportsNoChange(t *testing.T) {
 		t.Fatal("identify should still have been written")
 	}
 }
+
+// opOf returns the op codes written to the socket, in order, so a test can
+// assert Identify versus Resume without depending on the rest of the frame.
+func opsWritten(t *testing.T, frames [][]byte) []int {
+	t.Helper()
+	var ops []int
+	for _, raw := range frames {
+		var pkt packet
+		if err := codec.Unmarshal(raw, &pkt); err != nil {
+			continue
+		}
+		ops = append(ops, pkt.Op)
+	}
+	return ops
+}
+
+func helloFrame(t *testing.T) []byte {
+	t.Helper()
+	raw, err := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
+	if err != nil {
+		t.Fatalf("marshal hello: %v", err)
+	}
+	return raw
+}
+
+// A first connect has no session to continue, so it must Identify.
+func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
+	conn := &scriptedConn{reads: [][]byte{helloFrame(t)}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }, Handle: &recHandler{}}
+	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
+	if ops := opsWritten(t, conn.wroteSnapshot()); len(ops) == 0 || ops[0] != opIdentify {
+		t.Fatalf("first frame ops = %v, want Identify (%d) first", ops, opIdentify)
+	}
+}
+
+// The reason this whole mechanism exists: after READY records a session, a
+// reconnect must Resume so Discord replays what it buffered during the gap,
+// rather than Identify and discard it.
+func TestSessionResumesAfterReady(t *testing.T) {
+	ready, err := codec.Marshal(packet{
+		Op: opDispatch, T: eventReady, S: intPtr(7),
+		D: mustRaw(t, readyData{SessionID: "sess-1", ResumeGatewayURL: "ws://resume"}),
+	})
+	if err != nil {
+		t.Fatalf("marshal ready: %v", err)
+	}
+	st := &resumeState{}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	first := &scriptedConn{reads: [][]byte{helloFrame(t), ready}}
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return first, nil }, Handle: &recHandler{}}
+	_ = sess.oneSocket(ctx, "ws://x", st)
+
+	sessionID, resumeURL, ok := st.resumable()
+	if !ok || sessionID != "sess-1" || resumeURL != "ws://resume" {
+		t.Fatalf("resume state = (%q, %q, %t), want the ids from READY", sessionID, resumeURL, ok)
+	}
+
+	second := &scriptedConn{reads: [][]byte{helloFrame(t)}}
+	sess.Dial = func(context.Context, string) (Conn, error) { return second, nil }
+	_ = sess.oneSocket(ctx, resumeURL, st)
+	if ops := opsWritten(t, second.wroteSnapshot()); len(ops) == 0 || ops[0] != opResume {
+		t.Fatalf("reconnect ops = %v, want Resume (%d) first", ops, opResume)
+	}
+}
+
+// INVALID_SESSION with d:false means the session is gone. Keeping it would
+// retry a resume Discord has already refused, looping while events pile up.
+func TestSessionInvalidSessionNotResumableClearsState(t *testing.T) {
+	st := &resumeState{}
+	st.ready("sess-1", "ws://resume")
+	st.note(intPtr(4))
+	sess := Session{Token: "t"}
+	if err := sess.onInvalidSession(packet{Op: opInvalidSession, D: mustRaw(t, false)}, st); err == nil {
+		t.Fatal("invalid session must end the socket")
+	}
+	if _, _, ok := st.resumable(); ok {
+		t.Fatal("non-resumable invalid session left the session id in place")
+	}
+}
+
+// d:true keeps the session so the next socket resumes into it.
+func TestSessionInvalidSessionResumableKeepsState(t *testing.T) {
+	st := &resumeState{}
+	st.ready("sess-1", "ws://resume")
+	sess := Session{Token: "t"}
+	_ = sess.onInvalidSession(packet{Op: opInvalidSession, D: mustRaw(t, true)}, st)
+	if _, _, ok := st.resumable(); !ok {
+		t.Fatal("resumable invalid session discarded the session id")
+	}
+}
+
+// The heartbeat must report the last sequence seen. A permanent null tells
+// Discord this client has received nothing, defeating its own missed-event
+// detection even while the socket is healthy.
+func TestResumeStateTracksSequence(t *testing.T) {
+	st := &resumeState{}
+	if st.sequence() != nil {
+		t.Fatal("fresh state reported a sequence")
+	}
+	st.note(intPtr(3))
+	st.note(nil) // non-dispatch frames carry no s and must not clear it
+	got := st.sequence()
+	if got == nil || *got != 3 {
+		t.Fatalf("sequence = %v, want 3", got)
+	}
+	st.invalidate()
+	if st.sequence() != nil {
+		t.Fatal("invalidate left a sequence from the dead session")
+	}
+}
+
+func intPtr(v int) *int { return &v }

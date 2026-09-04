@@ -14,6 +14,7 @@ const (
 	opDispatch       = 0
 	opHeartbeat      = 1
 	opIdentify       = 2
+	opResume         = 6
 	opPresenceUpdate = 3
 	opReconnect      = 7
 	opInvalidSession = 9
@@ -36,6 +37,7 @@ const (
 	eventMessageDelete     = "MESSAGE_DELETE"
 	eventMessageUpdate     = "MESSAGE_UPDATE"
 	eventInteractionCreate = "INTERACTION_CREATE"
+	eventResumed           = "RESUMED"
 )
 
 type packet struct {
@@ -50,8 +52,12 @@ type helloData struct {
 }
 
 type readyData struct {
-	SessionID   string `json:"session_id"`
-	Application struct {
+	SessionID string `json:"session_id"`
+	// ResumeGatewayURL is the socket a resume MUST be sent to. Discord
+	// documents that resuming against the ordinary gateway URL is not
+	// guaranteed to work, so this is not interchangeable with it.
+	ResumeGatewayURL string `json:"resume_gateway_url"`
+	Application      struct {
 		ID string `json:"id"`
 	} `json:"application"`
 	User struct {
@@ -76,6 +82,20 @@ func identifyBody(token string) map[string]any {
 
 func heartbeatBody(seq *int) map[string]any {
 	return map[string]any{"op": opHeartbeat, "d": seq}
+}
+
+// resumeBody replays a dropped session. The sequence tells Discord where to
+// restart the stream, which is the whole point: everything it buffered after
+// that number is delivered on the new socket instead of being dropped.
+func resumeBody(token, sessionID string, seq *int) map[string]any {
+	return map[string]any{
+		"op": opResume,
+		"d": map[string]any{
+			"token":      token,
+			"session_id": sessionID,
+			"seq":        seq,
+		},
+	}
 }
 
 // presenceUpdateBody builds a Gateway Update Presence (op 3) frame showing a

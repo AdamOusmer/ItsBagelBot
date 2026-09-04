@@ -95,8 +95,15 @@ func (s Session) Run(ctx context.Context) error {
 	if url == "" {
 		url = gatewayURL
 	}
+	st := &resumeState{}
 	for {
-		err := s.oneSocket(ctx, url)
+		// A resume must go to the URL READY handed back, not the ordinary
+		// gateway URL; Discord does not guarantee the latter works for one.
+		dialURL := url
+		if _, resumeURL, ok := st.resumable(); ok && resumeURL != "" {
+			dialURL = resumeURL
+		}
+		err := s.oneSocket(ctx, dialURL, st)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -109,16 +116,16 @@ func (s Session) Run(ctx context.Context) error {
 	}
 }
 
-func (s Session) oneSocket(ctx context.Context, url string) error {
+func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) error {
 	conn, err := s.Dial(ctx, url)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
-	return s.pump(ctx, conn)
+	return s.pump(ctx, conn, st)
 }
 
-func (s Session) pump(ctx context.Context, conn Conn) error {
+func (s Session) pump(ctx context.Context, conn Conn, st *resumeState) error {
 	beats := make(chan struct{}, 1)
 	defer close(beats)
 	for {
@@ -126,7 +133,11 @@ func (s Session) pump(ctx context.Context, conn Conn) error {
 		if err != nil {
 			return err
 		}
-		if err := s.handlePacket(ctx, conn, pkt, beats); err != nil {
+		// Record the sequence before handling: it is what a resume replays
+		// from and what the heartbeat reports, and both must reflect
+		// everything received even if handling this packet fails.
+		st.note(pkt.S)
+		if err := s.handlePacket(ctx, conn, pkt, beats, st); err != nil {
 			return err
 		}
 	}
@@ -144,56 +155,94 @@ func readPacket(ctx context.Context, conn Conn) (packet, error) {
 	return pkt, nil
 }
 
-func (s Session) handlePacket(ctx context.Context, conn Conn, pkt packet, beats chan struct{}) error {
+func (s Session) handlePacket(ctx context.Context, conn Conn, pkt packet, beats chan struct{}, st *resumeState) error {
 	switch pkt.Op {
 	case opHello:
-		return s.onHello(ctx, conn, pkt, beats)
-	case opReconnect, opInvalidSession:
+		return s.onHello(ctx, conn, pkt, beats, st)
+	case opReconnect:
+		// Reconnect is Discord asking politely; the session stays valid, so
+		// the state is kept and the next socket resumes into it.
 		return fmt.Errorf("discord ingress: gateway requested reconnect (op %d)", pkt.Op)
+	case opInvalidSession:
+		return s.onInvalidSession(pkt, st)
 	case opDispatch:
-		s.warnDispatch(ctx, pkt)
+		s.warnDispatch(ctx, pkt, st)
 		return nil
 	default:
 		return nil
 	}
 }
 
-func (s Session) warnDispatch(ctx context.Context, pkt packet) {
-	if err := s.onDispatch(ctx, pkt); err != nil {
+// onInvalidSession ends the socket, first deciding whether the session
+// survives. Discord sends d:true when the session is still resumable and
+// d:false when it is not; a malformed or absent d is treated as NOT
+// resumable, because retrying a resume Discord will refuse again just loops
+// while events pile up unread.
+func (s Session) onInvalidSession(pkt packet, st *resumeState) error {
+	var resumable bool
+	if err := codec.Unmarshal(pkt.D, &resumable); err != nil {
+		resumable = false
+	}
+	if !resumable {
+		st.invalidate()
+	}
+	return fmt.Errorf("discord ingress: gateway invalidated session (resumable=%t)", resumable)
+}
+
+func (s Session) warnDispatch(ctx context.Context, pkt packet, st *resumeState) {
+	if err := s.onDispatch(ctx, pkt, st); err != nil {
 		s.log().Warn("discord dispatch failed", zap.String("t", pkt.T), zap.Error(err))
 	}
 }
 
-func (s Session) onHello(ctx context.Context, conn Conn, pkt packet, beats chan struct{}) error {
+func (s Session) onHello(ctx context.Context, conn Conn, pkt packet, beats chan struct{}, st *resumeState) error {
 	var hello helloData
 	if err := codec.Unmarshal(pkt.D, &hello); err != nil {
 		return err
 	}
-	if err := writeJSON(ctx, conn, identifyBody(s.Token)); err != nil {
+	identified, err := s.openSession(ctx, conn, st)
+	if err != nil {
 		return err
 	}
-	go s.heartbeat(ctx, conn, hello.HeartbeatInterval, beats)
-	go s.presenceLoop(ctx, conn, beats)
+	go s.heartbeat(ctx, conn, hello.HeartbeatInterval, beats, st)
+	// Presence is forced only after an Identify. A resumed session keeps the
+	// activity it already had, so re-sending it there would spend one of
+	// Discord's 5-per-20s presence updates to set what is already set.
+	go s.presenceLoop(ctx, conn, beats, identified)
 	return nil
 }
 
+// openSession sends Resume when a session survives, Identify otherwise, and
+// reports which happened. The two are not interchangeable: Identify starts a
+// fresh session and discards whatever Discord buffered during the gap, while
+// Resume replays it from the last sequence.
+func (s Session) openSession(ctx context.Context, conn Conn, st *resumeState) (identified bool, err error) {
+	sessionID, _, ok := st.resumable()
+	if !ok {
+		return true, writeJSON(ctx, conn, identifyBody(s.Token))
+	}
+	s.log().Info("discord gateway resuming session", zap.String("session_id", sessionID))
+	return false, writeJSON(ctx, conn, resumeBody(s.Token, sessionID, st.sequence()))
+}
+
 // presenceLoop resends the bot's activity status on this socket. It hooks
-// here, alongside heartbeat, because Hello->Identify is the one point in the
-// gateway lifecycle that fires exactly once per connection AND every
-// reconnect (this Session never resumes -- opReconnect/opInvalidSession both
-// fall through to a brand new socket and a brand new Identify, see
-// handlePacket): that is exactly "every successful connect", the moment
-// constraint the presence feature needs, with no extra signal to invent.
+// here, alongside heartbeat, because Hello is the one point in the gateway
+// lifecycle that fires exactly once per connection, whether that connection
+// goes on to Identify or to Resume.
 //
-// The immediate, forced send below is what makes presence survive a
-// reconnect: a fresh IDENTIFY otherwise starts the session with no activity,
-// and silently sitting blank until the next ticker fire (up to
-// PresenceInterval later) is the exact failure mode this loop exists to
-// close. beats is heartbeat's own stop channel, reused rather than plumbing a
+// force is what makes presence survive a RECONNECT: a fresh Identify starts
+// the session with no activity at all, and sitting blank until the next
+// ticker fire (up to PresenceInterval later) is the failure mode this loop
+// exists to close. A resumed session is the opposite case -- it keeps the
+// activity it already had, so forcing there would spend one of Discord's
+// 5-per-20s presence updates writing what is already written. openSession
+// decides which happened and passes it through.
+//
+// beats is heartbeat's own stop channel, reused rather than plumbing a
 // second one: closing it (pump's defer) ends both goroutines together when
 // this socket dies, which is correct -- there is nothing left to refresh
-// presence on until the next Identify starts a new presenceLoop.
-func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct{}) {
+// presence on until the next Hello starts a new presenceLoop.
+func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct{}, force bool) {
 	if s.Presence == nil {
 		return
 	}
@@ -201,7 +250,7 @@ func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct
 	if interval <= 0 {
 		interval = defaultPresenceInterval
 	}
-	s.sendPresence(ctx, conn, true)
+	s.sendPresence(ctx, conn, force)
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -234,18 +283,25 @@ func (s Session) sendPresence(ctx context.Context, conn Conn, force bool) {
 	}
 }
 
-func (s Session) onDispatch(ctx context.Context, pkt packet) error {
-	if pkt.T == eventReady {
-		return s.readyFrom(ctx, pkt)
+func (s Session) onDispatch(ctx context.Context, pkt packet, st *resumeState) error {
+	switch pkt.T {
+	case eventReady:
+		return s.readyFrom(ctx, pkt, st)
+	case eventResumed:
+		// Everything buffered during the gap has now been replayed onto this
+		// socket as ordinary dispatches. Nothing to do but say so.
+		s.log().Info("discord gateway session resumed")
+		return nil
 	}
 	return s.dispatchEvent(ctx, pkt)
 }
 
-func (s Session) readyFrom(ctx context.Context, pkt packet) error {
+func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) error {
 	var ready readyData
 	if err := codec.Unmarshal(pkt.D, &ready); err != nil {
 		return err
 	}
+	st.ready(ready.SessionID, ready.ResumeGatewayURL)
 	if s.Handle == nil {
 		return nil
 	}
@@ -259,7 +315,7 @@ func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
 	return s.Handle.Dispatch(ctx, Event{Type: pkt.T, Raw: pkt.D})
 }
 
-func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop <-chan struct{}) {
+func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop <-chan struct{}, st *resumeState) {
 	if intervalMS <= 0 {
 		return
 	}
@@ -272,7 +328,10 @@ func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop 
 		case <-stop:
 			return
 		case <-t.C:
-			if err := writeJSON(ctx, conn, heartbeatBody(nil)); err != nil {
+			// The last received sequence, not nil. Discord compares this
+			// against what it sent to notice a client has fallen behind;
+			// a permanent null claims nothing was ever received.
+			if err := writeJSON(ctx, conn, heartbeatBody(st.sequence())); err != nil {
 				return
 			}
 		}
