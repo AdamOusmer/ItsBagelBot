@@ -119,14 +119,26 @@ const structuredData = {
                 availability: 'https://schema.org/InStock',
             },
             featureList: [
+                'Spotify song requests for Twitch chat (!sr, !skip, !srlist, !song / !np now playing)',
                 'Automated chat moderation',
                 'Custom commands and variables',
                 'Timers',
                 'Channel Points rewards',
                 'Giveaways',
-                'Song requests',
                 'Polls',
                 'Game stat integrations (Hypixel Bedwars, MCSR Ranked, Fortnite)',
+            ],
+            // Song requests are the highest-intent entry point into the
+            // product ("twitch spotify song request bot"), so the terms people
+            // actually type sit in the graph as well as in the page copy —
+            // answer engines quote the graph verbatim when they name features.
+            keywords: [
+                'Twitch Spotify song requests',
+                'Twitch song request bot',
+                '!sr command Twitch',
+                'Spotify queue from Twitch chat',
+                'free Twitch song request bot',
+                'Twitch chat bot',
             ],
         },
     ],

@@ -8,7 +8,9 @@
  * band (instrument-panel shell): each demo sits in the band with a mono
  * channel label, copy on the plate below. Demos are CSS loops, with one
  * small script for the giveaway name-shuffle and the poll bars (which want
- * a reveal trigger).
+ * a reveal trigger). The Spotify song-request card leads the bento: it is the
+ * feature people arrive searching for, so it gets the full-width housing and
+ * the section's first heading.
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
@@ -23,8 +25,28 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
+        <!-- Spotify song requests: chat's !sr lands in the real queue -->
+        <Card class="qw__card qw__card--full" label={t('qw.songCh')} data-reveal>
+            <div class="qw__demo qw__demo--song" slot="band" aria-hidden="true">
+                <span class="qw-song__art">
+                    <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
+                </span>
+                <span class="qw-song__meta">
+                    <span class="qw-song__now">{t('qw.songNow')}</span>
+                    <span class="qw-song__track">{t('qw.songTrack')}</span>
+                    <span class="qw-song__scrub"><i></i></span>
+                </span>
+                <span class="qw-song__req">
+                    <span class="qw-song__cmd">!sr late night lo-fi</span>
+                    <span class="qw-song__ack">{t('qw.songAck')}</span>
+                </span>
+            </div>
+            <h3 class="qw__title">{t('qw.songTitle')}</h3>
+            <p class="qw__desc">{t('qw.songDesc')}</p>
+        </Card>
+
         <!-- Govee: bulb lights up and washes the stage in chat's colour -->
-        <Card class="qw__card qw__card--wide" label={t('qw.goveeCh')} data-reveal>
+        <Card class="qw__card qw__card--wide" label={t('qw.goveeCh')} data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
                 <span class="qw-govee__glow"></span>
                 <span class="qw-govee__bulb">
@@ -47,7 +69,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Commands: typewriter call + response -->
-        <Card class="qw__card qw__card--wide" label={t('qw.cmdCh')} data-reveal style="--reveal-i: 1">
+        <Card class="qw__card qw__card--wide" label={t('qw.cmdCh')} data-reveal style="--reveal-i: 2">
             <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
                 <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
@@ -57,7 +79,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Polls: racing bars, triggered on reveal -->
-        <Card class="qw__card" label={t('qw.pollCh')} data-reveal style="--reveal-i: 2">
+        <Card class="qw__card" label={t('qw.pollCh')} data-reveal style="--reveal-i: 3">
             <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true" data-qw-poll>
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
                 <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
@@ -70,7 +92,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Giveaways: name shuffle that lands -->
-        <Card class="qw__card" label={t('qw.winCh')} data-reveal style="--reveal-i: 3">
+        <Card class="qw__card" label={t('qw.winCh')} data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
                 <span class="qw-win__label">{t('qw.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
@@ -80,7 +102,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Always on: heartbeat -->
-        <Card class="qw__card" label={t('qw.beatCh')} data-reveal style="--reveal-i: 4">
+        <Card class="qw__card" label={t('qw.beatCh')} data-reveal style="--reveal-i: 5">
             <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
                 <svg viewBox="0 0 120 32" preserveAspectRatio="none">
                     <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
@@ -120,6 +142,12 @@ const t = useTranslations(lang);
         .qw__card--wide { grid-column: span 3; }
     }
 
+    /* The song-request card is the section's lead: one row to itself at every
+       breakpoint, so the demo has room for request → queue → now playing.
+       Declared after the 6-column block: same specificity as .qw__card, so
+       source order is what keeps it full-width there. */
+    .qw__card--full { grid-column: 1 / -1; }
+
     .qw__title {
         display: flex;
         flex-direction: column;
@@ -155,6 +183,144 @@ const t = useTranslations(lang);
         overflow: hidden;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;
+    }
+
+    /* ── Spotify song requests: !sr slides in, the queue answers, the
+       track plays on. Lateral motion only, one ease-out curve. ── */
+
+    .qw__demo--song {
+        flex-direction: row;
+        align-items: center;
+        gap: 18px;
+        padding: 4px 0;
+    }
+
+    .qw-song__art {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 10px;
+        background: linear-gradient(145deg, rgba(82, 183, 136, 0.16), rgba(201, 168, 124, 0.1));
+        box-shadow: inset 0 0 0 1px rgba(240, 236, 228, 0.07);
+    }
+
+    .qw-song__eq {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 22px;
+    }
+
+    .qw-song__eq i {
+        width: 3px;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--green-glow, #52b788);
+        transform-origin: bottom;
+        transform: scaleY(0.25);
+        animation: qwSongEq 1.15s ease-in-out infinite alternate;
+    }
+
+    .qw-song__eq i:nth-child(2) { animation-delay: 0.16s; }
+    .qw-song__eq i:nth-child(3) { animation-delay: 0.34s; }
+    .qw-song__eq i:nth-child(4) { animation-delay: 0.08s; }
+    .qw-song__eq i:nth-child(5) { animation-delay: 0.26s; }
+
+    @keyframes qwSongEq {
+        from { transform: scaleY(0.2); opacity: 0.55; }
+        to   { transform: scaleY(1);   opacity: 1; }
+    }
+
+    /* The player reads as a player, not a page-wide rule: cap it and let the
+       band's empty middle carry the request over to the queue on the right. */
+    .qw-song__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 0;
+        flex: 0 1 440px;
+        margin-right: auto;
+    }
+
+    .qw-song__now {
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .qw-song__track {
+        color: var(--tan-light, #e0c49a);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .qw-song__scrub {
+        display: block;
+        height: 3px;
+        border-radius: 3px;
+        background: rgba(240, 236, 228, 0.08);
+        overflow: hidden;
+    }
+
+    .qw-song__scrub i {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 3px;
+        background: linear-gradient(90deg, rgba(82, 183, 136, 0.5), var(--green-glow, #52b788));
+        animation: qwSongScrub 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+    }
+
+    @keyframes qwSongScrub {
+        0%   { width: 6%; }
+        100% { width: 100%; }
+    }
+
+    /* The request arrives from the right, the queue acknowledges it. */
+    .qw-song__req {
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        text-align: right;
+    }
+
+    .qw-song__cmd {
+        color: var(--muted, #888077);
+        opacity: 0;
+        animation: qwSongReq 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+    }
+
+    .qw-song__ack {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.68rem;
+        color: var(--green-glow, #52b788);
+        opacity: 0;
+        animation: qwSongAck 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+    }
+
+    @keyframes qwSongReq {
+        0%       { opacity: 0; transform: translateX(18px); }
+        12%, 88% { opacity: 1; transform: none; }
+        97%, 100% { opacity: 0; transform: translateX(18px); }
+    }
+
+    @keyframes qwSongAck {
+        0%, 20%  { opacity: 0; transform: translateX(12px); }
+        30%, 88% { opacity: 1; transform: none; }
+        97%, 100% { opacity: 0; transform: translateX(12px); }
+    }
+
+    /* Narrow cards keep the player; the request line is the first thing to go. */
+    @media (max-width: 560px) {
+        .qw-song__req { display: none; }
     }
 
     /* ── Govee: bulb wakes on redeem, light washes the stage ── */
@@ -342,9 +508,13 @@ const t = useTranslations(lang);
     @media (prefers-reduced-motion: reduce) {
         .qw__demo--govee, .qw-govee__glow, .qw-govee__bulb, .qw-govee__dot, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
+        .qw-song__eq i, .qw-song__scrub i, .qw-song__cmd, .qw-song__ack,
         .qw-beat__path {
             animation: none;
         }
+        .qw-song__eq i { transform: scaleY(0.7); }
+        .qw-song__scrub i { width: 46%; }
+        .qw-song__cmd, .qw-song__ack { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
         .qw-govee__bulb { opacity: 1; filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor); }
         .qw-govee__redeem { opacity: 1; }
