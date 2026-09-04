@@ -95,7 +95,10 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if req.GuildID == "" || req.UserID == "" {
 		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
 	}
-	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID, Subscribers: req.Subscribers})
+	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{
+		GuildID: req.GuildID, BroadcasterID: req.UserID,
+		Subscribers: req.Subscribers, PinnedRoles: req.PinnedRoles,
+	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error()}
 	}
@@ -108,6 +111,9 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		LogChannelID:     got.LogChannelID,
 		TicketChannelID:  got.TicketChannelID,
 		TicketCategoryID: got.TicketCategoryID,
+
+		TicketArchiveCategoryID: got.TicketArchiveCategoryID,
+
 		SubsChannelID:    got.SubsChannelID,
 		SubsCategoryID:   got.SubsCategoryID,
 		VIPChannelID:     got.VIPChannelID,
