@@ -212,10 +212,24 @@ spec:
   replacePath:
     path: /status
 ---
+# The two db-namespace verticals. Both are ALSO defined in
+# deploy/db/status-routes.yaml, and the duplication is the point: that directory
+# is referenced by no kustomization in the repo, so `kubectl apply -k deploy/k8s`
+# never reaches it and applying it is a separate step someone has to remember.
+#
+# On 2026-09-04 nobody did. /billing served because it was duplicated here;
+# /db 404'd in production because it was not, and the live db IngressRoute went
+# on serving the previous seven per-service paths, 17 days stale. A route that
+# exists only in deploy/db is a route that ships broken, so every
+# health.itsbagelbot.com path is carried here too and deploy/db stays the
+# standalone copy for a db-only apply.
+#
 # Billing is its own vertical with nothing folded into it, unlike the four
-# above: the recorded decision (app/transactions/main.go) is that projector's
-# /db does not probe transactions and transactions runs no HealthProbe fan-out
-# of its own, so this route has one backend and its Set is the whole answer.
+# app-namespace ones: the recorded decision (app/db/transactions/main.go) is
+# that projector's /db does not probe transactions and transactions runs no
+# HealthProbe fan-out of its own, so its route has one backend and its Set is
+# the whole answer. /db is the opposite -- projector's Set folds in the five
+# data services over bagel.rpc.health.*, so one backend answers for all of them.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -233,7 +247,48 @@ spec:
           scheme: https
           serversTransport: transactions-transport
           nativeLB: true
+    - match: Host(`health.itsbagelbot.com`) && Path(`/db`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: projector-status
+          port: 443
+          scheme: https
+          serversTransport: projector-status-transport
   tls: {}
+---
+# projector-status and its transport, mirrored from deploy/db/status-routes.yaml
+# for the same reason as the route above. projector's Deployment declares no
+# Service of its own, so without this the /db route resolves to nothing.
+#
+# The port is named `http` where the app-namespace status Services above name
+# theirs `https`. That is not a typo: it matches deploy/db/status-routes.yaml and
+# the live object, and these two copies have to agree exactly or whichever file
+# was applied last flips the name. The name is cosmetic to routing; renaming
+# both to match the app namespace is a separate change, not one to smuggle in
+# through a duplicated block.
+apiVersion: v1
+kind: Service
+metadata:
+  name: projector-status
+  namespace: db
+spec:
+  selector:
+    app: projector
+  ports:
+    - name: http
+      port: 443
+      targetPort: 8080
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: projector-status-transport
+  namespace: db
+spec:
+  serverName: projector-status
+  rootCAsSecrets:
+    - projector-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
