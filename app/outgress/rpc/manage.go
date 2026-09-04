@@ -172,19 +172,20 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 	return outgressrpc.UptimeReply{Live: live, StartedAt: startedAt}
 }
 
-// handleStreamInfo is the Helix escape hatch dingress's go-live embed falls
-// back to when the Valkey projection has not caught the title/category up
-// yet (ported from outgress's own former discord_live.go liveInfo, which
-// called m.twitch directly from the same process; dingress has no Twitch
-// client post-split, only outgress does, so the call became this RPC -- see
-// app/dingress/internal/egress/live.go's liveInfo for the caller side and
-// why it is gated to broadcasters with a category allow-list set).
+// handleStreamInfo is the Helix escape hatch app/discord/engine's go-live
+// embed falls back to when the Valkey projection has not caught the
+// title/category up yet (ported from outgress's own former discord_live.go
+// liveInfo, which called m.twitch directly from the same process; the
+// Discord services have no Twitch client of their own, only this (Twitch)
+// outgress does, so the call became this RPC -- see
+// app/discord/engine/modules/live.go's liveInfo for the caller side and why
+// it is gated to broadcasters with a category allow-list set).
 //
 // Unlike the lane workers' background Helix calls (buckets.go's
 // takeSystemHelix), this handler does not draw from that budget: the
 // per-broadcaster allow-list gate on the caller already bounds how often it
 // fires (only broadcasters who opted into category filtering, only once per
-// stream since a found live-message short-circuits dingress before this RPC
+// stream since a found live-message short-circuits engine before this RPC
 // is ever sent), the same way followage.get/accountage.get/uptime.get next
 // to it call m.twitch directly with no added token. Wiring the lane budget
 // in here would mean exporting or duplicating a worker-package-private spec

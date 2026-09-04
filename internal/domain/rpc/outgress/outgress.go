@@ -54,7 +54,7 @@ type StreamInfoRequest struct {
 // exists alongside UptimeReply (same underlying Helix call, StreamStartedAt
 // vs StreamDetails on outgress's twitch.Client) because the two callers want
 // different slices of it: !uptime only ever needs Live+StartedAt, while
-// dingress's go-live fallback (see app/dingress/internal/egress/live.go's
+// app/discord/engine's go-live fallback (see its modules/live.go's
 // liveInfo) only needs Live+Title+GameName+ViewerCount. Live is false (and
 // every other field zero) when the channel is offline.
 type StreamInfoReply struct {

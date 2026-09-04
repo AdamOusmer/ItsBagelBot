@@ -415,6 +415,59 @@ func itoa(n int) string {
 	return string(b[i:])
 }
 
+// GetCurrentApplication returns the bot's own application id (GET
+// /oauth2/applications/@me). Outgress calls this once at boot to learn the
+// id it needs for slash-command registration and interaction followups,
+// rather than waiting on the gateway's READY payload: outgress has no
+// gateway session in the three-way split (only ingress does), and the
+// application id is a REST-derivable fact of the bot token itself, not
+// something that has to travel through ingress -> engine just to reach the
+// one process that needs it.
+func (c *Client) GetCurrentApplication(ctx context.Context) (Snowflake, error) {
+	var out Snowflake
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/oauth2/applications/@me"}, &out)
+	return out, err
+}
+
+// Followup is one webhook-style completion of an already-deferred
+// interaction (POST /webhooks/{application_id}/{token}).
+type Followup struct {
+	ApplicationID string
+	Token         string
+	Content       string
+	Embeds        []domain.Embed
+	Buttons       []Button
+	Ephemeral     bool
+}
+
+// InteractionFollowup completes a deferred interaction. Unlike
+// InteractionCallback (the immediate type-4/5/6 response within Discord's
+// 3s window), this rides the interaction's webhook token and carries no
+// deadline other than the token's own ~15 minute life -- exactly the gap
+// ingress's inline defer exists to buy the engine before this fires. See
+// internal/domain/discord's TypeInteractionFollowup for why a dropped one is
+// worse than a dropped ordinary reply.
+func (c *Client) InteractionFollowup(ctx context.Context, f Followup) error {
+	body := map[string]any{}
+	if f.Content != "" {
+		body["content"] = f.Content
+	}
+	if len(f.Embeds) > 0 {
+		body["embeds"] = f.Embeds
+	}
+	if len(f.Buttons) > 0 {
+		body["components"] = []map[string]any{{
+			"type":       1,
+			"components": buttonRows(f.Buttons),
+		}}
+	}
+	if f.Ephemeral {
+		body["flags"] = 64
+	}
+	path := "/webhooks/" + url.PathEscape(f.ApplicationID) + "/" + url.PathEscape(f.Token)
+	return c.do(ctx, request{method: http.MethodPost, path: path, body: body})
+}
+
 // AppCommand is one slash-command definition for bulk overwrite.
 type AppCommand struct {
 	Name        string             `json:"name"`
