@@ -8,7 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+
 	"ItsBagelBot/app/db/discord/ent"
+	"ItsBagelBot/app/db/discord/ent/predicate"
 	"ItsBagelBot/app/db/discord/ent/ticket"
 	"ItsBagelBot/pkg/db"
 )
@@ -108,7 +111,7 @@ func openCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, 
 // claimed_at, so the desk's "claimed N minutes ago" stays honest. Claiming a
 // closed or archived ticket is ErrInvalidInput; there is no such transition.
 func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error) {
-	if guildID == "" || channelID == "" || staffID == "" {
+	if channelID == "" || staffID == "" {
 		return 0, ErrInvalidInput
 	}
 	var id int
@@ -148,7 +151,7 @@ type CloseParams struct {
 // retries a close whenever a button press and a slash command race, and a
 // second write would move closed_at and corrupt the recorded duration.
 func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, error) {
-	if p.GuildID == "" || p.ChannelID == "" {
+	if p.ChannelID == "" {
 		return 0, "", ErrInvalidInput
 	}
 	var id int
@@ -174,6 +177,15 @@ func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, er
 	return id, openerID, err
 }
 
+// optionalGuild scopes a channel lookup to one guild, or to any guild when the
+// caller did not name one. See liveTicket for why that is safe.
+func optionalGuild(guildID string) predicate.Ticket {
+	if guildID == "" {
+		return func(*sql.Selector) {}
+	}
+	return ticket.GuildIDEQ(guildID)
+}
+
 // closedStatus picks the terminal status from whether the channel survived.
 func closedStatus(archivedChannelID string) ticket.Status {
 	if archivedChannelID != "" {
@@ -182,11 +194,16 @@ func closedStatus(archivedChannelID string) ticket.Status {
 	return ticket.StatusClosed
 }
 
-// liveTicket loads one guild's ticket by channel, mapping absence (and a
-// channel that belongs to a different guild) onto ErrNotFound.
+// liveTicket loads a ticket by channel, mapping absence (and a channel that
+// belongs to a different guild) onto ErrNotFound.
+//
+// An empty guildID matches any guild. A Discord channel snowflake is globally
+// unique, so the guild is a defence-in-depth filter rather than part of the
+// key, and the legacy Store verbs the engine still calls address a ticket by
+// channel alone.
 func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*ent.Ticket, error) {
 	row, err := tx.Ticket.Query().
-		Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
+		Where(ticket.ChannelIDEQ(channelID), optionalGuild(guildID)).
 		Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, ErrNotFound
@@ -200,12 +217,12 @@ func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*en
 // TicketGet resolves a ticket from the channel a button was pressed in. A
 // channel with no ticket is (nil, false, nil).
 func (s *Store) TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error) {
-	if guildID == "" || channelID == "" {
+	if channelID == "" {
 		return nil, false, ErrInvalidInput
 	}
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Ticket, error) {
 		return s.client.Ticket.Query().
-			Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
+			Where(ticket.ChannelIDEQ(channelID), optionalGuild(guildID)).
 			Only(ctx)
 	})
 	if ent.IsNotFound(err) {

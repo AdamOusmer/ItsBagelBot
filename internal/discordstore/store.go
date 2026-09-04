@@ -119,13 +119,11 @@ type valkeyStore struct {
 	client valkey.Client
 }
 
-// New builds the production store.
-func New(client valkey.Client) Store {
-	if client == nil {
-		return NewMem()
-	}
-	return valkeyStore{client: client}
-}
+// New builds the node-local store: Valkey-backed, or the in-memory double when
+// no client is configured. It is the whole store for a process that keeps its
+// Discord state in Valkey; NewRPC wraps one of these to move bindings, tickets
+// and XP onto discord-data while keeping the local keyspaces here.
+func New(client valkey.Client) Store { return newLocal(client) }
 
 func guildKey(g Guild) string { return "discord:guild:" + g.ID }
 
@@ -248,8 +246,7 @@ func (s valkeyStore) RememberDesk(ctx context.Context, g Guild) error {
 }
 
 func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
-	if err != nil {
+	if !s.takeXPCooldown(ctx, m) {
 		xp, level := s.Rank(ctx, m)
 		return xp, false, level
 	}
@@ -475,11 +472,10 @@ func (m *Mem) AddXP(_ context.Context, mem Member) (int, bool, int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	k := mem.key()
-	if m.xpCD[k] {
+	if !m.takeXPCooldownLocked(mem) {
 		xp := m.xp[k]
 		return xp, false, levelOf(xp)
 	}
-	m.xpCD[k] = true
 	before := m.xp[k]
 	m.xp[k] = before + xpPerMessage
 	return m.xp[k], levelOf(m.xp[k]) > levelOf(before), levelOf(m.xp[k])
