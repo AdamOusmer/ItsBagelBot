@@ -47,10 +47,28 @@ func TestIsStaffOrMod(t *testing.T) {
 	}
 }
 
+// The privilege split: a role on the ticket desk's staff list runs the desk
+// and nothing else. Before this, adding "Support" to the desk list handed
+// that role /ban, /kick, /timeout and /purge across the whole guild.
+func TestDeskStaffIsNotModStaff(t *testing.T) {
+	cfg := ddiscord.Config{OwnerRoleID: "o", ModsRoleID: "m", TicketStaffRoles: "helper"}
+	helper := interactionBy("0", []string{"helper"})
+	if isStaffOrMod(cfg, helper) {
+		t.Fatal("a ticket desk helper must not pass the moderation gate")
+	}
+	if !isTicketStaffOrMod(cfg, helper) {
+		t.Fatal("a ticket desk helper must pass the desk gate")
+	}
+	mod := interactionBy("0", []string{"m"})
+	if !isStaffOrMod(cfg, mod) || !isTicketStaffOrMod(cfg, mod) {
+		t.Fatal("mod staff must pass both gates")
+	}
+}
+
 // A ticket is closable by its opener, by a permission-bearing mod, and now
 // by a Bagel staff role holder who has neither.
 func TestCanCloseTicket(t *testing.T) {
-	cfg := ddiscord.Config{ModsRoleID: "m"}
+	cfg := ddiscord.Config{ModsRoleID: "m", TicketStaffRoles: "helper,m"}
 	ticket := discordstore.Ticket{ChannelID: "c1", OpenerID: "opener"}
 	cases := []struct {
 		name string
@@ -60,6 +78,7 @@ func TestCanCloseTicket(t *testing.T) {
 		{"stranger", interactionBy("0", []string{"x"}), false},
 		{"mods role", interactionBy("0", []string{"m"}), true},
 		{"permission bit", interactionBy("8", nil), true},
+		{"desk helper", interactionBy("0", []string{"helper"}), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

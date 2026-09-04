@@ -60,7 +60,7 @@ func TestEveryTemplateRoleHasASlot(t *testing.T) {
 	}
 }
 
-func TestIsStaff(t *testing.T) {
+func TestIsModStaff(t *testing.T) {
 	cfg := Config{OwnerRoleID: "o", LeadModRoleID: "l", ModsRoleID: "m"}
 	withDesk := Config{OwnerRoleID: "o", TicketStaffRoles: "helper1,helper2"}
 	cases := []struct {
@@ -77,17 +77,50 @@ func TestIsStaff(t *testing.T) {
 		// A guild that configured no roles must not grant staff to everyone
 		// holding an empty-string role id.
 		{"unconfigured guild", Config{}, []string{""}, false},
-		{"ticket staff list", withDesk, []string{"helper2"}, true},
-		// The desk list REPLACES the fallback, but never drops the roles it
-		// explicitly names alongside the owner tier.
-		{"owner still staff with a desk list", withDesk, []string{"o"}, true},
-		{"lead mod not on desk list", withDesk, []string{"l"}, false},
+		// The privilege split this test exists for: a desk helper is NOT a
+		// moderator. Before the split they held ban/kick/timeout/purge.
+		{"desk helper is not mod staff", withDesk, []string{"helper2"}, false},
+		{"owner still mod staff with a desk list", withDesk, []string{"o"}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := IsStaff(tc.roles, tc.cfg); got != tc.want {
-				t.Fatalf("IsStaff = %v, want %v", got, tc.want)
+			if got := IsModStaff(tc.roles, tc.cfg); got != tc.want {
+				t.Fatalf("IsModStaff = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsTicketStaff(t *testing.T) {
+	cfg := Config{OwnerRoleID: "o", LeadModRoleID: "l", ModsRoleID: "m"}
+	withDesk := Config{OwnerRoleID: "o", TicketStaffRoles: "helper1,helper2"}
+	cases := []struct {
+		name  string
+		cfg   Config
+		roles []string
+		want  bool
+	}{
+		{"no roles", cfg, nil, false},
+		{"stranger", cfg, []string{"x"}, false},
+		// No desk list configured: TicketStaffRoleIDs falls back to the
+		// Owner/Lead Mod/Mods trio, so mod staff run the desk by default.
+		{"mods without a desk list", cfg, []string{"m"}, true},
+		{"desk helper", withDesk, []string{"helper2"}, true},
+		{"owner still desk staff", withDesk, []string{"o"}, true},
+		// The desk list REPLACES the fallback: a Lead Mod the streamer left
+		// off the list does not run the desk, but stays mod staff.
+		{"lead mod not on desk list", withDesk, []string{"l"}, false},
+		{"unconfigured guild", Config{}, []string{""}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsTicketStaff(tc.roles, tc.cfg); got != tc.want {
+				t.Fatalf("IsTicketStaff = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	// The two are ordered, never independent: mod staff is always desk staff.
+	if !IsTicketStaff([]string{"o"}, withDesk) || !IsModStaff([]string{"o"}, withDesk) {
+		t.Fatal("mod staff must always be ticket staff")
 	}
 }

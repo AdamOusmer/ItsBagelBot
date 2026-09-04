@@ -194,5 +194,5 @@ func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent, cfg ddisc
 	if t.OpenerID == in.Member.User.ID {
 		return true
 	}
-	return isStaffOrMod(cfg, in)
+	return isTicketStaffOrMod(cfg, in)
 }

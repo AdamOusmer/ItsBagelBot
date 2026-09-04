@@ -88,8 +88,15 @@ func splitPin(entry string) (slot, id string, ok bool) {
 // when nothing is pinned there.
 func (c Config) PinnedRole(slot string) string { return c.PinnedRoleMap()[slot] }
 
-// IsStaff reports whether a member holding memberRoles counts as staff for
-// cfg: Owner, Lead Mod, Mods, or any role on the ticket staff list.
+// IsModStaff reports whether a member holding memberRoles is MODERATION
+// staff for cfg: Owner, Lead Mod, or Mods.
+//
+// The ticket desk's staff list is deliberately NOT consulted here. That list
+// is a VISIBILITY grant -- a streamer adds "Support" to it so those people
+// can read and answer ticket channels -- and the single IsStaff this replaced
+// silently turned every such grant into ban/kick/timeout/purge rights on the
+// whole guild. A helper role must be addable to the desk without becoming a
+// moderator; see IsTicketStaff for the desk half.
 //
 // This is the ROLE half of the staff question. The permission half
 // (decode.CanMod, which reads Discord's own computed bitfield on an
@@ -97,21 +104,35 @@ func (c Config) PinnedRole(slot string) string { return c.PinnedRoleMap()[slot] 
 // is a moderator by permission but not staff by role, and a Lead Mod whose
 // role lost a permission bit is still staff. Callers that gate a Bagel
 // feature want either to be enough, so they check both.
-func IsStaff(memberRoles []string, cfg Config) bool {
-	if len(memberRoles) == 0 {
+func IsModStaff(memberRoles []string, cfg Config) bool {
+	return holdsAny(memberRoles, cfg.StaffRoleIDs())
+}
+
+// IsTicketStaff reports whether a member may act on the ticket desk: mod
+// staff (IsModStaff) plus every role on ticketStaffRoleIds. Strictly wider
+// than IsModStaff, and it grants nothing outside the desk.
+func IsTicketStaff(memberRoles []string, cfg Config) bool {
+	if IsModStaff(memberRoles, cfg) {
+		return true
+	}
+	return holdsAny(memberRoles, cfg.TicketStaffRoleIDs())
+}
+
+// holdsAny reports whether memberRoles contains any of want. Empty ids on
+// either side never match: an unconfigured guild stores "" in its role
+// fields, and matching those would make every member staff.
+func holdsAny(memberRoles, want []string) bool {
+	if len(memberRoles) == 0 || len(want) == 0 {
 		return false
 	}
 	held := make(map[string]bool, len(memberRoles))
 	for _, r := range memberRoles {
-		held[r] = true
-	}
-	for _, id := range cfg.TicketStaffRoleIDs() {
-		if held[id] {
-			return true
+		if r != "" {
+			held[r] = true
 		}
 	}
-	for _, id := range cfg.StaffRoleIDs() {
-		if held[id] {
+	for _, id := range want {
+		if id != "" && held[id] {
 			return true
 		}
 	}
