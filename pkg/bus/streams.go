@@ -445,6 +445,65 @@ var TwitchIngressRetryStream = StreamSpec{
 // Sends here cost 50 quota units each (see internal/youtube.Budget), so the
 // perishability is doubly right: dropping a send nobody will ever read is
 // strictly better than spending real daily budget on it.
+// DiscordIngressStream carries every gateway event app/discord/ingress
+// receives, for app/discord/engine to decide on. See internal/domain/discord's
+// Event for why ingress publishes instead of acting.
+//
+// MaxAge is 60s, six times TWITCH_INGRESS's 10s, and the difference is the
+// workload rather than an oversight. Twitch chat is "live or nothing": a reply
+// to a message from four minutes ago is worse than no reply, which is why that
+// window is a staleness policy. Discord's traffic here is moderation and
+// membership -- deleting a spam link or answering a raid 30 seconds late is
+// still worth doing, and a welcome that survives a rolling restart is better
+// than one silently lost. The window is still short enough that a long engine
+// outage discards rather than replays a flood into an empty guild.
+//
+// Memory storage, like the other ingress tiers: a raid is exactly when the disk
+// tier would be worst, and losing the buffer on a broker restart is acceptable
+// where re-reading it is not possible anyway (Discord does not redeliver).
+var DiscordIngressStream = StreamSpec{
+	Name: "DISCORD_INGRESS",
+	Subjects: []string{
+		"discord.ingress.event.message",
+		"discord.ingress.event.member",
+		"discord.ingress.event.voice",
+		"discord.ingress.event.interaction",
+		"discord.ingress.event.audit",
+		"discord.ingress.event.guild",
+	},
+	MaxAge:       60 * time.Second,
+	MaxBytes:     128 << 20,
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
+// DiscordOutgressStream carries engine->outgress commands on two lanes split by
+// urgency (see internal/domain/discord's Lane constants: moderation preempts
+// cosmetic, because both compete for one ~50/s per-token budget and only one of
+// them has a deadline).
+//
+// WorkQueuePolicy is right here and was wrong for the clip announcement: a
+// command must execute exactly once, so one consumer group claiming it is the
+// requirement, whereas data.twitch.clip.created is a fact several independent
+// subscribers need to see. This stream existed before, was deleted when the
+// last publisher went away with Twitch->Discord alert mirroring, and returns
+// now that an engine emits onto it. That is the same reasoning reaching a
+// different answer under different facts, not a reversal.
+//
+// MaxAge 60s matches the ingress window: a command derived from an event that
+// has itself expired is not worth executing.
+var DiscordOutgressStream = StreamSpec{
+	Name:         "DISCORD_OUTGRESS",
+	Subjects:     []string{"discord.outgress.mod", "discord.outgress.default"},
+	Retention:    nats.WorkQueuePolicy,
+	MaxAge:       60 * time.Second,
+	MaxBytes:     64 << 20,
+	Storage:      nats.MemoryStorage,
+	BatchPublish: true,
+	Replicas:     3,
+}
+
 var YouTubeOutgressStream = StreamSpec{
 	Name:         "YOUTUBE_OUTGRESS",
 	Subjects:     []string{"youtube.outgress.premium", "youtube.outgress.standard"},
@@ -580,7 +639,8 @@ func resolveStreamForTopic(topic string) (string, error) {
 	specs = append(specs, BagelDataStream)
 	specs = append(specs, IngressLaneSpecs()...)
 	specs = append(specs, TwitchIngressRetryStream, OutgressStream, OutgressSystemStream,
-		YouTubeOutgressStream, YouTubeIngressStream)
+		YouTubeOutgressStream, YouTubeIngressStream,
+		DiscordIngressStream, DiscordOutgressStream)
 
 	for _, spec := range specs {
 		if matchesAnySubject(topic, spec.Subjects) {

@@ -4,7 +4,9 @@
 package bus
 
 import (
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -386,5 +388,31 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 		if got := streamConfig(spec).Storage; got != want {
 			t.Fatalf("stream %s storage = %v, want %v", spec.Name, got, want)
 		}
+	}
+}
+
+// The Discord stream specs carry their subjects as literals, like every other
+// spec in the catalog, so pkg/bus stays free of domain imports. The engine and
+// its services address those same subjects through the constants in
+// internal/domain/discord. Nothing but this test stops the two from drifting,
+// and a drift is silent: a renamed constant publishes onto a subject no stream
+// captures, so the message lands nowhere and no error is raised anywhere.
+func TestDiscordSubjectConstantsMatchTheCatalog(t *testing.T) {
+	wantIngress := []string{
+		ddiscord.SubjectEventMessage,
+		ddiscord.SubjectEventMember,
+		ddiscord.SubjectEventVoice,
+		ddiscord.SubjectEventInteraction,
+		ddiscord.SubjectEventAudit,
+		ddiscord.SubjectEventGuild,
+	}
+	if !slices.Equal(DiscordIngressStream.Subjects, wantIngress) {
+		t.Fatalf("DISCORD_INGRESS subjects drifted from internal/domain/discord:\n stream = %q\n consts = %q",
+			DiscordIngressStream.Subjects, wantIngress)
+	}
+	wantOutgress := []string{ddiscord.LaneMod, ddiscord.LaneDefault}
+	if !slices.Equal(DiscordOutgressStream.Subjects, wantOutgress) {
+		t.Fatalf("DISCORD_OUTGRESS subjects drifted from internal/domain/discord:\n stream = %q\n consts = %q",
+			DiscordOutgressStream.Subjects, wantOutgress)
 	}
 }
