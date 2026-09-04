@@ -99,7 +99,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
   {
     id: 'discord',
     labelKey: 'nav.discord',
-    icon: 'server',
+    icon: 'discord',
     href: '/discord',
     match: ['/discord'],
     grant: 'discord'

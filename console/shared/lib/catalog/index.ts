@@ -104,7 +104,8 @@ export function catalogChildren(parentId: string): ModuleDef[] {
 
 // catalogIndexable is the modules grid's row set: hidden modules stay
 // unreachable, nested children fold into their parent instead of minting a
-// second tile that could be flipped on without it.
+// second tile that could be flipped on without it, and a module with its own
+// sidebar section is listed there instead of here rather than in both places.
 export function catalogIndexable(def: ModuleDef): boolean {
-  return !def.hidden && !def.parent;
+  return !def.hidden && !def.parent && !def.section;
 }
