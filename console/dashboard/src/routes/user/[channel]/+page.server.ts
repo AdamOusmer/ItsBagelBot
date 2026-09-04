@@ -93,7 +93,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
 //
 // commands.itsbagelbot.com is the canonical host because it is the one the bot
 // prints in chat: !cmd answers with <PublicBaseURL>/user/<login>, defaulting to
-// that origin (app/sesame/modules/cmd.go).
+// that origin (app/twitch/sesame/modules/cmd.go).
 export const load: PageServerLoad = async ({ params, url }) => {
   requireHost(url, 'commands');
 

@@ -5,7 +5,7 @@ title: Outgress
 description: Manages outbound messaging to Twitch and per-broadcaster rate limiting.
 ---
 
-The Outgress service (`app/outgress/`) is the bottleneck for all outbound communication to Twitch. It ensures that ItsBagelBot adheres to Twitch's strict rate limits and manages the token lifecycle for outbound requests.
+The Outgress service (`app/twitch/outgress/`) is the bottleneck for all outbound communication to Twitch. It ensures that ItsBagelBot adheres to Twitch's strict rate limits and manages the token lifecycle for outbound requests.
 
 Outgress carries no knowledge of Discord: [Dingress](/microservices/dingress/) owns that surface end to end. The one link between them is a fact, not a command -- after Helix Create Clip succeeds and the chat reply is sent, Outgress publishes a `data.twitch.clip.created` event on `BAGEL_DATA` stating what happened on Twitch; whoever cares (Dingress included) subscribes to it.
 

@@ -22,7 +22,7 @@ import (
 const fallbackTimeout = 3 * time.Second
 
 // Fallback is the go-live module's Helix-details escape hatch, reached over
-// TWITCH outgress's RPC (bagel.rpc.outgress, app/outgress) rather than a
+// TWITCH outgress's RPC (bagel.rpc.outgress, app/twitch/outgress) rather than a
 // Helix call made from this process. Ported unchanged from
 // app/dingress/internal/egress's StreamInfoFallback: engine has no Twitch
 // client any more than dingress's ROLE=egress did, for the same reason (see

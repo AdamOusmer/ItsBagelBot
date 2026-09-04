@@ -27,7 +27,7 @@ type Config struct {
 	// app/discord/outgress; this is a private prefix between engine and
 	// outgress only.
 	DiscordOutgressRPCPrefix string
-	// TwitchOutgressRPCPrefix is Twitch outgress's (app/outgress) own RPC
+	// TwitchOutgressRPCPrefix is Twitch outgress's (app/twitch/outgress) own RPC
 	// prefix -- engine is a CALLER here (the go-live embed's Helix-details
 	// fallback), the same relationship dingress's egress role had to it.
 	TwitchOutgressRPCPrefix string

@@ -31,12 +31,17 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      # Regenerate every service's Ent client. Discovered from app/*/ent/schema
-      # so adding a new Ent service needs no edit here.
+      # Regenerate every service's Ent client. Discovered by searching for
+      # schema directories rather than globbing a fixed depth, so grouping
+      # services under app/<group>/ (app/db/users, app/twitch/...) needs no
+      # edit here. A glob was used before and it did not fail loudly when the
+      # services moved: an unmatched bash glob passes the pattern through
+      # verbatim, so ent received the literal "app/*/ent/schema" and failed
+      # with a confusing "directory not found" instead of finding nothing.
       - name: Generate Ent clients
         run: |
           set -euo pipefail
-          for schema in app/*/ent/schema; do
+          for schema in $(find app -type d -path '*/ent/schema' | sort); do
             echo "ent generate ./$schema"
             # sql/upsert is required by the commands/modules batch flush
             # (INSERT ... ON DUPLICATE KEY UPDATE); applied to every schema so

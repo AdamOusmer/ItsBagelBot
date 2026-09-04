@@ -3,7 +3,7 @@
 
 // The module catalog is one file per module under catalog/: adding a module
 // means adding one file plus one line in MODULE_CATALOG below, mirroring how
-// app/sesame/modules/all.go registers the Go side of the same module. The
+// app/twitch/sesame/modules/all.go registers the Go side of the same module. The
 // loyalty-wager games stay split in ../catalog-games and valorant in
 // ../catalog-valorant (same pattern, older cut) and are spread in here.
 //

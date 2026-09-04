@@ -5,7 +5,7 @@ title: Modules
 description: Manages per-broadcaster feature toggles and configuration.
 ---
 
-The Modules service (`app/modules/`) manages the configuration and enablement state of feature modules for each broadcaster.
+The Modules service (`app/db/modules/`) manages the configuration and enablement state of feature modules for each broadcaster.
 
 ## Architecture
 

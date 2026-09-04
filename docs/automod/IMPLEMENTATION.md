@@ -2,11 +2,11 @@
      Proprietary. No license granted. See LICENSE.md. -->
 # Sesame Automod — Implementation Plan
 
-Each phase below is a shippable PR, grounded in the current sesame code (`app/sesame/engine`, `app/sesame/module`, `app/sesame/modules`) and the live ingress squash (folded `channel.chat.message` cohorts).
+Each phase below is a shippable PR, grounded in the current sesame code (`app/twitch/sesame/engine`, `app/twitch/sesame/module`, `app/twitch/sesame/modules`) and the live ingress squash (folded `channel.chat.message` cohorts).
 
 ## Where it plugs in
 
-sesame's chat path today (`app/sesame/engine/pipeline.go` `Process`): decode envelope, `dispatch` a command if the line is one, `runHandlers` for the type, then `emit` through `buildOutgress`. The automod is an **inline gate that runs first on chat**, before command dispatch, with **deferred emit** (stage outputs, flush after the verdict). New package `app/sesame/automod/`. Verdict is a value type, hot path stays zero-alloc (`TestProcessNoOutputAllocCeiling` must keep passing).
+sesame's chat path today (`app/twitch/sesame/engine/pipeline.go` `Process`): decode envelope, `dispatch` a command if the line is one, `runHandlers` for the type, then `emit` through `buildOutgress`. The automod is an **inline gate that runs first on chat**, before command dispatch, with **deferred emit** (stage outputs, flush after the verdict). New package `app/twitch/sesame/automod/`. Verdict is a value type, hot path stays zero-alloc (`TestProcessNoOutputAllocCeiling` must keep passing).
 
 ## Prerequisite: the classifier artifact
 
@@ -18,10 +18,10 @@ Train a **fastText or GBDT** toxicity/spam model **once, offline, on public data
 
 Nothing behaves differently yet (no emitter), but the moderation-action wire works end to end and is testable.
 
-- `app/sesame/module/module.go`: `Output` += `TargetUserID string`, `Duration int` (sec; 0 = permanent ban), `Reason string`, `MsgID string`.
-- `app/sesame/engine/pool.go`: zero the new fields in the `Output` pool reset.
-- `app/sesame/engine/pipeline.go` `buildOutgress`: add cases `TypeTimeout` / `TypeBan` → marshal `{"data":{"user_id","duration","reason"}}` (omit duration for ban); delete-message; `TypeWarn`.
-- `app/outgress/internal/worker/worker.go`: add **`processBan`** (inject `broadcaster_id` + bot `moderator_id` as query params on `/helix/moderation/bans`, mirroring `processAnnounce`). Today `TypeBan`/`TypeTimeout` route there but fall through to `processAPI` with no query params → 400. Also `TypeWarn` → `/helix/moderation/warnings`; delete → `DELETE /helix/moderation/chat?...&message_id=`.
+- `app/twitch/sesame/module/module.go`: `Output` += `TargetUserID string`, `Duration int` (sec; 0 = permanent ban), `Reason string`, `MsgID string`.
+- `app/twitch/sesame/engine/pool.go`: zero the new fields in the `Output` pool reset.
+- `app/twitch/sesame/engine/pipeline.go` `buildOutgress`: add cases `TypeTimeout` / `TypeBan` → marshal `{"data":{"user_id","duration","reason"}}` (omit duration for ban); delete-message; `TypeWarn`.
+- `app/twitch/outgress/internal/worker/worker.go`: add **`processBan`** (inject `broadcaster_id` + bot `moderator_id` as query params on `/helix/moderation/bans`, mirroring `processAnnounce`). Today `TypeBan`/`TypeTimeout` route there but fall through to `processAPI` with no query params → 400. Also `TypeWarn` → `/helix/moderation/warnings`; delete → `DELETE /helix/moderation/chat?...&message_id=`.
 - Preserve separate identities end to end: `Envelope.EventID` is the EventSub delivery ID used for deduplication; `Envelope.MsgID` is Twitch's chat `message_id` used for delete.
 - OAuth migration before subscription/action rollout: add `moderator:manage:automod`, `moderator:manage:warnings`, `moderator:read:suspicious_users`, and `moderator:manage:shield_mode`; re-authorize the bot grant and expose missing-scope/401 failures as capability errors.
 - Tests: `buildOutgress` payload marshaling, `processBan` query-param injection, alloc ceiling unchanged.
@@ -34,7 +34,7 @@ Nothing behaves differently yet (no emitter), but the moderation-action wire wor
 
 ## Phase 2 — Automod gate: Tier 0 + Tier 1, SHADOW mode
 
-New `app/sesame/automod/`:
+New `app/twitch/sesame/automod/`:
 - `verdict.go`: `Verdict{Action uint8; Seconds uint32; Rule uint8}` value type.
 - `gate.go`: `Inspect(mctx) Verdict` — trust gate first (role/sub/known-chatter), then Tier 1.
 - `skeleton.go`: NFKC + confusable fold + strip zero-width/RTL/Zalgo into a pooled buffer (`golang.org/x/text`). Confusable flag only on **script-mixing within a token**, never a wholesale non-latin message.
@@ -59,7 +59,7 @@ Ships shadow-only → tune on real traffic before arming.
 
 - `decider.go`: score + reputation + grace + level → `warn | delete | restrict | timeout | ban`. Ban opt-in for local rules, opt-out for confirmed network threats.
 - `profiles.go`: `pg` / `moderate` / `adult` presets, plus the **immovable hate/illegal floor** (no profile or allow-term can disable it).
-- Custom-command safety: `app/sesame/engine/dispatch.go` `runCustom` → content-check the **expanded** output against the floor before emit (catches `$(query)`/`${touser}` slur injection); save-time validation in the modules service.
+- Custom-command safety: `app/twitch/sesame/engine/dispatch.go` `runCustom` → content-check the **expanded** output against the floor before emit (catches `$(query)`/`${touser}` slur injection); save-time validation in the modules service.
 - Emit the action via the Phase 0 wire. Grace ladder + reputation-weighted thresholds.
 - Config surface: per-broadcaster profile (`pg`, `moderate`, `adult`), `shadow_mode`, per-rule toggles, allow terms, grace thresholds, and explicit local-rule ban opt-in. The hate/illegal floor and confirmed network-threat response cannot be disabled.
 - Tests: decider ladder, floor immovability, expanded-command floor block, profile behavior.
@@ -120,7 +120,7 @@ Phases 0-2 plus the cohort/reputation/campaign core of Phases 3-5 are **built an
 
 The learned layers are **wired and shadow-first by construction**: `main.go` builds one `Vocab` (`NewVocab`) and one `Baseline` (`NewBaseline(DefaultCeiling)`) per process and installs them on the shared gate via `Gate.SetExtraEmotes(vocab)` / `Gate.SetBaseline(baseline)`. Every path they touch is reduce-only — raise a threshold or shed style evidence — so installing or removing either layer can never mint a verdict that would not have existed before. Both stay inert unless the caller scopes the line with `WithChannel(ch)` (`ch != 0`), which `engine/moderate.go` does from `mctx.BroadcasterID` on both the single-chatter (`gateChat`) and cohort (`gateCohort`) paths; legacy call sites and tests see byte-identical behavior.
 
-**Emote-span contract (producer → consumer):** ingress (`app/ingress/lib/ingress/pipeline.ex`, `emote_spans/1`) walks a `channel.chat.message` event's `message.fragments` and emits one `%{id, begin, end}` per fragment of type `emote` or `cheermote`. Offsets are **Unicode codepoint positions into `message.text`** — `begin` at the fragment's first codepoint, `end` exclusive — computed with charlist length because Twitch's own IRC-style indices are codepoints (grapheme counting drifts after flag/ZWJ emoji; byte size over-counts all non-ASCII). Cheermote fragments carry their **prefix id** (`fragment_id/1`: emote → `id`, cheermote → `prefix`; the worker reads bits/tier from the covered text itself). The spans ride `Envelope.Emotes` (`lane.EmoteSpan{ID,Begin,End}`, rune-indexed, absent when none) onto every chat envelope and identically onto a squashed cohort's base event. Consumers slice `[]rune(Env.Text)` — `module.Context.EmoteCodes()` builds the per-message lowercased code set lazily, skipping malformed/out-of-range spans rather than fataling.
+**Emote-span contract (producer → consumer):** ingress (`app/twitch/ingress/lib/ingress/pipeline.ex`, `emote_spans/1`) walks a `channel.chat.message` event's `message.fragments` and emits one `%{id, begin, end}` per fragment of type `emote` or `cheermote`. Offsets are **Unicode codepoint positions into `message.text`** — `begin` at the fragment's first codepoint, `end` exclusive — computed with charlist length because Twitch's own IRC-style indices are codepoints (grapheme counting drifts after flag/ZWJ emoji; byte size over-counts all non-ASCII). Cheermote fragments carry their **prefix id** (`fragment_id/1`: emote → `id`, cheermote → `prefix`; the worker reads bits/tier from the covered text itself). The spans ride `Envelope.Emotes` (`lane.EmoteSpan{ID,Begin,End}`, rune-indexed, absent when none) onto every chat envelope and identically onto a squashed cohort's base event. Consumers slice `[]rune(Env.Text)` — `module.Context.EmoteCodes()` builds the per-message lowercased code set lazily, skipping malformed/out-of-range spans rather than fataling.
 
 **Layered emote lookup precedence** (`Gate.emoteDominant`, consulted only for caps-only flags): each whitespace token resolves against three layers in order — (a) **message spans** (`WithMessageEmotes` codes, lowercased): per-message ground truth, authoritative even when every third-party fetch failed; (b) **fetched BTTV/FFZ/7TV set**, exact-case: still required because third-party codes arrive as plain text with no spans; (c) **ExtraEmotes / learned Vocab.Known(ch, token)**, nil-safe, scoped to the line's channel. Span presence makes availability true regardless of (b)'s state; without spans the fetched layer's loaded-empty-vs-never-loaded semantics decide as before.
 
@@ -144,7 +144,7 @@ The learned layers are **wired and shadow-first by construction**: `main.go` bui
 
 **Hardcoded-free status:** nothing in the gate freezes emote names anymore — the static native-Twitch list is gone (deleted 2026-08-23, user mandate), spans cover native emotes/cheermotes, the fetched set covers third-party codes, and learned Vocab covers communal channel slang. The only name tables left are the link-marker substrings (campaign juror, recall-heavy by design) and the curated lexicon/floor artifacts, which ops extend via mounted files, not rebuilds.
 
-**Ops follow-up (unbuilt):** enabling `channel.suspicious_user.message` and `automod.message.hold` v2 needs bot-account OAuth grants `moderator:read:suspicious_users` and `moderator:manage:automod` (re-authorize the bot grant; expose missing-scope/401s as capability errors), plus appending the two specs to `ChannelOptionalSubscriptions` in `app/outgress/internal/twitch/eventsub.go` — subscriptions are created by outgress, not ingress, and both belong in the OPTIONAL list (create failure must not fail enroll; channels lacking the grants answer 403/401 permanently until re-consent).
+**Ops follow-up (unbuilt):** enabling `channel.suspicious_user.message` and `automod.message.hold` v2 needs bot-account OAuth grants `moderator:read:suspicious_users` and `moderator:manage:automod` (re-authorize the bot grant; expose missing-scope/401s as capability errors), plus appending the two specs to `ChannelOptionalSubscriptions` in `app/twitch/outgress/internal/twitch/eventsub.go` — subscriptions are created by outgress, not ingress, and both belong in the OPTIONAL list (create failure must not fail enroll; channels lacking the grants answer 403/401 permanently until re-consent).
 
 ---
 

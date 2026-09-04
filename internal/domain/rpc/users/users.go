@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package usersrpc holds the shared wire types for the users service RPC surface.
-// These types are transcribed verbatim from app/users/rpc so that consumers can
+// These types are transcribed verbatim from app/db/users/rpc so that consumers can
 // reference a single, import-friendly package without pulling in the full service.
 package usersrpc
 
@@ -347,7 +347,7 @@ type TokensRequest struct {
 // predates this field simply omits both new-ish fields, which is exactly the
 // "unknown expiry" case and therefore requires no version check on the
 // caller's side: see twitch.NewStoredUserTokenSource in
-// app/outgress/internal/twitch/token.go, which falls back to minting from
+// app/twitch/outgress/internal/twitch/token.go, which falls back to minting from
 // RefreshToken whenever AccessTokenExpiresAt is nil or too close to now.
 type TokensReply struct {
 	AccessToken          string     `json:"access_token,omitempty"`

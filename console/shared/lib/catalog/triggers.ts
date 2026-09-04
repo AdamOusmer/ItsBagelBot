@@ -19,6 +19,6 @@ export const TRIGGERS_MODULE: ModuleDef =
   // enabled switch). The whole list is persisted as one "rules" string holding
   // a JSON array of structured rules; the sesame module also still parses the
   // legacy "phrase => response" line format for configs saved before the
-  // migration. See app/sesame/modules/triggers.go.
+  // migration. See app/twitch/sesame/modules/triggers.go.
   replies: []
 };

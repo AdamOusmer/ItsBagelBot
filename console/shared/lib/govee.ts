@@ -3,7 +3,7 @@
 
 // GOVEE_COLOR_NAMES are the colour words a viewer may type in the Govee reward
 // input. It mirrors the sesame colour parser's named palette
-// (app/sesame/modules/color.go) so the dashboard prompt/help never advertises a
+// (app/twitch/sesame/modules/color.go) so the dashboard prompt/help never advertises a
 // name the bot would then refuse; viewers can always give a hex code instead.
 export const GOVEE_COLOR_NAMES: readonly string[] = [
   'red',

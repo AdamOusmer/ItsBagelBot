@@ -54,7 +54,7 @@ const (
 )
 
 // ingressSubjects is DiscordIngressStream's own subject list, bound one
-// durable consumer per subject: same pattern app/outgress's stream/authz
+// durable consumer per subject: same pattern app/twitch/outgress's stream/authz
 // lanes and the old dingress egress role already use for a fixed, known
 // subject set.
 var ingressSubjects = []string{
@@ -119,7 +119,7 @@ func main() {
 	}
 
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
-	resolver := resolve.Resolver{Store: store, Modules: projStore, Log: log}
+	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)), Log: log}
 	// ownInvite shares valkeyClient with guard and store above -- it is
 	// just another Valkey-backed cache, not a second connection -- and
 	// shares rpc (rpcclient.Client) with Channels/Purge below, since

@@ -27,7 +27,7 @@ type loyaltyCounterReader interface {
 }
 
 // loyaltyCounters is the projector's narrow read-only client onto the loyalty
-// service's counter store (<prefix>.counter.get — see app/loyalty/rpc/rpc.go's
+// service's counter store (<prefix>.counter.get — see app/db/loyalty/rpc/rpc.go's
 // Subscribe doc), used only to seed a per-stream counter baseline at go-live
 // (Projector.snapshotCounterBaseline). It deliberately does not grow into the
 // fuller client sesame's engine.LoyaltyRPC already is: the projector only

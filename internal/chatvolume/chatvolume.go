@@ -7,7 +7,7 @@
 // ticks), for the trailing ringWidth minutes of the current stream.
 //
 // Decision record: this reintroduces the per-channel ring buffer
-// automod.Baseline explicitly rejected (app/sesame/automod/baseline.go:100-104,
+// automod.Baseline explicitly rejected (app/twitch/sesame/automod/baseline.go:100-104,
 // "3 metrics x unbounded retention... two floats beat both" in favor of an
 // EWMA). That rejection does not carry over here, for the same reason
 // internal/activity's Sink didn't inherit it either: an EWMA compresses a
@@ -136,7 +136,7 @@ return count
 
 // Store is the Observer + read side of the chat-volume ring. Construct once
 // per process and register it as a pipeline observer (see
-// app/sesame/main.go and chatvolume_observer.go); it borrows client rather
+// app/twitch/sesame/main.go and chatvolume_observer.go); it borrows client rather
 // than owning its lifecycle, matching every other Valkey-backed store in
 // this repo.
 type Store struct {
@@ -152,11 +152,11 @@ func New(client valkey.Client, log *zap.Logger) *Store {
 	return &Store{client: client, log: log}
 }
 
-// Event is the minimal slice of app/sesame/engine.ObservedEvent this package
+// Event is the minimal slice of app/twitch/sesame/engine.ObservedEvent this package
 // needs. It exists so chatvolume — an internal/* package — never imports
-// app/sesame/engine: internal/* stays below app/*, the same layering
+// app/twitch/sesame/engine: internal/* stays below app/*, the same layering
 // internal/activity keeps by defining its own Row type instead of importing
-// engine's ObservedEvent directly. app/sesame/chatvolume_observer.go adapts
+// engine's ObservedEvent directly. app/twitch/sesame/chatvolume_observer.go adapts
 // one into the other at the single registration call site (main.go).
 type Event struct {
 	BroadcasterID uint64

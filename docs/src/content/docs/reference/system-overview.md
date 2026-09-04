@@ -23,13 +23,13 @@ the source of truth.
 
 | Service | Path | Language | Owns / does |
 |---|---|---|---|
-| **ingress** | `app/ingress/` | Elixir | Twitch EventSub Conduit + WebSocket shards; per-shard supervision; tenant OAuth; normalizes and publishes events on `twitch.ingress.event.*`; exposes shard snapshot RPC |
-| **outgress** | `app/outgress/` | Go | Sends to Twitch (chat + EventSub mgmt); per-broadcaster rate limit via Valkey; channel registry; app/user token lifecycle; kill switch |
+| **ingress** | `app/twitch/ingress/` | Elixir | Twitch EventSub Conduit + WebSocket shards; per-shard supervision; tenant OAuth; normalizes and publishes events on `twitch.ingress.event.*`; exposes shard snapshot RPC |
+| **outgress** | `app/twitch/outgress/` | Go | Sends to Twitch (chat + EventSub mgmt); per-broadcaster rate limit via Valkey; channel registry; app/user token lifecycle; kill switch |
 | **projector** | `app/projector/` | Go | Builds the Valkey settings projection on stream-online; serves broadcaster billing **tier** lookups |
-| **users** | `app/users/` | Go | User accounts, status (free/paid/vip), active toggle, Twitch OAuth tokens; emits `data.users.*` |
-| **commands** | `app/commands/` | Go | Custom chat commands; emits `data.commands.changed` |
-| **modules** | `app/modules/` | Go | Feature modules per broadcaster; emits `data.modules.changed` |
-| **transactions** | `app/transactions/` | Go | Tebex purchase records; consumes `data.transactions.recorded` |
+| **users** | `app/db/users/` | Go | User accounts, status (free/paid/vip), active toggle, Twitch OAuth tokens; emits `data.users.*` |
+| **commands** | `app/db/commands/` | Go | Custom chat commands; emits `data.commands.changed` |
+| **modules** | `app/db/modules/` | Go | Feature modules per broadcaster; emits `data.modules.changed` |
+| **transactions** | `app/db/transactions/` | Go | Tebex purchase records; consumes `data.transactions.recorded` |
 | **admin** (legacy) | `app/admin/` | Go + templ | Read-only operator window over NATS (shard fleet, users); being superseded by the console |
 | **console** | `console/` | SvelteKit SSR | `dashboard` (broadcaster self-serve) and `admin` (operator) apps; oauth4webapi OAuth; talks to services only over NATS RPC |
 

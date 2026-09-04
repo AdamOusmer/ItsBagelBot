@@ -86,7 +86,7 @@ func TestKeyBuilders(t *testing.T) {
 }
 
 // newTestClient dials a real Valkey for the round-trip test below, mirroring
-// app/sesame/engine's newHotPathTestClient: skipped unless VALKEY_TEST_ADDR is
+// app/twitch/sesame/engine's newHotPathTestClient: skipped unless VALKEY_TEST_ADDR is
 // set, so CI without a live Valkey still passes (not fails) this package.
 func newTestClient(t *testing.T) valkey.Client {
 	t.Helper()

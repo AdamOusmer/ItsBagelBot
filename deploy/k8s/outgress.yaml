@@ -337,7 +337,7 @@ spec:
 # per-pod - see docs/microservices/outgress.md), so maxReplicaCount stays
 # modest: this buys resilience and headroom under sustained backlog, not more
 # Twitch throughput. Consumer names are bus.durableName(group, subject) from
-# app/outgress/main.go's three LaneConfigs; lag = num_pending + num_ack_pending
+# app/twitch/outgress/main.go's three LaneConfigs; lag = num_pending + num_ack_pending
 # on that durable (see pkg/bus/bus.go laneConsumerConfig). Tune thresholds from
 # the admin lane-telemetry view (reads $JS.hub.API.CONSUMER.INFO.> live).
 apiVersion: keda.sh/v1alpha1

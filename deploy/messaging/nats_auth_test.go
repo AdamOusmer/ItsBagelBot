@@ -131,9 +131,11 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Discord is nested one level deeper (app/discord/<service>/main.go, not
-	// app/<service>/main.go), so it needs its own glob.
-	discordMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "discord", "*", "main.go"))
+	// Discord and Twitch both group their services one level deeper
+	// (app/<group>/<service>/main.go, not app/<service>/main.go), so a
+	// single generic two-level glob covers every grouped service instead
+	// of a hardcoded glob per group.
+	groupedMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "*", "main.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +170,7 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	for _, name := range mainFiles {
 		check.inspect(t, sourceFile{name: name})
 	}
-	for _, name := range discordMainFiles {
+	for _, name := range groupedMainFiles {
 		check.inspect(t, sourceFile{name: name})
 	}
 	for service := range check.want {
@@ -237,10 +239,13 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 	}
 	dir := filepath.Dir(file.name)
 	service := filepath.Base(dir)
-	// Discord's services live two levels under app/ (app/discord/<service>),
-	// and "outgress" in particular collides with the top-level Twitch
-	// app/outgress -- qualify with the discord- prefix so each is checked
-	// against its own owned stream, never the other's.
+	// Both Discord and Twitch group their services two levels under app/
+	// (app/discord/<service>, app/twitch/<service>), and "outgress" in
+	// particular collides between app/discord/outgress and
+	// app/twitch/outgress -- qualify Discord's with the discord- prefix so
+	// each is checked against its own owned stream, never the other's.
+	// Twitch's service names ("sesame", "outgress") are already unique in
+	// the map, so they need no prefix.
 	if filepath.Base(filepath.Dir(dir)) == "discord" {
 		service = "discord-" + service
 	}

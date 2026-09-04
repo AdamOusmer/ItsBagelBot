@@ -590,7 +590,7 @@ function triggerLineProblem(tr: ManifestTrigger): string | null {
 }
 
 // applyAutomodTerms merges the imported term lists into the automod module's
-// comma-joined textarea values (app/sesame/automod wireConfig). Only the two
+// comma-joined textarea values (app/twitch/sesame/automod wireConfig). Only the two
 // term keys are patched, so the module's level/per-reply toggles survive. The
 // automod module has no bucket in ImportStats: its outcome shows through
 // diagnostics alone — silence means merged.

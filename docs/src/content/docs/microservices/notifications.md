@@ -5,7 +5,7 @@ title: Notifications
 description: Manages dashboard notifications and admin announcements.
 ---
 
-The Notifications service (`app/notifications/`) manages persistent alerts, system announcements, and dashboard bells for broadcasters and operators.
+The Notifications service (`app/db/notifications/`) manages persistent alerts, system announcements, and dashboard bells for broadcasters and operators.
 
 ## Architecture
 

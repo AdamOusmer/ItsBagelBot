@@ -20,7 +20,7 @@
   type PaletteToken = { token: string; hint?: string; label?: string };
 
   // Mirrors the set sesame's expandCommand + ParseDynamic actually expand
-  // (app/sesame/engine/vars.go) — a token offered here must render in chat.
+  // (app/twitch/sesame/engine/vars.go) — a token offered here must render in chat.
   const DEFAULT_TOKENS: PaletteToken[] = [
     { token: '{user}', hint: 'commandEditor.tokUser' },
     { token: '{target}', hint: 'commandEditor.tokTarget' },

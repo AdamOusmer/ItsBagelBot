@@ -63,7 +63,7 @@
       ]
     },
     {
-      "matching_content_path": "**/app/sesame/module/builder.go",
+      "matching_content_path": "**/app/twitch/sesame/module/builder.go",
       "rules": [
         {
           "name": "String Heavy Function Arguments",
@@ -81,7 +81,7 @@
       ]
     },
     {
-      "matching_content_path": "**/app/sesame/engine/raffle_*.go",
+      "matching_content_path": "**/app/twitch/sesame/engine/raffle_*.go",
       "rules": [
         { "name": "Primitive Obsession", "weight": 0 }
       ]

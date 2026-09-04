@@ -94,7 +94,7 @@
   </div>
 
   <!-- kind="reply": trigger replies expand only {user} plus the dynamic
-       tokens (see app/sesame/modules/triggers.go firstReply). -->
+       tokens (see app/twitch/sesame/modules/triggers.go firstReply). -->
   <ChatPreview
     kind="reply"
     name=""

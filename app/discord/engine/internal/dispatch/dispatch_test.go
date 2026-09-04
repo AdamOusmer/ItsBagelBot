@@ -112,7 +112,15 @@ func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordst
 	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
 	log := &commandLog{}
 
-	resolver := resolve.Resolver{Store: store, Modules: fakeModules{cfg: cfg}, Log: zap.NewNop()}
+	// Tier reports premium: Discord is premium-only while it is in beta
+	// (ddiscord.BetaPremiumOnly), and the resolver fails closed without a
+	// reader. These tests are about dispatch, not the gate, so they run as a
+	// premium channel; resolve's own tests cover the gate itself.
+	resolver := resolve.Resolver{
+		Store: store, Modules: fakeModules{cfg: cfg},
+		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
+		Log:  zap.NewNop(),
+	}
 	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Purge: channels, Log: zap.NewNop()})...)
 	d := &Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: log.publish, Log: zap.NewNop()}
 	return d, channels, store, log

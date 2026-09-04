@@ -4,7 +4,7 @@
 // Package dispatch is the single point every discord.ingress.event.*
 // message flows through: decode, resolve the guild's config, run whichever
 // module.Handler(s) it maps to, publish whatever they emit. It plays the
-// role app/sesame/engine's Pipeline plays for chat, sized down to what
+// role app/twitch/sesame/engine's Pipeline plays for chat, sized down to what
 // Discord's dispatch actually needs (see module's package doc for why there
 // is no command/role/cooldown gating stage here).
 package dispatch

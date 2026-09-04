@@ -93,7 +93,7 @@ const (
 	// seasonResolveTimeout bounds the best-effort season-start leg of a cold
 	// season lookup (see resolveStatsWindow). The downstream budget picks the
 	// number: sesame's !fnstats RPC gives gossip 12s (gossipRPCTimeout in
-	// app/sesame/engine/gossip_rpc.go), and the mandatory /api/v2/stats call
+	// app/twitch/sesame/engine/gossip_rpc.go), and the mandatory /api/v2/stats call
 	// that follows window resolution can itself spend httpTimeout, so
 	// everything the window resolution spends past 12s - 10s = 2s comes
 	// straight out of the stats call's budget. A healthy /api/v1/season
