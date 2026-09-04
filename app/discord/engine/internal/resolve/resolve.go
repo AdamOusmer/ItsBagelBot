@@ -29,11 +29,24 @@ type Modules interface {
 	GetModule(ctx context.Context, userID uint64, name string) (projection.ModuleView, bool, error)
 }
 
+// Status returns a broadcaster's projected account status ("free", "paid",
+// "vip") and whether it could be read at all.
+type Status func(ctx context.Context, broadcasterID uint64) (string, bool)
+
 // Resolver ties a guild-binding store to the module-blob reader.
 type Resolver struct {
 	Store   discordstore.Store
 	Modules Modules
-	Log     *zap.Logger
+	// Tier gates the beta: Discord is premium-only while
+	// ddiscord.BetaPremiumOnly holds. It sits HERE, on the one lookup every
+	// module and both input families already go through, rather than in each
+	// module. A per-module check is a check a new module can forget, and the
+	// failure mode of forgetting is handing a paid beta to everyone.
+	//
+	// Nil while the gate is on resolves nothing, so a service that forgets to
+	// wire it fails closed and loudly rather than serving every channel.
+	Tier Status
+	Log  *zap.Logger
 }
 
 // ByBroadcaster loads the enabled, connected Discord config for a Twitch
@@ -55,6 +68,9 @@ func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) (ddis
 	}
 	cfg := ddiscord.Parse(mod.Configs)
 	if !cfg.Connected() {
+		return ddiscord.Config{}, false
+	}
+	if !r.premiumOK(ctx, broadcasterID) {
 		return ddiscord.Config{}, false
 	}
 	return cfg, true
@@ -81,6 +97,27 @@ func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config,
 		return ddiscord.Config{}, "", false
 	}
 	return cfg, b.ID, true
+}
+
+// premiumOK applies the beta gate. It runs LAST, after the row is known to
+// exist and be connected, so the common free-channel case (no Discord row at
+// all) never pays a tier lookup.
+func (r Resolver) premiumOK(ctx context.Context, broadcasterID uint64) bool {
+	if !ddiscord.BetaPremiumOnly {
+		return true
+	}
+	if r.Tier == nil {
+		r.log().Warn("discord beta gate has no tier reader; refusing to serve",
+			zap.Uint64("broadcaster_id", broadcasterID))
+		return false
+	}
+	status, known := r.Tier(ctx, broadcasterID)
+	if open := ddiscord.PremiumGateOpen(status, known); !open {
+		r.log().Debug("discord is premium-only in beta; skipping channel",
+			zap.Uint64("broadcaster_id", broadcasterID), zap.String("status", status))
+		return false
+	}
+	return true
 }
 
 func (r Resolver) log() *zap.Logger {

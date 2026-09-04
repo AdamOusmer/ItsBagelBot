@@ -12,6 +12,16 @@ export const DISCORD_MODULE: ModuleDef = {
   icon: 'server',
   category: 'Gear',
   defaultEnabled: false,
+  // Premium-only while Discord is in beta. This flag drives three things
+  // through machinery that already exists: the Beta chip, the locked tile,
+  // and -- because href is '/discord' -- betaRouteDef closing the whole
+  // section and its form actions in the route guard.
+  //
+  // It is only half the gate. The other half is BetaPremiumOnly in
+  // internal/domain/discord/beta.go, which stops the bot serving a guild
+  // whose row was enabled before the gate existed; a locked page does not
+  // unenrol anyone. discord-beta-gate.test.ts fails if the two disagree.
+  beta: true,
   href: '/discord',
   replies: [],
   // Discord is its own sidebar section now (see DASHBOARD_SECTIONS in nav.ts),
