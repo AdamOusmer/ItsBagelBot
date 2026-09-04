@@ -183,3 +183,47 @@ func TestUpstreamMessageReadsFlatAndNestedShapes(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRetryAfter(t *testing.T) {
+	assert.Equal(t, time.Duration(0), parseRetryAfter(""))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("-5"))
+	assert.Equal(t, 120*time.Second, parseRetryAfter("120"))
+	assert.Equal(t, 30*time.Second, parseRetryAfter("  30  "))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("not-a-delay"))
+
+	future := time.Now().Add(45 * time.Second).UTC()
+	parsed := parseRetryAfter(future.Format(http.TimeFormat))
+	assert.InDelta(t, 45*time.Second, parsed, float64(2*time.Second))
+
+	past := time.Now().Add(-45 * time.Second).UTC()
+	assert.Equal(t, time.Duration(0), parseRetryAfter(past.Format(http.TimeFormat)))
+}
+
+// A Retry-After is upstream free text and nothing bounds it. Two shapes must
+// not escape: a value large enough to wrap the nanosecond Duration into a
+// negative, and a merely huge one that would pin an error reply for a day.
+func TestParseRetryAfterIsBounded(t *testing.T) {
+	assert.Equal(t, maxRetryAfter, parseRetryAfter("86400"), "a well-formed day is capped, not obeyed")
+	assert.Equal(t, maxRetryAfter, parseRetryAfter("10000000000"), "the value that used to wrap to -2346317h")
+	assert.Equal(t, maxRetryAfter, parseRetryAfter("999999999999"))
+	assert.Positive(t, parseRetryAfter("10000000000"), "an overflowed delay must never read as negative")
+
+	farFuture := time.Now().Add(72 * time.Hour).UTC()
+	assert.Equal(t, maxRetryAfter, parseRetryAfter(farFuture.Format(http.TimeFormat)), "the HTTP-date form is capped too")
+}
+
+func TestDecodeJSONExtractsRetryAfter(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Retry-After", "90")
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     header,
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"status":429,"message":"API rate limit exceeded"}}`)),
+	}
+	err := decodeJSON(resp, nil)
+	require.Error(t, err)
+	var ue *UpstreamError
+	require.ErrorAs(t, err, &ue)
+	assert.Equal(t, http.StatusTooManyRequests, ue.Status)
+	assert.Equal(t, 90*time.Second, ue.RetryAfter)
+}

@@ -346,13 +346,61 @@ func (p *api) rateAdmit(broadcaster string) func(context.Context) error {
 	}
 }
 
+// spotifyFriendlyError maps a Spotify upstream failure onto a user-facing reply
+// message and its Pin class. It replaces core.FriendlyUpstream's stats-oriented
+// strings ("stats provider", "player not found") with Spotify-appropriate ones.
+//
+// One mapper serves search, track, artist and now-playing, which is why the 404
+// text is item-agnostic. It read "track not found" first, and that answered a
+// bad artist id and an empty player with a sentence about a track nobody asked
+// about. Wording per endpoint would mean threading the endpoint name through
+// every BuildReplyWithMapper call site, for a distinction chat does not need.
+//
+// Unlike core.FriendlyUpstream this never echoes ue.Message on 400/404.
+// Spotify's own text is upstream free-form and would land in chat verbatim;
+// the status alone says something true without that.
+func spotifyFriendlyError(err error) (string, core.Pin) {
+	var ue *core.UpstreamError
+	if !errors.As(err, &ue) {
+		return "", core.PinNone
+	}
+	switch ue.Status {
+	case http.StatusBadRequest:
+		return "invalid request", core.PinNegative
+	case http.StatusNotFound:
+		return "not found on Spotify", core.PinNegative
+	case http.StatusForbidden:
+		return "Spotify playback not permitted right now", core.PinNone
+	case http.StatusTooManyRequests:
+		return spotifyThrottled(ue)
+	case http.StatusServiceUnavailable:
+		// 503 carries Retry-After as legitimately as 429 does. Leaving it
+		// unmapped returned "" here, which propagates as an infrastructure
+		// failure and drops the parsed delay on the floor: the header was
+		// read, then ignored on one of the two statuses that send it.
+		return "Spotify is unavailable right now, try again in a moment", core.PinThrottle
+	}
+	return "", core.PinNone
+}
+
+// spotifyThrottled tells our own bucket denial apart from Spotify's. A
+// LocalDeny never reached Spotify and its token refills within seconds, so
+// pinning it would outlast the denial it describes; an upstream 429 ends only
+// by backing off, and pins.
+func spotifyThrottled(ue *core.UpstreamError) (string, core.Pin) {
+	if ue.LocalDeny {
+		return "Spotify is busy right now, try again in a few seconds", core.PinNone
+	}
+	return "Spotify is rate limiting requests right now, try again in a moment", core.PinThrottle
+}
+
 // fetchFailed maps a CachedBytes failure onto a typed error message. A
 // budget denial or a friendly upstream failure has a message of its own
-// (core.FriendlyUpstream); anything else is infrastructure and reports the
+// (spotifyFriendlyError); anything else is infrastructure and reports the
 // endpoint's fallback after logging, mirroring what the FlowBuilder does for
 // flow-declared endpoints.
 func (p *api) fetchFailed(what, fallback string, err error) string {
-	if msg, _ := core.FriendlyUpstream(err); msg != "" {
+	if msg, _ := spotifyFriendlyError(err); msg != "" {
 		return msg
 	}
 	p.log.Warn(what, zap.Error(err))
@@ -466,11 +514,6 @@ type searchResponse struct {
 	} `json:"tracks"`
 }
 
-// topTracksResponse is the subset of GET /v1/artists/{id}/top-tracks we read.
-type topTracksResponse struct {
-	Tracks []trackItem `json:"tracks"`
-}
-
 // albumResponse is the subset of GET /v1/albums/{id} we read. Its track items
 // are the slim variant: names, artists, durations, links, but no album
 // object and no artwork, so both are filled in from the album itself.
@@ -505,7 +548,7 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 	// Said plainly BEFORE any credential work: an unsupported share should
 	// not spend a token mint to end in results that merely echo its words.
 	if target.kind == resolveUnsupportedLink {
-		return gossiprpc.SpotifySearchReply{Error: "that Spotify link type isn't supported; share a track, artist or album"}
+		return gossiprpc.SpotifySearchReply{Error: "that Spotify link type isn't supported; share a track or album"}
 	}
 
 	tok, msg := p.accessTokenFor(ctx, broadcaster)
@@ -523,8 +566,6 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 	case resolveTrackID:
 		scope.ttl = trackTTL
 		return p.searchCached(ctx, scope, p.trackByIDFetch(tok, target.id))
-	case resolveArtistID:
-		return p.searchCached(ctx, scope, p.artistTopFetch(tok, target.id, scope.limit))
 	case resolveAlbumID:
 		scope.ttl = trackTTL
 		return p.searchCached(ctx, scope, p.albumTracksFetch(tok, target.id, scope.limit))
@@ -588,9 +629,10 @@ func (p *api) searchCached(ctx context.Context, scope searchScope, fetch searchF
 	cacheKey := core.Key(providerName, "search",
 		fmt.Sprintf("%s|%d|%s", scope.broadcaster, scope.limit, scope.canonical))
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
-		b, ttl, _, err := core.BuildReply(ctx, scope.ttl, negativeTTL,
+		b, ttl, _, err := core.BuildReplyWithMapper(ctx, scope.ttl, negativeTTL,
 			func(ctx context.Context) (any, error) { return fetch(ctx) },
 			func(msg string) any { return gossiprpc.SpotifySearchReply{Error: msg} },
+			spotifyFriendlyError,
 		)
 		return b, ttl, err
 	})
@@ -612,26 +654,6 @@ func (p *api) trackByIDFetch(tok accessToken, id string) searchFetch {
 			ResolvedAs: viaTrackLink,
 			Tracks:     []gossiprpc.SpotifyTrack{*shapeTrack(it)},
 		}, nil
-	}
-}
-
-// artistTopFetch serves an artist link as their current top tracks, capped at
-// the caller's limit (the upstream window is fixed at ten).
-func (p *api) artistTopFetch(tok accessToken, id string, limit int) searchFetch {
-	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-		var resp topTracksResponse
-		r := core.Request{Method: http.MethodGet, Path: artistPath + id + "/top-tracks", Headers: bearerHeader(tok)}
-		if err := p.http.Do(ctx, r, &resp); err != nil {
-			return gossiprpc.SpotifySearchReply{}, err
-		}
-		reply := gossiprpc.SpotifySearchReply{
-			ResolvedAs: viaArtistTop,
-			Tracks:     make([]gossiprpc.SpotifyTrack, 0, len(resp.Tracks)),
-		}
-		for _, it := range resp.Tracks {
-			reply.Tracks = append(reply.Tracks, *shapeTrack(it))
-		}
-		return truncateTracks(reply, limit), nil
 	}
 }
 
@@ -747,7 +769,7 @@ func (p *api) track(ctx context.Context, req gossiprpc.Request) any {
 
 	cacheKey := core.Key(providerName, "track", broadcaster+"|"+id)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
-		b, ttl, _, err := core.BuildReply(ctx, trackTTL, negativeTTL,
+		b, ttl, _, err := core.BuildReplyWithMapper(ctx, trackTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var it trackItem
 				req := core.Request{Method: http.MethodGet, Path: trackPath + id, Headers: bearerHeader(tok)}
@@ -757,6 +779,7 @@ func (p *api) track(ctx context.Context, req gossiprpc.Request) any {
 				return gossiprpc.SpotifyTrackReply{Track: shapeTrack(it)}, nil
 			},
 			func(msg string) any { return gossiprpc.SpotifyTrackReply{Error: msg} },
+			spotifyFriendlyError,
 		)
 		return b, ttl, err
 	})
@@ -789,7 +812,7 @@ func (p *api) artist(ctx context.Context, req gossiprpc.Request) any {
 
 	cacheKey := core.Key(providerName, "artist", broadcaster+"|"+id)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
-		b, ttl, _, err := core.BuildReply(ctx, trackTTL, negativeTTL,
+		b, ttl, _, err := core.BuildReplyWithMapper(ctx, trackTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp artistResponse
 				req := core.Request{Method: http.MethodGet, Path: artistPath + id, Headers: bearerHeader(tok)}
@@ -799,6 +822,7 @@ func (p *api) artist(ctx context.Context, req gossiprpc.Request) any {
 				return gossiprpc.SpotifyArtistReply{Artist: shapeArtist(resp.ID, resp.artistItem)}, nil
 			},
 			func(msg string) any { return gossiprpc.SpotifyArtistReply{Error: msg} },
+			spotifyFriendlyError,
 		)
 		return b, ttl, err
 	})
@@ -837,7 +861,7 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 	// message instead of burning the token Spotify throttles.
 	b, err := core.CachedBytes(ctx, p.cache, core.Key(providerName, "nowplaying", broadcaster), p.rateAdmit(broadcaster),
 		func(ctx context.Context) ([]byte, time.Duration, error) {
-			b, ttl, _, err := core.BuildReply(ctx, nowplayingTTL, negativeTTL,
+			b, ttl, _, err := core.BuildReplyWithMapper(ctx, nowplayingTTL, negativeTTL,
 				func(ctx context.Context) (any, error) {
 					var resp nowPlayingResponse
 					req := core.Request{Method: http.MethodGet, Path: nowPlayingPath, Headers: bearerHeader(tok)}
@@ -851,6 +875,7 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 					return reply, nil
 				},
 				func(msg string) any { return gossiprpc.SpotifyNowPlayingReply{Error: msg} },
+				spotifyFriendlyError,
 			)
 			return b, ttl, err
 		})
