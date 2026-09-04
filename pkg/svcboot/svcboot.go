@@ -23,6 +23,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
@@ -114,15 +115,21 @@ func AutoMigrate(ctx context.Context, log *zap.Logger, create func(context.Conte
 }
 
 // NATS bundles the standard connection set of a data service: the JetStream
-// publisher, the core RPC connection (with the health responder attached), a
-// broadcast subscriber (no queue group: every instance sees every message, for
-// cache invalidation) and a durable group subscriber (exactly one instance
-// handles each event).
+// publisher, the core RPC connection, a broadcast subscriber (no queue group:
+// every instance sees every message, for cache invalidation) and a durable
+// group subscriber (exactly one instance handles each event).
+//
+// The health responder is not attached here — see MustHealthRPC.
 type NATS struct {
 	URL    string
 	RPCURL string
 	Pub    bus.Publisher
 	RPC    *nats.Conn
+	// service and queueGroup are carried from MustNATS so MustHealthRPC can
+	// register on the same identity without the caller repeating it, which is
+	// how a service ends up answering on one token and queueing on another.
+	service    string
+	queueGroup string
 	// Broadcast fans every event out to every instance; Grouped delivers each
 	// event to exactly one instance of the service's durable group.
 	Broadcast bus.Subscriber
@@ -147,10 +154,6 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 	if err != nil {
 		core.Log.Fatal("failed to connect to nats", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
-		core.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-
 	broadcast, err := bus.NewSubscriber(natsURL, "", core.Log)
 	if err != nil {
 		core.Log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
@@ -161,11 +164,30 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 		core.Log.Fatal("failed to connect group subscriber", zap.Error(err))
 	}
 
-	n := NATS{URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Broadcast: broadcast, Grouped: grouped}
+	n := NATS{
+		URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc,
+		Broadcast: broadcast, Grouped: grouped,
+		service: serviceName, queueGroup: queueGroup,
+	}
 	closeIntake := func() {
 		_ = grouped.Close()
 		_ = broadcast.Close()
 		nc.Close()
 	}
 	return n, closeIntake
+}
+
+// MustHealthRPC attaches the health responder to the RPC connection and adds
+// the check that watches it to set. Fatal on failure, matching MustNATS.
+//
+// It is separate from MustNATS because the responder answers out of the
+// service's health Set, and that Set is built later in boot, once the database
+// and subscribers it reports on exist. Registering earlier is what the RPC
+// surface used to do, and it could only ever answer a constant.
+func (n NATS) MustHealthRPC(core Core, set *health.Set) {
+	check, err := bus.SubscribeRPCHealth(n.RPC, n.service, n.queueGroup, set)
+	if err != nil {
+		core.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	set.Add(check)
 }
