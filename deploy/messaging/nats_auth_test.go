@@ -34,11 +34,20 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
 		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
-		// dingress-egress owns nothing: a durable pull consumer on BAGEL_DATA
-		// (data.twitch.clip.created) and a second, independent durable push
-		// consumer on TWITCH_INGRESS (twitch.ingress.event.stream), alongside
-		// outgress's own. dingress-gateway has no BUS connection at all.
-		"dingress_egress_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
+		// discord-engine owns DISCORD_INGRESS, and holds two more
+		// independent, stream-scoped consumer grants with no ownership: a
+		// durable push consumer on BAGEL_DATA (data.twitch.clip.created) and
+		// a second, independent durable push consumer on TWITCH_INGRESS
+		// (twitch.ingress.event.stream), alongside outgress's own. Both go
+		// through the same non-hot-ingress consumer path as everything else
+		// here, so neither is pull-mode (see pullFetchStreams below).
+		"discord_engine_bus": {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
+		// discord-outgress owns DISCORD_OUTGRESS, its sole consumer.
+		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
+		// discord-ingress is publish-only (see internal/domain/discord/event.go):
+		// no consumer grants and no $JS.API grants at all, since a plain
+		// PublishMsgAsync needs neither.
+		"discord_ingress_bus": {},
 	}
 	owners := map[string][]string{
 		"users_bus":  {"BAGEL_DATA"},
@@ -46,13 +55,16 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		// The projector self-provisions its inputs rather than depending on
 		// users/sesame boot order; identical catalog specs make the concurrent
 		// reconciles converge.
-		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
+		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
+		"discord_engine_bus":   {"DISCORD_INGRESS"},
+		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
 	}
 	serviceUsers := []string{
 		"users_bus", "commands_bus", "modules_bus", "loyalty_bus",
 		"projector_bus", "worker_bus", "outgress_bus",
-		"twitch_ingress_bus", "dashboard_bus", "dingress_egress_bus",
+		"twitch_ingress_bus", "dashboard_bus",
+		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
 	}
 
 	for _, user := range serviceUsers {
@@ -119,6 +131,12 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Discord is nested one level deeper (app/discord/<service>/main.go, not
+	// app/<service>/main.go), so it needs its own glob.
+	discordMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "discord", "*", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	check := streamOwnershipCheck{
 		want: map[string][]string{
 			"users": {"[]bus.StreamSpec{bus.BagelDataStream}"},
@@ -131,15 +149,26 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 			// the partition ordering holds here exactly as it does in sesame.
 			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)"},
 			// outgress owns only its two Twitch work-queue streams now;
-			// DISCORD_OUTGRESS is gone with the rest of the Discord split.
+			// DISCORD_OUTGRESS moved to discord-outgress with the rest of
+			// the Discord split.
 			"outgress": {
 				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 			},
+			// discord-engine is DISCORD_INGRESS's sole consumer, so it
+			// reconciles that stream and never DISCORD_OUTGRESS, which it
+			// only ever publishes onto.
+			"discord-engine": {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
+			// discord-outgress is DISCORD_OUTGRESS's sole consumer,
+			// symmetrically -- see app/discord/outgress/main.go.
+			"discord-outgress": {"[]bus.StreamSpec{bus.DiscordOutgressStream}"},
 		},
-		seen: make(map[string]bool, 4),
+		seen: make(map[string]bool, 6),
 	}
 
 	for _, name := range mainFiles {
+		check.inspect(t, sourceFile{name: name})
+	}
+	for _, name := range discordMainFiles {
 		check.inspect(t, sourceFile{name: name})
 	}
 	for service := range check.want {
@@ -179,12 +208,10 @@ var flowControlStreams = map[string][]string{
 // replay lane is drained with the same shared-durable pull mechanism.
 var pullFetchStreams = map[string][]string{
 	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-	// dingress-egress's BAGEL_DATA consumer is pull-mode: BAGEL_DATA is
-	// LimitsPolicy and every subscriber binds its own durable, so there is no
-	// work-queue competition to avoid the way there is on the hot ingress
-	// lanes -- pull was simply the natural shape for a fresh consumer with no
-	// push-consumer history to match.
-	"dingress_egress_bus": {"BAGEL_DATA"},
+	// No Discord service pull-fetches: discord-engine's BAGEL_DATA and
+	// TWITCH_INGRESS bindings, and discord-outgress's DISCORD_OUTGRESS
+	// bindings, all go through the same non-hot-ingress push/explicit-ack
+	// consumer path (pkg/bus isHotIngressLane declines every one of them).
 }
 
 type streamGrants struct {
@@ -208,7 +235,15 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 	if !strings.Contains(body, "bus.EnsureStreams(") {
 		return
 	}
-	service := filepath.Base(filepath.Dir(file.name))
+	dir := filepath.Dir(file.name)
+	service := filepath.Base(dir)
+	// Discord's services live two levels under app/ (app/discord/<service>),
+	// and "outgress" in particular collides with the top-level Twitch
+	// app/outgress -- qualify with the discord- prefix so each is checked
+	// against its own owned stream, never the other's.
+	if filepath.Base(filepath.Dir(dir)) == "discord" {
+		service = "discord-" + service
+	}
 	snippets, ok := c.want[service]
 	if !ok {
 		t.Errorf("%s reconciles streams but has no stream-owner ACL", service)

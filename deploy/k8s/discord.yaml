@@ -1,0 +1,725 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+#
+# Discord is its own vertical, mirroring the Twitch ingress -> engine ->
+# outgress shape (twitch-ingress -> sesame -> outgress) instead of the old
+# two-role app/dingress split. Three Deployments, three images, three NATS
+# identities:
+#
+#   discord-ingress (replicas: 1, Recreate)
+#     Holds the single Discord gateway Identify session for the fleet bot
+#     token. Two Identify sessions on one bot token fight each other
+#     (Discord kills the older one), which is what forces this to stay a
+#     singleton. Unlike the old dingress-gateway role, this one DOES hold a
+#     NATS connection: every event it receives is wrapped and published to
+#     discord.ingress.event.* for discord-engine to decide on, never acted
+#     on inline (the one exception is the interaction defer, an inline REST
+#     call through the shared rate limiter -- see
+#     internal/domain/discord/event.go and internal/relay). Recreate (not
+#     RollingUpdate) so the outgoing session disconnects before the
+#     replacement Identifies.
+#
+#   discord-engine (replicas: 3, RollingUpdate maxSurge:0/maxUnavailable:1,
+#   one pod per node)
+#     The decision half: consumes DISCORD_INGRESS, decides, emits
+#     discord.outgress.{mod,default} Commands. Never calls Discord itself --
+#     no DISCORD_BOT_TOKEN here by design (see the Doppler note below) and no
+#     public HTTPS egress (deploy/k8s/network-policies.yaml). Also consumes
+#     the Twitch go-live/clip subjects the embed modules need. This IS HA:
+#     it holds no gateway session and no REST client to fight over.
+#
+#   discord-outgress (replicas: 3, same rollout shape)
+#     The acting half, and the only Discord process holding a REST client:
+#     drains both DISCORD_OUTGRESS lanes (mod drained before default, see
+#     internal/domain/discord's Lane doc), serves the dashboard-facing guild
+#     setup/layout/unbind RPC (unchanged bagel.rpc.dingress.> wire contract
+#     from app/dingress's ROLE=egress), and serves the new engine-facing
+#     channel-management/live RPC. This IS HA: REST calls have no session to
+#     fight over.
+#
+# maxSurge:0 on engine/outgress because the fleet is exactly 3 worker nodes
+# (node1/2/3) with one-pod-per-node anti-affinity and no fourth node to surge
+# onto -- same shape as outgress.yaml.
+#
+# discord-env is backed by the Doppler project `dingress` (to be renamed
+# `discord` -- I do not manage Doppler, see the note above the DopplerSecret
+# below), which holds DISCORD_BOT_TOKEN as a cross-project reference,
+# DISCORD_BOT_TOKEN = ${discord.prd.TOKEN}, so the Discord application's
+# credentials live in exactly one config (project `discord`, which also feeds
+# the dashboard's DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET the same way).
+# APP_ENV, VALKEY_PASSWORD and NEW_RELIC_LICENSE_KEY are references to the
+# shared-* projects for the same reason.
+#
+# Unlike the old dingress.yaml's blanket envFrom (harmless there because only
+# one of the two ROLE branches ever read DISCORD_BOT_TOKEN), discord-engine's
+# Config struct has no DiscordBotToken field at all, and the whole point of
+# leaving it out is a structural guarantee, not an unread-env-var accident.
+# A blanket `envFrom: {secretRef: {name: discord-env}}` on discord-engine
+# would still put the token in that pod's environment where a future
+# accidental read is one line away. Every container below therefore lists
+# its Doppler keys explicitly via secretKeyRef instead of envFrom -- the
+# manifest itself is the proof of what each service can see. This also
+# solves the second problem a single shared secret creates: three services
+# need three different NATS bus/rpc credential pairs out of the one
+# discord-env secret, which a blanket envFrom cannot disambiguate (every
+# container would see every OTHER service's NATS_USER too, colliding on the
+# same env var name).
+#
+# Doppler keys this secret must carry (I do not run the Doppler CLI --
+# these must be created by hand, see the report):
+#   DISCORD_BOT_TOKEN                              (cross-project ref, ingress + outgress only)
+#   APP_ENV, VALKEY_PASSWORD, NEW_RELIC_LICENSE_KEY (shared-*, all three)
+#   DISCORD_INGRESS_BUS_USER   / DISCORD_INGRESS_BUS_PASSWORD
+#   DISCORD_ENGINE_BUS_USER    / DISCORD_ENGINE_BUS_PASSWORD
+#   DISCORD_ENGINE_RPC_USER    / DISCORD_ENGINE_RPC_PASSWORD
+#   DISCORD_OUTGRESS_BUS_USER  / DISCORD_OUTGRESS_BUS_PASSWORD
+#   DISCORD_OUTGRESS_RPC_USER  / DISCORD_OUTGRESS_RPC_PASSWORD
+# Each *_USER value must equal the matching plaintext username in
+# deploy/messaging/nats-auth.conf (discord_ingress_bus, discord_engine_bus,
+# discord_engine_rpc, discord_outgress_bus, discord_outgress_rpc) and each
+# *_PASSWORD must be the plaintext whose bcrypt hash is generated into the
+# matching $NATS_BCRYPT_* placeholder there.
+#
+# LOG_LEVEL, NATS_HOST and NATS_PORT ride along in the existing `dingress`
+# Doppler config from the old shared-* references but are not read by any of
+# these three Go binaries (grepped pkg/ and app/discord/), so no container
+# below wires them -- nothing to break by leaving them unreferenced.
+#
+# Image: replace with the real tag@digest from the first publish-images run
+# at rollout time, same as every other service -- no Flux in this cluster
+# (removed 2026-08-18); deploys are hand-pinned image tags applied with
+# kubectl (see deploy/README or the zero-downtime-deploy skill).
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: discord-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: discord-doppler-token
+  managedSecret:
+    name: discord-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-ingress
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: discord-ingress
+  template:
+    metadata:
+      labels:
+        app: discord-ingress
+        component: discord
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: discord-ingress
+          image: ghcr.io/adamousmer/itsbagelbot/discord-ingress:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: GOMEMLIMIT
+              value: 512MiB
+            - name: TLS_CERT_FILE
+              value: /etc/discord-ingress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/discord-ingress/tls/tls.key
+            # discord-ingress only ever publishes (see internal/domain/discord/
+            # event.go's package doc): one BUS connection, no RPC plane at all.
+            # Direct-to-hub, same shape as every other publish-only BUS
+            # connection (twitch-ingress, outgress): NATS_URL is the local-dev
+            # fallback, busURL() prefers NATS_HUB_URL when it is set.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: APP_ENV}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: VALKEY_PASSWORD}
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: NEW_RELIC_LICENSE_KEY}
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_BOT_TOKEN}
+            # BUS-account credentials for discord_ingress_bus (see
+            # deploy/messaging/nats-auth.conf). No NATS_RPC_USER/PASSWORD:
+            # ingress makes no RPC connection, and pkg/bus falls back to
+            # these for RPC only if one is ever opened by mistake.
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_USER}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_PASSWORD}
+          volumeMounts:
+            - {name: health-tls, mountPath: /etc/discord-ingress/tls, readOnly: true}
+            - name: nats-client-tls
+              mountPath: /etc/nats-client/tls
+              readOnly: true
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 75m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: health-tls
+          secret:
+            secretName: discord-ingress-tls
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discord-ingress
+  namespace: app
+spec:
+  # Singleton gateway: a voluntary drain is allowed (Recreate brings it
+  # back). minAvailable: 1 would block every node drain. Same shape as the
+  # old dingress-gateway PDB.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-ingress
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-engine
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-engine
+  template:
+    metadata:
+      labels:
+        app: discord-engine
+        component: discord
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      topologySpreadConstraints:
+        # One pod per node, matching outgress.yaml exactly: matchLabelKeys
+        # scopes the skew to the CURRENT ReplicaSet so a maxSurge=0 roll
+        # re-spreads one-per-node instead of piling onto whichever node freed
+        # capacity first. Three worker nodes, three replicas: there is no
+        # fourth node for a surge pod, which is why the rollout above is
+        # maxSurge:0/maxUnavailable:1 rather than the default.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: discord-engine
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: discord-engine
+          image: ghcr.io/adamousmer/itsbagelbot/discord-engine:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: GOMEMLIMIT
+              value: 512MiB
+            - name: TLS_CERT_FILE
+              value: /etc/discord-engine/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/discord-engine/tls/tls.key
+            # Split planes, same shape as outgress.yaml: JetStream (BUS)
+            # dials the hub directly, RPC + cache stays on the node-local
+            # leaf.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            # NATS_DISCORD_OUTGRESS_RPC_PREFIX, NATS_OUTGRESS_RPC_PREFIX,
+            # NATS_SUBJECT_LANE_STREAM and NATS_SUBJECT_CLIP_CREATED are left
+            # at config.Load's defaults (bagel.rpc.discord-outgress,
+            # bagel.rpc.outgress, twitch.ingress.event.stream,
+            # data.twitch.clip.created) -- they already match the ACL in
+            # deploy/messaging/nats-auth.conf, so no override is needed here.
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: APP_ENV}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: VALKEY_PASSWORD}
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: NEW_RELIC_LICENSE_KEY}
+            # Deliberately NO DISCORD_BOT_TOKEN here -- config.Config has no
+            # field for it, engine holds no REST client by design, and
+            # pulling it from discord-env even unused would erode that
+            # boundary. See the file header note.
+            #
+            # BUS-account credentials for discord_engine_bus.
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_BUS_USER}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_BUS_PASSWORD}
+            # RPC-account credentials for discord_engine_rpc (calls
+            # discord-outgress's engine RPC and Twitch outgress's streaminfo
+            # RPC; serves nothing but its own health responder).
+            - name: NATS_RPC_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_RPC_USER}
+            - name: NATS_RPC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_RPC_PASSWORD}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/discord-engine/tls, readOnly: true}
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 75m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: discord-engine-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discord-engine
+  namespace: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-engine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-outgress
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-outgress
+  template:
+    metadata:
+      labels:
+        app: discord-outgress
+        component: discord
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: discord-outgress
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: discord-outgress
+          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: GOMEMLIMIT
+              value: 512MiB
+            - name: TLS_CERT_FILE
+              value: /etc/discord-outgress/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/discord-outgress/tls/tls.key
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            # NATS_DINGRESS_RPC_PREFIX/QUEUE and
+            # NATS_DISCORD_OUTGRESS_RPC_PREFIX/QUEUE are left at
+            # config.Load's defaults (bagel.rpc.dingress / dingress-rpc,
+            # bagel.rpc.discord-outgress / discord-outgress-rpc) -- the first
+            # is the dashboard-facing subject kept for wire compatibility,
+            # the second is the new engine-facing one; both already match
+            # deploy/messaging/nats-auth.conf. NATS_OUTGRESS_RPC_PREFIX
+            # (Twitch outgress's own prefix) is read but never called from
+            # this service; kept unset rather than wired to an env this
+            # service has no handler for.
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: APP_ENV}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: VALKEY_PASSWORD}
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: NEW_RELIC_LICENSE_KEY}
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_BOT_TOKEN}
+            # BUS-account credentials for discord_outgress_bus.
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_BUS_USER}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_BUS_PASSWORD}
+            # RPC-account credentials for discord_outgress_rpc (serves the
+            # dashboard-facing guild setup RPC and the engine-facing RPC;
+            # calls nothing).
+            - name: NATS_RPC_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_RPC_USER}
+            - name: NATS_RPC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_RPC_PASSWORD}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/discord-outgress/tls, readOnly: true}
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 75m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: discord-outgress-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discord-outgress
+  namespace: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-outgress

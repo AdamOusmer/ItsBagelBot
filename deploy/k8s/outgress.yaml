@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 #
-# Discord is a standalone vertical (deploy/k8s/dingress.yaml): outgress no
+# Discord is a standalone vertical (deploy/k8s/discord.yaml): outgress no
 # longer holds a Discord REST client, the Discord outgress lane, or the guild
 # setup RPC, and no longer receives DISCORD_BOT_TOKEN or any discord.* NATS
 # grant. The dashboard's DISCORD_CLIENT_ID / DISCORD_REDIRECT_URI /
@@ -10,7 +10,7 @@
 #
 # The one thing that survives the split: outgress is the only place Helix
 # Create Clip actually runs, so it publishes data.twitch.clip.created (a fact
-# on BAGEL_DATA, not a Discord command) after a successful clip. dingress
+# on BAGEL_DATA, not a Discord command) after a successful clip. discord-engine
 # subscribes; see internal/domain/event/data/clip_events.go and
 # deploy/messaging/nats-auth.conf.
 

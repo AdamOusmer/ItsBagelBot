@@ -12,7 +12,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
     - Egress
@@ -57,11 +57,11 @@ spec:
               kubernetes.io/metadata.name: cache
 ---
 # NATS (hub + leaf, namespace messaging) is its own allowlist, not part of the
-# blanket default-deny-apps egress above, because one workload deliberately
-# has no NATS connection: dingress-gateway is the Discord gateway singleton
-# and holds no BUS/RPC account at all (deploy/k8s/dingress.yaml,
-# deploy/messaging/nats-auth.conf). Its sibling dingress-egress does need
-# NATS, so the two are split apart everywhere they differ, not just here.
+# blanket default-deny-apps egress above. Unlike the old dingress-gateway
+# (which held no BUS/RPC account at all), discord-ingress DOES need NATS: it
+# publishes discord.ingress.event.* for discord-engine to consume (see
+# internal/domain/discord/event.go), so all three Discord services carry this
+# grant.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -72,7 +72,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Egress
   egress:
@@ -83,9 +83,13 @@ spec:
 ---
 # Every long-running application currently exports APM directly to New Relic
 # over HTTPS. Product integrations also use HTTPS from gossip, ingress,
-# outgress, dingress-gateway (Discord gateway WSS), dingress-egress (Discord
-# REST), sesame, transactions and the consoles. Keep this grant explicit so
-# a workload cannot silently inherit it merely by joining default-deny-apps.
+# outgress, discord-ingress (Discord gateway WSS + the interaction defer),
+# discord-outgress (Discord REST), sesame, transactions and the consoles.
+# discord-engine is deliberately absent: it makes no Discord calls and no
+# other internet call, and the netpol enforces what the code already
+# promises (see internal/domain/discord's package doc). Keep this grant
+# explicit so a workload cannot silently inherit it merely by joining
+# default-deny-apps.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -96,7 +100,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-outgress, console-dashboard, console-admin, gossip, notifications]
   policyTypes:
     - Egress
   egress:
@@ -185,7 +189,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, dingress-gateway, dingress-egress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
+        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
   ingress:
