@@ -18,6 +18,7 @@ type Deps struct {
 	Store    discordstore.Store
 	Channels voiceClient
 	Purge    purgeClient
+	Guard    Guarder
 	Log      *zap.Logger
 }
 
@@ -31,5 +32,6 @@ func All(d Deps) []module.Module {
 		Moderation(d.Purge, d.Log),
 		Ticket(d.Store, d.Channels, d.Log),
 		Voice(d.Store, d.Channels, d.Log),
+		LinkGuard(d.Guard, d.Log),
 	}
 }

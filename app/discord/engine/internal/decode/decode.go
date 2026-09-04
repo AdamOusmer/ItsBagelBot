@@ -58,6 +58,16 @@ type MessageEvent struct {
 	ChannelID string  `json:"channel_id"`
 	Content   string  `json:"content"`
 	Author    UserRef `json:"author"`
+	// Member is the partial guild member Discord attaches to a
+	// MESSAGE_CREATE/UPDATE dispatch. Unlike InteractionEvent.Member
+	// below, Discord does NOT compute a "permissions" bitstring for this
+	// partial member -- that field only exists on an interaction's
+	// resolved member -- so a message author's moderator status is
+	// checked by role membership (see HasRole) rather than CanMod's bit
+	// math, which has nothing to operate on here.
+	Member struct {
+		Roles []string `json:"roles"`
+	} `json:"member"`
 }
 
 type InteractionOption struct {
@@ -102,6 +112,24 @@ func CanMod(permRaw string) bool {
 		return false
 	}
 	return n&(PermAdmin|PermKick|PermBan|PermModerate) != 0
+}
+
+// HasRole reports whether roleID is among roles. Used against a
+// MessageEvent's Member.Roles to check a message author against a guild's
+// configured role (e.g. Config.ModsRoleID, the same role ticket.go already
+// trusts to grant mod-only channel access) -- see MessageEvent.Member's
+// doc for why this, and not CanMod, is the message-path check. An empty
+// roleID (a guild with no such role configured) never matches.
+func HasRole(roles []string, roleID string) bool {
+	if roleID == "" {
+		return false
+	}
+	for _, r := range roles {
+		if r == roleID {
+			return true
+		}
+	}
+	return false
 }
 
 // Mention formats a user id as a Discord mention.

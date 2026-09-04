@@ -25,6 +25,7 @@ import (
 	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/discord/linkguard"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
@@ -84,6 +85,11 @@ func main() {
 	defer valkeyClient.Close()
 	store := discordstore.New(valkeyClient)
 	projStore := projection.NewStore(valkeyClient)
+	// linkguard.New panics on a nil client (deliberately -- see its own
+	// doc), which is why it is built here, right next to the Fatal above
+	// that already guarantees valkeyClient is live, rather than deferred
+	// to modules.All where a nil would be easy to pass by accident.
+	guard := linkguard.New(valkeyClient)
 
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
@@ -103,7 +109,7 @@ func main() {
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
 	resolver := resolve.Resolver{Store: store, Modules: projStore, Log: log}
 
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: rpc, Purge: rpc, Log: log})...)
+	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: rpc, Purge: rpc, Guard: guard, Log: log})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
 
 	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)

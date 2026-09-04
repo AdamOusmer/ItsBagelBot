@@ -63,6 +63,18 @@ func RemoveRole(guildID, userID, roleID string) ddiscord.Command {
 	}
 }
 
+// DeleteMessage builds a TypeDeleteMessage Command (mod lane). reason
+// should always be set -- it rides Discord's audit-log header (see
+// Command.Reason and TypeDeleteMessage's doc), and an automod deletion
+// with no reason reads, to a moderator checking the log, as the bot
+// malfunctioning rather than acting on purpose.
+func DeleteMessage(guildID, channelID, messageID, reason string) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeDeleteMessage, GuildID: guildID, ChannelID: channelID, Reason: reason,
+		Payload: marshal(ddiscord.DeletePayload{MessageID: messageID}),
+	}
+}
+
 // TimeoutMember builds a TypeTimeoutMember Command (mod lane).
 func TimeoutMember(guildID, userID, untilISO, reason string) ddiscord.Command {
 	return ddiscord.Command{
