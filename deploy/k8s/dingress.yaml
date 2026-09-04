@@ -29,8 +29,18 @@
 #     worker nodes (node1/2/3) with one-pod-per-node anti-affinity and no
 #     fourth node to surge onto -- same shape as outgress.
 #
-# dingress-env (Doppler) carries DISCORD_BOT_TOKEN (same value as
-# outgress-env), VALKEY_PASSWORD, NEW_RELIC_*, and -- consumed by
+# dingress-env is backed by the Doppler project `dingress`, NOT by a copy of
+# outgress-env: outgress never carried a Discord token and must never start.
+# The bot token is not stored here either -- `dingress` holds it as a
+# cross-project Doppler reference, DISCORD_BOT_TOKEN = ${discord.prd.TOKEN},
+# so the Discord application's credentials live in exactly one config
+# (project `discord`, which also feeds the dashboard's DISCORD_CLIENT_ID /
+# DISCORD_CLIENT_SECRET the same way). A rotation is one edit there, not a
+# hunt for duplicated copies. APP_ENV, LOG_LEVEL, VALKEY_ADDR, NATS_HOST,
+# NATS_PORT and NEW_RELIC_LICENSE_KEY are references to the shared-* projects
+# for the same reason.
+#
+# dingress-env carries DISCORD_BOT_TOKEN, VALKEY_PASSWORD, NEW_RELIC_*, and -- consumed by
 # dingress-egress only, harmless as unused keys on dingress-gateway -- the
 # dingress_egress_bus / dingress_egress_rpc NATS plaintext credentials
 # matching the bcrypt hashes in nats-auth.conf. Empty DISCORD_BOT_TOKEN

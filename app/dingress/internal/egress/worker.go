@@ -71,29 +71,33 @@ type discordUser struct {
 // Worker holds everything an egress handler needs: the rate-limited REST
 // client, the live-message/guild-bind store, and the module reader. Unlike
 // outgress's worker.Worker, there is no Twitch client and no lane/lease
-// machinery here -- egress never calls Helix, so liveInfo (below) only ever
-// reads the projected title/category and never falls back to a live Helix
-// call the way outgress's did.
+// machinery here -- egress never calls Helix directly. liveInfo (below)
+// reads the projected title/category first and only reaches for
+// helixFallback -- an RPC to outgress, which still owns Twitch -- when the
+// projection is missing a category on a broadcaster who has an allow-list
+// set.
 type Worker struct {
-	discord     discordGuildAPI
-	discordKV   liveStore
-	discordMods discordModuleReader
-	streamInfo  streamInfoReader
-	log         *zap.Logger
+	discord       discordGuildAPI
+	discordKV     liveStore
+	discordMods   discordModuleReader
+	streamInfo    streamInfoReader
+	helixFallback streamInfoFallback
+	log           *zap.Logger
 }
 
 // Config wires a Worker's dependencies.
 type Config struct {
-	Discord     discordGuildAPI
-	DiscordKV   liveStore
-	DiscordMods discordModuleReader
-	StreamInfo  streamInfoReader
-	Log         *zap.Logger
+	Discord       discordGuildAPI
+	DiscordKV     liveStore
+	DiscordMods   discordModuleReader
+	StreamInfo    streamInfoReader
+	HelixFallback streamInfoFallback
+	Log           *zap.Logger
 }
 
-// New builds a Worker. Discord/DiscordKV/DiscordMods/StreamInfo may all be
-// nil (tests exercise pieces in isolation); production always sets every
-// field.
+// New builds a Worker. Discord/DiscordKV/DiscordMods/StreamInfo/
+// HelixFallback may all be nil (tests exercise pieces in isolation);
+// production always sets every field.
 func New(cfg Config) *Worker {
 	log := cfg.Log
 	if log == nil {
@@ -101,7 +105,8 @@ func New(cfg Config) *Worker {
 	}
 	return &Worker{
 		discord: cfg.Discord, discordKV: cfg.DiscordKV,
-		discordMods: cfg.DiscordMods, streamInfo: cfg.StreamInfo, log: log,
+		discordMods: cfg.DiscordMods, streamInfo: cfg.StreamInfo,
+		helixFallback: cfg.HelixFallback, log: log,
 	}
 }
 

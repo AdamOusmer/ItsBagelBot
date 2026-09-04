@@ -133,7 +133,11 @@ func runEgress(ctx context.Context, cfg config.Config, log *zap.Logger, nrApp *n
 		DiscordKV:   egress.NewLiveStore(valkeyClient),
 		DiscordMods: projStore,
 		StreamInfo:  projStore,
-		Log:         log,
+		// HelixFallback reaches outgress's RPC, not Twitch directly -- see
+		// egress.liveInfo's comment. cfg.OutgressRPCPrefix is outgress's own
+		// prefix (NATS_OUTGRESS_RPC_PREFIX), not this service's RPCPrefix.
+		HelixFallback: egress.NewStreamInfoFallback(nc, cfg.OutgressRPCPrefix),
+		Log:           log,
 	})
 
 	closeConsumers := startEgressConsumers(ctx, cfg, nrApp, log, w)

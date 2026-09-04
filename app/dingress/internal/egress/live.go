@@ -136,18 +136,52 @@ func (w *Worker) liveMessageKnown(ctx context.Context, job liveJob) bool {
 // liveInfo reads the projected title/category. stream.online can land on
 // this lane before the stream_status job projects the metadata, so a fresh
 // go-live may see an empty GameName -- with no category allow-list that is
-// fine (CategoryAllowed("") is true), and with one set the post is skipped
-// for this event rather than posted with a wrong (empty) category.
+// fine (CategoryAllowed("") is true), and with one set the post would
+// otherwise be skipped for this event rather than posted with a wrong
+// (empty) category.
 //
-// outgress's version had a second path here: an allow-listed broadcaster
-// with no projected category yet paid one Helix StreamDetails call to
-// decide instead of skipping. Egress has no Twitch client (ROLE=egress only
-// gets DISCORD_BOT_TOKEN, VALKEY_*, and NATS_* -- see app/dingress/internal/
-// config), so that fallback cannot be ported: an allow-listed category on a
-// stream that just went live may miss its post if the title/category
-// projection has not landed yet. This matches the plain (non-allow-list)
-// behavior that already existed for every other broadcaster.
+// For that allow-listed case only, this pays one outgress RPC
+// (bagel.rpc.outgress.streaminfo.get) to fetch the missing title/category
+// directly from Twitch before deciding. Two things bound that call rather
+// than an unconditional Helix fetch on every go-live: (1) it is an RPC to
+// outgress, not a Helix call from here -- egress deliberately has no Twitch
+// client (ROLE=egress only gets DISCORD_BOT_TOKEN, VALKEY_*, and NATS_*, see
+// app/dingress/internal/config), so outgress -- which already owns the
+// Helix client, the token store, and the Helix rate budget -- is asked
+// instead of dingress growing a second, unbudgeted path to Twitch; (2) the
+// call only fires for broadcasters who set a category allow-list
+// (HasCategoryAllow), the same bound the original outgress-resident version
+// of this function used, so an unfiltered broadcaster base cannot turn every
+// go-live into a Helix round trip. See streaminfo_rpc.go for the client and
+// app/outgress/rpc/manage.go's handleStreamInfo for the server side.
+//
+// The fallback is best-effort: helixFallback.Lookup returning !ok (RPC
+// timeout, outgress error, or genuinely offline) falls through to the
+// projection's own (still empty) info, exactly as if the fallback had never
+// been dialed. discordOnline's CategoryAllowed check then makes the same
+// call it always made on an unresolved category for an allow-listed
+// broadcaster -- skip this post rather than guess -- so a failure here never
+// panics or blocks the handler, it just degrades to the pre-fallback
+// baseline for that one event instead of posting with a wrong category.
 func (w *Worker) liveInfo(ctx context.Context, job liveJob) projection.StreamInfo {
+	info := w.projectedStreamInfo(ctx, job)
+	if info.GameName != "" {
+		return info
+	}
+	if !job.cfg.HasCategoryAllow() {
+		return info
+	}
+	if w.helixFallback == nil {
+		return info
+	}
+	fallback, ok := w.helixFallback.Lookup(ctx, job.broadcasterID)
+	if !ok {
+		return info
+	}
+	return fallback
+}
+
+func (w *Worker) projectedStreamInfo(ctx context.Context, job liveJob) projection.StreamInfo {
 	if w.streamInfo == nil {
 		return projection.StreamInfo{}
 	}

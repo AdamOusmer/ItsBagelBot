@@ -36,6 +36,14 @@ type Config struct {
 	RPCPrefix string
 	RPCQueue  string
 
+	// OutgressRPCPrefix is outgress's own RPC prefix, not dingress's --
+	// dingress is the CALLER here (the go-live embed's Helix-details
+	// fallback, see internal/egress/live.go's liveInfo), the one caller
+	// this service has of another service's RPC. Same default/env-var name
+	// sesame's config already uses (NATS_OUTGRESS_RPC_PREFIX) so ops set one
+	// knob for every consumer of outgress's management RPC.
+	OutgressRPCPrefix string
+
 	// StreamLaneSubject is the TWITCH_INGRESS subject carrying real Twitch
 	// stream.online/offline EventSub messages. Egress binds its OWN durable
 	// consumer here (same name as outgress's own env override, so ops can
@@ -65,6 +73,7 @@ func Load() Config {
 		NATSRPCURL:         env.Get("NATS_RPC_URL", natsURL),
 		RPCPrefix:          env.Get("NATS_DINGRESS_RPC_PREFIX", "bagel.rpc.dingress"),
 		RPCQueue:           env.Get("NATS_DINGRESS_RPC_QUEUE", "dingress-rpc"),
+		OutgressRPCPrefix:  env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 		StreamLaneSubject:  env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
 		ClipCreatedSubject: env.Get("NATS_SUBJECT_CLIP_CREATED", "data.twitch.clip.created"),
 	}

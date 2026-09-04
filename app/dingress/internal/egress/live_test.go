@@ -369,3 +369,153 @@ func TestHandleClipCreatedDropsMalformedPayload(t *testing.T) {
 		t.Fatal("malformed payload must not post")
 	}
 }
+
+// fakeStreamInfo is a canned streamInfoReader, for liveInfo's Helix-fallback
+// tests below where memModules alone (used by every other test in this
+// file) cannot express "the projection has/has not caught up yet".
+type fakeStreamInfo struct {
+	info  projection.StreamInfo
+	found bool
+}
+
+func (f fakeStreamInfo) GetStreamInfo(context.Context, string) (projection.StreamInfo, bool, error) {
+	return f.info, f.found, nil
+}
+
+var _ streamInfoReader = fakeStreamInfo{}
+
+// fakeFallback is a streamInfoFallback that counts calls and returns a
+// canned result, standing in for the outgress RPC client (streaminfo_rpc.go)
+// so these tests need no NATS connection.
+type fakeFallback struct {
+	calls  int
+	result projection.StreamInfo
+	ok     bool
+}
+
+func (f *fakeFallback) Lookup(context.Context, string) (projection.StreamInfo, bool) {
+	f.calls++
+	return f.result, f.ok
+}
+
+var _ streamInfoFallback = (*fakeFallback)(nil)
+
+func liveWorkerWithFallback(guild *guildRecorder, mods discordModuleReader, info streamInfoReader, fb streamInfoFallback) *Worker {
+	return New(Config{Discord: guild, DiscordKV: &memLiveStore{}, DiscordMods: mods, StreamInfo: info, HelixFallback: fb, Log: zap.NewNop()})
+}
+
+// TestAnnounceDiscordLiveSkipsFallbackWhenProjectionHasCategory is liveInfo's
+// projection-hit path: the projected GameName is already non-empty, so it is
+// used as-is and the outgress RPC is never dialed at all.
+func TestAnnounceDiscordLiveSkipsFallbackWhenProjectionHasCategory(t *testing.T) {
+	guild := &guildRecorder{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{
+		GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer", CategoryAllow: "Minecraft",
+	}}
+	info := fakeStreamInfo{found: true, info: projection.StreamInfo{Title: "projected title", GameName: "Minecraft"}}
+	fb := &fakeFallback{ok: true, result: projection.StreamInfo{Title: "should not be used", GameName: "Minecraft"}}
+	w := liveWorkerWithFallback(guild, mods, info, fb)
+
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+
+	if fb.calls != 0 {
+		t.Fatalf("fallback calls = %d, want 0: a caught-up projection must not dial outgress", fb.calls)
+	}
+	if len(guild.embeds) != 1 || guild.embeds[0].Title != "projected title" {
+		t.Fatalf("embeds = %v, want one embed titled from the projection", guild.embeds)
+	}
+}
+
+// TestAnnounceDiscordLiveFallsBackToOutgressWhenAllowListed is liveInfo's
+// allow-listed miss path: the projection has not caught up (empty
+// GameName) and this broadcaster set a category allow-list, so liveInfo
+// must ask outgress over RPC and use its answer instead of skipping the
+// post the way TestAnnounceDiscordLiveRespectsCategoryAllow does without a
+// fallback wired in.
+func TestAnnounceDiscordLiveFallsBackToOutgressWhenAllowListed(t *testing.T) {
+	guild := &guildRecorder{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{
+		GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer", CategoryAllow: "Minecraft",
+	}}
+	info := fakeStreamInfo{found: false}
+	fb := &fakeFallback{ok: true, result: projection.StreamInfo{Title: "fresh title", GameName: "Minecraft", ViewerCount: 12}}
+	w := liveWorkerWithFallback(guild, mods, info, fb)
+
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+
+	if fb.calls != 1 {
+		t.Fatalf("fallback calls = %d, want 1: an allow-listed broadcaster with a missing category must hit outgress", fb.calls)
+	}
+	if len(guild.embeds) != 1 {
+		t.Fatalf("embeds = %d, want 1", len(guild.embeds))
+	}
+	if guild.embeds[0].Title != "fresh title" {
+		t.Fatalf("embed title = %q, want the outgress reply's title", guild.embeds[0].Title)
+	}
+	if len(guild.embeds[0].Fields) == 0 || guild.embeds[0].Fields[0].Value != "Minecraft" {
+		t.Fatalf("embed fields = %v, want a Category field from the outgress reply", guild.embeds[0].Fields)
+	}
+}
+
+// TestAnnounceDiscordLiveNonAllowListedNeverCallsOutgress is liveInfo's
+// bound on Helix spend: a broadcaster with no category allow-list set gets
+// the same empty-category-is-fine treatment it always had (CategoryAllowed
+// with no allow list is unconditionally true), so the fallback must not be
+// dialed for them even though their projection is just as behind as the
+// allow-listed broadcaster above.
+func TestAnnounceDiscordLiveNonAllowListedNeverCallsOutgress(t *testing.T) {
+	guild := &guildRecorder{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{
+		GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer",
+	}}
+	info := fakeStreamInfo{found: false}
+	fb := &fakeFallback{ok: true, result: projection.StreamInfo{Title: "should never be fetched", GameName: "Minecraft"}}
+	w := liveWorkerWithFallback(guild, mods, info, fb)
+
+	w.announceDiscordLive(context.Background(), eventtwitch.StreamStatus{BroadcasterID: 42, Live: true})
+
+	if fb.calls != 0 {
+		t.Fatalf("fallback calls = %d, want 0: no allow-list means no bound Helix spend to protect and no reason to ask outgress", fb.calls)
+	}
+	if len(guild.embeds) != 1 {
+		t.Fatalf("embeds = %d, want 1: a broadcaster with no allow-list still posts on an empty category", len(guild.embeds))
+	}
+}
+
+// TestAnnounceDiscordLiveFallbackFailureStaysBestEffort covers the outgress
+// RPC failing (timeout, no responder, an error reply) for an allow-listed
+// broadcaster. The fallback is attempted (proving a slow/broken outgress
+// does not get silently skipped), and the handler completes cleanly with
+// no error and no panic -- the same graceful, conservative outcome the
+// original outgress-resident code had on a Helix failure: with the category
+// still unknown and an allow-list demanding one, the post is skipped rather
+// than guessed at, exactly as TestAnnounceDiscordLiveRespectsCategoryAllow
+// already covers for the "no fallback wired at all" case. What this test
+// adds is proof that reaching for outgress and having it fail is handled
+// through that same ordinary path -- not an error, not a block, not a
+// second embed once retried.
+func TestAnnounceDiscordLiveFallbackFailureStaysBestEffort(t *testing.T) {
+	guild := &guildRecorder{}
+	kv := &memLiveStore{}
+	mods := memModules{found: true, enabled: true, cfg: ddiscord.Config{
+		GuildID: "g1", LiveChannelID: "now-live", TwitchLogin: "streamer", CategoryAllow: "Minecraft",
+	}}
+	info := fakeStreamInfo{found: false}
+	fb := &fakeFallback{ok: false}
+	w := New(Config{Discord: guild, DiscordKV: kv, DiscordMods: mods, StreamInfo: info, HelixFallback: fb, Log: zap.NewNop()})
+
+	payload := []byte(`{"subscription":{"type":"stream.online"},"event":{"broadcaster_user_id":"42"}}`)
+	if err := w.HandleStreamEvent(&bus.Message{Payload: payload}); err != nil {
+		t.Fatalf("HandleStreamEvent must always ack, got err = %v", err)
+	}
+
+	if fb.calls != 1 {
+		t.Fatalf("fallback calls = %d, want 1: the allow-listed broadcaster must still try outgress", fb.calls)
+	}
+	if len(guild.embeds) != 0 {
+		t.Fatalf("embeds = %d, want 0: an unresolved category on an allow-listed broadcaster must not post", len(guild.embeds))
+	}
+	if _, ok := kv.GetLiveMessage(context.Background(), liveMsgKey{BroadcasterID: "42"}); ok {
+		t.Fatal("no message was posted, so none should be remembered")
+	}
+}
