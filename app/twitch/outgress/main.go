@@ -200,9 +200,7 @@ func main() {
 	// sesame's loyalty watch tick: one call per live channel per tick.
 	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
 		"failed to subscribe chatters rpc")
-	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
-
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.NATS("nats", nc))
+	d.serveHealth(premiumSub, standardSub, systemSub)
 
 	d.logReady(tw)
 
@@ -492,6 +490,39 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscri
 		_ = standardSub.Close()
 		_ = premiumSub.Close()
 	}
+}
+
+// serveHealth publishes outgress's health surface and registers the health RPC
+// responder against the same Set, so /status and the RPC reply cannot disagree
+// about this pod at the same instant.
+//
+// outgress no longer owns a public health route. The Twitch vertical answers at
+// health.itsbagelbot.com/twitch, which terminates in sesame and folds this
+// service in over the health RPC (bus.HealthProbe), so the RPC reply is now the
+// only surface these checks reach. A lane left out of the Set therefore reads
+// as a green vertical while chat output is not draining.
+//
+// One check per lane, because outgress binds three separate subscribers
+// (laneSubscribers above) with independent fetch clocks. Naming them premium,
+// standard and system makes the report say which lane stalled instead of
+// rolling three consumers into a single boolean: the system lane going quiet
+// (EventSub enroll, go-live beacon) is a different page from chat output
+// stopping.
+func (d *deps) serveHealth(premiumSub, standardSub, systemSub bus.Subscriber) {
+	set := health.NewSet(serviceName,
+		health.NATS("nats", d.nc),
+		bus.LaneCheck("premium", premiumSub),
+		bus.LaneCheck("standard", standardSub),
+		bus.LaneCheck("system", systemSub),
+	)
+	// Registered after the Set exists, then added back into it: the returned
+	// check watches the subscription this call just made, which a NATS
+	// permission violation kills asynchronously while the pod keeps running
+	// and every other check stays green.
+	rpcCheck, err := bus.SubscribeRPCHealth(d.nc, serviceName, "outgress-rpc", set)
+	fatalIf(d.log, err, "failed to subscribe rpc health")
+	set.Add(rpcCheck)
+	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
 }
 
 // startChatLanes runs premium and standard on one central weighted consumer: a

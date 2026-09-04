@@ -122,6 +122,11 @@ func transactionMiddleware(app *newrelic.Application) func(http.Handler) http.Ha
 	}
 }
 
+// tebexReachable is the bare 200 Tebex itself GETs to validate our webhook
+// URL: an INBOUND endpoint, not a dependency probe. Tebex is deliberately not
+// a check in the health Set, and no outbound Tebex probe should be added
+// either — /status is polled by uptime monitors, and a health endpoint must
+// not call a third-party payment API on every poll.
 func (s *Server) tebexReachable(w http.ResponseWriter, _ *http.Request) {
 	sendOK(w)
 }

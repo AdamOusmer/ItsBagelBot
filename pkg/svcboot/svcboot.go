@@ -12,6 +12,7 @@ package svcboot
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 
@@ -114,10 +116,11 @@ func AutoMigrate(ctx context.Context, log *zap.Logger, create func(context.Conte
 }
 
 // NATS bundles the standard connection set of a data service: the JetStream
-// publisher, the core RPC connection (with the health responder attached), a
-// broadcast subscriber (no queue group: every instance sees every message, for
-// cache invalidation) and a durable group subscriber (exactly one instance
-// handles each event).
+// publisher, the core RPC connection, a broadcast subscriber (no queue group:
+// every instance sees every message, for cache invalidation) and a durable
+// group subscriber (exactly one instance handles each event).
+//
+// The health responder is not attached here — see MustHealthRPC.
 type NATS struct {
 	URL    string
 	RPCURL string
@@ -147,10 +150,6 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 	if err != nil {
 		core.Log.Fatal("failed to connect to nats", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
-		core.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-
 	broadcast, err := bus.NewSubscriber(natsURL, "", core.Log)
 	if err != nil {
 		core.Log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
@@ -168,4 +167,58 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 		nc.Close()
 	}
 	return n, closeIntake
+}
+
+// ServeDataHealth builds a data-tier service's health surface, attaches the RPC
+// responder that answers out of it, and serves it. Fatal on failure, matching
+// MustNATS. Every service behind health.itsbagelbot.com/db calls this, so the
+// five of them cannot drift into reporting different things.
+//
+// One Set backs both surfaces on purpose: the aggregate the projector serves at
+// /db can never disagree with what a pod reports over HTTP at the same instant.
+// The responder can only be registered against a Set that already exists, and
+// the check watching that registration only exists afterwards, so the ordering
+// here is load-bearing rather than stylistic.
+//
+// The mysql check sits alongside nats because PingContext exercises the same
+// pool the repository code uses, catching a wedged pool or rotated-out
+// credentials that IsConnected alone would miss (pkg/db/health.go). It degrades
+// rather than fails readiness: a hard failure would pull every pod of a service
+// out of rotation on one shared DB blip, turning a brief outage into a total
+// one. A healthy ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL
+// RTT); much higher means the pool went cold and is paying the ~18ms handshake
+// instead of reusing a connection.
+//
+// The database check stays with each service rather than being hoisted into the
+// projector's /db aggregate: the schemas are expected to split across servers,
+// and one hoisted check could not name which one went.
+//
+// extra carries whatever else a given service depends on — a lane check for the
+// ones that consume a durable group, nothing for the request/reply-only ones.
+// It is a parameter rather than a nil-able subscriber because bus.LaneCheck on a
+// nil Subscriber silently passes, which is worse than having no check at all.
+func ServeDataHealth(d DataHealth, extra ...health.Check) {
+	checks := append([]health.Check{health.NATS("nats", d.NC)}, extra...)
+	set := health.NewSet(d.Service, append(checks, health.Degrades(db.HealthCheck("mysql", d.Pool)))...)
+
+	rpcHealth, err := bus.SubscribeRPCHealth(d.NC, d.Service, d.QueueGroup, set)
+	if err != nil {
+		d.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	set.Add(rpcHealth)
+
+	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
+}
+
+// DataHealth is one data-tier service's identity and dependencies, travelling
+// as a single value for the same reason bus.RPCSubscription does: Service and
+// QueueGroup are both strings and interchangeable at a call site, and a
+// transposed pair registers a working responder on the wrong token, which shows
+// up only as a sibling reading this service as down.
+type DataHealth struct {
+	Log        *zap.Logger
+	NC         *nats.Conn
+	Service    string
+	QueueGroup string
+	Pool       *sql.DB
 }

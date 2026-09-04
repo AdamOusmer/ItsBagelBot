@@ -19,9 +19,9 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -126,18 +126,10 @@ func main() {
 	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
-	// mysql check alongside nats: PingContext exercises the same pool
-	// repository code uses, catching a wedged pool or rotated-out creds
-	// that nc.IsConnected alone would miss (pkg/db/health.go). Degrades
-	// rather than fails readiness: a hard-fail would pull every
-	// notifications pod out of service on the same DB blip
-	// simultaneously, turning a brief outage into a total one. A healthy
-	// ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT);
-	// much higher means the pool went cold and is paying the ~18ms
-	// handshake instead of reusing a conn.
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.NATS("nats", nc),
-		health.Degrades(db.HealthCheck("mysql", driver.DB())))
+	// No lane check: this service consumes no event lane, only request/reply.
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, Pool: driver.DB(),
+	})
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),
@@ -149,13 +141,13 @@ func main() {
 	log.Info("notifications service shutting down")
 }
 
+// connectRPC opens the service's RPC connection. The health responder is no
+// longer registered here: it answers out of the health Set, and that Set cannot
+// exist until the database it reports on is open.
 func connectRPC(url string, log *zap.Logger) *nats.Conn {
 	nc, err := bus.Connect(url, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "notifications-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
 	return nc
 }

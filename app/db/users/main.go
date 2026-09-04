@@ -25,9 +25,9 @@ import (
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 
@@ -85,20 +85,11 @@ func main() {
 
 	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
 	subjects := subscribeRPCs(ctx, wiring, client, log)
-	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "users-rpc"), "failed to subscribe rpc health")
-
-	// mysql check alongside nats: PingContext exercises the same pool
-	// repository/rpc code uses, catching a wedged pool or rotated-out
-	// creds that nc.IsConnected alone would miss (pkg/db/health.go).
-	// Degrades rather than fails readiness: a hard-fail would pull every
-	// users pod out of service on the same DB blip simultaneously,
-	// turning a brief outage into a total one. A healthy ping lands in
-	// single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher
-	// means the pool went cold and is paying the ~18ms handshake instead
-	// of reusing a conn.
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.NATS("nats", nc),
-		health.Degrades(db.HealthCheck("mysql", dbPool)))
+	// No lane check: both event subscribers live inside startConsumers, which
+	// hands back only a cleanup func.
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: "users-rpc", Pool: dbPool,
+	})
 	subjects.logReady(log)
 
 	<-ctx.Done()

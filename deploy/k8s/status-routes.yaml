@@ -1,23 +1,25 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# External status surface for the Better Stack status page: one hostname,
-# one path per service — https://health.itsbagelbot.com/<service> rewrites to
-# that service's /status endpoint (pkg/health) and nothing else. The exact-path
-# match plus the replacePath middleware means only /status is ever reachable
-# from outside; /healthz, /readyz and /drain stay cluster-internal (a public
-# /drain would let anyone hold handler goroutines for 10s a request).
+# External status surface for the Better Stack status page: one hostname, one
+# path per vertical — https://health.itsbagelbot.com/<vertical> rewrites to the
+# terminating service's /status endpoint (pkg/health) and nothing else. The
+# exact-path match plus the replacePath middleware means only /status is ever
+# reachable from outside; /healthz, /readyz and /drain stay cluster-internal (a
+# public /drain would let anyone hold handler goroutines for 10s a request).
 #
 # DNS needs no record work: the cloudflared tunnel wildcard admits any
 # *.itsbagelbot.com hostname, and this router claiming Host(health...) is what
 # lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).
 #
-# Every service except transactions exposes port 8080 without a Service object
-# (their health was probe-only until now), so each gets a minimal ClusterIP
-# here. transactions reuses its existing Service and TLS ServersTransport from
-# transactions.yaml. Every backend hop is TLS: pkg/health terminates it with
-# the per-service cert-manager <svc>-tls cert (SAN <svc>-status), and the
-# per-service ServersTransports below verify it against the fleet CA.
+# Every backend hop is TLS: pkg/health terminates it with the per-service
+# cert-manager <svc>-tls cert (SAN <svc>-status), and the per-service
+# ServersTransports below verify it against the fleet CA. The services that
+# terminate an app-namespace vertical (sesame, gossip, discord-engine) expose
+# port 8080 with no Service object of their own — their health was probe-only
+# until now — so each gets a minimal ClusterIP here. console-dashboard and
+# transactions instead reuse the Service and ServersTransport their own
+# manifests already ship (console-dashboard.yaml, transactions.yaml).
 #
 # No trafficDistribution on these Services (deliberate, mirrors the db half):
 # PreferSameNode pinned every external probe to the entry node's own replica,
@@ -41,50 +43,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: outgress-status
-  namespace: app
-spec:
-  selector:
-    app: outgress
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: discord-ingress-status
-  namespace: app
-spec:
-  selector:
-    app: discord-ingress
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
   name: discord-engine-status
   namespace: app
 spec:
   selector:
     app: discord-engine
-  ports:
-    - name: http
-      port: 443
-      targetPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: discord-outgress-status
-  namespace: app
-spec:
-  selector:
-    app: discord-outgress
   ports:
     - name: http
       port: 443
@@ -142,7 +105,7 @@ spec:
     initialInterval: 100ms
 ---
 # Rewrites every routed path to the one endpoint the backends actually serve.
-# Shared by all routes below: the per-service path only exists to pick the
+# Shared by all routes below: the per-vertical path only exists to pick the
 # backend, never to reach a different endpoint.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -153,6 +116,20 @@ spec:
   replacePath:
     path: /status
 ---
+# Six paths across this file and deploy/db/status-routes.yaml, not the fourteen
+# per-service routes this surface started with. Each path is a vertical, and the
+# service it terminates on folds its siblings' reports into its own over the
+# bagel.rpc.health.* RPC (pkg/bus.HealthProbe) before it answers, so the fan-out
+# happens in-process instead of at the edge: /twitch is sesame plus
+# twitch-ingress and outgress, /discord is discord-engine plus its own ingress
+# and outgress, /db is projector plus the rest of the data tier.
+#
+# An edge route per service reported the same outage under several names — one
+# dead lane or one shared dependency takes every service in a vertical with it,
+# and the status page showed four red rows for one fault — while probing the
+# same pods several times over. The siblings keep no public route by design:
+# their reports now reach the outside only through the RPC, which is why a check
+# left out of a sibling's Set reads as a green vertical (app/outgress/main.go).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -161,7 +138,23 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`health.itsbagelbot.com`) && Path(`/dashboard`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/twitch`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: sesame-status
+          port: 443
+          scheme: https
+          serversTransport: sesame-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/discord`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: discord-engine-status
+          port: 443
+          scheme: https
+          serversTransport: discord-engine-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/console`)
       kind: Rule
       middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
@@ -178,62 +171,14 @@ spec:
           port: 443
           scheme: https
           serversTransport: gossip-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/ingress`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: twitch-ingress-status
-          port: 443
-          scheme: https
-          serversTransport: twitch-ingress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/outgress`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: outgress-status
-          port: 443
-          scheme: https
-          serversTransport: outgress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-ingress`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: discord-ingress-status
-          port: 443
-          scheme: https
-          serversTransport: discord-ingress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-engine`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: discord-engine-status
-          port: 443
-          scheme: https
-          serversTransport: discord-engine-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-outgress`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: discord-outgress-status
-          port: 443
-          scheme: https
-          serversTransport: discord-outgress-status-transport
-    - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
-      kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
-      services:
-        - name: sesame-status
-          port: 443
-          scheme: https
-          serversTransport: sesame-status-transport
   tls: {}
 ---
 # transactions lives in the db namespace, and traefik does not allow
 # cross-namespace service or middleware references by default, so its slice
 # of the status surface is a sibling IngressRoute there with db-namespace
-# copies of the two middlewares. Same contract as the routes above:
-# /transactions rewrites to /status against the existing transactions
-# Service and ServersTransport (transactions.yaml).
+# copies of the three middlewares. Same contract as the routes above:
+# /billing rewrites to /status against the existing transactions Service and
+# ServersTransport (transactions.yaml).
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -267,6 +212,10 @@ spec:
   replacePath:
     path: /status
 ---
+# Billing is its own vertical with nothing folded into it, unlike the four
+# above: the recorded decision (app/transactions/main.go) is that projector's
+# /db does not probe transactions and transactions runs no HealthProbe fan-out
+# of its own, so this route has one backend and its Set is the whole answer.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -275,7 +224,7 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`health.itsbagelbot.com`) && Path(`/transactions`)
+    - match: Host(`health.itsbagelbot.com`) && Path(`/billing`)
       kind: Rule
       middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
       services:
@@ -302,48 +251,12 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
 metadata:
-  name: outgress-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: outgress-status
-  rootCAsSecrets:
-    - outgress-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: discord-ingress-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: discord-ingress-status
-  rootCAsSecrets:
-    - discord-ingress-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
   name: discord-engine-status-transport
   namespace: app
 spec:
   serverName: discord-engine-status
   rootCAsSecrets:
     - discord-engine-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: discord-outgress-status-transport
-  namespace: app
-spec:
-  serverName: discord-outgress-status
-  rootCAsSecrets:
-    - discord-outgress-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport
@@ -357,16 +270,3 @@ spec:
   serverName: sesame-status
   rootCAsSecrets:
     - sesame-tls
----
-apiVersion: traefik.io/v1alpha1
-kind: ServersTransport
-metadata:
-  name: twitch-ingress-status-transport
-  namespace: app
-spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
-  serverName: twitch-ingress-status
-  rootCAsSecrets:
-    - twitch-ingress-tls

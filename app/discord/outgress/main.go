@@ -80,12 +80,12 @@ func main() {
 		LiveStore: liveStore, Reauth: reauth, NRApp: nrApp, Log: log,
 	})
 
-	closeCommands := startCommandConsumer(consumerDeps{
+	lanes := startCommandConsumer(consumerDeps{
 		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log,
 	})
-	defer closeCommands()
+	defer lanes.Close()
 
-	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
+	health.ServeSet(cfg.ListenAddr, healthSet(nc, lanes, log))
 	log.Info("discord outgress ready", zap.String("application_id", applicationID), zap.String("rpc_prefix", cfg.RPCPrefix))
 
 	<-ctx.Done()
@@ -185,15 +185,42 @@ type consumerDeps struct {
 	Log           *zap.Logger
 }
 
-func startCommandConsumer(deps consumerDeps) func() {
+// startCommandConsumer returns the bound lanes, not just their close func:
+// healthSet reports on each of them by name.
+func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	log := deps.Log.Named("commands")
 	handlers := &commands.Handlers{
 		Rest: deps.Rest, ApplicationID: deps.ApplicationID, Reauth: deps.Reauth, Log: log,
 	}
 	consumer := &commands.Consumer{NATSURL: deps.Cfg.NATSURL, Log: log, Handle: handlers.Dispatch}
-	closeCommands, err := consumer.Run(deps.Ctx)
+	lanes, err := consumer.Run(deps.Ctx)
 	if err != nil {
 		deps.Log.Fatal("failed to start discord command consumer", zap.Error(err))
 	}
-	return closeCommands
+	return lanes
+}
+
+// healthSet is outgress's own report plus the RPC responder that serves it, the
+// one engine folds into health.itsbagelbot.com/discord -- outgress is not
+// routed from outside, so this RPC is the only way its verdict reaches the
+// vertical's answer.
+//
+// The two lane checks are the reason this is a Set and not a lone NATS check.
+// Draining DISCORD_OUTGRESS is the entire job of this process, and a durable
+// that is still bound but no longer fetching leaves the connection check green
+// while every Command silently ages out at the stream's 60s MaxAge. Checked per
+// lane so the report names which of mod/default wedged, since mod-first
+// priority means the two fail independently.
+func healthSet(nc *nats.Conn, lanes commands.Lanes, log *zap.Logger) *health.Set {
+	set := health.NewSet(serviceName,
+		health.NATS("nats", nc),
+		bus.LaneCheck("mod", lanes.Mod),
+		bus.LaneCheck("default", lanes.Default),
+	)
+	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
+	if err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	set.Add(rpcCheck)
+	return set
 }

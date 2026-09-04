@@ -21,9 +21,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
@@ -187,18 +185,14 @@ func main() {
 		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}
 
-	// mysql check alongside nats: PingContext exercises the same pool
-	// repository code uses, catching a wedged pool or rotated-out creds
-	// that n.RPC.IsConnected alone would miss (pkg/db/health.go).
-	// Degrades rather than fails readiness: a hard-fail would pull every
-	// commands pod out of service on the same DB blip simultaneously,
-	// turning a brief outage into a total one. A healthy ping lands in
-	// single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher
-	// means the pool went cold and is paying the ~18ms handshake instead
-	// of reusing a conn.
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.NATS("nats", n.RPC),
-		health.Degrades(db.HealthCheck("mysql", driver.DB())))
+	// The lane check covers the durable group folding data.commands.used and
+	// data.users.deleted: a consumer that stays bound while failing to fetch
+	// stops the use counters silently, with NATS and MySQL both still reading
+	// green. The broadcast subscriber is not checked -- it has no fetch loop to
+	// wedge.
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: n.RPC, Service: serviceName, QueueGroup: "commands-rpc", Pool: driver.DB(),
+	}, bus.LaneCheck("data", n.Grouped))
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),

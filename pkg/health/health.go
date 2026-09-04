@@ -44,6 +44,14 @@ const (
 	StatusDown     = "down"
 )
 
+// ErrDegraded marks a probe failure that degrades the service instead of
+// downing it, for checks whose severity is only known at probe time. A static
+// dependency declares itself optional once, at wiring time, with Degrades. A
+// check that folds in another service's report cannot: that downstream is
+// either degraded or down, and only its answer says which. Wrap with %w so the
+// downstream's own failing check names survive into the error string.
+var ErrDegraded = errors.New("degraded")
+
 // Check is one named dependency verdict: NATS connected, database reachable.
 // Probe returns nil when the dependency is usable and must honor ctx — it runs
 // on every /readyz and /status request.
@@ -130,11 +138,17 @@ type CheckResult struct {
 }
 
 // Report is the /status response body. Status is StatusOK, StatusDegraded or
-// StatusDown; the HTTP status code carries only the down verdict (503), while
-// degraded still answers 200 — a degraded service is up. A Better Stack
-// availability monitor therefore just expects 2xx, and a second keyword
-// monitor alerting on "degraded" in the body drives the status page's
-// degraded-performance state without ever paging as a full outage.
+// StatusDown, and the HTTP status code carries the same verdict so a monitor
+// never has to read the body: 200 ok, 207 degraded, 503 down.
+//
+// 207 (Multi-Status) is the honest code for a mixed answer and, being 2xx, it
+// still reads green to any plain "expect 2xx" check. Better Stack then splits
+// the two verdicts on expected-status-code lists alone: an availability monitor
+// expecting "200,207" pages only on a real outage, while a second monitor
+// expecting "200" notifies on the impairment without paging. The earlier design
+// left degraded on 200 and put the word in the body, which needed a keyword
+// monitor; status codes cost nothing on the free plan and cannot drift out of
+// sync with the aggregate the way a body string can.
 type Report struct {
 	Service string        `json:"service"`
 	Status  string        `json:"status"`
@@ -149,6 +163,18 @@ type Set struct {
 
 func NewSet(service string, checks ...Check) *Set {
 	return &Set{service: service, checks: checks}
+}
+
+// Add appends checks to a Set during wiring, before it is served.
+//
+// It exists for the one check that cannot be passed to NewSet: the health RPC
+// responder answers out of the Set, so registering it needs the Set to already
+// exist, and the check that watches that registration can only be built
+// afterwards. Everything else belongs in NewSet, where the Set is complete by
+// construction. Nothing serializes this against run, because a Set is finished
+// being built before any handler derived from it is mounted.
+func (s *Set) Add(checks ...Check) {
+	s.checks = append(s.checks, checks...)
 }
 
 // run executes every check concurrently and reports the aggregate. Concurrent
@@ -199,9 +225,16 @@ func (c Check) result(ctx context.Context) CheckResult {
 	}
 	if err != nil {
 		r.Error = err.Error()
+		r.Optional = r.Optional || errors.Is(err, ErrDegraded)
 	}
 	return r
 }
+
+// Snapshot runs every check and returns the aggregate, for callers answering on
+// a transport other than HTTP. The NATS health RPC replies with this, so the
+// report a sibling service folds into its own /status is the one this service
+// would have served over HTTP at that instant.
+func (s *Set) Snapshot(ctx context.Context) Report { return s.run(ctx) }
 
 // Liveness answers /healthz: process liveness only. If this handler answers,
 // the container is alive and should not be restarted just because a dependency
@@ -232,8 +265,11 @@ func (s *Set) Status() http.HandlerFunc {
 		report := s.run(r.Context())
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		if report.Status == StatusDown {
+		switch report.Status {
+		case StatusDown:
 			w.WriteHeader(http.StatusServiceUnavailable)
+		case StatusDegraded:
+			w.WriteHeader(http.StatusMultiStatus)
 		}
 		body, err := codec.Marshal(report)
 		if err != nil {
@@ -310,9 +346,17 @@ func tlsEnvConfig() (*tls.Config, error) {
 // the dead listener then fails the pod's probes, which is what makes the
 // misconfiguration visible.
 func Serve(addr, service string, checks ...Check) <-chan error {
+	return ServeSet(addr, NewSet(service, checks...))
+}
+
+// ServeSet is Serve over a Set the caller already built. A service that also
+// answers the NATS health RPC has to hand the same Set to both surfaces:
+// building a second one would let /status and the RPC reply disagree about the
+// same service at the same instant.
+func ServeSet(addr string, set *Set) <-chan error {
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           NewSet(service, checks...).Handler(),
+		Handler:           set.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

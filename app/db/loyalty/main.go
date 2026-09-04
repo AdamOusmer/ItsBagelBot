@@ -25,9 +25,9 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
 )
@@ -167,22 +167,13 @@ func main() {
 	if err := rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe loyalty rpc", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "loyalty-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-
-	// mysql check alongside nats: PingContext exercises the same pool
-	// repository code uses, catching a wedged pool or rotated-out creds
-	// that nc.IsConnected alone would miss (pkg/db/health.go). Degrades
-	// rather than fails readiness: a hard-fail would pull every loyalty
-	// pod out of service on the same DB blip simultaneously, turning a
-	// brief outage into a total one. A healthy ping lands in single-digit
-	// ms (measured ~3.6ms pod-to-MySQL RTT); much higher means the pool
-	// went cold and is paying the ~18ms handshake instead of reusing a
-	// conn.
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName,
-		health.NATS("nats", nc),
-		health.Degrades(db.HealthCheck("mysql", driver.DB())))
+	// The lane check covers the durable group folding data.loyalty.earned,
+	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
+	// degrading: a consumer that stays bound while failing to fetch stops points
+	// accruing entirely, with NATS and MySQL both still reading green.
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: "loyalty-rpc", Pool: driver.DB(),
+	}, bus.LaneCheck("data", grouped))
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),

@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,15 @@ func failing(name string) Check {
 
 func passing(name string) Check {
 	return Bool(name, func() bool { return true })
+}
+
+// degrading fails with ErrDegraded instead of being declared optional at wiring
+// time — the shape a check that folds in another service's report produces when
+// that downstream answers "degraded".
+func degrading(name string) Check {
+	return Check{Name: name, Probe: func(context.Context) error {
+		return fmt.Errorf("%w: mysql", ErrDegraded)
+	}}
 }
 
 func get(t *testing.T, s *Set, path string) *httptest.ResponseRecorder {
@@ -65,8 +75,10 @@ func TestEndpointVerdicts(t *testing.T) {
 		{"critical failure is not ready", NewSet("svc", failing("nats")), "/readyz", http.StatusServiceUnavailable, ""},
 		{"optional failure stays ready", NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/readyz", http.StatusOK, ""},
 		{"status ok", NewSet("svc", passing("nats")), "/status", http.StatusOK, StatusOK},
-		{"status degraded is still up", NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/status", http.StatusOK, StatusDegraded},
+		{"status degraded is 207, not 200", NewSet("svc", passing("nats"), Degrades(failing("valkey"))), "/status", http.StatusMultiStatus, StatusDegraded},
 		{"status down", NewSet("svc", failing("nats"), Degrades(failing("valkey"))), "/status", http.StatusServiceUnavailable, StatusDown},
+		{"probe-time degraded is 207", NewSet("svc", passing("nats"), degrading("users")), "/status", http.StatusMultiStatus, StatusDegraded},
+		{"probe-time degraded stays ready", NewSet("svc", degrading("users")), "/readyz", http.StatusOK, ""},
 	}
 
 	for _, tc := range cases {
