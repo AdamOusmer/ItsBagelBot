@@ -17,6 +17,11 @@ kubectl apply -f deploy/k8s/sesame.yaml # the ScaledObjects, once the CRDs exist
 kubectl apply -f deploy/k8s/outgress.yaml
 ```
 
+`kubectl apply --dry-run=server -k deploy/keda` reports `namespaces "keda" not
+found` for every namespaced object. That is the dry run, not the manifest: it
+will not create the Namespace it is about to create. A real apply is ordered
+Namespace first and succeeds.
+
 ## Things that will bite
 
 **The NATS scaler needs pod-to-pod reach to port 8222.** It reads `/jsz` through
