@@ -5,6 +5,7 @@ package dispatch
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -20,6 +21,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // This file replays app/dingress/internal/community/bot_test.go's scenarios
@@ -342,5 +345,96 @@ func TestVoiceLockButton(t *testing.T) {
 	}
 	if payload.Content != "Locked." {
 		t.Fatalf("lock reply content = %q", payload.Content)
+	}
+}
+
+// flakyPublish fails the first failUntil calls and succeeds after, counting
+// every attempt.
+type flakyPublish struct {
+	attempts int
+	failFor  int
+}
+
+func (f *flakyPublish) publish(context.Context, ddiscord.Command) error {
+	f.attempts++
+	if f.attempts <= f.failFor {
+		return errors.New("no responders")
+	}
+	return nil
+}
+
+func observedDispatcher(pub func(context.Context, ddiscord.Command) error) (*Dispatcher, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	return &Dispatcher{Publish: pub, Log: zap.New(core)}, logs
+}
+
+// TestPublishRetriesBeforeGivingUp pins the retry budget. A lost publish is
+// a command the user asked for that nothing will ever run: the ingress
+// message is ACKed either way, so nothing redelivers it.
+func TestPublishRetriesBeforeGivingUp(t *testing.T) {
+	pub := &flakyPublish{failFor: 99}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != publishAttempts {
+		t.Fatalf("attempts = %d, want %d", pub.attempts, publishAttempts)
+	}
+	lost := logs.FilterLevelExact(zapcore.ErrorLevel).All()
+	if len(lost) != 1 {
+		t.Fatalf("error logs = %d, want exactly one naming the lost command", len(lost))
+	}
+	if lost[0].ContextMap()["type"] != "post" {
+		t.Fatalf("error log fields = %v, want the command type", lost[0].ContextMap())
+	}
+}
+
+func TestPublishStopsRetryingOnceItSucceeds(t *testing.T) {
+	pub := &flakyPublish{failFor: 1}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (one failure, one success)", pub.attempts)
+	}
+	if n := logs.FilterLevelExact(zapcore.ErrorLevel).Len(); n != 0 {
+		t.Fatalf("error logs = %d, want none: the command was published", n)
+	}
+}
+
+func TestPublishGivesUpImmediatelyOnShutdown(t *testing.T) {
+	pub := &flakyPublish{failFor: 99}
+	d, _ := observedDispatcher(pub.publish)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	d.publishAll(ctx, []ddiscord.Command{{Type: "post"}})
+
+	// One attempt, then the cancelled context ends it: a shutting-down pod
+	// must not spend its grace period retrying.
+	if pub.attempts != 1 {
+		t.Fatalf("attempts = %d, want 1 on a cancelled context", pub.attempts)
+	}
+}
+
+// TestUndecodableInteractionIsLogged pins the other silent drop: ingress has
+// already deferred the interaction, so a decode failure leaves the user
+// staring at "thinking..." with nothing logged anywhere.
+func TestUndecodableInteractionIsLogged(t *testing.T) {
+	d, logs := observedDispatcher(nil)
+
+	got := d.handlersFor(ddiscord.Event{Type: "INTERACTION_CREATE", GuildID: "g1", Raw: []byte("{not json")})
+
+	if got != nil {
+		t.Fatalf("handlers = %v, want none", got)
+	}
+	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
+	if len(warns) != 1 {
+		t.Fatalf("warn logs = %d, want one", len(warns))
+	}
+	fields := warns[0].ContextMap()
+	if fields["guild_id"] != "g1" || fields["event_type"] != "INTERACTION_CREATE" {
+		t.Fatalf("warn fields = %v, want the type and guild", fields)
 	}
 }
