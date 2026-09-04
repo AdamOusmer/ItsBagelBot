@@ -47,7 +47,31 @@ export function requireDiscordActor(locals: App.Locals): string {
   return uid;
 }
 
-export function discordFail(slug: string): never {
+/**
+ * The `?e=` slugs the page knows how to explain.
+ *
+ * The first four are OAuth-flow-local — they describe something that went
+ * wrong before any RPC — and the rest are the dingress refusal codes verbatim,
+ * so a redirect that carries a refusal out of the callback names it with the
+ * same word the RPC reply used. The page maps each to a message through a
+ * typed literal map, so a slug added here without copy fails the i18n scan.
+ */
+export const DISCORD_ERROR_SLUGS = [
+  'oauth',
+  'unconfigured',
+  'setup',
+  'state',
+  'bound_elsewhere',
+  'not_bound',
+  'discord_unavailable',
+  'forbidden',
+  'rate_limited',
+  'invalid'
+] as const;
+
+export type DiscordErrorSlug = (typeof DISCORD_ERROR_SLUGS)[number];
+
+export function discordFail(slug: DiscordErrorSlug): never {
   throw redirect(302, `/discord?e=${slug}`);
 }
 

@@ -13,13 +13,14 @@ import {
   requireDiscordActor
 } from '$lib/server/discord-oauth';
 import {
-  isBoundElsewhere,
+  pinnedRolesOf,
   readDiscord,
   saveDiscord,
   setupGuild,
   type DiscordConfig,
   type DiscordGuildTarget
 } from '$lib/server/discord-store';
+import { alertOff } from '@bagel/shared';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { redirect, isRedirect } from '@sveltejs/kit';
 
@@ -62,8 +63,12 @@ async function connectGuild(locals: App.Locals, target: DiscordGuildTarget): Pro
   const view = await readDiscord(target);
   const login = locals.session?.login ? locals.session.login : view.config.twitchLogin;
   const seeded = { ...view.config, guildId: target.guildId, twitchLogin: login };
-  const result = await setupGuild(target, seeded);
-  if (isBoundElsewhere(result)) discordFail('bound');
+  const result = await setupGuild(
+    { ...target, subscribers: alertOff(seeded.subscribersEnabled), pinnedRoles: pinnedRolesOf(seeded) },
+    seeded
+  );
+  // The refusal is named by its code now, not by matching outgress's English.
+  if (result.code === 'bound_elsewhere') discordFail('bound_elsewhere');
   if (result.error) {
     logger.warn({ err: result.error }, '[discord-callback] setup failed; keeping the guild id');
   }
