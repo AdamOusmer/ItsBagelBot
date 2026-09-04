@@ -30,7 +30,24 @@ const mcsrSnapshotTimeout = 10 * time.Second
 
 const (
 	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
-	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
+	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches"
+
+	// legacyMcsrSessionTemplate is the session default as it shipped before
+	// {draws} existed. A blank sessionMessage already picks up whatever the
+	// default currently is (the dashboard shows it as a placeholder, not a
+	// seeded value — ReplyEditor.svelte), so blank configs need nothing. What
+	// needs handling is a config holding this string verbatim: a broadcaster
+	// who copied the old default out of the placeholder, or an import that
+	// materialized it. Those would otherwise stay on the old wording, which
+	// reads as a bug ("3W 4L in 8 matches", see mcsrWinLossTokens).
+	//
+	// Upgrading it here at read time follows the same shape as govee's
+	// bindingsOf and triggers' line-format fallback: stored blobs are migrated
+	// by tolerating the old value, never by rewriting a broadcaster's saved
+	// text in the database — an edit is unreviewable and lossy once it has
+	// overwritten text somebody authored. A template that differs by even one
+	// byte is treated as authored and left exactly as written.
+	legacyMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
 
 	defaultMcsrLastMatchTemplate = "{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago"
 	defaultMcsrRecordTemplate    = "{playera} {winsa} - {winsb} {playerb} · {played} played"
