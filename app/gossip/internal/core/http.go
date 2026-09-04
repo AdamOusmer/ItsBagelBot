@@ -927,27 +927,62 @@ func upstreamMessage(body []byte) string {
 	return nested.Error.Message
 }
 
-// parseRetryAfter parses an HTTP Retry-After header string, which RFC 7231 §7.1.3
-// allows in two forms: integer seconds (e.g. "120") or an HTTP-date (e.g.
-// "Fri, 31 Dec 2026 23:59:59 GMT"). Returns 0 if empty, negative, or invalid.
+// maxRetryAfter caps what an upstream Retry-After can buy. The parsed delay
+// becomes the cache TTL of the pinned error reply (buildErrReply), and a
+// pinned reply is served without touching the upstream at all, so an honored
+// delay is a hard outage window for that broadcaster's commands with nothing
+// polling for recovery. Nothing bounds the header itself: it is upstream free
+// text, and "Retry-After: 86400" is a well-formed day. Measured before this
+// cap existed, that value stored a 24h TTL straight through CachedBytes,
+// which has no ceiling of its own. Five minutes sits above Spotify's
+// documented rate-limit windows (tens of seconds) and below the point where
+// one bogus header outlives a stream.
+const maxRetryAfter = 5 * time.Minute
+
+// parseRetryAfter parses an HTTP Retry-After header, which RFC 9110 §10.2.3
+// allows in two forms: delta-seconds ("120") or an HTTP-date
+// ("Fri, 31 Dec 2026 23:59:59 GMT"). Returns 0 when the header is absent,
+// already elapsed or unparseable, and never more than maxRetryAfter.
 func parseRetryAfter(raw string) time.Duration {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0
 	}
 	if seconds, err := strconv.Atoi(raw); err == nil {
-		if seconds <= 0 {
-			return 0
-		}
-		return time.Duration(seconds) * time.Second
+		return retryAfterSeconds(seconds)
 	}
-	if t, err := http.ParseTime(raw); err == nil {
-		d := time.Until(t)
-		if d <= 0 {
-			return 0
-		}
-		return d
+	t, err := http.ParseTime(raw)
+	if err != nil {
+		return 0
 	}
-	return 0
+	return clampRetryAfter(time.Until(t))
 }
 
+// retryAfterSeconds converts the delta-seconds form. The bound is checked on
+// the integer, before the multiply, because the multiply is what overflows: a
+// Duration counts nanoseconds, so any value past ~9.2e9 seconds wraps.
+// "Retry-After: 10000000000" parsed to -2346317h47m53s while the only guard
+// was a seconds <= 0 test placed ahead of the conversion, which the wrap
+// happens after and so can never catch.
+func retryAfterSeconds(seconds int) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	if seconds > int(maxRetryAfter/time.Second) {
+		return maxRetryAfter
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// clampRetryAfter bounds an already-computed delay to the window maxRetryAfter
+// documents. An HTTP-date in the past is not an error, it is a throttle that
+// expired in flight, and reads as no delay at all.
+func clampRetryAfter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 0
+	}
+	if d > maxRetryAfter {
+		return maxRetryAfter
+	}
+	return d
+}

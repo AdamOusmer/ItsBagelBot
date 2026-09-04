@@ -349,6 +349,16 @@ func (p *api) rateAdmit(broadcaster string) func(context.Context) error {
 // spotifyFriendlyError maps a Spotify upstream failure onto a user-facing reply
 // message and its Pin class. It replaces core.FriendlyUpstream's stats-oriented
 // strings ("stats provider", "player not found") with Spotify-appropriate ones.
+//
+// One mapper serves search, track, artist and now-playing, which is why the 404
+// text is item-agnostic. It read "track not found" first, and that answered a
+// bad artist id and an empty player with a sentence about a track nobody asked
+// about. Wording per endpoint would mean threading the endpoint name through
+// every BuildReplyWithMapper call site, for a distinction chat does not need.
+//
+// Unlike core.FriendlyUpstream this never echoes ue.Message on 400/404.
+// Spotify's own text is upstream free-form and would land in chat verbatim;
+// the status alone says something true without that.
 func spotifyFriendlyError(err error) (string, core.Pin) {
 	var ue *core.UpstreamError
 	if !errors.As(err, &ue) {
@@ -358,16 +368,30 @@ func spotifyFriendlyError(err error) (string, core.Pin) {
 	case http.StatusBadRequest:
 		return "invalid request", core.PinNegative
 	case http.StatusNotFound:
-		return "track not found", core.PinNegative
+		return "not found on Spotify", core.PinNegative
 	case http.StatusForbidden:
 		return "Spotify playback not permitted right now", core.PinNone
 	case http.StatusTooManyRequests:
-		if ue.LocalDeny {
-			return "Spotify is busy right now, try again in a few seconds", core.PinNone
-		}
-		return "Spotify is rate limiting requests right now, try again in a moment", core.PinThrottle
+		return spotifyThrottled(ue)
+	case http.StatusServiceUnavailable:
+		// 503 carries Retry-After as legitimately as 429 does. Leaving it
+		// unmapped returned "" here, which propagates as an infrastructure
+		// failure and drops the parsed delay on the floor: the header was
+		// read, then ignored on one of the two statuses that send it.
+		return "Spotify is unavailable right now, try again in a moment", core.PinThrottle
 	}
 	return "", core.PinNone
+}
+
+// spotifyThrottled tells our own bucket denial apart from Spotify's. A
+// LocalDeny never reached Spotify and its token refills within seconds, so
+// pinning it would outlast the denial it describes; an upstream 429 ends only
+// by backing off, and pins.
+func spotifyThrottled(ue *core.UpstreamError) (string, core.Pin) {
+	if ue.LocalDeny {
+		return "Spotify is busy right now, try again in a few seconds", core.PinNone
+	}
+	return "Spotify is rate limiting requests right now, try again in a moment", core.PinThrottle
 }
 
 // fetchFailed maps a CachedBytes failure onto a typed error message. A

@@ -104,6 +104,29 @@ func TestBuildReplyHonorsRetryAfter(t *testing.T) {
 	assert.Equal(t, ThrottleTTL, ttlShort, "ThrottleTTL is the floor when Retry-After is shorter")
 }
 
+// Retry-After is a throttle signal and may only stretch a throttle pin.
+// PinNone exists to heal on the next request (our own bucket, a key permission
+// fixed out of band); pinning one on a stray header caches the failure past the
+// moment it was fixed.
+func TestBuildReplyDoesNotExtendNonThrottlePins(t *testing.T) {
+	errReply := func(msg string) any { return map[string]string{"error": msg} }
+	const negativeTTL = 15 * time.Second
+
+	_, ttlNone, _, err := BuildReplyWithMapper(context.Background(), time.Minute, negativeTTL,
+		func(context.Context) (any, error) {
+			return nil, &UpstreamError{Status: 403, RetryAfter: 10 * time.Minute}
+		}, errReply, func(error) (string, Pin) { return "not permitted", PinNone })
+	require.NoError(t, err)
+	assert.Zero(t, ttlNone, "a PinNone failure must not be cached, Retry-After or not")
+
+	_, ttlNegative, _, err := BuildReplyWithMapper(context.Background(), time.Minute, negativeTTL,
+		func(context.Context) (any, error) {
+			return nil, &UpstreamError{Status: 404, RetryAfter: 10 * time.Minute}
+		}, errReply, func(error) (string, Pin) { return "not found", PinNegative })
+	require.NoError(t, err)
+	assert.Equal(t, negativeTTL, ttlNegative, "a rate-limit header says nothing about how long an absence lasts")
+}
+
 func TestBuildReplyWithMapper(t *testing.T) {
 	customMapper := func(err error) (string, Pin) {
 		return "custom friendly error", PinThrottle
@@ -118,4 +141,3 @@ func TestBuildReplyWithMapper(t *testing.T) {
 	assert.Equal(t, ThrottleTTL, ttl)
 	assert.Contains(t, string(b), "custom friendly error")
 }
-

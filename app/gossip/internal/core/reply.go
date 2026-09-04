@@ -111,9 +111,9 @@ func BuildReplyWithMapper(ctx context.Context, ttl, negativeTTL time.Duration, f
 }
 
 // buildErrReply shapes one fetch failure: a friendly failure becomes the
-// endpoint's error reply with its Pin TTL, anything else propagates. If the
-// upstream returned a Retry-After delay larger than the pin TTL, the delay
-// is honored so throttling windows are not violated.
+// endpoint's error reply with its Pin TTL, anything else propagates. A
+// throttle pin is stretched to the upstream's own Retry-After when that is
+// longer, so a provider telling us to back off is not re-hit early.
 func buildErrReply(err error, negativeTTL time.Duration, errReply func(msg string) any, mapper func(error) (string, Pin)) ([]byte, time.Duration, *UpstreamError, error) {
 	msg, pin := mapper(err)
 	if msg == "" {
@@ -125,9 +125,24 @@ func buildErrReply(err error, negativeTTL time.Duration, errReply func(msg strin
 	}
 	var ue *UpstreamError
 	errors.As(err, &ue)
-	pinDur := pinTTL(pin, negativeTTL)
-	if ue != nil && ue.RetryAfter > 0 && ue.RetryAfter > pinDur {
-		pinDur = ue.RetryAfter
+	return b, honorRetryAfter(pin, pinTTL(pin, negativeTTL), ue), ue, nil
+}
+
+// honorRetryAfter stretches a throttle cool-down out to the delay the upstream
+// asked for. Restricting that to PinThrottle is the whole point of the
+// function: PinNone means "retry on the very next request" and covers our own
+// bucket denials and key-permission problems fixed out of band, so extending it
+// on a stray header caches a permission error past the moment the key is fixed
+// (measured: a PinNone 403 carrying Retry-After: 600 stored a 10m TTL). And
+// PinNegative is a stable absence with a TTL the endpoint chose; a rate-limit
+// header says nothing about how long a missing track stays missing. The delay
+// arrives already bounded by maxRetryAfter, so no ceiling is needed here.
+func honorRetryAfter(pin Pin, pinDur time.Duration, ue *UpstreamError) time.Duration {
+	if pin != PinThrottle || ue == nil {
+		return pinDur
 	}
-	return b, pinDur, ue, nil
+	if ue.RetryAfter > pinDur {
+		return ue.RetryAfter
+	}
+	return pinDur
 }

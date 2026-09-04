@@ -500,8 +500,10 @@ func TestSpotifyFriendlyError(t *testing.T) {
 			wantPin: core.PinNegative,
 		},
 		{
-			err:     &core.UpstreamError{Status: http.StatusNotFound},
-			wantMsg: "track not found",
+			// Item-agnostic on purpose: one mapper answers search, track,
+			// artist and now-playing alike.
+			err:     &core.UpstreamError{Status: http.StatusNotFound, Message: "non existing id"},
+			wantMsg: "not found on Spotify",
 			wantPin: core.PinNegative,
 		},
 		{
@@ -520,6 +522,13 @@ func TestSpotifyFriendlyError(t *testing.T) {
 			wantPin: core.PinThrottle,
 		},
 		{
+			// 503 carries Retry-After too, so it must map to a pinned
+			// friendly reply rather than propagate as infrastructure.
+			err:     &core.UpstreamError{Status: http.StatusServiceUnavailable},
+			wantMsg: "Spotify is unavailable right now, try again in a moment",
+			wantPin: core.PinThrottle,
+		},
+		{
 			err:     &core.UpstreamError{Status: http.StatusInternalServerError},
 			wantMsg: "",
 			wantPin: core.PinNone,
@@ -531,4 +540,3 @@ func TestSpotifyFriendlyError(t *testing.T) {
 		assert.Equal(t, tt.wantPin, pin)
 	}
 }
-

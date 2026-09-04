@@ -44,30 +44,29 @@ func TestSearchTrackLinkLooksUpDirectly(t *testing.T) {
 	assert.Equal(t, "3n3Ppam7vgaVa1iaRUc9Lp", reply.Tracks[0].ID)
 }
 
-func TestSearchUnsupportedLinkRejectedWithoutCredentials(t *testing.T) {
-	mint, mints := newMintServer(t, "unused")
-	p := newTestProvider(t, fakeKeys{key: "should-not-be-read"}, denyAll(t), mint)
+// Artist sits in this table rather than in a test of its own: since Spotify
+// retired /artists/{id}/top-tracks for development-mode client ids, an artist
+// link is refused on exactly the path a playlist link is, and the two copies of
+// this body were already flagged as duplication before either had drifted.
+func TestSearchUnsupportedLinksRejectedWithoutCredentials(t *testing.T) {
+	for _, tt := range []struct{ name, link string }{
+		{"playlist", "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"},
+		{"artist", "https://open.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg"},
+		{"episode", "https://open.spotify.com/episode/512ojhOuo1ktJprKbVcKyQ"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mint, mints := newMintServer(t, "unused")
+			p := newTestProvider(t, fakeKeys{key: "should-not-be-read"}, denyAll(t), mint)
 
-	reply := asReply[gossiprpc.SpotifySearchReply](t,
-		endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-			ChannelID: "2",
-			Query:     "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M",
-		}))
-	assert.Contains(t, reply.Error, "isn't supported")
-	assert.Zero(t, mints.Load(), "an unsupported share must not spend a token mint")
-}
-
-func TestSearchArtistLinkRejectedWithoutCredentials(t *testing.T) {
-	mint, mints := newMintServer(t, "unused")
-	p := newTestProvider(t, fakeKeys{key: "should-not-be-read"}, denyAll(t), mint)
-
-	reply := asReply[gossiprpc.SpotifySearchReply](t,
-		endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-			ChannelID: "2",
-			Query:     "https://open.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg",
-		}))
-	assert.Contains(t, reply.Error, "isn't supported; share a track or album")
-	assert.Zero(t, mints.Load(), "an artist link must not spend a token mint")
+			reply := asReply[gossiprpc.SpotifySearchReply](t,
+				endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+					ChannelID: "2",
+					Query:     tt.link,
+				}))
+			assert.Contains(t, reply.Error, "isn't supported; share a track or album")
+			assert.Zero(t, mints.Load(), "an unsupported share must not spend a token mint")
+		})
+	}
 }
 
 func TestSearchAlbumLinkFillsAlbumFieldsOntoSlimTracks(t *testing.T) {
