@@ -377,7 +377,7 @@ spec:
     # rewritten path falls out of the RATE_EXEMPT set, so the read-tier limiter
     # applies again. The longer rule out-prioritizes the catch-all below
     # (traefik auto-priority is rule length). The status page's real route,
-    # health.itsbagelbot.com/dashboard (status-routes.yaml), matches neither.
+    # health.itsbagelbot.com/console (status-routes.yaml), matches neither.
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&

@@ -360,17 +360,14 @@ spec:
   selector:
     matchLabels:
       app: twitch-ingress
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: twitch-ingress-status
-  namespace: app
-spec:
-  trafficDistribution: PreferSameNode
-  selector:
-    app: twitch-ingress
-  ports:
-    - name: https
-      port: 443
-      targetPort: 8080
+# No twitch-ingress-status Service: the health surface collapsed to six
+# vertical endpoints, and Twitch's is health.itsbagelbot.com/twitch on sesame,
+# which folds this service in over bagel.rpc.health.ingress. Nothing dials this
+# pod's /status by service name any more, so the Service went with the route —
+# the same way outgress and the two discord sidecars lost theirs.
+#
+# The listener itself stays: kubelet still probes /healthz and /readyz on the
+# pod IP, and twitch-ingress-tls (deploy/app/certificates.yaml) still backs it.
+# That cert's only SANs are the twitch-ingress-status forms; they read as dead
+# names now but are the sole identity on a cert that is still mounted and still
+# serving, so they stay until the cert is reissued with a different subject.
