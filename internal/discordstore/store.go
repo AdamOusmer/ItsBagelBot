@@ -29,10 +29,11 @@ package discordstore
 
 import (
 	"context"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
+
+	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -333,12 +334,11 @@ func (s valkeyStore) leaveVoice(ctx context.Context, ch Channel, userID string) 
 	return n == 0
 }
 
-func levelOf(xp int) int {
-	if xp <= 0 {
-		return 0
-	}
-	return int(math.Sqrt(float64(xp) / 100))
-}
+// levelOf is the XP->level curve, owned by internal/domain/discord so the
+// discord-data repository (which stores the level column) and this fast path
+// cannot drift apart. Kept as a local shim because every caller here holds an
+// int, not the int64 the stored column uses.
+func levelOf(xp int) int { return ddiscord.LevelOf(int64(xp)) }
 
 // Mem is an in-process Store for tests.
 type Mem struct {
