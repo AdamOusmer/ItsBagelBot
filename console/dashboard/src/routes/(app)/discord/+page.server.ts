@@ -172,6 +172,7 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
     voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
     ticketsEnabled: flag({ form, name: 'ticketsEnabled', current: current.ticketsEnabled }),
     logsEnabled: flag({ form, name: 'logsEnabled', current: current.logsEnabled }),
+    subscribersEnabled: flag({ form, name: 'subscribersEnabled', current: current.subscribersEnabled }),
     levelsEnabled: flag({ form, name: 'levelsEnabled', current: current.levelsEnabled }),
     categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
     categoryDeny: String(form.get('categoryDeny') ?? current.categoryDeny),
@@ -183,6 +184,8 @@ function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
     ticketChannelId: snowflake({ form, name: 'ticketChannelId', current: current.ticketChannelId }),
     ticketCategoryId: snowflake({ form, name: 'ticketCategoryId', current: current.ticketCategoryId }),
     ownerRoleId: snowflake({ form, name: 'ownerRoleId', current: current.ownerRoleId }),
+    vipRoleId: snowflake({ form, name: 'vipRoleId', current: current.vipRoleId }),
+    subscriberRoleId: snowflake({ form, name: 'subscriberRoleId', current: current.subscriberRoleId }),
     leadModRoleId: snowflake({ form, name: 'leadModRoleId', current: current.leadModRoleId }),
     memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId }),
     streamerDiscordId: snowflake({ form, name: 'streamerDiscordId', current: current.streamerDiscordId })
@@ -212,7 +215,10 @@ export const actions: Actions = {
     if (!view.config.guildId) return { error: 'Connect a server first.' };
     const login = ctx.session?.login ?? view.config.twitchLogin;
     const result = await setupGuild(
-      { userId: ctx.uid, guildId: view.config.guildId },
+      // The saved toggle decides whether the fill creates the subscriber
+      // tier, so setup reflects what the streamer chose rather than always
+      // building a locked category they may never use.
+      { userId: ctx.uid, guildId: view.config.guildId, subscribers: view.config.subscribersEnabled === 'on' },
       { ...view.config, twitchLogin: login }
     );
     if (result.error) return { error: result.error };

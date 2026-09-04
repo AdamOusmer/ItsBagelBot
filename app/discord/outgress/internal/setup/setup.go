@@ -45,9 +45,15 @@ type GuildSetupResult struct {
 	LogChannelID     string
 	TicketChannelID  string
 	TicketCategoryID string
+	SubsChannelID    string
+	SubsCategoryID   string
+	VIPChannelID     string
+	VIPCategoryID    string
 	OwnerRoleID      string
 	LeadModRoleID    string
 	ModsRoleID       string
+	VIPRoleID        string
+	SubscriberRoleID string
 	RegularsRoleID   string
 	MemberRoleID     string
 	Refused          string // non-empty when the guild looked lived-in
@@ -72,6 +78,10 @@ type GuildSetupRequest struct {
 	GuildID        string
 	EveryoneRoleID string
 	BroadcasterID  string
+	// Subscribers mirrors the streamer's subscriber toggle. The fill skips
+	// the Subscriber role and its locked category when it is off, so a server
+	// that does not use the tier never grows a category nobody can open.
+	Subscribers bool
 }
 
 // SetupGuild fills the Bagel community template into an existing guild.
@@ -198,13 +208,14 @@ func missingBinding(check ownerCheck) error {
 // guildFill carries one setup's state: the client, the guild, and name
 // indexes of what already exists so every create is idempotent by name.
 type guildFill struct {
-	w          *Worker
-	api        discordGuildAPI
-	target     discapi.Guild
-	everyone   string
-	existing   []discapi.Snowflake
-	chanByName map[string]string
-	roleByName map[string]string
+	w           *Worker
+	api         discordGuildAPI
+	target      discapi.Guild
+	everyone    string
+	existing    []discapi.Snowflake
+	chanByName  map[string]string
+	roleByName  map[string]string
+	subscribers bool
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
@@ -231,6 +242,7 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
+		subscribers: req.Subscribers,
 	}, nil
 }
 
@@ -301,6 +313,9 @@ func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, wa
 
 func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityRoles() {
+		if !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+			continue
+		}
 		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name}, f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
@@ -327,7 +342,7 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
 	parentID := map[string]string{}
 	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type != ddiscord.ChannelCategory {
+		if spec.Type != ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
 		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec}))
@@ -359,7 +374,7 @@ func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
 
 func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type == ddiscord.ChannelCategory {
+		if spec.Type == ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
 		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parentID[spec.Parent]}))
@@ -420,6 +435,10 @@ func (out *GuildSetupResult) setRole(role namedRef) {
 		out.LeadModRoleID = role.ID
 	case "Mods":
 		out.ModsRoleID = role.ID
+	case "VIP":
+		out.VIPRoleID = role.ID
+	case "Subscriber":
+		out.SubscriberRoleID = role.ID
 	case "Regulars":
 		out.RegularsRoleID = role.ID
 	case "Member":
@@ -447,15 +466,17 @@ func (out *GuildSetupResult) channelSlot(name string) *string {
 		"logs":      &out.LogChannelID,
 		"tickets":   &out.TicketChannelID,
 		"ticketcat": &out.TicketCategoryID,
+		"subs":      &out.SubsChannelID,
+		"subcat":    &out.SubsCategoryID,
+		"vip":       &out.VIPChannelID,
+		"vipcat":    &out.VIPCategoryID,
 	}
 	return slots[name]
 }
 
 func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOverwrite {
-	if spec.Staff {
-		return []discapi.PermissionOverwrite{{
-			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permViewChannel),
-		}}
+	if len(spec.AllowRoles) > 0 {
+		return f.gatedOverwrites(spec)
 	}
 	if spec.ReadOnly {
 		return []discapi.PermissionOverwrite{{
@@ -463,6 +484,31 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 		}}
 	}
 	return nil
+}
+
+// gatedOverwrites denies @everyone the channel and allows it back to each
+// named role. A role the fill did not create (or could not find by name) is
+// skipped rather than sent as an empty id, which Discord rejects and which
+// would fail the whole channel create over one missing role.
+//
+// Deny-then-allow is the only ordering Discord honours here: an overwrite
+// allowing a role does not implicitly deny anyone else, so without the
+// @everyone deny the "private" channel is world-readable.
+func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOverwrite {
+	out := []discapi.PermissionOverwrite{{
+		ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permViewChannel),
+	}}
+	for _, name := range spec.AllowRoles {
+		id := f.roleByName[strings.ToLower(name)]
+		if id == "" {
+			continue
+		}
+		out = append(out, discapi.PermissionOverwrite{
+			ID: id, Type: overwriteRole,
+			Allow: fmt.Sprintf("%d", permViewChannel|permSendMessages), Deny: "0",
+		})
+	}
+	return out
 }
 
 // rolePermissions renders a role's permission bitfield the way Discord wants

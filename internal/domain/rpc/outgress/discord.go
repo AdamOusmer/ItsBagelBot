@@ -10,6 +10,9 @@ package outgress
 type DiscordSetupRequest struct {
 	UserID  string `json:"user_id"`
 	GuildID string `json:"guild_id"`
+	// Subscribers mirrors the streamer's subscriber toggle so the fill can
+	// skip the Subscriber role and its locked category when the tier is off.
+	Subscribers bool `json:"subscribers,omitempty"`
 }
 
 // DiscordSetupReply is the filled template the dashboard writes into the
@@ -24,9 +27,15 @@ type DiscordSetupReply struct {
 	LogChannelID     string `json:"log_channel_id,omitempty"`
 	TicketChannelID  string `json:"ticket_channel_id,omitempty"`
 	TicketCategoryID string `json:"ticket_category_id,omitempty"`
+	SubsChannelID    string `json:"subs_channel_id,omitempty"`
+	SubsCategoryID   string `json:"subs_category_id,omitempty"`
+	VIPChannelID     string `json:"vip_channel_id,omitempty"`
+	VIPCategoryID    string `json:"vip_category_id,omitempty"`
 	OwnerRoleID      string `json:"owner_role_id,omitempty"`
 	LeadModRoleID    string `json:"lead_mod_role_id,omitempty"`
 	ModsRoleID       string `json:"mods_role_id,omitempty"`
+	VIPRoleID        string `json:"vip_role_id,omitempty"`
+	SubscriberRoleID string `json:"subscriber_role_id,omitempty"`
 	RegularsRoleID   string `json:"regulars_role_id,omitempty"`
 	MemberRoleID     string `json:"member_role_id,omitempty"`
 	Refused          string `json:"refused,omitempty"`

@@ -487,6 +487,10 @@
   "discord.ownerRoleLabel": "Owner role",
   "discord.reauthCta": "Re-authorize Bagel",
   "discord.reauthNeeded": "This server was added before Bagel asked for the Change Nickname permission, so the premium name cannot be applied here. The premium avatar still works. Re-authorize to finish it.",
+  "discord.subscriberRoleLabel": "Subscriber role",
+  "discord.subscribersHelp": "Creates a Subscriber role and a locked subscriber area. Leave off if you do not use it.",
+  "discord.subscribersLabel": "Subscriber tier",
+  "discord.vipRoleLabel": "VIP role",
   "fetches": {
     "builderNew": "+ New data source",
     "builderNoneYet": "No data sources yet.",

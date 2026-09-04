@@ -24,6 +24,8 @@ export type DiscordConfig = {
   welcomeChannelId: string;
   voiceHubId: string;
   ownerRoleId: string;
+  vipRoleId: string;
+  subscriberRoleId: string;
   leadModRoleId: string;
   modsRoleId: string;
   regularsRoleId: string;
@@ -38,6 +40,7 @@ export type DiscordConfig = {
   voiceEnabled: string;
   ticketsEnabled: string;
   logsEnabled: string;
+  subscribersEnabled: string;
   levelsEnabled: string;
   categoryAllow: string;
   categoryDeny: string;
@@ -67,6 +70,8 @@ const EMPTY: DiscordConfig = {
   welcomeChannelId: '',
   voiceHubId: '',
   ownerRoleId: '',
+  vipRoleId: '',
+  subscriberRoleId: '',
   leadModRoleId: '',
   modsRoleId: '',
   regularsRoleId: '',
@@ -81,6 +86,7 @@ const EMPTY: DiscordConfig = {
   voiceEnabled: '',
   ticketsEnabled: '',
   logsEnabled: '',
+  subscribersEnabled: '',
   levelsEnabled: '',
   categoryAllow: '',
   categoryDeny: '',
@@ -110,7 +116,12 @@ function parseConfig(raw: unknown): DiscordConfig {
 
 export type DiscordUser = { userId: string };
 
-export type DiscordGuildTarget = { userId: string; guildId: string };
+// subscribers mirrors the streamer's subscriber toggle at the moment setup
+// runs. The fill skips the Subscriber role and its locked category when it is
+// off, so a server that does not use the tier never grows a category nobody
+// can open. Optional because layout and unbind take the same target and
+// neither creates anything.
+export type DiscordGuildTarget = { userId: string; guildId: string; subscribers?: boolean };
 
 export type DiscordSave = { userId: string; enabled: boolean; config: DiscordConfig };
 
@@ -139,6 +150,8 @@ type SetupReply = {
   ticket_channel_id?: string;
   ticket_category_id?: string;
   owner_role_id?: string;
+  vip_role_id?: string;
+  subscriber_role_id?: string;
   lead_mod_role_id?: string;
   mods_role_id?: string;
   regulars_role_id?: string;
@@ -168,7 +181,7 @@ export async function setupGuild(
 ): Promise<DiscordSetup> {
   const r = await rpc<SetupReply>(
     `${SUB.dingressRpc}.discord.setup`,
-    { user_id: target.userId, guild_id: target.guildId },
+    { user_id: target.userId, guild_id: target.guildId, subscribers: target.subscribers === true },
     SETUP_TIMEOUT_MS
   );
   if (r.error) return { config: current, refused: '', error: r.error };
@@ -194,6 +207,8 @@ const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['ticketChannelId', 'ticket_channel_id'],
   ['ticketCategoryId', 'ticket_category_id'],
   ['ownerRoleId', 'owner_role_id'],
+  ['vipRoleId', 'vip_role_id'],
+  ['subscriberRoleId', 'subscriber_role_id'],
   ['leadModRoleId', 'lead_mod_role_id'],
   ['modsRoleId', 'mods_role_id'],
   ['regularsRoleId', 'regulars_role_id'],

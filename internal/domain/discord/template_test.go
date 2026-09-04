@@ -3,7 +3,10 @@
 
 package discord
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestCommunityTemplateBindsRequiredChannels(t *testing.T) {
 	binds := map[string]bool{}
@@ -25,7 +28,7 @@ func TestCommunityTemplateHasVoiceHubAndStaff(t *testing.T) {
 		if ch.Bind == "voice" && ch.Type == ChannelVoice {
 			voiceHub = true
 		}
-		if ch.Staff {
+		if len(ch.AllowRoles) > 0 {
 			staff = true
 		}
 	}
@@ -63,7 +66,7 @@ func TestBotPermissionsIncludeModeration(t *testing.T) {
 // drift: the fill creates these and only these, in this order, and the order
 // is also the visual hierarchy Discord renders from.
 func TestCommunityRolesAreTheAgreedSet(t *testing.T) {
-	want := []string{"Owner", "Lead Mod", "Mods", "Regulars", "Member"}
+	want := []string{"Owner", "Lead Mod", "Mods", "VIP", "Subscriber", "Regulars", "Member"}
 	got := CommunityRoles()
 	if len(got) != len(want) {
 		t.Fatalf("roles = %d, want %d", len(got), len(want))
@@ -89,8 +92,8 @@ func TestCommunityRoleColorsAreDistinct(t *testing.T) {
 		}
 		seen[r.Color] = r.Name
 	}
-	if len(seen) != 4 {
-		t.Fatalf("coloured roles = %d, want 4 (Member is deliberately uncoloured)", len(seen))
+	if len(seen) != 6 {
+		t.Fatalf("coloured roles = %d, want 6 (Member is deliberately uncoloured)", len(seen))
 	}
 }
 
@@ -124,13 +127,32 @@ func TestLeadModHoldsAdministrator(t *testing.T) {
 	}
 }
 
-// Every other tier holds nothing. Mods moderates through the bot's slash
-// commands, which check the role, rate-limit the call and write an audit
-// reason; raw Discord permissions would put those actions outside anything
-// we can see or revoke.
-func TestOnlyLeadModHoldsPermissions(t *testing.T) {
+// Mods holds real moderation powers and NOT Administrator. That boundary is
+// the whole difference between the two staff tiers, so it is pinned: a Mod
+// must be able to time out and ban, and must not be able to delete the
+// server or grant themselves anything.
+func TestModsHoldModerationButNotAdministrator(t *testing.T) {
 	for _, r := range CommunityRoles() {
-		if r.Name == "Lead Mod" {
+		if r.Name != RoleMods {
+			continue
+		}
+		if r.Permissions&PermAdministrator != 0 {
+			t.Fatal("Mods holds Administrator, which erases the Lead Mod tier")
+		}
+		for _, want := range []int64{PermBanMembers, PermKickMembers, PermManageMessages, PermModerateMembers} {
+			if r.Permissions&want == 0 {
+				t.Fatalf("Mods is missing permission bit %d", want)
+			}
+		}
+	}
+}
+
+// Access tiers hold no permissions at all: VIP, Subscriber, Regulars and
+// Member exist to be named in channel gates, not to grant power.
+func TestAccessTiersHoldNoPermissions(t *testing.T) {
+	for _, r := range CommunityRoles() {
+		switch r.Name {
+		case RoleLeadMod, RoleMods:
 			continue
 		}
 		if r.Permissions != 0 {
@@ -145,5 +167,88 @@ func TestOnlyLeadModHoldsPermissions(t *testing.T) {
 func TestBotStillRefusesAdministratorItself(t *testing.T) {
 	if BotPermissions&int(PermAdministrator) != 0 {
 		t.Fatal("the bot invite now requests Administrator")
+	}
+}
+
+// A gated channel must deny @everyone and name its audience, or "private"
+// means world-readable. Every AllowRoles entry must also be a role the
+// template actually creates: a name that matches nothing resolves to no
+// overwrite, and the channel silently becomes staff-invisible.
+func TestGatedChannelsNameRolesThatExist(t *testing.T) {
+	created := map[string]bool{}
+	for _, r := range CommunityRoles() {
+		created[r.Name] = true
+	}
+	for _, ch := range CommunityChannels() {
+		for _, name := range ch.AllowRoles {
+			if !created[name] {
+				t.Fatalf("channel %q gates on role %q, which the template never creates", ch.Name, name)
+			}
+		}
+	}
+}
+
+// Staff must be able to read every gated area. A subscriber or VIP room the
+// moderators cannot see is a room nobody can moderate.
+func TestStaffCanReadEveryGatedChannel(t *testing.T) {
+	for _, ch := range CommunityChannels() {
+		if len(ch.AllowRoles) == 0 {
+			continue
+		}
+		for _, staff := range StaffRoles {
+			if !slices.Contains(ch.AllowRoles, staff) {
+				t.Fatalf("gated channel %q excludes staff role %q", ch.Name, staff)
+			}
+		}
+	}
+}
+
+// The VIP room is smaller than the sub room by design. If Subscriber ever
+// creeps into VIPRoles the tier stops meaning anything.
+func TestVIPAreaExcludesSubscribers(t *testing.T) {
+	if slices.Contains(VIPRoles, RoleSubscriber) {
+		t.Fatal("VIP area admits every subscriber, which defeats the tier")
+	}
+	if !slices.Contains(SubscriberRoles, RoleVIP) {
+		t.Fatal("subscriber area excludes VIPs, who rank above them")
+	}
+}
+
+// The subscriber tier is opt-in. With it off, neither the role nor its
+// category is created, so a server that does not use subs never grows a
+// locked category nobody can open.
+func TestSubscriberTierIsGatedOff(t *testing.T) {
+	for _, r := range CommunityRoles() {
+		if r.Name == RoleSubscriber && FeatureEnabled(r.Feature, false) {
+			t.Fatal("Subscriber role is created even with the tier off")
+		}
+	}
+	var gatedChannels int
+	for _, ch := range CommunityChannels() {
+		if ch.Feature != FeatureSubscribers {
+			continue
+		}
+		gatedChannels++
+		if FeatureEnabled(ch.Feature, false) {
+			t.Fatalf("channel %q is created even with the subscriber tier off", ch.Name)
+		}
+		if !FeatureEnabled(ch.Feature, true) {
+			t.Fatalf("channel %q is never created even with the tier on", ch.Name)
+		}
+	}
+	if gatedChannels == 0 {
+		t.Fatal("no channels are gated on the subscriber tier")
+	}
+}
+
+// An unknown feature gate must read as OFF. A typo leaves a channel
+// uncreated, which someone notices; treating it as ON would silently publish
+// a channel that was meant to be gated.
+func TestUnknownFeatureGateIsOff(t *testing.T) {
+	if FeatureEnabled("typo", true) {
+		t.Fatal("an unrecognised feature gate defaulted to on")
+	}
+	if !FeatureEnabled("", false) {
+		t.Fatal("an ungated spec was skipped")
 	}
 }

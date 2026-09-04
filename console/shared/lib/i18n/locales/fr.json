@@ -487,6 +487,10 @@
   "discord.ownerRoleLabel": "Rôle Propriétaire",
   "discord.reauthCta": "Réautoriser Bagel",
   "discord.reauthNeeded": "Ce serveur a été ajouté avant que Bagel ne demande la permission Changer de pseudo, le nom premium ne peut donc pas être appliqué ici. L'avatar premium fonctionne toujours. Réautorisez pour terminer.",
+  "discord.subscriberRoleLabel": "Rôle Abonné",
+  "discord.subscribersHelp": "Crée un rôle Abonné et un espace réservé aux abonnés. Laissez désactivé si vous ne l'utilisez pas.",
+  "discord.subscribersLabel": "Palier abonnés",
+  "discord.vipRoleLabel": "Rôle VIP",
   "fetches": {
     "builderNew": "+ Nouvelle source",
     "builderNoneYet": "Aucune source de données pour l’instant.",

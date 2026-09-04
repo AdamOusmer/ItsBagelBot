@@ -226,6 +226,8 @@
           {@render picker('ticketCategoryId', t('discord.ticketCategoryLabel'), categories, '')}
           {@render picker('ownerRoleId', t('discord.ownerRoleLabel'), roles, '@')}
           {@render picker('leadModRoleId', t('discord.leadModRoleLabel'), roles, '@')}
+          {@render picker('vipRoleId', t('discord.vipRoleLabel'), roles, '@')}
+          {@render picker('subscriberRoleId', t('discord.subscriberRoleLabel'), roles, '@')}
           {@render picker('memberRoleId', t('discord.memberRoleLabel'), roles, '@')}
         </div>
         <Field label={t('discord.streamerIdLabel')} tag={t('discord.streamerIdTag')}>
@@ -320,6 +322,18 @@
             checked={onByDefault(config.ticketsEnabled)}
             label={t('discord.ticketsLabel')}
             onchange={(v) => (config = { ...config, ticketsEnabled: v ? 'on' : 'off' })}
+          />
+        </div>
+        <div class="setting-row">
+          <div class="tr-text">
+            <span class="tr-label">{t('discord.subscribersLabel')}</span>
+            <span class="tr-help">{t('discord.subscribersHelp')}</span>
+          </div>
+          <input type="hidden" name="subscribersEnabled" value={config.subscribersEnabled === 'on' ? 'on' : 'off'} />
+          <Switch
+            checked={config.subscribersEnabled === 'on'}
+            label={t('discord.subscribersLabel')}
+            onchange={(v) => (config = { ...config, subscribersEnabled: v ? 'on' : 'off' })}
           />
         </div>
         <div class="setting-row">

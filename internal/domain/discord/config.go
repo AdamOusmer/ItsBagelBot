@@ -30,6 +30,8 @@ type Config struct {
 	OwnerRoleID      string `json:"ownerRoleId"`
 	LeadModRoleID    string `json:"leadModRoleId"`
 	ModsRoleID       string `json:"modsRoleId"`
+	VIPRoleID        string `json:"vipRoleId"`
+	SubscriberRoleID string `json:"subscriberRoleId"`
 	RegularsRoleID   string `json:"regularsRoleId"`
 	MemberRoleID     string `json:"memberRoleId"`
 
@@ -44,6 +46,10 @@ type Config struct {
 	LogsEnabled      string `json:"logsEnabled"`
 	LevelsEnabled    string `json:"levelsEnabled"`
 	LinkGuardEnabled string `json:"linkGuardEnabled"`
+	// SubscribersEnabled gates the subscriber tier: the Subscriber role and
+	// its locked category. Off by default, because a server with no linked
+	// subs would otherwise show an empty category nobody can open.
+	SubscribersEnabled string `json:"subscribersEnabled"`
 
 	// CategoryAllow / CategoryDeny are comma-separated Twitch category
 	// names (Scenes twin). Empty allow means every category; a deny match
@@ -93,6 +99,11 @@ func (c Config) LevelsOn() bool  { return alertOn(c.LevelsEnabled) }
 // inherit an enforcement behavior it never asked for just because the
 // field was left blank.
 func (c Config) LinkGuardOn() bool { return c.LinkGuardEnabled == "on" }
+
+// SubscribersOn reports whether the subscriber tier is enabled. Opt-in, not
+// alertOn: an unset value means the streamer never chose, and defaulting a
+// locked category to on would put furniture in every server.
+func (c Config) SubscribersOn() bool { return c.SubscribersEnabled == "on" }
 
 // CategoryAllowed reports whether a Twitch category should produce a go-live
 // embed. Names compare case-insensitively, trimmed.

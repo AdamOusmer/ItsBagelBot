@@ -310,7 +310,20 @@ func TestRolePermissionsAreStringEncoded(t *testing.T) {
 	if got := rolePermissions(leadMod); got != "8" {
 		t.Fatalf("Lead Mod permissions = %q, want \"8\" (Administrator)", got)
 	}
-	if got := rolePermissions(mods); got != "" {
-		t.Fatalf("Mods permissions = %q, want empty (grants nothing)", got)
+	// Mods now holds a real moderation set, so it must serialize too. The
+	// point of the test is the ENCODING, not the value: a number here would
+	// lose precision above 53 bits, which PermModerator exceeds via the
+	// timeout bit (1<<40).
+	if got := rolePermissions(mods); got == "" || got == "0" {
+		t.Fatalf("Mods permissions = %q, want the moderator set", got)
+	}
+	var regulars ddiscord.RoleSpec
+	for _, r := range ddiscord.CommunityRoles() {
+		if r.Name == "Regulars" {
+			regulars = r
+		}
+	}
+	if got := rolePermissions(regulars); got != "" {
+		t.Fatalf("Regulars permissions = %q, want empty (grants nothing)", got)
 	}
 }
