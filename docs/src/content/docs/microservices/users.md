@@ -5,7 +5,7 @@ title: Users
 description: Manages user accounts, OAuth tokens, and status tiers.
 ---
 
-The Users service (`app/users/`) is the central authority for identity in ItsBagelBot.
+The Users service (`app/db/users/`) is the central authority for identity in ItsBagelBot.
 
 ## Architecture
 

@@ -24,7 +24,7 @@ type Config struct {
 	// matching every other service's NATS_RPC_URL/NATS_URL split.
 	NATSRPCURL string
 	// UsersCountsSubject is the users service's narrow public counts RPC
-	// (see app/users/rpc/counts.go). Never point this at an admin subject.
+	// (see app/db/users/rpc/counts.go). Never point this at an admin subject.
 	UsersCountsSubject string
 }
 

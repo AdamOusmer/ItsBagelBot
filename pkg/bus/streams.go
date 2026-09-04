@@ -248,7 +248,7 @@ var TwitchIngressStream = StreamSpec{
 	//  2. streamConfig clamps the dedup window to MaxAge, which narrows it from
 	//     30s to 10s. This costs nothing here: ingress is the only publisher to
 	//     these subjects and it deliberately attaches no Nats-Msg-Id (see
-	//     app/ingress/lib/ingress/nats.ex — EventSub websocket delivery is not
+	//     app/twitch/ingress/lib/ingress/nats.ex — EventSub websocket delivery is not
 	//     replayed, so the broker-side dedup index was pure overhead and was
 	//     measured at ~27% of per-message cost). There is no dedup to lose.
 	MaxAge: 10 * time.Second,
@@ -353,7 +353,7 @@ var TwitchIngressStream = StreamSpec{
 //
 // EnsureStreams reconciles its spec slice in order, so the ordering is enforced
 // by listing TwitchIngressStream first — here in DataStreams and in the owner's
-// slice (app/sesame/main.go). Between the two calls no stream claims the
+// slice (app/twitch/sesame/main.go). Between the two calls no stream claims the
 // subject: that window is one JetStream API round trip, on the first pod that
 // converges, and publishes inside it get no PubAck and are dropped by ingress's
 // dedup-free rule. Every later pod finds both streams converged and writes

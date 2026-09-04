@@ -90,7 +90,7 @@ function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
     config[field.key] = get(field.key);
   }
   // Triggers persists its whole rule list as one "rules" string (one rule per
-  // line); the sesame module parses it (app/sesame/modules/triggers.go).
+  // line); the sesame module parses it (app/twitch/sesame/modules/triggers.go).
   const rules = def.id === MOD.triggers ? get('rules') : '';
   if (rules) config.rules = rules;
   return config;

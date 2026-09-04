@@ -34,7 +34,7 @@ type Config struct {
 	DiscordEngineRPCPrefix string
 	DiscordEngineRPCQueue  string
 
-	// OutgressRPCPrefix is TWITCH outgress's own RPC prefix (app/outgress),
+	// OutgressRPCPrefix is TWITCH outgress's own RPC prefix (app/twitch/outgress),
 	// unrelated to this service's own two prefixes above. Unused today (no
 	// handler here calls it), kept only because deploy's existing env
 	// wiring for the old dingress-egress role already sets it and a removed

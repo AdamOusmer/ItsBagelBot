@@ -6,8 +6,8 @@ description: The fluent authoring API for sesame modules and commands, with ever
 ---
 
 A sesame feature is one function returning one `module.Module` value. The builder
-in `app/sesame/module/builder.go` assembles that value; the engine in
-`app/sesame/engine/` indexes and runs it.
+in `app/twitch/sesame/module/builder.go` assembles that value; the engine in
+`app/twitch/sesame/engine/` indexes and runs it.
 
 The builder package carries **no runtime wiring** (no NATS, Valkey, projection or
 pipeline). A module receives `engine.Deps` and its handlers capture what they need
@@ -32,7 +32,7 @@ func Ping(d engine.Deps) module.Module {
 }
 ```
 
-Then add one line to `app/sesame/modules/all.go`. That is the whole registration
+Then add one line to `app/twitch/sesame/modules/all.go`. That is the whole registration
 step.
 
 ## Module-level API
@@ -212,7 +212,7 @@ their reserved triggers win over any named module declaring a clash.
 
 ## Checklist for a new module
 
-1. Create `app/sesame/modules/<name>.go`.
+1. Create `app/twitch/sesame/modules/<name>.go`.
 2. `func <Name>(d engine.Deps) module.Module`.
 3. `module.NewModule(name, kind)`.
 4. Declare commands with `.Command(...).<gates>.Run(fn)` and events with

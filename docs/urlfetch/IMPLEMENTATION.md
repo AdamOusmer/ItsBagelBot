@@ -7,8 +7,8 @@
 
 ## Where it plugs in
 
-- **Sesame expansion**: pre-resolve slot beside counters — `runCustom` (app/sesame/engine/dispatch.go:74, `bumpCounterTokens` :100), `expandCommand` (app/sesame/engine/vars.go:52), `tokens` struct (vars.go:15-25).
-- **Commands storage**: ent entity conventions (app/commands/ent/schema/commands.go:24-68), dashboard verbs (app/commands/rpc/dashboard.go:28-35), Valkey projection (internal/projection/valkey.go:244,:514; client.go:296).
+- **Sesame expansion**: pre-resolve slot beside counters — `runCustom` (app/twitch/sesame/engine/dispatch.go:74, `bumpCounterTokens` :100), `expandCommand` (app/twitch/sesame/engine/vars.go:52), `tokens` struct (vars.go:15-25).
+- **Commands storage**: ent entity conventions (app/db/commands/ent/schema/commands.go:24-68), dashboard verbs (app/db/commands/rpc/dashboard.go:28-35), Valkey projection (internal/projection/valkey.go:244,:514; client.go:296).
 - **Gossip execution**: Builder (app/gossip/internal/provider/builder.go), transports (app/gossip/internal/core/http.go:122,:157-170), per-subject fleets (app/gossip/internal/engine/engine.go:34-47), provider registration (providers/all.go).
 - **Console**: commands page patterns (routes/(app)/commands/+page.svelte), shared validation (console/shared/lib/commands-validate.ts:73).
 - **Importer**: urlfetch tags recognized-but-unmapped today (console/shared/lib/importer/moobot.ts:287,300).
@@ -24,18 +24,18 @@ Locked before any code. These are contracts between commands, gossip, sesame, an
 | Execution home | A provider inside gossip via the standard Builder | A dedicated fetcher microservice, or fetching inside sesame | gossip already dials external hosts with client/cache/rate-limit plumbing shared; sesame's hot path must never await an upstream |
 | Egress | WARP as a SOCKS-proxy sidecar in gossip's pod (`warp-cli mode proxy`, localhost:40000, service-token enrollment) | Cloudflare Workers; Zero Trust Gateway on the nodes | Workers splits fetch logic into a second codebase and meters requests; Gateway-on-nodes takes the default route, pushing ALL cluster egress (Twitch, NATS, Doppler, New Relic, image pulls) through one tunnel whose breakage takes down the bot, and user URLs can't be enumerated into split-tunnel rules |
 | Trust default | Inverted `.Trusted()`: user-defined fetches egress via the WARP proxy by default; direct cluster-IP egress requires an explicit `.Trusted()` builder flag | Trusted-by-default, or opt-in proxy | The safe path must be the default path — a forgotten flag must fail toward hidden egress, not toward exposing production IPs. The flag selects egress only; the SSRF gate runs before the dial on both paths |
-| Token grammar | `{urlfetch:name}` rides the existing brace grammar: `normalizeKey` (app/sesame/module/vars.go:66) lowercases the name before the first `:` and leaves payload untouched, exactly as `{choice:Hi,Yo}` behaves | A second sigil or a pre-expansion pass | Brace-with-colon plus unknown-key passthrough already works; two syntaxes double the parsing for zero capability |
+| Token grammar | `{urlfetch:name}` rides the existing brace grammar: `normalizeKey` (app/twitch/sesame/module/vars.go:66) lowercases the name before the first `:` and leaves payload untouched, exactly as `{choice:Hi,Yo}` behaves | A second sigil or a pre-expansion pass | Brace-with-colon plus unknown-key passthrough already works; two syntaxes double the parsing for zero capability |
 | Quotas | Per-broadcaster caps, all configurable (proposed defaults: 20 definitions, 500 fetches/day — placeholders, see follow-ups) | Unlimited, or fleet-global limits only | A broadcaster-authored fetch is unbounded abuse surface by construction; caps bound the worst case per broadcaster instead of fleet-wide |
 
 **Cloudflare economics (verified Aug 2026):** Zero Trust Gateway/SWG is $0 up to 50 seats with full SWG included; pay-as-you-go is $7/user/mo billed annually; dedicated egress IPs are a Contract-plan add-on only — so egress is shared Cloudflare IPs either way, which is acceptable because the goal is hiding *our* IPs, not uniqueness. Workers for comparison: Free 100k req/day at 10ms CPU, Standard $5/mo incl 10M req/mo — shelved because the WARP sidecar keeps 100% of the logic in Go, rides unmetered fair use, and is one fewer codebase, at the cost of an always-on tunnel pod and a NET_ADMIN-privileged sidecar.
 
 ## Phase 1 — definitions & keys (commands service)
 
-Everything lands in the commands service (`app/commands`) — definitions and sealed keys live where custom commands live, so `{urlfetch:name}` resolution costs gossip no cross-service hop except the one key RPC.
+Everything lands in the commands service (`app/db/commands`) — definitions and sealed keys live where custom commands live, so `{urlfetch:name}` resolution costs gossip no cross-service hop except the one key RPC.
 
 ### Schema
 
-New `app/commands/ent/schema/fetchdefinition.go` + `fetchkey.go`, in the house style of `commands.go` (immutable `user_id` :26, `created_at`/`updated_at` defaults :65-67, normalize hook :78-99):
+New `app/db/commands/ent/schema/fetchdefinition.go` + `fetchkey.go`, in the house style of `commands.go` (immutable `user_id` :26, `created_at`/`updated_at` defaults :65-67, normalize hook :78-99):
 
 **FetchDefinition**
 - `user_id` Uint64 `.Immutable()` — Twitch ID only, schemas isolated per service (commands.go:17-18)
@@ -45,7 +45,7 @@ New `app/commands/ent/schema/fetchdefinition.go` + `fetchkey.go`, in the house s
 - `key_label` String Optional MaxLen(32) — names the FetchKey used
 - `is_active` Bool Default(true); unique `(user_id, name)` (:73-74)
 
-**FetchKey** (shape of `GoveeCredential`, app/modules/ent/schema/goveecredential.go)
+**FetchKey** (shape of `GoveeCredential`, app/db/modules/ent/schema/goveecredential.go)
 - `user_id` Uint64 `.Immutable()` (:27); `label` String MaxLen(32); `key_enc` Bytes `.Sensitive()` (:32); `last4` String len 4 — derived at seal time, displayable forever; timestamps; unique `(user_id, label)`
 
 **Soft-delete: none.** Commands rows hard-delete and ride `Deleted:true` on the event (data_events.go:65; "deletions are immediate", commands.go:111-114). Both entities follow.
@@ -54,11 +54,11 @@ New `app/commands/ent/schema/fetchdefinition.go` + `fetchkey.go`, in the house s
 
 ### Sealing
 
-Envelope is `domain.SecureEnvelope{Ciphertext, AttachedData}` (Packing.go:6-9) via `crypto.NewCrypto(keysetJSON)` (aead.go:23), `Pack`/`Unpack` (aead.go:38,:50). AAD binds broadcaster **and** label: `fetchAAD(userID, label)` = `<uid>|fetch_key|<label>`, mirroring `goveeAAD` (app/modules/repository/govee.go:157-161) and its binding test (govee_test.go:103) — the label term stops an envelope copied onto another label of the same user from opening. Write-only: `SetKey` packs, stores, derives last4, drops plaintext; no read path returns values. **Rotation stance:** one keyset per service (users/main.go:113; modules mount deploy/k8s/modules.yaml:171), no per-row version column — rotation is an offline re-seal job over rows, never a wire-format change.
+Envelope is `domain.SecureEnvelope{Ciphertext, AttachedData}` (Packing.go:6-9) via `crypto.NewCrypto(keysetJSON)` (aead.go:23), `Pack`/`Unpack` (aead.go:38,:50). AAD binds broadcaster **and** label: `fetchAAD(userID, label)` = `<uid>|fetch_key|<label>`, mirroring `goveeAAD` (app/db/modules/repository/govee.go:157-161) and its binding test (govee_test.go:103) — the label term stops an envelope copied onto another label of the same user from opening. Write-only: `SetKey` packs, stores, derives last4, drops plaintext; no read path returns values. **Rotation stance:** one keyset per service (users/main.go:113; modules mount deploy/k8s/modules.yaml:171), no per-row version column — rotation is an offline re-seal job over rows, never a wire-format change.
 
 ### Internal key RPC
 
-Prefix `env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey")` — the exact convention of govee (app/modules/rpc/govee.go:43) and spotify (spotify.go:43). One verb `.get` (goveekeys.go:39 shape):
+Prefix `env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey")` — the exact convention of govee (app/db/modules/rpc/govee.go:43) and spotify (spotify.go:43). One verb `.get` (goveekeys.go:39 shape):
 
 ```go
 // internal/domain/rpc/fetchkey
@@ -70,7 +70,7 @@ Mirrors `goveerpc.KeyGetRequest/Reply` (internal/domain/rpc/govee/govee.go:50-60
 
 ### Dashboard verbs
 
-Extend the dashboard verb table (rpc/dashboard.go:28-35) under the existing prefix (`NATS_COMMANDS_SUBJECT_PREFIX`, app/commands/main.go:137):
+Extend the dashboard verb table (rpc/dashboard.go:28-35) under the existing prefix (`NATS_COMMANDS_SUBJECT_PREFIX`, app/db/commands/main.go:137):
 
 - **fetch_list** — defs `{name,url,json_path,is_active,key_label}` + keys `{label,last4,created_at}`. Values never appear.
 - **fetch_set_def** — upsert incl. rename via OriginalName (dashboard.go:96-101 shape); validated and quota-counted synchronously, written immediately (not write-behind — see Quotas).
@@ -185,7 +185,7 @@ Custom responses gain a third pre-expansion scan beside counters. `urlFetchNames
 
 ### Pre-resolve fan-out
 
-New `fetchUrlTokens(ctx, c, response)` sits next to `bumpCounterTokens` in `runCustom` (dispatch.go:100), returning `map[string]string`. Distinct names fan out concurrently (bounded goroutines, errgroup-style: first error cancels the batch, per-token result recorded either way). Same-name repeats collapse at the scan; cross-command single-flight is *not* added — gossip's own cache is the shared flight, and a second caller arriving mid-fetch gets the cached bytes microseconds later. The call goes through the existing `GossipCaller` surface (engine/gossip_rpc.go:37-39) as provider `custom`, endpoint `fetch`, with `IsPremium` riding along for gossip's reserved bucket exactly as urchin does (app/sesame/modules/urchin.go:146). Tests reuse the `fakeGossip` canned-reply pattern (urchin_test.go:24-60).
+New `fetchUrlTokens(ctx, c, response)` sits next to `bumpCounterTokens` in `runCustom` (dispatch.go:100), returning `map[string]string`. Distinct names fan out concurrently (bounded goroutines, errgroup-style: first error cancels the batch, per-token result recorded either way). Same-name repeats collapse at the scan; cross-command single-flight is *not* added — gossip's own cache is the shared flight, and a second caller arriving mid-fetch gets the cached bytes microseconds later. The call goes through the existing `GossipCaller` surface (engine/gossip_rpc.go:37-39) as provider `custom`, endpoint `fetch`, with `IsPremium` riding along for gossip's reserved bucket exactly as urchin does (app/twitch/sesame/modules/urchin.go:146). Tests reuse the `fakeGossip` canned-reply pattern (urchin_test.go:24-60).
 
 ### Deadline arithmetic
 

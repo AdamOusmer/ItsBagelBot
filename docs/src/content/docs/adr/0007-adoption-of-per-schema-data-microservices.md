@@ -41,14 +41,14 @@ Three forces shape the split:
 We split the data layer into four bounded contexts, each a standalone Go service under `app/`, plus the projector
 (see [ADR 0009](/adr/0009-adoption-of-valkey-for-the-settings-projection/)):
 
-- **`app/users`**: user records (Twitch user ID as the primary key, username, email, active flag, tier status) and
+- **`app/db/users`**: user records (Twitch user ID as the primary key, username, email, active flag, tier status) and
   OAuth tokens. Tokens live inside this service because they are part of the identity lifecycle; within the schema
   they keep a real ent edge to the user with cascade delete. Tokens are stored only as Tink AEAD ciphertext, and the
   associated data binds each envelope to its owner, token type, and platform, so a ciphertext copied onto another
   row fails authentication on decrypt.
-- **`app/commands`**: custom chat commands.
-- **`app/modules`**: module on/off toggles and their JSON configurations.
-- **`app/transactions`**: Tebex transaction records.
+- **`app/db/commands`**: custom chat commands.
+- **`app/db/modules`**: module on/off toggles and their JSON configurations.
+- **`app/db/transactions`**: Tebex transaction records.
 
 Each service owns its own MySQL schema (`bagel_users`, `bagel_commands`, `bagel_modules`, `bagel_transactions`),
 generates its own ent client from its own `ent/schema` directory, and runs its own migrations on startup. There are

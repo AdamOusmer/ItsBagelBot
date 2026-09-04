@@ -5,11 +5,11 @@
 // routes a response template. Every rule here corresponds to one place in the
 // Go engine — keep them in lockstep:
 //
-//   - token expansion:       app/sesame/module/vars.go (Expand, ParseDynamic)
-//   - command tokens:        app/sesame/engine/vars.go (expandCommand)
-//   - counter normalization: app/sesame/engine/loyalty_valkey.go (NormalizeCounterName)
+//   - token expansion:       app/twitch/sesame/module/vars.go (Expand, ParseDynamic)
+//   - command tokens:        app/twitch/sesame/engine/vars.go (expandCommand)
+//   - counter normalization: app/twitch/sesame/engine/loyalty_valkey.go (NormalizeCounterName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
-//   - emit order + line cap: app/sesame/engine/dispatch.go (emitResponse)
+//   - emit order + line cap: app/twitch/sesame/engine/dispatch.go (emitResponse)
 //
 // The marketing site's command builder imports this module too (aliased
 // @bagel/rehearsal), so it stays pure: plain data in, plain data out, no DOM

@@ -15,7 +15,7 @@ export const QUEUE_MODULE: ModuleDef =
   defaultEnabled: false,
   // The conversational replies are customizable per broadcaster; the roster
   // (!list), the status readout and the system/error lines stay fixed (see
-  // app/sesame/modules/queue.go). The command list below is read-only. Each
+  // app/twitch/sesame/modules/queue.go). The command list below is read-only. Each
   // reply rehearses as its command (a viewer types the trigger, the bot
   // answers) with this reply's own sample values.
   replies: [

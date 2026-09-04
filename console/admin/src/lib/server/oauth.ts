@@ -61,7 +61,7 @@ export function botScopes(): string[] {
     // bot token 401s ("Missing scope: user:read:moderated_channels"). The bot
     // must RE-AUTH through the admin bot flow to receive this newly-added scope.
     'user:read:moderated_channels',
-    // Required by the automod EventSub upgrades (app/outgress/internal/twitch/
+    // Required by the automod EventSub upgrades (app/twitch/outgress/internal/twitch/
     // eventsub.go optional list): channel.suspicious_user.message carries
     // Twitch's own ban-evader/suspicion flags per chat message, and
     // automod.message.hold v2 carries AutoMod category+level verdicts. Both

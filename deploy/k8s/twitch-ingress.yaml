@@ -272,7 +272,7 @@ spec:
             # the cap: every open past it comes back 10210/429 and re-drives per
             # message, which silently removes the batching the wire above exists
             # for, and does so exactly when the fleet is busiest.
-            # app/ingress/test/nats_publisher_wire_test.exs asserts the product,
+            # app/twitch/ingress/test/nats_publisher_wire_test.exs asserts the product,
             # so changing one of the three without the others fails a test.
             #
             # Nats/PublishBatchFallback rising with 429s means the fleet is over

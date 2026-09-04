@@ -76,7 +76,7 @@ func SetSink(s Sink) {
 // rows.
 //
 // Decision record: internal/activity was chosen over extending
-// automod.Baseline's EWMA approach (app/sesame/automod/baseline.go:100-104,
+// automod.Baseline's EWMA approach (app/twitch/sesame/automod/baseline.go:100-104,
 // which deliberately rejected a per-channel ring buffer: "3 metrics x
 // unbounded retention... two floats beat both"). That rejection does not
 // carry over here. An EWMA compresses a metric to two floats because the

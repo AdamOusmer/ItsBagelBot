@@ -84,7 +84,7 @@ Email clients are not browsers. The rules that keep this rendering right:
 - **One remote image, the logo.** Many clients block images by default, so the
   design has to still read with images off. Do not add more.
 - **Colours and fonts are locked** to the site's system. They match
-  `web/src/styles/style.css` and `app/transactions/mail/gift_template.go`:
+  `web/src/styles/style.css` and `app/db/transactions/mail/gift_template.go`:
 
   | Token | Value |
   | --- | --- |

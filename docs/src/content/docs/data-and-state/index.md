@@ -61,10 +61,10 @@ flowchart LR
 
 | Service | Schema | Owns | Write path |
 |---------|--------|------|------------|
-| `app/users` | `bagel_users` | User records (Twitch ID, username, email, active flag, tier status) and OAuth tokens as Tink AEAD ciphertext | Direct, always |
-| `app/commands` | `bagel_commands` | Custom chat commands | Write-behind (deletes direct) |
-| `app/modules` | `bagel_modules` | Module toggles and JSON configurations | Write-behind |
-| `app/transactions` | `bagel_transactions` | Tebex transaction ID and owning user, nothing else | Direct, always, idempotent on retry |
+| `app/db/users` | `bagel_users` | User records (Twitch ID, username, email, active flag, tier status) and OAuth tokens as Tink AEAD ciphertext | Direct, always |
+| `app/db/commands` | `bagel_commands` | Custom chat commands | Write-behind (deletes direct) |
+| `app/db/modules` | `bagel_modules` | Module toggles and JSON configurations | Write-behind |
+| `app/db/transactions` | `bagel_transactions` | Tebex transaction ID and owning user, nothing else | Direct, always, idempotent on retry |
 | `app/projector` | none | The Valkey projection (disposable, rebuildable) | Event-driven overwrites |
 
 Cross-service references are a plain indexed Twitch user ID column. There are no foreign keys across schemas, by

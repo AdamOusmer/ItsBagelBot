@@ -26,7 +26,7 @@ export interface ModuleField {
   followsLevel?: boolean;
 }
 
-// Mirrors levelSections in app/sesame/automod/config.go: which automod sections
+// Mirrors levelSections in app/twitch/sesame/automod/config.go: which automod sections
 // each level preset enables. Renders the resting state of a follows-level
 // toggle; the authoritative resolution happens in Go.
 export const AUTOMOD_LEVEL_DEFAULTS: Record<string, Record<string, boolean>> = {
@@ -46,7 +46,7 @@ export function automodToggleDefault(level: string, key: string): boolean {
 // the row opens the exact same builder as a custom command's response (the shared
 // ResponseEditor + ChatPreview, standard {user}/{target}/… tokens). messageKey/
 // enableKey are the Configs JSON keys the matching sesame module reads (see
-// app/sesame/modules).
+// app/twitch/sesame/modules).
 export interface ModuleReply {
   key: string; // stable row id
   label: string; // 'Follow alert'
@@ -115,7 +115,7 @@ export interface ModuleDef {
   // premium-only (paid/vip) until the flag is removed. Free channels see the
   // tile locked, cannot toggle or write it, and its bespoke page (href)
   // bounces to /modules from the route guard. Mirrors the sesame side, which
-  // skips a Beta module on the standard lane (app/sesame/module, Module.Beta);
+  // skips a Beta module on the standard lane (app/twitch/sesame/module, Module.Beta);
   // both flags flip in the same PR since Go and TS share no catalog. Ending a
   // beta is deleting both flags: rows a channel enabled while premium stay and
   // simply resume, no data migration.

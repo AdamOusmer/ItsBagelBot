@@ -3,7 +3,7 @@
 
 name: Ingress Elixir Pipeline
 
-# app/ingress is the only BEAM service in the repo, so nothing in the Go
+# app/twitch/ingress is the only BEAM service in the repo, so nothing in the Go
 # pipeline covers it. Two defects reached main unnoticed for want of this job:
 # a mix.lock pinning req 0.6.1 against a mix.exs requiring ~> 0.7 (the tree
 # could not compile at all), and formatter drift. Both are checked below.
@@ -11,12 +11,12 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'app/ingress/**'
+      - 'app/twitch/ingress/**'
       - '.github/workflows/ingress.yml'
   push:
     branches: [ "main" ]
     paths:
-      - 'app/ingress/**'
+      - 'app/twitch/ingress/**'
       - '.github/workflows/ingress.yml'
 
 jobs:
@@ -28,13 +28,13 @@ jobs:
 
     defaults:
       run:
-        working-directory: app/ingress
+        working-directory: app/twitch/ingress
 
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Must match app/ingress/Containerfile exactly. Elixir 1.19 does not emit
+      # Must match app/twitch/ingress/Containerfile exactly. Elixir 1.19 does not emit
       # 1.20's set-theoretic type warnings, so a job on an older pair reports
       # clean on code that fails the compiler the container actually ships.
       - name: Set up Elixir
@@ -47,9 +47,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            app/ingress/deps
-            app/ingress/_build
-          key: ingress-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/ingress/mix.lock') }}
+            app/twitch/ingress/deps
+            app/twitch/ingress/_build
+          key: ingress-${{ runner.os }}-otp28-elixir1.20-${{ hashFiles('app/twitch/ingress/mix.lock') }}
           restore-keys: ingress-${{ runner.os }}-otp28-elixir1.20-
 
       - name: Fetch dependencies

@@ -7,7 +7,7 @@ import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 export const URCHIN_MODULE: ModuleDef = 
 // External-stats modules: chat commands answered through the gossip service
 // (external API proxy + cache). Config keys must match the sesame module
-// structs (app/sesame/modules/urchin.go, mcsr.go).
+// structs (app/twitch/sesame/modules/urchin.go, mcsr.go).
 {
   id: 'urchin',
   label: 'Bedwars Stats',

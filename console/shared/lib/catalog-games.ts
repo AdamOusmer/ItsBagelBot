@@ -4,7 +4,7 @@
 // The loyalty wager games' catalog definitions, split out of types.ts to keep
 // that file's declaration count sane: these two are the longest entries in
 // the MODULE_CATALOG (settings + customizable replies) and change together
-// with the sesame modules they mirror (app/sesame/modules/gamble.go,
+// with the sesame modules they mirror (app/twitch/sesame/modules/gamble.go,
 // duel.go — same config keys, same defaults). They nest under loyalty
 // (`parent: 'loyalty'`): no index tile, no independent master switch, no
 // second currency name. Odds and chat lines stay on /modules/[id].

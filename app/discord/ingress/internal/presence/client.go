@@ -34,7 +34,7 @@ const rpcTimeout = 3 * time.Second
 
 // NewFetch builds the Fetch that calls the users service's narrow public
 // counts RPC. subject is bagel.rpc.internal.users.counts.get by convention
-// (see app/users/main.go's NATS_INTERNAL_USERS_COUNTS_SUBJECT); nc is a
+// (see app/db/users/main.go's NATS_INTERNAL_USERS_COUNTS_SUBJECT); nc is a
 // dedicated RPC connection (bus.Connect(bus.RPCURL(...))), not the fire-and-
 // forget event publisher ingress already holds -- request/reply needs a
 // connection that can receive a reply on its own inbox subject, which the

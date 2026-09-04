@@ -146,7 +146,7 @@
 
   // A follows-level toggle setting rests on its level's default (see
   // automodToggleDefault) until the user flips it, when the blob stores an
-  // explicit "on"/"off". Mirrors the Go tri-state in app/sesame/automod/config.go.
+  // explicit "on"/"off". Mirrors the Go tri-state in app/twitch/sesame/automod/config.go.
   function settingToggleOn(field: ModuleField): boolean {
     const v = config[field.key] ?? '';
     if (v === 'on') return true;
@@ -157,7 +157,7 @@
   // A reply toggle rests on its declared default until the blob stores an
   // explicit "on"/"off": default-off replies (defaultOff, e.g. the ad-break
   // alert) need "on", every other reply fires unless "off". Mirrors sesame's
-  // alertOn/adAlertOn split in app/sesame/modules/alerts.go.
+  // alertOn/adAlertOn split in app/twitch/sesame/modules/alerts.go.
   function replyOn(reply: ModuleReply): boolean {
     const v = config[reply.enableKey ?? ''] ?? '';
     if (v === 'on') return true;
@@ -251,7 +251,7 @@
   // --- Trigger words: dynamic rule list ---------------------------------------
   // A rule is one "phrase => response" line. The list persists as one config
   // string (config.rules); a disabled rule is stored as a "#" comment the sesame
-  // parser skips. parse/serialize mirror app/sesame/modules/triggers.go.
+  // parser skips. parse/serialize mirror app/twitch/sesame/modules/triggers.go.
   type Match = 'word' | 'contains' | 'exact' | 'prefix';
   type Rule = { phrase: string; response: string; match: Match; enabled: boolean };
 

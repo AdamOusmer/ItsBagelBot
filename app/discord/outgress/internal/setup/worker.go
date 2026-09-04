@@ -3,7 +3,7 @@
 
 // Package setup is the guild setup/layout/unbind/post half of what used to
 // live in app/dingress/internal/egress (discord_setup.go's ported home) and,
-// before dingress, app/outgress/internal/worker/discord*.go. It is the one
+// before dingress, app/twitch/outgress/internal/worker/discord*.go. It is the one
 // REST-shaped operation the task that split dingress explicitly kept here
 // rather than moving to engine: filling a guild template is a sequence of
 // list/create calls where each step's id feeds the next, which has nothing

@@ -76,25 +76,25 @@ jobs:
             {
               "image": "commands",
               "context": ".",
-              "containerfile": "app/commands/Containerfile",
+              "containerfile": "app/db/commands/Containerfile",
               "description": "ItsBagelBot commands data service"
             },
             {
               "image": "loyalty",
               "context": ".",
-              "containerfile": "app/loyalty/Containerfile",
+              "containerfile": "app/db/loyalty/Containerfile",
               "description": "ItsBagelBot loyalty data service"
             },
             {
               "image": "modules",
               "context": ".",
-              "containerfile": "app/modules/Containerfile",
+              "containerfile": "app/db/modules/Containerfile",
               "description": "ItsBagelBot modules data service"
             },
             {
               "image": "notifications",
               "context": ".",
-              "containerfile": "app/notifications/Containerfile",
+              "containerfile": "app/db/notifications/Containerfile",
               "description": "ItsBagelBot notifications data service"
             },
             {
@@ -118,7 +118,7 @@ jobs:
             {
               "image": "outgress",
               "context": ".",
-              "containerfile": "app/outgress/Containerfile",
+              "containerfile": "app/twitch/outgress/Containerfile",
               "description": "ItsBagelBot Twitch egress service"
             },
             {
@@ -130,19 +130,19 @@ jobs:
             {
               "image": "transactions",
               "context": ".",
-              "containerfile": "app/transactions/Containerfile",
+              "containerfile": "app/db/transactions/Containerfile",
               "description": "ItsBagelBot transactions data service"
             },
             {
               "image": "users",
               "context": ".",
-              "containerfile": "app/users/Containerfile",
+              "containerfile": "app/db/users/Containerfile",
               "description": "ItsBagelBot users data service"
             },
             {
               "image": "sesame",
               "context": ".",
-              "containerfile": "app/sesame/Containerfile",
+              "containerfile": "app/twitch/sesame/Containerfile",
               "description": "ItsBagelBot Twitch event worker (sesame)"
             },
             {
@@ -159,8 +159,8 @@ jobs:
             },
             {
               "image": "twitch-ingress",
-              "context": "app/ingress",
-              "containerfile": "app/ingress/Containerfile",
+              "context": "app/twitch/ingress",
+              "containerfile": "app/twitch/ingress/Containerfile",
               "description": "ItsBagelBot Twitch ingress service"
             },
             {
@@ -243,19 +243,19 @@ jobs:
               internal/*)
                 add_root_go_services
                 ;;
-              app/commands/*)
+              app/db/commands/*)
                 add "commands"
                 ;;
-              app/ingress/*)
+              app/twitch/ingress/*)
                 add "twitch-ingress"
                 ;;
-              app/loyalty/*)
+              app/db/loyalty/*)
                 add "loyalty"
                 ;;
-              app/modules/*)
+              app/db/modules/*)
                 add "modules"
                 ;;
-              app/notifications/*)
+              app/db/notifications/*)
                 add "notifications"
                 ;;
               app/discord/ingress/*)
@@ -267,19 +267,19 @@ jobs:
               app/discord/outgress/*)
                 add "discord-outgress"
                 ;;
-              app/outgress/*)
+              app/twitch/outgress/*)
                 add "outgress"
                 ;;
               app/projector/*)
                 add "projector"
                 ;;
-              app/transactions/*)
+              app/db/transactions/*)
                 add "transactions"
                 ;;
-              app/users/*)
+              app/db/users/*)
                 add "users"
                 ;;
-              app/sesame/*)
+              app/twitch/sesame/*)
                 add "sesame"
                 ;;
               app/gossip/*)

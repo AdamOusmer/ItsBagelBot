@@ -3,7 +3,7 @@
 
 // Package lane holds the shared wire contract ingress publishes on the premium,
 // standard and stream lanes and the worker consumes. It is the single source of
-// the lane message shape: ingress writes it (see app/ingress/lib/ingress/
+// the lane message shape: ingress writes it (see app/twitch/ingress/lib/ingress/
 // pipeline.ex) and every Go consumer decodes this type rather than redefining it.
 package lane
 
@@ -24,7 +24,7 @@ type Badge struct {
 
 // Sender is one chatter in a folded duplicate cohort. The ingress squash
 // collapses identical non-command lines into a single channel.chat.message
-// carrying every duplicate sender here (see app/ingress/lib/ingress/squash.ex),
+// carrying every duplicate sender here (see app/twitch/ingress/lib/ingress/squash.ex),
 // so the worker keeps per-user reputation and cross-user campaign signal without
 // one event per duplicate.
 type Sender struct {
@@ -91,7 +91,7 @@ type Envelope struct {
 
 	// ReceivedAt is ingress's EventSub notification receipt time (Twitch's
 	// message_timestamp, RFC 3339), published on every lane body (see
-	// app/ingress/lib/ingress/pipeline.ex). It is the only ordering signal
+	// app/twitch/ingress/lib/ingress/pipeline.ex). It is the only ordering signal
 	// stream.online / stream.offline carry: the consumer pool gives no
 	// cross-message ordering, so lifecycle writers compare EventVersion
 	// instead of trusting arrival order. Absent on older envelopes.

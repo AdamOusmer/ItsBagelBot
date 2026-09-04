@@ -3,9 +3,9 @@
 
 // Command-builder catalog + UI copy, both locales. This file is the marketing
 // site's single source of truth for what the bot actually expands, verified
-// against the worker: custom-command tokens in app/sesame/engine/vars.go,
-// dynamic tokens in app/sesame/module/vars.go, module reply tokens in each
-// app/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
+// against the worker: custom-command tokens in app/twitch/sesame/engine/vars.go,
+// dynamic tokens in app/twitch/sesame/module/vars.go, module reply tokens in each
+// app/twitch/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
 // (mirrored by console/shared/lib/commands-validate.ts). If a token isn't
 // expanded there, it doesn't belong here — the bot leaves unknown braces
 // as literal text.
@@ -561,7 +561,7 @@ export const SURFACES: SurfaceDef[] = [
   },
 ];
 
-// First-line chat actions (app/sesame/engine/slash.go). Values are prefixes
+// First-line chat actions (app/twitch/sesame/engine/slash.go). Values are prefixes
 // prepended to the first response line.
 export const STYLES: { value: string; label: L10n }[] = [
   { value: '', label: { en: 'Normal message', fr: 'Message normal' } },
@@ -575,7 +575,7 @@ export const STYLES: { value: string; label: L10n }[] = [
   { value: '/pin ', label: { en: 'Pin the message', fr: 'Épingler le message' } },
 ];
 
-// Access levels, low → high (app/sesame/module/permission.go, dashboard PERMS).
+// Access levels, low → high (app/twitch/sesame/module/permission.go, dashboard PERMS).
 export const PERMS: { value: string; label: L10n }[] = [
   { value: 'everyone', label: { en: 'Everyone', fr: 'Tout le monde' } },
   { value: 'sub', label: { en: 'Subscribers & up', fr: 'Abonnés et plus' } },

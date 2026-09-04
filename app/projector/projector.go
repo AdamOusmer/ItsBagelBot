@@ -425,7 +425,7 @@ func (p *Projector) broadcastLiveInvalidate(userID uint64) {
 // published a TypeWarmToken job onto the outgress system lane
 // (twitch.outgress.system), which is queue-grouped — all 3 replicas share one
 // durable consumer group ("outgress-system", see
-// app/outgress/main.go's laneSubscribers/startSystemLane) — so exactly one
+// app/twitch/outgress/main.go's laneSubscribers/startSystemLane) — so exactly one
 // replica dequeued the job and only that replica's cache got warmed; the
 // other two still paid the cold mint on their own first "as":"broadcaster"
 // send. A per-replica in-memory cache needs a per-replica warm, so this

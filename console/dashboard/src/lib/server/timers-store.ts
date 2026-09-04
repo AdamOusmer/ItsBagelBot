@@ -7,7 +7,7 @@
 // "timers" module blob (the same modules service every other feature uses) is
 // the sole source of truth. sesame arms every enabled timer on stream.online,
 // disarms them on stream.offline, and fires each off its own Valkey key expiry
-// (app/sesame/engine/timers_valkey.go), re-reading this same blob every cycle.
+// (app/twitch/sesame/engine/timers_valkey.go), re-reading this same blob every cycle.
 import { randomUUID } from 'node:crypto';
 import { type TimerDef, MOD } from '@bagel/shared';
 import { listModules, upsertModule } from './commands-store';

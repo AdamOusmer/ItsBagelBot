@@ -5,7 +5,7 @@ title: Commands
 description: Manages custom chat commands.
 ---
 
-The Commands service (`app/commands/`) is responsible for the CRUD (Create, Read, Update, Delete) operations of broadcaster-defined custom chat commands.
+The Commands service (`app/db/commands/`) is responsible for the CRUD (Create, Read, Update, Delete) operations of broadcaster-defined custom chat commands.
 
 ## Architecture
 
