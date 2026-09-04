@@ -159,6 +159,12 @@ type Report struct {
 type Set struct {
 	service string
 	checks  []Check
+	// live is the liveness gate: checks whose failure means the process
+	// itself is unrecoverable and the kubelet should replace it. Empty (the
+	// default, and every service but discord-ingress) leaves /healthz
+	// unconditionally ok, which is what a liveness probe should be -- see
+	// Live for the one shape that earns an exception.
+	live []Check
 }
 
 func NewSet(service string, checks ...Check) *Set {
@@ -175,6 +181,39 @@ func NewSet(service string, checks ...Check) *Set {
 // being built before any handler derived from it is mounted.
 func (s *Set) Add(checks ...Check) {
 	s.checks = append(s.checks, checks...)
+}
+
+// Live registers a liveness gate: a check whose failure makes /healthz fail
+// and so gets the pod restarted.
+//
+// This is deliberately rare. A dependency being unreachable is /readyz's
+// business; restarting a pod because NATS is down turns a partial outage
+// into a rolling one. It exists for the opposite case: process-local state
+// that is wedged and that only a restart clears -- discord-ingress's gateway
+// session, where a fatal close code means this process will never hold the
+// bot's one Identify session again no matter how long it waits, and a
+// heartbeat that stopped advancing means the loop that owns it is gone.
+//
+// Called during wiring, before any handler is mounted, like Add.
+func (s *Set) Live(checks ...Check) {
+	s.live = append(s.live, checks...)
+}
+
+// runLive reports the first failing liveness check, or nil. Sequential, not
+// concurrent like run: the gate is one or two process-local checks that read
+// a mutex-guarded struct, so the goroutines would cost more than the checks.
+func (s *Set) runLive(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, checkTimeout)
+	defer cancel()
+	for _, c := range s.live {
+		if c.Probe == nil {
+			continue
+		}
+		if err := c.Probe(ctx); err != nil {
+			return fmt.Errorf("%s: %w", c.Name, err)
+		}
+	}
+	return nil
 }
 
 // run executes every check concurrently and reports the aggregate. Concurrent
@@ -238,9 +277,15 @@ func (s *Set) Snapshot(ctx context.Context) Report { return s.run(ctx) }
 
 // Liveness answers /healthz: process liveness only. If this handler answers,
 // the container is alive and should not be restarted just because a dependency
-// is reconnecting — that is what /readyz is for.
+// is reconnecting — that is what /readyz is for. The one exception is a
+// liveness gate registered with Live, which reports process-local state that
+// only a restart clears.
 func (s *Set) Liveness() http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := s.runLive(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		fmt.Fprintln(w, "ok")
 	}
 }
