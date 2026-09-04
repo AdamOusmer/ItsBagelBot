@@ -77,6 +77,7 @@ func main() {
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
 	store := discordstore.New(valkeyClient)
 	liveStore := kv.New(valkeyClient)
+	reauth := kv.NewReauthStore(valkeyClient)
 
 	applicationID, err := bootstrap.Register(ctx, rest)
 	if err != nil {
@@ -94,7 +95,8 @@ func main() {
 
 	setupWorker := setup.New(setup.Config{Discord: rest, Store: store, Log: log.Named("setup")})
 	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
-		NC: nc, Prefix: cfg.RPCPrefix, Queue: cfg.RPCQueue, App: nrApp, Log: log.Named("rpc"),
+		NC: nc, Prefix: cfg.RPCPrefix, Queue: cfg.RPCQueue, App: nrApp,
+		Reauth: reauth, Log: log.Named("rpc"),
 	}); err != nil {
 		log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
@@ -104,7 +106,7 @@ func main() {
 		log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
 	}
 
-	handlers := &commands.Handlers{Rest: rest, ApplicationID: applicationID, Log: log.Named("commands")}
+	handlers := &commands.Handlers{Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log.Named("commands")}
 	consumer := &commands.Consumer{NATSURL: cfg.NATSURL, Log: log.Named("commands"), Handle: handlers.Dispatch}
 	closeCommands, err := consumer.Run(ctx)
 	if err != nil {

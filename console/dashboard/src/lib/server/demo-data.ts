@@ -383,7 +383,8 @@ export function demoDiscordLayout() {
     roles: [
       { id: '789012345678901234', name: 'Live', type: 0 },
       { id: '901234567890123456', name: 'Mods', type: 0 }
-    ]
+    ],
+    needsReauth: false
   };
 }
 

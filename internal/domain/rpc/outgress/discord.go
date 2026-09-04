@@ -50,7 +50,13 @@ type DiscordLayoutEntry struct {
 type DiscordLayoutReply struct {
 	Channels []DiscordLayoutEntry `json:"channels,omitempty"`
 	Roles    []DiscordLayoutEntry `json:"roles,omitempty"`
-	Error    string               `json:"error,omitempty"`
+	// NeedsReauth is true when this guild's bot role predates
+	// CHANGE_NICKNAME, so the premium per-guild rename is refused while the
+	// avatar still applies. Discord freezes a bot's permissions at install,
+	// so the only fix is the streamer re-authorizing; the dashboard shows
+	// the prompt, and it clears itself the first time a rename succeeds.
+	NeedsReauth bool   `json:"needs_reauth,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // DiscordUnbindRequest is bagel.rpc.outgress.discord.unbind: drop the

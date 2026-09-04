@@ -5,6 +5,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -14,18 +15,19 @@ import (
 )
 
 type fakeRest struct {
-	identities []discapi.CurrentMember
-	chats      []string
-	embeds     []discapi.EmbedPost
-	panels     []discapi.EmbedPost
-	edited     []discapi.Message
-	deleted    []discapi.Message
-	timeouts   []discapi.MemberTimeout
-	kicked     []discapi.GuildMember
-	banned     []discapi.GuildMember
-	roleAdds   []discapi.MemberRole
-	roleRems   []discapi.MemberRole
-	followups  []discapi.Followup
+	identities   []discapi.CurrentMember
+	identityErrs []error
+	chats        []string
+	embeds       []discapi.EmbedPost
+	panels       []discapi.EmbedPost
+	edited       []discapi.Message
+	deleted      []discapi.Message
+	timeouts     []discapi.MemberTimeout
+	kicked       []discapi.GuildMember
+	banned       []discapi.GuildMember
+	roleAdds     []discapi.MemberRole
+	roleRems     []discapi.MemberRole
+	followups    []discapi.Followup
 }
 
 func (f *fakeRest) SendChat(_ context.Context, post discapi.ChatPost) error {
@@ -66,6 +68,11 @@ func (f *fakeRest) AddMemberRole(_ context.Context, r discapi.MemberRole) error 
 }
 func (f *fakeRest) ModifyCurrentMember(_ context.Context, m discapi.CurrentMember) error {
 	f.identities = append(f.identities, m)
+	if len(f.identityErrs) > 0 {
+		err := f.identityErrs[0]
+		f.identityErrs = f.identityErrs[1:]
+		return err
+	}
 	return nil
 }
 func (f *fakeRest) RemoveMemberRole(_ context.Context, r discapi.MemberRole) error {
@@ -277,4 +284,82 @@ func mustMarshal(t *testing.T, v any) []byte {
 		t.Fatalf("marshal: %v", err)
 	}
 	return raw
+}
+
+type fakeReauth struct {
+	marked  []string
+	cleared []string
+}
+
+func (f *fakeReauth) MarkNeedsReauth(_ context.Context, g string) error {
+	f.marked = append(f.marked, g)
+	return nil
+}
+func (f *fakeReauth) ClearNeedsReauth(_ context.Context, g string) error {
+	f.cleared = append(f.cleared, g)
+	return nil
+}
+
+func premiumIdentityCommand(t *testing.T) ddiscord.Command {
+	t.Helper()
+	return ddiscord.Command{
+		Type: ddiscord.TypeSetGuildIdentity, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.IdentityPayload{Identity: ddiscord.GuildIdentity{Premium: true}}),
+	}
+}
+
+// A guild installed before CHANGE_NICKNAME refuses the whole call, avatar
+// included. Retrying without the nick still lands the premium avatar, and
+// the refusal is recorded so the dashboard can ask for a re-authorization.
+func TestSetGuildIdentityForbiddenFallsBackToAvatarOnly(t *testing.T) {
+	rest := &fakeRest{identityErrs: []error{discapi.ErrForbidden}}
+	reauth := &fakeReauth{}
+	h := &Handlers{Rest: rest, Reauth: reauth}
+	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if len(rest.identities) != 2 {
+		t.Fatalf("calls = %d, want 2 (nick+avatar, then avatar only)", len(rest.identities))
+	}
+	if rest.identities[1].Nick != nil {
+		t.Fatal("retry still carried a nick")
+	}
+	if rest.identities[1].AvatarDataURI == nil {
+		t.Fatal("retry dropped the avatar too, so the guild gets nothing")
+	}
+	if len(reauth.marked) != 1 || reauth.marked[0] != "g1" {
+		t.Fatalf("marked = %v, want [g1]", reauth.marked)
+	}
+}
+
+// A permission error must not nack: it will refuse identically forever, and
+// redelivering it just burns the shared per-token budget.
+func TestSetGuildIdentityForbiddenDoesNotRetryForever(t *testing.T) {
+	rest := &fakeRest{identityErrs: []error{discapi.ErrForbidden}}
+	h := &Handlers{Rest: rest, Reauth: &fakeReauth{}}
+	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err != nil {
+		t.Fatalf("a frozen permission was surfaced as a retryable error: %v", err)
+	}
+}
+
+// A success is the only proof the permission arrived, so it clears the flag.
+func TestSetGuildIdentitySuccessClearsReauth(t *testing.T) {
+	reauth := &fakeReauth{}
+	h := &Handlers{Rest: &fakeRest{}, Reauth: reauth}
+	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if len(reauth.cleared) != 1 {
+		t.Fatalf("cleared = %v, want one entry", reauth.cleared)
+	}
+}
+
+// A non-permission failure must still nack, or a transient Discord blip
+// would silently drop the identity change.
+func TestSetGuildIdentityOtherErrorStillFails(t *testing.T) {
+	rest := &fakeRest{identityErrs: []error{errors.New("boom")}}
+	h := &Handlers{Rest: rest, Reauth: &fakeReauth{}}
+	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err == nil {
+		t.Fatal("transient error was swallowed")
+	}
 }

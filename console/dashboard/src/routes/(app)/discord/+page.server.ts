@@ -36,7 +36,7 @@ function gate(session: Session | null | undefined): void {
 
 const ERROR_SLUGS = ['oauth', 'unconfigured', 'setup', 'state', 'bound'] as const;
 
-const NO_LAYOUT: DiscordLayout = { channels: [], roles: [] };
+const NO_LAYOUT: DiscordLayout = { channels: [], roles: [], needsReauth: false };
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);

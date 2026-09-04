@@ -78,3 +78,45 @@ func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID string) (di
 func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID string) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(liveKey(guildID)).Build()).Error()
 }
+
+// reauthKey marks a guild whose bot role predates CHANGE_NICKNAME.
+func reauthKey(guildID string) string { return "discord:reauth:" + guildID }
+
+// ReauthStore records guilds where the per-guild rename was refused, so the
+// dashboard can ask that streamer to re-authorize.
+//
+// This is learned from Discord's own 403 rather than computed from role
+// permissions. Computing it would mean fetching the guild's roles, the bot's
+// member roles, and folding the permission bits ourselves, and being subtly
+// wrong there means either nagging streamers who are fine or staying silent
+// for the ones who are not. The refusal is unambiguous and free: we already
+// made the call.
+type ReauthStore interface {
+	MarkNeedsReauth(ctx context.Context, guildID string) error
+	ClearNeedsReauth(ctx context.Context, guildID string) error
+	NeedsReauth(ctx context.Context, guildID string) bool
+}
+
+// NewReauthStore builds the Valkey-backed store.
+func NewReauthStore(client valkey.Client) ReauthStore { return valkeyReauth{client: client} }
+
+type valkeyReauth struct{ client valkey.Client }
+
+// MarkNeedsReauth records the refusal. No TTL: the missing permission is
+// frozen into the bot's role at install and does not lapse on its own, so an
+// expiring flag would just make the prompt blink in and out until someone
+// acts on it.
+func (s valkeyReauth) MarkNeedsReauth(ctx context.Context, guildID string) error {
+	return s.client.Do(ctx, s.client.B().Set().Key(reauthKey(guildID)).Value("1").Build()).Error()
+}
+
+// ClearNeedsReauth is called once a rename succeeds, which is the only proof
+// the permission actually arrived.
+func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID string) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(reauthKey(guildID)).Build()).Error()
+}
+
+func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID string) bool {
+	n, err := s.client.Do(ctx, s.client.B().Exists().Key(reauthKey(guildID)).Build()).AsInt64()
+	return err == nil && n > 0
+}

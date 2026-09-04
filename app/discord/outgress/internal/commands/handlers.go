@@ -5,6 +5,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"ItsBagelBot/app/discord/outgress/internal/identity"
@@ -38,7 +39,17 @@ type rest interface {
 type Handlers struct {
 	Rest          rest
 	ApplicationID string
-	Log           *zap.Logger
+	// Reauth records guilds whose bot role predates CHANGE_NICKNAME, so the
+	// dashboard can prompt that streamer to re-authorize. Nil disables the
+	// bookkeeping without changing what is sent to Discord.
+	Reauth reauthStore
+	Log    *zap.Logger
+}
+
+// reauthStore is the slice of kv.ReauthStore these handlers need.
+type reauthStore interface {
+	MarkNeedsReauth(ctx context.Context, guildID string) error
+	ClearNeedsReauth(ctx context.Context, guildID string) error
 }
 
 // Dispatch runs the REST call for one Command. Called by Consumer.Handle.
@@ -185,5 +196,51 @@ func (h *Handlers) setGuildIdentity(ctx context.Context, c ddiscord.Command) err
 		uri := identity.PremiumAvatarDataURI()
 		m.AvatarDataURI = &uri
 	}
+	err := h.Rest.ModifyCurrentMember(ctx, m)
+	if err == nil {
+		h.clearReauth(ctx, c.GuildID)
+		return nil
+	}
+	if m.Nick == nil || !errors.Is(err, discapi.ErrForbidden) {
+		return err
+	}
+	// Discord refuses the WHOLE call when the nick is present and
+	// CHANGE_NICKNAME is missing, avatar included. That permission is frozen
+	// into the bot's role at install, so a guild that predates it will refuse
+	// forever and retrying is pointless -- record it for the dashboard to
+	// prompt a re-authorization, then retry without the nick so the premium
+	// avatar still lands. Half the badge beats none of it.
+	h.markReauth(ctx, c.GuildID)
+	m.Nick = nil
 	return h.Rest.ModifyCurrentMember(ctx, m)
+}
+
+func (h *Handlers) markReauth(ctx context.Context, guildID string) {
+	h.log().Warn("discord rename refused; guild needs re-authorization for CHANGE_NICKNAME",
+		zap.String("guild_id", guildID))
+	if h.Reauth == nil {
+		return
+	}
+	if err := h.Reauth.MarkNeedsReauth(ctx, guildID); err != nil {
+		h.log().Warn("failed to record discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+	}
+}
+
+// clearReauth runs on every success, not just after a previous failure: a
+// successful rename is the only proof the permission actually arrived, and
+// the streamer who re-authorizes gets no other signal we could watch for.
+func (h *Handlers) clearReauth(ctx context.Context, guildID string) {
+	if h.Reauth == nil {
+		return
+	}
+	if err := h.Reauth.ClearNeedsReauth(ctx, guildID); err != nil {
+		h.log().Warn("failed to clear discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+	}
+}
+
+func (h *Handlers) log() *zap.Logger {
+	if h.Log != nil {
+		return h.Log
+	}
+	return zap.NewNop()
 }

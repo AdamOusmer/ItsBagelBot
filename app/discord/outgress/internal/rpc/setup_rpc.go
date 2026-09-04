@@ -42,6 +42,10 @@ type SetupWiring struct {
 	Prefix string
 	Queue  string
 	App    *newrelic.Application
+	// Reauth reports guilds whose bot role predates CHANGE_NICKNAME so the
+	// dashboard can prompt a re-authorization. Optional; nil simply never
+	// raises the prompt.
+	Reauth reauthReader
 	Log    *zap.Logger
 }
 
@@ -55,7 +59,7 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 	if w == nil {
 		return nil
 	}
-	d := &discordRPC{w: w, log: wire.Log}
+	d := &discordRPC{w: w, reauth: wire.Reauth, log: wire.Log}
 	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
 		wire.NC, wire.Prefix+".discord.setup", wire.Queue, setupHandleTimeout, wire.App, wire.Log, d.handleSetup); err != nil {
 		return err
@@ -73,8 +77,17 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 }
 
 type discordRPC struct {
-	w   *setup.Worker
-	log *zap.Logger
+	w      *setup.Worker
+	reauth reauthReader
+	log    *zap.Logger
+}
+
+// reauthReader is the read slice of kv.ReauthStore. Only the read half is
+// taken: this RPC reports the flag, outgress's command handlers are what set
+// and clear it (a rename either being refused or succeeding is the only
+// evidence either way).
+type reauthReader interface {
+	NeedsReauth(ctx context.Context, guildID string) bool
 }
 
 func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSetupRequest) outgressrpc.DiscordSetupReply {
@@ -111,8 +124,9 @@ func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLa
 		return outgressrpc.DiscordLayoutReply{Error: err.Error()}
 	}
 	return outgressrpc.DiscordLayoutReply{
-		Channels: layoutEntries(layout.Channels),
-		Roles:    layoutEntries(layout.Roles),
+		Channels:    layoutEntries(layout.Channels),
+		Roles:       layoutEntries(layout.Roles),
+		NeedsReauth: d.needsReauth(ctx, req.GuildID),
 	}
 }
 
@@ -142,4 +156,15 @@ func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPost
 		return outgressrpc.DiscordPostReply{Error: err.Error()}
 	}
 	return outgressrpc.DiscordPostReply{}
+}
+
+// needsReauth reports whether this guild refused the premium rename. Nil
+// store means the bookkeeping is not wired (tests), which reads as "no
+// prompt" rather than as an error: a missing flag must never block the
+// layout the dashboard actually asked for.
+func (d *discordRPC) needsReauth(ctx context.Context, guildID string) bool {
+	if d.reauth == nil {
+		return false
+	}
+	return d.reauth.NeedsReauth(ctx, guildID)
 }

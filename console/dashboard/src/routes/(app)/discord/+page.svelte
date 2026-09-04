@@ -133,6 +133,23 @@
     <AlertBanner variant="warn" icon="server">{t('discord.connectedLivedIn')}</AlertBanner>
   {/if}
 
+  <!--
+    Shown only when Discord actually refused the premium rename in this
+    guild. Discord freezes a bot's permissions into its role at install, so a
+    server that added Bagel before the bot asked for Change Nickname keeps the
+    old grant forever: the premium avatar applies, the name does not, and
+    nothing self-heals until the streamer re-authorizes. The prompt therefore
+    appears exactly where it is actionable and nowhere else.
+  -->
+  {#if data.layout?.needsReauth}
+    <AlertBanner variant="warn" icon="server">{t('discord.reauthNeeded')}</AlertBanner>
+    <div class="row">
+      <ButtonLink variant="secondary" href="/discord/connect" data-sveltekit-reload>
+        {t('discord.reauthCta')}
+      </ButtonLink>
+    </div>
+  {/if}
+
   <div class="toolbar">
     <MasterToggle
       action="?/toggle"

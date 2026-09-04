@@ -223,16 +223,28 @@ spec:
             - name: DISCORD_BOT_TOKEN
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_BOT_TOKEN}
-            # BUS-account credentials for discord_ingress_bus (see
-            # deploy/messaging/nats-auth.conf). No NATS_RPC_USER/PASSWORD:
-            # ingress makes no RPC connection, and pkg/bus falls back to
-            # these for RPC only if one is ever opened by mistake.
+            # BUS-account credentials for discord_ingress_bus, and RPC-account
+            # credentials for discord_ingress_rpc (see
+            # deploy/messaging/nats-auth.conf).
+            #
+            # Ingress DOES open an RPC connection, for exactly one call: the
+            # users counts.get behind the "Watching N streams" presence. Only
+            # the RPC account imports that subject, and pkg/bus falls back to
+            # the BUS credentials when no RPC pair is set -- so omitting these
+            # does not fail loudly, it just authenticates as an identity that
+            # cannot see the subject, and the status silently never appears.
             - name: NATS_USER
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_USER}
             - name: NATS_PASSWORD
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_PASSWORD}
+            - name: NATS_RPC_USER
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_RPC_USER}
+            - name: NATS_RPC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_RPC_PASSWORD}
           volumeMounts:
             - {name: health-tls, mountPath: /etc/discord-ingress/tls, readOnly: true}
             - name: nats-client-tls

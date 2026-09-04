@@ -443,6 +443,8 @@ export type KnownMessageKey =
   | 'discord.pickersTitle'
   | 'discord.postsHelp'
   | 'discord.postsTitle'
+  | 'discord.reauthCta'
+  | 'discord.reauthNeeded'
   | 'discord.save'
   | 'discord.setupCta'
   | 'discord.streamerIdHelp'

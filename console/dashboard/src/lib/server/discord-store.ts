@@ -52,7 +52,12 @@ export type DiscordView = {
 
 export type DiscordEntry = { id: string; name: string; type: number };
 
-export type DiscordLayout = { channels: DiscordEntry[]; roles: DiscordEntry[] };
+// needsReauth is true when this guild's bot role predates CHANGE_NICKNAME,
+// so the premium per-guild rename is refused while the avatar still applies.
+// Discord freezes a bot's permissions at install, so the only fix is the
+// streamer re-authorizing; outgress learns it from Discord's own 403 and
+// clears it the first time a rename succeeds.
+export type DiscordLayout = { channels: DiscordEntry[]; roles: DiscordEntry[]; needsReauth: boolean };
 
 const EMPTY: DiscordConfig = {
   guildId: '',
@@ -194,6 +199,7 @@ const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
 type LayoutReply = {
   channels?: { id: string; name: string; type?: number }[];
   roles?: { id: string; name: string; type?: number }[];
+  needs_reauth?: boolean;
   error?: string;
 };
 
@@ -209,7 +215,7 @@ export async function guildLayout(target: DiscordGuildTarget): Promise<DiscordLa
     LAYOUT_TIMEOUT_MS
   );
   if (r.error) throw new Error(r.error);
-  return { channels: entries(r.channels), roles: entries(r.roles) };
+  return { channels: entries(r.channels), roles: entries(r.roles), needsReauth: r.needs_reauth === true };
 }
 
 // unbindGuild drops the guild→Twitch reverse index on disconnect so outgress
