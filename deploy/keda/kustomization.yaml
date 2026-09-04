@@ -27,14 +27,28 @@ patches:
       - op: add
         path: /spec/template/spec/priorityClassName
         value: bagel-operator
-  # Two replicas each, spread one per node. The operator is leader-elected
-  # (--leader-elect in the upstream manifest), so the second replica is a warm
-  # standby rather than a second writer; the adapter and the webhook are
+  # The adapter and the webhook run two replicas, spread one per node: both are
   # stateless and both sit in a synchronous apiserver path, where a single
   # replica turns a node drain into failing HPA reads and rejected ScaledObject
   # writes. maxSkew 1 over hostname with ScheduleAnyway spreads them across the
   # three workers without making a two-node cluster unschedulable.
-  - target: {kind: Deployment, namespace: keda}
+  #
+  # The OPERATOR stays at one. Upstream allows a leader-elected standby ("only
+  # one operator instance will be active... may reduce downtime during a
+  # failure"), but the standby still answers the metrics adapter's gRPC on
+  # :9666 through the keda-operator Service without a populated scaler cache.
+  # Measured here on 2026-09-03 with two replicas: external metric reads timed
+  # out roughly half the time and the HPA reported FailedGetExternalMetric; at
+  # one replica the same read succeeded 6/6 with ScalingActive=ValidMetricFound.
+  # A standby that breaks scaling while the leader is healthy is worse than no
+  # standby: the operator is not in a request path, and a lost pod costs one
+  # reschedule of a control loop that polls every 15s.
+  - target: {kind: Deployment, name: keda-metrics-apiserver, namespace: keda}
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target: {kind: Deployment, name: keda-admission, namespace: keda}
     patch: |
       - op: replace
         path: /spec/replicas
