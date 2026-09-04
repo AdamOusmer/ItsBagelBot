@@ -36,7 +36,7 @@ spec:
         # not in the path and does not re-encrypt it.
         # Cluster listener/routes and TLS blocks cannot be introduced by a config
         # reload; bump this to force a rolling restart when the topology changes.
-        itsbagelbot.dev/config-revision: "leaf-hostnet-v3-port-split"
+        itsbagelbot.dev/config-revision: "leaf-rpc-pool-off-v1-nats-2146"
         prometheus.io/path: /metrics
         prometheus.io/port: "7778"
         prometheus.io/scrape: "true"
@@ -120,7 +120,7 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
+          image: nats:2.14.6-alpine@sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           command: ["/bin/sh", "-c"]

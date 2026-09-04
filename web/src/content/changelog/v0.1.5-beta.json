@@ -1,0 +1,26 @@
+{
+  "tag": "beta",
+  "version": "v0.1.5-beta",
+  "date": "2026-09-04",
+  "title": {
+    "en": "The Discord companion, a real status page, and beta perks for premium",
+    "fr": "Le compagnon Discord, une vraie page d'état, et les avantages beta pour les premium"
+  },
+  "highlights": {
+    "en": [
+      "BagelBot comes to Discord. One bot replaces the whole community stack: a full server template with real roles, grants and tiers, ticket, voice and rank panels with buttons, link protection, and go-live posts that follow your stream.",
+      "Your Discord server, run from the dashboard. Discord gets its own section, the bot takes your identity on premium servers, and it shows how many streams it is watching right in its presence.",
+      "A status page that says something. Six verticals instead of a wall of services, each one judged by the service that actually terminates it, so a degraded piece reads as degraded rather than down.",
+      "Beta features are a premium perk. Early access is listed on pricing, and modules still in beta, AutoMod and the Discord companion among them, stay with premium channels until they ship.",
+      "Song requests, the MCSR board and the dashboard, tightened. Spotify handles rate limits and the deprecated top-tracks route, the ranked board counts draws so the maths adds up, and dashboard data ownership got a security pass."
+    ],
+    "fr": [
+      "BagelBot arrive sur Discord. Un seul bot remplace toute la pile communautaire : un modèle de serveur complet avec de vrais rôles, droits et paliers, des panneaux tickets, vocaux et rangs avec boutons, une protection des liens, et des annonces de live qui suivent votre stream.",
+      "Votre serveur Discord, piloté depuis le tableau de bord. Discord a sa propre section, le bot prend votre identité sur les serveurs premium, et il affiche le nombre de streams qu'il surveille directement dans sa présence.",
+      "Une page d'état qui dit vraiment quelque chose. Six pôles au lieu d'un mur de services, chacun jugé par le service qui le termine réellement, pour qu'un élément dégradé s'affiche comme dégradé et non comme hors service.",
+      "Les nouveautés en beta deviennent un avantage premium. L'accès anticipé figure sur la page des tarifs, et les modules encore en beta, dont AutoMod et le compagnon Discord, restent réservés aux chaînes premium jusqu'à leur sortie.",
+      "Demandes musicales, classement MCSR et tableau de bord, resserrés. Spotify gère les limites de débit et la route top-tracks dépréciée, le classement compte les matchs nuls pour que les totaux tombent juste, et la propriété des données du tableau de bord a reçu une passe de sécurité."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.5-beta"
+}

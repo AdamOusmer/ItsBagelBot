@@ -85,10 +85,9 @@
 # these three Go binaries (grepped pkg/ and app/discord/), so no container
 # below wires them -- nothing to break by leaving them unreferenced.
 #
-# Image: replace with the real tag@digest from the first publish-images run
-# at rollout time, same as every other service -- no Flux in this cluster
-# (removed 2026-08-18); deploys are hand-pinned image tags applied with
-# kubectl (see deploy/README or the zero-downtime-deploy skill).
+# Images are hand-pinned tag@digest, same as every other service -- no Flux in
+# this cluster (removed 2026-08-18); deploys are hand-pinned image tags applied
+# with kubectl (see deploy/README or the zero-downtime-deploy skill).
 
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -161,7 +160,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-ingress
-          image: ghcr.io/adamousmer/itsbagelbot/discord-ingress:main
+          image: ghcr.io/adamousmer/itsbagelbot/discord-ingress:main-1788522822-f1c3dba6e74d@sha256:73c789ab456806504362c9ac73cfbf64467804f985feba6efa3de6c94b48f925
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
@@ -380,7 +379,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-engine
-          image: ghcr.io/adamousmer/itsbagelbot/discord-engine:main
+          image: ghcr.io/adamousmer/itsbagelbot/discord-engine:main-1788522822-f1c3dba6e74d@sha256:b2c82367f2590ef26b30a3fe1136d132a852427a2977609b004b1febf639d105
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
@@ -592,7 +591,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-outgress
-          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:main
+          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:main-1788522822-f1c3dba6e74d@sha256:0c0de36207ff473e338a5a43c1203ad4cfa2f8a6bd44a30519c2de3d4599fb52
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
