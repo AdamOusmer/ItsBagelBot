@@ -304,7 +304,7 @@ func TestOptInCommandGatedByModule(t *testing.T) {
 
 	// ModuleView enables it: the command now runs.
 	pub2 := &fakePublisher{}
-	p2 := newPipelineWith(pub2, fakeReader{modules: []projection.ModuleView{{Name: "extra", IsEnabled: true}}}, extra)
+	p2 := newPipelineWith(pub2, fakeReader{modules: projection.ModuleMap([]projection.ModuleView{{Name: "extra", IsEnabled: true}})}, extra)
 	require.NoError(t, p2.Process(chatMsg(t, "standard", "!hi")))
 	require.Len(t, pub2.got, 1)
 	assert.Equal(t, "yo", chatMessageText(t, pub2.got[0].msg))
@@ -321,7 +321,7 @@ func TestDefaultCommandGatedByModule(t *testing.T) {
 
 	// Row disables it: the command must not run.
 	pub2 := &fakePublisher{}
-	p2 := newPipelineWith(pub2, fakeReader{modules: []projection.ModuleView{{Name: "greet", IsEnabled: false}}}, extra)
+	p2 := newPipelineWith(pub2, fakeReader{modules: projection.ModuleMap([]projection.ModuleView{{Name: "greet", IsEnabled: false}})}, extra)
 	require.NoError(t, p2.Process(chatMsg(t, "standard", "!hey")))
 	assert.Empty(t, pub2.got)
 }

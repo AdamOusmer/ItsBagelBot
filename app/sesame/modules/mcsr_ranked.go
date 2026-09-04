@@ -57,7 +57,7 @@ func mcsrSeasonCommands(d engine.Deps) []mcsrCommandReg {
 }
 
 // mcsrEloTokens resolves !elo's template tokens: {player} {elo} {rank}
-// {wins} {losses} {matches} {country}.
+// {wins} {losses} {draws} {matches} {country}.
 func mcsrEloTokens(c *module.Context, reply gossiprpc.McsrUserReply) func(string) (string, bool) {
 	tokens := mcsrMergeTokens(
 		mcsrPlayerEloTokens(c, reply.Nickname, reply.Elo),
@@ -72,7 +72,7 @@ func mcsrEloTokens(c *module.Context, reply gossiprpc.McsrUserReply) func(string
 
 // mcsrSessionRun answers !session with the delta since the stream-start
 // snapshot. Template tokens: {player} {elo} {elochange} {wins} {losses}
-// {matches}. Without a baseline (module enabled mid-stream) gossip starts
+// {draws} {matches}. Without a baseline (module enabled mid-stream) gossip starts
 // tracking now and the reply says so instead of faking a zero delta.
 //
 // !session is always the linked account, never a typed argument: the
@@ -92,7 +92,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 			if !reply.HasSnapshot {
 				return reply.Nickname + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.session.started"), mcsrElo(c, reply.Elo))
 			}
-			tmpl := orDefault(cfg.SessionMessage, defaultMcsrSessionTemplate)
+			tmpl := mcsrSessionTemplate(cfg.SessionMessage)
 			return module.ExpandString(tmpl, mcsrSessionTokens(c, reply))
 		},
 	}
@@ -101,8 +101,20 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 	}
 }
 
+// mcsrSessionTemplate picks the template !session renders with: the stored
+// message, the current default when nothing is stored, and the current default
+// again when the stored message is byte-identical to the pre-{draws} default
+// (see legacyMcsrSessionTemplate for why that case exists and why an edited
+// template is never touched).
+func mcsrSessionTemplate(stored string) string {
+	if strings.TrimSpace(stored) == legacyMcsrSessionTemplate {
+		return defaultMcsrSessionTemplate
+	}
+	return orDefault(stored, defaultMcsrSessionTemplate)
+}
+
 // mcsrSessionTokens resolves !session's template tokens: {player} {elo}
-// {elochange} {wins} {losses} {matches}.
+// {elochange} {wins} {losses} {draws} {matches}.
 func mcsrSessionTokens(c *module.Context, reply gossiprpc.McsrSessionReply) func(string) (string, bool) {
 	tokens := mcsrMergeTokens(
 		mcsrPlayerEloTokens(c, reply.Nickname, reply.Elo),

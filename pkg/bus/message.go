@@ -56,7 +56,21 @@ type Message struct {
 	// receivedAt is set at the native subscriber boundary. It lets the consumer
 	// transaction distinguish delivery/admission wait from handler execution.
 	receivedAt time.Time
+	// storedAt is the broker's store time for a JetStream delivery, parsed
+	// from the $JS.ACK reply subject; zero for anything else. See StoredAt.
+	storedAt time.Time
 }
+
+// StoredAt is when the broker stored this message, taken from the JetStream
+// ack reply subject, or the zero time for a delivery that carries none. It
+// splits end-to-end latency at the stream: publisher side (produced ->
+// stored) against consumer side (stored -> received). That split is what
+// located the latency wall on the production hub on 2026-09-03: at 120k
+// msg/s offered the e2e p50 was 370 ms and climbing, of which stored ->
+// received was 10 ms; every remaining millisecond was the publisher queueing
+// behind the stream leader's serialized ingest+apply path, not the pull
+// consumer. From the client the two sides are otherwise indistinguishable.
+func (m *Message) StoredAt() time.Time { return m.storedAt }
 
 type messageState uint8
 
@@ -64,6 +78,7 @@ type messageData struct {
 	id       string
 	payload  []byte
 	metadata Metadata
+	storedAt time.Time
 }
 
 const (
@@ -84,6 +99,7 @@ func newMessage(data messageData) *Message {
 	return &Message{
 		UUID: data.id, Metadata: data.metadata, Payload: data.payload,
 		receivedAt: time.Now(),
+		storedAt:   data.storedAt,
 	}
 }
 

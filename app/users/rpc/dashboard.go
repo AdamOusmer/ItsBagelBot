@@ -397,10 +397,14 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	defer cancel()
 
 	log := monitor.TxnLogger(ctx, d.log)
-	if err := d.repo.DeleteDelegationsByOwner(ctx, id); err != nil {
+	delegateIDs, err := d.repo.DeleteDelegationsByOwner(ctx, id)
+	if err != nil {
 		log.Error("delete_self delegations", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
+	}
+	for _, delID := range delegateIDs {
+		d.publishInvalidate("delegation", fmt.Sprint(delID), "delete_self")
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
 		log.Error("delete_self user", zap.Error(err))

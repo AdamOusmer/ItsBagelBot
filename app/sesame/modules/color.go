@@ -73,16 +73,40 @@ func parseHex6(hex string) (int, bool) {
 
 // parseHex3 reads the "rgb" short form, doubling each nibble into a full byte
 // ("f80" -> "ff8800"), matching CSS.
+//
+// The nibble is decoded with ASCII arithmetic instead of
+// strconv.ParseInt(string(r), 16, 16): converting each character back into a
+// string to parse a single digit heap-allocated three strings per redemption,
+// which is the whole cost of this function. hexNibble rejects exactly what
+// ParseInt rejected here — ParseInt with an explicit base takes no sign, no
+// "0x" and no digit separators, so [0-9a-fA-F] is the complete accepted set.
+// Iterating bytes rather than runes is equally safe: a hex digit is always one
+// byte, so a three-byte multi-byte input still fails on its first continuation
+// byte, as it did when ParseInt was handed the whole rune.
 func parseHex3(hex string) (int, bool) {
 	var v int
-	for _, r := range hex {
-		d, err := strconv.ParseInt(string(r), 16, 16)
-		if err != nil {
+	for i := 0; i < len(hex); i++ {
+		d, ok := hexNibble(hex[i])
+		if !ok {
 			return 0, false
 		}
-		v = v<<8 | int(d)<<4 | int(d)
+		v = v<<8 | d<<4 | d
 	}
 	return v, true
+}
+
+// hexNibble maps one ASCII hex digit to its 0-15 value. ok is false for every
+// other byte.
+func hexNibble(c byte) (int, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0'), true
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10, true
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10, true
+	}
+	return 0, false
 }
 
 // colorNames returns the named colours a viewer may type, for the reward prompt

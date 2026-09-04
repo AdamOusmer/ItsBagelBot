@@ -42,7 +42,7 @@ func configPipeline(pub *fakePublisher, reader projection.Reader) *Pipeline {
 // hosting it risks the channel and the bot account platform-wide. Everything
 // non-floor (here, a caps heuristic) goes quiet.
 func TestAutomodModuleDisabledKeepsFloorOnly(t *testing.T) {
-	reader := fakeReader{modules: []projection.ModuleView{{Name: "automod", IsEnabled: false}}}
+	reader := fakeReader{modules: projection.ModuleMap([]projection.ModuleView{{Name: "automod", IsEnabled: false}})}
 
 	// Floor line still actions.
 	pub := &fakePublisher{}
@@ -72,9 +72,9 @@ func TestAutomodModuleAbsentRowActs(t *testing.T) {
 
 // An enabled automod row with a config blob runs the gate under it.
 func TestAutomodModuleEnabledRowActs(t *testing.T) {
-	reader := fakeReader{modules: []projection.ModuleView{
+	reader := fakeReader{modules: projection.ModuleMap([]projection.ModuleView{
 		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"moderate"}`)},
-	}}
+	})}
 	pub := &fakePublisher{}
 	p := configPipeline(pub, reader)
 
@@ -87,9 +87,9 @@ func TestAutomodModuleEnabledRowActs(t *testing.T) {
 // acts (immovable) while a caps-only line passes; both behaviors flow from the
 // same fetched row.
 func TestAutomodModuleProfileReachesGate(t *testing.T) {
-	reader := fakeReader{modules: []projection.ModuleView{
+	reader := fakeReader{modules: projection.ModuleMap([]projection.ModuleView{
 		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"adult"}`)},
-	}}
+	})}
 
 	// Caps-only shouting: adult profile drops the nag, nothing emitted.
 	pub := &fakePublisher{}
@@ -127,6 +127,54 @@ func TestAutomodConfigFrom(t *testing.T) {
 	assert.False(t, automodConfigFrom(enabled, false).Disabled)
 }
 
+// automodRow builds one legacy automod ModuleView: enabled, and Revision 0 —
+// the "Omitted (0) for legacy rows" case that makes revision unusable as a
+// cache key.
+func automodRow(configs string) map[string]projection.ModuleView {
+	return map[string]projection.ModuleView{"automod": {
+		Name: "automod", IsEnabled: true, Configs: codec.RawMessage(configs),
+	}}
+}
+
+// TestAutomodConfigFromDistinctBlobsSameRevision is the cache's correctness
+// guard at the call site. Both rows are Revision 0, so a revision-keyed cache
+// would serve the first channel's parse to the second and enforce one
+// channel's automod level on another's chat. The content key keeps them apart.
+func TestAutomodConfigFromDistinctBlobsSameRevision(t *testing.T) {
+	strict := automodConfigFrom(automodRow(`{"level":"strict"}`), false)
+	none := automodConfigFrom(automodRow(`{"level":"none"}`), false)
+	require.NotNil(t, strict)
+	require.NotNil(t, none)
+	assert.Equal(t, automod.LevelStrict, strict.Level)
+	assert.Equal(t, automod.LevelNone, none.Level)
+
+	// Re-read in the opposite order: each row still answers with its own parse.
+	assert.Equal(t, automod.LevelNone, automodConfigFrom(automodRow(`{"level":"none"}`), false).Level)
+	assert.Equal(t, automod.LevelStrict, automodConfigFrom(automodRow(`{"level":"strict"}`), false).Level)
+}
+
+// TestAutomodConfigFromLockDoesNotPoisonCache pins the immutability rule: the
+// locked/disabled path returns a COPY with Disabled set. An in-place write
+// would flip the shared cached parse, so every other channel on the same blob
+// would silently drop to floor-only.
+func TestAutomodConfigFromLockDoesNotPoisonCache(t *testing.T) {
+	const blob = `{"level":"strict","block_terms":"poison"}`
+
+	locked := automodConfigFrom(automodRow(blob), true)
+	require.NotNil(t, locked)
+	assert.True(t, locked.Disabled)
+
+	open := automodConfigFrom(automodRow(blob), false)
+	require.NotNil(t, open)
+	assert.False(t, open.Disabled, "the lock must not have written through to the cached config")
+	assert.Equal(t, automod.LevelStrict, open.Level)
+
+	// Same for the disabled-row path, which takes the same copy.
+	off := map[string]projection.ModuleView{"automod": {Name: "automod", IsEnabled: false, Configs: codec.RawMessage(blob)}}
+	assert.True(t, automodConfigFrom(off, false).Disabled)
+	assert.False(t, automodConfigFrom(automodRow(blob), false).Disabled)
+}
+
 func betaAutomodModule() module.Module {
 	m := module.NewModule("automod", module.KindDefault).Beta()
 	m.On(chatType, func(context.Context, *module.Context, module.Emit) error { return nil })
@@ -146,9 +194,9 @@ func betaConfigPipeline(pub *fakePublisher, reader projection.Reader) *Pipeline 
 // enabled row (the beta lock reads as the module switched off), while the
 // premium lane gets the full configured gate. The floor holds on both.
 func TestAutomodBetaLocksStandardLane(t *testing.T) {
-	reader := fakeReader{modules: []projection.ModuleView{
+	reader := fakeReader{modules: projection.ModuleMap([]projection.ModuleView{
 		{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"profile":"moderate"}`)},
-	}}
+	})}
 
 	pub := &fakePublisher{}
 	p := betaConfigPipeline(pub, reader)

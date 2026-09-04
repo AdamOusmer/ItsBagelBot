@@ -338,3 +338,29 @@ func (c failClient) DoMulti(ctx context.Context, cmds ...valkey.Completed) []val
 	}
 	return c.Client.DoMulti(ctx, cmds...)
 }
+
+// TestValkeyRecentSweepKeepsOneHitPerSenderInOrder pins the two properties the
+// uidSet dedup has to preserve. One hit per sender: a copypasta wave is one
+// spammer on many retained lines, and !nuke must time them out once. Order
+// preserved: hits is still the storage precisely because a map has none, and
+// the sweep answers in the order members came off the ZSET walk.
+func TestValkeyRecentSweepKeepsOneHitPerSenderInOrder(t *testing.T) {
+	v, _, server := newRecentStoreUnderTest(t)
+	server.scriptMembers([]string{
+		"111:0:free nitro, first",
+		"222:0:free nitro too",
+		"111:0:free nitro, again",
+		"333:0:free nitro three",
+		"222:0:free nitro once more",
+		"111:0:free nitro, still",
+	})
+
+	hits := v.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
+
+	require.Len(t, hits, 3)
+	got := make([]channelID, len(hits))
+	for i := range hits {
+		got[i] = hits[i].UserID
+	}
+	assert.Equal(t, []channelID{111, 222, 333}, got)
+}

@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+#
+# One budget per component. Without these a drain can take both replicas of a
+# synchronous apiserver dependency at once: while the metrics adapter is gone
+# every HPA reading external metrics fails, and while the webhook is gone every
+# ScaledObject create or update is rejected. maxUnavailable 1 against 2
+# replicas keeps a drain moving one pod at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keda-operator
+  namespace: keda
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: keda-operator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keda-metrics-apiserver
+  namespace: keda
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: keda-metrics-apiserver
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keda-admission-webhooks
+  namespace: keda
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: keda-admission-webhooks

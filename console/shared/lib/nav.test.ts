@@ -2,7 +2,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { DASHBOARD_SECTIONS, GRANTABLE_SECTIONS, dashboardNavGroups, dashboardNavItems, moduleSectionLinks, sectionForPath } from './nav';
+import {
+  DASHBOARD_SECTIONS,
+  GRANTABLE_SECTIONS,
+  dashboardNavGroups,
+  dashboardNavItems,
+  moduleSectionLinks,
+  sectionForPath,
+  delegateAllowedPaths,
+  pathnameAllowed,
+  moduleSubpathAllowed
+} from './nav';
 import { MODULE_CATALOG } from './types';
 import { MODULE_CATEGORY_ORDER } from './module-index';
 
@@ -100,5 +110,76 @@ describe('nav registry', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
     expect(groups[0].items).toHaveLength(6);
+  });
+});
+
+// Table-driven on purpose: each of these three functions is a pure
+// sections -> verdict map, so the cases ARE the specification. Written out one
+// assertion per line they were near-identical blocks that a reader has to diff
+// by eye to spot the one differing id.
+describe('delegateAllowedPaths', () => {
+  // A grant that opens an exact, closed set of paths.
+  test.each([
+    [[], []],
+    [['invalid_sec', 'admin'], []],
+    [['billing'], ['/billing']]
+  ] as [string[], string[]][])('%o opens exactly %o', (sections, paths) => {
+    expect(delegateAllowedPaths(sections)).toEqual(paths);
+  });
+
+  // A grant that also pulls in every module page scoped to it.
+  test.each([
+    ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints']],
+    ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list']],
+    ['modules', ['/modules', '/counters', '/loyalty', '/quotes', '/timers'], ['/billing', '/settings']]
+  ] as [string, string[], string[]][])('the %s grant opens its own pages and no others', (section, open, shut) => {
+    const allowed = delegateAllowedPaths([section]);
+    for (const path of open) expect(allowed).toContain(path);
+    for (const path of shut) expect(allowed).not.toContain(path);
+  });
+});
+
+describe('pathnameAllowed', () => {
+  test('owner-only paths stay denied even to a delegate holding every grant', () => {
+    const sections = ['commands', 'modules', 'channelpoints', 'billing'];
+    const allowed = delegateAllowedPaths(sections);
+    for (const path of ['/', '/settings', '/settings/import', '/substate', '/overview/stream', '/events']) {
+      expect(pathnameAllowed(path, allowed, sections)).toBe(false);
+    }
+  });
+
+  test.each([
+    ['/commands', true],
+    ['/counters/list', true],
+    ['/billing', false]
+  ] as [string, boolean][])('a commands delegate on %s -> %p', (path, want) => {
+    expect(pathnameAllowed(path, delegateAllowedPaths(['commands']), ['commands'])).toBe(want);
+  });
+
+  // The '/modules' prefix covers every catalog module's generic page, so a
+  // module with its own narrower delegateSections must be rechecked by id
+  // rather than admitted on the bare 'modules' grant.
+  test.each([
+    [['modules'], '/modules', true],
+    [['modules'], '/modules/quotes', true],
+    [['modules'], '/modules/channelpoints', false],
+    [['modules', 'channelpoints'], '/modules/channelpoints', true]
+  ] as [string[], string, boolean][])('%o on %s -> %p', (sections, path, want) => {
+    expect(pathnameAllowed(path, delegateAllowedPaths(sections), sections)).toBe(want);
+  });
+});
+
+describe('moduleSubpathAllowed', () => {
+  test.each([
+    ['channelpoints', 'modules', false],
+    ['channelpoints', 'channelpoints', true],
+    ['quotes', 'commands', true],
+    ['quotes', 'modules', true],
+    ['quotes', 'billing', false],
+    ['timers', 'commands', true],
+    ['timers', 'modules', true],
+    ['timers', 'billing', false]
+  ] as [string, string, boolean][])('module %s under a %s grant -> %p', (id, section, want) => {
+    expect(moduleSubpathAllowed(id, [section])).toBe(want);
   });
 });

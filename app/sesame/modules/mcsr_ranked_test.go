@@ -45,6 +45,39 @@ func TestMcsrEloUnrated(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "#—")
 }
 
+// TestMcsrSessionDrawsFillTheGap pins the derived {draws} token: MCSR counts
+// matches that ended with no winner in playedMatches but in neither wins nor
+// loses, so 3W 4L in 8 matches is upstream-correct and needs the 1D to read
+// that way. See mcsrWinLossTokens for the measurement.
+func TestMcsrSessionDrawsFillTheGap(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session": gossiprpc.McsrSessionReply{
+			Nickname: "LawnMobius", Elo: 1568, EloChange: -13, Wins: 3, Loses: 4, Played: 8, HasSnapshot: true,
+		},
+	}}
+	col := runMcsrCmd(t, gw, mcsrCmdCall{"session", `{"account":"LawnMobius"}`, ""})
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "LawnMobius this stream: -13 elo (1568 now) · 3W 4L 1D in 8 matches", col.out[0].Text)
+}
+
+// TestMcsrSessionDrawsNeverNegative covers a season rollover under a live
+// snapshot: the live counters reset below the baseline, so the subtraction
+// would go negative and render "-2D".
+func TestMcsrSessionDrawsNeverNegative(t *testing.T) {
+	assert.Equal(t, "0", mcsrWinLossTokens(3, 1, 2)["draws"])
+}
+
+// TestMcsrSessionTemplateUpgrade covers the three stored shapes: blank falls
+// through to the current default, a config holding the pre-{draws} default
+// verbatim is upgraded to it, and an edited template — even one byte off — is
+// served exactly as written.
+func TestMcsrSessionTemplateUpgrade(t *testing.T) {
+	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(""))
+	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(legacyMcsrSessionTemplate))
+	assert.Equal(t, "{wins}-{losses}", mcsrSessionTemplate("{wins}-{losses}"))
+	assert.Equal(t, legacyMcsrSessionTemplate+"!", mcsrSessionTemplate(legacyMcsrSessionTemplate+"!"))
+}
+
 func TestMcsrSessionWithSnapshot(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.session": gossiprpc.McsrSessionReply{
@@ -53,7 +86,7 @@ func TestMcsrSessionWithSnapshot(t *testing.T) {
 	}}
 	col := runMcsrCmd(t, gw, mcsrCmdCall{"session", `{"account":"Feinberg"}`, ""})
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Feinberg this stream: +24 elo (1660 now) · 3W 1L in 4 matches", col.out[0].Text)
+	assert.Equal(t, "Feinberg this stream: +24 elo (1660 now) · 3W 1L 0D in 4 matches", col.out[0].Text)
 
 	// The session request is scoped to this channel.
 	assert.Equal(t, "2", gw.lastCall(t).req.ChannelID)

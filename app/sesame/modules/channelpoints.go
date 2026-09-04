@@ -205,6 +205,12 @@ func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b 
 
 // findBinding returns the binding for a redeemed reward id, if the broadcaster
 // configured one.
+//
+// Kept a linear scan on purpose. cfg.Rewards comes from c.Decode on every
+// redemption event and is thrown away with it, so a map[string]rewardBinding
+// would have to be rebuilt per event: one extra allocation and len(rewards)
+// hash inserts to replace a scan of the same slice that answers on the first
+// hit. A map only pays once the decoded config outlives the event.
 func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool) {
 	for _, r := range rewards {
 		if r.ID == rewardID {

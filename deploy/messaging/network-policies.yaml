@@ -72,6 +72,24 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
+        # KEDA's nats-jetstream scaler reads /jsz through the nats Service and
+        # then follows the cluster to the consumer's leader, dialling THAT
+        # member's advertised pod IP — so it needs 8222 both via the Service
+        # and pod-to-pod, which the ipBlock below deliberately denies. Without
+        # this the scaler fails QUIET: it suppresses the error, serves the
+        # ScaledObject's static `fallback` replicas, and the HPA reads healthy.
+        #
+        # Scoped to the operator POD, not the namespace: the two selectors sit
+        # in one `from` element, so they AND together. Only keda-operator
+        # scrapes NATS — the metrics adapter asks the operator over gRPC and
+        # the admission webhook never talks to it — so nothing else in that
+        # namespace, now or later, inherits a monitor grant.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+          podSelector:
+            matchLabels:
+              app: keda-operator
         # WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
         # from cilium_host misclassified as the "world" identity instead of "host".
         # This ipBlock allows "world" (0.0.0.0/0) but excludes the cluster's pod CIDR,

@@ -25,6 +25,8 @@ const (
 	defaultPublishBatchSize = 128
 	defaultPublishBatchWait = time.Millisecond
 	defaultPublishAckWait   = 2 * time.Second
+	minPublishAckWait       = time.Second
+	maxPublishAckWait       = 30 * time.Second
 	defaultPublishQueueSize = 16_384
 	maxInflightCohorts      = 4
 	maxInflightCohortSlots  = 64
@@ -166,9 +168,53 @@ type publishBatchWorker struct {
 	// goroutine. It trades strict cross-cohort stream order for the commit RTT;
 	// publishAtomicOverlapped documents exactly what that costs.
 	overlapCommit bool
+	// ackFirst is read once per worker: the per-cohort env lookup it replaced
+	// sat on the staging path.
+	ackFirst bool
+	// slotHeld records that collectTimed already took this worker's inflight
+	// slot for the cohort it returned; publish consumes it.
+	slotHeld bool
 	// newAtomic is the test seam for Orbit's batch publisher. Production leaves
 	// it nil and atomicPublisher opens the real ADR-050 session.
 	newAtomic func() (atomicCohortPublisher, error)
+}
+
+// publishAckWait is how long a cohort waits for its commit (and, with
+// AckFirst, its first-message reply), NATS_PUBLISH_ACK_WAIT (default
+// defaultPublishAckWait, clamped 1s..30s).
+//
+// A wait that expires is an at-most-once failure: the broker may or may not
+// have committed the cohort, so atomicFallback refuses to replay it and the
+// whole cohort is reported lost through complete(). Measured on the
+// production hub on 2026-09-03 at 150k msg/s offered with AckFirst off,
+// commit p99 reached 2.7 s against this 2 s default, i.e. overload turned
+// into cohort loss rather than backpressure. Lanes that would rather queue
+// than lose set this above their worst commit tail (sesame runs 5s).
+func publishAckWait() time.Duration {
+	return min(max(env.GetDuration("NATS_PUBLISH_ACK_WAIT", defaultPublishAckWait), minPublishAckWait), maxPublishAckWait)
+}
+
+// publishQueueSize bounds one worker's admission queue, NATS_PUBLISH_QUEUE_SIZE
+// (default defaultPublishQueueSize, clamped 64..65536).
+//
+// The queue is where overload hides. Every saturated production run of
+// 2026-09-01 reported commit p50 of 0.4-1.7 s while the broker's own commit
+// took milliseconds: with four workers of 16,384 slots a pod parks up to
+// 65,536 messages before PublishOwned ever blocks, which at 100k msg/s is
+// 650 ms of pure waiting that no caller can see. A lane with a latency budget
+// wants that wait bounded: at 1,024 per worker the same overload surfaces as
+// backpressure within ~40 ms and the caller's context decides. The default is
+// unchanged so throughput-first services keep their absorption.
+//
+// Re-measured on 2026-09-03 with the e2e split at the broker's store time:
+// at 150k msg/s offered against a ~127k msg/s stream, the default queue held
+// 61k messages per pod (1.5 s) and every millisecond of the 0.4-1.4 s e2e
+// p50 was this queue; at 256 the same stream admitted 119-131k with e2e p50
+// 47-60 ms. A queue equal to one cohort under-fills cohorts when the source
+// is paced (112k at 256 paced vs 127k unbounded), so bound it at two cohorts
+// or more (512 with the 256-message atomic cohort).
+func publishQueueSize() int {
+	return min(max(env.GetInt("NATS_PUBLISH_QUEUE_SIZE", defaultPublishQueueSize), 64), 65_536)
 }
 
 func newPublisherPool(url string, log *zap.Logger) (Publisher, error) {
@@ -501,9 +547,11 @@ func (p *batchPublisher) startWorker(stream string) (*publishBatchWorker, error)
 	}
 	worker := &publishBatchWorker{
 		js:       p.js,
-		requests: make(chan publishRequest, defaultPublishQueueSize),
+		requests: make(chan publishRequest, publishQueueSize()),
 		stop:     make(chan struct{}), done: make(chan struct{}), owner: p,
-		slots:         make(chan struct{}, publishInflightCohorts()),
+		slots:    make(chan struct{}, publishInflightCohorts()),
+		ackFirst: env.GetBool("NATS_ATOMIC_ACK_FIRST", true),
+
 		batchSize:     publishBatchSize(p.wire),
 		batchWait:     publishBatchWait(p.wire),
 		overlapCommit: atomicPublishOverlap(),
@@ -695,12 +743,29 @@ func (w *publishBatchWorker) armWindowTimer() {
 // collectTimed fills batch until full, the window expires or the worker stops;
 // stop fails the partial cohort because its messages were admitted but will
 // never be staged.
+//
+// On a slot-gated wire the window closing does not end collection by itself:
+// a cohort closed while every inflight slot is busy would only queue for one,
+// and every message arriving meanwhile would start another cohort behind it.
+// Each of those costs the broker a commit of its own, so at a paced offered
+// rate the wire degenerates into cohorts of rate x window / connections
+// messages (five at 30k msg/s over six connections and 1ms). Instead the
+// cohort keeps filling until a slot frees or it is full, which is exactly the
+// wait its first message would have spent parked anyway; the slot comes back
+// held for publish.
 func (w *publishBatchWorker) collectTimed(batch []publishRequest) ([]publishRequest, bool) {
+	var slots chan<- struct{} // nil until the window closes: a nil channel never selects
 	for len(batch) < w.batchSize {
 		select {
 		case request := <-w.requests:
 			batch = append(batch, request)
 		case <-w.timer.C:
+			if !w.slotGated() {
+				return batch, true
+			}
+			slots = w.slots
+		case slots <- struct{}{}:
+			w.slotHeld = true
 			return batch, true
 		case <-w.stop:
 			w.fail(batch, errors.New("bus: publisher closed"))
@@ -710,18 +775,67 @@ func (w *publishBatchWorker) collectTimed(batch []publishRequest) ([]publishRequ
 	return batch, true
 }
 
+// slotGated reports whether this worker's cohorts wait on an inflight slot
+// before they are sent: the async wire and the overlapped atomic wire do, the
+// fast wire and the serial atomic wire do not.
+func (w *publishBatchWorker) slotGated() bool {
+	if w.owner == nil || w.slots == nil {
+		return false
+	}
+	switch w.owner.wire {
+
+	case wireAtomic:
+		return w.overlapCommit
+	case wireFast:
+		return false
+	default:
+		return true
+	}
+}
+
+// takeSlot claims an inflight slot unless collectTimed already holds one for
+// this cohort.
+func (w *publishBatchWorker) takeSlot(held bool) {
+	if !held {
+		w.slots <- struct{}{}
+	}
+}
+
+// dropSlot returns a slot collectTimed held for a cohort that turned out not
+// to need one.
+func (w *publishBatchWorker) dropSlot(held bool) {
+	if held {
+		<-w.slots
+	}
+}
+
+// cohortStats counts the cohorts every worker in the process sent and the
+// messages they carried; the ratio is the cohort shape the broker committed.
+var cohortStats struct{ cohorts, messages atomic.Uint64 }
+
+// CohortStats reports the cohorts published so far and the messages they
+// carried, so a rig can print the average cohort the broker actually saw.
+func CohortStats() (cohorts, messages uint64) {
+	return cohortStats.cohorts.Load(), cohortStats.messages.Load()
+}
+
 // publish drives one cohort. Cohorts are staged from this goroutine in wire
 // order; what may move off it is the wait for the broker's verdict — plus, on
 // the overlapping atomic path, the commit that carries the cohort's last
 // message — and only as far as each wire's ordering contract allows.
 func (w *publishBatchWorker) publish(batch []publishRequest) {
+	held := w.slotHeld
+	w.slotHeld = false
+	cohortStats.cohorts.Add(1)
+	cohortStats.messages.Add(uint64(len(batch)))
 	switch cohortWire(w.owner.wire, len(batch)) {
 	case wireAtomic:
-		w.publishAtomicCohort(batch)
+		w.publishAtomicCohort(batch, held)
 	case wireFast:
+		w.dropSlot(held)
 		w.finishFast(batch, w.publishFast(batch))
 	default:
-		w.publishAsync(batch)
+		w.publishAsync(batch, held)
 	}
 }
 
@@ -730,8 +844,9 @@ func (w *publishBatchWorker) publish(batch []publishRequest) {
 // part-way still leaves everything already handed to nats.go on the wire, so
 // the cohort is resolved from the same goroutine that would have awaited a
 // complete one.
-func (w *publishBatchWorker) publishAsync(batch []publishRequest) {
-	w.slots <- struct{}{}
+func (w *publishBatchWorker) publishAsync(batch []publishRequest, held bool) {
+	w.takeSlot(held)
+
 	futures, startErr := w.startAsync(batch)
 	w.acks.Add(1)
 	go func() {
@@ -833,8 +948,17 @@ func (w *publishBatchWorker) finish(batch []publishRequest, err error) {
 		if batch[i].confirmed != nil {
 			batch[i].confirmed <- err
 		}
+		// Recycle only a cohort the broker acknowledged in full. On a failed
+		// async cohort nats.go still owns the envelopes: it keeps them
+		// registered until its own ack timeout and re-sends them on a
+		// no-responders reply, so a blanked or re-leased envelope would go
+		// out on the wire.
+		if err != nil {
+			continue
+		}
 		batch[i].msg.Subject = ""
 		batch[i].msg.Data = nil
 		wireMsgPool.Put(batch[i].msg)
 	}
+
 }

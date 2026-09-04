@@ -53,15 +53,27 @@ func (p *fakePublisher) Close() error                { return nil }
 // fakeReader is a configurable projection.Reader.
 type fakeReader struct {
 	user     projection.User
-	modules  []projection.ModuleView
+	modules  map[string]projection.ModuleView
 	modErr   error
 	cmd      projection.Command
 	cmdFound bool
 }
 
 func (r fakeReader) User(context.Context, uint64) (projection.User, error) { return r.user, nil }
-func (r fakeReader) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
+
+// Modules hands back the fixture map itself, the way the real Client hands back
+// its cached map: building one per call would put a map alloc on the hot path
+// that production does not have and would trip the views alloc ceiling below.
+func (r fakeReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
 	return r.modules, r.modErr
+}
+func (r fakeReader) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
+	views, err := r.Modules(ctx, id)
+	if err != nil {
+		return projection.ModuleView{}, false, err
+	}
+	view, ok := views[name]
+	return view, ok, nil
 }
 func (r fakeReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
 	return r.cmd, r.cmdFound, nil

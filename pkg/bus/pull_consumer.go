@@ -115,12 +115,12 @@ func pullConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 		Durable:       name,
 		Description:   "ItsBagelBot shared-durable pull lane consumer",
 		DeliverPolicy: jsapi.DeliverNewPolicy,
-		AckPolicy:     jsapi.AckAllPolicy,
+		AckPolicy:     pullAckPolicy(),
 		AckWait:       pullAckWait(),
 		MaxDeliver:    -1,
 		FilterSubject: subject,
 		ReplayPolicy:  jsapi.ReplayInstantPolicy,
-		MaxAckPending: pullMaxAckPending(),
+		MaxAckPending: pullMaxAckPendingFor(pullAckPolicy()),
 		// The durable outlives any single pod, so this only fires once the WHOLE
 		// fleet has stopped fetching from it. It is the same window the flow lane
 		// gives a pod to reconnect inside without losing its position.
@@ -154,6 +154,44 @@ func pullConsumerName(group, subject string) string {
 	return durableName(group, subject)
 }
 
+// pullAckPolicy is AckNone unless NATS_PULL_ACK_POLICY=all.
+//
+// The durable stays replicated (R3): its config and delivered cursor survive
+// a member loss and a new leader resumes from the replicated position. What
+// AckNone changes is one thing in nats-server 2.14.4: with AckAll or
+// AckExplicit an R>1 consumer PARKS every delivery until its own RAFT group
+// has committed the delivered-state proposal (consumer.go:5714
+// replicateDeliveries, :5683 addReplicatedQueuedMsg); with AckNone the cursor
+// is still proposed (consumer.go:2985) but the message is sent at once.
+//
+// The floor ack it gives up bought redelivery only for messages the stream
+// still holds when AckWait (30s) expires, and every hot lane expires its
+// messages long before that (TWITCH_INGRESS MaxAge 10s, streams.go): after a
+// pod loss the window is gone either way, which is the contract the lane
+// already documents, and a failover replays the few deliveries between the
+// old and new leaders' cursors, covered by the idempotency contract.
+//
+// Measured on the production hub, 2026-09-01, same publisher shape at 90k
+// msg/s: R3 durable with AckAll e2e p50 18 ms / p99 603 ms; R3 with AckNone
+// p50 1.8-2.9 ms / p99 16-19 ms. Chosen as the default for that reason; "all"
+// stays selectable for a lane whose retention outlives AckWait.
+func pullAckPolicy() jsapi.AckPolicy {
+	if env.Get("NATS_PULL_ACK_POLICY", "none") == "all" {
+		return jsapi.AckAllPolicy
+	}
+	return jsapi.AckNonePolicy
+}
+
+// pullMaxAckPendingFor is zero under AckNone: nats-server 2.14.4 refuses a
+// MaxAckPending on an AckNone consumer (consumer.go:803), so the ceiling is
+// only sent when there is pending state for it to bound.
+func pullMaxAckPendingFor(policy jsapi.AckPolicy) int {
+	if policy == jsapi.AckNonePolicy {
+		return 0
+	}
+	return pullMaxAckPending()
+}
+
 func pullAckWait() time.Duration {
 	return positiveDuration(env.GetDuration("NATS_PULL_ACK_WAIT", defaultPullAckWait), defaultPullAckWait)
 }
@@ -172,6 +210,35 @@ func pullMaxAckPending() int {
 
 func pullFetchBatch() int {
 	return positiveInt(env.GetInt("NATS_PULL_FETCH_BATCH", defaultPullFetchBatch), defaultPullFetchBatch)
+}
+
+// pullFetchExpiry is the pull request expiry, nats.go's own 30s default unless
+// NATS_PULL_EXPIRY says otherwise. It is a latency knob in disguise: nats.go
+// (jetstream/pull.go, Messages defaults) arms an idle-heartbeat monitor only
+// when the expiry is 10s or more, and Next then creates and stops one
+// time.AfterFunc PER MESSAGE for that monitor. An expiry under 10s turns the
+// heartbeat off and with it two timer-heap operations and an allocation on
+// every delivery; the cost is that a dead server is noticed by the request
+// expiring rather than by a missed heartbeat, which the fetch-error path
+// already handles at the same cadence.
+//
+// Measured 2026-09-01 (loopback 3-node 2.14.4, R1 stream, 150k msg/s, 8 pull
+// loops): consumer CPU 8.3-8.4 µs/msg at 5s against 6.9-8.4 µs/msg at 30s, so
+// the timer is not where the consumer's cost is.
+//
+// What the expiry does bound is a startup race, measured the same day on an R3
+// stream with an R3 durable: two pods that bind the shared durable at the same
+// instant leave one of them with its first pull requests queued on the server
+// but never served — consumer INFO counts them in num_waiting, nothing is
+// delivered, no status message reaches the client, and pkg/bus reports the
+// lane healthy because a blocked Next is indistinguishable from an idle lane.
+// The starved pod recovers only when those requests expire: 28 s of nothing
+// at the 30 s default, 3-5 s at 5 s, and none at all when the second bind
+// comes 2 s after the first. The default stays 30 s here because changing it
+// changes every deployment at once; NATS_PULL_EXPIRY=5s is the bounded-stall
+// setting until the race itself is closed.
+func pullFetchExpiry() time.Duration {
+	return positiveDuration(env.GetDuration("NATS_PULL_EXPIRY", 30*time.Second), 30*time.Second)
 }
 
 func pullFetchLoops() int {
@@ -215,155 +282,9 @@ type pullConsumerProvisioner interface {
 	DeleteConsumer(ctx context.Context, stream, name string) error
 }
 
-// ensurePullConsumer provisions the fleet-wide durable and returns a handle to
-// fetch from. Every pod runs this against the same name, so all but the first
-// are updates.
-func ensurePullConsumer(nc *nats.Conn, stream string, desired jsapi.ConsumerConfig) (jsapi.Consumer, error) {
-	js, err := jsapi.NewWithDomain(nc, JSDomain())
-	if err != nil {
-		return nil, fmt.Errorf("bus: modern jetstream context: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), pullProvisionTimeout)
-	defer cancel()
-	return bindPullConsumer(ctx, js, stream, desired)
-}
-
-// bindPullConsumer converges the shared durable, replacing it only when the
-// server has refused the update for a field it will never let an update change.
-//
-// The replacement path exists because the lane consumer's NAME is the same in
-// every mode — durableName(group, subject), with no mode token — so flipping
-// NATS_CONSUME_MODE to pull re-provisions the durable a push consumer is already
-// occupying, and nats-server refuses that conversion in place. Without this the
-// flip fails every pod's lane binding, permanently and identically, with the
-// lane simply not consuming.
-func bindPullConsumer(
-	ctx context.Context,
-	js pullConsumerProvisioner,
-	stream string,
-	desired jsapi.ConsumerConfig,
-) (jsapi.Consumer, error) {
-	consumer, info, err := provisionPullConsumer(ctx, js, stream, desired)
-	if err == nil {
-		return consumer, nil
-	}
-	if !requiresConsumerReplacement(err) {
-		return nil, fmt.Errorf("bus: provision pull consumer %q: %w", desired.Name, err)
-	}
-
-	// Re-drive once against whatever shape the durable has NOW, before anything
-	// destructive. This is where the pull path differs from the flow path in
-	// kind, not degree: a flow consumer is per-pod, so replacing one costs the
-	// caller its own cursor, while this durable is fleet-wide and a delete takes
-	// it out from under every other pod fetching from it. A rejection can simply
-	// mean another pod completed the conversion between our INFO and our update,
-	// and against the successor's shape the same request is an ordinary no-op —
-	// so one wasted round trip here is what keeps a simultaneous fleet restart
-	// from turning into one delete per pod, each destroying the last one's work.
-	if consumer, _, raced := provisionPullConsumer(ctx, js, stream, desired); raced == nil {
-		return consumer, nil
-	}
-
-	carryLaneAckFloor(&desired, info)
-	return replacePullConsumer(js, stream, desired, err)
-}
-
-// provisionPullConsumer reads the durable's current shape, echoes the fields an
-// update may not change, and issues it. The live info comes back alongside the
-// error so the caller can carry the ack floor onto a replacement without a
-// second read.
-func provisionPullConsumer(
-	ctx context.Context,
-	js pullConsumerProvisioner,
-	stream string,
-	desired jsapi.ConsumerConfig,
-) (jsapi.Consumer, *jsapi.ConsumerInfo, error) {
-	info, err := pullConsumerInfo(ctx, js, stream, desired.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	// The start position is immutable and belongs to whichever pod created the
-	// shared durable. Echoing the server's own value keeps every later pod's
-	// provision an update; sending DeliverNew at a consumer created elsewhere
-	// would be rejected on every boot after the first.
-	if info != nil {
-		desired.DeliverPolicy = info.Config.DeliverPolicy
-		desired.OptStartSeq = info.Config.OptStartSeq
-	}
-	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, desired)
-	return consumer, info, err
-}
-
-// replacePullConsumer performs the delete + recreate an immutable-field
-// transition requires, on its own budget so the create half cannot inherit an
-// already-spent deadline from the update that failed — a delete that succeeds
-// followed by a create that times out leaves the lane with no consumer at all.
-// The caller has rewritten desired's delivery position, so the recreation
-// resumes at the fleet's shared ack floor instead of replaying it.
-func replacePullConsumer(
-	js pullConsumerProvisioner,
-	stream string,
-	desired jsapi.ConsumerConfig,
-	cause error,
-) (jsapi.Consumer, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), laneReplaceTimeout)
-	defer cancel()
-
-	if err := js.DeleteConsumer(ctx, stream, desired.Name); err != nil &&
-		!errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, fmt.Errorf(
-			"bus: provision pull consumer %q: %w (replace failed: %v)", desired.Name, cause, err)
-	}
-	consumer, err := js.CreateOrUpdateConsumer(ctx, stream, desired)
-	if err != nil {
-		return nil, fmt.Errorf("bus: recreate pull consumer %q: %w", desired.Name, err)
-	}
-	return consumer, nil
-}
-
-func pullConsumerInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
-	consumer, err := js.Consumer(ctx, stream, name)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, nil
-	}
-	// jetstream.Consumer refuses to describe a push consumer even for a plain
-	// INFO read, and the mode flip by definition finds the push durable
-	// occupying this name — the one moment the caller must see the occupant's
-	// shape and ack floor to carry them onto the replacement. Read the
-	// occupant through the accessor that matches its mode instead of failing
-	// the whole flip on the lookup.
-	if errors.Is(err, jsapi.ErrNotPullConsumer) {
-		return pushOccupantInfo(ctx, js, stream, name)
-	}
-	if err != nil {
-		return nil, err
-	}
-	info, err := consumer.Info(ctx)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, nil
-	}
-	return info, err
-}
-
-// pushOccupantInfo describes the push consumer currently holding the lane
-// durable's name. Finding the name deleted — or already pull — here means
-// another pod moved it between the two reads; returning nil info lets the
-// provision attempt proceed against the current truth, and bindPullConsumer's
-// re-drive absorbs the rejection that follows if the race went the other way.
-func pushOccupantInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
-	occupant, err := js.PushConsumer(ctx, stream, name)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrNotPushConsumer) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	info, err := occupant.Info(ctx)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, nil
-	}
-	return info, err
-}
+// pullLeaderPoll is the spacing between the two agreeing INFO reads
+// awaitPullLeader needs; a consumer election takes longer than this.
+const pullLeaderPoll = 150 * time.Millisecond
 
 // pullDelivery pairs a decoded message with the core message the shared helpers
 // speak, so the retry path can re-send the original bytes and headers without
@@ -395,11 +316,17 @@ type pullSubscriber struct {
 	// rebind provisions a replacement durable. It is a field rather than a direct
 	// call so the rebuild decision is testable without a broker; the constructor
 	// always fills it with the real API path.
-	rebind  func() (jsapi.Consumer, error)
-	stream  string
-	subject string
-	name    string
-	log     *zap.Logger
+	rebind func() (jsapi.Consumer, error)
+	// extra are the additional fetch connections NATS_PULL_CONNECTIONS asks for,
+	// each with its own lookup-bound handle on the same durable; see
+	// pullConnections for the measurement behind them.
+	extra    []*nats.Conn
+	handles  []jsapi.Consumer
+	handleMu sync.Mutex
+	stream   string
+	subject  string
+	name     string
+	log      *zap.Logger
 
 	batch    int
 	loops    int
@@ -462,6 +389,10 @@ func newPullLaneSubscriber(cfg flowLaneConfig) (*pullSubscriber, error) {
 		return nil, err
 	}
 	s := newPullSubscriber(cfg, nc, consumer, name)
+	if err := s.openExtraConnections(cfg); err != nil {
+		nc.Close()
+		return nil, err
+	}
 	s.start()
 	return s, nil
 }
@@ -496,8 +427,8 @@ func newPullSubscriber(cfg flowLaneConfig, nc *nats.Conn, consumer jsapi.Consume
 // the loops never double-deliver to this pod.
 func (s *pullSubscriber) start() {
 	s.workers.Add(s.loops + 1)
-	for range s.loops {
-		go s.pump()
+	for i := range s.loops {
+		go s.pump(i)
 	}
 	go s.advanceFloorPeriodically()
 }
@@ -515,9 +446,9 @@ func (s *pullSubscriber) Subscribe(_ context.Context, subject string) (<-chan *M
 	return s.output, nil
 }
 
-func (s *pullSubscriber) pump() {
+func (s *pullSubscriber) pump(i int) {
 	defer s.workers.Done()
-	for s.pumpIterator() {
+	for s.pumpIterator(i) {
 	}
 }
 
@@ -529,8 +460,8 @@ func (s *pullSubscriber) pump() {
 // still advances on the receipt cadence: every s.batch receipts here, plus the
 // timer in advanceFloorPeriodically for a buffer that is only partially handed
 // out.
-func (s *pullSubscriber) pumpIterator() bool {
-	iter, err := s.boundConsumer().Messages(jsapi.PullMaxMessages(s.batch))
+func (s *pullSubscriber) pumpIterator(i int) bool {
+	iter, err := s.handleFor(i).Messages(jsapi.PullMaxMessages(s.batch), jsapi.PullExpiry(pullFetchExpiry()))
 	if err != nil {
 		return s.noteFetchError(err)
 	}
@@ -669,19 +600,6 @@ func (s *pullSubscriber) decode(wire jsapi.Msg) (pullDelivery, bool) {
 // Message's payload.
 var pullEnvelopePool = sync.Pool{New: func() any { return new(nats.Msg) }}
 
-// resetPullHeader prepares a pooled envelope's header map for reuse: nil gets
-// an initial map sized for the identity key plus typical application headers;
-// otherwise every prior key is dropped. Returns the map to write into.
-func resetPullHeader(h nats.Header) nats.Header {
-	if h == nil {
-		return make(nats.Header, 2)
-	}
-	for k := range h {
-		delete(h, k)
-	}
-	return h
-}
-
 // pullWireMessage rebuilds the core message the shared decode and retry helpers
 // speak.
 //
@@ -696,9 +614,12 @@ func pullWireMessage(wire jsapi.Msg) *nats.Msg {
 	core.Subject = wire.Subject()
 	core.Reply = wire.Reply()
 	core.Data = wire.Data()
-	core.Header = resetPullHeader(core.Header)
-	for key, values := range wire.Headers() {
-		core.Header[key] = values
+	// The delivered header map is ours once nats.go hands the message over;
+	// adopting it costs one pointer store where a reset-and-copy walked the
+	// map twice per delivery.
+	core.Header = wire.Headers()
+	if core.Header == nil {
+		core.Header = make(nats.Header, 1)
 	}
 	metadata, err := wire.Metadata()
 	if err != nil || metadata.Sequence.Stream == 0 {
@@ -737,6 +658,9 @@ func (s *pullSubscriber) laneContext() context.Context {
 // masked pending). Worst case is redelivery of the masked window after AckWait,
 // which the idempotency contract on this lane already tolerates.
 func (s *pullSubscriber) noteReceipt(wire jsapi.Msg) {
+	if s.desired.AckPolicy == jsapi.AckNonePolicy {
+		return
+	}
 	s.ackMu.Lock()
 	defer s.ackMu.Unlock()
 	s.pending = wire
@@ -877,6 +801,7 @@ func (s *pullSubscriber) rebuildConsumer() {
 		return
 	}
 	s.consumer = consumer
+	s.relookupHandles()
 	s.log.Warn("lane consumer was missing and has been rebuilt",
 		zap.String("stream", s.stream),
 		zap.String("subject", s.subject),
@@ -940,6 +865,7 @@ func (s *pullSubscriber) shutdown() error {
 func (s *pullSubscriber) flushAndClose(drained bool) error {
 	flushErr := s.nc.FlushTimeout(2 * time.Second)
 	s.nc.Close()
+	s.closeExtra()
 	if !drained {
 		return errors.New("bus: timed out draining pull lane deliveries")
 	}

@@ -144,10 +144,23 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          image: nats:2.14.4-alpine@sha256:f2123f533c2b0cada0a5c5ec434fb2b8cfe1cf220215ef9d7517e1372917ad66
+          # 2.14.6 (sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3)
+          # was retested live on 2026-09-02 with the bench footgun fixed
+          # (NATS_ATOMIC_ACK_FIRST on): publish-only admit 105k vs 106-123k
+          # here, one shared R3 AckNone durable drained 56-66k vs 73k here.
+          # No gain on either path, so the pin stays.
+          # Stock upstream, pinned by digest. A patched build lived here briefly
+          # (deploy/messaging/nats-server, removed in the same commit): it bought
+          # 87k -> 142k msg/s on one stream, but carrying a 17-file patch against
+          # a broker is a maintenance bill, so the fixes go upstream instead.
+          image: nats:2.14.6-alpine@sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3
+
+
           imagePullPolicy: IfNotPresent
           # --pid writes a pidfile the reloader reads to signal this process.
           args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
+
+
           envFrom:
             - secretRef:
                 name: nats-auth-env
@@ -161,6 +174,21 @@ spec:
             # resources.limits.cpu.
             - name: GOMAXPROCS
               value: "5"
+            # GOGC 400 (Go default 100) since 2026-09-01. The stream leader
+            # allocates on the order of 0.5-1 GB/s at 100k msg/s (atomic batch
+            # staging copies every message twice, deliveries copy again), so at
+            # GOGC 100 with ~1 GB live it collects every couple of seconds and
+            # each mark lands on the single-threaded ingest and delivery loops.
+            # GOMEMLIMIT below still caps the heap; 400 only spaces the cycles.
+            # Measured on a loopback 3-node rig the GC cadence set the e2e p99
+            # until relaxed; this is the live A/B of the same lever.
+            - name: GOGC
+              value: "400"
+
+
+
+
+
             # Without this the Go GC has no idea a ceiling exists: JetStream is
             # allowed 4GiB of memory streams, and the heap grows toward that plus
             # the RAFT WAL and connection buffers until the kernel OOM-kills the
@@ -191,6 +219,8 @@ spec:
             - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
             - {name: jetstream-data, mountPath: /data/jetstream}
+
+
             - {name: pid, mountPath: /var/run/nats}
           resources:
             # The LIMITS are the real ceiling: 5 cores because GOMAXPROCS is
@@ -284,7 +314,15 @@ spec:
             failureThreshold: 120
             timeoutSeconds: 1
           livenessProbe:
-            httpGet: {path: /healthz, port: monitor}
+            # js-server-only: liveness must ask "is this process alive", never
+            # "is every replica current". Plain /healthz returns 503 while a
+            # follower is catching up ("RAFT falling behind in health check,
+            # commit != applied", logged on nats-1 during a 90k msg/s run on
+            # 2026-09-02 while all three members took 503s). Twelve of those in
+            # a row would restart the one member that is busy catching up, which
+            # makes it fall further behind. Readiness below keeps the JetStream
+            # check; that only removes the member from the Service.
+            httpGet: {path: "/healthz?js-server-only=true", port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3
@@ -338,6 +376,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
       volumes:
+
+
         # verify:true anchor: the intermediate CA alone, distributed by the
         # fleet-intermediate-ca trust-manager Bundle.
         - name: intermediate-ca

@@ -212,6 +212,7 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase strin
 	}
 
 	hits := make([]RecentHit, 0, len(members))
+	seen := newUIDSet(len(members))
 	t := GetBuf()
 	defer PutBuf(t)
 	for _, m := range members {
@@ -220,7 +221,7 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase strin
 			continue // the score carried the age; the member carries only identity
 		}
 		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || seenUID(hits, channelID(e.uid)) {
+		if !containsPhrase(t, q) || !seen.add(channelID(e.uid)) {
 			continue
 		}
 		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})

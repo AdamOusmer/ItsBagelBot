@@ -28,8 +28,19 @@ type clipReader struct {
 func (r clipReader) User(context.Context, uint64) (projection.User, error) {
 	return projection.User{}, nil
 }
-func (r clipReader) Modules(context.Context, uint64) ([]projection.ModuleView, error) {
-	return r.modules, r.err
+func (r clipReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return projection.ModuleMap(r.modules), nil
+}
+func (r clipReader) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
+	views, err := r.Modules(ctx, id)
+	if err != nil {
+		return projection.ModuleView{}, false, err
+	}
+	view, ok := views[name]
+	return view, ok, nil
 }
 func (r clipReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
 	return projection.Command{}, false, nil

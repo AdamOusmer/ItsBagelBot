@@ -23,13 +23,14 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'eloEnabled',
       messageKey: 'eloMessage',
       defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season',
-      tokens: ['player', 'elo', 'rank', 'wins', 'losses', 'matches', 'country'],
+      tokens: ['player', 'elo', 'rank', 'wins', 'losses', 'draws', 'matches', 'country'],
       previewSamples: {
         player: 'Feinberg',
         elo: '1650',
         rank: '12',
         wins: '40',
         losses: '20',
+        draws: '1',
         matches: '61',
         country: 'us'
       }
@@ -42,14 +43,15 @@ export const MCSR_MODULE: ModuleDef =
       command: 'session',
       enableKey: 'sessionEnabled',
       messageKey: 'sessionMessage',
-      defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches',
-      tokens: ['player', 'elo', 'elochange', 'wins', 'losses', 'matches'],
+      defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches',
+      tokens: ['player', 'elo', 'elochange', 'wins', 'losses', 'draws', 'matches'],
       previewSamples: {
         player: 'Feinberg',
         elo: '1660',
         elochange: '+24',
         wins: '3',
         losses: '1',
+        draws: '0',
         matches: '4'
       }
     },

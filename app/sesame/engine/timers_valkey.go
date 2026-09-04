@@ -334,26 +334,29 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 // config resolves the broadcaster's "timers" ModuleView, reporting false when
 // the module is missing, disabled, unconfigured, or the read failed.
 func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (timersConfig, bool) {
-	views, err := s.proj.Modules(ctx, broadcasterID)
+	// Fails closed on everything but an enabled row: a missing row means no
+	// timers were ever configured (absent -> ModuleOff), and a read failure
+	// must not arm or fire anything, because a timer fired off a config we
+	// could not read posts the wrong message into chat.
+	view, state, err := ModuleLookup{Proj: s.proj, BroadcasterID: broadcasterID, Name: timersModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if err != nil {
 		s.log.Warn("timers: failed to read module views", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+	if state != ModuleOn {
 		return timersConfig{}, false
 	}
-	for _, v := range views {
-		if v.Name != timersModuleName {
-			continue
-		}
-		if !v.IsEnabled || len(v.Configs) == 0 {
-			return timersConfig{}, false
-		}
-		var cfg timersConfig
-		if err := codec.Unmarshal(v.Configs, &cfg); err != nil {
-			s.log.Warn("timers: bad config", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-			return timersConfig{}, false
-		}
-		return cfg, true
+	// An enabled module with an empty blob is "on but unconfigured": there is
+	// nothing to arm, and it is kept distinct from a bad blob so it does not
+	// log a warning on every tick of a freshly toggled-on module.
+	if len(view.Configs) == 0 {
+		return timersConfig{}, false
 	}
-	return timersConfig{}, false
+	var cfg timersConfig
+	if err := codec.Unmarshal(view.Configs, &cfg); err != nil {
+		s.log.Warn("timers: bad config", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		return timersConfig{}, false
+	}
+	return cfg, true
 }
 
 // StartRearmWatcher subscribes to the modules cache-invalidation subject and
@@ -469,6 +472,12 @@ func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
 	s.arm(ctx, broadcasterID, td)
 }
 
+// findTimer stays a linear scan on purpose. cfg.Timers is decoded fresh from the
+// module blob by config() on the same call that scans it, so an id-keyed map
+// could not outlive one fire: building it would cost a map alloc plus one insert
+// per timer to save a walk over the same handful of entries, which is strictly
+// more work than the scan. This is the opposite case to the module set, which is
+// cached across events and therefore worth keying.
 func findTimer(timers []timerDef, id string) (timerDef, bool) {
 	for _, td := range timers {
 		if td.ID == id {

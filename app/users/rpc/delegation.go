@@ -191,7 +191,19 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	d.writeThenOK(msg, func() error { return d.repo.RevokeDelegation(ctx, req.Token, ownerID) }, ownerID)
+	delegateID, err := d.repo.RevokeDelegation(ctx, req.Token, ownerID)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	d.publishInvalidation(ownerID)
+	res := map[string]any{"ok": true}
+	if delegateID != 0 {
+		d.publishInvalidation(delegateID)
+		res["delegate_user_id"] = strconv.FormatUint(delegateID, 10)
+	}
+	bus.Respond(msg, res)
 }
 
 // writeThenOK runs a delegation mutation and replies with the ok-shaped result:
@@ -225,7 +237,19 @@ func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	d.writeThenOK(msg, func() error { return d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections) }, ownerID)
+	delegateID, err := d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections)
+	if err != nil {
+		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	d.publishInvalidation(ownerID)
+	res := map[string]any{"ok": true}
+	if delegateID != 0 {
+		d.publishInvalidation(delegateID)
+		res["delegate_user_id"] = strconv.FormatUint(delegateID, 10)
+	}
+	bus.Respond(msg, res)
 }
 
 func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {

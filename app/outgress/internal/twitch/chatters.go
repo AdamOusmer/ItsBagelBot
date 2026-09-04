@@ -13,7 +13,7 @@ import (
 )
 
 // chattersPath is Helix Get Chatters. It rides the bot's user token
-// (moderator:read:chatters, see userScopedPrefixes): the bot must be a
+// (moderator:read:chatters, see userScopedRoutes): the bot must be a
 // moderator of the channel, which channel enrollment already requires.
 const chattersPath = "/helix/chat/chatters"
 

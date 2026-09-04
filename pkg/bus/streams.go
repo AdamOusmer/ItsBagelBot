@@ -290,6 +290,26 @@ var TwitchIngressStream = StreamSpec{
 	// here is premium (premium broadcasters plus the special IDs) and two
 	// trickles — the stream lane carries only stream.online/offline, and the
 	// status subjects carry authorization lifecycle events.
+	// 384 MiB is the premium half of the 1 GiB ingress budget the partition
+	// splits (stream_budget_test.go), and it BINDS BEFORE MaxAge above ~90k
+	// msg/s (~430 B stored per event): measured on the production hub on
+	// 2026-09-02 with one shared R3 durable at 120k msg/s offered, deliveries
+	// ran 135-189k/s while the stream filled and fell to ~75k/s the second the
+	// byte cap bound (DiscardOld evicts on every append on every replica and
+	// the durable's replica lags the leader), after which consumer lag grew
+	// without bound; age-bound retention at the same rate held ~95k/s with
+	// p99 in the hundreds of ms. Any lane expected to run above ~90k msg/s
+	// needs one of: a shorter MaxAge, a larger share of the 1 GiB, or a raised
+	// budget (max_mem and the pod limit move together). Not changed here.
+	//
+	// Follow-up on 2026-09-03 (same hub, e2e split at the broker's store
+	// timestamp via Message.StoredAt): with no eviction during the run one R3
+	// stream ingests 126-130k msg/s and stored->received stays 6-10 ms; the
+	// moment either regime evicts (the byte cap inline on every apply, MaxAge
+	// from its own goroutine with a lock pair per message) admission caps
+	// near 105k and every extra millisecond is publisher queueing. Retention
+	// is the first wall; the leader's lock-serialized ingest+apply path (97%
+	// duty at 127k msg/s, 40% of it header scanning) is the second.
 	MaxBytes: 384 << 20, // 384 MiB
 	// The premium, stream and status subjects share this stream, and MaxBytes
 	// eviction is stream-wide oldest-first: without a per-subject cap a

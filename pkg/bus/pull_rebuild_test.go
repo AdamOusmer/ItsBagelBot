@@ -168,7 +168,7 @@ func TestPumpSurvivesATransientFetchErrorAndResumesFetching(t *testing.T) {
 	}
 
 	sub.workers.Add(1)
-	go sub.pump()
+	go sub.pump(0)
 	defer func() {
 		close(sub.closeCh)
 		sub.workers.Wait()
@@ -211,7 +211,7 @@ func TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes(t *testing.
 	}
 
 	sub.workers.Add(1)
-	go sub.pump()
+	go sub.pump(0)
 	defer func() {
 		close(sub.closeCh)
 		sub.workers.Wait()

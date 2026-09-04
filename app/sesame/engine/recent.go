@@ -234,6 +234,7 @@ func (l *RecentLog) Sweep(_ context.Context, chanID channelID, phrase string, no
 	}
 	cutoff := stamp(now.Add(-recentTTL).UnixNano())
 	hits := make([]RecentHit, 0, 16)
+	seen := newUIDSet(16)
 	t := GetBuf()
 	// The ring bounds the walk (≤ recentRingCap entries), so no separate
 	// result cap exists: a channel can never surface more senders than it
@@ -244,7 +245,7 @@ func (l *RecentLog) Sweep(_ context.Context, chanID channelID, phrase string, no
 			break // walking newest→oldest: everything further back is expired
 		}
 		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || seenUID(hits, channelID(e.uid)) {
+		if !containsPhrase(t, q) || !seen.add(channelID(e.uid)) {
 			continue
 		}
 		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
@@ -295,13 +296,29 @@ func isWordByte(b byte) bool {
 	}
 }
 
-func seenUID(hits []RecentHit, uid channelID) bool {
-	for i := range hits {
-		if hits[i].UserID == uid {
-			return true
-		}
+// uidSet is a sweep-local membership test for "did this sender already land a
+// hit". It replaced seenUID, which rescanned the whole accumulated hits slice
+// per match: a sweep over K matching lines paid K²/2 comparisons, and one
+// channel can present recentRingCap (128) lines to the ring walk or
+// recentFetchLimit (256) members to the Valkey walk — all of them from the
+// same spammer during a copypasta wave, which is exactly the case the sweep
+// exists to catch. Membership only: hits stays the storage, because its order
+// is observable (newest→oldest for the ring walk) and a map has none.
+//
+// Both Sweep implementations share it so the two paths cannot drift on what
+// "already seen" means.
+type uidSet map[channelID]struct{}
+
+func newUIDSet(hint int) uidSet { return make(uidSet, hint) }
+
+// add marks uid seen and reports whether it was new, so the sweep loop keeps
+// its single check-and-skip condition rather than growing a nested branch.
+func (s uidSet) add(uid channelID) bool {
+	if _, dup := s[uid]; dup {
+		return false
 	}
-	return false
+	s[uid] = struct{}{}
+	return true
 }
 
 // isCommandShape mirrors parseCommand's trigger rule without parsing: any

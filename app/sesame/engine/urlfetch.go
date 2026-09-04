@@ -6,7 +6,6 @@ package engine
 import (
 	"ItsBagelBot/internal/projection"
 	"context"
-	"slices"
 	"strings"
 	"sync"
 
@@ -51,10 +50,15 @@ const (
 // byte-for-byte mirror of counterTokenNames: the same strings.Contains fast
 // path, the same Index/IndexByte zero-alloc scan over the brace grammar
 // module.Expand re-parses later, and the same NormalizeCounterName fold (so
-// "{URLFETCH:Temp}" scans as "temp" AND expands by looking up "temp"). nil
+// "{URLFETCH:Temp}" scans as "temp" AND expands by looking up "temp"). The
+// first-appearance dedup is literally shared (appendDistinctName) rather than
+// mirrored, so the two scanners cannot drift on what "distinct" means. nil
 // when the template references none — the fast path for every ordinary command.
 func urlFetchNames(tmpl string) []string {
-	var names []string
+	var (
+		names []string
+		seen  map[string]struct{}
+	)
 	rest := tmpl
 	for {
 		i := strings.Index(rest, "{"+urlFetchTokenPrefix)
@@ -68,8 +72,8 @@ func urlFetchNames(tmpl string) []string {
 		}
 		name := NormalizeCounterName(rest[:end])
 		rest = rest[end+1:]
-		if name != "" && !slices.Contains(names, name) {
-			names = append(names, name)
+		if name != "" {
+			names, seen = appendDistinctName(names, seen, name)
 		}
 	}
 }

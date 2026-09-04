@@ -4,7 +4,6 @@
 package engine
 
 import (
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -88,7 +87,10 @@ func expandCommand(dst []byte, tmpl string, t tokens) []byte {
 // returns the distinct normalized names, in first-appearance order. nil when
 // the template references none — the fast path for every ordinary command.
 func counterTokenNames(tmpl string) []string {
-	var names []string
+	var (
+		names []string
+		seen  map[string]struct{}
+	)
 	rest := tmpl
 	for {
 		i := strings.Index(rest, "{"+counterTokenPrefix)
@@ -102,10 +104,32 @@ func counterTokenNames(tmpl string) []string {
 		}
 		name := NormalizeCounterName(rest[:end])
 		rest = rest[end+1:]
-		if name != "" && !slices.Contains(names, name) {
-			names = append(names, name)
+		if name != "" {
+			names, seen = appendDistinctName(names, seen, name)
 		}
 	}
+}
+
+// appendDistinctName appends name in first-appearance order unless seen
+// already holds it, returning the grown slice and the set. It replaced the
+// slices.Contains rescan both token scanners ran on every hit, which cost
+// T²/2 string compares for a template carrying T tokens — cheap for the two
+// or three tokens a normal response has, but the template is broadcaster-
+// supplied and nothing caps how many tokens it may name. names stays the
+// storage: callers read the order, and a map has none.
+//
+// seen is created lazily so the token-free template — the fast path both
+// scanners are written around — still allocates nothing: a read of a nil map
+// answers "not present" without touching the heap.
+func appendDistinctName(names []string, seen map[string]struct{}, name string) ([]string, map[string]struct{}) {
+	if _, dup := seen[name]; dup {
+		return names, seen
+	}
+	if seen == nil {
+		seen = make(map[string]struct{}, 4)
+	}
+	seen[name] = struct{}{}
+	return append(names, name), seen
 }
 
 // sanitizeVar neutralizes a user-supplied command variable so it cannot inject

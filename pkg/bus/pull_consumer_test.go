@@ -37,6 +37,9 @@ func TestPullConsumerIsOneSharedDurableForTheWholeFleet(t *testing.T) {
 }
 
 func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
+	// The floor contract is the AckAll shape; AckNone is the default now (see
+	// pullAckPolicy) and has its own test in pull_ack_policy_test.go.
+	t.Setenv("NATS_PULL_ACK_POLICY", "all")
 	cfg := pullConsumerConfig("twitch.ingress.event.premium", "worker_twitch_ingress_event_premium")
 
 	requireContract(t,
@@ -63,6 +66,7 @@ func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
 }
 
 func TestPullConsumerKnobsRejectNonPositiveOverrides(t *testing.T) {
+	t.Setenv("NATS_PULL_ACK_POLICY", "all")
 	t.Setenv("NATS_PULL_ACK_WAIT", "45s")
 	t.Setenv("NATS_PULL_MAX_ACK_PENDING", "70000")
 	t.Setenv("NATS_PULL_FETCH_BATCH", "0")
@@ -194,6 +198,7 @@ func TestPullModeStillRefusesLanesOutsideTheHotIngress(t *testing.T) {
 // flip fails every pod's lane binding identically and the lane just stops
 // consuming, which is the least visible way a lane can break.
 func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
+	t.Setenv("NATS_PULL_ACK_POLICY", "all")
 	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100)}
 	name := js.live.Config.Name
 

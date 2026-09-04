@@ -18,12 +18,12 @@ const (
 	// resolveText is anything that is not recognizably a Spotify reference.
 	resolveText resolveKind = iota
 	resolveTrackID
-	resolveArtistID
 	resolveAlbumID
 	// resolveUnsupportedLink marks a well-formed Spotify link to a type this
-	// provider deliberately does not serve (playlists, podcasts, audiobooks).
-	// It is reported as such rather than searched as text: sharing a podcast
-	// episode should not return songs that merely share its words.
+	// provider deliberately does not serve (playlists, podcasts, audiobooks,
+	// artists).
+	// It is reported as such rather than searched as text: sharing an
+	// unsupported type should not return songs that merely share its words.
 	resolveUnsupportedLink
 )
 
@@ -44,8 +44,6 @@ func (r resolvedInput) cacheKey() string {
 	switch r.kind {
 	case resolveTrackID:
 		return "track:" + r.id
-	case resolveArtistID:
-		return "artist:" + r.id
 	case resolveAlbumID:
 		return "album:" + r.id
 	default:
@@ -66,7 +64,7 @@ var linkHosts = map[string]bool{
 // precisely instead of silently degraded to a text search.
 var linkKinds = map[string]resolveKind{
 	"track":     resolveTrackID,
-	"artist":    resolveArtistID,
+	"artist":    resolveUnsupportedLink,
 	"album":     resolveAlbumID,
 	"playlist":  resolveUnsupportedLink,
 	"episode":   resolveUnsupportedLink,
@@ -165,7 +163,6 @@ func resolveCatalogLink(ref linkRef) resolvedInput {
 // was exact (a link id) or best-effort (text).
 const (
 	viaTrackLink = "track_link"
-	viaArtistTop = "artist_top"
 	viaAlbum     = "album"
 	viaFiltered  = "filtered"
 	viaText      = "text"

@@ -49,12 +49,13 @@ type fakeValkey struct {
 	client  valkey_go.Client
 	nowFunc func() time.Time
 
-	mu      sync.Mutex
-	hashes  map[string]fakeHash
-	strs    map[string]string
-	expires map[string]time.Time
-	log     []fakeOp
-	done    chan struct{}
+	mu       sync.Mutex
+	hashes   map[string]fakeHash
+	strs     map[string]string
+	expires  map[string]time.Time
+	log      []fakeOp
+	done     chan struct{}
+	hgetFail string
 }
 
 // newFakeValkey boots the listener + client. Caller must Close.
@@ -123,6 +124,17 @@ type fakeHash map[string]string
 type fakeField struct {
 	field string
 	value string
+}
+
+// failHGET makes every HGET of one field answer with a server error, so a test
+// can prove a read failure on a write path is propagated instead of being read
+// as an absent field. "" disables it. A whole-server outage would not do: it
+// fails the following write too, so both the buggy and the fixed code return
+// an error and the test proves nothing.
+func (f *fakeValkey) failHGET(field string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.hgetFail = field
 }
 
 func (f *fakeValkey) seed(key string, kv fakeField) {
@@ -223,6 +235,11 @@ func (f *fakeValkey) execHSET(args cmdArgs) []byte {
 }
 
 func (f *fakeValkey) execHGET(args cmdArgs) []byte {
+	// One clause covers both cases: hgetFail is "" when disabled and no real
+	// hash field is named "".
+	if args[1] == f.hgetFail {
+		return respError("SIMULATED transient read failure")
+	}
 	v, ok := f.hashes[args[0]][args[1]]
 	if !ok || !f.aliveLocked(args[0]) {
 		return respNil()

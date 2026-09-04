@@ -53,12 +53,29 @@ func mcsrPlayerEloTokens(c *module.Context, player string, elo int) map[string]s
 	}
 }
 
-// mcsrWinLossTokens is the {wins}/{losses}/{matches} token triple !elo and
-// !session both answer from a season (or session) win/loss/played count.
+// mcsrWinLossTokens is the {wins}/{losses}/{draws}/{matches} token quad !elo
+// and !session both answer from a season (or session) win/loss/played count.
+//
+// {draws} is derived, not reported: MCSR's playedMatches counts matches that
+// ended with no winner (result.uuid null, forfeited both sides) while its wins
+// and loses counters do not, so wins+losses is short of matches and the reply
+// read as a bug ("3W 4L in 8 matches"). Measured on LawnMobius 2026-09-04:
+// season playedMatches.ranked 45, wins 23, loses 17, and exactly 5 of his last
+// 45 ranked matches carry result.uuid null. Do not "fix" this by making
+// {matches} mean wins+losses - that hides voided matches the player did play.
+//
+// The floor at zero covers the one case the subtraction can go negative: a
+// !session delta taken across a season rollover, where the live counters reset
+// below the stream-start snapshot.
 func mcsrWinLossTokens(wins, losses, matches int) map[string]string {
+	draws := matches - wins - losses
+	if draws < 0 {
+		draws = 0
+	}
 	return map[string]string{
 		"wins":    strconv.Itoa(wins),
 		"losses":  strconv.Itoa(losses),
+		"draws":   strconv.Itoa(draws),
 		"matches": strconv.Itoa(matches),
 	}
 }
