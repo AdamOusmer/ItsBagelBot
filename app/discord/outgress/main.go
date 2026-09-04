@@ -80,7 +80,9 @@ func main() {
 		LiveStore: liveStore, Reauth: reauth, NRApp: nrApp, Log: log,
 	})
 
-	closeCommands := startCommandConsumer(ctx, cfg, rest, applicationID, reauth, log)
+	closeCommands := startCommandConsumer(consumerDeps{
+		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log,
+	})
 	defer closeCommands()
 
 	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
@@ -170,15 +172,28 @@ func subscribeRPCs(deps rpcDeps) {
 	}
 }
 
-func startCommandConsumer(
-	ctx context.Context, cfg config.Config, rest *discordrate.LimitedClient,
-	applicationID string, reauth kv.ReauthStore, log *zap.Logger,
-) func() {
-	handlers := &commands.Handlers{Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log.Named("commands")}
-	consumer := &commands.Consumer{NATSURL: cfg.NATSURL, Log: log.Named("commands"), Handle: handlers.Dispatch}
-	closeCommands, err := consumer.Run(ctx)
+// consumerDeps is what starting the command consumer needs, as one value
+// rather than six positional parameters. Same reason as rpcDeps above: a
+// six-argument call, four of which are pointers or interfaces, has several
+// orderings that compile and one that is correct.
+type consumerDeps struct {
+	Ctx           context.Context
+	Cfg           config.Config
+	Rest          *discordrate.LimitedClient
+	ApplicationID string
+	Reauth        kv.ReauthStore
+	Log           *zap.Logger
+}
+
+func startCommandConsumer(deps consumerDeps) func() {
+	log := deps.Log.Named("commands")
+	handlers := &commands.Handlers{
+		Rest: deps.Rest, ApplicationID: deps.ApplicationID, Reauth: deps.Reauth, Log: log,
+	}
+	consumer := &commands.Consumer{NATSURL: deps.Cfg.NATSURL, Log: log, Handle: handlers.Dispatch}
+	closeCommands, err := consumer.Run(deps.Ctx)
 	if err != nil {
-		log.Fatal("failed to start discord command consumer", zap.Error(err))
+		deps.Log.Fatal("failed to start discord command consumer", zap.Error(err))
 	}
 	return closeCommands
 }
