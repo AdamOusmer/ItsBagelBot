@@ -4,16 +4,23 @@
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import {
   blankDiscordConfig,
+  blankLayout,
+  blankStatus,
+  botStatus,
   guildLayout,
+  pinnedRolesOf,
   readDiscord,
+  repostDesk,
   saveDiscord,
   setupGuild,
   unbindGuild,
   type DiscordConfig,
   type DiscordGuildTarget,
-  type DiscordLayout
+  type DiscordLayout,
+  type DiscordStatus
 } from '$lib/server/discord-store';
 import {
+  DISCORD_ERROR_SLUGS,
   discordConfigured,
   discordTemplateURL,
   requireDiscordActor
@@ -21,7 +28,7 @@ import {
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
-import type { ModuleDef } from '@bagel/shared';
+import { alertOff, alertOn, mergeDiscordConfig, type ModuleDef } from '@bagel/shared';
 import { moduleDef } from '@bagel/shared';
 
 // Resolved once. moduleDef returns undefined for an unknown id, and a silent
@@ -45,17 +52,43 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'discord');
 }
 
-const ERROR_SLUGS = ['oauth', 'unconfigured', 'setup', 'state', 'bound'] as const;
+type DiscordPage = {
+  locked: boolean;
+  enabled: boolean;
+  connected: boolean;
+  config: DiscordConfig;
+  layout: DiscordLayout;
+  status: DiscordStatus;
+  templateURL: string;
+  configured: boolean;
+  justConnected: boolean;
+  refused: boolean;
+  errorSlug: string;
+  degraded: boolean;
+};
 
-const NO_LAYOUT: DiscordLayout = { channels: [], roles: [], needsReauth: false };
+function blankPage(errorSlug: string): DiscordPage {
+  return {
+    locked: false,
+    enabled: false,
+    connected: false,
+    config: blankDiscordConfig(),
+    layout: blankLayout(),
+    status: blankStatus(),
+    templateURL: discordTemplateURL(),
+    configured: discordConfigured(),
+    justConnected: false,
+    refused: false,
+    errorSlug,
+    degraded: false
+  };
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const rawSlug = url.searchParams.get('e') ?? '';
-  const errorSlug = (ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
-  const justConnected = url.searchParams.get('connected') === '1';
-  const refused = url.searchParams.get('refused') === '1';
+  const errorSlug = (DISCORD_ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
 
   // Discord is premium-only while it is in beta. The route guard lets a
   // sectioned module through so the page can explain that rather than
@@ -63,55 +96,60 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // a locked panel and every action refuses (see discordAction).
   const locked = await moduleLocked(locals, DISCORD_DEF);
 
-  if (DEMO) {
-    const { demoDiscordView, demoDiscordLayout } = await import('$lib/server/demo-data');
-    return {
-      locked: false,
-      ...demoDiscordView(),
-      layout: demoDiscordLayout(),
-      templateURL: 'https://discord.new/demo',
-      configured: true,
-      justConnected: false,
-      refused: false,
-      errorSlug: ''
-    };
-  }
+  if (DEMO) return demoPage();
 
+  const flags = {
+    justConnected: url.searchParams.get('connected') === '1',
+    refused: url.searchParams.get('refused') === '1'
+  };
   try {
     const view = await readDiscord({ userId: uid });
-    return {
-      locked,
-      ...view,
-      layout: view.connected ? await loadLayout({ userId: uid, guildId: view.config.guildId }) : NO_LAYOUT,
-      templateURL: discordTemplateURL(),
-      configured: discordConfigured(),
-      justConnected,
-      refused,
-      errorSlug
-    };
+    const target = { userId: uid, guildId: view.config.guildId };
+    return { ...blankPage(errorSlug), ...flags, ...view, locked, ...(await connectedReads(view.connected, target)) };
   } catch {
-    return {
-      enabled: false,
-      connected: false,
-      config: blankDiscordConfig(),
-      layout: NO_LAYOUT,
-      templateURL: discordTemplateURL(),
-      configured: discordConfigured(),
-      justConnected: false,
-      refused: false,
-      errorSlug,
-      degraded: true
-    };
+    return { ...blankPage(errorSlug), locked, degraded: true };
   }
 };
 
-// loadLayout is best-effort: without it the page falls back to raw id inputs.
+async function demoPage(): Promise<DiscordPage> {
+  const { demoDiscordView, demoDiscordLayout, demoDiscordStatus } = await import('$lib/server/demo-data');
+  return {
+    ...blankPage(''),
+    ...demoDiscordView(),
+    layout: demoDiscordLayout(),
+    status: demoDiscordStatus(),
+    templateURL: 'https://discord.new/demo',
+    configured: true
+  };
+}
+
+// Both reads are decorative: the pickers degrade to a disabled control and the
+// status card to an offline pill, so a blip in either must not take the page
+// with it (the same per-panel try/catch loyalty uses).
+async function connectedReads(
+  connected: boolean,
+  target: DiscordGuildTarget
+): Promise<{ layout: DiscordLayout; status: DiscordStatus }> {
+  if (!connected) return { layout: blankLayout(), status: blankStatus() };
+  const [layout, status] = await Promise.all([loadLayout(target), loadStatus(target)]);
+  return { layout, status };
+}
+
 async function loadLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
   try {
     return await guildLayout(target);
   } catch (e) {
     logger.warn({ err: e }, '[discord] layout unavailable');
-    return NO_LAYOUT;
+    return blankLayout();
+  }
+}
+
+async function loadStatus(target: DiscordGuildTarget): Promise<DiscordStatus> {
+  try {
+    return await botStatus(target);
+  } catch (e) {
+    logger.warn({ err: e }, '[discord] status unavailable');
+    return { ...blankStatus(), code: 'discord_unavailable' };
   }
 }
 
@@ -119,10 +157,7 @@ type ActionCtx = { uid: string; session: Session | null | undefined; locals: App
 
 async function actionContext({ request, locals }: RequestEvent): Promise<ActionCtx | null> {
   gate(locals.session);
-  if (DEMO) {
-    return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
-  }
-  if (!locals.session) return null;
+  if (!DEMO && !locals.session) return null;
   return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
 }
 
@@ -140,12 +175,15 @@ async function attempt<T>(work: ActionWork, run: () => Promise<T>): Promise<Outc
   }
 }
 
-type Refusal = { error: string };
+// A soft refusal: the call reached outgress and it said no. `code` is what the
+// page switches on; `error` is the human sentence it falls back to.
+type Refusal = { error: string; code?: string };
 
-function refusalOf(data: Record<string, unknown>): string {
-  if (!('error' in data)) return '';
-  if (typeof data.error !== 'string') return '';
-  return data.error;
+function refusalOf(data: Record<string, unknown>): Refusal | null {
+  const error = typeof data.error === 'string' ? data.error : '';
+  const code = typeof data.code === 'string' ? data.code : '';
+  if (!error && !code) return null;
+  return { error, code };
 }
 
 function discordAction<T extends Record<string, unknown>>(
@@ -165,55 +203,35 @@ function discordAction<T extends Record<string, unknown>>(
     const r = await attempt(work, () => run(ctx));
     if (!r.ok) return fail(400, { ok: false, error: r.error });
     const refusal = refusalOf(r.data);
-    if (refusal) return fail(400, { ok: false, error: refusal });
+    if (refusal) return fail(400, { ok: false, ...refusal });
     return { ok: true, ...r.data };
   };
 }
 
-type FormField = { form: FormData; name: string; current: string };
-
-function flag(field: FormField): string {
-  return field.form.get(field.name) === 'on' ? 'on' : 'off';
+/**
+ * The whole draft arrives as one hidden JSON field.
+ *
+ * The old form posted a `name` per input plus a hidden mirror per switch,
+ * which meant the tri-state flags had three sources of truth and a control the
+ * page chose not to render silently cleared its field. One field means the
+ * page's own state object IS the payload, and every rule lives in the shared
+ * merge.
+ */
+function parseDraft(raw: FormDataEntryValue | null): Record<string, unknown> {
+  if (typeof raw !== 'string') return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null) return {};
+    if (typeof parsed !== 'object') return {};
+    if (Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
-const SNOWFLAKE = /^\d{17,20}$/;
-
-function snowflake(field: FormField): string {
-  const raw = field.form.get(field.name);
-  if (raw === null) return field.current;
-  const v = String(raw).trim();
-  if (v === '') return v;
-  if (SNOWFLAKE.test(v)) return v;
-  return field.current;
-}
-
-function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
-  return {
-    ...current,
-    liveEnabled: flag({ form, name: 'liveEnabled', current: current.liveEnabled }),
-    clipsEnabled: flag({ form, name: 'clipsEnabled', current: current.clipsEnabled }),
-    welcomeEnabled: flag({ form, name: 'welcomeEnabled', current: current.welcomeEnabled }),
-    goodbyeEnabled: flag({ form, name: 'goodbyeEnabled', current: current.goodbyeEnabled }),
-    voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
-    ticketsEnabled: flag({ form, name: 'ticketsEnabled', current: current.ticketsEnabled }),
-    logsEnabled: flag({ form, name: 'logsEnabled', current: current.logsEnabled }),
-    subscribersEnabled: flag({ form, name: 'subscribersEnabled', current: current.subscribersEnabled }),
-    levelsEnabled: flag({ form, name: 'levelsEnabled', current: current.levelsEnabled }),
-    categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
-    categoryDeny: String(form.get('categoryDeny') ?? current.categoryDeny),
-    liveChannelId: snowflake({ form, name: 'liveChannelId', current: current.liveChannelId }),
-    clipsChannelId: snowflake({ form, name: 'clipsChannelId', current: current.clipsChannelId }),
-    welcomeChannelId: snowflake({ form, name: 'welcomeChannelId', current: current.welcomeChannelId }),
-    voiceHubId: snowflake({ form, name: 'voiceHubId', current: current.voiceHubId }),
-    logChannelId: snowflake({ form, name: 'logChannelId', current: current.logChannelId }),
-    ticketChannelId: snowflake({ form, name: 'ticketChannelId', current: current.ticketChannelId }),
-    ticketCategoryId: snowflake({ form, name: 'ticketCategoryId', current: current.ticketCategoryId }),
-    ownerRoleId: snowflake({ form, name: 'ownerRoleId', current: current.ownerRoleId }),
-    vipRoleId: snowflake({ form, name: 'vipRoleId', current: current.vipRoleId }),
-    subscriberRoleId: snowflake({ form, name: 'subscriberRoleId', current: current.subscriberRoleId }),
-    leadModRoleId: snowflake({ form, name: 'leadModRoleId', current: current.leadModRoleId }),
-    memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId })
-  };
+function fieldNames(errors: { field: string }[]): string {
+  return errors.map((e) => e.field).join(', ');
 }
 
 export const actions: Actions = {
@@ -227,7 +245,11 @@ export const actions: Actions = {
 
   save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
     const view = await readDiscord({ userId: ctx.uid });
-    const config = mergeSettings(view.config, ctx.form);
+    const { config, errors } = mergeDiscordConfig(view.config, parseDraft(ctx.form.get('config')));
+    // A rejected field kept its stored value rather than being blanked, so the
+    // save is still safe to apply; the refusal tells the streamer which
+    // control did not take instead of leaving them to notice later.
+    if (errors.length) return { error: `Some settings were not valid: ${fieldNames(errors)}.`, code: 'invalid' };
     await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config });
     auditDashboardImpersonation(ctx.session, 'discord:save', config.guildId);
     return {};
@@ -236,19 +258,36 @@ export const actions: Actions = {
   setup: discordAction({ label: 'setup', failMsg: 'Could not set up this server.' }, async (ctx) => {
     requireDiscordActor(ctx.locals);
     const view = await readDiscord({ userId: ctx.uid });
-    if (!view.config.guildId) return { error: 'Connect a server first.' };
+    if (!view.config.guildId) return { error: 'Connect a server first.', code: 'not_bound' };
     const login = ctx.session?.login ?? view.config.twitchLogin;
     const result = await setupGuild(
-      // The saved toggle decides whether the fill creates the subscriber
-      // tier, so setup reflects what the streamer chose rather than always
-      // building a locked category they may never use.
-      { userId: ctx.uid, guildId: view.config.guildId, subscribers: view.config.subscribersEnabled === 'on' },
+      {
+        userId: ctx.uid,
+        guildId: view.config.guildId,
+        // The saved toggle decides whether the fill creates the subscriber
+        // tier, so setup reflects what the streamer chose rather than always
+        // building a locked category they may never use.
+        subscribers: alertOff(view.config.subscribersEnabled),
+        // Pins win over name lookup, so a streamer who already has a Mods role
+        // keeps it instead of getting a second one.
+        pinnedRoles: pinnedRolesOf(view.config)
+      },
       { ...view.config, twitchLogin: login }
     );
-    if (result.error) return { error: result.error };
+    if (result.error) return { error: result.error, code: result.code };
     await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config: { ...result.config, twitchLogin: login } });
     auditDashboardImpersonation(ctx.session, 'discord:setup', view.config.guildId);
     return { refused: result.refused };
+  }),
+
+  repost: discordAction({ label: 'repost', failMsg: 'Could not repost the ticket panel.' }, async (ctx) => {
+    const view = await readDiscord({ userId: ctx.uid });
+    if (!view.config.guildId) return { error: 'Connect a server first.', code: 'not_bound' };
+    if (!alertOn(view.config.ticketsEnabled)) return { error: 'Turn the ticket desk on first.', code: 'invalid' };
+    const result = await repostDesk({ userId: ctx.uid, guildId: view.config.guildId });
+    if (result.error) return { error: result.error, code: result.code };
+    auditDashboardImpersonation(ctx.session, 'discord:repost', view.config.guildId);
+    return { messageId: result.messageId };
   }),
 
   disconnect: discordAction({ label: 'disconnect', failMsg: 'Could not disconnect Discord.' }, async (ctx) => {
