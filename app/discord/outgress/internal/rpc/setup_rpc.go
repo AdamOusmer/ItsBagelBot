@@ -13,6 +13,7 @@ import (
 	"context"
 	"time"
 
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
@@ -87,7 +88,7 @@ type discordRPC struct {
 // and clear it (a rename either being refused or succeeding is the only
 // evidence either way).
 type reauthReader interface {
-	NeedsReauth(ctx context.Context, guildID string) bool
+	NeedsReauth(ctx context.Context, guildID kv.GuildID) bool
 }
 
 func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSetupRequest) outgressrpc.DiscordSetupReply {
@@ -133,7 +134,7 @@ func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLa
 	return outgressrpc.DiscordLayoutReply{
 		Channels:    layoutEntries(layout.Channels),
 		Roles:       layoutEntries(layout.Roles),
-		NeedsReauth: d.needsReauth(ctx, req.GuildID),
+		NeedsReauth: d.needsReauth(ctx, kv.GuildID(req.GuildID)),
 	}
 }
 
@@ -169,7 +170,7 @@ func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPost
 // store means the bookkeeping is not wired (tests), which reads as "no
 // prompt" rather than as an error: a missing flag must never block the
 // layout the dashboard actually asked for.
-func (d *discordRPC) needsReauth(ctx context.Context, guildID string) bool {
+func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
 	if d.reauth == nil {
 		return false
 	}

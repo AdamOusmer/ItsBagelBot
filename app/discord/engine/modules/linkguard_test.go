@@ -111,18 +111,29 @@ func onGuardConfig() ddiscord.Config {
 // directly so they can inspect fakeOwnInvite.calls afterward.
 func runLinkGuard(t *testing.T, guard *fakeGuard, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
 	t.Helper()
-	return runLinkGuardWithOwn(t, guard, &fakeOwnInvite{}, cfg, raw)
+	return runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: &fakeOwnInvite{}, Cfg: cfg, Raw: raw})
 }
 
-func runLinkGuardWithOwn(t *testing.T, guard *fakeGuard, own *fakeOwnInvite, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
+// linkGuardRun is runLinkGuardWithOwn's (guard, own, cfg, raw) tuple
+// collapsed into one struct, the same messageEventInput convention above
+// (CodeScene: Excess Number of Function Arguments -- five parameters
+// including t, over its 4-parameter limit).
+type linkGuardRun struct {
+	Guard *fakeGuard
+	Own   *fakeOwnInvite
+	Cfg   ddiscord.Config
+	Raw   []byte
+}
+
+func runLinkGuardWithOwn(t *testing.T, in linkGuardRun) []ddiscord.Command {
 	t.Helper()
-	mod := LinkGuard(guard, own, zap.NewNop())
+	mod := LinkGuard(in.Guard, in.Own, zap.NewNop())
 	handler, ok := mod.Events["MESSAGE_CREATE"]
 	if !ok {
 		t.Fatal("LinkGuard did not register MESSAGE_CREATE")
 	}
 	var emitted []ddiscord.Command
-	err := handler(context.Background(), linkGuardContext(cfg, raw), func(c ddiscord.Command) { emitted = append(emitted, c) })
+	err := handler(context.Background(), linkGuardContext(in.Cfg, in.Raw), func(c ddiscord.Command) { emitted = append(emitted, c) })
 	if err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -228,7 +239,7 @@ func TestLinkGuardOwnInviteTripIsNotDeleted(t *testing.T) {
 	own := &fakeOwnInvite{own: map[string]bool{link: true}}
 	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
 
-	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
 
 	if len(deleteCommands(cmds)) != 0 {
 		t.Fatalf("delete commands present for the guild's own invite, want none (cmds %+v)", cmds)
@@ -254,7 +265,7 @@ func TestLinkGuardOtherGuildInviteStillDeleted(t *testing.T) {
 	own := &fakeOwnInvite{own: map[string]bool{link: false}}
 	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
 
-	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
 
 	if len(deleteCommands(cmds)) != 1 {
 		t.Fatalf("delete commands = %d, want exactly 1 for another guild's invite (cmds %+v)", len(deleteCommands(cmds)), cmds)
@@ -275,7 +286,7 @@ func TestLinkGuardResolutionNotAttemptedForNonTrippingLink(t *testing.T) {
 	own := &fakeOwnInvite{}
 	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: "check out discord.gg/abc123"})
 
-	runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+	runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
 
 	if len(own.calls) != 0 {
 		t.Fatalf("IsOwnGuildInvite called %d times for a non-tripping link, want 0", len(own.calls))
@@ -296,7 +307,7 @@ func TestLinkGuardOwnInviteRPCFailureSkipsAction(t *testing.T) {
 	own := &fakeOwnInvite{err: errors.New("outgress rpc timeout")}
 	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
 
-	cmds := runLinkGuardWithOwn(t, guard, own, onGuardConfig(), raw)
+	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
 
 	if len(deleteCommands(cmds)) != 0 {
 		t.Fatalf("delete commands present after an unresolvable invite check, want none -- must fail safe (cmds %+v)", cmds)

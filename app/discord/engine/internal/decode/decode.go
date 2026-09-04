@@ -190,13 +190,24 @@ func FirstSub(opts []InteractionOption) InteractionOption {
 	return opts[0]
 }
 
+// OptionName identifies a slash-command option by its Discord-assigned name
+// (e.g. "user", "minutes", "count", "name"). Given its own type, rather than
+// a bare string, so the four option-lookup helpers below don't each read as
+// one more (opts, string) signature indistinguishable from its neighbours
+// at the call site -- decode.go as a whole was flagged for CodeScene's
+// String Heavy Function Arguments (file-level): a plain string here would
+// still compile against a wrong argument (a role id, a mention, a raw
+// value) in a way OptionName cannot. A literal like "user" still converts
+// to it for free, so no call site changes.
+type OptionName string
+
 // findOption returns the first option in opts named name. OptionString,
 // OptionInt and OptionIntFrom each used to walk their own copy of this
 // "find by name" loop (CodeScene: Code Duplication); it is written once
 // here and shared.
-func findOption(opts []InteractionOption, name string) (InteractionOption, bool) {
+func findOption(opts []InteractionOption, name OptionName) (InteractionOption, bool) {
 	for _, o := range opts {
-		if o.Name == name {
+		if OptionName(o.Name) == name {
 			return o, true
 		}
 	}
@@ -204,7 +215,7 @@ func findOption(opts []InteractionOption, name string) (InteractionOption, bool)
 }
 
 // OptionString reads a named string option out of sub's own options.
-func OptionString(sub InteractionOption, name string) string {
+func OptionString(sub InteractionOption, name OptionName) string {
 	if o, ok := findOption(sub.Options, name); ok {
 		return rawString(o.Value)
 	}
@@ -212,12 +223,12 @@ func OptionString(sub InteractionOption, name string) string {
 }
 
 // OptionInt reads a named integer option out of sub's own options.
-func OptionInt(sub InteractionOption, name string) int {
+func OptionInt(sub InteractionOption, name OptionName) int {
 	return OptionIntFrom(sub.Options, name)
 }
 
 // OptionIntFrom reads a named integer option out of a top-level option list.
-func OptionIntFrom(opts []InteractionOption, name string) int {
+func OptionIntFrom(opts []InteractionOption, name OptionName) int {
 	o, ok := findOption(opts, name)
 	if !ok {
 		return 0
@@ -228,9 +239,9 @@ func OptionIntFrom(opts []InteractionOption, name string) int {
 
 // OptionUser reads a named user-id option, searching nested sub-command
 // options too (a slash command's user option can sit under a subcommand).
-func OptionUser(opts []InteractionOption, name string) string {
+func OptionUser(opts []InteractionOption, name OptionName) string {
 	for _, o := range opts {
-		if o.Name == name {
+		if OptionName(o.Name) == name {
 			return rawString(o.Value)
 		}
 		if s := OptionUser(o.Options, name); s != "" {

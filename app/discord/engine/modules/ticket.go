@@ -93,14 +93,14 @@ func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.
 	case "panel":
 		return h.panel(ctx, c, in, emit)
 	default:
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Use /ticket open, close, or panel.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Use /ticket open, close, or panel.", true))
 		return nil
 	}
 }
 
 func (h ticketModule) panel(_ context.Context, c *module.Context, in decode.InteractionEvent, emit module.Emit) error {
 	if !c.Config.TicketsOn() {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Tickets are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Tickets are off.", true))
 		return nil
 	}
 	channelID := c.Config.TicketChannelID
@@ -111,7 +111,7 @@ func (h ticketModule) panel(_ context.Context, c *module.Context, in decode.Inte
 		return err
 	}
 	emit(deskPanel(c.Config.GuildID, channelID))
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Ticket panel posted.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Ticket panel posted.", true))
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 		return err
 	}
 	if !c.Config.TicketsOn() {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Tickets are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Tickets are off.", true))
 		return nil
 	}
 	reply, err := h.channels.CreateChannel(ctx, discordoutgress.ChannelCreateRequest{
@@ -130,12 +130,12 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 	})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket channel create failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Could not open a ticket right now.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Could not open a ticket right now.", true))
 		return nil
 	}
 	_ = h.store.TrackTicket(ctx, discordstore.Ticket{ChannelID: reply.ChannelID, GuildID: in.GuildID, OpenerID: in.Member.User.ID})
 
-	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), in.Token, ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{
 		Opener: decode.Mention(in.Member.User) + " → <#" + reply.ChannelID + ">",
 	}), nil))
 	opener := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
@@ -174,15 +174,15 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 	}
 	t, ok := h.store.Ticket(ctx, discordstore.Channel{ID: in.ChannelID})
 	if !ok {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "This is not a ticket.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "This is not a ticket.", true))
 		return nil
 	}
 	if !canCloseTicket(t, in) {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Only the opener or a mod can close this.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Only the opener or a mod can close this.", true))
 		return nil
 	}
 	_ = h.store.ForgetTicket(ctx, discordstore.Channel{ID: t.ChannelID})
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Closing.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Closing.", true))
 	reply, err := h.channels.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: t.ChannelID})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket channel delete failed", zap.Error(err), zap.String("outgress_error", reply.Error))

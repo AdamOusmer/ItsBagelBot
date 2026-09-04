@@ -10,19 +10,34 @@ import (
 
 const testLink = "https://discord.gg/spamcode"
 
+// sightingArgs is sighting's and sightingOwner's (guild, channel, user,
+// owner) tuple collapsed into one struct, matching the messageEventInput/
+// linkGuardRun convention used for the same shape elsewhere in this repo's
+// Discord tests. sighting and sightingOwner individually took 3 and 4 bare
+// string parameters -- guild id, channel id, user id, owner id are all the
+// same Go type and easy to transpose at a call site -- which is what
+// CodeScene's String Heavy Function Arguments flagged on this file
+// (file-level).
+type sightingArgs struct {
+	Guild   string
+	Channel string
+	User    string
+	Owner   string // sighting ignores this; only sightingOwner reads it.
+}
+
 // sighting builds a Sighting with no owner binding, matching a guild that
 // never completed setup. That is a deliberate default for most of these
 // tests: local channel/author counting and enforcement must not depend on
 // OwnerID at all, only fleet corroboration does (see corroborate).
-func sighting(guild, channel, user string) Sighting {
-	return Sighting{GuildID: guild, ChannelID: channel, UserID: user, MessageID: "m", Link: testLink}
+func sighting(a sightingArgs) Sighting {
+	return Sighting{GuildID: a.Guild, ChannelID: a.Channel, UserID: a.User, MessageID: "m", Link: testLink}
 }
 
 // sightingOwner is sighting plus the Twitch broadcaster id the guild is
 // bound to, for the fleet-corroboration tests.
-func sightingOwner(guild, channel, user, owner string) Sighting {
-	s := sighting(guild, channel, user)
-	s.OwnerID = owner
+func sightingOwner(a sightingArgs) Sighting {
+	s := sighting(a)
+	s.OwnerID = a.Owner
 	return s
 }
 
@@ -39,7 +54,7 @@ func TestObserveBelowChannelThresholdAllows(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 
 	for i, ch := range []string{"c1", "c2"} { // one under ChannelThreshold (3)
-		v := g.Observe(ctx, sighting("g1", ch, "u1"))
+		v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: ch, User: "u1"}))
 		if !v.Allow {
 			t.Fatalf("post %d: Allow = false, want true (verdict %+v)", i, v)
 		}
@@ -52,9 +67,9 @@ func TestObserveBelowChannelThresholdAllows(t *testing.T) {
 func TestObserveAtChannelThresholdTrips(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 
-	g.Observe(ctx, sighting("g1", "c1", "u1"))
-	g.Observe(ctx, sighting("g1", "c2", "u1"))
-	v := g.Observe(ctx, sighting("g1", "c3", "u1")) // 3rd distinct channel == ChannelThreshold
+	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
+	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
+	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"})) // 3rd distinct channel == ChannelThreshold
 
 	if v.Allow {
 		t.Fatalf("3rd distinct channel: Allow = true, want false (verdict %+v)", v)
@@ -77,7 +92,7 @@ func TestObserveRepeatedChannelDoesNotDoubleCount(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 
 	for i := 0; i < 5; i++ {
-		v := g.Observe(ctx, sighting("g1", "c1", "u1"))
+		v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
 		if !v.Allow {
 			t.Fatalf("post %d in the same channel tripped a channel-count threshold (verdict %+v)", i, v)
 		}
@@ -93,12 +108,12 @@ func TestObserveMultiAuthorLowerThresholdTrips(t *testing.T) {
 	// AuthorThreshold well before ChannelThreshold (3) would ever fire.
 	g, ctx := newTestGuarder(t)
 
-	v1 := g.Observe(ctx, sighting("g1", "c1", "u1"))
+	v1 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
 	if !v1.Allow {
 		t.Fatalf("first author: Allow = false, want true (verdict %+v)", v1)
 	}
 
-	v2 := g.Observe(ctx, sighting("g1", "c1", "u2")) // 2nd distinct author == AuthorThreshold
+	v2 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u2"})) // 2nd distinct author == AuthorThreshold
 	if v2.Allow {
 		t.Fatalf("2nd distinct author: Allow = true, want false (verdict %+v)", v2)
 	}
@@ -115,14 +130,14 @@ func TestObserveWindowExpiryResetsCount(t *testing.T) {
 	g := New(fv.client)
 	ctx := context.Background()
 
-	g.Observe(ctx, sighting("g1", "c1", "u1"))
-	g.Observe(ctx, sighting("g1", "c2", "u1"))
+	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
+	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
 
 	fv.advance(Window + 1) // cross the fixed window boundary
 
 	// A fresh post after the window rolled over must start counting from
 	// scratch, not add a 3rd channel to the expired set.
-	v := g.Observe(ctx, sighting("g1", "c3", "u1"))
+	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"}))
 	if !v.Allow {
 		t.Fatalf("post after window expiry tripped early (verdict %+v)", v)
 	}
@@ -161,7 +176,7 @@ func TestObserveExemptions(t *testing.T) {
 			g, ctx := newTestGuarder(t)
 
 			for i, ch := range []string{"c1", "c2", "c3", "c4"} { // well past ChannelThreshold
-				s := sighting("g1", ch, tc.user)
+				s := sighting(sightingArgs{Guild: "g1", Channel: ch, User: tc.user})
 				tc.setup(&s)
 				v := g.Observe(ctx, s)
 				if !v.Allow {
@@ -180,7 +195,7 @@ func TestObserveExemptions(t *testing.T) {
 func tripGuild(ctx context.Context, g *Guarder, guild, owner string) Verdict {
 	var last Verdict
 	for i := 0; i < ChannelThreshold; i++ {
-		last = g.Observe(ctx, sightingOwner(guild, "c"+string(rune('1'+i)), "u1", owner))
+		last = g.Observe(ctx, sightingOwner(sightingArgs{Guild: guild, Channel: "c" + string(rune('1'+i)), User: "u1", Owner: owner}))
 	}
 	return last
 }
@@ -201,7 +216,7 @@ func TestObserveSingleGuildTripDoesNotPromoteFleetWide(t *testing.T) {
 	// trip. This is the abuse case FleetOwnerThreshold exists to close:
 	// one owner alone, however many guilds they control, can never get a
 	// link actioned everywhere.
-	v := g.Observe(ctx, sightingOwner("g2", "c1", "u1", "owner2"))
+	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g2", Channel: "c1", User: "u1", Owner: "owner2"}))
 	if !v.Allow {
 		t.Fatalf("g2's first-ever sighting was blocked by g1's local trip: %+v", v)
 	}
@@ -230,7 +245,7 @@ func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
 
 	// A third guild, bound to a genuinely different owner, must still be
 	// judged fresh -- the two same-owner guilds must not have promoted it.
-	v := g.Observe(ctx, sightingOwner("g3", "c1", "u1", "unrelatedOwner"))
+	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g3", Channel: "c1", User: "u1", Owner: "unrelatedOwner"}))
 	if !v.Allow || v.FleetHit {
 		t.Fatalf("link was promoted despite only one distinct owner ever corroborating: %+v", v)
 	}
@@ -269,7 +284,7 @@ func TestObservePromotedLinkActionedInUnseenThirdGuild(t *testing.T) {
 	// channel it has never posted in, by a user it has never seen, from a
 	// guild with no owner binding at all. It must still be actioned purely
 	// off the fleet-wide promotion.
-	v := g.Observe(ctx, sighting("g3", "brand-new-channel", "brand-new-user"))
+	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g3", Channel: "brand-new-channel", User: "brand-new-user"}))
 	if v.Allow {
 		t.Fatalf("promoted link allowed through an unrelated guild that never saw it: %+v", v)
 	}
@@ -306,7 +321,7 @@ func TestObserveEmptyOwnerNeverCorroborates(t *testing.T) {
 	// Prove it directly against Valkey, not just via the returned Verdict:
 	// the trips set for this link must still be empty.
 	link, _ := NormalizeLink(testLink)
-	n, err := g.card(ctx, tripsKey(link))
+	n, err := g.card(ctx, tripsKey(normalizedLink(link)))
 	if err != nil {
 		t.Fatalf("card: %v", err)
 	}

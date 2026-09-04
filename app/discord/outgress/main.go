@@ -75,7 +75,10 @@ func main() {
 	nc := connectNATS(cfg, log)
 	defer nc.Close()
 
-	subscribeRPCs(nc, cfg, rest, store, liveStore, reauth, nrApp, log)
+	subscribeRPCs(rpcDeps{
+		NC: nc, Cfg: cfg, Rest: rest, Store: store,
+		LiveStore: liveStore, Reauth: reauth, NRApp: nrApp, Log: log,
+	})
 
 	closeCommands := startCommandConsumer(ctx, cfg, rest, applicationID, reauth, log)
 	defer closeCommands()
@@ -136,24 +139,34 @@ func connectNATS(cfg config.Config, log *zap.Logger) *nats.Conn {
 	return nc
 }
 
+// rpcDeps is subscribeRPCs's whole input, collapsed from eight positional
+// parameters into one struct (CodeScene: Excess Number of Function
+// Arguments, over its 4-parameter limit).
+type rpcDeps struct {
+	NC        *nats.Conn
+	Cfg       config.Config
+	Rest      *discordrate.LimitedClient
+	Store     discordstore.Store
+	LiveStore kv.LiveStore
+	Reauth    kv.ReauthStore
+	NRApp     *newrelic.Application
+	Log       *zap.Logger
+}
+
 // subscribeRPCs wires the dashboard-facing guild setup RPC and the
 // engine-facing channel-management/live RPC onto the same connection.
-func subscribeRPCs(
-	nc *nats.Conn, cfg config.Config, rest *discordrate.LimitedClient,
-	store discordstore.Store, liveStore kv.LiveStore, reauth kv.ReauthStore,
-	nrApp *newrelic.Application, log *zap.Logger,
-) {
-	setupWorker := setup.New(setup.Config{Discord: rest, Store: store, Log: log.Named("setup")})
+func subscribeRPCs(deps rpcDeps) {
+	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
 	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
-		NC: nc, Prefix: cfg.RPCPrefix, Queue: cfg.RPCQueue, App: nrApp,
-		Reauth: reauth, Log: log.Named("rpc"),
+		NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue, App: deps.NRApp,
+		Reauth: deps.Reauth, Log: deps.Log.Named("rpc"),
 	}); err != nil {
-		log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
+		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeEngine(rest, liveStore, rpc.EngineWiring{
-		NC: nc, Prefix: cfg.DiscordEngineRPCPrefix, Queue: cfg.DiscordEngineRPCQueue, App: nrApp, Log: log.Named("engine-rpc"),
+	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, rpc.EngineWiring{
+		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue, App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
 	}); err != nil {
-		log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
+		deps.Log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
 	}
 }
 

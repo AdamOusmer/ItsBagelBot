@@ -92,18 +92,26 @@ func (c *Consumer) pump(ctx context.Context, modCh, defCh <-chan *bus.Message) {
 		} else if handled {
 			continue
 		}
-		select {
-		case <-ctx.Done():
+		if !c.waitTurn(ctx, modCh, defCh) {
 			return
-		case msg, ok := <-modCh:
-			if !c.take(msg, ok) {
-				return
-			}
-		case msg, ok := <-defCh:
-			if !c.take(msg, ok) {
-				return
-			}
 		}
+	}
+}
+
+// waitTurn is pump's blocking half, extracted on its own (CodeScene: Complex
+// Method -- pump inlining this select pushed it back over the cyclomatic
+// limit even after pollMod/take/process were already split out). Runs once
+// pollMod has confirmed nothing is already waiting on mod, and blocks for
+// ctx cancellation or the next message on either lane. Reports whether the
+// pump should keep running: false on cancellation or a closed channel.
+func (c *Consumer) waitTurn(ctx context.Context, modCh, defCh <-chan *bus.Message) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case msg, ok := <-modCh:
+		return c.take(msg, ok)
+	case msg, ok := <-defCh:
+		return c.take(msg, ok)
 	}
 }
 

@@ -45,6 +45,27 @@ func UserTarget(guildID, userID string) Target {
 	return Target{GuildID: guildID, UserID: userID}
 }
 
+// Reason is a Command's audit-log reason (Command.Reason), as passed to
+// DeleteMessage, TimeoutMember, KickMember and BanMember. Named, rather
+// than a bare string, because this file was flagged for CodeScene's
+// Primitive Obsession (file-level): those four builders' payload
+// parameters, beyond the already-named Target, were still bare strings and
+// bools indistinguishable from a message id, a role id or an interaction
+// token one parameter over. A string literal still converts to it for
+// free, so most call sites need no change.
+type Reason string
+
+// Token is a Discord interaction token, as passed to Followup and
+// FollowupEmbed to complete a deferred interaction. Named for the same
+// Primitive Obsession reason as Reason above -- both builders otherwise
+// read as one more (Target, string, ...) shape indistinguishable from a
+// plain content string one parameter over.
+type Token string
+
+// RoleID is a Discord role id, as passed to AddRole and RemoveRole. Named
+// for the same Primitive Obsession reason as Reason and Token above.
+type RoleID string
+
 func marshal(v any) []byte {
 	raw, err := codec.Marshal(v)
 	if err != nil {
@@ -78,18 +99,18 @@ func PostChat(t Target, content string) ddiscord.Command {
 }
 
 // AddRole builds a TypeAddRole Command.
-func AddRole(t Target, roleID string) ddiscord.Command {
+func AddRole(t Target, roleID RoleID) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeAddRole, GuildID: t.GuildID, UserID: t.UserID,
-		Payload: marshal(ddiscord.RolePayload{RoleID: roleID}),
+		Payload: marshal(ddiscord.RolePayload{RoleID: string(roleID)}),
 	}
 }
 
 // RemoveRole builds a TypeRemoveRole Command.
-func RemoveRole(t Target, roleID string) ddiscord.Command {
+func RemoveRole(t Target, roleID RoleID) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeRemoveRole, GuildID: t.GuildID, UserID: t.UserID,
-		Payload: marshal(ddiscord.RolePayload{RoleID: roleID}),
+		Payload: marshal(ddiscord.RolePayload{RoleID: string(roleID)}),
 	}
 }
 
@@ -98,46 +119,46 @@ func RemoveRole(t Target, roleID string) ddiscord.Command {
 // Command.Reason and TypeDeleteMessage's doc), and an automod deletion
 // with no reason reads, to a moderator checking the log, as the bot
 // malfunctioning rather than acting on purpose.
-func DeleteMessage(t Target, messageID, reason string) ddiscord.Command {
+func DeleteMessage(t Target, messageID string, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
-		Type: ddiscord.TypeDeleteMessage, GuildID: t.GuildID, ChannelID: t.ChannelID, Reason: reason,
+		Type: ddiscord.TypeDeleteMessage, GuildID: t.GuildID, ChannelID: t.ChannelID, Reason: string(reason),
 		Payload: marshal(ddiscord.DeletePayload{MessageID: messageID}),
 	}
 }
 
 // TimeoutMember builds a TypeTimeoutMember Command (mod lane).
-func TimeoutMember(t Target, untilISO, reason string) ddiscord.Command {
+func TimeoutMember(t Target, untilISO string, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
-		Type: ddiscord.TypeTimeoutMember, GuildID: t.GuildID, UserID: t.UserID, Reason: reason,
+		Type: ddiscord.TypeTimeoutMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason),
 		Payload: marshal(ddiscord.TimeoutPayload{UntilISO: untilISO}),
 	}
 }
 
 // KickMember builds a TypeKickMember Command (mod lane).
-func KickMember(t Target, reason string) ddiscord.Command {
-	return ddiscord.Command{Type: ddiscord.TypeKickMember, GuildID: t.GuildID, UserID: t.UserID, Reason: reason}
+func KickMember(t Target, reason Reason) ddiscord.Command {
+	return ddiscord.Command{Type: ddiscord.TypeKickMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason)}
 }
 
 // BanMember builds a TypeBanMember Command (mod lane).
-func BanMember(t Target, reason string) ddiscord.Command {
-	return ddiscord.Command{Type: ddiscord.TypeBanMember, GuildID: t.GuildID, UserID: t.UserID, Reason: reason}
+func BanMember(t Target, reason Reason) ddiscord.Command {
+	return ddiscord.Command{Type: ddiscord.TypeBanMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason)}
 }
 
 // Followup builds a TypeInteractionFollowup Command completing a deferred
 // interaction with a plain text reply.
-func Followup(t Target, token, content string, ephemeral bool) ddiscord.Command {
+func Followup(t Target, token Token, content string, ephemeral bool) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeInteractionFollowup, GuildID: t.GuildID,
-		Payload: marshal(ddiscord.FollowupPayload{InteractionToken: token, Content: content, Ephemeral: ephemeral}),
+		Payload: marshal(ddiscord.FollowupPayload{InteractionToken: string(token), Content: content, Ephemeral: ephemeral}),
 	}
 }
 
 // FollowupEmbed builds a TypeInteractionFollowup Command completing a
 // deferred interaction with an embed and optional buttons.
-func FollowupEmbed(t Target, token string, embed ddiscord.Embed, buttons []ddiscord.ButtonSpec) ddiscord.Command {
+func FollowupEmbed(t Target, token Token, embed ddiscord.Embed, buttons []ddiscord.ButtonSpec) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeInteractionFollowup, GuildID: t.GuildID,
-		Payload: marshal(ddiscord.FollowupPayload{InteractionToken: token, Embed: &embed, Buttons: buttons}),
+		Payload: marshal(ddiscord.FollowupPayload{InteractionToken: string(token), Embed: &embed, Buttons: buttons}),
 	}
 }
 

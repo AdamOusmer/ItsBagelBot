@@ -190,9 +190,28 @@ type Verdict struct {
 	CorroboratingOwners int
 }
 
+// normalizedLink is NormalizeLink's return value, threaded through nearly
+// every decision helper below Observe. Named, rather than a bare string,
+// because this file was flagged for CodeScene's Primitive Obsession
+// (file-level): the great majority of its unexported signatures were one
+// more (..., string, bool) shape built around this same value, indistinguishable
+// from a raw link, a guild id or a Valkey key at the call site. It stays
+// unexported and converts to/from the public plain string at Observe's
+// entry and wherever a Verdict is built, so Verdict.NormalizedLink itself
+// (part of this package's public API) is untouched.
+type normalizedLink string
+
+// valkeyKey is a fully-built Valkey key, as the four key builders at the
+// bottom of this file each return. Named for the same Primitive Obsession
+// reason as normalizedLink above: addAndExpire and card both took a bare
+// "key string" indistinguishable from "member string" one parameter over,
+// and every call passed one of exactly four key-builder results, never an
+// arbitrary string.
+type valkeyKey string
+
 // allow builds a Verdict that lets the message through.
-func allow(reason, link string, invite bool) Verdict {
-	return Verdict{Allow: true, Reason: reason, NormalizedLink: link, IsInvite: invite}
+func allow(reason string, link normalizedLink, invite bool) Verdict {
+	return Verdict{Allow: true, Reason: reason, NormalizedLink: string(link), IsInvite: invite}
 }
 
 // Guarder is the linkguard engine. It is safe for concurrent use; all state
@@ -218,7 +237,8 @@ func New(client valkey.Client) *Guarder {
 // Observe records one Sighting and returns a Verdict. It never mutates
 // Discord state and never blocks on anything but Valkey.
 func (g *Guarder) Observe(ctx context.Context, s Sighting) Verdict {
-	link, invite := NormalizeLink(s.Link)
+	raw, invite := NormalizeLink(s.Link)
+	link := normalizedLink(raw)
 	if link == "" {
 		return allow(ReasonBelowThreshold, link, invite)
 	}
@@ -238,7 +258,7 @@ func (g *Guarder) Observe(ctx context.Context, s Sighting) Verdict {
 // Valkey -- an exempt sighting leaves no trace, so a moderator's legitimate
 // repeated posts never contribute to (or get blocked by) counts meant for
 // abuse.
-func exemptVerdict(s Sighting, link string, invite bool) (Verdict, bool) {
+func exemptVerdict(s Sighting, link normalizedLink, invite bool) (Verdict, bool) {
 	switch {
 	case s.OwnGuildInvite:
 		return allow(ReasonOwnInvite, link, invite), true
@@ -261,8 +281,8 @@ func exemptVerdict(s Sighting, link string, invite bool) (Verdict, bool) {
 // failing to notice an existing promotion costs one sighting its fleet-wide
 // fast path, not a false action, which matches this package's bias toward
 // never over-blocking on infrastructure trouble. See ReasonValkeyError.
-func (g *Guarder) fleetHit(ctx context.Context, link string, invite bool) (Verdict, bool) {
-	raw, err := g.client.Do(ctx, g.client.B().Hget().Key(fleetKey(link)).Field(fleetFieldOwnerCount).Build()).ToString()
+func (g *Guarder) fleetHit(ctx context.Context, link normalizedLink, invite bool) (Verdict, bool) {
+	raw, err := g.client.Do(ctx, g.client.B().Hget().Key(string(fleetKey(link))).Field(fleetFieldOwnerCount).Build()).ToString()
 	if err != nil || raw == "" {
 		return Verdict{}, false
 	}
@@ -270,7 +290,7 @@ func (g *Guarder) fleetHit(ctx context.Context, link string, invite bool) (Verdi
 	return Verdict{
 		Allow:               false,
 		Reason:              ReasonFleetPromoted,
-		NormalizedLink:      link,
+		NormalizedLink:      string(link),
 		IsInvite:            invite,
 		FleetHit:            true,
 		CorroboratingOwners: count,
@@ -281,7 +301,7 @@ func (g *Guarder) fleetHit(ctx context.Context, link string, invite bool) (Verdi
 // sets, reads their new cardinality, and decides whether a local threshold
 // tripped. A tripped sighting goes on to check (and possibly perform) fleet
 // promotion; a sighting that stays under threshold is allowed.
-func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link string, invite bool) Verdict {
+func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link normalizedLink, invite bool) Verdict {
 	channels, authors, err := g.recordAndCount(ctx, s, link)
 	if err != nil {
 		return allow(ReasonValkeyError, link, invite)
@@ -291,7 +311,7 @@ func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link string, i
 	v := Verdict{
 		Allow:            !tripped,
 		Reason:           reason,
-		NormalizedLink:   link,
+		NormalizedLink:   string(link),
 		IsInvite:         invite,
 		DistinctChannels: channels,
 		DistinctAuthors:  authors,
@@ -320,8 +340,8 @@ func tripReason(channels, authors int) (string, bool) {
 // returns their new cardinalities. Each set's expiry is set with NX (only
 // when the key has none yet), which is what gives Window a fixed start
 // rather than one that resets on every new member -- see Window's doc.
-func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link string) (channels, authors int, err error) {
-	gl := guildLink{GuildID: s.GuildID, Link: link}
+func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link normalizedLink) (channels, authors int, err error) {
+	gl := guildLink{GuildID: s.GuildID, Link: string(link)}
 	ck, ak := gl.channelsKey(), gl.authorsKey()
 	if err = g.addAndExpire(ctx, ck, s.ChannelID, Window); err != nil {
 		return 0, 0, err
@@ -356,7 +376,7 @@ func (g *Guarder) corroborate(ctx context.Context, s Sighting, v Verdict) Verdic
 	if s.OwnerID == "" {
 		return v
 	}
-	tk := tripsKey(v.NormalizedLink)
+	tk := tripsKey(normalizedLink(v.NormalizedLink))
 	if err := g.addAndExpire(ctx, tk, s.OwnerID, CorroborationWindow); err != nil {
 		return v
 	}
@@ -368,7 +388,7 @@ func (g *Guarder) corroborate(ctx context.Context, s Sighting, v Verdict) Verdic
 	if owners < FleetOwnerThreshold {
 		return v
 	}
-	if err := g.fleetPromote(ctx, v.NormalizedLink, owners); err == nil {
+	if err := g.fleetPromote(ctx, normalizedLink(v.NormalizedLink), owners); err == nil {
 		v.FleetPromoted = true
 	}
 	return v
@@ -387,31 +407,31 @@ func (g *Guarder) corroborate(ctx context.Context, s Sighting, v Verdict) Verdic
 // every time this runs (not NX): a link that keeps earning fresh
 // corroboration while already promoted should have its block extended, not
 // silently expire out from under an active incident.
-func (g *Guarder) fleetPromote(ctx context.Context, link string, ownerCount int) error {
+func (g *Guarder) fleetPromote(ctx context.Context, link normalizedLink, ownerCount int) error {
 	key := fleetKey(link)
-	err := g.client.Do(ctx, g.client.B().Hset().Key(key).
+	err := g.client.Do(ctx, g.client.B().Hset().Key(string(key)).
 		FieldValue().FieldValue(fleetFieldOwnerCount, strconv.Itoa(ownerCount)).
 		FieldValue(fleetFieldPromotedAt, strconv.FormatInt(time.Now().Unix(), 10)).
 		Build()).Error()
 	if err != nil {
 		return err
 	}
-	return g.client.Do(ctx, g.client.B().Expire().Key(key).Seconds(int64(FleetTTL.Seconds())).Build()).Error()
+	return g.client.Do(ctx, g.client.B().Expire().Key(string(key)).Seconds(int64(FleetTTL.Seconds())).Build()).Error()
 }
 
 // addAndExpire adds member to the Valkey set at key and gives it ttl if (and
 // only if) it does not already have an expiry -- see Window's doc for why
 // NX rather than an unconditional refresh.
-func (g *Guarder) addAndExpire(ctx context.Context, key, member string, ttl time.Duration) error {
-	if err := g.client.Do(ctx, g.client.B().Sadd().Key(key).Member(member).Build()).Error(); err != nil {
+func (g *Guarder) addAndExpire(ctx context.Context, key valkeyKey, member string, ttl time.Duration) error {
+	if err := g.client.Do(ctx, g.client.B().Sadd().Key(string(key)).Member(member).Build()).Error(); err != nil {
 		return err
 	}
-	return g.client.Do(ctx, g.client.B().Expire().Key(key).Seconds(int64(ttl.Seconds())).Nx().Build()).Error()
+	return g.client.Do(ctx, g.client.B().Expire().Key(string(key)).Seconds(int64(ttl.Seconds())).Nx().Build()).Error()
 }
 
 // card returns the cardinality of the Valkey set at key.
-func (g *Guarder) card(ctx context.Context, key string) (int, error) {
-	n, err := g.client.Do(ctx, g.client.B().Scard().Key(key).Build()).AsInt64()
+func (g *Guarder) card(ctx context.Context, key valkeyKey) (int, error) {
+	n, err := g.client.Do(ctx, g.client.B().Scard().Key(string(key)).Build()).AsInt64()
 	if err != nil {
 		return 0, err
 	}
@@ -438,13 +458,13 @@ type guildLink struct {
 	Link    string
 }
 
-func (gl guildLink) channelsKey() string {
-	return keyPrefix + "channels:" + gl.GuildID + ":" + gl.Link
+func (gl guildLink) channelsKey() valkeyKey {
+	return valkeyKey(keyPrefix + "channels:" + gl.GuildID + ":" + gl.Link)
 }
 
-func (gl guildLink) authorsKey() string {
-	return keyPrefix + "authors:" + gl.GuildID + ":" + gl.Link
+func (gl guildLink) authorsKey() valkeyKey {
+	return valkeyKey(keyPrefix + "authors:" + gl.GuildID + ":" + gl.Link)
 }
 
-func tripsKey(link string) string { return keyPrefix + "trips:" + link }
-func fleetKey(link string) string { return keyPrefix + "fleet:" + link }
+func tripsKey(link normalizedLink) valkeyKey { return valkeyKey(keyPrefix + "trips:" + string(link)) }
+func fleetKey(link normalizedLink) valkeyKey { return valkeyKey(keyPrefix + "fleet:" + string(link)) }

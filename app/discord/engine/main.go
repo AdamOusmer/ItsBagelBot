@@ -133,7 +133,8 @@ func main() {
 	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
 	defer closeIngress()
 
-	closeTwitch := startTwitchConsumers(ctx, cfg, nrApp, log, twitchDeps{
+	closeTwitch := startTwitchConsumers(twitchDeps{
+		Ctx: ctx, Cfg: cfg, NRApp: nrApp, Log: log,
 		Resolver: resolver, ProjStore: projStore, Publish: publish, RPC: rpc, NC: nc, Identity: identity,
 	})
 	defer closeTwitch()
@@ -160,11 +161,18 @@ func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrel
 	return func() { _ = sub.Close() }
 }
 
-// twitchDeps is the module wiring startTwitchConsumers needs beyond the
-// (ctx, cfg, nrApp, log) preamble it shares with startIngressConsumers --
-// collapsed from six separate parameters into one struct (CodeScene: Excess
-// Number of Function Arguments).
+// twitchDeps is every input startTwitchConsumers needs, including the
+// (ctx, cfg, nrApp, log) preamble it shares with startIngressConsumers.
+// First pass collapsed only the module wiring into a struct and left the
+// preamble as four more positional parameters, which still tripped
+// CodeScene's Excess Number of Function Arguments (5 params, over its
+// 4-parameter limit). Folding the preamble in too gets the function down to
+// the one parameter this struct provides.
 type twitchDeps struct {
+	Ctx       context.Context
+	Cfg       config.Config
+	NRApp     *newrelic.Application
+	Log       *zap.Logger
 	Resolver  resolve.Resolver
 	ProjStore *projection.Store
 	Publish   modules.Publish
@@ -176,31 +184,31 @@ type twitchDeps struct {
 // startTwitchConsumers binds Live and Clip to their Twitch inputs, on one
 // shared subscriber -- the same "one Subscriber spans both inputs" pattern
 // app/projector and the old dingress egress role already use.
-func startTwitchConsumers(ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger, deps twitchDeps) func() {
+func startTwitchConsumers(deps twitchDeps) func() {
 	live := &modules.Live{
 		Resolve:    deps.Resolver.ByBroadcaster,
 		StreamInfo: deps.ProjStore,
-		Fallback:   streaminfo.New(deps.NC, cfg.TwitchOutgressRPCPrefix),
+		Fallback:   streaminfo.New(deps.NC, deps.Cfg.TwitchOutgressRPCPrefix),
 		RPC:        deps.RPC,
-		Log:        log,
+		Log:        deps.Log,
 	}
-	clip := &modules.Clip{Resolve: deps.Resolver.ByBroadcaster, Publish: deps.Publish, Log: log}
+	clip := &modules.Clip{Resolve: deps.Resolver.ByBroadcaster, Publish: deps.Publish, Log: deps.Log}
 
-	sub, err := bus.NewSubscriber(cfg.NATSURL, serviceName, log)
+	sub, err := bus.NewSubscriber(deps.Cfg.NATSURL, serviceName, deps.Log)
 	if err != nil {
-		log.Fatal("failed to connect twitch-lane subscriber", zap.Error(err))
+		deps.Log.Fatal("failed to connect twitch-lane subscriber", zap.Error(err))
 	}
-	if err := bus.Consume(ctx, nrApp, sub, cfg.StreamLaneSubject, live.HandleStreamEvent, log); err != nil {
-		log.Fatal("failed to consume stream lane", zap.Error(err))
+	if err := bus.Consume(deps.Ctx, deps.NRApp, sub, deps.Cfg.StreamLaneSubject, live.HandleStreamEvent, deps.Log); err != nil {
+		deps.Log.Fatal("failed to consume stream lane", zap.Error(err))
 	}
-	if err := bus.Consume(ctx, nrApp, sub, cfg.ClipCreatedSubject, clip.HandleClipCreated, log); err != nil {
-		log.Fatal("failed to consume clip-created lane", zap.Error(err))
+	if err := bus.Consume(deps.Ctx, deps.NRApp, sub, deps.Cfg.ClipCreatedSubject, clip.HandleClipCreated, deps.Log); err != nil {
+		deps.Log.Fatal("failed to consume clip-created lane", zap.Error(err))
 	}
 	// Account facts, for the bot's per-guild appearance. Subscribed here
 	// rather than left to GUILD_CREATE alone so an upgrade is visible at once
 	// instead of at the next gateway reconnect, which may be hours away.
-	if err := bus.Consume(ctx, nrApp, sub, cfg.UserChangedSubject, deps.Identity.HandleUserChanged, log); err != nil {
-		log.Fatal("failed to consume user-changed lane", zap.Error(err))
+	if err := bus.Consume(deps.Ctx, deps.NRApp, sub, deps.Cfg.UserChangedSubject, deps.Identity.HandleUserChanged, deps.Log); err != nil {
+		deps.Log.Fatal("failed to consume user-changed lane", zap.Error(err))
 	}
 	return func() { _ = sub.Close() }
 }

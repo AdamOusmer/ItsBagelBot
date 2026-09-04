@@ -323,7 +323,8 @@ func TestSessionResumesAfterReady(t *testing.T) {
 	_ = sess.oneSocket(ctx, "ws://x", st)
 
 	sessionID, resumeURL, ok := st.resumable()
-	if !matchesResumeState(sessionID, resumeURL, ok, "sess-1", "ws://resume") {
+	got := resumeSnapshot{SessionID: sessionID, ResumeURL: resumeURL, OK: ok}
+	if !matchesResumeState(got, resumeSnapshot{SessionID: "sess-1", ResumeURL: "ws://resume", OK: true}) {
 		t.Fatalf("resume state = (%q, %q, %t), want the ids from READY", sessionID, resumeURL, ok)
 	}
 
@@ -335,11 +336,24 @@ func TestSessionResumesAfterReady(t *testing.T) {
 	}
 }
 
+// resumeSnapshot is a resumeState.resumable() triple, named so
+// matchesResumeState can compare "got" against "want" as two values instead
+// of five bare parameters (CodeScene: Excess Number of Function Arguments).
+// want.OK is always true here -- a comparison against a non-resumable want
+// has never been a case this test needs -- but the field stays on the
+// shared type rather than a second, narrower one so there is exactly one
+// name for "what resumable() returns" in this file.
+type resumeSnapshot struct {
+	SessionID string
+	ResumeURL string
+	OK        bool
+}
+
 // matchesResumeState reports whether a resumeState.resumable() triple is
 // exactly the resumable session recorded from one READY, naming what the
 // three-value comparison in TestSessionResumesAfterReady means.
-func matchesResumeState(sessionID, resumeURL string, ok bool, wantSessionID, wantResumeURL string) bool {
-	return ok && sessionID == wantSessionID && resumeURL == wantResumeURL
+func matchesResumeState(got, want resumeSnapshot) bool {
+	return got.OK && got.SessionID == want.SessionID && got.ResumeURL == want.ResumeURL
 }
 
 // INVALID_SESSION with d:false means the session is gone. Keeping it would

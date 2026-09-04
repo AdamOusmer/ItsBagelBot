@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
@@ -67,20 +68,20 @@ func (f *fakeEngineREST) GetInvite(_ context.Context, code string) (discapi.Invi
 }
 
 type memLive struct {
-	msgs map[string]discapi.Message
+	msgs map[kv.GuildID]discapi.Message
 }
 
-func newMemLive() *memLive { return &memLive{msgs: map[string]discapi.Message{}} }
+func newMemLive() *memLive { return &memLive{msgs: map[kv.GuildID]discapi.Message{}} }
 
-func (m *memLive) PutLiveMessage(_ context.Context, guildID string, msg discapi.Message) error {
+func (m *memLive) PutLiveMessage(_ context.Context, guildID kv.GuildID, msg discapi.Message) error {
 	m.msgs[guildID] = msg
 	return nil
 }
-func (m *memLive) GetLiveMessage(_ context.Context, guildID string) (discapi.Message, bool) {
+func (m *memLive) GetLiveMessage(_ context.Context, guildID kv.GuildID) (discapi.Message, bool) {
 	msg, ok := m.msgs[guildID]
 	return msg, ok
 }
-func (m *memLive) DeleteLiveMessage(_ context.Context, guildID string) error {
+func (m *memLive) DeleteLiveMessage(_ context.Context, guildID kv.GuildID) error {
 	delete(m.msgs, guildID)
 	return nil
 }

@@ -55,7 +55,7 @@ func autorole(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
 	if c.Config.MemberRoleID == "" {
 		return
 	}
-	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), c.Config.MemberRoleID))
+	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), cmd.RoleID(c.Config.MemberRoleID)))
 }
 
 func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) error {

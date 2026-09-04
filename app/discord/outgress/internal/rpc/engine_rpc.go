@@ -159,14 +159,14 @@ func (h *engineRPC) handleLiveOnline(ctx context.Context, req discordoutgress.Li
 	if h.live == nil {
 		return discordoutgress.LiveOnlineReply{}
 	}
-	if _, known := h.live.GetLiveMessage(ctx, req.GuildID); known {
+	if _, known := h.live.GetLiveMessage(ctx, kv.GuildID(req.GuildID)); known {
 		return discordoutgress.LiveOnlineReply{}
 	}
 	msg, err := h.rest.SendEmbed(ctx, discapi.EmbedPost{ChannelID: req.ChannelID, Embed: req.Embed})
 	if err != nil {
 		return discordoutgress.LiveOnlineReply{Error: err.Error()}
 	}
-	if err := h.live.PutLiveMessage(ctx, req.GuildID, msg); err != nil {
+	if err := h.live.PutLiveMessage(ctx, kv.GuildID(req.GuildID), msg); err != nil {
 		h.log.Warn("go-live message tracking failed", zap.String("guild_id", req.GuildID), zap.Error(err))
 	}
 	return discordoutgress.LiveOnlineReply{}
@@ -179,7 +179,7 @@ func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.L
 	if h.live == nil {
 		return discordoutgress.LiveOfflineReply{}
 	}
-	msg, known := h.live.GetLiveMessage(ctx, req.GuildID)
+	msg, known := h.live.GetLiveMessage(ctx, kv.GuildID(req.GuildID))
 	if !known {
 		return discordoutgress.LiveOfflineReply{}
 	}
@@ -187,7 +187,7 @@ func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.L
 	if keepLiveMessage(err) {
 		return discordoutgress.LiveOfflineReply{Error: err.Error()}
 	}
-	_ = h.live.DeleteLiveMessage(ctx, req.GuildID)
+	_ = h.live.DeleteLiveMessage(ctx, kv.GuildID(req.GuildID))
 	return discordoutgress.LiveOfflineReply{}
 }
 

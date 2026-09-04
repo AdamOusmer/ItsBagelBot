@@ -139,12 +139,28 @@ func (h voiceModule) deleteEmptyClone(ctx context.Context, channelID string) {
 	}
 }
 
+// voiceInvocation is the trio every /voice control handler threads through
+// unchanged: the module context (for Config), the decoded interaction (for
+// Token/ChannelID/Member) and the emit callback. Bundled into one struct --
+// alongside ctx, which Go convention keeps as its own leading parameter --
+// because command alone was flagged for CodeScene's Excess Number of
+// Function Arguments (five parameters, over its 4-parameter limit), and
+// apply/rename/limit/lock repeat the exact same trio, so leaving them
+// positional would only have moved the finding to the next sibling down
+// the call chain (see the codescene-gate skill's "fix the shared shape"
+// guidance).
+type voiceInvocation struct {
+	Module *module.Context
+	In     decode.InteractionEvent
+	Emit   module.Emit
+}
+
 func (h voiceModule) slash(ctx context.Context, c *module.Context, emit module.Emit) error {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {
 		return err
 	}
-	return h.command(ctx, c, in, decode.FirstSub(in.Data.Options), emit)
+	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.FirstSub(in.Data.Options))
 }
 
 func (h voiceModule) lockButton(ctx context.Context, c *module.Context, emit module.Emit) error {
@@ -152,7 +168,7 @@ func (h voiceModule) lockButton(ctx context.Context, c *module.Context, emit mod
 	if err != nil {
 		return err
 	}
-	return h.command(ctx, c, in, decode.InteractionOption{Name: "lock"}, emit)
+	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.InteractionOption{Name: "lock"})
 }
 
 func (h voiceModule) unlockButton(ctx context.Context, c *module.Context, emit module.Emit) error {
@@ -160,20 +176,20 @@ func (h voiceModule) unlockButton(ctx context.Context, c *module.Context, emit m
 	if err != nil {
 		return err
 	}
-	return h.command(ctx, c, in, decode.InteractionOption{Name: "unlock"}, emit)
+	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.InteractionOption{Name: "unlock"})
 }
 
-func (h voiceModule) command(ctx context.Context, c *module.Context, in decode.InteractionEvent, sub decode.InteractionOption, emit module.Emit) error {
-	cl, ok := h.store.Clone(ctx, discordstore.Channel{ID: in.ChannelID})
+func (h voiceModule) command(ctx context.Context, v voiceInvocation, sub decode.InteractionOption) error {
+	cl, ok := h.store.Clone(ctx, discordstore.Channel{ID: v.In.ChannelID})
 	if !ok {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "You can only do that in a temporary voice channel.", true))
+		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "You can only do that in a temporary voice channel.", true))
 		return nil
 	}
-	if !ownsVoice(cl, in) {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Only the channel owner can do that.", true))
+	if !ownsVoice(cl, v.In) {
+		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Only the channel owner can do that.", true))
 		return nil
 	}
-	return h.apply(ctx, c, in, cl, sub, emit)
+	return h.apply(ctx, v, cl, sub)
 }
 
 func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent) bool {
@@ -183,47 +199,47 @@ func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent) bool {
 	return decode.CanMod(in.Member.Permissions)
 }
 
-func (h voiceModule) apply(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, sub decode.InteractionOption, emit module.Emit) error {
+func (h voiceModule) apply(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {
 	switch sub.Name {
 	case "name":
-		return h.rename(ctx, c, in, cl, sub, emit)
+		return h.rename(ctx, v, cl, sub)
 	case "limit":
-		return h.limit(ctx, c, in, cl, sub, emit)
+		return h.limit(ctx, v, cl, sub)
 	case "lock":
-		return h.lock(ctx, c, in, cl, true, emit)
+		return h.lock(ctx, v, cl, true)
 	case "unlock":
-		return h.lock(ctx, c, in, cl, false, emit)
+		return h.lock(ctx, v, cl, false)
 	default:
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Unknown voice command.", true))
+		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Unknown voice command.", true))
 		return nil
 	}
 }
 
-func (h voiceModule) rename(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, sub decode.InteractionOption, emit module.Emit) error {
+func (h voiceModule) rename(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {
 	name := decode.OptionString(sub, "name")
 	if name == "" {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Give the channel a name.", true))
+		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Give the channel a name.", true))
 		return nil
 	}
 	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, Name: name})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice rename failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Renamed.", true))
+	v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Renamed.", true))
 	return nil
 }
 
-func (h voiceModule) limit(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, sub decode.InteractionOption, emit module.Emit) error {
+func (h voiceModule) limit(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {
 	n := decode.OptionInt(sub, "count")
 	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, UserLimit: n})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice limit failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "User limit set to "+strconv.Itoa(n)+".", true))
+	v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "User limit set to "+strconv.Itoa(n)+".", true))
 	return nil
 }
 
-func (h voiceModule) lock(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, lock bool, emit module.Emit) error {
+func (h voiceModule) lock(ctx context.Context, v voiceInvocation, cl discordstore.Clone, lock bool) error {
 	overwrites := []discordapi.PermissionOverwrite{
 		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: cl.OwnerID, Kind: 1, Bits: decode.PermView | decode.PermConnect}),
 	}
@@ -238,6 +254,6 @@ func (h voiceModule) lock(ctx context.Context, c *module.Context, in decode.Inte
 	if lock {
 		msg = "Locked."
 	}
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, msg, true))
+	v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), msg, true))
 	return nil
 }

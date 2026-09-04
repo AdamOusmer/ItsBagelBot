@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
@@ -205,9 +206,20 @@ func TestDispatchFollowupUsesApplicationID(t *testing.T) {
 	if len(rest.followups) != 1 {
 		t.Fatalf("followups = %+v", rest.followups)
 	}
+	// Checked field by field, not as one f.ApplicationID != "app-1" ||
+	// f.Token != "tok" || !f.Ephemeral condition: CodeScene's Complex
+	// Conditional flags any single expression combining more than one
+	// && / ||, and a three-field "something about this followup is wrong"
+	// check is three separate claims, not one.
 	f := rest.followups[0]
-	if f.ApplicationID != "app-1" || f.Token != "tok" || !f.Ephemeral {
-		t.Fatalf("followup = %+v", f)
+	if f.ApplicationID != "app-1" {
+		t.Fatalf("followup ApplicationID = %q, want app-1 (followup %+v)", f.ApplicationID, f)
+	}
+	if f.Token != "tok" {
+		t.Fatalf("followup Token = %q, want tok (followup %+v)", f.Token, f)
+	}
+	if !f.Ephemeral {
+		t.Fatalf("followup Ephemeral = false, want true (followup %+v)", f)
 	}
 }
 
@@ -276,12 +288,12 @@ type fakeReauth struct {
 	cleared []string
 }
 
-func (f *fakeReauth) MarkNeedsReauth(_ context.Context, g string) error {
-	f.marked = append(f.marked, g)
+func (f *fakeReauth) MarkNeedsReauth(_ context.Context, g kv.GuildID) error {
+	f.marked = append(f.marked, string(g))
 	return nil
 }
-func (f *fakeReauth) ClearNeedsReauth(_ context.Context, g string) error {
-	f.cleared = append(f.cleared, g)
+func (f *fakeReauth) ClearNeedsReauth(_ context.Context, g kv.GuildID) error {
+	f.cleared = append(f.cleared, string(g))
 	return nil
 }
 

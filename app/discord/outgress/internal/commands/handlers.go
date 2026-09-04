@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"ItsBagelBot/app/discord/outgress/internal/identity"
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
@@ -48,8 +49,8 @@ type Handlers struct {
 
 // reauthStore is the slice of kv.ReauthStore these handlers need.
 type reauthStore interface {
-	MarkNeedsReauth(ctx context.Context, guildID string) error
-	ClearNeedsReauth(ctx context.Context, guildID string) error
+	MarkNeedsReauth(ctx context.Context, guildID kv.GuildID) error
+	ClearNeedsReauth(ctx context.Context, guildID kv.GuildID) error
 }
 
 // commandHandler is the shape every dispatchTable entry has: an unbound
@@ -227,7 +228,7 @@ func (h *Handlers) setGuildIdentity(ctx context.Context, c ddiscord.Command) err
 	}
 	err := h.Rest.ModifyCurrentMember(ctx, m)
 	if err == nil {
-		h.clearReauth(ctx, c.GuildID)
+		h.clearReauth(ctx, kv.GuildID(c.GuildID))
 		return nil
 	}
 	if m.Nick == nil || !errors.Is(err, discapi.ErrForbidden) {
@@ -239,31 +240,31 @@ func (h *Handlers) setGuildIdentity(ctx context.Context, c ddiscord.Command) err
 	// forever and retrying is pointless -- record it for the dashboard to
 	// prompt a re-authorization, then retry without the nick so the premium
 	// avatar still lands. Half the badge beats none of it.
-	h.markReauth(ctx, c.GuildID)
+	h.markReauth(ctx, kv.GuildID(c.GuildID))
 	m.Nick = nil
 	return h.Rest.ModifyCurrentMember(ctx, m)
 }
 
-func (h *Handlers) markReauth(ctx context.Context, guildID string) {
+func (h *Handlers) markReauth(ctx context.Context, guildID kv.GuildID) {
 	h.log().Warn("discord rename refused; guild needs re-authorization for CHANGE_NICKNAME",
-		zap.String("guild_id", guildID))
+		zap.String("guild_id", string(guildID)))
 	if h.Reauth == nil {
 		return
 	}
 	if err := h.Reauth.MarkNeedsReauth(ctx, guildID); err != nil {
-		h.log().Warn("failed to record discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+		h.log().Warn("failed to record discord reauth flag", zap.String("guild_id", string(guildID)), zap.Error(err))
 	}
 }
 
 // clearReauth runs on every success, not just after a previous failure: a
 // successful rename is the only proof the permission actually arrived, and
 // the streamer who re-authorizes gets no other signal we could watch for.
-func (h *Handlers) clearReauth(ctx context.Context, guildID string) {
+func (h *Handlers) clearReauth(ctx context.Context, guildID kv.GuildID) {
 	if h.Reauth == nil {
 		return
 	}
 	if err := h.Reauth.ClearNeedsReauth(ctx, guildID); err != nil {
-		h.log().Warn("failed to clear discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+		h.log().Warn("failed to clear discord reauth flag", zap.String("guild_id", string(guildID)), zap.Error(err))
 	}
 }
 

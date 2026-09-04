@@ -118,27 +118,41 @@ func TestDispatchDropsInteractionWhenDeferFails(t *testing.T) {
 
 func TestRouteFieldsLiftsIDsByEventShape(t *testing.T) {
 	guildCreate, _ := codec.Marshal(map[string]string{"id": "g1"})
-	assertRouteFields(t, "GUILD_CREATE", guildCreate, "g1", "", "")
+	assertRouteFields(t, "GUILD_CREATE", guildCreate, routeIDs{Guild: "g1"})
 
 	member, _ := codec.Marshal(map[string]any{
 		"guild_id": "g1", "user": map[string]string{"id": "u1"},
 	})
-	assertRouteFields(t, "GUILD_MEMBER_ADD", member, "g1", "", "u1")
+	assertRouteFields(t, "GUILD_MEMBER_ADD", member, routeIDs{Guild: "g1", User: "u1"})
 
 	msg, _ := codec.Marshal(map[string]any{
 		"guild_id": "g1", "channel_id": "c1", "author": map[string]string{"id": "u1"},
 	})
-	assertRouteFields(t, "MESSAGE_CREATE", msg, "g1", "c1", "u1")
+	assertRouteFields(t, "MESSAGE_CREATE", msg, routeIDs{Guild: "g1", Channel: "c1", User: "u1"})
+}
+
+// routeIDs is routeFields' (guild, channel, user) result, named so
+// assertRouteFields can compare "got" against "want" with a single struct
+// comparison instead of a three-clause g != wantGuild || c != wantChannel ||
+// u != wantUser -- CodeScene's Complex Conditional flags any single
+// expression combining more than one && / ||, and this comparison is
+// naturally one equality check per field, not one "are these different in
+// any way" expression.
+type routeIDs struct {
+	Guild   string
+	Channel string
+	User    string
 }
 
 // assertRouteFields fails the test unless routeFields lifts exactly the
 // given guild/channel/user ids for one event shape, so each shape above is a
 // single call instead of its own chain of ||.
-func assertRouteFields(t *testing.T, eventType string, raw []byte, wantGuild, wantChannel, wantUser string) {
+func assertRouteFields(t *testing.T, eventType string, raw []byte, want routeIDs) {
 	t.Helper()
 	g, c, u := routeFields(eventType, raw)
-	if g != wantGuild || c != wantChannel || u != wantUser {
-		t.Fatalf("%s fields = %q/%q/%q, want %q/%q/%q", eventType, g, c, u, wantGuild, wantChannel, wantUser)
+	got := routeIDs{Guild: g, Channel: c, User: u}
+	if got != want {
+		t.Fatalf("%s fields = %+v, want %+v", eventType, got, want)
 	}
 }
 

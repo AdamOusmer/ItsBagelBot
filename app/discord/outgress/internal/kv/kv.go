@@ -29,11 +29,22 @@ import (
 // post stuck on LIVE.
 const liveMessageTTL = 7 * 24 * time.Hour
 
+// GuildID is a Discord guild id, as this package's every keyspace is scoped
+// by one. Given its own type, rather than a bare string, because this file
+// was flagged for CodeScene's String Heavy Function Arguments (file-level):
+// nearly every function here takes a single string parameter meaning "the
+// guild", and a plain string would still compile if one were passed where a
+// message id or a raw stored value belongs. A string literal or an
+// already-string variable still needs an explicit GuildID(...) conversion
+// at the call site -- unlike decode.OptionName, callers here pass variables
+// (a request's GuildID field), not literals, so the conversion is not free.
+type GuildID string
+
 // LiveStore remembers the go-live message so stream.offline can edit it.
 type LiveStore interface {
-	PutLiveMessage(ctx context.Context, guildID string, m discapi.Message) error
-	GetLiveMessage(ctx context.Context, guildID string) (discapi.Message, bool)
-	DeleteLiveMessage(ctx context.Context, guildID string) error
+	PutLiveMessage(ctx context.Context, guildID GuildID, m discapi.Message) error
+	GetLiveMessage(ctx context.Context, guildID GuildID) (discapi.Message, bool)
+	DeleteLiveMessage(ctx context.Context, guildID GuildID) error
 }
 
 type valkeyLiveStore struct {
@@ -56,14 +67,14 @@ func New(client valkey.Client) LiveStore {
 // only ever carries the guild id engine already resolved, and a guild binds
 // to exactly one broadcaster, so this loses no information while dropping a
 // field neither side otherwise needs to agree on.
-func liveKey(guildID string) string { return "discord:live-msg:" + guildID }
+func liveKey(guildID GuildID) string { return "discord:live-msg:" + string(guildID) }
 
-func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, guildID string, m discapi.Message) error {
+func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, guildID GuildID, m discapi.Message) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(liveKey(guildID)).
 		Value(m.ChannelID+"|"+m.ID).Ex(liveMessageTTL).Build()).Error()
 }
 
-func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID string) (discapi.Message, bool) {
+func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID GuildID) (discapi.Message, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(guildID)).Build()).ToString()
 	if missingLiveMessage(raw, err) {
 		return discapi.Message{}, false
@@ -89,12 +100,12 @@ func malformedLiveMessage(ch, id string, ok bool) bool {
 	return !ok || ch == "" || id == ""
 }
 
-func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID string) error {
+func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID GuildID) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(liveKey(guildID)).Build()).Error()
 }
 
 // reauthKey marks a guild whose bot role predates CHANGE_NICKNAME.
-func reauthKey(guildID string) string { return "discord:reauth:" + guildID }
+func reauthKey(guildID GuildID) string { return "discord:reauth:" + string(guildID) }
 
 // ReauthStore records guilds where the per-guild rename was refused, so the
 // dashboard can ask that streamer to re-authorize.
@@ -106,9 +117,9 @@ func reauthKey(guildID string) string { return "discord:reauth:" + guildID }
 // for the ones who are not. The refusal is unambiguous and free: we already
 // made the call.
 type ReauthStore interface {
-	MarkNeedsReauth(ctx context.Context, guildID string) error
-	ClearNeedsReauth(ctx context.Context, guildID string) error
-	NeedsReauth(ctx context.Context, guildID string) bool
+	MarkNeedsReauth(ctx context.Context, guildID GuildID) error
+	ClearNeedsReauth(ctx context.Context, guildID GuildID) error
+	NeedsReauth(ctx context.Context, guildID GuildID) bool
 }
 
 // NewReauthStore builds the Valkey-backed store.
@@ -120,17 +131,17 @@ type valkeyReauth struct{ client valkey.Client }
 // frozen into the bot's role at install and does not lapse on its own, so an
 // expiring flag would just make the prompt blink in and out until someone
 // acts on it.
-func (s valkeyReauth) MarkNeedsReauth(ctx context.Context, guildID string) error {
+func (s valkeyReauth) MarkNeedsReauth(ctx context.Context, guildID GuildID) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(reauthKey(guildID)).Value("1").Build()).Error()
 }
 
 // ClearNeedsReauth is called once a rename succeeds, which is the only proof
 // the permission actually arrived.
-func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID string) error {
+func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID GuildID) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(reauthKey(guildID)).Build()).Error()
 }
 
-func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID string) bool {
+func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID GuildID) bool {
 	n, err := s.client.Do(ctx, s.client.B().Exists().Key(reauthKey(guildID)).Build()).AsInt64()
 	return err == nil && n > 0
 }

@@ -89,10 +89,25 @@ func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit m
 		return nil
 	}
 	moderator := decode.HasAnyRole(ev.Member.Roles, c.Config.StaffRoleIDs())
-	if reason := h.observeLinks(ctx, c, ev, links, moderator); reason != "" {
+	in := linkObservation{Module: c, Event: ev, Links: links, Moderator: moderator}
+	if reason := h.observeLinks(ctx, in); reason != "" {
 		h.act(c, emit, ev, reason)
 	}
 	return nil
+}
+
+// linkObservation is observeLinks's whole input beyond ctx, which Go
+// convention keeps as its own leading parameter rather than folding into a
+// struct. Collapsed from four separate parameters (module.Context, the
+// decoded event, the link list, and the moderator flag) into one struct:
+// CodeScene's Excess Number of Function Arguments flagged observeLinks at
+// five parameters (including the receiver and ctx), over its 4-parameter
+// limit.
+type linkObservation struct {
+	Module    *module.Context
+	Event     decode.MessageEvent
+	Links     []string
+	Moderator bool
 }
 
 // skipMessage reports whether onCreate should ignore ev entirely: the bot's
@@ -124,10 +139,11 @@ func skipMessage(ev decode.MessageEvent, cfg ddiscord.Config) bool {
 // Sighting.OwnGuildInvite is always false on this call, unconditionally --
 // see tripIsOwnInvite's doc for why that check happens AFTER Observe
 // instead of before, and what it costs to run it that way.
-func (h linkGuardModule) observeLinks(ctx context.Context, c *module.Context, ev decode.MessageEvent, links []string, moderator bool) string {
+func (h linkGuardModule) observeLinks(ctx context.Context, in linkObservation) string {
+	ev, c := in.Event, in.Module
 	reason := ""
-	seen := make(map[string]bool, len(links))
-	for _, raw := range links {
+	seen := make(map[string]bool, len(in.Links))
+	for _, raw := range in.Links {
 		norm, _ := linkguard.NormalizeLink(raw)
 		if norm == "" || seen[norm] {
 			continue
@@ -147,7 +163,7 @@ func (h linkGuardModule) observeLinks(ctx context.Context, c *module.Context, ev
 			// a Handler only ever runs for a guild that resolution
 			// succeeded for.
 			OwnerID:   c.BroadcasterID,
-			Moderator: moderator,
+			Moderator: in.Moderator,
 			Allowed:   c.Config.LinkAllowed(raw),
 		})
 		if v.Allow || reason != "" {
@@ -244,7 +260,7 @@ func (h linkGuardModule) tripIsOwnInvite(ctx context.Context, guildID, raw strin
 // true of a ban. Escalating beyond deletion is a later, separate decision
 // this module deliberately does not make.
 func (h linkGuardModule) act(c *module.Context, emit module.Emit, ev decode.MessageEvent, reason string) {
-	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID), ev.ID, "linkguard: "+reason))
+	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID), ev.ID, cmd.Reason("linkguard: "+reason)))
 	body := decode.Mention(ev.Author) + " in <#" + ev.ChannelID + "> (" + reason + ")"
 	_ = logLine(c, emit, logEntry{Title: "Link removed", Body: body})
 }

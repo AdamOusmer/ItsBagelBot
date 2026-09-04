@@ -133,9 +133,22 @@ func (l *Live) online(ctx context.Context, cfg ddiscord.Config, broadcasterID st
 // first, and the Twitch-outgress RPC fallback only fires for a broadcaster
 // with a category allow-list whose projection has not caught up, so an
 // unfiltered broadcaster base cannot turn every go-live into a round trip.
+// liveInfo prefers the projected stream info, falling back to a live Twitch
+// lookup only when the projection has no category AND the guild has a
+// category allow-list configured AND a Fallback client is wired at all.
+// Each of those is checked as its own early return -- not folded into one
+// condition -- because CodeScene's Complex Conditional flags any single
+// expression combining more than one && / ||, and a three-clause check is
+// two predicates' worth of "no, skip the fallback" reasoning, not one.
 func (l *Live) liveInfo(ctx context.Context, cfg ddiscord.Config, broadcasterID string) projection.StreamInfo {
 	info := l.projectedStreamInfo(ctx, broadcasterID)
-	if info.GameName != "" || !cfg.HasCategoryAllow() || l.Fallback == nil {
+	if info.GameName != "" {
+		return info
+	}
+	if !cfg.HasCategoryAllow() {
+		return info
+	}
+	if l.Fallback == nil {
 		return info
 	}
 	if fallback, ok := l.Fallback.Lookup(ctx, broadcasterID); ok {
