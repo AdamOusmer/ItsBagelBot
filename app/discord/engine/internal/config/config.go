@@ -37,6 +37,10 @@ type Config struct {
 	// old dingress egress role already use so ops set one knob per subject.
 	StreamLaneSubject  string
 	ClipCreatedSubject string
+	// UserChangedSubject is the account fact the identity module watches so a
+	// tier upgrade or downgrade changes the bot's per-guild appearance at once
+	// rather than at the next gateway reconnect.
+	UserChangedSubject string
 }
 
 // Load reads process env.
@@ -52,5 +56,6 @@ func Load() Config {
 		TwitchOutgressRPCPrefix:  env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 		StreamLaneSubject:        env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
 		ClipCreatedSubject:       env.Get("NATS_SUBJECT_CLIP_CREATED", "data.twitch.clip.created"),
+		UserChangedSubject:       env.Get("NATS_SUBJECT_USER_CHANGED", "data.users.changed"),
 	}
 }

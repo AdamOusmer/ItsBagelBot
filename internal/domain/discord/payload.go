@@ -64,3 +64,11 @@ type FollowupPayload struct {
 	Buttons          []ButtonSpec `json:"buttons,omitempty"`
 	Ephemeral        bool         `json:"ephemeral,omitempty"`
 }
+
+// IdentityPayload carries the bot's per-guild appearance for a
+// TypeSetGuildIdentity Command. It holds a flag rather than image bytes:
+// outgress embeds the avatar and picks it from this flag, so the same ~86 KB
+// picture never rides the lane once per guild. See GuildIdentity.
+type IdentityPayload struct {
+	Identity GuildIdentity `json:"identity"`
+}

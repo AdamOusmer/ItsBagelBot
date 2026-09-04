@@ -23,9 +23,18 @@ export const DISCORD_STATE_TTL_SECONDS = 600;
 
 // BotPermissions matches internal/domain/discord.BotPermissions: kick, ban,
 // manage channels, reactions, view, send, manage messages, embed, attach,
-// history, connect, move members, manage roles, slash commands, timeout.
-// No Administrator. Bit 40 (MODERATE_MEMBERS) is still a safe JS integer.
-export const DISCORD_BOT_PERMISSIONS = 1101945498710;
+// history, connect, move members, manage roles, slash commands, timeout,
+// change nickname. No Administrator. Bit 40 (MODERATE_MEMBERS) is still a
+// safe JS integer.
+//
+// This literal and the Go bit expression are the same number in two
+// languages, and this file is the one that actually mints the invite URL a
+// streamer clicks. If it lags the Go side, every guild installed after the
+// change is missing a permission the services assume they have, and Discord
+// freezes that into the bot's role at install so it never self-heals.
+// ../../../../shared/lib/discord-permissions.test.ts recomputes the Go
+// expression from source and fails on any drift.
+export const DISCORD_BOT_PERMISSIONS = 1102012607574;
 
 const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
 const TOKEN_TIMEOUT_MS = 8000;

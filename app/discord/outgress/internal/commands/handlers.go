@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"ItsBagelBot/app/discord/outgress/internal/identity"
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
@@ -25,6 +26,7 @@ type rest interface {
 	KickMember(ctx context.Context, m discapi.GuildMember) error
 	BanMember(ctx context.Context, m discapi.GuildMember) error
 	AddMemberRole(ctx context.Context, r discapi.MemberRole) error
+	ModifyCurrentMember(ctx context.Context, m discapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discapi.MemberRole) error
 	InteractionFollowup(ctx context.Context, f discapi.Followup) error
 }
@@ -67,6 +69,8 @@ func (h *Handlers) Dispatch(ctx context.Context, c ddiscord.Command) error {
 		return h.role(ctx, c, h.Rest.AddMemberRole)
 	case ddiscord.TypeRemoveRole:
 		return h.role(ctx, c, h.Rest.RemoveMemberRole)
+	case ddiscord.TypeSetGuildIdentity:
+		return h.setGuildIdentity(ctx, c)
 	default:
 		return fmt.Errorf("discord outgress: unknown command type %q", c.Type)
 	}
@@ -157,4 +161,29 @@ func toButtons(specs []ddiscord.ButtonSpec) []discapi.Button {
 		out = append(out, discapi.Button{Style: s.Style, Label: s.Label, CustomID: s.CustomID})
 	}
 	return out
+}
+
+// setGuildIdentity applies the bot's per-guild appearance. The command
+// carries only a premium flag; the avatar bytes live here as an embedded
+// asset (see internal/identity) rather than on the lane, because the same
+// ~86 KB image would otherwise be serialized once per guild on every
+// reconnect.
+//
+// A downgrade sends explicit nulls rather than skipping the fields: omitting
+// them means "leave unchanged" to Discord, which would strand a premium
+// nickname on a guild whose streamer stopped paying.
+func (h *Handlers) setGuildIdentity(ctx context.Context, c ddiscord.Command) error {
+	var p ddiscord.IdentityPayload
+	if err := codec.Unmarshal(c.Payload, &p); err != nil {
+		return err
+	}
+	m := discapi.CurrentMember{GuildID: c.GuildID}
+	if nick, ok := p.Identity.Nick(); ok {
+		m.Nick = &nick
+	}
+	if p.Identity.Premium {
+		uri := identity.PremiumAvatarDataURI()
+		m.AvatarDataURI = &uri
+	}
+	return h.Rest.ModifyCurrentMember(ctx, m)
 }

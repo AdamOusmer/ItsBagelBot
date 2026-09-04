@@ -55,7 +55,12 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 	if u == "" {
 		t.Fatal("invite url must not be empty")
 	}
-	if !strings.Contains(u, "permissions=1101945498710") {
+	// 1102012607574 = the old 1101945498710 plus CHANGE_NICKNAME (1<<26),
+	// which the bot needs to rename ITSELF per guild for the premium
+	// identity. Changing this number is a migration, not a rollout: Discord
+	// freezes permissions into the bot's role at install, so existing guilds
+	// keep the old grant until they re-authorize.
+	if !strings.Contains(u, "permissions=1102012607574") {
 		t.Fatalf("invite permissions drifted (keep in sync with dashboard DISCORD_BOT_PERMISSIONS): %q", u)
 	}
 	if !strings.Contains(u, "scope=bot") {

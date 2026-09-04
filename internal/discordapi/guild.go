@@ -522,3 +522,40 @@ func (c *Client) BulkOverwriteCommands(ctx context.Context, cat CommandCatalog) 
 	path := "/applications/" + url.PathEscape(cat.ApplicationID) + "/commands"
 	return c.do(ctx, request{method: http.MethodPut, path: path, body: cat.Commands})
 }
+
+// CurrentMember is the bot's own per-guild identity: nickname and avatar,
+// scoped to one guild. Nil means "clear this override and fall back to the
+// bot's global identity", which is why both fields are pointers -- Discord
+// distinguishes a JSON null (remove the override) from an omitted field
+// (leave it alone) and from an empty string (invalid), and a plain string
+// cannot express the difference.
+type CurrentMember struct {
+	GuildID string
+	// Nick is the per-guild nickname. Requires CHANGE_NICKNAME; without that
+	// permission Discord rejects the whole call, avatar included.
+	Nick *string
+	// AvatarDataURI is a data URI ("data:image/png;base64,...") per Discord's
+	// image-data format. Needs no permission of its own.
+	AvatarDataURI *string
+}
+
+// modifyCurrentMemberBody is the wire body. Both fields are always emitted,
+// including as null, because omitting one means "leave unchanged" and this
+// call is the only thing that sets either -- a downgrade has to be able to
+// clear what an upgrade set.
+type modifyCurrentMemberBody struct {
+	Nick   *string `json:"nick"`
+	Avatar *string `json:"avatar"`
+}
+
+// ModifyCurrentMember sets the bot's own nickname and avatar within one guild
+// (PATCH /guilds/{id}/members/@me). This is the only way to give the bot a
+// per-guild appearance: a bot has exactly one global username and avatar, so
+// changing those would rename it in every server at once.
+func (c *Client) ModifyCurrentMember(ctx context.Context, m CurrentMember) error {
+	return c.do(ctx, request{
+		method: http.MethodPatch,
+		path:   "/guilds/" + m.GuildID + "/members/@me",
+		body:   modifyCurrentMemberBody{Nick: m.Nick, Avatar: m.AvatarDataURI},
+	})
+}

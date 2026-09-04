@@ -5,8 +5,25 @@ package discord
 
 // BotPermissions is the invite integer: kick, ban, manage channels, add
 // reactions, view, send, manage messages, embed, attach, history, connect,
-// move members, manage roles, slash commands, timeout. No Administrator.
-const BotPermissions = 2 | 4 | 16 | 64 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 268435456 | 2147483648 | 1<<40
+// move members, manage roles, slash commands, timeout, change nickname. No
+// Administrator.
+//
+// CHANGE_NICKNAME (1<<26) is what lets the bot rename ITSELF per guild, which
+// is how a premium streamer's server shows "ItsBagelBot - Premium". Without
+// it the avatar half of that still works (Modify Current Member needs no
+// permission for avatar or banner) and only the name silently 403s, which
+// reads as a half-broken feature rather than a missing one.
+//
+// Discord freezes these into the bot's role AT INSTALL. Raising this integer
+// only affects new installs; a guild that already has the bot keeps its old
+// role until it re-authorizes or an admin ticks the box by hand. Treat a
+// bumped value here as a migration, never as a rollout.
+//
+// The dashboard carries this same number as a decimal literal
+// (console/dashboard/src/lib/server/discord-oauth.ts) because it builds the
+// invite URL in TypeScript. permissions.test.ts recomputes this expression
+// from source and fails if the two drift.
+const BotPermissions = 2 | 4 | 16 | 64 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 67108864 | 268435456 | 2147483648 | 1<<40
 
 // Channel type values Discord's REST API uses.
 const (

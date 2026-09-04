@@ -18,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/discord/engine/internal/config"
 	"ItsBagelBot/app/discord/engine/internal/dispatch"
+	"ItsBagelBot/app/discord/engine/internal/identitystore"
 	"ItsBagelBot/app/discord/engine/internal/invitecache"
 	"ItsBagelBot/app/discord/engine/internal/registry"
 	"ItsBagelBot/app/discord/engine/internal/resolve"
@@ -116,15 +117,23 @@ func main() {
 	// those already use.
 	ownInvite := modules.NewOwnInviteChecker(rpc, invitecache.New(valkeyClient))
 
+	identity := &modules.Identity{
+		Resolve: resolver.ByBroadcaster,
+		Status:  statusReader(projStore),
+		Applied: identitystore.New(valkeyClient),
+		Publish: publish,
+		Log:     log,
+	}
 	reg := registry.New(modules.All(modules.Deps{
-		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite, Log: log,
+		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
+		Identity: identity, Log: log,
 	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
 
 	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
 	defer closeIngress()
 
-	closeTwitch := startTwitchConsumers(ctx, cfg, nrApp, log, resolver, projStore, publish, rpc, nc)
+	closeTwitch := startTwitchConsumers(ctx, cfg, nrApp, log, resolver, projStore, publish, rpc, nc, identity)
 	defer closeTwitch()
 
 	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
@@ -155,6 +164,7 @@ func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrel
 func startTwitchConsumers(
 	ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger,
 	resolver resolve.Resolver, projStore *projection.Store, publish modules.Publish, rpc *rpcclient.Client, nc *nats.Conn,
+	identity *modules.Identity,
 ) func() {
 	live := &modules.Live{
 		Resolve:    resolver.ByBroadcaster,
@@ -176,5 +186,25 @@ func startTwitchConsumers(
 	if err := bus.Consume(ctx, nrApp, sub, cfg.ClipCreatedSubject, clip.HandleClipCreated, log); err != nil {
 		log.Fatal("failed to consume clip-created lane", zap.Error(err))
 	}
+	// Account facts, for the bot's per-guild appearance. Subscribed here
+	// rather than left to GUILD_CREATE alone so an upgrade is visible at once
+	// instead of at the next gateway reconnect, which may be hours away.
+	if err := bus.Consume(ctx, nrApp, sub, cfg.UserChangedSubject, identity.HandleUserChanged, log); err != nil {
+		log.Fatal("failed to consume user-changed lane", zap.Error(err))
+	}
 	return func() { _ = sub.Close() }
+}
+
+// statusReader adapts the projection store to modules.StatusReader. An empty
+// status means the user is not projected at all, which the identity module
+// treats as "leave the appearance alone" rather than as "free" -- see its
+// onGuild comment for why guessing free is the dangerous direction.
+func statusReader(p *projection.Store) modules.StatusReader {
+	return func(ctx context.Context, broadcasterID uint64) (string, bool) {
+		status, _, _, _, err := p.GetUser(ctx, broadcasterID)
+		if err != nil || status == "" {
+			return "", false
+		}
+		return status, true
+	}
 }

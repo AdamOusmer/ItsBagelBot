@@ -55,6 +55,10 @@ func (f *fakeRest) CreateRole(context.Context, discordapi.GuildRole) (discordapi
 	return discordapi.Snowflake{ID: "r1"}, nil
 }
 func (f *fakeRest) AddMemberRole(context.Context, discordapi.MemberRole) error { f.sends++; return nil }
+func (f *fakeRest) ModifyCurrentMember(context.Context, discordapi.CurrentMember) error {
+	f.sends++
+	return nil
+}
 func (f *fakeRest) RemoveMemberRole(context.Context, discordapi.MemberRole) error {
 	f.sends++
 	return nil
@@ -159,6 +163,7 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		{"DeleteChannel", func(c *LimitedClient) error { return c.DeleteChannel(ctx, discordapi.Snowflake{}) }},
 		{"CreateRole", func(c *LimitedClient) error { _, err := c.CreateRole(ctx, discordapi.GuildRole{}); return err }},
 		{"AddMemberRole", func(c *LimitedClient) error { return c.AddMemberRole(ctx, discordapi.MemberRole{}) }},
+		{"ModifyCurrentMember", func(c *LimitedClient) error { return c.ModifyCurrentMember(ctx, discordapi.CurrentMember{}) }},
 		{"RemoveMemberRole", func(c *LimitedClient) error { return c.RemoveMemberRole(ctx, discordapi.MemberRole{}) }},
 		{"MoveMember", func(c *LimitedClient) error { return c.MoveMember(ctx, discordapi.VoiceMove{}) }},
 		{"ModifyChannel", func(c *LimitedClient) error { return c.ModifyChannel(ctx, discordapi.ChannelPatch{}) }},

@@ -5,6 +5,7 @@ package commands
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	discapi "ItsBagelBot/internal/discordapi"
@@ -13,17 +14,18 @@ import (
 )
 
 type fakeRest struct {
-	chats     []string
-	embeds    []discapi.EmbedPost
-	panels    []discapi.EmbedPost
-	edited    []discapi.Message
-	deleted   []discapi.Message
-	timeouts  []discapi.MemberTimeout
-	kicked    []discapi.GuildMember
-	banned    []discapi.GuildMember
-	roleAdds  []discapi.MemberRole
-	roleRems  []discapi.MemberRole
-	followups []discapi.Followup
+	identities []discapi.CurrentMember
+	chats      []string
+	embeds     []discapi.EmbedPost
+	panels     []discapi.EmbedPost
+	edited     []discapi.Message
+	deleted    []discapi.Message
+	timeouts   []discapi.MemberTimeout
+	kicked     []discapi.GuildMember
+	banned     []discapi.GuildMember
+	roleAdds   []discapi.MemberRole
+	roleRems   []discapi.MemberRole
+	followups  []discapi.Followup
 }
 
 func (f *fakeRest) SendChat(_ context.Context, post discapi.ChatPost) error {
@@ -60,6 +62,10 @@ func (f *fakeRest) BanMember(_ context.Context, m discapi.GuildMember) error {
 }
 func (f *fakeRest) AddMemberRole(_ context.Context, r discapi.MemberRole) error {
 	f.roleAdds = append(f.roleAdds, r)
+	return nil
+}
+func (f *fakeRest) ModifyCurrentMember(_ context.Context, m discapi.CurrentMember) error {
+	f.identities = append(f.identities, m)
 	return nil
 }
 func (f *fakeRest) RemoveMemberRole(_ context.Context, r discapi.MemberRole) error {
@@ -218,4 +224,57 @@ func TestDispatchNotYetImplementedTypesNoop(t *testing.T) {
 	if err := h.Dispatch(context.Background(), ddiscord.Command{Type: ddiscord.TypeLockdown}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// A premium apply must set BOTH halves in one call: the nickname needs
+// CHANGE_NICKNAME, the avatar needs no permission, and sending them
+// separately would leave a guild half-renamed whenever one of the two fails.
+func TestSetGuildIdentityPremiumSendsNickAndAvatar(t *testing.T) {
+	rest := &fakeRest{}
+	h := &Handlers{Rest: rest}
+	err := h.Dispatch(context.Background(), ddiscord.Command{
+		Type: ddiscord.TypeSetGuildIdentity, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.IdentityPayload{Identity: ddiscord.GuildIdentity{Premium: true}}),
+	})
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if len(rest.identities) != 1 {
+		t.Fatalf("calls = %d, want 1", len(rest.identities))
+	}
+	got := rest.identities[0]
+	if got.Nick == nil || *got.Nick != ddiscord.PremiumNick {
+		t.Fatalf("nick = %v, want %q", got.Nick, ddiscord.PremiumNick)
+	}
+	if got.AvatarDataURI == nil || !strings.HasPrefix(*got.AvatarDataURI, "data:image/png;base64,") {
+		t.Fatal("premium apply did not carry a png data URI")
+	}
+}
+
+// A downgrade must send explicit nulls. Omitting the fields means "leave
+// unchanged" to Discord, which would strand the premium nickname on a guild
+// whose streamer stopped paying.
+func TestSetGuildIdentityDefaultClearsBothOverrides(t *testing.T) {
+	rest := &fakeRest{}
+	h := &Handlers{Rest: rest}
+	err := h.Dispatch(context.Background(), ddiscord.Command{
+		Type: ddiscord.TypeSetGuildIdentity, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.IdentityPayload{Identity: ddiscord.GuildIdentity{Premium: false}}),
+	})
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	got := rest.identities[0]
+	if got.Nick != nil || got.AvatarDataURI != nil {
+		t.Fatalf("downgrade did not clear both overrides: nick=%v avatar set=%v", got.Nick, got.AvatarDataURI != nil)
+	}
+}
+
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	raw, err := codec.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return raw
 }

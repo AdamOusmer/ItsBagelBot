@@ -26,6 +26,7 @@ type rest interface {
 	DeleteChannel(ctx context.Context, ch discordapi.Snowflake) error
 	CreateRole(ctx context.Context, role discordapi.GuildRole) (discordapi.Snowflake, error)
 	AddMemberRole(ctx context.Context, r discordapi.MemberRole) error
+	ModifyCurrentMember(ctx context.Context, m discordapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discordapi.MemberRole) error
 	MoveMember(ctx context.Context, move discordapi.VoiceMove) error
 	ModifyChannel(ctx context.Context, patch discordapi.ChannelPatch) error
@@ -233,4 +234,15 @@ func (c *LimitedClient) GetInvite(ctx context.Context, code string) (discordapi.
 		return discordapi.Invite{}, err
 	}
 	return c.rest.GetInvite(ctx, code)
+}
+
+// ModifyCurrentMember sets the bot's per-guild nickname and avatar. It pays
+// the shared bucket like every other call: a premium avatar upload is ~86 KB
+// and a fleet-wide reconnect can queue one per guild, which is exactly the
+// burst the global per-token limit exists to absorb.
+func (c *LimitedClient) ModifyCurrentMember(ctx context.Context, m discordapi.CurrentMember) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.ModifyCurrentMember(ctx, m)
 }

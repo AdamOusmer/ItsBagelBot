@@ -110,3 +110,15 @@ func FollowupEmbed(guildID, token string, embed ddiscord.Embed, buttons []ddisco
 		Payload: marshal(ddiscord.FollowupPayload{InteractionToken: token, Embed: &embed, Buttons: buttons}),
 	}
 }
+
+// SetGuildIdentity builds a TypeSetGuildIdentity Command: the bot's own
+// nickname and avatar inside one guild. It carries a two-state identity
+// rather than the image, because outgress embeds the avatar and the same
+// picture would otherwise ride the lane once per guild (see
+// ddiscord.GuildIdentity).
+func SetGuildIdentity(guildID string, id ddiscord.GuildIdentity) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeSetGuildIdentity, GuildID: guildID,
+		Payload: marshal(ddiscord.IdentityPayload{Identity: id}),
+	}
+}

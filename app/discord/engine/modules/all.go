@@ -20,6 +20,7 @@ type Deps struct {
 	Purge     purgeClient
 	Guard     Guarder
 	OwnInvite OwnInviteChecker
+	Identity  *Identity
 	Log       *zap.Logger
 }
 
@@ -34,5 +35,6 @@ func All(d Deps) []module.Module {
 		Ticket(d.Store, d.Channels, d.Log),
 		Voice(d.Store, d.Channels, d.Log),
 		LinkGuard(d.Guard, d.OwnInvite, d.Log),
+		IdentityModule(d.Identity),
 	}
 }

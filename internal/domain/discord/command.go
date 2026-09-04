@@ -88,6 +88,12 @@ const (
 	// TypeAddRole and TypeRemoveRole manage the @Live role and autorole.
 	TypeAddRole    = "add_role"
 	TypeRemoveRole = "remove_role"
+	// TypeSetGuildIdentity sets the bot's own per-guild nickname and avatar,
+	// which is how a premium streamer's server shows "ItsBagelBot - Premium".
+	// Default lane on purpose: it is cosmetic, so it must never preempt a
+	// moderation action, and a raid is exactly when it would otherwise be
+	// competing for the same per-token budget as a lockdown.
+	TypeSetGuildIdentity = "set_guild_identity"
 )
 
 // ModTypes reports whether a command belongs on LaneMod. Kept as one function
