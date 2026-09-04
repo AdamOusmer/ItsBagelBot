@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -44,6 +45,10 @@ type UpstreamError struct {
 	// upstream 429 means the provider is throttling our address and retrying
 	// immediately makes it worse.
 	LocalDeny bool
+	// RetryAfter is the parsed delay from an upstream Retry-After response
+	// header (typically on 429 Too Many Requests or 503 Service Unavailable),
+	// or 0 when absent or unparseable.
+	RetryAfter time.Duration
 }
 
 func (e *UpstreamError) Error() string {
@@ -712,7 +717,11 @@ func vetBoundedResponse(resp *http.Response) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, &UpstreamError{Status: resp.StatusCode, Message: upstreamMessage(body)}
+		return nil, &UpstreamError{
+			Status:     resp.StatusCode,
+			Message:    upstreamMessage(body),
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
 	}
 	if ct := resp.Header.Get("Content-Type"); !allowedContentType(ct) {
 		return nil, fmt.Errorf("%w: %q", ErrContentTypeNotAllowed, ct)
@@ -868,7 +877,11 @@ func decodeJSON(resp *http.Response, out any) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return &UpstreamError{Status: resp.StatusCode, Message: upstreamMessage(body)}
+		return &UpstreamError{
+			Status:     resp.StatusCode,
+			Message:    upstreamMessage(body),
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
 	}
 	// A nil out means the caller only wants to know whether the call
 	// succeeded (the player-write endpoints: a write that "hits" is a write
@@ -913,3 +926,28 @@ func upstreamMessage(body []byte) string {
 	_ = codec.Unmarshal(body, &nested)
 	return nested.Error.Message
 }
+
+// parseRetryAfter parses an HTTP Retry-After header string, which RFC 7231 §7.1.3
+// allows in two forms: integer seconds (e.g. "120") or an HTTP-date (e.g.
+// "Fri, 31 Dec 2026 23:59:59 GMT"). Returns 0 if empty, negative, or invalid.
+func parseRetryAfter(raw string) time.Duration {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(raw); err == nil {
+		if seconds <= 0 {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if t, err := http.ParseTime(raw); err == nil {
+		d := time.Until(t)
+		if d <= 0 {
+			return 0
+		}
+		return d
+	}
+	return 0
+}
+

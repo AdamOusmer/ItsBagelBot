@@ -466,3 +466,69 @@ func TestQueueDoesNotMapUnrecognized403ToReconnect(t *testing.T) {
 	assert.NotContains(t, reply.Error, "reconnect it on the dashboard",
 		"an allowlist or otherwise-unrecognized 403 is not a reconnect problem")
 }
+
+func TestSpotifyRateLimitHonoredAndCached(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	var calls atomic.Int32
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":{"status":429,"message":"API rate limit exceeded"}}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+
+	req := gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}
+	reply1 := asReply[gossiprpc.SpotifyTrackReply](t, endpoint(t, p, "track")(context.Background(), req))
+	assert.Contains(t, reply1.Error, "Spotify is rate limiting requests right now, try again in a moment")
+
+	// Immediate repeat request must be served from cache without dialing upstream API
+	reply2 := asReply[gossiprpc.SpotifyTrackReply](t, endpoint(t, p, "track")(context.Background(), req))
+	assert.Equal(t, reply1.Error, reply2.Error)
+	assert.EqualValues(t, 1, calls.Load(), "rate-limited failure must be pinned so upstream is not hammered")
+}
+
+func TestSpotifyFriendlyError(t *testing.T) {
+	tests := []struct {
+		err     error
+		wantMsg string
+		wantPin core.Pin
+	}{
+		{
+			err:     &core.UpstreamError{Status: http.StatusBadRequest},
+			wantMsg: "invalid request",
+			wantPin: core.PinNegative,
+		},
+		{
+			err:     &core.UpstreamError{Status: http.StatusNotFound},
+			wantMsg: "track not found",
+			wantPin: core.PinNegative,
+		},
+		{
+			err:     &core.UpstreamError{Status: http.StatusForbidden},
+			wantMsg: "Spotify playback not permitted right now",
+			wantPin: core.PinNone,
+		},
+		{
+			err:     &core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: true},
+			wantMsg: "Spotify is busy right now, try again in a few seconds",
+			wantPin: core.PinNone,
+		},
+		{
+			err:     &core.UpstreamError{Status: http.StatusTooManyRequests, LocalDeny: false},
+			wantMsg: "Spotify is rate limiting requests right now, try again in a moment",
+			wantPin: core.PinThrottle,
+		},
+		{
+			err:     &core.UpstreamError{Status: http.StatusInternalServerError},
+			wantMsg: "",
+			wantPin: core.PinNone,
+		},
+	}
+	for _, tt := range tests {
+		msg, pin := spotifyFriendlyError(tt.err)
+		assert.Equal(t, tt.wantMsg, msg)
+		assert.Equal(t, tt.wantPin, pin)
+	}
+}
+

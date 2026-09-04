@@ -183,3 +183,34 @@ func TestUpstreamMessageReadsFlatAndNestedShapes(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRetryAfter(t *testing.T) {
+	assert.Equal(t, time.Duration(0), parseRetryAfter(""))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("-5"))
+	assert.Equal(t, 120*time.Second, parseRetryAfter("120"))
+	assert.Equal(t, 30*time.Second, parseRetryAfter("  30  "))
+
+	future := time.Now().Add(45 * time.Second).UTC()
+	parsed := parseRetryAfter(future.Format(http.TimeFormat))
+	assert.InDelta(t, 45*time.Second, parsed, float64(2*time.Second))
+
+	past := time.Now().Add(-45 * time.Second).UTC()
+	assert.Equal(t, time.Duration(0), parseRetryAfter(past.Format(http.TimeFormat)))
+}
+
+func TestDecodeJSONExtractsRetryAfter(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Retry-After", "90")
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     header,
+		Body:       io.NopCloser(strings.NewReader(`{"error":{"status":429,"message":"API rate limit exceeded"}}`)),
+	}
+	err := decodeJSON(resp, nil)
+	require.Error(t, err)
+	var ue *UpstreamError
+	require.ErrorAs(t, err, &ue)
+	assert.Equal(t, http.StatusTooManyRequests, ue.Status)
+	assert.Equal(t, 90*time.Second, ue.RetryAfter)
+}
+

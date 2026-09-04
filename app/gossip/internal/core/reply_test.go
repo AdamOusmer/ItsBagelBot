@@ -80,3 +80,42 @@ func TestBuildReplySuccess(t *testing.T) {
 	assert.Equal(t, time.Minute, ttl)
 	assert.Nil(t, friendly)
 }
+
+func TestBuildReplyHonorsRetryAfter(t *testing.T) {
+	const negativeTTL = 5 * time.Minute
+	errReply := func(msg string) any { return map[string]string{"error": msg} }
+
+	// An upstream 429 with a Retry-After larger than ThrottleTTL (20s) must extend the pin TTL.
+	b, ttl, friendly, err := BuildReply(context.Background(), time.Minute, negativeTTL,
+		func(context.Context) (any, error) {
+			return nil, &UpstreamError{Status: 429, RetryAfter: 90 * time.Second}
+		}, errReply)
+	require.NoError(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, 90*time.Second, ttl, "Retry-After must override ThrottleTTL when larger")
+	require.NotNil(t, friendly)
+	assert.Equal(t, 90*time.Second, friendly.RetryAfter)
+
+	// A Retry-After shorter than ThrottleTTL keeps ThrottleTTL as floor.
+	_, ttlShort, _, _ := BuildReply(context.Background(), time.Minute, negativeTTL,
+		func(context.Context) (any, error) {
+			return nil, &UpstreamError{Status: 429, RetryAfter: 5 * time.Second}
+		}, errReply)
+	assert.Equal(t, ThrottleTTL, ttlShort, "ThrottleTTL is the floor when Retry-After is shorter")
+}
+
+func TestBuildReplyWithMapper(t *testing.T) {
+	customMapper := func(err error) (string, Pin) {
+		return "custom friendly error", PinThrottle
+	}
+	errReply := func(msg string) any { return map[string]string{"error": msg} }
+	b, ttl, _, err := BuildReplyWithMapper(context.Background(), time.Minute, 5*time.Minute,
+		func(context.Context) (any, error) {
+			return nil, &UpstreamError{Status: 500}
+		}, errReply, customMapper)
+	require.NoError(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, ThrottleTTL, ttl)
+	assert.Contains(t, string(b), "custom friendly error")
+}
+

@@ -23,7 +23,7 @@ func TestClassify(t *testing.T) {
 		{"track url with tracking params", "https://open.spotify.com/track/" + id + "?si=abc123&utm=x", resolveTrackID, id},
 		{"regional deep link keeps id case", "https://open.spotify.com/intl-de/track/AbC0123456789012345678", resolveTrackID, "AbC0123456789012345678"},
 		{"schemeless paste", "open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3", resolveAlbumID, "1DFixLWuPkv3KT3TnV35m3"},
-		{"play host", "http://play.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg", resolveArtistID, "4pt28jZ9p8nMW6RdcM8GMg"},
+		{"play host is artist (unsupported)", "http://play.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg", resolveUnsupportedLink, ""},
 		{"uri form preserves base62 case", "spotify:track:" + id, resolveTrackID, id},
 		{"foreign host is text", "https://youtube.com/watch?v=abc", resolveText, ""},
 		{"unknown type segment is text", "https://open.spotify.com/genre/something", resolveText, ""},

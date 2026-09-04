@@ -89,9 +89,19 @@ func pinTTL(pin Pin, negativeTTL time.Duration) time.Duration {
 // success), so the caller can log what the upstream actually said — the reply
 // itself deliberately carries only the friendly text.
 func BuildReply(ctx context.Context, ttl, negativeTTL time.Duration, fetch func(context.Context) (any, error), errReply func(msg string) any) ([]byte, time.Duration, *UpstreamError, error) {
+	return BuildReplyWithMapper(ctx, ttl, negativeTTL, fetch, errReply, FriendlyUpstream)
+}
+
+// BuildReplyWithMapper is BuildReply with a caller-provided upstream error
+// mapper, letting providers customize friendly chat messages while retaining
+// shared Pin caching semantics and Retry-After honoring.
+func BuildReplyWithMapper(ctx context.Context, ttl, negativeTTL time.Duration, fetch func(context.Context) (any, error), errReply func(msg string) any, mapper func(error) (string, Pin)) ([]byte, time.Duration, *UpstreamError, error) {
 	v, err := fetch(ctx)
 	if err != nil {
-		return buildErrReply(err, negativeTTL, errReply)
+		if mapper == nil {
+			mapper = FriendlyUpstream
+		}
+		return buildErrReply(err, negativeTTL, errReply, mapper)
 	}
 	b, merr := MarshalReply(v)
 	if merr != nil {
@@ -101,9 +111,11 @@ func BuildReply(ctx context.Context, ttl, negativeTTL time.Duration, fetch func(
 }
 
 // buildErrReply shapes one fetch failure: a friendly failure becomes the
-// endpoint's error reply with its Pin TTL, anything else propagates.
-func buildErrReply(err error, negativeTTL time.Duration, errReply func(msg string) any) ([]byte, time.Duration, *UpstreamError, error) {
-	msg, pin := FriendlyUpstream(err)
+// endpoint's error reply with its Pin TTL, anything else propagates. If the
+// upstream returned a Retry-After delay larger than the pin TTL, the delay
+// is honored so throttling windows are not violated.
+func buildErrReply(err error, negativeTTL time.Duration, errReply func(msg string) any, mapper func(error) (string, Pin)) ([]byte, time.Duration, *UpstreamError, error) {
+	msg, pin := mapper(err)
 	if msg == "" {
 		return nil, 0, nil, err
 	}
@@ -113,5 +125,9 @@ func buildErrReply(err error, negativeTTL time.Duration, errReply func(msg strin
 	}
 	var ue *UpstreamError
 	errors.As(err, &ue)
-	return b, pinTTL(pin, negativeTTL), ue, nil
+	pinDur := pinTTL(pin, negativeTTL)
+	if ue != nil && ue.RetryAfter > 0 && ue.RetryAfter > pinDur {
+		pinDur = ue.RetryAfter
+	}
+	return b, pinDur, ue, nil
 }

@@ -57,25 +57,17 @@ func TestSearchUnsupportedLinkRejectedWithoutCredentials(t *testing.T) {
 	assert.Zero(t, mints.Load(), "an unsupported share must not spend a token mint")
 }
 
-func TestSearchArtistLinkServesTopTracks(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/artists/4pt28jZ9p8nMW6RdcM8GMg/top-tracks", r.URL.Path)
-		_, _ = io.WriteString(w, `{"tracks":[`+
-			`{"id":"a1","name":"Human","artists":[{"name":"The Killers"}],"duration_ms":1},`+
-			`{"id":"a2","name":"Read My Mind","artists":[{"name":"The Killers"}],"duration_ms":2}]}`)
-	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+func TestSearchArtistLinkRejectedWithoutCredentials(t *testing.T) {
+	mint, mints := newMintServer(t, "unused")
+	p := newTestProvider(t, fakeKeys{key: "should-not-be-read"}, denyAll(t), mint)
 
 	reply := asReply[gossiprpc.SpotifySearchReply](t,
 		endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
 			ChannelID: "2",
 			Query:     "https://open.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg",
-			Limit:     1,
 		}))
-	assert.Equal(t, viaArtistTop, reply.ResolvedAs)
-	require.Len(t, reply.Tracks, 1, "the caller's limit truncates the fixed top-tracks window")
-	assert.Equal(t, "a1", reply.Tracks[0].ID)
+	assert.Contains(t, reply.Error, "isn't supported; share a track or album")
+	assert.Zero(t, mints.Load(), "an artist link must not spend a token mint")
 }
 
 func TestSearchAlbumLinkFillsAlbumFieldsOntoSlimTracks(t *testing.T) {
