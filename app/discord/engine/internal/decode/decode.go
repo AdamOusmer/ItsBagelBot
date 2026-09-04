@@ -41,6 +41,11 @@ type MemberEvent struct {
 	GuildID string  `json:"guild_id"`
 	Nick    string  `json:"nick"`
 	User    UserRef `json:"user"`
+	// Roles is the member's role ids. GUILD_MEMBER_ADD carries a full guild
+	// member object, so a rejoining member arrives with whatever roles
+	// Discord restored; autorole reads it to avoid re-granting a role the
+	// member already holds and to know which tier roles to take away.
+	Roles []string `json:"roles"`
 }
 
 type VoiceEvent struct {
@@ -92,6 +97,11 @@ type InteractionEvent struct {
 		User        UserRef `json:"user"`
 		Permissions string  `json:"permissions"`
 		Nick        string  `json:"nick"`
+		// Roles is the interacting member's role ids. Discord sends both
+		// this and the computed Permissions bitfield on an interaction; the
+		// two answer different questions (see domain discord.IsStaff), so
+		// staff gates read the roles and moderation gates read the bits.
+		Roles []string `json:"roles"`
 	} `json:"member"`
 }
 

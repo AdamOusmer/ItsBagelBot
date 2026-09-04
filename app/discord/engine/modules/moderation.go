@@ -40,15 +40,22 @@ func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 	return b.Build()
 }
 
+// isStaffOrMod is the one staff gate every interaction-driven module uses.
+func isStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
+	return decode.CanMod(in.Member.Permissions) || ddiscord.IsStaff(in.Member.Roles, cfg)
+}
+
 type moderationModule struct {
 	purgeRPC purgeClient
 	log      *zap.Logger
 }
 
 // requireMod replies "Mods only." and reports false when the interacting
-// member lacks a moderation-capable permission bit.
+// member is neither staff by Bagel role nor moderator by Discord permission
+// bit. Either is enough: see ddiscord.IsStaff for why the two questions are
+// not the same one.
 func requireMod(c *module.Context, in decode.InteractionEvent, emit module.Emit) bool {
-	if decode.CanMod(in.Member.Permissions) {
+	if isStaffOrMod(c.Config, in) {
 		return true
 	}
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Mods only.", true))
