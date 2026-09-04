@@ -5,11 +5,14 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
+
+	"go.uber.org/zap"
 )
 
 // permSendMessages is Discord's SEND_MESSAGES bit. Overwrite allow/deny are
@@ -20,14 +23,21 @@ const permSendMessages int64 = 1 << 11
 // stripRoles removes every role Bagel is allowed to remove from a member.
 //
 // The roles are read here rather than carried on the command: see
-// cmd.StripRoles. Managed roles (a bot's own, a booster role) are skipped
-// because Discord refuses to remove them, and the @everyone role is skipped
-// because it is not a grantable role at all -- its id is the guild id and it
-// never appears in a member's role list.
+// cmd.StripRoles. Three classes are skipped, each for a different reason:
 //
-// Every removal is attempted even after one fails, and the first error is
-// returned so the lane redelivers: a partial strip leaves an attacker
-// holding whichever role happened to be later in the list, and each removal
+//   - MANAGED roles (a bot's own, a booster role) -- Discord refuses to
+//     remove them from a member at all.
+//   - roles at or ABOVE the bot's own highest role -- Discord's hierarchy
+//     rule, and the reason the bot member is fetched: a strip that skips
+//     only managed roles spends one call plus a retry on every admin role
+//     it was never allowed to touch.
+//   - @everyone, whose id is the guild id and which is not a grantable role.
+//
+// A 403 on an individual role is terminal for that role (the hierarchy or a
+// permission changed under us) and is logged and skipped rather than
+// returned: returning it nacks the command, and redelivery re-runs the whole
+// strip forever against a role that can never be removed. Every other error
+// is collected and the first returned, so the lane redelivers -- each removal
 // is idempotent, so a redelivery costs calls but never correctness.
 func stripRoles(h *Handlers, ctx context.Context, c ddiscord.Command) error {
 	member, err := h.Rest.GetGuildMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
@@ -38,28 +48,67 @@ func stripRoles(h *Handlers, ctx context.Context, c ddiscord.Command) error {
 	if err != nil {
 		return err
 	}
-	managed := managedRoles(roles)
+	// The bot's own member. Its user id is its APPLICATION id: Discord
+	// mints a bot user with the same snowflake as the application, and
+	// outgress already learned that id once at boot (see ../bootstrap),
+	// so this costs no extra call to /users/@me.
+	self, err := h.Rest.GetGuildMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: h.ApplicationID})
+	if err != nil {
+		return err
+	}
+	return h.removeEach(ctx, c, member.Roles, removable(roles, self.Roles))
+}
+
+// removeEach revokes each role in ids that removable said may be revoked.
+func (h *Handlers) removeEach(ctx context.Context, c ddiscord.Command, ids []string, allowed map[string]bool) error {
 	var firstErr error
-	for _, roleID := range member.Roles {
-		if managed[roleID] || roleID == c.GuildID {
+	for _, roleID := range ids {
+		if !allowed[roleID] || roleID == c.GuildID {
 			continue
 		}
-		err := h.Rest.RemoveMemberRole(ctx, discapi.MemberRole{GuildID: c.GuildID, UserID: c.UserID, RoleID: roleID})
-		if err != nil && firstErr == nil {
+		err := h.Rest.RemoveMemberRoleWithReason(ctx,
+			discapi.MemberRole{GuildID: c.GuildID, UserID: c.UserID, RoleID: roleID}, c.Reason)
+		switch {
+		case err == nil:
+		case errors.Is(err, discapi.ErrForbidden):
+			h.log().Warn("strip roles: role refused, skipping",
+				zap.String("guild_id", c.GuildID), zap.String("user_id", c.UserID),
+				zap.String("role_id", roleID), zap.Error(err))
+		case firstErr == nil:
 			firstErr = err
 		}
 	}
 	return firstErr
 }
 
-func managedRoles(roles []discapi.Snowflake) map[string]bool {
-	out := make(map[string]bool, len(roles))
-	for _, r := range roles {
-		if r.Managed {
+// removable is the set of guild role ids the bot may take off a member:
+// unmanaged, and strictly below the bot's own highest role.
+func removable(guildRoles []discapi.Snowflake, botRoles []string) map[string]bool {
+	byID := make(map[string]discapi.Snowflake, len(guildRoles))
+	for _, r := range guildRoles {
+		byID[r.ID] = r
+	}
+	ceiling := highestPosition(byID, botRoles)
+	out := make(map[string]bool, len(guildRoles))
+	for _, r := range guildRoles {
+		if !r.Managed && r.Position < ceiling {
 			out[r.ID] = true
 		}
 	}
 	return out
+}
+
+// highestPosition is the rank of the strongest role in ids. A bot holding no
+// roles yields 0 (@everyone's position), which makes removable empty: the
+// correct answer, since such a bot can remove nothing.
+func highestPosition(byID map[string]discapi.Snowflake, ids []string) int {
+	high := 0
+	for _, id := range ids {
+		if p := byID[id].Position; p > high {
+			high = p
+		}
+	}
+	return high
 }
 
 // lockdown raises the guild's verification level to the highest tier and

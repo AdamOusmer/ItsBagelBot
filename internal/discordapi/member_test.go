@@ -141,3 +141,46 @@ func TestSetChannelOverwriteTargetsTheOverwriteEndpoint(t *testing.T) {
 		t.Fatalf("body = %s", got.body)
 	}
 }
+
+// The audit-log reason must reach Discord percent-encoded, and it must be
+// ABSENT rather than empty when there is nothing to say.
+func TestRemoveMemberRoleWithReasonEncodesTheHeader(t *testing.T) {
+	cases := []struct {
+		name   string
+		reason string
+		want   string
+	}{
+		{"plain", "raid response", "raid%20response"},
+		{"non ascii", "raid réponse", "raid%20r%C3%A9ponse"},
+		{"header injection attempt", "a\nX-Evil: 1", "a%0AX-Evil:%201"},
+		{"empty sends no header", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got string
+			client := NewClient("bot-token")
+			client.SetTransport(roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				got = r.Header.Get("X-Audit-Log-Reason")
+				return jsonResponse(204, ``), nil
+			}))
+
+			err := client.RemoveMemberRoleWithReason(context.Background(),
+				MemberRole{GuildID: "g1", UserID: "u1", RoleID: "r1"}, tc.reason)
+			if err != nil {
+				t.Fatalf("RemoveMemberRoleWithReason: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("X-Audit-Log-Reason = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Discord caps the reason at 512 characters and answers a longer one with a
+// 400 -- on a moderation call, at the worst possible moment.
+func TestAuditReasonTruncatesToDiscordsCap(t *testing.T) {
+	got := auditReason(strings.Repeat("a", auditReasonMax+50))
+	if len(got) != auditReasonMax {
+		t.Fatalf("encoded length = %d, want %d", len(got), auditReasonMax)
+	}
+}

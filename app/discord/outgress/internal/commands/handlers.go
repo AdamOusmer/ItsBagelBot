@@ -30,6 +30,7 @@ type rest interface {
 	AddMemberRole(ctx context.Context, r discapi.MemberRole) error
 	ModifyCurrentMember(ctx context.Context, m discapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discapi.MemberRole) error
+	RemoveMemberRoleWithReason(ctx context.Context, r discapi.MemberRole, reason string) error
 	InteractionFollowup(ctx context.Context, f discapi.Followup) error
 	GetGuildMember(ctx context.Context, m discapi.GuildMember) (discapi.GuildMemberInfo, error)
 	ListGuildRoles(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)

@@ -28,6 +28,7 @@ type rest interface {
 	AddMemberRole(ctx context.Context, r discordapi.MemberRole) error
 	ModifyCurrentMember(ctx context.Context, m discordapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discordapi.MemberRole) error
+	RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error
 	MoveMember(ctx context.Context, move discordapi.VoiceMove) error
 	ModifyChannel(ctx context.Context, patch discordapi.ChannelPatch) error
 	TimeoutMember(ctx context.Context, t discordapi.MemberTimeout) error
@@ -277,4 +278,14 @@ func (c *LimitedClient) SetChannelOverwrite(ctx context.Context, o discordapi.Ch
 		return err
 	}
 	return c.rest.SetChannelOverwrite(ctx, o)
+}
+
+// RemoveMemberRoleWithReason pays the bucket like its reasonless twin. A raid
+// strip is a burst of these, which is exactly what the shared token exists to
+// pace.
+func (c *LimitedClient) RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.RemoveMemberRoleWithReason(ctx, r, reason)
 }

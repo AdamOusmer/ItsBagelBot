@@ -145,7 +145,7 @@ func TestLimitedClientRefusesWithoutCallingRest(t *testing.T) {
 }
 
 // TestLimitedClientGatesEveryMethod is a table test rather than one function
-// per method: 21 near-identical "call X, assert the gate paid" cases would
+// per method: 30 near-identical "call X, assert the gate paid" cases would
 // otherwise be 21 near-identical test functions.
 func TestLimitedClientGatesEveryMethod(t *testing.T) {
 	ctx := context.Background()
@@ -180,6 +180,21 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		{"InteractionFollowup", func(c *LimitedClient) error { return c.InteractionFollowup(ctx, discordapi.Followup{}) }},
 		{"GetCurrentApplication", func(c *LimitedClient) error { _, err := c.GetCurrentApplication(ctx); return err }},
 		{"GetInvite", func(c *LimitedClient) error { _, err := c.GetInvite(ctx, "code"); return err }},
+		{"GetGuildMember", func(c *LimitedClient) error {
+			_, err := c.GetGuildMember(ctx, discordapi.GuildMember{})
+			return err
+		}},
+		{"ListGuildChannelsFull", func(c *LimitedClient) error {
+			_, err := c.ListGuildChannelsFull(ctx, discordapi.Guild{})
+			return err
+		}},
+		{"ModifyGuild", func(c *LimitedClient) error { return c.ModifyGuild(ctx, discordapi.GuildPatch{}) }},
+		{"SetChannelOverwrite", func(c *LimitedClient) error {
+			return c.SetChannelOverwrite(ctx, discordapi.ChannelOverwrite{})
+		}},
+		{"RemoveMemberRoleWithReason", func(c *LimitedClient) error {
+			return c.RemoveMemberRoleWithReason(ctx, discordapi.MemberRole{}, "raid")
+		}},
 	}
 
 	for _, tc := range cases {
@@ -205,6 +220,10 @@ func (f *fakeRest) ListGuildChannelsFull(context.Context, discordapi.Guild) ([]d
 	return nil, nil
 }
 func (f *fakeRest) ModifyGuild(context.Context, discordapi.GuildPatch) error { f.sends++; return nil }
+func (f *fakeRest) RemoveMemberRoleWithReason(context.Context, discordapi.MemberRole, string) error {
+	f.sends++
+	return nil
+}
 func (f *fakeRest) SetChannelOverwrite(context.Context, discordapi.ChannelOverwrite) error {
 	f.sends++
 	return nil
