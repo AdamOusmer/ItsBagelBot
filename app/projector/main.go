@@ -31,6 +31,17 @@ import (
 
 const serviceName = "projector"
 
+// dataTierServices are the services the projector's own /status answers for.
+// The public health.itsbagelbot.com/db endpoint terminates here, so each one is
+// folded in over its own health RPC rather than re-checked from this pod: the
+// downstream's checks arrive by name, and a users pod degraded by its own MySQL
+// surfaces as users(mysql: ...) instead of disappearing behind a bool.
+//
+// transactions is deliberately absent. Billing answers on its own endpoint
+// (health.itsbagelbot.com/billing) and checks itself, because a payment
+// processor outage is not a data-tier outage and must not page as one.
+var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications"}
+
 // fatalIf aborts startup on err: the projector cannot run degraded without any
 // of its core dependencies, so a failed step must crash the pod.
 func fatalIf(log *zap.Logger, err error, msg string) {
@@ -132,9 +143,12 @@ func main() {
 	subscribeRPCs(rpcRuntime{
 		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
-	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "projector-rpc"), "failed to subscribe rpc health")
+	set := healthSet(nc, sub)
+	rpcHealth, err := bus.SubscribeRPCHealth(nc, serviceName, "projector-rpc", set)
+	fatalIf(log, err, "failed to subscribe rpc health")
+	set.Add(rpcHealth)
 
-	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.NATS("nats", nc))
+	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
 
 	log.Info("projector ready",
 		zap.String("status_subject", topics.status),
@@ -144,6 +158,34 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("projector shutting down")
+}
+
+// healthSet builds the projector's health surface: its own dependencies plus
+// one probe per data-tier service, so /status here is the whole tier's answer
+// on one endpoint.
+//
+// The probes are deliberately not wrapped in health.Degrades. HealthProbe
+// already carries the downstream's own verdict -- down fails this check,
+// degraded degrades it -- and marking them optional would flatten a users
+// outage into an impairment nobody gets paged for.
+//
+// Each aggregated service keeps its own MySQL check instead of the projector
+// holding one for the tier: the schemas are expected to split across servers,
+// and a single hoisted check could not say which database went.
+func healthSet(nc *nats.Conn, sub bus.Subscriber) *health.Set {
+	checks := []health.Check{
+		health.NATS("nats", nc),
+		// One durable group carries every fold: the twitch.ingress.event.stream
+		// lane and the data.> subjects share this subscriber, so the check is
+		// per-group rather than per-subject. It catches a consumer that stays
+		// bound while failing to fetch -- projections stop refreshing, the
+		// connection stays up, and every other check reads green.
+		bus.LaneCheck("stream", sub),
+	}
+	for _, service := range dataTierServices {
+		checks = append(checks, bus.HealthProbe(nc, service))
+	}
+	return health.NewSet(serviceName, checks...)
 }
 
 // connectBus reconciles the streams the projector reads, then opens the

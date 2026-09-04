@@ -43,6 +43,16 @@ import (
 
 const serviceName = "discord-engine"
 
+// The two sibling services engine answers for. Each string is that service's
+// own package-main serviceName const (app/discord/ingress/main.go and
+// app/discord/outgress/main.go); they are restated here because a const in
+// package main is not importable across binaries, and they are the RPC health
+// tokens, so they have to stay byte-identical to those declarations.
+const (
+	ingressService  = "discord-ingress"
+	outgressService = "discord-outgress"
+)
+
 // ingressSubjects is DiscordIngressStream's own subject list, bound one
 // durable consumer per subject: same pattern app/outgress's stream/authz
 // lanes and the old dingress egress role already use for a fixed, known
@@ -130,25 +140,64 @@ func main() {
 	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
 
-	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
+	ingressSub, closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
 	defer closeIngress()
 
-	closeTwitch := startTwitchConsumers(twitchDeps{
+	twitchSub, closeTwitch := startTwitchConsumers(twitchDeps{
 		Ctx: ctx, Cfg: cfg, NRApp: nrApp, Log: log,
 		Resolver: resolver, ProjStore: projStore, Publish: publish, RPC: rpc, NC: nc, Identity: identity,
 	})
 	defer closeTwitch()
 
-	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
+	health.ServeSet(cfg.ListenAddr, healthSet(nc, ingressSub, twitchSub, log))
 	log.Info("discord engine ready", zap.Strings("ingress_subjects", ingressSubjects))
 
 	<-ctx.Done()
 	log.Info("discord engine shutting down")
 }
 
+// healthSet is the whole Discord vertical's health surface, not just this
+// process's. health.itsbagelbot.com/discord terminates in engine, so this Set
+// has to answer for ingress and outgress too: neither of them is routed from
+// outside, and a vertical that reported only its middle process would call the
+// whole thing healthy with the gateway session dead.
+//
+// The two HealthProbe checks are deliberately not wrapped in health.Degrades.
+// HealthProbe already carries the downstream's own verdict -- a down sibling
+// fails this check, a degraded one degrades it -- so degrading it again here
+// would flatten a real outage on ingress or outgress into an impairment and
+// leave this pod in rotation answering for a vertical that cannot act.
+//
+// The RPC responder is registered onto this same Set rather than a freshly
+// built one, so /status and the health RPC cannot disagree about this pod at
+// the same instant.
+func healthSet(nc *nats.Conn, ingressSub, twitchSub bus.Subscriber, log *zap.Logger) *health.Set {
+	set := health.NewSet(serviceName,
+		health.NATS("nats", nc),
+		// One check per durable, named for the lane rather than rolled into
+		// one boolean: either group can be bound and failing to fetch while
+		// the connection stays green, and that is the silent failure the
+		// whole vertical's dispatch stops on.
+		bus.LaneCheck("ingress", ingressSub),
+		bus.LaneCheck("twitch", twitchSub),
+		bus.HealthProbe(nc, ingressService),
+		bus.HealthProbe(nc, outgressService),
+	)
+	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
+	if err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	set.Add(rpcCheck)
+	return set
+}
+
 // startIngressConsumers binds one durable consumer per DiscordIngressStream
 // subject, all sharing the one dispatcher.
-func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger, handle func(*bus.Message) error) func() {
+//
+// The subscriber comes back alongside the close func because healthSet needs
+// it: the close func alone says nothing about whether these consumers are
+// still fetching.
+func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger, handle func(*bus.Message) error) (bus.Subscriber, func()) {
 	sub, err := bus.NewSubscriber(cfg.NATSURL, serviceName, log)
 	if err != nil {
 		log.Fatal("failed to connect discord ingress subscriber", zap.Error(err))
@@ -158,7 +207,7 @@ func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrel
 			log.Fatal("failed to consume discord ingress subject", zap.String("subject", subject), zap.Error(err))
 		}
 	}
-	return func() { _ = sub.Close() }
+	return sub, func() { _ = sub.Close() }
 }
 
 // twitchDeps is every input startTwitchConsumers needs, including the
@@ -183,8 +232,10 @@ type twitchDeps struct {
 
 // startTwitchConsumers binds Live and Clip to their Twitch inputs, on one
 // shared subscriber -- the same "one Subscriber spans both inputs" pattern
-// app/projector and the old dingress egress role already use.
-func startTwitchConsumers(deps twitchDeps) func() {
+// app/projector and the old dingress egress role already use. It is returned
+// with the close func for the same reason startIngressConsumers returns its
+// own: healthSet checks it.
+func startTwitchConsumers(deps twitchDeps) (bus.Subscriber, func()) {
 	live := &modules.Live{
 		Resolve:    deps.Resolver.ByBroadcaster,
 		StreamInfo: deps.ProjStore,
@@ -210,7 +261,7 @@ func startTwitchConsumers(deps twitchDeps) func() {
 	if err := bus.Consume(deps.Ctx, deps.NRApp, sub, deps.Cfg.UserChangedSubject, deps.Identity.HandleUserChanged, deps.Log); err != nil {
 		deps.Log.Fatal("failed to consume user-changed lane", zap.Error(err))
 	}
-	return func() { _ = sub.Close() }
+	return sub, func() { _ = sub.Close() }
 }
 
 // statusReader adapts the projection store to modules.StatusReader. An empty

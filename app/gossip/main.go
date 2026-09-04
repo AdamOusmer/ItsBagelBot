@@ -76,9 +76,17 @@ func main() {
 	if err := engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe provider endpoints", zap.Error(err))
 	}
-	subscribeRPCHealth(nc, queueGroup, log)
+	// One Set feeds both surfaces: /status (and the probes derived from it)
+	// and the health RPC responder. Building a second Set for the RPC would
+	// let the two disagree about this service at the same instant. The
+	// responder answers out of the Set, and the check watching its
+	// registration can only be built afterwards, hence NewSet -> subscribe ->
+	// Add -> ServeSet. gossip runs no JetStream lanes, so there is no
+	// bus.LaneCheck here: its "lane" is the RPC surface the rpc check covers.
+	set := health.NewSet(serviceName, health.NATS("nats", nc), warpCheck())
+	set.Add(subscribeRPCHealth(nc, queueGroup, set, log))
 
-	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
+	health.ServeSet(cfg.ListenAddr, set)
 
 	logReady(active, cfg, log)
 
@@ -154,10 +162,31 @@ func drainRPCHandlers(log *zap.Logger) {
 	}
 }
 
-func subscribeRPCHealth(nc *nats.Conn, queueGroup string, log *zap.Logger) {
-	if err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup); err != nil {
+func subscribeRPCHealth(nc *nats.Conn, queueGroup string, set *health.Set, log *zap.Logger) health.Check {
+	check, err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup, set)
+	if err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
+	return check
+}
+
+// warpCheck watches the WARP sidecar's loopback SOCKS listener via
+// core.WARPReachable.
+//
+// Degrades rather than downs, because the failure is partial by construction:
+// the WARP lane fails closed with core.ErrWARPDown when the sidecar is gone,
+// but every non-WARP provider lane in the same pod keeps answering. Failing
+// readiness instead would evict a pod still serving most of its RPC surface,
+// turning one impaired lane into an outage; 207 on /status is the honest
+// report.
+//
+// It exists to catch WARP dying AFTER the pod went Ready: the sidecar's own
+// readiness probe (`ss -ltn | grep -q '127.0.0.1:40000'`, deploy/k8s/gossip.yaml)
+// gates the pod at startup and then never looks again. Its limit is the dial's
+// limit — listener bound, not tunnel healthy; see core.WARPReachable for why
+// nothing stronger belongs on a monitor-polled endpoint.
+func warpCheck() health.Check {
+	return health.Degrades(health.Check{Name: "warp", Probe: core.WARPReachable})
 }
 
 // wireKeyResolvers attaches the just-in-time credential resolvers to deps —

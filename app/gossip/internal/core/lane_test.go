@@ -252,3 +252,27 @@ func TestWARPLaneFailsClosedWhenSidecarDown(t *testing.T) {
 	assert.NotErrorIs(t, err, context.DeadlineExceeded,
 		"a refused listener must fail fast, not burn the budget")
 }
+
+// The health check reads the same listener the WARP lane dials, and reports
+// the same typed error, so /status and a failing fetch name one cause. A bound
+// listener passing is the whole positive claim — the check deliberately proves
+// nothing about the tunnel behind it.
+func TestWARPReachable(t *testing.T) {
+	prev := warpProxyAddr
+	t.Cleanup(func() { warpProxyAddr = prev })
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	warpProxyAddr = ln.Addr().String()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, WARPReachable(ctx), "a bound listener is reachable")
+
+	warpProxyAddr = "127.0.0.1:1" // reserved port: connection refused, instantly
+	err = WARPReachable(ctx)
+	require.ErrorIs(t, err, ErrWARPDown)
+	assert.NotErrorIs(t, err, context.DeadlineExceeded,
+		"a refused listener must fail fast, not burn the probe budget")
+}

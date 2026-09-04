@@ -99,14 +99,25 @@ func main() {
 	// ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT);
 	// much higher means the pool went cold and is paying the ~18ms
 	// handshake instead of reusing a conn.
+	//
+	// This Set is the whole billing vertical's answer. Billing is checked
+	// independently of the projector by design: the projector's /db does not
+	// probe transactions, and transactions answers for billing alone, so there
+	// is no bus.HealthProbe fan-out here — the two verticals fail separately
+	// and report separately. Tebex is deliberately not a check either; see
+	// web.Server.tebexReachable for why an inbound validation endpoint is not
+	// an outbound dependency.
+	healthSet := health.NewSet(serviceName,
+		health.NATS("nats", nc),
+		health.Degrades(db.HealthCheck("mysql", driver.DB())))
+	healthSet.Add(subscribeRPCHealth(nc, healthSet, log))
+
 	handler := web.New(repo, web.Config{
 		WebhookSecret: env.Get("TEBEX_WEBHOOK_SECRET", ""),
-		Health: health.NewSet(serviceName,
-			health.NATS("nats", nc),
-			health.Degrades(db.HealthCheck("mysql", driver.DB()))),
-		NotifyGift:   notifier.Notify,
-		ApplyBilling: billing.Apply,
-		App:          nrApp,
+		Health:        healthSet,
+		NotifyGift:    notifier.Notify,
+		ApplyBilling:  billing.Apply,
+		App:           nrApp,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{
@@ -204,10 +215,21 @@ func connectRPC(natsURL string, log *zap.Logger) *nats.Conn {
 	if err != nil {
 		log.Fatal("failed to connect rpc nats", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc"); err != nil {
+	return nc
+}
+
+// subscribeRPCHealth registers the health responder against the SAME Set
+// /status serves, so the RPC reply and the HTTP report can never disagree
+// about this service at the same instant. It runs at the Set's construction
+// site rather than beside the connection because the responder answers out of
+// the Set, and the check watching that registration can only be built once the
+// subscription exists: neither can precede the Set.
+func subscribeRPCHealth(nc *nats.Conn, set *health.Set, log *zap.Logger) health.Check {
+	check, err := bus.SubscribeRPCHealth(nc, serviceName, "transactions-rpc", set)
+	if err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	return nc
+	return check
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,

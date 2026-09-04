@@ -154,18 +154,47 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to start consumer", zap.Error(err))
 	}
-	if err := bus.SubscribeRPCHealth(nc, serviceName, "sesame-rpc"); err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-
-	health.Serve(cfg.ListenAddr, serviceName,
-		health.NATS("nats", nc),
-		health.Bool("bus_subscriber", func() bool { return bus.SubscriberHealthy(sub) }),
-	)
+	serveHealth(w)
 	logReady(cfg, deps.Special.Len(), log)
 
 	<-ctx.Done()
 	drainInflight(weighted, cfg.DrainTimeout, log)
+}
+
+// serveHealth publishes sesame's health surface and registers the health RPC
+// responder against the same Set, so /status and the RPC reply cannot disagree
+// about this pod at the same instant.
+//
+// The endpoint answers for the whole Twitch vertical, not only for this pod:
+// health.itsbagelbot.com/twitch terminates in sesame, so the two HealthProbe
+// checks fold ingress's and outgress's own reports in over the health RPC.
+// Neither is wrapped in health.Degrades even though both are remote services.
+// HealthProbe already carries the downstream verdict through (a degraded
+// downstream degrades this endpoint, a dead one downs it), so marking them
+// optional on top of that would flatten a total ingress outage into 207
+// degraded: /readyz would stay ready, and the outage would never page.
+//
+// One LaneCheck, not one per lane: sesame drains premium, standard and their
+// retry lanes through a single bus.Subscriber (see internal/consumer's lanes),
+// and SubscriberHealthy reads that one subscriber's fetch clock. Splitting it
+// per lane would publish the same bool under three names.
+func serveHealth(w wireCtx) {
+	set := health.NewSet(serviceName,
+		health.NATS("nats", w.in.nc),
+		bus.LaneCheck("ingress_events", w.in.sub),
+		bus.HealthProbe(w.in.nc, "ingress"),
+		bus.HealthProbe(w.in.nc, "outgress"),
+	)
+	rpcCheck, err := bus.SubscribeRPCHealth(w.in.nc, serviceName, "sesame-rpc", set)
+	if err != nil {
+		w.log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	// Registered after the Set exists, then added back into it: the returned
+	// check watches the subscription this call just made, which a NATS
+	// permission violation kills asynchronously while the pod keeps running
+	// and every other check stays green.
+	set.Add(rpcCheck)
+	health.ServeSet(w.cfg.ListenAddr, set)
 }
 
 // startRefreshers launches the background automod refreshers that feed the

@@ -404,10 +404,21 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
 }
 
 // ── Service health ───────────────────────────────────────────────────────────
-// Latency probes over every service RPC account the admin may reach. Each
-// service exposes the same side-effect-free no-op responder, so the number is
-// the transport/account/subscriber round trip rather than database or external
-// API work and a sample can never mutate production state.
+// Latency probes over every service RPC account the admin may reach.
+//
+// The responder is no longer a no-op: it answers with the service's real health
+// report, so a sibling service can fold it into a public /status. It is still
+// side-effect-free — every check is a read — but the number here is no longer a
+// pure transport measurement, and a service whose own checks are slow will show
+// that latency rather than only the round trip. The responder caches its report
+// for a second (rpcHealthTTL in pkg/bus), which is what keeps this panel's
+// eleven-way fan-out from costing eleven database pings per page load and keeps
+// a healthy sample well inside HEALTH_TIMEOUT_MS.
+//
+// This panel reads only whether the service answered. The reply also carries
+// `status` ("ok" | "degraded" | "down") and the per-check detail behind it,
+// which nothing here surfaces yet: a service answering `status: "down"` still
+// renders green as long as it replied.
 
 export interface ServiceHealth {
   id: string;

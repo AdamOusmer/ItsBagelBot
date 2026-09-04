@@ -34,16 +34,28 @@ type Consumer struct {
 	Handle  func(context.Context, ddiscord.Command) error
 }
 
+// Lanes is everything Run hands back: the two bound subscribers, so the caller
+// can put a health check on each, and the func that releases both.
+//
+// One struct rather than three returns because two of them are the same type,
+// and a call site that swaps mod for default compiles and then reports the
+// wrong lane as the wedged one.
+type Lanes struct {
+	Mod     bus.Subscriber
+	Default bus.Subscriber
+	Close   func()
+}
+
 // Run binds both lanes and pumps them until ctx is cancelled. It returns
 // once both subscriptions are established; the pump itself runs on its own
 // goroutine.
-func (c *Consumer) Run(ctx context.Context) (func(), error) {
+func (c *Consumer) Run(ctx context.Context) (Lanes, error) {
 	mod, err := bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: c.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: ddiscord.LaneMod,
 		Group: "discord-outgress-mod", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
 	}, c.Log)
 	if err != nil {
-		return nil, err
+		return Lanes{}, err
 	}
 	def, err := bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: c.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: ddiscord.LaneDefault,
@@ -51,25 +63,25 @@ func (c *Consumer) Run(ctx context.Context) (func(), error) {
 	}, c.Log)
 	if err != nil {
 		_ = mod.Close()
-		return nil, err
+		return Lanes{}, err
 	}
 
 	modCh, err := mod.Subscribe(ctx, ddiscord.LaneMod)
 	if err != nil {
 		_ = mod.Close()
 		_ = def.Close()
-		return nil, err
+		return Lanes{}, err
 	}
 	defCh, err := def.Subscribe(ctx, ddiscord.LaneDefault)
 	if err != nil {
 		_ = mod.Close()
 		_ = def.Close()
-		return nil, err
+		return Lanes{}, err
 	}
 
 	go c.pump(ctx, modCh, defCh)
 
-	return func() { _ = mod.Close(); _ = def.Close() }, nil
+	return Lanes{Mod: mod, Default: def, Close: func() { _ = mod.Close(); _ = def.Close() }}, nil
 }
 
 // pump is the mod-first priority loop: every iteration checks the mod

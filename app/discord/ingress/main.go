@@ -33,6 +33,7 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -92,7 +93,7 @@ func main() {
 	}
 	defer rpcConn.Close()
 
-	health.Serve(cfg.ListenAddr, serviceName)
+	health.ServeSet(cfg.ListenAddr, healthSet(rpcConn, log))
 
 	sess := gateway.Session{
 		Token:  cfg.DiscordBotToken,
@@ -110,4 +111,28 @@ func main() {
 		log.Fatal("discord gateway stopped", zap.Error(err))
 	}
 	log.Info("discord ingress shutting down")
+}
+
+// healthSet is ingress's own report plus the RPC responder that serves it, the
+// one engine folds into health.itsbagelbot.com/discord -- this process is not
+// routed from outside, so that RPC is the only way its verdict is visible.
+//
+// There is no lane check here because ingress consumes nothing: it publishes
+// every event it receives and never binds a durable. What is left is the RPC
+// connection and the responder registration on it. Until this Set existed the
+// process served zero checks, which meant a pod that had lost NATS entirely
+// still answered /status 200 and stayed Ready with the whole gateway feed
+// going nowhere.
+//
+// The idle path above (no DISCORD_BOT_TOKEN) deliberately does not come
+// through here: it has no NATS connection to register a responder on, and
+// staying Ready with nothing to check is the behaviour it is there for.
+func healthSet(nc *nats.Conn, log *zap.Logger) *health.Set {
+	set := health.NewSet(serviceName, health.NATS("nats", nc))
+	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
+	if err != nil {
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+	}
+	set.Add(rpcCheck)
+	return set
 }

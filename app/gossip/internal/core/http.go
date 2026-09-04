@@ -288,6 +288,30 @@ func SetWARPProxyAddrForTests(addr string) { warpProxyAddr = addr }
 // have repointed; tests use it to restore.
 func WARPProxyAddr() string { return warpProxyAddr }
 
+// WARPReachable dials the sidecar's SOCKS5 listener and reports ErrWARPDown
+// when it refuses. It is the health surface's view of the untrusted lane: the
+// same loopback listener every LaneWARP dial rides, probed the cheapest way
+// that separates "sidecar gone" from "sidecar there".
+//
+// What a successful dial proves is that the listener is BOUND — not that the
+// Cloudflare tunnel behind it carries traffic. The sidecar's own `warp-cli
+// status` liveness probe owns daemon health, and the only way to prove egress
+// would be pushing a real request through WARP to an external origin, which a
+// health endpoint polled by uptime monitors must not do on every poll. Read
+// this check as "the lane still has a listener", nothing further.
+//
+// ctx carries the probe's deadline so this can never outlive the /status or
+// /readyz request that asked for it.
+func WARPReachable(ctx context.Context) error {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", warpProxyAddr)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrWARPDown, err)
+	}
+	_ = conn.Close()
+	return nil
+}
+
 // warpTransport is the untrusted lane's transport: same h2 health-check pair,
 // idle window and pool sizing as sharedTransport (a dead tunnel is
 // indistinguishable from a dead direct connection, and the pairing argument in
