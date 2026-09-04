@@ -1,0 +1,93 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: keda
+resources:
+  - keda-2.20.2.yaml
+  - availability.yaml
+patches:
+  # Placement. KEDA used to be pinned to the control-plane node because the
+  # apiserver calls its metrics adapter synchronously and, on the old topology,
+  # that hop was only reliable node-local. The 2026-08 rebuild made cp1 an ARM
+  # 2-core node with a role=cp:NoSchedule taint, and metrics-server has since
+  # run unpinned on a worker with v1beta1.metrics.k8s.io healthy — the same
+  # apiserver->worker-pod path. So KEDA runs on the workers: role=node keeps it
+  # off cp1 and off worker1 (the home node on weak wifi).
+  #
+  # It also HAS to be a worker for the NATS scaler to work: the scaler reads
+  # /jsz, follows the cluster to the consumer's leader and dials THAT member's
+  # advertised pod IP, so the operator needs plain pod-to-pod reach to every
+  # nats pod.
+  - target: {kind: Deployment, namespace: keda}
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value: {role: node}
+      - op: add
+        path: /spec/template/spec/priorityClassName
+        value: bagel-operator
+  # Two replicas each, spread one per node. The operator is leader-elected
+  # (--leader-elect in the upstream manifest), so the second replica is a warm
+  # standby rather than a second writer; the adapter and the webhook are
+  # stateless and both sit in a synchronous apiserver path, where a single
+  # replica turns a node drain into failing HPA reads and rejected ScaledObject
+  # writes. maxSkew 1 over hostname with ScheduleAnyway spreads them across the
+  # three workers without making a two-node cluster unschedulable.
+  - target: {kind: Deployment, namespace: keda}
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target: {kind: Deployment, name: keda-operator, namespace: keda}
+    patch: |
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector: {matchLabels: {app: keda-operator}}
+  - target: {kind: Deployment, name: keda-metrics-apiserver, namespace: keda}
+    patch: |
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector: {matchLabels: {app: keda-metrics-apiserver}}
+  - target: {kind: Deployment, name: keda-admission, namespace: keda}
+    patch: |
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector: {matchLabels: {app: keda-admission-webhooks}}
+  # The operator polls every ScaledObject on its pollingInterval (15s here) and
+  # holds one informer per watched kind; the adapter only answers HPA queries.
+  # Requests match the old HelmRelease values; limits are headroom, not a
+  # target.
+  - target: {kind: Deployment, name: keda-operator, namespace: keda}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {cpu: "1", memory: 512Mi}
+  - target: {kind: Deployment, name: keda-metrics-apiserver, namespace: keda}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {cpu: "1", memory: 512Mi}
+  - target: {kind: Deployment, name: keda-admission, namespace: keda}
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 25m, memory: 32Mi}
+          limits: {cpu: 500m, memory: 256Mi}

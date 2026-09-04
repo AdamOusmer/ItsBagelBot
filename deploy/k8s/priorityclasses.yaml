@@ -50,6 +50,22 @@ description: >-
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
+  name: bagel-operator
+value: 600000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Cluster tooling that operates first-party workloads without carrying their
+  traffic — KEDA today. It ranks below every class above because losing it
+  degrades a control loop, not a request path: with the autoscaler gone the
+  services it scales keep serving at their current replica count, so evicting
+  one to seat a runtime service or a console is the right trade. It still
+  outranks unclassified pods, because a scaler that cannot schedule leaves the
+  fleet frozen at whatever size the last poll chose.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
   name: bagel-edge
 value: 700000
 globalDefault: false
