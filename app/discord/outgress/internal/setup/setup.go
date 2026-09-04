@@ -428,22 +428,26 @@ func (out *GuildSetupResult) setRole(role namedRef) {
 	if role.ID == "" {
 		return
 	}
-	switch role.Name {
-	case "Owner":
-		out.OwnerRoleID = role.ID
-	case "Lead Mod":
-		out.LeadModRoleID = role.ID
-	case "Mods":
-		out.ModsRoleID = role.ID
-	case "VIP":
-		out.VIPRoleID = role.ID
-	case "Subscriber":
-		out.SubscriberRoleID = role.ID
-	case "Regulars":
-		out.RegularsRoleID = role.ID
-	case "Member":
-		out.MemberRoleID = role.ID
+	field := out.roleSlot(role.Name)
+	if field == nil {
+		return
 	}
+	*field = role.ID
+}
+
+// roleSlot mirrors channelSlot below: a map from template role name to the
+// GuildSetupResult field it fills, so adding a role never grows a switch.
+func (out *GuildSetupResult) roleSlot(name string) *string {
+	slots := map[string]*string{
+		"Owner":      &out.OwnerRoleID,
+		"Lead Mod":   &out.LeadModRoleID,
+		"Mods":       &out.ModsRoleID,
+		"VIP":        &out.VIPRoleID,
+		"Subscriber": &out.SubscriberRoleID,
+		"Regulars":   &out.RegularsRoleID,
+		"Member":     &out.MemberRoleID,
+	}
+	return slots[name]
 }
 
 func (out *GuildSetupResult) setChannel(ch namedRef) {

@@ -93,6 +93,27 @@ func marshalPayload(t *testing.T, v any) []byte {
 	return raw
 }
 
+// dispatchOK dispatches cmd and fails the test on any error. Nearly every
+// test in this file wants exactly this, so hoisting it here keeps each
+// test's own body to the branches that are actually its.
+func dispatchOK(t *testing.T, h *Handlers, cmd ddiscord.Command) {
+	t.Helper()
+	if err := h.Dispatch(context.Background(), cmd); err != nil {
+		t.Fatalf("dispatch %s: %v", cmd.Type, err)
+	}
+}
+
+// requireOneCall fails the test unless calls has exactly one entry and it
+// matches. The four moderation-type assertions in TestDispatchModerationTypes
+// used to repeat "len(x) != 1 || x[0].Field != want" as their own branches;
+// this makes each one a single call instead.
+func requireOneCall[T any](t *testing.T, calls []T, match func(T) bool, label string) {
+	t.Helper()
+	if len(calls) != 1 || !match(calls[0]) {
+		t.Fatalf("%s = %+v", label, calls)
+	}
+}
+
 func TestDispatchPostEmbed(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
@@ -100,9 +121,7 @@ func TestDispatchPostEmbed(t *testing.T) {
 		Type: ddiscord.TypePostEmbed, GuildID: "g1", ChannelID: "c1",
 		Payload: marshalPayload(t, ddiscord.EmbedPayload{Embed: ddiscord.Embed{Title: "hi"}}),
 	}
-	if err := h.Dispatch(context.Background(), cmd); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, cmd)
 	if len(rest.embeds) != 1 || rest.embeds[0].Embed.Title != "hi" {
 		t.Fatalf("embeds = %+v", rest.embeds)
 	}
@@ -118,9 +137,7 @@ func TestDispatchPostPanelCarriesButtons(t *testing.T) {
 			Buttons: []ddiscord.ButtonSpec{{Label: "Open", CustomID: "x"}},
 		}),
 	}
-	if err := h.Dispatch(context.Background(), cmd); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, cmd)
 	if len(rest.panels) != 1 {
 		t.Fatalf("panels = %+v", rest.panels)
 	}
@@ -133,9 +150,7 @@ func TestDispatchEditMessage(t *testing.T) {
 		Type: ddiscord.TypeEditMessage, ChannelID: "c1",
 		Payload: marshalPayload(t, ddiscord.EditPayload{MessageID: "m1", Content: "ended"}),
 	}
-	if err := h.Dispatch(context.Background(), cmd); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, cmd)
 	if len(rest.edited) != 1 || rest.edited[0].ID != "m1" {
 		t.Fatalf("edited = %+v", rest.edited)
 	}
@@ -145,35 +160,21 @@ func TestDispatchModerationTypes(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
 
-	must := func(cmd ddiscord.Command) {
-		t.Helper()
-		if err := h.Dispatch(context.Background(), cmd); err != nil {
-			t.Fatalf("dispatch %s: %v", cmd.Type, err)
-		}
-	}
-	must(ddiscord.Command{Type: ddiscord.TypeBanMember, GuildID: "g1", UserID: "u1"})
-	must(ddiscord.Command{Type: ddiscord.TypeKickMember, GuildID: "g1", UserID: "u2"})
-	must(ddiscord.Command{
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeBanMember, GuildID: "g1", UserID: "u1"})
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeKickMember, GuildID: "g1", UserID: "u2"})
+	dispatchOK(t, h, ddiscord.Command{
 		Type: ddiscord.TypeTimeoutMember, GuildID: "g1", UserID: "u3",
 		Payload: marshalPayload(t, ddiscord.TimeoutPayload{UntilISO: "2026-01-01T00:00:00Z"}),
 	})
-	must(ddiscord.Command{
+	dispatchOK(t, h, ddiscord.Command{
 		Type: ddiscord.TypeDeleteMessage, ChannelID: "c1",
 		Payload: marshalPayload(t, ddiscord.DeletePayload{MessageID: "m9"}),
 	})
 
-	if len(rest.banned) != 1 || rest.banned[0].UserID != "u1" {
-		t.Fatalf("banned = %+v", rest.banned)
-	}
-	if len(rest.kicked) != 1 || rest.kicked[0].UserID != "u2" {
-		t.Fatalf("kicked = %+v", rest.kicked)
-	}
-	if len(rest.timeouts) != 1 || rest.timeouts[0].UntilISO == "" {
-		t.Fatalf("timeouts = %+v", rest.timeouts)
-	}
-	if len(rest.deleted) != 1 || rest.deleted[0].ID != "m9" {
-		t.Fatalf("deleted = %+v", rest.deleted)
-	}
+	requireOneCall(t, rest.banned, func(m discapi.GuildMember) bool { return m.UserID == "u1" }, "banned")
+	requireOneCall(t, rest.kicked, func(m discapi.GuildMember) bool { return m.UserID == "u2" }, "kicked")
+	requireOneCall(t, rest.timeouts, func(m discapi.MemberTimeout) bool { return m.UntilISO != "" }, "timeouts")
+	requireOneCall(t, rest.deleted, func(m discapi.Message) bool { return m.ID == "m9" }, "deleted")
 }
 
 func TestDispatchRoles(t *testing.T) {
@@ -181,12 +182,8 @@ func TestDispatchRoles(t *testing.T) {
 	h := &Handlers{Rest: rest}
 	add := ddiscord.Command{Type: ddiscord.TypeAddRole, GuildID: "g1", UserID: "u1", Payload: marshalPayload(t, ddiscord.RolePayload{RoleID: "r1"})}
 	rem := ddiscord.Command{Type: ddiscord.TypeRemoveRole, GuildID: "g1", UserID: "u1", Payload: marshalPayload(t, ddiscord.RolePayload{RoleID: "r1"})}
-	if err := h.Dispatch(context.Background(), add); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.Dispatch(context.Background(), rem); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, add)
+	dispatchOK(t, h, rem)
 	if len(rest.roleAdds) != 1 || rest.roleAdds[0].RoleID != "r1" {
 		t.Fatalf("role adds = %+v", rest.roleAdds)
 	}
@@ -204,9 +201,7 @@ func TestDispatchFollowupUsesApplicationID(t *testing.T) {
 			InteractionToken: "tok", Content: "done", Ephemeral: true,
 		}),
 	}
-	if err := h.Dispatch(context.Background(), cmd); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, cmd)
 	if len(rest.followups) != 1 {
 		t.Fatalf("followups = %+v", rest.followups)
 	}
@@ -225,12 +220,8 @@ func TestDispatchUnknownTypeErrors(t *testing.T) {
 
 func TestDispatchNotYetImplementedTypesNoop(t *testing.T) {
 	h := &Handlers{Rest: &fakeRest{}, Log: testLogger()}
-	if err := h.Dispatch(context.Background(), ddiscord.Command{Type: ddiscord.TypeStripRoles}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.Dispatch(context.Background(), ddiscord.Command{Type: ddiscord.TypeLockdown}); err != nil {
-		t.Fatal(err)
-	}
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeStripRoles})
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeLockdown})
 }
 
 // A premium apply must set BOTH halves in one call: the nickname needs
@@ -239,13 +230,10 @@ func TestDispatchNotYetImplementedTypesNoop(t *testing.T) {
 func TestSetGuildIdentityPremiumSendsNickAndAvatar(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
-	err := h.Dispatch(context.Background(), ddiscord.Command{
+	dispatchOK(t, h, ddiscord.Command{
 		Type: ddiscord.TypeSetGuildIdentity, GuildID: "g1",
 		Payload: mustMarshal(t, ddiscord.IdentityPayload{Identity: ddiscord.GuildIdentity{Premium: true}}),
 	})
-	if err != nil {
-		t.Fatalf("dispatch: %v", err)
-	}
 	if len(rest.identities) != 1 {
 		t.Fatalf("calls = %d, want 1", len(rest.identities))
 	}
@@ -264,13 +252,10 @@ func TestSetGuildIdentityPremiumSendsNickAndAvatar(t *testing.T) {
 func TestSetGuildIdentityDefaultClearsBothOverrides(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
-	err := h.Dispatch(context.Background(), ddiscord.Command{
+	dispatchOK(t, h, ddiscord.Command{
 		Type: ddiscord.TypeSetGuildIdentity, GuildID: "g1",
 		Payload: mustMarshal(t, ddiscord.IdentityPayload{Identity: ddiscord.GuildIdentity{Premium: false}}),
 	})
-	if err != nil {
-		t.Fatalf("dispatch: %v", err)
-	}
 	got := rest.identities[0]
 	if got.Nick != nil || got.AvatarDataURI != nil {
 		t.Fatalf("downgrade did not clear both overrides: nick=%v avatar set=%v", got.Nick, got.AvatarDataURI != nil)
@@ -315,21 +300,19 @@ func TestSetGuildIdentityForbiddenFallsBackToAvatarOnly(t *testing.T) {
 	rest := &fakeRest{identityErrs: []error{discapi.ErrForbidden}}
 	reauth := &fakeReauth{}
 	h := &Handlers{Rest: rest, Reauth: reauth}
-	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err != nil {
-		t.Fatalf("dispatch: %v", err)
-	}
+	dispatchOK(t, h, premiumIdentityCommand(t))
+
 	if len(rest.identities) != 2 {
 		t.Fatalf("calls = %d, want 2 (nick+avatar, then avatar only)", len(rest.identities))
 	}
-	if rest.identities[1].Nick != nil {
+	retry := rest.identities[1]
+	if retry.Nick != nil {
 		t.Fatal("retry still carried a nick")
 	}
-	if rest.identities[1].AvatarDataURI == nil {
+	if retry.AvatarDataURI == nil {
 		t.Fatal("retry dropped the avatar too, so the guild gets nothing")
 	}
-	if len(reauth.marked) != 1 || reauth.marked[0] != "g1" {
-		t.Fatalf("marked = %v, want [g1]", reauth.marked)
-	}
+	requireOneCall(t, reauth.marked, func(g string) bool { return g == "g1" }, "marked")
 }
 
 // A permission error must not nack: it will refuse identically forever, and
@@ -346,9 +329,7 @@ func TestSetGuildIdentityForbiddenDoesNotRetryForever(t *testing.T) {
 func TestSetGuildIdentitySuccessClearsReauth(t *testing.T) {
 	reauth := &fakeReauth{}
 	h := &Handlers{Rest: &fakeRest{}, Reauth: reauth}
-	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err != nil {
-		t.Fatalf("dispatch: %v", err)
-	}
+	dispatchOK(t, h, premiumIdentityCommand(t))
 	if len(reauth.cleared) != 1 {
 		t.Fatalf("cleared = %v, want one entry", reauth.cleared)
 	}

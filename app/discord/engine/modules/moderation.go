@@ -51,7 +51,7 @@ func requireMod(c *module.Context, in decode.InteractionEvent, emit module.Emit)
 	if decode.CanMod(in.Member.Permissions) {
 		return true
 	}
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Mods only.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Mods only.", true))
 	return false
 }
 
@@ -66,32 +66,43 @@ func (h moderationModule) timeout(_ context.Context, c *module.Context, emit mod
 	userID := decode.OptionUser(in.Data.Options, "user")
 	mins := decode.OptionIntFrom(in.Data.Options, "minutes")
 	if userID == "" || mins <= 0 {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Need a user and a duration in minutes.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Need a user and a duration in minutes.", true))
 		return nil
 	}
 	until := time.Now().UTC().Add(time.Duration(mins) * time.Minute).Format(time.RFC3339)
-	emit(cmd.TimeoutMember(in.GuildID, userID, until, "slash /timeout"))
+	emit(cmd.TimeoutMember(cmd.UserTarget(in.GuildID, userID), until, "slash /timeout"))
 	line := decode.Mention(decode.UserRef{ID: userID}) + " for " + strconv.Itoa(mins) + " minutes"
 	_ = logLine(c, emit, logEntry{Title: "Timeout", Body: line})
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Timed out "+line+".", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Timed out "+line+".", true))
 	return nil
 }
 
 func (h moderationModule) kick(_ context.Context, c *module.Context, emit module.Emit) error {
-	return h.remove(c, emit, "Kick", "Kicked ", cmd.KickMember)
+	return h.remove(c, emit, removeAction{Title: "Kick", Prefix: "Kicked ", Build: cmd.KickMember})
 }
 
 func (h moderationModule) ban(_ context.Context, c *module.Context, emit module.Emit) error {
-	return h.remove(c, emit, "Ban", "Banned ", cmd.BanMember)
+	return h.remove(c, emit, removeAction{Title: "Ban", Prefix: "Banned ", Build: cmd.BanMember})
 }
 
 // removeBuilder is cmd.KickMember or cmd.BanMember's shared shape.
-type removeBuilder func(guildID, userID, reason string) ddiscord.Command
+type removeBuilder func(t cmd.Target, reason string) ddiscord.Command
+
+// removeAction is what kick and ban each fix about the shared remove flow:
+// the log/reply title, the reply prefix, and which mod-lane Command to
+// build. Collapsed from separate parameters (CodeScene: Excess Number of
+// Function Arguments) into one struct, matching this codebase's convention
+// for bundling a call's varying parts (see linkguard.Sighting).
+type removeAction struct {
+	Title  string
+	Prefix string
+	Build  removeBuilder
+}
 
 // remove is modTimeout's kick/ban twin: same mods-only gate, same "need a
 // user" validation, same log-then-reply tail, differing only in which
 // mod-lane Command it builds and what it says.
-func (h moderationModule) remove(c *module.Context, emit module.Emit, title, prefix string, build removeBuilder) error {
+func (h moderationModule) remove(c *module.Context, emit module.Emit, action removeAction) error {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {
 		return err
@@ -101,13 +112,13 @@ func (h moderationModule) remove(c *module.Context, emit module.Emit, title, pre
 	}
 	userID := decode.OptionUser(in.Data.Options, "user")
 	if userID == "" {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Need a user.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Need a user.", true))
 		return nil
 	}
-	emit(build(in.GuildID, userID, "slash /"+title))
+	emit(action.Build(cmd.UserTarget(in.GuildID, userID), "slash /"+action.Title))
 	who := decode.Mention(decode.UserRef{ID: userID})
-	_ = logLine(c, emit, logEntry{Title: title, Body: who})
-	emit(cmd.Followup(c.Config.GuildID, in.Token, prefix+who+".", true))
+	_ = logLine(c, emit, logEntry{Title: action.Title, Body: who})
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, action.Prefix+who+".", true))
 	return nil
 }
 
@@ -124,19 +135,19 @@ func (h moderationModule) purge(ctx context.Context, c *module.Context, emit mod
 	reply, err := h.purgeRPC.Purge(ctx, discordoutgress.PurgeRequest{ChannelID: in.ChannelID, Count: n})
 	if err != nil {
 		h.log.Warn("purge rpc failed", zap.Error(err))
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Purge failed.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Purge failed.", true))
 		return nil
 	}
 	if reply.Error != "" {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Purge failed.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Purge failed.", true))
 		return nil
 	}
 	if reply.Deleted < 2 {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Not enough messages to purge.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Not enough messages to purge.", true))
 		return nil
 	}
 	_ = logLine(c, emit, logEntry{Title: "Purge", Body: strconv.Itoa(reply.Deleted) + " messages in <#" + in.ChannelID + ">"})
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Deleted "+strconv.Itoa(reply.Deleted)+" messages.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Deleted "+strconv.Itoa(reply.Deleted)+" messages.", true))
 	return nil
 }
 

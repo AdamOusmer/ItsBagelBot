@@ -36,11 +36,11 @@ func (h rankModule) daily(ctx context.Context, c *module.Context, emit module.Em
 		return err
 	}
 	if !c.Config.LevelsOn() {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Levels are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Levels are off.", true))
 		return nil
 	}
 	ok, xp := h.store.ClaimDaily(ctx, discordstore.Member{GuildID: in.GuildID, UserID: in.Member.User.ID})
-	emit(cmd.FollowupEmbed(c.Config.GuildID, in.Token, ddiscord.DailyEmbed(ddiscord.DailyCard{XP: xp, Fresh: ok}), nil))
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), in.Token, ddiscord.DailyEmbed(ddiscord.DailyCard{XP: xp, Fresh: ok}), nil))
 	return nil
 }
 
@@ -50,7 +50,7 @@ func (h rankModule) rank(ctx context.Context, c *module.Context, emit module.Emi
 		return err
 	}
 	if !c.Config.LevelsOn() {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Levels are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Levels are off.", true))
 		return nil
 	}
 	userID := decode.OptionUser(in.Data.Options, "user")
@@ -64,6 +64,6 @@ func (h rankModule) rank(ctx context.Context, c *module.Context, emit module.Emi
 	if userID == in.Member.User.ID {
 		buttons = []ddiscord.ButtonSpec{{Style: discordapi.ButtonPrimary, Label: "Claim daily", CustomID: discordapi.CustomDailyClaim}}
 	}
-	emit(cmd.FollowupEmbed(c.Config.GuildID, in.Token, card, buttons))
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), in.Token, card, buttons))
 	return nil
 }

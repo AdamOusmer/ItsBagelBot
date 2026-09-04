@@ -188,6 +188,20 @@ func TestGatedChannelsNameRolesThatExist(t *testing.T) {
 	}
 }
 
+// missingStaffRole returns the first StaffRoles entry ch.AllowRoles fails to
+// name, or "" if every staff role is covered. Pulled out of
+// TestStaffCanReadEveryGatedChannel so the test body asserts on one result
+// instead of nesting a staff-role loop (with its own if) inside the
+// per-channel loop.
+func missingStaffRole(ch ChannelSpec) string {
+	for _, staff := range StaffRoles {
+		if !slices.Contains(ch.AllowRoles, staff) {
+			return staff
+		}
+	}
+	return ""
+}
+
 // Staff must be able to read every gated area. A subscriber or VIP room the
 // moderators cannot see is a room nobody can moderate.
 func TestStaffCanReadEveryGatedChannel(t *testing.T) {
@@ -195,10 +209,8 @@ func TestStaffCanReadEveryGatedChannel(t *testing.T) {
 		if len(ch.AllowRoles) == 0 {
 			continue
 		}
-		for _, staff := range StaffRoles {
-			if !slices.Contains(ch.AllowRoles, staff) {
-				t.Fatalf("gated channel %q excludes staff role %q", ch.Name, staff)
-			}
+		if missing := missingStaffRole(ch); missing != "" {
+			t.Fatalf("gated channel %q excludes staff role %q", ch.Name, missing)
 		}
 	}
 }
@@ -214,21 +226,31 @@ func TestVIPAreaExcludesSubscribers(t *testing.T) {
 	}
 }
 
-// The subscriber tier is opt-in. With it off, neither the role nor its
-// category is created, so a server that does not use subs never grows a
-// locked category nobody can open.
-func TestSubscriberTierIsGatedOff(t *testing.T) {
+// subscriberRoleCreatedWithTierOff reports whether the Subscriber role would
+// be created even though the subscriber tier is off.
+func subscriberRoleCreatedWithTierOff() bool {
 	for _, r := range CommunityRoles() {
 		if r.Name == RoleSubscriber && FeatureEnabled(r.Feature, false) {
-			t.Fatal("Subscriber role is created even with the tier off")
+			return true
 		}
 	}
-	var gatedChannels int
+	return false
+}
+
+// subscriberGatedChannels checks every channel gated on FeatureSubscribers
+// toggles correctly -- absent with the tier off, present with it on --
+// fatalling the test on the first channel that gets either wrong, and
+// returns how many such channels exist so the caller can also require at
+// least one. Pulled out of TestSubscriberTierIsGatedOff, which used to run
+// this loop-plus-ifs and the role check above in the same function body.
+func subscriberGatedChannels(t *testing.T) int {
+	t.Helper()
+	var n int
 	for _, ch := range CommunityChannels() {
 		if ch.Feature != FeatureSubscribers {
 			continue
 		}
-		gatedChannels++
+		n++
 		if FeatureEnabled(ch.Feature, false) {
 			t.Fatalf("channel %q is created even with the subscriber tier off", ch.Name)
 		}
@@ -236,7 +258,17 @@ func TestSubscriberTierIsGatedOff(t *testing.T) {
 			t.Fatalf("channel %q is never created even with the tier on", ch.Name)
 		}
 	}
-	if gatedChannels == 0 {
+	return n
+}
+
+// The subscriber tier is opt-in. With it off, neither the role nor its
+// category is created, so a server that does not use subs never grows a
+// locked category nobody can open.
+func TestSubscriberTierIsGatedOff(t *testing.T) {
+	if subscriberRoleCreatedWithTierOff() {
+		t.Fatal("Subscriber role is created even with the tier off")
+	}
+	if subscriberGatedChannels(t) == 0 {
 		t.Fatal("no channels are gated on the subscriber tier")
 	}
 }

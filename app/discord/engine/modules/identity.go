@@ -80,7 +80,7 @@ func (i *Identity) onGuild(ctx context.Context, c *module.Context, emit module.E
 	if !i.needsApply(ctx, c.Config.GuildID, want) {
 		return nil
 	}
-	emit(cmd.SetGuildIdentity(c.Config.GuildID, want))
+	emit(cmd.SetGuildIdentity(cmd.GuildTarget(c.Config.GuildID), want))
 	i.record(ctx, c.Config.GuildID, want)
 	return nil
 }
@@ -104,7 +104,7 @@ func (i *Identity) HandleUserChanged(msg *bus.Message) error {
 	if !i.needsApply(ctx, cfg.GuildID, want) {
 		return nil
 	}
-	if err := i.Publish(ctx, cmd.SetGuildIdentity(cfg.GuildID, want)); err != nil {
+	if err := i.Publish(ctx, cmd.SetGuildIdentity(cmd.GuildTarget(cfg.GuildID), want)); err != nil {
 		i.Log.Warn("discord identity publish failed",
 			zap.String("guild_id", cfg.GuildID), zap.Error(err))
 		return nil

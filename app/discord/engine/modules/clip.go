@@ -49,7 +49,7 @@ func (c *Clip) announce(ctx context.Context, created eventdata.ClipCreated) {
 	if embed.URL == "" {
 		return
 	}
-	if err := c.Publish(ctx, cmd.PostEmbed(guildID, channelID, embed)); err != nil {
+	if err := c.Publish(ctx, cmd.PostEmbed(cmd.ChannelTarget(guildID, channelID), embed)); err != nil {
 		c.Log.Warn("discord clip embed publish failed", zap.String("broadcaster_id", created.BroadcasterID), zap.Error(err))
 	}
 }
@@ -60,7 +60,7 @@ func (c *Clip) clipsChannel(ctx context.Context, broadcasterID string) (channelI
 		return "", "", false
 	}
 	cfg, enabled := c.Resolve(ctx, id)
-	if !enabled || !cfg.Connected() || !cfg.ClipsOn() {
+	if !moduleGateOpen(enabled, cfg, cfg.ClipsOn()) {
 		return "", "", false
 	}
 	channelID = strings.TrimSpace(cfg.ClipsChannelID)

@@ -87,30 +87,48 @@ func (c *Consumer) Run(ctx context.Context) (func(), error) {
 // a default flood.
 func (c *Consumer) pump(ctx context.Context, modCh, defCh <-chan *bus.Message) {
 	for {
-		select {
-		case msg, ok := <-modCh:
-			if !ok {
-				return
-			}
-			c.process(msg)
+		if handled, closed := c.pollMod(modCh); closed {
+			return
+		} else if handled {
 			continue
-		default:
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case msg, ok := <-modCh:
-			if !ok {
+			if !c.take(msg, ok) {
 				return
 			}
-			c.process(msg)
 		case msg, ok := <-defCh:
-			if !ok {
+			if !c.take(msg, ok) {
 				return
 			}
-			c.process(msg)
 		}
 	}
+}
+
+// pollMod is the non-blocking mod-first check pump's own doc describes:
+// handled is true once it has consumed a mod message (the loop should
+// restart immediately rather than fall through to the blocking select below,
+// so a sustained mod backlog never waits its turn behind default), closed is
+// true once the mod channel itself is gone (the pump should stop).
+func (c *Consumer) pollMod(modCh <-chan *bus.Message) (handled, closed bool) {
+	select {
+	case msg, ok := <-modCh:
+		return c.take(msg, ok), !ok
+	default:
+		return false, false
+	}
+}
+
+// take processes one channel receive and reports whether the pump should
+// keep running: false means the channel closed and msg is the zero value.
+func (c *Consumer) take(msg *bus.Message, ok bool) bool {
+	if !ok {
+		return false
+	}
+	c.process(msg)
+	return true
 }
 
 func (c *Consumer) process(msg *bus.Message) {

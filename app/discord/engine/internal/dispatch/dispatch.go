@@ -56,18 +56,21 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
 
+	c := &module.Context{Event: ev, Config: cfg, BroadcasterID: broadcasterID, Log: d.Log}
 	modules.EnsureDesk(ctx, d.Store, cfg, emit)
-	d.runHandlers(ctx, ev, cfg, broadcasterID, emit)
+	d.runHandlers(ctx, c, emit)
 
 	d.publishAll(ctx, emitted)
 	return nil
 }
 
-func (d *Dispatcher) runHandlers(ctx context.Context, ev ddiscord.Event, cfg ddiscord.Config, broadcasterID string, emit module.Emit) {
-	c := &module.Context{Event: ev, Config: cfg, BroadcasterID: broadcasterID, Log: d.Log}
-	for _, h := range d.handlersFor(ev) {
+// runHandlers takes the already-built module.Context rather than its own
+// (ev, cfg, broadcasterID) triple -- Handle assembles that Context once and
+// this just runs it (CodeScene: Excess Number of Function Arguments).
+func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
+	for _, h := range d.handlersFor(c.Event) {
 		if err := h(ctx, c, emit); err != nil {
-			d.Log.Warn("discord module handler failed", zap.String("event_type", ev.Type), zap.Error(err))
+			d.Log.Warn("discord module handler failed", zap.String("event_type", c.Event.Type), zap.Error(err))
 		}
 	}
 }

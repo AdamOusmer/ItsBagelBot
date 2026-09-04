@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/discord/engine/internal/cmd"
 	"ItsBagelBot/app/discord/engine/internal/decode"
 	"ItsBagelBot/app/discord/engine/module"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/discord/linkguard"
 
 	"go.uber.org/zap"
@@ -73,17 +74,14 @@ type linkGuardModule struct {
 }
 
 // onCreate builds one linkguard.Sighting per link the message contains and
-// acts on at most one non-Allow Verdict (see observeLinks and act). The
-// bot's own messages, and every other bot's, are excluded first and
-// unconditionally -- linkguard has no notion of "author is a bot", and
-// this engine must never delete or count its own posts (a go-live embed,
-// a log line) or another automod bot's.
+// acts on at most one non-Allow Verdict (see observeLinks and act). See
+// skipMessage for what gets ignored before any of that runs.
 func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit module.Emit) error {
 	ev, err := decode.Decode[decode.MessageEvent](c.Event.Raw)
 	if err != nil {
 		return err
 	}
-	if ev.Author.Bot || ev.GuildID == "" || !c.Config.LinkGuardOn() {
+	if skipMessage(ev, c.Config) {
 		return nil
 	}
 	links := linkPattern.FindAllString(ev.Content, -1)
@@ -95,6 +93,17 @@ func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit m
 		h.act(c, emit, ev, reason)
 	}
 	return nil
+}
+
+// skipMessage reports whether onCreate should ignore ev entirely: the bot's
+// own messages, and every other bot's, are excluded first and
+// unconditionally -- linkguard has no notion of "author is a bot", and this
+// engine must never delete or count its own posts (a go-live embed, a log
+// line) or another automod bot's; a message with no guild id (e.g. a DM)
+// has nothing for LinkGuardOn to gate; and a guild with the module off is
+// not watched at all.
+func skipMessage(ev decode.MessageEvent, cfg ddiscord.Config) bool {
+	return ev.Author.Bot || ev.GuildID == "" || !cfg.LinkGuardOn()
 }
 
 // observeLinks reports every link in links to guard.Observe and returns
@@ -235,7 +244,7 @@ func (h linkGuardModule) tripIsOwnInvite(ctx context.Context, guildID, raw strin
 // true of a ban. Escalating beyond deletion is a later, separate decision
 // this module deliberately does not make.
 func (h linkGuardModule) act(c *module.Context, emit module.Emit, ev decode.MessageEvent, reason string) {
-	emit(cmd.DeleteMessage(c.Config.GuildID, ev.ChannelID, ev.ID, "linkguard: "+reason))
+	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID), ev.ID, "linkguard: "+reason))
 	body := decode.Mention(ev.Author) + " in <#" + ev.ChannelID + "> (" + reason + ")"
 	_ = logLine(c, emit, logEntry{Title: "Link removed", Body: body})
 }

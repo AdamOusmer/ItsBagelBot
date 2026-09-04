@@ -85,34 +85,63 @@ const defaultPresenceInterval = 5 * time.Minute
 
 // Run identifies and pumps events until ctx is done.
 func (s Session) Run(ctx context.Context) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	url := s.gatewayURL()
+	st := &resumeState{}
+	for {
+		err := s.oneSocket(ctx, dialURLFor(url, st), st)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		s.log().Warn("discord gateway socket ended; reconnecting", zap.Error(err))
+		if err := waitBeforeReconnect(ctx); err != nil {
+			return err
+		}
+	}
+}
+
+// validate reports the two misconfigurations Run cannot recover from by
+// retrying: an empty token or a nil Dial would just fail identically on
+// every reconnect attempt.
+func (s Session) validate() error {
 	if s.Token == "" {
 		return fmt.Errorf("discord ingress: empty bot token")
 	}
 	if s.Dial == nil {
 		return fmt.Errorf("discord ingress: nil dial")
 	}
-	url := s.URL
-	if url == "" {
-		url = gatewayURL
+	return nil
+}
+
+// gatewayURL is the configured URL, or the package default when unset.
+func (s Session) gatewayURL() string {
+	if s.URL == "" {
+		return gatewayURL
 	}
-	st := &resumeState{}
-	for {
-		// A resume must go to the URL READY handed back, not the ordinary
-		// gateway URL; Discord does not guarantee the latter works for one.
-		dialURL := url
-		if _, resumeURL, ok := st.resumable(); ok && resumeURL != "" {
-			dialURL = resumeURL
-		}
-		err := s.oneSocket(ctx, dialURL, st)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		s.log().Warn("discord gateway socket ended; reconnecting", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
+	return s.URL
+}
+
+// dialURLFor picks the socket url for one connection attempt. A resume must
+// go to the URL READY handed back, not the ordinary gateway URL; Discord does
+// not guarantee the latter works for one.
+func dialURLFor(url string, st *resumeState) string {
+	if _, resumeURL, ok := st.resumable(); ok && resumeURL != "" {
+		return resumeURL
+	}
+	return url
+}
+
+// waitBeforeReconnect pauses between reconnect attempts, returning ctx's own
+// error if it is cancelled first so Run's caller sees the real reason it
+// stopped rather than a timer firing.
+func waitBeforeReconnect(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(2 * time.Second):
+		return nil
 	}
 }
 

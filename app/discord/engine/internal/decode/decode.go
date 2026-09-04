@@ -190,36 +190,40 @@ func FirstSub(opts []InteractionOption) InteractionOption {
 	return opts[0]
 }
 
+// findOption returns the first option in opts named name. OptionString,
+// OptionInt and OptionIntFrom each used to walk their own copy of this
+// "find by name" loop (CodeScene: Code Duplication); it is written once
+// here and shared.
+func findOption(opts []InteractionOption, name string) (InteractionOption, bool) {
+	for _, o := range opts {
+		if o.Name == name {
+			return o, true
+		}
+	}
+	return InteractionOption{}, false
+}
+
 // OptionString reads a named string option out of sub's own options.
 func OptionString(sub InteractionOption, name string) string {
-	for _, o := range sub.Options {
-		if o.Name == name {
-			return rawString(o.Value)
-		}
+	if o, ok := findOption(sub.Options, name); ok {
+		return rawString(o.Value)
 	}
 	return ""
 }
 
 // OptionInt reads a named integer option out of sub's own options.
 func OptionInt(sub InteractionOption, name string) int {
-	for _, o := range sub.Options {
-		if o.Name == name {
-			n, _ := strconv.Atoi(rawString(o.Value))
-			return n
-		}
-	}
-	return 0
+	return OptionIntFrom(sub.Options, name)
 }
 
 // OptionIntFrom reads a named integer option out of a top-level option list.
 func OptionIntFrom(opts []InteractionOption, name string) int {
-	for _, o := range opts {
-		if o.Name == name {
-			n, _ := strconv.Atoi(rawString(o.Value))
-			return n
-		}
+	o, ok := findOption(opts, name)
+	if !ok {
+		return 0
 	}
-	return 0
+	n, _ := strconv.Atoi(rawString(o.Value))
+	return n
 }
 
 // OptionUser reads a named user-id option, searching nested sub-command
@@ -236,9 +240,16 @@ func OptionUser(opts []InteractionOption, name string) string {
 	return ""
 }
 
+// isQuotedJSONString reports whether s is a JSON string literal (a codec
+// RawMessage that decoded to a quoted value rather than a bare number or
+// identifier) -- the only shape rawString needs to strip the quotes from.
+func isQuotedJSONString(s string) bool {
+	return len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"'
+}
+
 func rawString(raw codec.RawMessage) string {
 	s := string(raw)
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+	if isQuotedJSONString(s) {
 		return s[1 : len(s)-1]
 	}
 	return s

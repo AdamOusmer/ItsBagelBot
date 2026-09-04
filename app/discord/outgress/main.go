@@ -33,20 +33,20 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
 const serviceName = "discord-outgress"
 
+// main reads as a sequence of named boot phases; each phase logs and exits
+// the process on its own fatal error (matching what this used to do inline)
+// so the phase order below is also the exact fatal-error order.
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
+	log, nrApp := bootLogger()
 	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
 	defer monitor.Shutdown(nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -60,18 +60,9 @@ func main() {
 		return
 	}
 
-	// Outgress is DISCORD_OUTGRESS's consumer, so it reconciles that stream
-	// (see pkg/bus.DiscordOutgressStream's doc); it never provisions
-	// DISCORD_INGRESS, which it only ever reads nothing from at all -- that
-	// is engine's job, as the consumer on that side.
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log); err != nil {
-		log.Fatal("failed to provision the DISCORD_OUTGRESS stream", zap.Error(err))
-	}
+	ensureOutgressStream(ctx, cfg, log)
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := connectValkey(cfg, log)
 	defer valkeyClient.Close()
 
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
@@ -79,20 +70,79 @@ func main() {
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 
+	applicationID := registerSlashCommands(ctx, rest, log)
+
+	nc := connectNATS(cfg, log)
+	defer nc.Close()
+
+	subscribeRPCs(nc, cfg, rest, store, liveStore, reauth, nrApp, log)
+
+	closeCommands := startCommandConsumer(ctx, cfg, rest, applicationID, reauth, log)
+	defer closeCommands()
+
+	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
+	log.Info("discord outgress ready", zap.String("application_id", applicationID), zap.String("rpc_prefix", cfg.RPCPrefix))
+
+	<-ctx.Done()
+	log.Info("discord outgress shutting down")
+}
+
+// bootLogger builds the process logger wired through New Relic. It exits the
+// process on failure: nothing after this point can run without a logger.
+func bootLogger() (*zap.Logger, *newrelic.Application) {
+	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
+	nrApp, err := monitor.New(serviceName, log)
+	if err != nil {
+		log.Fatal("failed to start new relic", zap.Error(err))
+	}
+	return monitor.WrapLogger(log, nrApp), nrApp
+}
+
+// ensureOutgressStream provisions DISCORD_OUTGRESS, the stream this process
+// consumes (see pkg/bus.DiscordOutgressStream's doc); it never provisions
+// DISCORD_INGRESS, which it only ever reads nothing from at all -- that is
+// engine's job, as the consumer on that side.
+func ensureOutgressStream(ctx context.Context, cfg config.Config, log *zap.Logger) {
+	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log); err != nil {
+		log.Fatal("failed to provision the DISCORD_OUTGRESS stream", zap.Error(err))
+	}
+}
+
+func connectValkey(cfg config.Config, log *zap.Logger) valkey.Client {
+	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
+	if err != nil {
+		log.Fatal("failed to connect to valkey", zap.Error(err))
+	}
+	return valkeyClient
+}
+
+// registerSlashCommands is not fatal on failure: a stale slash-command
+// catalog or a missing application id degrades interaction followups and
+// re-registration, it does not stop the mod/default lanes from draining.
+// Retried next rollout.
+func registerSlashCommands(ctx context.Context, rest *discordrate.LimitedClient, log *zap.Logger) string {
 	applicationID, err := bootstrap.Register(ctx, rest)
 	if err != nil {
-		// Not fatal: a stale slash-command catalog or a missing application
-		// id degrades interaction followups and re-registration, it does not
-		// stop the mod/default lanes from draining. Retried next rollout.
 		log.Warn("discord slash-command bootstrap failed", zap.Error(err))
 	}
+	return applicationID
+}
 
+func connectNATS(cfg config.Config, log *zap.Logger) *nats.Conn {
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}
-	defer nc.Close()
+	return nc
+}
 
+// subscribeRPCs wires the dashboard-facing guild setup RPC and the
+// engine-facing channel-management/live RPC onto the same connection.
+func subscribeRPCs(
+	nc *nats.Conn, cfg config.Config, rest *discordrate.LimitedClient,
+	store discordstore.Store, liveStore kv.LiveStore, reauth kv.ReauthStore,
+	nrApp *newrelic.Application, log *zap.Logger,
+) {
 	setupWorker := setup.New(setup.Config{Discord: rest, Store: store, Log: log.Named("setup")})
 	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
 		NC: nc, Prefix: cfg.RPCPrefix, Queue: cfg.RPCQueue, App: nrApp,
@@ -105,18 +155,17 @@ func main() {
 	}); err != nil {
 		log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
 	}
+}
 
+func startCommandConsumer(
+	ctx context.Context, cfg config.Config, rest *discordrate.LimitedClient,
+	applicationID string, reauth kv.ReauthStore, log *zap.Logger,
+) func() {
 	handlers := &commands.Handlers{Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log.Named("commands")}
 	consumer := &commands.Consumer{NATSURL: cfg.NATSURL, Log: log.Named("commands"), Handle: handlers.Dispatch}
 	closeCommands, err := consumer.Run(ctx)
 	if err != nil {
 		log.Fatal("failed to start discord command consumer", zap.Error(err))
 	}
-	defer closeCommands()
-
-	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
-	log.Info("discord outgress ready", zap.String("application_id", applicationID), zap.String("rpc_prefix", cfg.RPCPrefix))
-
-	<-ctx.Done()
-	log.Info("discord outgress shutting down")
+	return closeCommands
 }

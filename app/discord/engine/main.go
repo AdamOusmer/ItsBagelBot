@@ -133,7 +133,9 @@ func main() {
 	closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
 	defer closeIngress()
 
-	closeTwitch := startTwitchConsumers(ctx, cfg, nrApp, log, resolver, projStore, publish, rpc, nc, identity)
+	closeTwitch := startTwitchConsumers(ctx, cfg, nrApp, log, twitchDeps{
+		Resolver: resolver, ProjStore: projStore, Publish: publish, RPC: rpc, NC: nc, Identity: identity,
+	})
 	defer closeTwitch()
 
 	health.Serve(cfg.ListenAddr, serviceName, health.NATS("nats", nc))
@@ -158,22 +160,31 @@ func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrel
 	return func() { _ = sub.Close() }
 }
 
+// twitchDeps is the module wiring startTwitchConsumers needs beyond the
+// (ctx, cfg, nrApp, log) preamble it shares with startIngressConsumers --
+// collapsed from six separate parameters into one struct (CodeScene: Excess
+// Number of Function Arguments).
+type twitchDeps struct {
+	Resolver  resolve.Resolver
+	ProjStore *projection.Store
+	Publish   modules.Publish
+	RPC       *rpcclient.Client
+	NC        *nats.Conn
+	Identity  *modules.Identity
+}
+
 // startTwitchConsumers binds Live and Clip to their Twitch inputs, on one
 // shared subscriber -- the same "one Subscriber spans both inputs" pattern
 // app/projector and the old dingress egress role already use.
-func startTwitchConsumers(
-	ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger,
-	resolver resolve.Resolver, projStore *projection.Store, publish modules.Publish, rpc *rpcclient.Client, nc *nats.Conn,
-	identity *modules.Identity,
-) func() {
+func startTwitchConsumers(ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger, deps twitchDeps) func() {
 	live := &modules.Live{
-		Resolve:    resolver.ByBroadcaster,
-		StreamInfo: projStore,
-		Fallback:   streaminfo.New(nc, cfg.TwitchOutgressRPCPrefix),
-		RPC:        rpc,
+		Resolve:    deps.Resolver.ByBroadcaster,
+		StreamInfo: deps.ProjStore,
+		Fallback:   streaminfo.New(deps.NC, cfg.TwitchOutgressRPCPrefix),
+		RPC:        deps.RPC,
 		Log:        log,
 	}
-	clip := &modules.Clip{Resolve: resolver.ByBroadcaster, Publish: publish, Log: log}
+	clip := &modules.Clip{Resolve: deps.Resolver.ByBroadcaster, Publish: deps.Publish, Log: log}
 
 	sub, err := bus.NewSubscriber(cfg.NATSURL, serviceName, log)
 	if err != nil {
@@ -188,7 +199,7 @@ func startTwitchConsumers(
 	// Account facts, for the bot's per-guild appearance. Subscribed here
 	// rather than left to GUILD_CREATE alone so an upgrade is visible at once
 	// instead of at the next gateway reconnect, which may be hours away.
-	if err := bus.Consume(ctx, nrApp, sub, cfg.UserChangedSubject, identity.HandleUserChanged, log); err != nil {
+	if err := bus.Consume(ctx, nrApp, sub, cfg.UserChangedSubject, deps.Identity.HandleUserChanged, log); err != nil {
 		log.Fatal("failed to consume user-changed lane", zap.Error(err))
 	}
 	return func() { _ = sub.Close() }

@@ -75,11 +75,19 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	if leftEmpty {
 		h.deleteEmptyClone(ctx, left)
 	}
-	if !c.Config.VoiceOn() || ev.ChannelID == "" || ev.ChannelID != c.Config.VoiceHubID {
+	if !joinedVoiceHub(c.Config, ev.ChannelID) {
 		return nil
 	}
 	h.cloneAndMove(ctx, c, ev, emit)
 	return nil
+}
+
+// joinedVoiceHub reports whether channelID is a join-to-create trigger:
+// voice is on, the member landed in a channel at all (an empty channel id
+// means they left one instead of joining), and it is specifically the
+// configured hub, not some other voice channel in the guild.
+func joinedVoiceHub(cfg ddiscord.Config, channelID string) bool {
+	return cfg.VoiceOn() && channelID != "" && channelID == cfg.VoiceHubID
 }
 
 func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev decode.VoiceEvent, emit module.Emit) {
@@ -96,7 +104,7 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev dec
 			decode.OverwriteAllow(decode.OverwriteSpec{TargetID: ev.UserID, Kind: 1, Bits: decode.PermView | decode.PermConnect | decode.PermSend}),
 		},
 	})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice clone create failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 		return
 	}
@@ -104,7 +112,7 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev dec
 		h.log.Warn("voice clone tracking failed", zap.Error(err))
 		return
 	}
-	emit(cmd.PostPanel(ev.GuildID, reply.ChannelID, "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: name}), voiceRoomButtons()))
+	emit(cmd.PostPanel(cmd.ChannelTarget(ev.GuildID, reply.ChannelID), "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: name}), voiceRoomButtons()))
 	if _, err := h.channels.MoveMember(ctx, discordoutgress.MemberMoveRequest{GuildID: ev.GuildID, UserID: ev.UserID, ChannelID: reply.ChannelID}); err != nil {
 		h.log.Warn("voice clone move failed", zap.Error(err))
 	}
@@ -158,11 +166,11 @@ func (h voiceModule) unlockButton(ctx context.Context, c *module.Context, emit m
 func (h voiceModule) command(ctx context.Context, c *module.Context, in decode.InteractionEvent, sub decode.InteractionOption, emit module.Emit) error {
 	cl, ok := h.store.Clone(ctx, discordstore.Channel{ID: in.ChannelID})
 	if !ok {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "You can only do that in a temporary voice channel.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "You can only do that in a temporary voice channel.", true))
 		return nil
 	}
 	if !ownsVoice(cl, in) {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Only the channel owner can do that.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Only the channel owner can do that.", true))
 		return nil
 	}
 	return h.apply(ctx, c, in, cl, sub, emit)
@@ -186,7 +194,7 @@ func (h voiceModule) apply(ctx context.Context, c *module.Context, in decode.Int
 	case "unlock":
 		return h.lock(ctx, c, in, cl, false, emit)
 	default:
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Unknown voice command.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Unknown voice command.", true))
 		return nil
 	}
 }
@@ -194,24 +202,24 @@ func (h voiceModule) apply(ctx context.Context, c *module.Context, in decode.Int
 func (h voiceModule) rename(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, sub decode.InteractionOption, emit module.Emit) error {
 	name := decode.OptionString(sub, "name")
 	if name == "" {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Give the channel a name.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Give the channel a name.", true))
 		return nil
 	}
 	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, Name: name})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice rename failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Renamed.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Renamed.", true))
 	return nil
 }
 
 func (h voiceModule) limit(ctx context.Context, c *module.Context, in decode.InteractionEvent, cl discordstore.Clone, sub decode.InteractionOption, emit module.Emit) error {
 	n := decode.OptionInt(sub, "count")
 	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, UserLimit: n})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice limit failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "User limit set to "+strconv.Itoa(n)+".", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "User limit set to "+strconv.Itoa(n)+".", true))
 	return nil
 }
 
@@ -223,13 +231,13 @@ func (h voiceModule) lock(ctx context.Context, c *module.Context, in decode.Inte
 		overwrites = append(overwrites, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: cl.GuildID, Kind: 0, Bits: decode.PermConnect}))
 	}
 	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, Overwrites: overwrites})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice lock failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
 	msg := "Unlocked."
 	if lock {
 		msg = "Locked."
 	}
-	emit(cmd.Followup(c.Config.GuildID, in.Token, msg, true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, msg, true))
 	return nil
 }

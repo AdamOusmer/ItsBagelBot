@@ -38,7 +38,7 @@ func onMemberAdd(_ context.Context, c *module.Context, emit module.Emit) error {
 		return nil
 	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
-	emit(cmd.PostEmbed(c.Config.GuildID, c.Config.WelcomeChannelID,
+	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID),
 		ddiscord.WelcomeEmbed(ddiscord.WelcomeCard{Display: shown, AvatarURL: decode.AvatarURL(ev.User)})))
 	logJoin(c, ev, emit)
 	return nil
@@ -55,7 +55,7 @@ func autorole(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
 	if c.Config.MemberRoleID == "" {
 		return
 	}
-	emit(cmd.AddRole(ev.GuildID, ev.User.ID, c.Config.MemberRoleID))
+	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), c.Config.MemberRoleID))
 }
 
 func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) error {
@@ -68,7 +68,7 @@ func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) erro
 	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
 	if shouldGoodbye(c.Config) {
-		emit(cmd.PostChat(c.Config.GuildID, c.Config.WelcomeChannelID, ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown})))
+		emit(cmd.PostChat(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID), ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown})))
 	}
 	return logLine(c, emit, logEntry{Title: "Member left", Body: shown + " (" + ev.User.ID + ")"})
 }
@@ -102,7 +102,7 @@ func logLine(c *module.Context, emit module.Emit, entry logEntry) error {
 	if c.Config.LogChannelID == "" {
 		return nil
 	}
-	emit(cmd.PostEmbed(c.Config.GuildID, c.Config.LogChannelID,
+	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, c.Config.LogChannelID),
 		ddiscord.LogEmbed(ddiscord.LogLine{Title: entry.Title, Body: entry.Body})))
 	return nil
 }

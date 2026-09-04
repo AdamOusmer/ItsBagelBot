@@ -283,6 +283,14 @@ func helloFrame(t *testing.T) []byte {
 	return raw
 }
 
+// firstOpIs reports whether ops has an entry and its first one is want. Both
+// TestSessionIdentifiesWithoutAStoredSession and TestSessionResumesAfterReady
+// check this, so it is named once here instead of each repeating the
+// length-guard-plus-comparison inline.
+func firstOpIs(ops []int, want int) bool {
+	return len(ops) > 0 && ops[0] == want
+}
+
 // A first connect has no session to continue, so it must Identify.
 func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
 	conn := &scriptedConn{reads: [][]byte{helloFrame(t)}}
@@ -290,7 +298,7 @@ func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
 	defer cancel()
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }, Handle: &recHandler{}}
 	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
-	if ops := opsWritten(t, conn.wroteSnapshot()); len(ops) == 0 || ops[0] != opIdentify {
+	if ops := opsWritten(t, conn.wroteSnapshot()); !firstOpIs(ops, opIdentify) {
 		t.Fatalf("first frame ops = %v, want Identify (%d) first", ops, opIdentify)
 	}
 }
@@ -315,16 +323,23 @@ func TestSessionResumesAfterReady(t *testing.T) {
 	_ = sess.oneSocket(ctx, "ws://x", st)
 
 	sessionID, resumeURL, ok := st.resumable()
-	if !ok || sessionID != "sess-1" || resumeURL != "ws://resume" {
+	if !matchesResumeState(sessionID, resumeURL, ok, "sess-1", "ws://resume") {
 		t.Fatalf("resume state = (%q, %q, %t), want the ids from READY", sessionID, resumeURL, ok)
 	}
 
 	second := &scriptedConn{reads: [][]byte{helloFrame(t)}}
 	sess.Dial = func(context.Context, string) (Conn, error) { return second, nil }
 	_ = sess.oneSocket(ctx, resumeURL, st)
-	if ops := opsWritten(t, second.wroteSnapshot()); len(ops) == 0 || ops[0] != opResume {
+	if ops := opsWritten(t, second.wroteSnapshot()); !firstOpIs(ops, opResume) {
 		t.Fatalf("reconnect ops = %v, want Resume (%d) first", ops, opResume)
 	}
+}
+
+// matchesResumeState reports whether a resumeState.resumable() triple is
+// exactly the resumable session recorded from one READY, naming what the
+// three-value comparison in TestSessionResumesAfterReady means.
+func matchesResumeState(sessionID, resumeURL string, ok bool, wantSessionID, wantResumeURL string) bool {
+	return ok && sessionID == wantSessionID && resumeURL == wantResumeURL
 }
 
 // INVALID_SESSION with d:false means the session is gone. Keeping it would

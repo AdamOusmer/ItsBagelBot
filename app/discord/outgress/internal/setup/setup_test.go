@@ -297,16 +297,25 @@ func TestPostDiscordRequiresAClient(t *testing.T) {
 // number: role permissions exceed 53 bits, so a JSON number would lose
 // precision, and Discord rejects the field outright if it is not a string.
 // An unprivileged role sends nothing rather than "0".
-func TestRolePermissionsAreStringEncoded(t *testing.T) {
-	var leadMod, mods ddiscord.RoleSpec
+// roleSpecNamed returns the CommunityRoles() entry with the given name, or
+// the zero value if none matches. Pulled out of
+// TestRolePermissionsAreStringEncoded, which used to run this same
+// loop-and-match three times inline (a "Bumpy Road" of repeated
+// loop-containing-a-conditional blocks); now the test body is assertions.
+func roleSpecNamed(name string) ddiscord.RoleSpec {
 	for _, r := range ddiscord.CommunityRoles() {
-		switch r.Name {
-		case "Lead Mod":
-			leadMod = r
-		case "Mods":
-			mods = r
+		if r.Name == name {
+			return r
 		}
 	}
+	return ddiscord.RoleSpec{}
+}
+
+func TestRolePermissionsAreStringEncoded(t *testing.T) {
+	leadMod := roleSpecNamed("Lead Mod")
+	mods := roleSpecNamed("Mods")
+	regulars := roleSpecNamed("Regulars")
+
 	if got := rolePermissions(leadMod); got != "8" {
 		t.Fatalf("Lead Mod permissions = %q, want \"8\" (Administrator)", got)
 	}
@@ -316,12 +325,6 @@ func TestRolePermissionsAreStringEncoded(t *testing.T) {
 	// timeout bit (1<<40).
 	if got := rolePermissions(mods); got == "" || got == "0" {
 		t.Fatalf("Mods permissions = %q, want the moderator set", got)
-	}
-	var regulars ddiscord.RoleSpec
-	for _, r := range ddiscord.CommunityRoles() {
-		if r.Name == "Regulars" {
-			regulars = r
-		}
 	}
 	if got := rolePermissions(regulars); got != "" {
 		t.Fatalf("Regulars permissions = %q, want empty (grants nothing)", got)

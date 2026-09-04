@@ -76,9 +76,27 @@ func (l *Live) HandleStreamEvent(msg *bus.Message) error {
 	return nil
 }
 
+// rpcFailed reports whether an outgress RPC round trip failed: a transport
+// error, or an outgress-side error string riding an otherwise-successful
+// reply. live.go, voice.go and ticket.go each used to spell out this same
+// two-clause check after every outgress call (CodeScene: Complex
+// Conditional); it is named once here and shared.
+func rpcFailed(err error, outgressErr string) bool {
+	return err != nil || outgressErr != ""
+}
+
+// moduleGateOpen reports whether a per-module feature may act for a
+// resolved broadcaster: the broadcaster resolved to a guild, Discord is
+// connected there, and the module's own toggle is on. live.go's announce
+// and clip.go's clipsChannel both spelled out this same three-clause guard
+// before it was named here (CodeScene: Complex Conditional).
+func moduleGateOpen(resolved bool, cfg ddiscord.Config, moduleOn bool) bool {
+	return resolved && cfg.Connected() && moduleOn
+}
+
 func (l *Live) announce(ctx context.Context, status eventtwitch.StreamStatus) {
 	cfg, ok := l.Resolve(ctx, status.BroadcasterID)
-	if !ok || !cfg.Connected() || !cfg.LiveOn() {
+	if !moduleGateOpen(ok, cfg, cfg.LiveOn()) {
 		return
 	}
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
@@ -105,7 +123,7 @@ func (l *Live) online(ctx context.Context, cfg ddiscord.Config, broadcasterID st
 		Viewers:      info.ViewerCount,
 	})
 	reply, err := l.RPC.LiveOnline(ctx, discordoutgress.LiveOnlineRequest{GuildID: cfg.GuildID, ChannelID: channelID, Embed: embed})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		l.Log.Warn("discord go-live rpc failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err), zap.String("outgress_error", reply.Error))
 		return
 	}
@@ -139,7 +157,7 @@ func (l *Live) projectedStreamInfo(ctx context.Context, broadcasterID string) pr
 
 func (l *Live) offline(ctx context.Context, cfg ddiscord.Config) {
 	reply, err := l.RPC.LiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: cfg.GuildID})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		l.Log.Warn("discord go-offline rpc failed", zap.String("guild_id", cfg.GuildID), zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
 }

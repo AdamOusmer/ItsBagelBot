@@ -33,6 +33,55 @@ func fakeCommand(t *testing.T, typ string) *bus.Message {
 	return bus.NewMessage("id", raw)
 }
 
+// orderRecorder collects command types in the order pump delivers them and
+// closes done once every expected message has landed. Hoisted out of
+// TestPumpDrainsModBeforeDefault so that test's body reads as arrange/act/
+// assert instead of also carrying this bookkeeping inline as a closure.
+type orderRecorder struct {
+	mu    sync.Mutex
+	order []string
+	done  chan struct{}
+	want  int
+}
+
+func newOrderRecorder(want int) *orderRecorder {
+	return &orderRecorder{done: make(chan struct{}), want: want}
+}
+
+func (r *orderRecorder) record(_ context.Context, cmd ddiscord.Command) error {
+	r.mu.Lock()
+	r.order = append(r.order, cmd.Type)
+	n := len(r.order)
+	r.mu.Unlock()
+	if n == r.want {
+		close(r.done)
+	}
+	return nil
+}
+
+func (r *orderRecorder) snapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.order...)
+}
+
+// assertModBeforeDefault checks that the first modCount entries in order are
+// TypeBanMember and the rest are TypePostChat. Pulled out of
+// TestPumpDrainsModBeforeDefault so the per-index expectation lives in one
+// small helper instead of a loop-containing-an-if inline in the test.
+func assertModBeforeDefault(t *testing.T, order []string, modCount int) {
+	t.Helper()
+	for i, typ := range order {
+		want := ddiscord.TypeBanMember
+		if i >= modCount {
+			want = ddiscord.TypePostChat
+		}
+		if typ != want {
+			t.Fatalf("order[%d] = %s, want %s (full order: %v)", i, typ, want, order)
+		}
+	}
+}
+
 // TestPumpDrainsModBeforeDefault is the direct test of the invariant the
 // outgress command README (main.go's package doc) promises: LaneMod is
 // drained to empty before LaneDefault is ever touched. Both channels are
@@ -52,42 +101,20 @@ func TestPumpDrainsModBeforeDefault(t *testing.T) {
 		defCh <- fakeCommand(t, ddiscord.TypePostChat)
 	}
 
-	var mu sync.Mutex
-	var order []string
-	done := make(chan struct{})
-
-	c := &Consumer{Log: testLogger(), Handle: func(_ context.Context, cmd ddiscord.Command) error {
-		mu.Lock()
-		order = append(order, cmd.Type)
-		n := len(order)
-		mu.Unlock()
-		if n == modCount+defaultCount {
-			close(done)
-		}
-		return nil
-	}}
+	rec := newOrderRecorder(modCount + defaultCount)
+	c := &Consumer{Log: testLogger(), Handle: rec.record}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go c.pump(ctx, modCh, defCh)
 
 	select {
-	case <-done:
+	case <-rec.done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("pump did not process every message in time")
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	for i, typ := range order {
-		want := ddiscord.TypeBanMember
-		if i >= modCount {
-			want = ddiscord.TypePostChat
-		}
-		if typ != want {
-			t.Fatalf("order[%d] = %s, want %s (full order: %v)", i, typ, want, order)
-		}
-	}
+	assertModBeforeDefault(t, rec.snapshot(), modCount)
 }
 
 // TestProcessAcksOnSuccessAndNacksOnFailure exercises process's own

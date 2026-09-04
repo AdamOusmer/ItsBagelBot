@@ -46,12 +46,20 @@ type ticketModule struct {
 	log      *zap.Logger
 }
 
+// deskUnavailable reports whether EnsureDesk has nothing to claim: tickets
+// are off, no channel is configured to host the desk, or there is no store
+// to claim it in (a nil store is possible in tests that exercise other
+// modules without wiring one).
+func deskUnavailable(store discordstore.Store, cfg ddiscord.Config) bool {
+	return !cfg.TicketsOn() || cfg.TicketChannelID == "" || store == nil
+}
+
 // EnsureDesk claims (once per guild, via the store's Nx claim) and posts the
 // persistent ticket desk panel. The dispatcher calls this on every resolved
 // guild event, matching community's Bot.bound calling ensureDesk on every
 // dispatch -- the Nx claim makes every call after the first a no-op.
 func EnsureDesk(ctx context.Context, store discordstore.Store, cfg ddiscord.Config, emit module.Emit) {
-	if !cfg.TicketsOn() || cfg.TicketChannelID == "" || store == nil {
+	if deskUnavailable(store, cfg) {
 		return
 	}
 	if !store.ClaimDesk(ctx, discordstore.Guild{ID: cfg.GuildID}) {
@@ -61,7 +69,7 @@ func EnsureDesk(ctx context.Context, store discordstore.Store, cfg ddiscord.Conf
 }
 
 func deskPanel(guildID, channelID string) ddiscord.Command {
-	return cmd.PostPanel(guildID, channelID, "", ddiscord.TicketPanelEmbed(), ticketDeskButtons())
+	return cmd.PostPanel(cmd.ChannelTarget(guildID, channelID), "", ddiscord.TicketPanelEmbed(), ticketDeskButtons())
 }
 
 func ticketDeskButtons() []ddiscord.ButtonSpec {
@@ -85,14 +93,14 @@ func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.
 	case "panel":
 		return h.panel(ctx, c, in, emit)
 	default:
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Use /ticket open, close, or panel.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Use /ticket open, close, or panel.", true))
 		return nil
 	}
 }
 
 func (h ticketModule) panel(_ context.Context, c *module.Context, in decode.InteractionEvent, emit module.Emit) error {
 	if !c.Config.TicketsOn() {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Tickets are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Tickets are off.", true))
 		return nil
 	}
 	channelID := c.Config.TicketChannelID
@@ -103,7 +111,7 @@ func (h ticketModule) panel(_ context.Context, c *module.Context, in decode.Inte
 		return err
 	}
 	emit(deskPanel(c.Config.GuildID, channelID))
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Ticket panel posted.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Ticket panel posted.", true))
 	return nil
 }
 
@@ -113,25 +121,25 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 		return err
 	}
 	if !c.Config.TicketsOn() {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Tickets are off.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Tickets are off.", true))
 		return nil
 	}
 	reply, err := h.channels.CreateChannel(ctx, discordoutgress.ChannelCreateRequest{
 		GuildID: in.GuildID, Name: ticketChannelName(in), Type: ddiscord.ChannelText,
 		ParentID: c.Config.TicketCategoryID, Overwrites: ticketOverwrites(c.Config, in),
 	})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket channel create failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Could not open a ticket right now.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Could not open a ticket right now.", true))
 		return nil
 	}
 	_ = h.store.TrackTicket(ctx, discordstore.Ticket{ChannelID: reply.ChannelID, GuildID: in.GuildID, OpenerID: in.Member.User.ID})
 
-	emit(cmd.FollowupEmbed(c.Config.GuildID, in.Token, ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), in.Token, ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{
 		Opener: decode.Mention(in.Member.User) + " → <#" + reply.ChannelID + ">",
 	}), nil))
 	opener := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
-	emit(cmd.PostPanel(in.GuildID, reply.ChannelID, decode.Mention(in.Member.User),
+	emit(cmd.PostPanel(cmd.ChannelTarget(in.GuildID, reply.ChannelID), decode.Mention(in.Member.User),
 		ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: opener}), ticketCloseButtons()))
 	return nil
 }
@@ -166,17 +174,17 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 	}
 	t, ok := h.store.Ticket(ctx, discordstore.Channel{ID: in.ChannelID})
 	if !ok {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "This is not a ticket.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "This is not a ticket.", true))
 		return nil
 	}
 	if !canCloseTicket(t, in) {
-		emit(cmd.Followup(c.Config.GuildID, in.Token, "Only the opener or a mod can close this.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Only the opener or a mod can close this.", true))
 		return nil
 	}
 	_ = h.store.ForgetTicket(ctx, discordstore.Channel{ID: t.ChannelID})
-	emit(cmd.Followup(c.Config.GuildID, in.Token, "Closing.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), in.Token, "Closing.", true))
 	reply, err := h.channels.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: t.ChannelID})
-	if err != nil || reply.Error != "" {
+	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket channel delete failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
 	return nil

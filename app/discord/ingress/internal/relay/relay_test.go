@@ -118,22 +118,27 @@ func TestDispatchDropsInteractionWhenDeferFails(t *testing.T) {
 
 func TestRouteFieldsLiftsIDsByEventShape(t *testing.T) {
 	guildCreate, _ := codec.Marshal(map[string]string{"id": "g1"})
-	if g, _, _ := routeFields("GUILD_CREATE", guildCreate); g != "g1" {
-		t.Fatalf("guild create id = %q", g)
-	}
+	assertRouteFields(t, "GUILD_CREATE", guildCreate, "g1", "", "")
 
 	member, _ := codec.Marshal(map[string]any{
 		"guild_id": "g1", "user": map[string]string{"id": "u1"},
 	})
-	if g, _, u := routeFields("GUILD_MEMBER_ADD", member); g != "g1" || u != "u1" {
-		t.Fatalf("member fields = %q/%q", g, u)
-	}
+	assertRouteFields(t, "GUILD_MEMBER_ADD", member, "g1", "", "u1")
 
 	msg, _ := codec.Marshal(map[string]any{
 		"guild_id": "g1", "channel_id": "c1", "author": map[string]string{"id": "u1"},
 	})
-	if g, c, u := routeFields("MESSAGE_CREATE", msg); g != "g1" || c != "c1" || u != "u1" {
-		t.Fatalf("message fields = %q/%q/%q", g, c, u)
+	assertRouteFields(t, "MESSAGE_CREATE", msg, "g1", "c1", "u1")
+}
+
+// assertRouteFields fails the test unless routeFields lifts exactly the
+// given guild/channel/user ids for one event shape, so each shape above is a
+// single call instead of its own chain of ||.
+func assertRouteFields(t *testing.T, eventType string, raw []byte, wantGuild, wantChannel, wantUser string) {
+	t.Helper()
+	g, c, u := routeFields(eventType, raw)
+	if g != wantGuild || c != wantChannel || u != wantUser {
+		t.Fatalf("%s fields = %q/%q/%q, want %q/%q/%q", eventType, g, c, u, wantGuild, wantChannel, wantUser)
 	}
 }
 

@@ -42,13 +42,18 @@ func New(nc *nats.Conn, prefix string) *Fallback {
 	}
 }
 
+// lookupFailed reports any RPC failure, an outgress-side error, or an
+// offline stream -- Lookup's caller treats all three identically: keep
+// whatever the projection already had.
+func lookupFailed(err error, reply outgressrpc.StreamInfoReply) bool {
+	return err != nil || reply.Error != "" || !reply.Live
+}
+
 // Lookup asks Twitch outgress for the current Get Streams snapshot. ok is
-// false on any RPC failure, an outgress-side error, or an offline stream --
-// the caller treats all three identically: keep whatever the projection
-// already had.
+// false when lookupFailed reports the RPC unusable.
 func (f *Fallback) Lookup(ctx context.Context, broadcasterID string) (projection.StreamInfo, bool) {
 	reply, err := f.request(ctx, outgressrpc.StreamInfoRequest{BroadcasterID: broadcasterID})
-	if err != nil || reply.Error != "" || !reply.Live {
+	if lookupFailed(err, reply) {
 		return projection.StreamInfo{}, false
 	}
 	return projection.StreamInfo{Title: reply.Title, GameName: reply.GameName, ViewerCount: reply.ViewerCount}, true

@@ -168,17 +168,32 @@ func (f *fakeValkey) execSCARD(args []string) []byte {
 	return respInt(int64(len(f.sets[key])))
 }
 
-func (f *fakeValkey) execEXPIRE(args []string) []byte {
-	key := args[0]
-	secs, _ := strconv.Atoi(args[1])
-	mode := ""
+// expireArgs is EXPIRE's positional wire form -- key, seconds, and an
+// optional NX/GT mode -- named once here instead of three bare args[N]
+// indices (one of them behind a len(args) > 2 guard) scattered through
+// execEXPIRE. The wire itself is an untyped RESP string array; this is
+// where that gets turned into fields instead of remembered positions.
+type expireArgs struct {
+	Key     string
+	Seconds int
+	Mode    string
+}
+
+func parseExpireArgs(args []string) expireArgs {
+	e := expireArgs{Key: args[0]}
+	e.Seconds, _ = strconv.Atoi(args[1])
 	if len(args) > 2 {
-		mode = strings.ToUpper(args[2])
+		e.Mode = strings.ToUpper(args[2])
 	}
-	target := f.nowFunc().Add(time.Duration(secs) * time.Second)
-	f.aliveLocked(key) // lazy-expire first so NX sees a truthful "has expiry" state
-	current, hasCurrent := f.expires[key]
-	switch mode {
+	return e
+}
+
+func (f *fakeValkey) execEXPIRE(args []string) []byte {
+	e := parseExpireArgs(args)
+	target := f.nowFunc().Add(time.Duration(e.Seconds) * time.Second)
+	f.aliveLocked(e.Key) // lazy-expire first so NX sees a truthful "has expiry" state
+	current, hasCurrent := f.expires[e.Key]
+	switch e.Mode {
 	case "NX":
 		if hasCurrent {
 			return respInt(0)
@@ -188,26 +203,46 @@ func (f *fakeValkey) execEXPIRE(args []string) []byte {
 			return respInt(0)
 		}
 	}
-	f.expires[key] = target
+	f.expires[e.Key] = target
 	return respInt(1)
+}
+
+// hashPair is one field/value pair out of HSET's flat, positionally
+// alternating args (the field at index i, its value at i+1) -- named once
+// by parseHashPairs instead of every reader re-deriving "even index is the
+// field" from bare positions.
+type hashPair struct {
+	Field string
+	Value string
+}
+
+func parseHashPairs(args []string) ([]hashPair, error) {
+	if len(args)%2 != 0 {
+		return nil, fmt.Errorf("wrong number of arguments for HSET")
+	}
+	pairs := make([]hashPair, 0, len(args)/2)
+	for i := 0; i < len(args); i += 2 {
+		pairs = append(pairs, hashPair{Field: args[i], Value: args[i+1]})
+	}
+	return pairs, nil
 }
 
 func (f *fakeValkey) execHSET(args []string) []byte {
 	key := args[0]
-	pairs := args[1:]
-	if len(pairs)%2 != 0 {
-		return respError("wrong number of arguments for HSET")
+	pairs, err := parseHashPairs(args[1:])
+	if err != nil {
+		return respError(err.Error())
 	}
 	f.aliveLocked(key)
 	if f.hashes[key] == nil {
 		f.hashes[key] = map[string]string{}
 	}
 	added := int64(0)
-	for i := 0; i < len(pairs); i += 2 {
-		if _, exists := f.hashes[key][pairs[i]]; !exists {
+	for _, p := range pairs {
+		if _, exists := f.hashes[key][p.Field]; !exists {
 			added++
 		}
-		f.hashes[key][pairs[i]] = pairs[i+1]
+		f.hashes[key][p.Field] = p.Value
 	}
 	return respInt(added)
 }

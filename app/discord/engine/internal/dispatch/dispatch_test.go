@@ -127,9 +127,17 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
-func dispatch(t *testing.T, d *Dispatcher, eventType string, guildID string, payload any) {
+// event builds the ddiscord.Event a test's payload decodes as. Split out of
+// dispatch below so dispatch itself takes one Event instead of its
+// (eventType, guildID, payload) triple (CodeScene: Excess Number of
+// Function Arguments).
+func event(t *testing.T, eventType, guildID string, payload any) ddiscord.Event {
 	t.Helper()
-	ev := ddiscord.Event{Type: eventType, GuildID: guildID, Raw: mustJSON(t, payload)}
+	return ddiscord.Event{Type: eventType, GuildID: guildID, Raw: mustJSON(t, payload)}
+}
+
+func dispatch(t *testing.T, d *Dispatcher, ev ddiscord.Event) {
+	t.Helper()
 	msg := bus.NewMessage("test", mustJSON(t, ev))
 	if err := d.Handle(msg); err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -145,7 +153,7 @@ func memberPayload(guildID string) map[string]any {
 
 func TestWelcomeAndAutorole(t *testing.T) {
 	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome", MemberRoleID: "member"})
-	dispatch(t, d, "GUILD_MEMBER_ADD", "g1", memberPayload("g1"))
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
 
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
 		t.Fatalf("welcome embeds = %d", len(got))
@@ -170,7 +178,7 @@ func TestMemberDispatchGuards(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			d, _, _, log := testDispatcher(tc.cfg)
-			dispatch(t, d, tc.event, tc.guildID, memberPayload(tc.guildID))
+			dispatch(t, d, event(t, tc.event, tc.guildID, memberPayload(tc.guildID)))
 			if got := log.byType(ddiscord.TypePostEmbed); len(got) != tc.wantLog {
 				t.Fatalf("post-embed commands = %d, want %d", len(got), tc.wantLog)
 			}
@@ -187,7 +195,7 @@ func voicePayload(guildID, channelID string) map[string]any {
 
 func TestJoinToCreateVoice(t *testing.T) {
 	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub"))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
 
 	if len(channels.created) != 1 {
 		t.Fatalf("created = %v", channels.created)
@@ -202,10 +210,10 @@ func TestJoinToCreateVoice(t *testing.T) {
 
 func TestEmptyCloneIsDeleted(t *testing.T) {
 	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub"))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
 	cloneID := channels.created[0]
-	dispatch(t, d, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", cloneID))
-	dispatch(t, d, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", ""))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", cloneID)))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "")))
 
 	if len(channels.deleted) != 1 || channels.deleted[0] != cloneID {
 		t.Fatalf("deleted = %v, want [%s]", channels.deleted, cloneID)
@@ -223,8 +231,8 @@ func TestTicketOpenAndClose(t *testing.T) {
 	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketCategoryID: "cat"})
 	member := map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", "support",
-		map[string]any{"custom_id": discordapi.CustomTicketOpen}, member))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "support",
+		map[string]any{"custom_id": discordapi.CustomTicketOpen}, member)))
 	if len(channels.created) != 1 {
 		t.Fatalf("ticket channel = %v", channels.created)
 	}
@@ -232,8 +240,8 @@ func TestTicketOpenAndClose(t *testing.T) {
 		t.Fatal("expected a panel posted into the new ticket channel")
 	}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
-		map[string]any{"custom_id": discordapi.CustomTicketClose}, member))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+		map[string]any{"custom_id": discordapi.CustomTicketClose}, member)))
 	if len(channels.deleted) != 1 {
 		t.Fatalf("deleted = %v", channels.deleted)
 	}
@@ -243,15 +251,15 @@ func TestDailyAndRank(t *testing.T) {
 	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
 	member := map[string]any{"user": map[string]any{"id": "u1"}}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
-		map[string]any{"name": "daily"}, member))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+		map[string]any{"name": "daily"}, member)))
 	first := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(first) != 1 {
 		t.Fatalf("daily reply = %d", len(first))
 	}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
-		map[string]any{"name": "daily"}, member))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+		map[string]any{"name": "daily"}, member)))
 	second := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(second) != 2 {
 		t.Fatalf("second daily reply missing: %d", len(second))
@@ -271,14 +279,14 @@ func TestModerationRequiresPerms(t *testing.T) {
 		map[string]any{"name": "user", "type": 6, "value": "u2"},
 	}}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
-		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"}))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 0 {
 		t.Fatal("kick without perms must not fire")
 	}
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
-		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"}))
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 1 {
 		t.Fatal("admin kick must fire")
 	}
@@ -288,10 +296,10 @@ func TestLevelUpOnChat(t *testing.T) {
 	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
 	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: "g1", UserID: "u1"}, Amount: 90})
 
-	dispatch(t, d, "MESSAGE_CREATE", "g1", map[string]any{
+	dispatch(t, d, event(t, "MESSAGE_CREATE", "g1", map[string]any{
 		"id": "m1", "guild_id": "g1", "channel_id": "chat", "content": "hi",
 		"author": map[string]any{"id": "u1", "username": "Ada"},
-	})
+	}))
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
 		t.Fatalf("level-up embeds = %d", len(got))
 	}
@@ -299,8 +307,8 @@ func TestLevelUpOnChat(t *testing.T) {
 
 func TestTicketDeskPostedOnce(t *testing.T) {
 	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketChannelID: "support", WelcomeEnabled: "off"})
-	dispatch(t, d, "GUILD_MEMBER_ADD", "g1", memberPayload("g1"))
-	dispatch(t, d, "GUILD_MEMBER_ADD", "g1", memberPayload("g1"))
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
 
 	panels := log.byType(ddiscord.TypePostPanel)
 	if len(panels) != 1 {
@@ -310,11 +318,11 @@ func TestTicketDeskPostedOnce(t *testing.T) {
 
 func TestVoiceLockButton(t *testing.T) {
 	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub"))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
 
-	dispatch(t, d, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
 		map[string]any{"custom_id": discordapi.CustomVoiceLock},
-		map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"}))
+		map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"})))
 
 	followups := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(followups) != 1 {

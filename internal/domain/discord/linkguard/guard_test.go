@@ -26,9 +26,17 @@ func sightingOwner(guild, channel, user, owner string) Sighting {
 	return s
 }
 
+// newTestGuarder builds a Guarder backed by a fresh fake Valkey plus the
+// background context: nearly every test below opened with this identical
+// pair of lines, repeated so many times it was the duplication CodeScene
+// flagged on this file.
+func newTestGuarder(t *testing.T) (*Guarder, context.Context) {
+	t.Helper()
+	return New(newFakeValkey(t).client), context.Background()
+}
+
 func TestObserveBelowChannelThresholdAllows(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	for i, ch := range []string{"c1", "c2"} { // one under ChannelThreshold (3)
 		v := g.Observe(ctx, sighting("g1", ch, "u1"))
@@ -42,8 +50,7 @@ func TestObserveBelowChannelThresholdAllows(t *testing.T) {
 }
 
 func TestObserveAtChannelThresholdTrips(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	g.Observe(ctx, sighting("g1", "c1", "u1"))
 	g.Observe(ctx, sighting("g1", "c2", "u1"))
@@ -67,8 +74,7 @@ func TestObserveRepeatedChannelDoesNotDoubleCount(t *testing.T) {
 	// The same account reposting in the SAME channel is flooding, not the
 	// cross-channel signal this package targets -- see the package doc's
 	// "why distinct channels, not message count".
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	for i := 0; i < 5; i++ {
 		v := g.Observe(ctx, sighting("g1", "c1", "u1"))
@@ -85,8 +91,7 @@ func TestObserveMultiAuthorLowerThresholdTrips(t *testing.T) {
 	// Two distinct accounts posting the identical link, in the SAME
 	// channel, is the hacked-account-wave signature and must trip
 	// AuthorThreshold well before ChannelThreshold (3) would ever fire.
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	v1 := g.Observe(ctx, sighting("g1", "c1", "u1"))
 	if !v1.Allow {
@@ -126,54 +131,47 @@ func TestObserveWindowExpiryResetsCount(t *testing.T) {
 	}
 }
 
-func TestObserveOwnGuildInviteExempt(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
-
-	for i, ch := range []string{"c1", "c2", "c3", "c4"} { // well past ChannelThreshold
-		s := sighting("g1", ch, "u1")
-		s.OwnGuildInvite = true
-		v := g.Observe(ctx, s)
-		if !v.Allow {
-			t.Fatalf("post %d: own-guild invite not exempt (verdict %+v)", i, v)
-		}
-		if v.Reason != ReasonOwnInvite {
-			t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, ReasonOwnInvite)
-		}
+// exemptionCases table-drives the three false-positive exemptions
+// exemptVerdict applies. They used to be three separately-written test
+// functions that repeated the identical "post well past ChannelThreshold,
+// assert every post stays allowed with the matching reason" loop, differing
+// only in which Sighting field they flipped and which reason they expected
+// -- that repetition is what CodeScene flagged as duplication on this file.
+func exemptionCases() []struct {
+	name   string
+	user   string
+	setup  func(*Sighting)
+	reason string
+} {
+	return []struct {
+		name   string
+		user   string
+		setup  func(*Sighting)
+		reason string
+	}{
+		{"own guild invite", "u1", func(s *Sighting) { s.OwnGuildInvite = true }, ReasonOwnInvite},
+		{"moderator", "mod1", func(s *Sighting) { s.Moderator = true }, ReasonModerator},
+		{"allow listed", "u1", func(s *Sighting) { s.Allowed = true }, ReasonAllowListed},
 	}
 }
 
-func TestObserveModeratorExempt(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+func TestObserveExemptions(t *testing.T) {
+	for _, tc := range exemptionCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			g, ctx := newTestGuarder(t)
 
-	for i, ch := range []string{"c1", "c2", "c3", "c4"} {
-		s := sighting("g1", ch, "mod1")
-		s.Moderator = true
-		v := g.Observe(ctx, s)
-		if !v.Allow {
-			t.Fatalf("post %d: moderator not exempt (verdict %+v)", i, v)
-		}
-		if v.Reason != ReasonModerator {
-			t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, ReasonModerator)
-		}
-	}
-}
-
-func TestObserveAllowListedExempt(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
-
-	for i, ch := range []string{"c1", "c2", "c3", "c4"} {
-		s := sighting("g1", ch, "u1")
-		s.Allowed = true
-		v := g.Observe(ctx, s)
-		if !v.Allow {
-			t.Fatalf("post %d: allow-listed link not exempt (verdict %+v)", i, v)
-		}
-		if v.Reason != ReasonAllowListed {
-			t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, ReasonAllowListed)
-		}
+			for i, ch := range []string{"c1", "c2", "c3", "c4"} { // well past ChannelThreshold
+				s := sighting("g1", ch, tc.user)
+				tc.setup(&s)
+				v := g.Observe(ctx, s)
+				if !v.Allow {
+					t.Fatalf("post %d: %s not exempt (verdict %+v)", i, tc.name, v)
+				}
+				if v.Reason != tc.reason {
+					t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, tc.reason)
+				}
+			}
+		})
 	}
 }
 
@@ -188,8 +186,7 @@ func tripGuild(ctx context.Context, g *Guarder, guild, owner string) Verdict {
 }
 
 func TestObserveSingleGuildTripDoesNotPromoteFleetWide(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	trip := tripGuild(ctx, g, "g1", "owner1")
 	if trip.Allow {
@@ -219,8 +216,7 @@ func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
 	// both must NOT clear fleet corroboration, because both guilds are
 	// bound to the SAME Twitch owner -- only one distinct owner ever
 	// existed no matter how many guilds that owner puppets.
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	tripGuild(ctx, g, "g1", "sharedOwner")
 	trip2 := tripGuild(ctx, g, "g2", "sharedOwner")
@@ -241,8 +237,7 @@ func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
 }
 
 func TestObserveTwoDistinctOwnersPromote(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	trip1 := tripGuild(ctx, g, "g1", "owner1")
 	if trip1.FleetPromoted {
@@ -262,8 +257,7 @@ func TestObserveTwoDistinctOwnersPromote(t *testing.T) {
 }
 
 func TestObservePromotedLinkActionedInUnseenThirdGuild(t *testing.T) {
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	tripGuild(ctx, g, "g1", "owner1")
 	promo := tripGuild(ctx, g, "g2", "owner2")
@@ -296,8 +290,7 @@ func TestObserveEmptyOwnerNeverCorroborates(t *testing.T) {
 	// Allow=false) -- only its contribution to FLEET promotion is
 	// withheld, or an attacker could just skip setup to reopen the same
 	// free-multiplication hole FleetOwnerThreshold exists to close.
-	g := New(newFakeValkey(t).client)
-	ctx := context.Background()
+	g, ctx := newTestGuarder(t)
 
 	trip := tripGuild(ctx, g, "g1", "") // no owner binding
 	if trip.Allow {

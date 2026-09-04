@@ -65,14 +65,28 @@ func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, guildID string, m d
 
 func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID string) (discapi.Message, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(guildID)).Build()).ToString()
-	if err != nil || raw == "" {
+	if missingLiveMessage(raw, err) {
 		return discapi.Message{}, false
 	}
 	ch, id, ok := strings.Cut(raw, "|")
-	if !ok || ch == "" || id == "" {
+	if malformedLiveMessage(ch, id, ok) {
 		return discapi.Message{}, false
 	}
 	return discapi.Message{ChannelID: ch, ID: id}, true
+}
+
+// missingLiveMessage reports whether the Valkey read failed, or simply found
+// nothing (GET returns an empty string on a miss).
+func missingLiveMessage(raw string, err error) bool {
+	return err != nil || raw == ""
+}
+
+// malformedLiveMessage reports whether the stored "channel|id" value did not
+// split into two non-empty halves -- defensive against a value written by an
+// older or buggy build rather than something this package itself can ever
+// produce.
+func malformedLiveMessage(ch, id string, ok bool) bool {
+	return !ok || ch == "" || id == ""
 }
 
 func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID string) error {

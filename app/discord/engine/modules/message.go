@@ -44,7 +44,7 @@ func (h messageModule) onCreate(ctx context.Context, c *module.Context, emit mod
 	if !leveled {
 		return nil
 	}
-	emit(cmd.PostEmbed(c.Config.GuildID, ev.ChannelID,
+	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID),
 		ddiscord.LevelUpEmbed(ddiscord.LevelUp{Who: decode.Mention(ev.Author), Level: level})))
 	return nil
 }

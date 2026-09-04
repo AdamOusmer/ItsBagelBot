@@ -52,39 +52,68 @@ type reauthStore interface {
 	ClearNeedsReauth(ctx context.Context, guildID string) error
 }
 
+// commandHandler is the shape every dispatchTable entry has: an unbound
+// method (or a small closure standing in for one) taking the Handlers that
+// own the REST call along with the usual ctx/Command pair. Using a method
+// expression like (*Handlers).deleteMessage below lets the table hold the
+// existing per-type methods directly, with no signature changes to them.
+type commandHandler func(*Handlers, context.Context, ddiscord.Command) error
+
+// dispatchTable is the Type -> handler map Dispatch looks up. It replaces
+// what used to be a long type switch: the precedent for this shape is
+// app/discord/engine/module/builder.go and app/outgress/internal/action's
+// Registry, both of which trade a switch for a map validated once (there, at
+// Build; here, simply by being a Go map literal the compiler already checks
+// every entry of). Building it as a package-level var rather than per-call
+// means Dispatch itself is one lookup, not a re-walk of every case.
+var dispatchTable = map[string]commandHandler{
+	ddiscord.TypeDeleteMessage:       (*Handlers).deleteMessage,
+	ddiscord.TypeBanMember:           banMember,
+	ddiscord.TypeKickMember:          kickMember,
+	ddiscord.TypeTimeoutMember:       (*Handlers).timeoutMember,
+	ddiscord.TypeStripRoles:          notImplemented,
+	ddiscord.TypeLockdown:            notImplemented,
+	ddiscord.TypePostChat:            (*Handlers).postChat,
+	ddiscord.TypePostEmbed:           (*Handlers).postEmbed,
+	ddiscord.TypePostPanel:           (*Handlers).postPanel,
+	ddiscord.TypeEditMessage:         (*Handlers).editMessage,
+	ddiscord.TypeInteractionFollowup: (*Handlers).followup,
+	ddiscord.TypeAddRole:             addRole,
+	ddiscord.TypeRemoveRole:          removeRole,
+	ddiscord.TypeSetGuildIdentity:    (*Handlers).setGuildIdentity,
+}
+
 // Dispatch runs the REST call for one Command. Called by Consumer.Handle.
 func (h *Handlers) Dispatch(ctx context.Context, c ddiscord.Command) error {
-	switch c.Type {
-	case ddiscord.TypeDeleteMessage:
-		return h.deleteMessage(ctx, c)
-	case ddiscord.TypeBanMember:
-		return h.Rest.BanMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
-	case ddiscord.TypeKickMember:
-		return h.Rest.KickMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
-	case ddiscord.TypeTimeoutMember:
-		return h.timeoutMember(ctx, c)
-	case ddiscord.TypeStripRoles, ddiscord.TypeLockdown:
-		h.Log.Warn("discord command type not yet implemented", zap.String("type", c.Type))
-		return nil
-	case ddiscord.TypePostChat:
-		return h.postChat(ctx, c)
-	case ddiscord.TypePostEmbed:
-		return h.postEmbed(ctx, c)
-	case ddiscord.TypePostPanel:
-		return h.postPanel(ctx, c)
-	case ddiscord.TypeEditMessage:
-		return h.editMessage(ctx, c)
-	case ddiscord.TypeInteractionFollowup:
-		return h.followup(ctx, c)
-	case ddiscord.TypeAddRole:
-		return h.role(ctx, c, h.Rest.AddMemberRole)
-	case ddiscord.TypeRemoveRole:
-		return h.role(ctx, c, h.Rest.RemoveMemberRole)
-	case ddiscord.TypeSetGuildIdentity:
-		return h.setGuildIdentity(ctx, c)
-	default:
+	fn, ok := dispatchTable[c.Type]
+	if !ok {
 		return fmt.Errorf("discord outgress: unknown command type %q", c.Type)
 	}
+	return fn(h, ctx, c)
+}
+
+func banMember(h *Handlers, ctx context.Context, c ddiscord.Command) error {
+	return h.Rest.BanMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
+}
+
+func kickMember(h *Handlers, ctx context.Context, c ddiscord.Command) error {
+	return h.Rest.KickMember(ctx, discapi.GuildMember{GuildID: c.GuildID, UserID: c.UserID})
+}
+
+// notImplemented stands in for TypeStripRoles/TypeLockdown until their REST
+// calls exist; it warns rather than erroring so an undelivered lockdown
+// never nacks its lane forever.
+func notImplemented(h *Handlers, _ context.Context, c ddiscord.Command) error {
+	h.Log.Warn("discord command type not yet implemented", zap.String("type", c.Type))
+	return nil
+}
+
+func addRole(h *Handlers, ctx context.Context, c ddiscord.Command) error {
+	return h.role(ctx, c, h.Rest.AddMemberRole)
+}
+
+func removeRole(h *Handlers, ctx context.Context, c ddiscord.Command) error {
+	return h.role(ctx, c, h.Rest.RemoveMemberRole)
 }
 
 func (h *Handlers) deleteMessage(ctx context.Context, c ddiscord.Command) error {

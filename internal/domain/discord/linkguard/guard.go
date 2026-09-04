@@ -300,7 +300,7 @@ func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link string, i
 	if !tripped {
 		return v
 	}
-	return g.corroborate(ctx, s.OwnerID, v)
+	return g.corroborate(ctx, s, v)
 }
 
 // tripReason applies ChannelThreshold and AuthorThreshold. Channel first:
@@ -321,7 +321,8 @@ func tripReason(channels, authors int) (string, bool) {
 // when the key has none yet), which is what gives Window a fixed start
 // rather than one that resets on every new member -- see Window's doc.
 func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link string) (channels, authors int, err error) {
-	ck, ak := channelsKey(s.GuildID, link), authorsKey(s.GuildID, link)
+	gl := guildLink{GuildID: s.GuildID, Link: link}
+	ck, ak := gl.channelsKey(), gl.authorsKey()
 	if err = g.addAndExpire(ctx, ck, s.ChannelID, Window); err != nil {
 		return 0, 0, err
 	}
@@ -335,10 +336,13 @@ func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link string) (
 	return channels, authors, err
 }
 
-// corroborate records that ownerID independently tripped on link, then
-// checks (and, if warranted, performs) fleet promotion.
+// corroborate records that s.OwnerID independently tripped on link, then
+// checks (and, if warranted, performs) fleet promotion. s is threaded in
+// whole, rather than an ownerID extracted at the call site, so this and
+// recordAndCount read the same Sighting for the fields each of them needs
+// instead of every caller re-picking which field to hand down.
 //
-// An empty ownerID (the guild has no Twitch broadcaster binding on record,
+// An empty s.OwnerID (the guild has no Twitch broadcaster binding on record,
 // i.e. it never completed setup) is deliberately NOT recorded here at all:
 // the trips set is what FleetOwnerThreshold counts distinct entries from,
 // and an unbound guild has no verified owner behind it. Letting it
@@ -348,12 +352,12 @@ func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link string) (
 // contribution to FLEET promotion -- the local verdict (v, already decided
 // by countAndDecide) still stands, so detection and any per-guild
 // enforcement in an unbound guild are unaffected.
-func (g *Guarder) corroborate(ctx context.Context, ownerID string, v Verdict) Verdict {
-	if ownerID == "" {
+func (g *Guarder) corroborate(ctx context.Context, s Sighting, v Verdict) Verdict {
+	if s.OwnerID == "" {
 		return v
 	}
 	tk := tripsKey(v.NormalizedLink)
-	if err := g.addAndExpire(ctx, tk, ownerID, CorroborationWindow); err != nil {
+	if err := g.addAndExpire(ctx, tk, s.OwnerID, CorroborationWindow); err != nil {
 		return v
 	}
 	owners, err := g.card(ctx, tk)
@@ -424,7 +428,23 @@ const (
 	fleetFieldPromotedAt = "promoted_at"
 )
 
-func channelsKey(guildID, link string) string { return keyPrefix + "channels:" + guildID + ":" + link }
-func authorsKey(guildID, link string) string  { return keyPrefix + "authors:" + guildID + ":" + link }
-func tripsKey(link string) string             { return keyPrefix + "trips:" + link }
-func fleetKey(link string) string             { return keyPrefix + "fleet:" + link }
+// guildLink is the (guild id, normalized link) pair every per-guild counter
+// set is keyed on. channelsKey and authorsKey used to take that pair as two
+// bare strings, in the same fixed order, at every call site -- naming the
+// pair means recordAndCount builds it once from the Sighting it already
+// holds instead of re-threading s.GuildID and link as loose strings.
+type guildLink struct {
+	GuildID string
+	Link    string
+}
+
+func (gl guildLink) channelsKey() string {
+	return keyPrefix + "channels:" + gl.GuildID + ":" + gl.Link
+}
+
+func (gl guildLink) authorsKey() string {
+	return keyPrefix + "authors:" + gl.GuildID + ":" + gl.Link
+}
+
+func tripsKey(link string) string { return keyPrefix + "trips:" + link }
+func fleetKey(link string) string { return keyPrefix + "fleet:" + link }
