@@ -21,6 +21,9 @@ import (
 // refactor can silently drop it (unit tests pass because enttest pulls it in).
 // This test fails the build instead, by checking the real dependency graph of
 // each service's main package.
+// Paths are under app/db/ since services were grouped by vertical. Kept as
+// service names plus one prefix rather than full paths, so a regrouping is
+// one edit here.
 var dataServices = []string{"commands", "modules", "users", "transactions"}
 
 func TestDataServicesLinkEntRuntime(t *testing.T) {
@@ -29,7 +32,7 @@ func TestDataServicesLinkEntRuntime(t *testing.T) {
 	for _, svc := range dataServices {
 		svc := svc
 		t.Run(svc, func(t *testing.T) {
-			pkg := "ItsBagelBot/app/" + svc
+			pkg := "ItsBagelBot/app/db/" + svc
 			want := pkg + "/ent/runtime"
 
 			out, err := exec.Command(goBin, "list", "-deps", pkg).CombinedOutput()
