@@ -18,6 +18,7 @@ import { AUTOMOD_MODULE } from './automod';
 import { CHANNELPOINTS_MODULE } from './channelpoints';
 import { CLASHROYALE_MODULE } from './clashroyale';
 import { COUNTERS_MODULE } from './counters';
+import { DISCORD_MODULE } from './discord';
 import { EMOTEPLAY_MODULE } from './emoteplay';
 import { FORTNITE_MODULE } from './fortnite';
 import { GOVEE_MODULE } from './govee';
@@ -56,6 +57,7 @@ export const MOD = {
   raffle: 'raffle',
   quotes: 'quotes',
   govee: 'govee',
+  discord: 'discord',
   songqueue: 'songqueue',
   stream: 'stream'
 } as const;
@@ -87,6 +89,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   RAFFLE_MODULE,
   QUOTES_MODULE,
   GOVEE_MODULE,
+  DISCORD_MODULE,
   SONGQUEUE_MODULE
 ];
 

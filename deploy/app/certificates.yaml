@@ -10,12 +10,12 @@
 # which provisions and rotates its own cert, so there is no traefik-facing
 # secret left for cert-manager to own.
 #
-# The ten <svc>-tls certs below back the per-service /status health listeners
-# added in PR #591. Same shape: tls.crt/tls.key/ca.crt in an app-namespace
-# Secret, reloaded by each service (Go handshake hook or the BEAM ssl pem
-# cache) without a pod restart. SANs cover the four forms a ClusterIP Service
-# name resolves to, since traefik's ServersTransport per service pins
-# serverName to the short form (deploy/k8s/status-routes.yaml).
+# The <svc>-tls certs below back the per-service /status health listeners
+# added in PR #591 (dingress joined later). Same shape: tls.crt/tls.key/ca.crt
+# in an app-namespace Secret, reloaded by each service (Go handshake hook or
+# the BEAM ssl pem cache) without a pod restart. SANs cover the four forms a
+# ClusterIP Service name resolves to, since traefik's ServersTransport per
+# service pins serverName to the short form (deploy/k8s/status-routes.yaml).
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -188,6 +188,72 @@ spec:
     - outgress-status.app
     - outgress-status.app.svc
     - outgress-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discord-ingress-tls
+  namespace: app
+spec:
+  secretName: discord-ingress-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - discord-ingress-status
+    - discord-ingress-status.app
+    - discord-ingress-status.app.svc
+    - discord-ingress-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discord-engine-tls
+  namespace: app
+spec:
+  secretName: discord-engine-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - discord-engine-status
+    - discord-engine-status.app
+    - discord-engine-status.app.svc
+    - discord-engine-status.app.svc.cluster.local
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discord-outgress-tls
+  namespace: app
+spec:
+  secretName: discord-outgress-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - discord-outgress-status
+    - discord-outgress-status.app
+    - discord-outgress-status.app.svc
+    - discord-outgress-status.app.svc.cluster.local
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate

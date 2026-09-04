@@ -410,7 +410,10 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if state.err != nil {
 			return
 		}
-		if o == nil || o.Type == "" {
+		if o == nil {
+			return
+		}
+		if o.Type == "" {
 			return
 		}
 		// Slash-verbs route on EVERY path, not just custom commands: a module

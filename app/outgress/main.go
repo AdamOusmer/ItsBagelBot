@@ -116,6 +116,15 @@ func main() {
 		"failed to subscribe channel cache invalidation")
 	defer registry.Close()
 
+	// pub is the pooled async publisher for derived-fact events outgress
+	// fires after a lane handler's own work is done -- currently only the
+	// clip-created fact (see worker/clip.go's publishClipCreated). It is a
+	// separate connection pool from nc above (request-reply/RPC) because
+	// bus.Publisher batches and pools independently of core-NATS requests.
+	pub, err := bus.NewPublisher(cfg.NATSURL, log)
+	fatalIf(log, err, "failed to connect publisher")
+	defer func() { _ = pub.Close() }()
+
 	host := podIdentity(log)
 	// Label every worker transaction with this pod's region and the Kubernetes
 	// node it runs on so the Twitch external-segment duration can be split per
@@ -156,6 +165,13 @@ func main() {
 	standard.SetReauthNotifier(reauth)
 	system.SetReauthNotifier(reauth)
 
+	// Only the chat lanes ever process TypeClip (sesame routes !clip to
+	// premium/standard by broadcaster tier, never to system), so only those
+	// two need the fact publisher. Attaches before any consumer goroutine
+	// starts, same as every other Set* above.
+	premium.SetFactPublisher(pub)
+	standard.SetFactPublisher(pub)
+
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
 		{Sub: standardSub, Subject: cfg.StandardSubject, Handle: standard.Process},
@@ -182,9 +198,8 @@ func main() {
 
 	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
 	// sesame's loyalty watch tick: one call per live channel per tick.
-	if err := rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
-		log.Fatal("failed to subscribe chatters rpc", zap.Error(err))
-	}
+	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+		"failed to subscribe chatters rpc")
 	fatalIf(log, bus.SubscribeRPCHealth(nc, serviceName, "outgress-rpc"), "failed to subscribe rpc health")
 
 	health.Serve(env.Get("LISTEN_ADDR", ":8080"), serviceName, health.NATS("nats", nc))

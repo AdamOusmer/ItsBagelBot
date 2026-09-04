@@ -42,6 +42,7 @@ type Manage struct {
 //	<prefix>.accountage.get  {target_id?, target_login?}       -> {created_at, user_found}
 //	<prefix>.system.status   {}                                -> {paused, token health}
 //	<prefix>.system.pause    {paused}                          -> {paused}
+//	<prefix>.streaminfo.get  {broadcaster_id}                  -> {live, title, game_name, viewer_count}
 func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
@@ -70,6 +71,9 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.StreamInfoRequest, outgressrpc.StreamInfoReply](nc, prefix+".streaminfo.get", queueGroup, followageHandleTimeout, app, log, m.handleStreamInfo)
 		},
 	)
 }
@@ -166,6 +170,41 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 		return outgressrpc.UptimeReply{Error: "lookup failed"}
 	}
 	return outgressrpc.UptimeReply{Live: live, StartedAt: startedAt}
+}
+
+// handleStreamInfo is the Helix escape hatch app/discord/engine's go-live
+// embed falls back to when the Valkey projection has not caught the
+// title/category up yet (ported from outgress's own former discord_live.go
+// liveInfo, which called m.twitch directly from the same process; the
+// Discord services have no Twitch client of their own, only this (Twitch)
+// outgress does, so the call became this RPC -- see
+// app/discord/engine/modules/live.go's liveInfo for the caller side and why
+// it is gated to broadcasters with a category allow-list set).
+//
+// Unlike the lane workers' background Helix calls (buckets.go's
+// takeSystemHelix), this handler does not draw from that budget: the
+// per-broadcaster allow-list gate on the caller already bounds how often it
+// fires (only broadcasters who opted into category filtering, only once per
+// stream since a found live-message short-circuits engine before this RPC
+// is ever sent), the same way followage.get/accountage.get/uptime.get next
+// to it call m.twitch directly with no added token. Wiring the lane budget
+// in here would mean exporting or duplicating a worker-package-private spec
+// across a package boundary for a call that is already this narrow.
+func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
+	if req.BroadcasterID == "" {
+		return outgressrpc.StreamInfoReply{Error: "bad request"}
+	}
+	details, live, err := m.twitch.StreamDetails(ctx, req.BroadcasterID)
+	if err != nil {
+		m.log.Warn("streaminfo lookup failed", zap.Error(err))
+		return outgressrpc.StreamInfoReply{Error: "lookup failed"}
+	}
+	if !live {
+		return outgressrpc.StreamInfoReply{Live: false}
+	}
+	return outgressrpc.StreamInfoReply{
+		Live: true, Title: details.Title, GameName: details.GameName, ViewerCount: details.ViewerCount,
+	}
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {

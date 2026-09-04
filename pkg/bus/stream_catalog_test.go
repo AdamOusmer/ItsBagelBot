@@ -4,7 +4,9 @@
 package bus
 
 import (
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -16,8 +18,7 @@ import (
 // the outgress-owned streams their owners reconcile separately.
 func fleetStreamSpecs() []StreamSpec {
 	specs := append([]StreamSpec{}, DataStreams...)
-	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream,
-		DiscordOutgressStream)
+	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream)
 }
 
 // ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
@@ -207,18 +208,6 @@ func TestYouTubeStreamsResolveToTheirSpecs(t *testing.T) {
 	}
 }
 
-func TestDiscordOutgressStreamResolvesItsLanes(t *testing.T) {
-	for _, subject := range []string{"discord.outgress.premium", "discord.outgress.standard"} {
-		got, err := streamForTopic(subject)
-		if err != nil {
-			t.Fatalf("streamForTopic(%q): %v", subject, err)
-		}
-		if got != DiscordOutgressStream.Name {
-			t.Fatalf("stream for %q = %q, want %q", subject, got, DiscordOutgressStream.Name)
-		}
-	}
-}
-
 func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	cfg := streamConfig(ingressStreamSpec(t))
 	// The premium/standard/stream lanes are distinct literal subjects on one
@@ -390,7 +379,6 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 		OutgressStream.Name:              true,
 		YouTubeOutgressStream.Name:       true,
 		YouTubeIngressStream.Name:        true,
-		DiscordOutgressStream.Name:       true,
 	}
 	for _, spec := range fleetStreamSpecs() {
 		want := jsapi.FileStorage
@@ -400,5 +388,31 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 		if got := streamConfig(spec).Storage; got != want {
 			t.Fatalf("stream %s storage = %v, want %v", spec.Name, got, want)
 		}
+	}
+}
+
+// The Discord stream specs carry their subjects as literals, like every other
+// spec in the catalog, so pkg/bus stays free of domain imports. The engine and
+// its services address those same subjects through the constants in
+// internal/domain/discord. Nothing but this test stops the two from drifting,
+// and a drift is silent: a renamed constant publishes onto a subject no stream
+// captures, so the message lands nowhere and no error is raised anywhere.
+func TestDiscordSubjectConstantsMatchTheCatalog(t *testing.T) {
+	wantIngress := []string{
+		ddiscord.SubjectEventMessage,
+		ddiscord.SubjectEventMember,
+		ddiscord.SubjectEventVoice,
+		ddiscord.SubjectEventInteraction,
+		ddiscord.SubjectEventAudit,
+		ddiscord.SubjectEventGuild,
+	}
+	if !slices.Equal(DiscordIngressStream.Subjects, wantIngress) {
+		t.Fatalf("DISCORD_INGRESS subjects drifted from internal/domain/discord:\n stream = %q\n consts = %q",
+			DiscordIngressStream.Subjects, wantIngress)
+	}
+	wantOutgress := []string{ddiscord.LaneMod, ddiscord.LaneDefault}
+	if !slices.Equal(DiscordOutgressStream.Subjects, wantOutgress) {
+		t.Fatalf("DISCORD_OUTGRESS subjects drifted from internal/domain/discord:\n stream = %q\n consts = %q",
+			DiscordOutgressStream.Subjects, wantOutgress)
 	}
 }

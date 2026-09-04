@@ -332,6 +332,65 @@ export function demoSpotifyView() {
   };
 }
 
+export function demoDiscordView() {
+  return {
+    enabled: true,
+    connected: true,
+    config: {
+      // Snowflakes, not names: the live path stores 17-20 digit ids and the
+      // save action validates that shape, so demo must exercise it too.
+      guildId: '123456789012345678',
+      liveChannelId: '234567890123456789',
+      clipsChannelId: '345678901234567890',
+      welcomeChannelId: '456789012345678901',
+      voiceHubId: '678901234567890123',
+      ownerRoleId: '789012345678901234',
+      vipRoleId: '789012345678901255',
+      subscriberRoleId: '789012345678901266',
+      subscribersEnabled: 'on',
+      leadModRoleId: '789012345678901299',
+      modsRoleId: '',
+      regularsRoleId: '',
+      memberRoleId: '',
+      logChannelId: '998877665544332211',
+      ticketChannelId: '887766554433221100',
+      ticketCategoryId: '776655443322110099',
+      liveEnabled: '',
+      clipsEnabled: '',
+      welcomeEnabled: '',
+      goodbyeEnabled: '',
+      voiceEnabled: '',
+      ticketsEnabled: '',
+      logsEnabled: '',
+      levelsEnabled: '',
+      categoryAllow: '',
+      categoryDeny: '',
+      twitchLogin: 'demo',
+    }
+  };
+}
+
+export function demoDiscordLayout() {
+  return {
+    channels: [
+      { id: '234567890123456789', name: 'now-live', type: 0 },
+      { id: '345678901234567890', name: 'clips', type: 0 },
+      { id: '456789012345678901', name: 'welcome', type: 0 },
+      { id: '567890123456789012', name: 'announcements', type: 0 },
+      { id: '890123456789012345', name: 'chat', type: 0 },
+      { id: '887766554433221100', name: 'support', type: 0 },
+      { id: '998877665544332211', name: 'logs', type: 0 },
+      { id: '776655443322110099', name: 'Tickets', type: 4 },
+      { id: '678901234567890123', name: '+ Create voice', type: 2 }
+    ],
+    roles: [
+      { id: '789012345678901234', name: 'Live', type: 0 },
+      { id: '901234567890123456', name: 'Mods', type: 0 }
+    ],
+    needsReauth: false
+  };
+}
+
 export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
   return {
     defs: [

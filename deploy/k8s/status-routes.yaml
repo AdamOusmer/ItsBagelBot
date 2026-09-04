@@ -54,6 +54,45 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: discord-ingress-status
+  namespace: app
+spec:
+  selector:
+    app: discord-ingress
+  ports:
+    - name: http
+      port: 443
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discord-engine-status
+  namespace: app
+spec:
+  selector:
+    app: discord-engine
+  ports:
+    - name: http
+      port: 443
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discord-outgress-status
+  namespace: app
+spec:
+  selector:
+    app: discord-outgress
+  ports:
+    - name: http
+      port: 443
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: sesame-status
   namespace: app
 spec:
@@ -155,6 +194,30 @@ spec:
           port: 443
           scheme: https
           serversTransport: outgress-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-ingress`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: discord-ingress-status
+          port: 443
+          scheme: https
+          serversTransport: discord-ingress-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-engine`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: discord-engine-status
+          port: 443
+          scheme: https
+          serversTransport: discord-engine-status-transport
+    - match: Host(`health.itsbagelbot.com`) && Path(`/discord-outgress`)
+      kind: Rule
+      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      services:
+        - name: discord-outgress-status
+          port: 443
+          scheme: https
+          serversTransport: discord-outgress-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/sesame`)
       kind: Rule
       middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
@@ -248,6 +311,39 @@ spec:
   serverName: outgress-status
   rootCAsSecrets:
     - outgress-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: discord-ingress-status-transport
+  namespace: app
+spec:
+  # Verify the pod's TLS cert against the fleet CA, same shape as
+  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
+  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
+  serverName: discord-ingress-status
+  rootCAsSecrets:
+    - discord-ingress-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: discord-engine-status-transport
+  namespace: app
+spec:
+  serverName: discord-engine-status
+  rootCAsSecrets:
+    - discord-engine-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: discord-outgress-status-transport
+  namespace: app
+spec:
+  serverName: discord-outgress-status
+  rootCAsSecrets:
+    - discord-outgress-tls
 ---
 apiVersion: traefik.io/v1alpha1
 kind: ServersTransport

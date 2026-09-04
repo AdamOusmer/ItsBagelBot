@@ -134,6 +134,8 @@ func TestSpreadIsHardWithoutMinDomains(t *testing.T) {
 		{"transactions.yaml", "transactions"},
 		{"twitch-ingress.yaml", "twitch-ingress"},
 		{"outgress.yaml", "outgress"},
+		{"discord.yaml", "discord-engine"},
+		{"discord.yaml", "discord-outgress"},
 		{"sesame.yaml", "sesame"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

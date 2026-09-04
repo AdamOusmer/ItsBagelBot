@@ -1,0 +1,30 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# discord-engine (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/discord-engine -f app/discord/engine/Containerfile .
+FROM docker.io/library/golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+# See app/dingress's (now app/discord/outgress's) Containerfile comment: a
+# single go mod download attempt is fatal to an otherwise-fine dependency
+# graph on a proxy.golang.org TLS blip, so retry instead of masking it.
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
+
+COPY internal/discordapi internal/discordapi
+COPY internal/discordstore internal/discordstore
+COPY internal/domain internal/domain
+COPY internal/projection internal/projection
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/discord/engine app/discord/engine
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /discord-engine ./app/discord/engine
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+COPY --from=build /discord-engine /discord-engine
+
+USER nonroot
+ENTRYPOINT ["/discord-engine"]

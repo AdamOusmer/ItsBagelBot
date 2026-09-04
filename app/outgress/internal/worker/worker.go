@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/ratelimit"
 
@@ -108,6 +109,12 @@ type Worker struct {
 	// proves the grant dead. Nil in tests, where every call site degrades to a
 	// no-op.
 	reauth *ReauthNotifier
+	// factPub publishes derived-fact events (data.* subjects) after a lane
+	// handler finishes its own work -- currently only the clip-created fact
+	// fired from clip.go's publishClipCreated once Helix Create Clip succeeds
+	// and the chat reply is already sent. Nil in tests and on lanes that never
+	// process TypeClip; the publish call degrades to a no-op.
+	factPub bus.Publisher
 	// grants is the narrow registry slice the grant marker uses. It points at
 	// the same *channels.Registry as the field above; the separate, smaller
 	// interface exists so the marker's transition logic is testable without
@@ -192,6 +199,12 @@ func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 // lifecycle events, the chat lanes for the dashboard bell raised the moment a
 // broadcaster-identity call proves the grant dead.
 func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
+
+// SetFactPublisher attaches the bus used to publish derived-fact events after
+// a lane handler completes its own work (currently only the clip-created
+// fact; see clip.go's publishClipCreated). Wiring calls it once per lane
+// worker that can emit facts, before any consumer starts.
+func (w *Worker) SetFactPublisher(pub bus.Publisher) { w.factPub = pub }
 
 // Login->id resolutions (shoutout targets) are a small, fleet-shared keyspace,
 // so wiring builds one bounded cache and injects it into every lane worker

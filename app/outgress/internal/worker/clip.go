@@ -13,7 +13,9 @@ import (
 	"strings"
 
 	"ItsBagelBot/app/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
@@ -30,6 +32,13 @@ type clipMeta struct {
 	Clipper  string  `json:"clipper"`
 	Duration float64 `json:"duration"`
 	Reply    string  `json:"reply"`
+
+	// BroadcasterID is not part of the sesame wire payload (TypeClip never
+	// sends a broadcaster_id key): processClip fills it in from
+	// payload.BroadcasterID right after unmarshal so every downstream clip
+	// helper threads one struct instead of a bare broadcasterID string
+	// running alongside meta as a repeated pair of arguments.
+	BroadcasterID string `json:"-"`
 }
 
 // clipCreateReply is the subset of the Helix Create Clip response we read.
@@ -63,37 +72,38 @@ func (w *Worker) processClip(ctx context.Context, payload *outgress.Message) err
 	if len(payload.Payload) > 0 {
 		_ = codec.Unmarshal(payload.Payload, &meta)
 	}
+	meta.BroadcasterID = payload.BroadcasterID
 
 	payload.As = outgress.AsBroadcaster
 	if err := w.takeGeneralHelix(ctx, payload); err != nil {
 		return err // no clip created yet: safe to redeliver
 	}
 
-	res, err := w.callTwitch(ctx, twitch.ParseIdentity(outgress.AsBroadcaster), payload.BroadcasterID,
-		twitch.HelixCall{Method: http.MethodPost, Endpoint: clipEndpoint(payload.BroadcasterID, meta)})
+	res, err := w.callTwitch(ctx, twitch.ParseIdentity(outgress.AsBroadcaster), meta.BroadcasterID,
+		twitch.HelixCall{Method: http.MethodPost, Endpoint: clipEndpoint(meta)})
 	if err != nil {
 		w.log.Error("clip create failed",
-			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(err))
+			zap.String("broadcaster_id", meta.BroadcasterID), zap.Error(err))
 		return err // no clip: redeliver
 	}
 	defer drainResponse(res)
 
-	created, err := w.clipCreated(ctx, payload.BroadcasterID, res)
+	created, err := w.clipCreated(ctx, meta.BroadcasterID, res)
 	if !created {
 		return err
 	}
 
 	// Clip now exists. From here on never return an error (see the doc comment).
-	w.replyWithClip(ctx, payload.BroadcasterID, meta, res)
+	w.replyWithClip(ctx, meta, res)
 	return nil
 }
 
 // clipEndpoint assembles the Create Clip path: broadcaster_id, and the
 // optional title and duration, all ride the query string; the call takes no
 // body. Duration 0 is omitted so Twitch applies its default length.
-func clipEndpoint(broadcasterID string, meta clipMeta) string {
+func clipEndpoint(meta clipMeta) string {
 	q := url.Values{}
-	q.Set("broadcaster_id", broadcasterID)
+	q.Set("broadcaster_id", meta.BroadcasterID)
 	if title := strings.TrimSpace(meta.Title); title != "" {
 		q.Set("title", title)
 	}
@@ -134,21 +144,60 @@ func (w *Worker) clipCreated(ctx context.Context, broadcasterID string, res *htt
 // public URL back to chat. The clip already exists, so failures here only
 // log; the caller acks regardless. A posted reply also arms the background
 // publication check: only then is there a link in chat that could go dead.
-func (w *Worker) replyWithClip(ctx context.Context, broadcasterID string, meta clipMeta, res *http.Response) {
+func (w *Worker) replyWithClip(ctx context.Context, meta clipMeta, res *http.Response) {
 	id, err := clipID(res.Body)
 	if err != nil || id == "" {
 		w.log.Warn("clip created but response unparseable; skipping reply",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+			zap.String("broadcaster_id", meta.BroadcasterID), zap.Error(err))
 		return
 	}
 
 	clipURL := "https://clips.twitch.tv/" + id
-	if err := w.sendClipReply(ctx, broadcasterID, meta, clipURL); err != nil {
+	if err := w.sendClipReply(ctx, meta, clipURL); err != nil {
 		w.log.Warn("clip created but reply chat failed",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+			zap.String("broadcaster_id", meta.BroadcasterID), zap.Error(err))
 		return
 	}
-	w.scheduleClipVerify(broadcasterID, meta.Clipper, id)
+
+	// Built once here, after id/clipURL both exist, and passed whole from
+	// here on: publishClipCreated used to take broadcasterID, clipID,
+	// clipURL and meta as four separate strings/struct in the same order
+	// replyWithClip already holds them in, which is exactly what
+	// data.ClipCreated already models.
+	evt := data.ClipCreated{
+		BroadcasterID: meta.BroadcasterID,
+		ClipID:        id,
+		URL:           clipURL,
+		Clipper:       meta.Clipper,
+		Title:         strings.TrimSpace(meta.Title),
+	}
+	w.publishClipCreated(ctx, evt)
+	w.scheduleClipVerify(evt.BroadcasterID, evt.Clipper, evt.ClipID)
+}
+
+// publishClipCreated announces the clip as a fact on BAGEL_DATA rather than
+// posting a Discord embed directly: see data.SubjectClipCreated's doc comment
+// for why this has to be a fact and not a discord_chat command -- in short, a
+// work-queue Discord lane could only ever hand the clip to one subscriber,
+// and outgress would have to learn Discord exists (module blob, embed
+// builder, enabled check) just to make an announcement someone else cares
+// about. Best-effort, exactly like the Discord post it replaces: the clip
+// already exists and the chat reply already went out, so a failed publish
+// only logs and moves on.
+func (w *Worker) publishClipCreated(ctx context.Context, evt data.ClipCreated) {
+	if w.factPub == nil {
+		return
+	}
+	// Warn, not Debug: best-effort means the clip still exists and chat was
+	// still answered, NOT that the loss is uninteresting. This publish is the
+	// only signal any subscriber gets, so a dropped one is a silently missing
+	// archive post with nothing downstream able to notice -- the same reason
+	// the Discord path this replaced logged its skipped posts rather than
+	// swallowing them.
+	if err := bus.PublishJSON(ctx, w.factPub, data.SubjectClipCreated, evt); err != nil {
+		w.log.Warn("failed to publish clip created fact",
+			zap.String("broadcaster_id", evt.BroadcasterID), zap.Error(err))
+	}
 }
 
 // clipID decodes the Create Clip response body and returns the new clip's id
@@ -170,8 +219,8 @@ func clipID(body io.Reader) (string, error) {
 // slash-verb (/announce, /pin, …) becomes that native action, exactly like
 // every sesame-emitted reply. Its error is only for the caller to log; the
 // clip already exists, so the caller must not redeliver on a reply failure.
-func (w *Worker) sendClipReply(ctx context.Context, broadcasterID string, meta clipMeta, clipURL string) error {
-	return w.sendBotLine(ctx, broadcasterID, clipReplyText(meta, clipURL))
+func (w *Worker) sendClipReply(ctx context.Context, meta clipMeta, clipURL string) error {
+	return w.sendBotLine(ctx, meta.BroadcasterID, clipReplyText(meta, clipURL))
 }
 
 // clipReplyText composes the chat line for a new clip. When the broadcaster set

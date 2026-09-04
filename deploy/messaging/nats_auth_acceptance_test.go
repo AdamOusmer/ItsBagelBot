@@ -97,6 +97,8 @@ func (h *acceptanceHarness) reconcileOwnedStreams(t *testing.T, ctx context.Cont
 		{serviceIdentity{"users_bus"}, []bus.StreamSpec{localStream(bus.BagelDataStream)}},
 		{serviceIdentity{"worker_bus"}, []bus.StreamSpec{localStream(bus.TwitchIngressStream)}},
 		{serviceIdentity{"outgress_bus"}, []bus.StreamSpec{localStream(bus.OutgressStream), localStream(bus.OutgressSystemStream)}},
+		{serviceIdentity{"discord_engine_bus"}, []bus.StreamSpec{localStream(bus.DiscordIngressStream)}},
+		{serviceIdentity{"discord_outgress_bus"}, []bus.StreamSpec{localStream(bus.DiscordOutgressStream)}},
 	}
 	for _, owner := range owners {
 		h.activate(t, owner.identity)
@@ -127,6 +129,18 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.revoked"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.subrevoked"},
+		// discord-engine binds its OWN durable on the same stream-status
+		// subject, independent of outgress's — one decides the go-live/
+		// offline embed, the other re-verifies mod status. It also binds a
+		// durable on the clip fact and on one of DISCORD_INGRESS's six
+		// subjects, all through the same push/explicit-ack path (unlike the
+		// old dingress-egress role, no Discord service pull-fetches — see
+		// assertPullFetchPermission).
+		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "twitch.ingress.event.stream"},
+		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "data.twitch.clip.created"},
+		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "discord.ingress.event.message"},
+		{serviceIdentity{"discord_outgress_bus"}, "authz_discord_outgress", "discord.outgress.mod"},
+		{serviceIdentity{"discord_outgress_bus"}, "authz_discord_outgress", "discord.outgress.default"},
 	}
 	for _, binding := range bindings {
 		binding := binding
@@ -161,6 +175,8 @@ func (h *acceptanceHarness) assertRequiredAckPermissions(t *testing.T) {
 		{serviceIdentity{"projector_bus"}, []string{"BAGEL_DATA", "TWITCH_INGRESS"}},
 		{serviceIdentity{"worker_bus"}, []string{"TWITCH_INGRESS"}},
 		{serviceIdentity{"outgress_bus"}, []string{"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"}},
+		{serviceIdentity{"discord_engine_bus"}, []string{"DISCORD_INGRESS", "TWITCH_INGRESS", "BAGEL_DATA"}},
+		{serviceIdentity{"discord_outgress_bus"}, []string{"DISCORD_OUTGRESS"}},
 	}
 	for _, grant := range grants {
 		h.assertStreamAcks(t, grant)
@@ -202,10 +218,22 @@ func (h *acceptanceHarness) assertPublishAllowed(t *testing.T, probe publishProb
 // subject only has to be inside the granted prefix.
 func (h *acceptanceHarness) assertPullFetchPermission(t *testing.T) {
 	t.Helper()
-	identity := serviceIdentity{"worker_bus"}
-	for _, stream := range []string{"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"} {
-		subject := "$JS.API.CONSUMER.MSG.NEXT." + stream + ".worker_twitch_ingress_event_standard"
-		h.assertPublishAllowed(t, publishProbe{identity, subject})
+	cases := []struct {
+		identity serviceIdentity
+		stream   string
+		consumer string
+	}{
+		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS", "worker_twitch_ingress_event_standard"},
+		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS_STANDARD", "worker_twitch_ingress_event_standard"},
+		// No Discord service pull-fetches (see the streamGrants comment on
+		// pullFetchStreams in nats_auth_test.go): discord-engine's BAGEL_DATA
+		// and TWITCH_INGRESS bindings and discord-outgress's DISCORD_OUTGRESS
+		// bindings are all push/explicit-ack, so there is no MSG.NEXT case to
+		// assert here.
+	}
+	for _, c := range cases {
+		subject := "$JS.API.CONSUMER.MSG.NEXT." + c.stream + "." + c.consumer
+		h.assertPublishAllowed(t, publishProbe{c.identity, subject})
 	}
 }
 
@@ -242,6 +270,7 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 		{"users_bus"}, {"commands_bus"}, {"modules_bus"}, {"loyalty_bus"},
 		{"projector_bus"}, {"worker_bus"}, {"outgress_bus"},
 		{"twitch_ingress_bus"}, {"dashboard_bus"},
+		{"discord_ingress_bus"}, {"discord_engine_bus"}, {"discord_outgress_bus"},
 	}
 	for _, identity := range identities {
 		h.assertDestructiveOperationsDeniedFor(t, identity)

@@ -165,3 +165,30 @@ func parseModuleField(field string) (name, suffix string, ok bool) {
 	}
 	return rest[:idx], rest[idx+1:], true
 }
+
+// GetModule reads one module row without HGETALL. A row is found when
+// either of its fields exists: keying off the enabled flag alone read a row
+// whose config landed before its toggle as absent, which GetModules
+// (HGETALL-based) never did. Not-found means the Discord live announcer
+// treats the user as "not connected".
+func (v *Store) GetModule(ctx context.Context, userID uint64, name string) (ModuleView, bool, error) {
+	defer segment(ctx, "HMGET")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	fields, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).
+		Field("module:"+name+":enabled").
+		Field("module:"+name+":config").
+		Build()).ToArray()
+	if err != nil {
+		return ModuleView{}, false, err
+	}
+	if len(fields) < 2 {
+		return ModuleView{}, false, nil
+	}
+	enabled, enabledErr := fields[0].ToString()
+	cfg, cfgErr := fields[1].ToString()
+	if enabledErr != nil && cfgErr != nil {
+		return ModuleView{}, false, nil
+	}
+	return ModuleView{Name: name, IsEnabled: enabled == "1", Configs: codec.RawMessage(cfg)}, true, nil
+}

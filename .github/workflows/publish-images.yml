@@ -22,6 +22,9 @@ on:
           - loyalty
           - modules
           - notifications
+          - discord-ingress
+          - discord-engine
+          - discord-outgress
           - outgress
           - projector
           - transactions
@@ -93,6 +96,24 @@ jobs:
               "context": ".",
               "containerfile": "app/notifications/Containerfile",
               "description": "ItsBagelBot notifications data service"
+            },
+            {
+              "image": "discord-ingress",
+              "context": ".",
+              "containerfile": "app/discord/ingress/Containerfile",
+              "description": "ItsBagelBot Discord gateway session (singleton)"
+            },
+            {
+              "image": "discord-engine",
+              "context": ".",
+              "containerfile": "app/discord/engine/Containerfile",
+              "description": "ItsBagelBot Discord engine"
+            },
+            {
+              "image": "discord-outgress",
+              "context": ".",
+              "containerfile": "app/discord/outgress/Containerfile",
+              "description": "ItsBagelBot Discord REST executor"
             },
             {
               "image": "outgress",
@@ -174,6 +195,9 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "discord-ingress"
+            add "discord-engine"
+            add "discord-outgress"
             add "outgress"
             add "projector"
             add "transactions"
@@ -187,6 +211,9 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "discord-ingress"
+            add "discord-engine"
+            add "discord-outgress"
             add "outgress"
             add "projector"
             add "transactions"
@@ -230,6 +257,15 @@ jobs:
                 ;;
               app/notifications/*)
                 add "notifications"
+                ;;
+              app/discord/ingress/*)
+                add "discord-ingress"
+                ;;
+              app/discord/engine/*)
+                add "discord-engine"
+                ;;
+              app/discord/outgress/*)
+                add "discord-outgress"
                 ;;
               app/outgress/*)
                 add "outgress"
