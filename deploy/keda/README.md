@@ -12,11 +12,22 @@ Flux (#588); this is the same thing as plain manifests.
 - `availability.yaml` — one PodDisruptionBudget per component.
 
 ```bash
-kubectl apply -k deploy/keda            # CRDs + operator + metrics adapter + webhooks
+kubectl apply -f deploy/k8s/priorityclasses.yaml        # bagel-operator, referenced by the pods
+kubectl apply -f deploy/messaging/network-policies.yaml # the scaler's NATS grant
+kubectl apply --server-side --force-conflicts -k deploy/keda
 kubectl -n keda rollout status deploy/keda-operator --timeout=5m
-kubectl apply -f deploy/k8s/sesame.yaml # the ScaledObjects, once the CRDs exist
+kubectl apply -f deploy/k8s/sesame.yaml   # the ScaledObjects, once the CRDs exist
 kubectl apply -f deploy/k8s/outgress.yaml
 ```
+
+`--server-side` is required, not a preference: the `scaledjobs.keda.sh` CRD is
+larger than the 262144-byte annotation a client-side apply writes into
+`last-applied-configuration`, so a plain `kubectl apply -k` fails on that one
+object with `metadata.annotations: Too long` and leaves the rest applied.
+
+To create only the autoscalers without rolling the services (their manifests
+carry unrelated config), extract the `ScaledObject` documents from the two
+service files and apply those alone.
 
 `kubectl apply --dry-run=server -k deploy/keda` reports `namespaces "keda" not
 found` for every namespaced object. That is the dry run, not the manifest: it
