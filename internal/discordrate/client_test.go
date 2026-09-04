@@ -195,3 +195,17 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		})
 	}
 }
+
+func (f *fakeRest) GetGuildMember(context.Context, discordapi.GuildMember) (discordapi.GuildMemberInfo, error) {
+	f.sends++
+	return discordapi.GuildMemberInfo{}, nil
+}
+func (f *fakeRest) ListGuildChannelsFull(context.Context, discordapi.Guild) ([]discordapi.ChannelInfo, error) {
+	f.sends++
+	return nil, nil
+}
+func (f *fakeRest) ModifyGuild(context.Context, discordapi.GuildPatch) error { f.sends++; return nil }
+func (f *fakeRest) SetChannelOverwrite(context.Context, discordapi.ChannelOverwrite) error {
+	f.sends++
+	return nil
+}

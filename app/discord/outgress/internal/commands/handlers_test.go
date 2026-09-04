@@ -6,6 +6,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,32 @@ type fakeRest struct {
 	roleAdds     []discapi.MemberRole
 	roleRems     []discapi.MemberRole
 	followups    []discapi.Followup
+
+	member       discapi.GuildMemberInfo
+	memberErr    error
+	guildRoles   []discapi.Snowflake
+	fullChannels []discapi.ChannelInfo
+	guildPatches []discapi.GuildPatch
+	overwrites   []discapi.ChannelOverwrite
+	overwriteErr error
+}
+
+func (f *fakeRest) GetGuildMember(_ context.Context, _ discapi.GuildMember) (discapi.GuildMemberInfo, error) {
+	return f.member, f.memberErr
+}
+func (f *fakeRest) ListGuildRoles(_ context.Context, _ discapi.Guild) ([]discapi.Snowflake, error) {
+	return f.guildRoles, nil
+}
+func (f *fakeRest) ListGuildChannelsFull(_ context.Context, _ discapi.Guild) ([]discapi.ChannelInfo, error) {
+	return f.fullChannels, nil
+}
+func (f *fakeRest) ModifyGuild(_ context.Context, patch discapi.GuildPatch) error {
+	f.guildPatches = append(f.guildPatches, patch)
+	return nil
+}
+func (f *fakeRest) SetChannelOverwrite(_ context.Context, o discapi.ChannelOverwrite) error {
+	f.overwrites = append(f.overwrites, o)
+	return f.overwriteErr
 }
 
 func (f *fakeRest) SendChat(_ context.Context, post discapi.ChatPost) error {
@@ -230,10 +257,101 @@ func TestDispatchUnknownTypeErrors(t *testing.T) {
 	}
 }
 
-func TestDispatchNotYetImplementedTypesNoop(t *testing.T) {
-	h := &Handlers{Rest: &fakeRest{}, Log: testLogger()}
-	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeStripRoles})
-	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeLockdown})
+// StripRoles must remove every role the bot CAN remove and skip the ones it
+// cannot: a managed role (a bot's own, a booster role) is refused by Discord
+// with a 403, and @everyone -- whose id equals the guild id -- is not a
+// grantable role at all.
+func TestStripRolesSkipsManagedAndEveryone(t *testing.T) {
+	rest := &fakeRest{
+		member: discapi.GuildMemberInfo{Roles: []string{"g1", "r-mod", "r-bot", "r-vip"}},
+		guildRoles: []discapi.Snowflake{
+			{ID: "r-mod"}, {ID: "r-bot", Managed: true}, {ID: "r-vip"},
+		},
+	}
+	h := &Handlers{Rest: rest, Log: testLogger()}
+
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeStripRoles, GuildID: "g1", UserID: "u1"})
+
+	var got []string
+	for _, r := range rest.roleRems {
+		got = append(got, r.RoleID)
+	}
+	want := []string{"r-mod", "r-vip"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("removed = %v, want %v", got, want)
+	}
+}
+
+// A lockdown with no categories is still the useful half: the verification
+// bump is what stops new accounts at the door.
+func TestLockdownRaisesVerificationLevel(t *testing.T) {
+	rest := &fakeRest{}
+	h := &Handlers{Rest: rest, Log: testLogger()}
+
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeLockdown, GuildID: "g1"})
+
+	if len(rest.guildPatches) != 1 {
+		t.Fatalf("guild patches = %d, want 1", len(rest.guildPatches))
+	}
+	got := rest.guildPatches[0]
+	if got.VerificationLevel == nil || *got.VerificationLevel != discapi.GuildVerificationHighest {
+		t.Fatalf("verification level = %v, want %d", got.VerificationLevel, discapi.GuildVerificationHighest)
+	}
+	if len(rest.overwrites) != 0 {
+		t.Fatalf("overwrites = %d, want 0 with no categories", len(rest.overwrites))
+	}
+}
+
+// Muting must ADD the SEND deny to whatever the channel already denies and
+// clear it from the allow, because Discord's overwrite write replaces the
+// whole overwrite -- a bare deny would drop the VIEW allow that makes a
+// gated channel visible to its tier.
+func TestLockdownMutesTextChannelsInCategoriesOnly(t *testing.T) {
+	rest := &fakeRest{fullChannels: []discapi.ChannelInfo{
+		{ID: "c-text", Type: ddiscord.ChannelText, ParentID: "cat1", PermissionOverwrites: []discapi.PermissionOverwrite{
+			{ID: "g1", Type: 0, Allow: "1024", Deny: "0"},
+		}},
+		{ID: "c-voice", Type: ddiscord.ChannelVoice, ParentID: "cat1"},
+		{ID: "c-other", Type: ddiscord.ChannelText, ParentID: "cat2"},
+	}}
+	h := &Handlers{Rest: rest, Log: testLogger()}
+
+	dispatchOK(t, h, ddiscord.Command{
+		Type: ddiscord.TypeLockdown, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.LockdownPayload{CategoryIDs: []string{"cat1"}}),
+	})
+
+	if len(rest.overwrites) != 1 {
+		t.Fatalf("overwrites = %d, want 1", len(rest.overwrites))
+	}
+	got := rest.overwrites[0]
+	if got.ChannelID != "c-text" {
+		t.Fatalf("channel = %q, want c-text", got.ChannelID)
+	}
+	if got.Overwrite.ID != "g1" {
+		t.Fatalf("overwrite target = %q, want the guild id (@everyone)", got.Overwrite.ID)
+	}
+	if got.Overwrite.Allow != "1024" || got.Overwrite.Deny != "2048" {
+		t.Fatalf("allow/deny = %q/%q, want 1024/2048", got.Overwrite.Allow, got.Overwrite.Deny)
+	}
+}
+
+// A failed lockdown must NACK. The old no-op ACKed the message, so a
+// lockdown the bot lacked MANAGE_GUILD for looked delivered.
+func TestLockdownSurfacesOverwriteFailure(t *testing.T) {
+	rest := &fakeRest{
+		overwriteErr: errors.New("403 missing permissions"),
+		fullChannels: []discapi.ChannelInfo{{ID: "c1", Type: ddiscord.ChannelText, ParentID: "cat1"}},
+	}
+	h := &Handlers{Rest: rest, Log: testLogger()}
+
+	err := h.Dispatch(context.Background(), ddiscord.Command{
+		Type: ddiscord.TypeLockdown, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.LockdownPayload{CategoryIDs: []string{"cat1"}}),
+	})
+	if err == nil {
+		t.Fatal("a refused overwrite must surface so the lane redelivers")
+	}
 }
 
 // A premium apply must set BOTH halves in one call: the nickname needs
