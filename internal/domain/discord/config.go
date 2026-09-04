@@ -142,8 +142,8 @@ func (c Config) LevelsOn() bool  { return alertOn(c.LevelsEnabled) }
 // the field for why this is default-ON.
 func (c Config) TicketTranscriptOn() bool { return alertOn(c.TicketTranscriptEnabled) }
 
-// AutoRoleOn reports whether Bagel applies tier roles. Default ON; see the
-// field.
+// AutoRoleOn reports whether Bagel grants the member role on join. Default
+// ON; see the field. Tier roles are never applied by the engine.
 func (c Config) AutoRoleOn() bool { return alertOn(c.AutoRoleEnabled) }
 
 // TierRooms is the gated subscriber/VIP furniture the fill created, in the

@@ -4,7 +4,6 @@
 package discord
 
 import (
-	"slices"
 	"testing"
 )
 
@@ -90,51 +89,5 @@ func TestIsStaff(t *testing.T) {
 				t.Fatalf("IsStaff = %v, want %v", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestAutoRolePlan(t *testing.T) {
-	cfg := Config{
-		MemberRoleID: "mem", SubscriberRoleID: "sub", VIPRoleID: "vip", RegularsRoleID: "reg",
-	}
-	cases := []struct {
-		name       string
-		tier       string
-		current    []string
-		join       bool
-		wantAdd    []string
-		wantRemove []string
-	}{
-		{"join unlinked adds member only", TierNone, nil, true, []string{"mem"}, nil},
-		{"join unlinked never strips a tier role", TierNone, []string{"vip"}, true, []string{"mem"}, nil},
-		{"join subscriber", TierSubscriber, nil, true, []string{"mem", "sub"}, nil},
-		{"already member is not re-added", TierNone, []string{"mem"}, true, nil, nil},
-		{"upgrade sub to vip swaps the roles", TierVIP, []string{"mem", "sub"}, false, []string{"vip"}, []string{"sub"}},
-		{"downgrade to regular drops both", TierRegular, []string{"sub", "vip"}, false, []string{"reg"}, []string{"sub", "vip"}},
-		{"steady state is a no-op", TierVIP, []string{"mem", "vip"}, true, nil, nil},
-		{"not a join skips the member role", TierSubscriber, nil, false, []string{"sub"}, nil},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := AutoRolePlan(cfg, tc.tier, tc.current, tc.join)
-			if !slices.Equal(got.Add, tc.wantAdd) {
-				t.Fatalf("add = %v, want %v", got.Add, tc.wantAdd)
-			}
-			if !slices.Equal(got.Remove, tc.wantRemove) {
-				t.Fatalf("remove = %v, want %v", got.Remove, tc.wantRemove)
-			}
-			if got.Empty() != (len(tc.wantAdd) == 0 && len(tc.wantRemove) == 0) {
-				t.Fatalf("Empty = %v for %+v", got.Empty(), got)
-			}
-		})
-	}
-}
-
-// A guild that never ran the fill has no tier roles to grant, and autorole
-// must not emit commands carrying an empty role id (Discord rejects them).
-func TestAutoRolePlanIgnoresUnconfiguredRoles(t *testing.T) {
-	got := AutoRolePlan(Config{}, TierVIP, []string{"whatever"}, true)
-	if !got.Empty() {
-		t.Fatalf("plan = %+v, want empty", got)
 	}
 }
