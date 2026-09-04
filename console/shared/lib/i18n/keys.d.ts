@@ -73,6 +73,7 @@ export type KnownMessageKey =
   | 'billing.premiumFeat2'
   | 'billing.premiumFeat3'
   | 'billing.premiumFeat4'
+  | 'billing.premiumFeat5'
   | 'billing.premiumFine'
   | 'billing.premiumIncludes'
   | 'billing.priceForever'
