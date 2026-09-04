@@ -52,41 +52,11 @@ function resolves(key: string): boolean {
 // t('a.b') / t("a.b") / t(`a.b`), optionally with params after the key.
 const CALL = /\bt\(\s*['"`]([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)['"`]/g;
 
-// Keys that were ALREADY missing when this guard was written. They render as
-// raw "spotify.queueTitle" text on the Song Requests, Quotes and Import pages
-// today. They are listed rather than fixed here because each one is a piece of
-// product copy in two languages, and inventing that silently is worse than
-// naming the backlog.
-//
-// This list may only shrink. A key that starts resolving must be deleted from
-// here (the second test enforces that), so the baseline cannot quietly become
-// a permanent excuse.
-const KNOWN_MISSING = new Set([
-  'import.errWrongType',
-  'quotes.editBtnShort',
-  'quotes.inspector',
-  'quotes.inspectorIdle',
-  'quotes.listLabel',
-  'quotes.quoteDetails',
-  'spotify.liveOnlyLabel',
-  'spotify.queueAskedBy',
-  'spotify.queueEmpty',
-  'spotify.queueNow',
-  'spotify.queueRefresh',
-  'spotify.queueTitle',
-  'spotify.quotaHelp',
-  'spotify.quotaSave',
-  'spotify.quotaSaveFailed',
-  'spotify.quotaSaved',
-  'spotify.quotaTitle',
-  'spotify.quotaUnlimited',
-  'spotify.reconnectSpotify',
-  'spotify.redeemLiveOnlyOff',
-  'spotify.redeemLiveOnlyOn',
-  'spotify.scopeGap',
-  'spotify.srLiveOnlyOff',
-  'spotify.srLiveOnlyOn',
-]);
+// Every t() literal in the console resolves. This list is empty and should
+// stay that way: a key belongs here only while its copy is genuinely
+// undecided, and the test below fails the moment a listed key starts
+// resolving, so it can never rot into a permanent excuse.
+const KNOWN_MISSING = new Set<string>([]);
 
 describe('i18n literal keys', () => {
   test('every t() literal resolves in en.json', () => {
