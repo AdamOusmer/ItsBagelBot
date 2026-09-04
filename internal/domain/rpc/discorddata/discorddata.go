@@ -270,9 +270,9 @@ type XPGetRequest struct {
 // has never earned any; XP and Level are then zero, which is the same answer
 // the caller wants to render.
 type XPGetReply struct {
-	XPValue         int64 `json:"xp"`
-	Level           int   `json:"level"`
-	LastDailyUnixMs int64 `json:"last_daily_unix_ms,omitempty"`
+	XPValue         int64  `json:"xp"`
+	Level           int    `json:"level"`
+	LastDailyUnixMs int64  `json:"last_daily_unix_ms,omitempty"`
 	Found           bool   `json:"found"`
 	Error           string `json:"error,omitempty"`
 	Code            string `json:"code,omitempty"`

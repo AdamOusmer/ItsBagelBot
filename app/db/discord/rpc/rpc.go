@@ -18,7 +18,7 @@ import (
 
 	"ItsBagelBot/app/db/discord/ent"
 	"ItsBagelBot/app/db/discord/repository"
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 )
 
 // requestTimeout bounds one handler. Three seconds matches the other data

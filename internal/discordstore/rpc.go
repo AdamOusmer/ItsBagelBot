@@ -13,7 +13,7 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )

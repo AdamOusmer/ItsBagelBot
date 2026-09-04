@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/codec"
 )
 

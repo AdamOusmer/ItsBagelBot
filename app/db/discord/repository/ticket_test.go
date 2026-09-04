@@ -10,7 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/discord/ent/ticket"
 	"ItsBagelBot/app/db/discord/repository"
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

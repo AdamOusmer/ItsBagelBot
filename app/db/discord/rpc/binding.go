@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"ItsBagelBot/app/db/discord/repository"
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 )
 

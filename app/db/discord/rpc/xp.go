@@ -6,7 +6,7 @@ package rpc
 import (
 	"context"
 
-	discorddata "ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 )
 
