@@ -91,6 +91,10 @@ func (f *fakeRest) GetGuild(context.Context, discordapi.Guild) (discordapi.Snowf
 	f.sends++
 	return discordapi.Snowflake{ID: "g1"}, nil
 }
+func (f *fakeRest) GetGuildWithCounts(context.Context, discordapi.Guild) (discordapi.GuildInfo, error) {
+	f.sends++
+	return discordapi.GuildInfo{ID: "g1"}, nil
+}
 func (f *fakeRest) InteractionCallback(context.Context, discordapi.Callback) error {
 	f.sends++
 	return nil
@@ -175,6 +179,7 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		{"ListGuildChannels", func(c *LimitedClient) error { _, err := c.ListGuildChannels(ctx, discordapi.Guild{}); return err }},
 		{"ListGuildRoles", func(c *LimitedClient) error { _, err := c.ListGuildRoles(ctx, discordapi.Guild{}); return err }},
 		{"GetGuild", func(c *LimitedClient) error { _, err := c.GetGuild(ctx, discordapi.Guild{}); return err }},
+		{"GetGuildWithCounts", func(c *LimitedClient) error { _, err := c.GetGuildWithCounts(ctx, discordapi.Guild{}); return err }},
 		{"InteractionCallback", func(c *LimitedClient) error { return c.InteractionCallback(ctx, discordapi.Callback{}) }},
 		{"BulkOverwriteCommands", func(c *LimitedClient) error { return c.BulkOverwriteCommands(ctx, discordapi.CommandCatalog{}) }},
 		{"InteractionFollowup", func(c *LimitedClient) error { return c.InteractionFollowup(ctx, discordapi.Followup{}) }},

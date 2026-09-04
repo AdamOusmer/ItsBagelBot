@@ -69,6 +69,7 @@ func main() {
 	store := discordstore.New(valkeyClient)
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
+	botStatus := kv.NewBotStatusReader(valkeyClient)
 
 	applicationID := registerSlashCommands(ctx, rest, log)
 
@@ -77,7 +78,7 @@ func main() {
 
 	subscribeRPCs(rpcDeps{
 		NC: nc, Cfg: cfg, Rest: rest, Store: store,
-		LiveStore: liveStore, Reauth: reauth, NRApp: nrApp, Log: log,
+		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, NRApp: nrApp, Log: log,
 	})
 
 	lanes := startCommandConsumer(consumerDeps{
@@ -151,6 +152,7 @@ type rpcDeps struct {
 	Store     discordstore.Store
 	LiveStore kv.LiveStore
 	Reauth    kv.ReauthStore
+	BotStatus kv.BotStatusReader
 	NRApp     *newrelic.Application
 	Log       *zap.Logger
 }
@@ -161,7 +163,7 @@ func subscribeRPCs(deps rpcDeps) {
 	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
 	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
 		NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue, App: deps.NRApp,
-		Reauth: deps.Reauth, Log: deps.Log.Named("rpc"),
+		Reauth: deps.Reauth, Status: deps.BotStatus, Log: deps.Log.Named("rpc"),
 	}); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}

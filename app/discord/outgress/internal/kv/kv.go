@@ -19,6 +19,7 @@ import (
 	"time"
 
 	discapi "ItsBagelBot/internal/discordapi"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -102,6 +103,43 @@ func malformedLiveMessage(ch, id string, ok bool) bool {
 
 func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID GuildID) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(liveKey(guildID)).Build()).Error()
+}
+
+// BotStatusReader reads the gateway status key discord-ingress publishes
+// (internal/domain/discord.BotStatusKey). Read-only by construction: outgress
+// holds no gateway connection, so it has nothing true to say about the
+// session and must never write this key.
+type BotStatusReader interface {
+	BotStatus(ctx context.Context) (ddiscord.BotStatus, bool)
+}
+
+// NewBotStatusReader builds the Valkey-backed reader. A nil client returns
+// nil, matching New: callers nil-check and report "unknown" rather than
+// failing a page load over a status pill.
+func NewBotStatusReader(client valkey.Client) BotStatusReader {
+	if client == nil {
+		return nil
+	}
+	return valkeyBotStatus{client: client}
+}
+
+type valkeyBotStatus struct{ client valkey.Client }
+
+// BotStatus reports the last published status, or ok=false when the key is
+// missing or unreadable. A decode failure reads as missing on purpose: the
+// only thing that writes this key is ingress, so a value that does not parse
+// came from a build that no longer exists, and treating it as "no status" is
+// what lets a rollout heal itself.
+func (s valkeyBotStatus) BotStatus(ctx context.Context) (ddiscord.BotStatus, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ddiscord.BotStatusKey).Build()).AsBytes()
+	if err != nil || len(raw) == 0 {
+		return ddiscord.BotStatus{}, false
+	}
+	got, err := ddiscord.DecodeBotStatus(raw)
+	if err != nil {
+		return ddiscord.BotStatus{}, false
+	}
+	return got, true
 }
 
 // reauthKey marks a guild whose bot role predates CHANGE_NICKNAME.

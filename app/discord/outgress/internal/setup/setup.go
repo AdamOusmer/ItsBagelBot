@@ -32,7 +32,18 @@ const (
 // RPC cannot re-point someone else's server at their own broadcaster id.
 var ErrGuildBoundElsewhere = errors.New("this Discord server is already linked to another Twitch channel")
 
-var errDiscordUnavailable = errors.New("discord client unavailable")
+// ErrGuildNotBound is "no binding at all", as opposed to
+// ErrGuildBoundElsewhere's "bound to someone else". It wraps that error, and
+// carries the identical message, on purpose: the console branched on the
+// message substring before reply codes existed, so the two cases have to
+// stay indistinguishable on the wire while being distinguishable in Go (the
+// RPC layer maps them to different codes -- see rpc.codeFor).
+var ErrGuildNotBound = fmt.Errorf("%w", ErrGuildBoundElsewhere)
+
+// ErrDiscordUnavailable is returned when no Discord client is attached (no
+// bot token) -- exported so the RPC layer can map it to a reply code instead
+// of matching its message.
+var ErrDiscordUnavailable = errors.New("discord client unavailable")
 
 // GuildSetupResult is the snowflakes the dashboard writes into the Discord
 // module blob after a fill. Outgress does not write modules.
@@ -121,7 +132,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 // pickers. Only the bound broadcaster may read it.
 func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildLayout, error) {
 	if w.discord == nil {
-		return GuildLayout{}, errDiscordUnavailable
+		return GuildLayout{}, ErrDiscordUnavailable
 	}
 	if err := w.requireBound(ctx, req); err != nil {
 		return GuildLayout{}, err
@@ -135,6 +146,19 @@ func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildL
 		return GuildLayout{}, err
 	}
 	return GuildLayout{Channels: entries(channels), Roles: entries(roles)}, nil
+}
+
+// GuildInfo is the bound guild's name, icon and member count for the
+// dashboard's server card. Bound-only, like GuildLayout: an unbound guild is
+// somebody else's server and its name is not ours to hand out.
+func (w *Worker) GuildInfo(ctx context.Context, req GuildSetupRequest) (discapi.GuildInfo, error) {
+	if w.discord == nil {
+		return discapi.GuildInfo{}, ErrDiscordUnavailable
+	}
+	if err := w.requireBound(ctx, req); err != nil {
+		return discapi.GuildInfo{}, err
+	}
+	return w.discord.GetGuildWithCounts(ctx, req.guild())
 }
 
 func (req GuildSetupRequest) guild() discapi.Guild {
@@ -202,7 +226,7 @@ func missingBinding(check ownerCheck) error {
 	if check.MissingOK {
 		return nil
 	}
-	return ErrGuildBoundElsewhere
+	return ErrGuildNotBound
 }
 
 // guildFill carries one setup's state: the client, the guild, and name
@@ -220,7 +244,7 @@ type guildFill struct {
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
 	if w.discord == nil {
-		return nil, errDiscordUnavailable
+		return nil, ErrDiscordUnavailable
 	}
 	if req.GuildID == "" {
 		return nil, errors.New("missing guild id")
