@@ -11,6 +11,7 @@ package dispatch
 
 import (
 	"context"
+	"time"
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
 	"ItsBagelBot/app/discord/engine/internal/registry"
@@ -85,6 +86,12 @@ func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {
 	}
 	in, err := decode.Decode[decode.InteractionEvent](ev.Raw)
 	if err != nil {
+		// Silently dropping this was how a whole guild's buttons could stop
+		// working with nothing anywhere saying so: an interaction that fails
+		// to decode has already been deferred by ingress, so the user sees
+		// "thinking..." forever and no handler ever ran.
+		d.Log.Warn("dropping undecodable discord interaction",
+			zap.String("event_type", ev.Type), zap.String("guild_id", ev.GuildID), zap.Error(err))
 		return nil
 	}
 	if in.Data.CustomID != "" {
@@ -99,10 +106,53 @@ func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {
 	return nil
 }
 
+// Publish retry budget. A command that fails to publish is gone: the
+// ingress message is ACKed either way (see Handle), so nothing redelivers
+// it and the user's button press simply does nothing. Three attempts over
+// 200 ms clears the failure this actually sees -- a lane publish landing
+// during a NATS reconnect -- without holding the ingress consumer long
+// enough to matter (its AckWait is measured in seconds, not milliseconds).
+const (
+	publishAttempts   = 3
+	publishRetryDelay = 100 * time.Millisecond
+)
+
 func (d *Dispatcher) publishAll(ctx context.Context, cmds []ddiscord.Command) {
 	for _, c := range cmds {
-		if err := d.Publish(ctx, c); err != nil {
-			d.Log.Warn("discord command publish failed", zap.String("type", c.Type), zap.Error(err))
+		if err := d.publishRetry(ctx, c); err != nil {
+			// ERROR, not WARN: this is a command the user asked for that
+			// nothing will ever run, and it is the only trace it existed.
+			d.Log.Error("discord command lost after retries",
+				zap.String("type", c.Type), zap.Int("attempts", publishAttempts), zap.Error(err))
 		}
+	}
+}
+
+func (d *Dispatcher) publishRetry(ctx context.Context, c ddiscord.Command) error {
+	var err error
+	for attempt := range publishAttempts {
+		if err = d.Publish(ctx, c); err == nil {
+			return nil
+		}
+		if attempt == publishAttempts-1 {
+			break
+		}
+		if waitErr := sleep(ctx, publishRetryDelay); waitErr != nil {
+			// Shutting down: report the publish failure, not the
+			// cancellation, so the log names what was actually lost.
+			return err
+		}
+	}
+	return err
+}
+
+func sleep(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
 	}
 }

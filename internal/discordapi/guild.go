@@ -241,6 +241,43 @@ func (c *Client) GetGuild(ctx context.Context, guild Guild) (Snowflake, error) {
 	return out, err
 }
 
+// GuildInfo is GET /guilds/{id}?with_counts=true, trimmed to what the
+// dashboard's server card shows. Separate from Snowflake (what GetGuild
+// returns) rather than fields bolted onto it: with_counts costs Discord an
+// extra approximation pass and is only paid for by the one caller that
+// renders a member count.
+type GuildInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Icon is the hash, not a URL -- Discord returns null for a guild with
+	// no icon set, which decodes to "".
+	Icon string `json:"icon"`
+	// ApproximateMemberCount is Discord's own word for it: the value is a
+	// cached estimate, not a live count, and the dashboard says "members"
+	// without implying otherwise.
+	ApproximateMemberCount   int `json:"approximate_member_count"`
+	ApproximatePresenceCount int `json:"approximate_presence_count"`
+}
+
+// IconURL is the CDN URL for the guild icon, or "" when the guild has none
+// (the caller renders its own placeholder rather than a broken image).
+// Animated icons are hash-prefixed "a_" and are served as .gif; .png is
+// requested for both because a still frame is what a 40px avatar needs.
+func (g GuildInfo) IconURL() string {
+	if g.Icon == "" || g.ID == "" {
+		return ""
+	}
+	return "https://cdn.discordapp.com/icons/" + g.ID + "/" + g.Icon + ".png"
+}
+
+// GetGuildWithCounts is GetGuild plus Discord's approximate member count,
+// for the dashboard's server card.
+func (c *Client) GetGuildWithCounts(ctx context.Context, guild Guild) (GuildInfo, error) {
+	var out GuildInfo
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "?with_counts=true"}, &out)
+	return out, err
+}
+
 // Invite is GET /invites/{code}'s response body, trimmed to what
 // linkguard's own-invite resolution needs (see
 // internal/domain/rpc/discordoutgress.InviteResolveRequest). Guild is a nil

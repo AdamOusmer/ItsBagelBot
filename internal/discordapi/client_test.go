@@ -126,3 +126,47 @@ func permanent(err error) bool {
 	}
 	return false
 }
+
+// TestGetGuildWithCounts pins both halves of the one call the dashboard's
+// server card makes: with_counts=true must actually be on the request (the
+// member count is absent from the reply without it, and a missing count
+// looks like a guild of zero people), and the icon hash must render as a CDN
+// URL rather than being handed to the browser raw.
+func TestGetGuildWithCounts(t *testing.T) {
+	var gotURL string
+	client := NewClient("bot-token")
+	client.SetTransport(roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotURL = r.URL.String()
+		return jsonResponse(200, `{"id":"9","name":"Bagel HQ","icon":"abc","approximate_member_count":1234}`), nil
+	}))
+
+	got, err := client.GetGuildWithCounts(context.Background(), Guild{ID: "9"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gotURL, "/guilds/9") || !strings.Contains(gotURL, "with_counts=true") {
+		t.Fatalf("url = %q, want /guilds/9 with with_counts=true", gotURL)
+	}
+	if got.Name != "Bagel HQ" || got.ApproximateMemberCount != 1234 {
+		t.Fatalf("guild = %+v", got)
+	}
+	if want := "https://cdn.discordapp.com/icons/9/abc.png"; got.IconURL() != want {
+		t.Fatalf("IconURL() = %q, want %q", got.IconURL(), want)
+	}
+}
+
+func TestGuildIconURLIsEmptyWithoutAnIcon(t *testing.T) {
+	if got := (GuildInfo{ID: "9"}).IconURL(); got != "" {
+		t.Fatalf("IconURL() = %q, want empty so the dashboard renders its placeholder", got)
+	}
+}
+
+func TestGetGuildWithCountsClassifiesForbidden(t *testing.T) {
+	client := NewClient("bot-token")
+	client.SetTransport(roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return jsonResponse(403, `{"message": "Missing Access"}`), nil
+	}))
+	if _, err := client.GetGuildWithCounts(context.Background(), Guild{ID: "9"}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+}

@@ -38,6 +38,7 @@ type rest interface {
 	ListGuildChannels(ctx context.Context, guild discordapi.Guild) ([]discordapi.Snowflake, error)
 	ListGuildRoles(ctx context.Context, guild discordapi.Guild) ([]discordapi.Snowflake, error)
 	GetGuild(ctx context.Context, guild discordapi.Guild) (discordapi.Snowflake, error)
+	GetGuildWithCounts(ctx context.Context, guild discordapi.Guild) (discordapi.GuildInfo, error)
 	InteractionCallback(ctx context.Context, cb discordapi.Callback) error
 	InteractionFollowup(ctx context.Context, f discordapi.Followup) error
 	BulkOverwriteCommands(ctx context.Context, cat discordapi.CommandCatalog) error
@@ -203,6 +204,13 @@ func (c *LimitedClient) GetGuild(ctx context.Context, guild discordapi.Guild) (d
 		return discordapi.Snowflake{}, err
 	}
 	return c.rest.GetGuild(ctx, guild)
+}
+
+func (c *LimitedClient) GetGuildWithCounts(ctx context.Context, guild discordapi.Guild) (discordapi.GuildInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.GuildInfo{}, err
+	}
+	return c.rest.GetGuildWithCounts(ctx, guild)
 }
 
 func (c *LimitedClient) InteractionCallback(ctx context.Context, cb discordapi.Callback) error {

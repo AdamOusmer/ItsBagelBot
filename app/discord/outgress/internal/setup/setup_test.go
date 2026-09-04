@@ -79,6 +79,10 @@ func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discap
 	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
 }
 
+func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {
+	return discapi.GuildInfo{ID: g.ID, Name: "Bagel HQ", Icon: "abc", ApproximateMemberCount: 42}, nil
+}
+
 var _ discordGuildAPI = (*guildRecorder)(nil)
 
 func setupWorker(guild *guildRecorder, store discordstore.Store) *Worker {

@@ -333,9 +333,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
         # Watches the mounted config (nats.conf + auth.conf, sourced from the
-        # nats-config configmap) and SIGHUPs nats-server on change, so a git
-        # push updating the Flux-managed configMapGenerator hot-reloads without
-        # a manual signal or a pod restart.
+        # nats-config configmap) and SIGHUPs nats-server on change, so a
+        # kubectl apply of the kustomize configMapGenerator hot-reloads without
+        # a manual signal or a pod restart. There is no Flux in this cluster:
+        # every deploy here is a hand-pinned kubectl apply.
         # TODO(deploy): pin to a digest like the other images.
         - name: reloader
           image: natsio/nats-server-config-reloader:0.23.0@sha256:64cb6c858e794906d3167378e02b7e0feb83c4e14c07b371eb8d921ef8c4a60b
