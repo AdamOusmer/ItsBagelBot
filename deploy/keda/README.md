@@ -55,11 +55,18 @@ calls its metrics adapter synchronously; since the 2026-08 rebuild
 metrics-server has run unpinned on a worker with `v1beta1.metrics.k8s.io`
 healthy, which is the same hop.
 
-**Availability.** Two replicas of each component, spread one per worker, with a
-PDB apiece. The operator is leader-elected, so its second replica is a warm
-standby; the adapter and the webhook are stateless and both sit in a
-synchronous apiserver path, where a single replica turns a node drain into
-failing HPA reads and rejected `ScaledObject` writes.
+**Availability.** The adapter and the webhook run two replicas, spread one per
+worker, with a PDB apiece: both are stateless and sit in a synchronous
+apiserver path, where a single replica turns a node drain into failing HPA
+reads and rejected `ScaledObject` writes.
+
+The operator runs **one** replica, and that is deliberate. Upstream allows a
+leader-elected standby, but the standby still answers the metrics adapter's
+gRPC on `:9666` through the `keda-operator` Service without a populated scaler
+cache: measured here on 2026-09-03, two replicas made external metric reads
+time out about half the time (`FailedGetExternalMetric` on the HPA), and one
+replica read 6/6 with `ScalingActive=ValidMetricFound`. If you scale it up,
+expect scaling to become unreliable while every pod looks healthy.
 
 **Priority.** `bagel-operator` (600000), below every first-party class: losing
 KEDA degrades a control loop, not a request path — the services it scales keep
