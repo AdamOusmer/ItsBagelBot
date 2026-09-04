@@ -197,15 +197,28 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 // ones that consume a durable group, nothing for the request/reply-only ones.
 // It is a parameter rather than a nil-able subscriber because bus.LaneCheck on a
 // nil Subscriber silently passes, which is worse than having no check at all.
-func ServeDataHealth(log *zap.Logger, nc *nats.Conn, service, queueGroup string, pool *sql.DB, extra ...health.Check) {
-	checks := append([]health.Check{health.NATS("nats", nc)}, extra...)
-	set := health.NewSet(service, append(checks, health.Degrades(db.HealthCheck("mysql", pool)))...)
+func ServeDataHealth(d DataHealth, extra ...health.Check) {
+	checks := append([]health.Check{health.NATS("nats", d.NC)}, extra...)
+	set := health.NewSet(d.Service, append(checks, health.Degrades(db.HealthCheck("mysql", d.Pool)))...)
 
-	rpcHealth, err := bus.SubscribeRPCHealth(nc, service, queueGroup, set)
+	rpcHealth, err := bus.SubscribeRPCHealth(d.NC, d.Service, d.QueueGroup, set)
 	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
+		d.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
 	set.Add(rpcHealth)
 
 	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
+}
+
+// DataHealth is one data-tier service's identity and dependencies, travelling
+// as a single value for the same reason bus.RPCSubscription does: Service and
+// QueueGroup are both strings and interchangeable at a call site, and a
+// transposed pair registers a working responder on the wrong token, which shows
+// up only as a sibling reading this service as down.
+type DataHealth struct {
+	Log        *zap.Logger
+	NC         *nats.Conn
+	Service    string
+	QueueGroup string
+	Pool       *sql.DB
 }

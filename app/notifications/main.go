@@ -127,7 +127,9 @@ func main() {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
 	// No lane check: this service consumes no event lane, only request/reply.
-	svcboot.ServeDataHealth(log, nc, serviceName, queueGroup, driver.DB())
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, Pool: driver.DB(),
+	})
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),

@@ -190,8 +190,9 @@ func main() {
 	// stops the use counters silently, with NATS and MySQL both still reading
 	// green. The broadcast subscriber is not checked -- it has no fetch loop to
 	// wedge.
-	svcboot.ServeDataHealth(log, n.RPC, serviceName, "commands-rpc", driver.DB(),
-		bus.LaneCheck("data", n.Grouped))
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: n.RPC, Service: serviceName, QueueGroup: "commands-rpc", Pool: driver.DB(),
+	}, bus.LaneCheck("data", n.Grouped))
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),

@@ -171,8 +171,9 @@ func main() {
 	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
 	// degrading: a consumer that stays bound while failing to fetch stops points
 	// accruing entirely, with NATS and MySQL both still reading green.
-	svcboot.ServeDataHealth(log, nc, serviceName, "loyalty-rpc", driver.DB(),
-		bus.LaneCheck("data", grouped))
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: "loyalty-rpc", Pool: driver.DB(),
+	}, bus.LaneCheck("data", grouped))
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),

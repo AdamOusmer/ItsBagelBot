@@ -87,7 +87,9 @@ func main() {
 	subjects := subscribeRPCs(ctx, wiring, client, log)
 	// No lane check: both event subscribers live inside startConsumers, which
 	// hands back only a cleanup func.
-	svcboot.ServeDataHealth(log, nc, serviceName, "users-rpc", dbPool)
+	svcboot.ServeDataHealth(svcboot.DataHealth{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: "users-rpc", Pool: dbPool,
+	})
 	subjects.logReady(log)
 
 	<-ctx.Done()
