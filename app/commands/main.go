@@ -5,10 +5,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
-	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"ItsBagelBot/app/commands/ent"
@@ -23,9 +21,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 
@@ -124,33 +120,6 @@ func deleteAllForUser(repo *repository.Commands, fetches *repository.Fetches, lo
 	}
 }
 
-// healthSet builds the checks commands answers with on both /status and its
-// health RPC. One Set backs both surfaces, so the aggregate the projector
-// serves at /db can never disagree with what this pod reports over HTTP at the
-// same instant.
-//
-// mysql check alongside nats: PingContext exercises the same pool repository
-// code uses, catching a wedged pool or rotated-out creds that IsConnected alone
-// would miss (pkg/db/health.go). Degrades rather than fails readiness: a
-// hard-fail would pull every commands pod out of service on the same DB blip
-// simultaneously, turning a brief outage into a total one. A healthy ping lands
-// in single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher means the
-// pool went cold and is paying the ~18ms handshake instead of reusing a conn.
-// It stays here rather than being hoisted into the projector's /db aggregate:
-// each data service reports its own database because the schemas are expected
-// to split across servers, and one hoisted check could not name which one went.
-//
-// The lane check covers the durable group folding data.commands.used and
-// data.users.deleted: a consumer that stays bound while failing to fetch stops
-// the use counters silently, with NATS and MySQL both still reading green. The
-// broadcast subscriber is not checked -- it has no fetch loop to wedge.
-func healthSet(nc *nats.Conn, pool *sql.DB, grouped bus.Subscriber) *health.Set {
-	return health.NewSet(serviceName,
-		health.NATS("nats", nc),
-		bus.LaneCheck("data", grouped),
-		health.Degrades(db.HealthCheck("mysql", pool)))
-}
-
 func main() {
 	validate.CheckFloor = moderation.CheckFloor
 
@@ -216,9 +185,13 @@ func main() {
 		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}
 
-	set := healthSet(n.RPC, driver.DB(), n.Grouped)
-	n.MustHealthRPC(core, set)
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
+	// The lane check covers the durable group folding data.commands.used and
+	// data.users.deleted: a consumer that stays bound while failing to fetch
+	// stops the use counters silently, with NATS and MySQL both still reading
+	// green. The broadcast subscriber is not checked -- it has no fetch loop to
+	// wedge.
+	svcboot.ServeDataHealth(log, n.RPC, serviceName, "commands-rpc", driver.DB(),
+		bus.LaneCheck("data", n.Grouped))
 
 	log.Info("commands service ready",
 		zap.String("projection_subject", projectionSubject),

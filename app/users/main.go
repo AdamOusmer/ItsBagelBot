@@ -25,9 +25,9 @@ import (
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 
@@ -85,42 +85,14 @@ func main() {
 
 	wiring := rpc.Wiring{NC: nc, Repo: repo, App: nrApp, Queue: "users-rpc", Log: log}
 	subjects := subscribeRPCs(ctx, wiring, client, log)
-	set := healthSet(nc, dbPool)
-	rpcHealth, err := bus.SubscribeRPCHealth(nc, serviceName, "users-rpc", set)
-	fatalIf(log, err, "failed to subscribe rpc health")
-	set.Add(rpcHealth)
-
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
+	// No lane check: both event subscribers live inside startConsumers, which
+	// hands back only a cleanup func.
+	svcboot.ServeDataHealth(log, nc, serviceName, "users-rpc", dbPool)
 	subjects.logReady(log)
 
 	<-ctx.Done()
 
 	log.Info("users service shutting down")
-}
-
-// healthSet builds the checks this service answers with on both /status and its
-// health RPC. One Set backs both surfaces, so the aggregate the projector
-// serves at /db can never disagree with what this pod reports over HTTP at the
-// same instant.
-//
-// mysql check alongside nats: PingContext exercises the same pool
-// repository/rpc code uses, catching a wedged pool or rotated-out creds that
-// nc.IsConnected alone would miss (pkg/db/health.go). Degrades rather than
-// fails readiness: a hard-fail would pull every users pod out of service on the
-// same DB blip simultaneously, turning a brief outage into a total one. A
-// healthy ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT);
-// much higher means the pool went cold and is paying the ~18ms handshake
-// instead of reusing a conn.
-//
-// The check stays here rather than being hoisted into the projector's /db
-// aggregate: each data service reports its own database because the schemas are
-// expected to split across servers, and one hoisted check could not name which
-// one went. No lane check: both event subscribers live inside startConsumers,
-// which hands back only a cleanup func.
-func healthSet(nc *nats.Conn, pool *sql.DB) *health.Set {
-	return health.NewSet(serviceName,
-		health.NATS("nats", nc),
-		health.Degrades(db.HealthCheck("mysql", pool)))
 }
 
 // openStore reads the encryption keyset, opens the database, runs migrations,

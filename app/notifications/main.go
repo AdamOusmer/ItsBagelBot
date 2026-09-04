@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,9 +19,9 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -127,7 +126,8 @@ func main() {
 	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
 		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
 	}
-	serveHealth(nc, driver.DB(), queueGroup, log)
+	// No lane check: this service consumes no event lane, only request/reply.
+	svcboot.ServeDataHealth(log, nc, serviceName, queueGroup, driver.DB())
 
 	log.Info("notifications service ready",
 		zap.String("admin_prefix", adminPrefix),
@@ -148,45 +148,4 @@ func connectRPC(url string, log *zap.Logger) *nats.Conn {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}
 	return nc
-}
-
-// serveHealth builds the Set, registers the responder that answers out of it,
-// and starts the HTTP surface. It is a function rather than four lines in main
-// because the ordering is load-bearing -- the responder can only be registered
-// against a Set that already exists, and the check watching that registration
-// only exists afterwards -- and main is already carrying every other fatal
-// branch of the boot.
-func serveHealth(nc *nats.Conn, pool *sql.DB, queueGroup string, log *zap.Logger) {
-	set := healthSet(nc, pool)
-	rpcHealth, err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup, set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	set.Add(rpcHealth)
-
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
-}
-
-// healthSet builds the checks notifications answers with on both /status and
-// its health RPC. One Set backs both surfaces, so the aggregate the projector
-// serves at /db can never disagree with what this pod reports over HTTP at the
-// same instant.
-//
-// mysql check alongside nats: PingContext exercises the same pool repository
-// code uses, catching a wedged pool or rotated-out creds that nc.IsConnected
-// alone would miss (pkg/db/health.go). Degrades rather than fails readiness: a
-// hard-fail would pull every notifications pod out of service on the same DB
-// blip simultaneously, turning a brief outage into a total one. A healthy ping
-// lands in single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher
-// means the pool went cold and is paying the ~18ms handshake instead of reusing
-// a conn.
-//
-// It stays here rather than being hoisted into the projector's /db aggregate:
-// each data service reports its own database because the schemas are expected
-// to split across servers, and one hoisted check could not name which one went.
-// No lane check: this service consumes no event lane, only request/reply.
-func healthSet(nc *nats.Conn, pool *sql.DB) *health.Set {
-	return health.NewSet(serviceName,
-		health.NATS("nats", nc),
-		health.Degrades(db.HealthCheck("mysql", pool)))
 }

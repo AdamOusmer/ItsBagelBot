@@ -5,13 +5,11 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"ItsBagelBot/app/loyalty/ent"
@@ -27,9 +25,9 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
 )
@@ -108,50 +106,6 @@ func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Messa
 	}
 }
 
-// healthSet builds the checks loyalty answers with on both /status and its
-// health RPC. One Set backs both surfaces, so the aggregate the projector
-// serves at /db can never disagree with what this pod reports over HTTP at the
-// same instant.
-//
-// mysql check alongside nats: PingContext exercises the same pool repository
-// code uses, catching a wedged pool or rotated-out creds that nc.IsConnected
-// alone would miss (pkg/db/health.go). Degrades rather than fails readiness: a
-// hard-fail would pull every loyalty pod out of service on the same DB blip
-// simultaneously, turning a brief outage into a total one. A healthy ping lands
-// in single-digit ms (measured ~3.6ms pod-to-MySQL RTT); much higher means the
-// pool went cold and is paying the ~18ms handshake instead of reusing a conn.
-// It stays here rather than being hoisted into the projector's /db aggregate:
-// each data service reports its own database because the schemas are expected
-// to split across servers, and one hoisted check could not name which one went.
-//
-// The lane check covers the durable group folding data.loyalty.earned,
-// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
-// degrading: a consumer that stays bound while failing to fetch stops points
-// accruing entirely, with NATS and MySQL both still reading green.
-func healthSet(nc *nats.Conn, pool *sql.DB, grouped bus.Subscriber) *health.Set {
-	return health.NewSet(serviceName,
-		health.NATS("nats", nc),
-		bus.LaneCheck("data", grouped),
-		health.Degrades(db.HealthCheck("mysql", pool)))
-}
-
-// serveHealth builds the Set, registers the responder that answers out of it,
-// and starts the HTTP surface. It is a function rather than four lines in main
-// because the ordering is load-bearing -- the responder can only be registered
-// against a Set that already exists, and the check watching that registration
-// only exists afterwards -- and main is already carrying every other fatal
-// branch of the boot.
-func serveHealth(nc *nats.Conn, pool *sql.DB, grouped bus.Subscriber, log *zap.Logger) {
-	set := healthSet(nc, pool, grouped)
-	rpcHealth, err := bus.SubscribeRPCHealth(nc, serviceName, "loyalty-rpc", set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	set.Add(rpcHealth)
-
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
-}
-
 func main() {
 	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
 	defer func() { _ = log.Sync() }()
@@ -213,7 +167,12 @@ func main() {
 	if err := rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log); err != nil {
 		log.Fatal("failed to subscribe loyalty rpc", zap.Error(err))
 	}
-	serveHealth(nc, driver.DB(), grouped, log)
+	// The lane check covers the durable group folding data.loyalty.earned,
+	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
+	// degrading: a consumer that stays bound while failing to fetch stops points
+	// accruing entirely, with NATS and MySQL both still reading green.
+	svcboot.ServeDataHealth(log, nc, serviceName, "loyalty-rpc", driver.DB(),
+		bus.LaneCheck("data", grouped))
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),

@@ -12,6 +12,7 @@ package svcboot
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -125,11 +126,6 @@ type NATS struct {
 	RPCURL string
 	Pub    bus.Publisher
 	RPC    *nats.Conn
-	// service and queueGroup are carried from MustNATS so MustHealthRPC can
-	// register on the same identity without the caller repeating it, which is
-	// how a service ends up answering on one token and queueing on another.
-	service    string
-	queueGroup string
 	// Broadcast fans every event out to every instance; Grouped delivers each
 	// event to exactly one instance of the service's durable group.
 	Broadcast bus.Subscriber
@@ -164,11 +160,7 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 		core.Log.Fatal("failed to connect group subscriber", zap.Error(err))
 	}
 
-	n := NATS{
-		URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc,
-		Broadcast: broadcast, Grouped: grouped,
-		service: serviceName, queueGroup: queueGroup,
-	}
+	n := NATS{URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Broadcast: broadcast, Grouped: grouped}
 	closeIntake := func() {
 		_ = grouped.Close()
 		_ = broadcast.Close()
@@ -177,17 +169,43 @@ func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
 	return n, closeIntake
 }
 
-// MustHealthRPC attaches the health responder to the RPC connection and adds
-// the check that watches it to set. Fatal on failure, matching MustNATS.
+// ServeDataHealth builds a data-tier service's health surface, attaches the RPC
+// responder that answers out of it, and serves it. Fatal on failure, matching
+// MustNATS. Every service behind health.itsbagelbot.com/db calls this, so the
+// five of them cannot drift into reporting different things.
 //
-// It is separate from MustNATS because the responder answers out of the
-// service's health Set, and that Set is built later in boot, once the database
-// and subscribers it reports on exist. Registering earlier is what the RPC
-// surface used to do, and it could only ever answer a constant.
-func (n NATS) MustHealthRPC(core Core, set *health.Set) {
-	check, err := bus.SubscribeRPCHealth(n.RPC, n.service, n.queueGroup, set)
+// One Set backs both surfaces on purpose: the aggregate the projector serves at
+// /db can never disagree with what a pod reports over HTTP at the same instant.
+// The responder can only be registered against a Set that already exists, and
+// the check watching that registration only exists afterwards, so the ordering
+// here is load-bearing rather than stylistic.
+//
+// The mysql check sits alongside nats because PingContext exercises the same
+// pool the repository code uses, catching a wedged pool or rotated-out
+// credentials that IsConnected alone would miss (pkg/db/health.go). It degrades
+// rather than fails readiness: a hard failure would pull every pod of a service
+// out of rotation on one shared DB blip, turning a brief outage into a total
+// one. A healthy ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL
+// RTT); much higher means the pool went cold and is paying the ~18ms handshake
+// instead of reusing a connection.
+//
+// The database check stays with each service rather than being hoisted into the
+// projector's /db aggregate: the schemas are expected to split across servers,
+// and one hoisted check could not name which one went.
+//
+// extra carries whatever else a given service depends on — a lane check for the
+// ones that consume a durable group, nothing for the request/reply-only ones.
+// It is a parameter rather than a nil-able subscriber because bus.LaneCheck on a
+// nil Subscriber silently passes, which is worse than having no check at all.
+func ServeDataHealth(log *zap.Logger, nc *nats.Conn, service, queueGroup string, pool *sql.DB, extra ...health.Check) {
+	checks := append([]health.Check{health.NATS("nats", nc)}, extra...)
+	set := health.NewSet(service, append(checks, health.Degrades(db.HealthCheck("mysql", pool)))...)
+
+	rpcHealth, err := bus.SubscribeRPCHealth(nc, service, queueGroup, set)
 	if err != nil {
-		core.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
+		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	set.Add(check)
+	set.Add(rpcHealth)
+
+	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
 }
