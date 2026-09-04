@@ -7,6 +7,7 @@
 package discord
 
 import (
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/pkg/codec"
@@ -34,6 +35,51 @@ type Config struct {
 	SubscriberRoleID string `json:"subscriberRoleId"`
 	RegularsRoleID   string `json:"regularsRoleId"`
 	MemberRoleID     string `json:"memberRoleId"`
+
+	// SubsChannelID/SubsCategoryID and VIPChannelID/VIPCategoryID are the
+	// gated tier rooms the fill creates. They were produced by setup long
+	// before they were persisted here, which left them orphaned: the fill
+	// returned ids nothing ever stored, so the dashboard could not show the
+	// rooms and no module could post into them. See TierRooms.
+	SubsChannelID  string `json:"subsChannelId"`
+	SubsCategoryID string `json:"subsCategoryId"`
+	VIPChannelID   string `json:"vipChannelId"`
+	VIPCategoryID  string `json:"vipCategoryId"`
+
+	// TicketArchiveCategoryID is the category a closed ticket channel moves
+	// into instead of being deleted. Empty means delete on close, which is
+	// the behaviour a guild that never ran a fill with an Archive category
+	// keeps.
+	TicketArchiveCategoryID string `json:"ticketArchiveCategoryId"`
+	// TicketStaffRoles is a comma-separated list of role ids that may see
+	// and claim tickets. Empty falls back to StaffRoleIDs, so a guild that
+	// never touched the setting keeps the Owner/Lead Mod/Mods default.
+	TicketStaffRoles string `json:"ticketStaffRoleIds"`
+	// TicketOpenLimit is the per-user cap on simultaneously open tickets,
+	// "1".."5". See TicketOpenLimitN for the clamp.
+	TicketOpenLimit string `json:"ticketOpenLimit"`
+	// TicketTranscriptEnabled is default-ON (alertOn): a guild that turned
+	// the desk on wants the record of what was said in it, and losing a
+	// closed ticket's history is unrecoverable, unlike an unwanted upload.
+	TicketTranscriptEnabled string `json:"ticketTranscriptEnabled"`
+	// TicketLogChannelID is where close summaries and transcripts land.
+	// Empty falls back to LogChannelID (see TicketLogChannel).
+	TicketLogChannelID string `json:"ticketLogChannelId"`
+	// TicketPanel* are the desk embed's copy. Empty fields take the
+	// defaults in TicketPanel below rather than rendering blank.
+	TicketPanelTitle  string `json:"ticketPanelTitle"`
+	TicketPanelBody   string `json:"ticketPanelBody"`
+	TicketPanelColor  string `json:"ticketPanelColor"`
+	TicketPanelButton string `json:"ticketPanelButton"`
+
+	// PinnedRoles is a comma-separated list of slot=roleId pairs naming an
+	// EXISTING guild role the streamer picked for a template slot. Setup
+	// adopts these instead of creating or matching by name. See PinnedRole.
+	PinnedRoles string `json:"pinnedRoles"`
+	// AutoRoleEnabled is default-ON (alertOn): the member role on join is
+	// what the whole template's channel gating rests on, so a blank value
+	// must not leave every joiner without it.
+	AutoRoleEnabled string `json:"autoRoleEnabled"`
 
 	// Toggles are dashboard "on"/"off" strings. Empty means the default
 	// documented on each helper (live/clips on; goodbye off).
@@ -91,6 +137,168 @@ func (c Config) VoiceOn() bool   { return alertOn(c.VoiceEnabled) }
 func (c Config) TicketsOn() bool { return alertOn(c.TicketsEnabled) }
 func (c Config) LogsOn() bool    { return alertOn(c.LogsEnabled) }
 func (c Config) LevelsOn() bool  { return alertOn(c.LevelsEnabled) }
+
+// TicketTranscriptOn reports whether a closing ticket is transcribed. See
+// the field for why this is default-ON.
+func (c Config) TicketTranscriptOn() bool { return alertOn(c.TicketTranscriptEnabled) }
+
+// AutoRoleOn reports whether Bagel applies tier roles. Default ON; see the
+// field.
+func (c Config) AutoRoleOn() bool { return alertOn(c.AutoRoleEnabled) }
+
+// TierRooms is the gated subscriber/VIP furniture the fill created, in the
+// order the dashboard renders it. It exists so the four ids have exactly
+// one reader rather than four ad-hoc field reads (they had none at all
+// before, see the fields).
+type TierRooms struct {
+	SubsChannelID  string
+	SubsCategoryID string
+	VIPChannelID   string
+	VIPCategoryID  string
+}
+
+// TierRooms returns the subscriber and VIP room ids.
+func (c Config) TierRooms() TierRooms {
+	return TierRooms{
+		SubsChannelID:  c.SubsChannelID,
+		SubsCategoryID: c.SubsCategoryID,
+		VIPChannelID:   c.VIPChannelID,
+		VIPCategoryID:  c.VIPCategoryID,
+	}
+}
+
+// TicketArchiveCategory is the category closed tickets move into. Empty
+// means "delete the channel instead", which is the pre-archive behaviour.
+func (c Config) TicketArchiveCategory() string { return strings.TrimSpace(c.TicketArchiveCategoryID) }
+
+// TicketStaffRoleIDs are the roles that may see and claim a ticket. An
+// unset list falls back to StaffRoleIDs rather than to nobody: a guild that
+// enabled the desk without touching this setting must still have staff able
+// to answer, and an empty overwrite list would make every ticket private to
+// its opener.
+func (c Config) TicketStaffRoleIDs() []string {
+	if ids := splitList(c.TicketStaffRoles); len(ids) > 0 {
+		return ids
+	}
+	return c.StaffRoleIDs()
+}
+
+// TicketOpenLimitDefault is the per-user open-ticket cap when unset. One is
+// deliberate: a second ticket from the same person is almost always the
+// same problem restated, and the desk's whole cost is a staff member's
+// attention.
+const TicketOpenLimitDefault = 1
+
+// TicketOpenLimitMax bounds what the dashboard may ask for. Five open
+// tickets per user already saturates a small mod team.
+const TicketOpenLimitMax = 5
+
+// TicketOpenLimitN is the per-user cap, clamped into 1..TicketOpenLimitMax.
+// A malformed or out-of-range value reads as the default rather than as
+// zero, because zero would silently close the desk to everyone.
+func (c Config) TicketOpenLimitN() int {
+	n, err := strconv.Atoi(strings.TrimSpace(c.TicketOpenLimit))
+	if err != nil || n < 1 {
+		return TicketOpenLimitDefault
+	}
+	if n > TicketOpenLimitMax {
+		return TicketOpenLimitMax
+	}
+	return n
+}
+
+// TicketLogChannel is where ticket close summaries and transcripts post.
+// Falls back to the general log channel so a guild only has to configure
+// one place unless it wants tickets separated.
+func (c Config) TicketLogChannel() string {
+	if id := strings.TrimSpace(c.TicketLogChannelID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(c.LogChannelID)
+}
+
+// TicketPanelSpec is the resolved desk embed: never blank fields, so a
+// caller renders it without re-deciding defaults.
+type TicketPanelSpec struct {
+	Title  string
+	Body   string
+	Color  int
+	Button string
+}
+
+// Ticket panel defaults. Kept as constants so the dashboard preview and the
+// posted embed cannot drift.
+const (
+	TicketPanelTitleDefault  = "Need help?"
+	TicketPanelBodyDefault   = "Open a private ticket with the staff."
+	TicketPanelButtonDefault = "Open a ticket"
+
+	// TicketPanelTitleMax / BodyMax / ButtonMax are Discord's own limits,
+	// tightened where a shorter one reads better: an embed title may be 256
+	// and a description 4096, but a desk panel that long is a wall nobody
+	// reads, and a button label over 80 is truncated by Discord itself.
+	TicketPanelTitleMax  = 256
+	TicketPanelBodyMax   = 1000
+	TicketPanelButtonMax = 40
+)
+
+// TicketPanel resolves the desk embed copy, filling every empty field with
+// its default.
+func (c Config) TicketPanel() TicketPanelSpec {
+	spec := TicketPanelSpec{
+		Title:  firstNonEmpty(c.TicketPanelTitle, TicketPanelTitleDefault),
+		Body:   firstNonEmpty(c.TicketPanelBody, TicketPanelBodyDefault),
+		Button: firstNonEmpty(c.TicketPanelButton, TicketPanelButtonDefault),
+		Color:  LiveColor,
+	}
+	if color, ok := ParseHexColor(c.TicketPanelColor); ok {
+		spec.Color = color
+	}
+	return spec
+}
+
+func firstNonEmpty(v, fallback string) string {
+	if t := strings.TrimSpace(v); t != "" {
+		return t
+	}
+	return fallback
+}
+
+// ParseHexColor turns a dashboard "#rrggbb" string into Discord's RGB
+// integer. Only the six-digit form is accepted: the three-digit shorthand
+// would have to be doubled per nibble, and the colour input the dashboard
+// ships (<input type="color">) always emits six digits, so supporting the
+// short form buys nothing and hides typos like "#ff00" as valid.
+func ParseHexColor(s string) (int, bool) {
+	t := strings.TrimSpace(s)
+	if len(t) != 7 || t[0] != '#' {
+		return 0, false
+	}
+	n, err := strconv.ParseUint(t[1:], 16, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int(n), true
+}
+
+// splitList splits a comma-separated list WITHOUT lowercasing, unlike
+// splitCSV above: that one compares human names (categories, link
+// substrings) case-insensitively, while this one carries snowflakes and
+// slot keys where case is either irrelevant or, for camelCase slots like
+// leadMod, load-bearing.
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 // LinkGuardOn reports whether the linkguard automod module is active for
 // this guild. Default OFF (like GoodbyeOn), not the alertOn "anything but
