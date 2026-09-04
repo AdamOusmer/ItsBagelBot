@@ -22,7 +22,7 @@ export const SHOUTOUT_MODULE: ModuleDef =
       messageKey: 'message',
       defaultMessage:
         'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}',
-      // Tokens the shoutout module resolves (app/sesame/modules/shoutout.go).
+      // Tokens the shoutout module resolves (app/twitch/sesame/modules/shoutout.go).
       tokens: ['raider', 'raider.login', 'viewers'],
       previewSamples: { raider: 'CrustyCrumbs', 'raider.login': 'crustycrumbs', viewers: '42' }
     }

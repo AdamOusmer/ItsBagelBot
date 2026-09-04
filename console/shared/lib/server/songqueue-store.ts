@@ -16,7 +16,7 @@ import { getServerConfig } from './config';
 import { VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
 
 // SongQueueEntry mirrors the wire shape sesame's ValkeySongQueueStore writes
-// (app/sesame/engine/songqueue_valkey.go, songQueueDoc): short JSON keys, one
+// (app/twitch/sesame/engine/songqueue_valkey.go, songQueueDoc): short JSON keys, one
 // doc per broadcaster under songqueue:doc:<id>.
 export interface SongQueueEntry {
   tid: string;

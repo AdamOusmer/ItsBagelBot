@@ -72,7 +72,7 @@ func loadTopics() projectorTopics {
 		live:            env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
 		streamInfo:      env.Get("NATS_BROADCASTER_STREAM_INFO_SUBJECT", "bagel.rpc.broadcaster.stream_info.get"),
 		// loyalty is the RPC prefix the loyalty service subscribes under (see
-		// app/loyalty/rpc/rpc.go's Subscribe doc). Same default the dashboard's
+		// app/db/loyalty/rpc/rpc.go's Subscribe doc). Same default the dashboard's
 		// services.ts uses for its own loyalty client, so both sides of the
 		// Overview counter feature point at the same service without extra
 		// config in dev.

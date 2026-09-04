@@ -20,7 +20,7 @@
 //     songqueue module registers). They are independent halves: either can be
 //     on while the other is off, or both at once. The blob shape:
 //
-//       { // songqueueConfig fields: already read by app/sesame/modules/songqueue.go:
+//       { // songqueueConfig fields: already read by app/twitch/sesame/modules/songqueue.go:
 //         "maxDepth": number,
 //         "addMessage" | "playingMessage" | "retractMessage": string,
 //         // request-path switches: written here, consumed by the wiring that

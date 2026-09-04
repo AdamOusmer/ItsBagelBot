@@ -42,7 +42,7 @@ type Store struct {
 	// dropped counts rows THIS SINK failed to persist: a JSON-encode failure
 	// (should not happen; Row is plain data) or a Valkey write that errored
 	// or blew writeTimeout. It does NOT cover rows shed by the pipeline's
-	// observer mailbox under backpressure (app/sesame/engine/observe.go's
+	// observer mailbox under backpressure (app/twitch/sesame/engine/observe.go's
 	// per-lane dropped counter) — that counter is unexported and not
 	// reachable from this package, by design (see observe.go's package
 	// doc). Emit is never told about those; this is the only drop count
@@ -76,7 +76,7 @@ const (
 
 	// feedTTL is refreshed on every write, so it only expires a channel that
 	// has gone fully quiet. 12h matches SESAME_LIVE_TTL's default bound on a
-	// single stream (app/sesame/internal/config/config.go).
+	// single stream (app/twitch/sesame/internal/config/config.go).
 	feedTTL = 12 * time.Hour
 
 	maxTextBytes = 40

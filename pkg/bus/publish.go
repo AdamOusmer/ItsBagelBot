@@ -36,7 +36,7 @@ func publishPartition(ctx context.Context) string {
 // Delivery is at-least-once on every wire for definite outcomes; an ambiguous
 // one — a PubAck that never arrives, a send error after part of the write is
 // already on the socket — is dropped rather than replayed, matching
-// app/ingress/lib/ingress/config/publish.ex. The default wire is wireSingle;
+// app/twitch/ingress/lib/ingress/config/publish.ex. The default wire is wireSingle;
 // NATS_PUBLISH_WIRE opts a service into atomic or fast per deployment (PR #637
 // rolls atomic out service by service that way). Fast-Ingest exists for
 // arrival-time persistence, not rate: there the broker stores each message on

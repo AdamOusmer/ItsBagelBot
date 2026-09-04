@@ -62,7 +62,7 @@ type commandHandler func(*Handlers, context.Context, ddiscord.Command) error
 
 // dispatchTable is the Type -> handler map Dispatch looks up. It replaces
 // what used to be a long type switch: the precedent for this shape is
-// app/discord/engine/module/builder.go and app/outgress/internal/action's
+// app/discord/engine/module/builder.go and app/twitch/outgress/internal/action's
 // Registry, both of which trade a switch for a map validated once (there, at
 // Build; here, simply by being a Go map literal the compiler already checks
 // every entry of). Building it as a package-level var rather than per-call

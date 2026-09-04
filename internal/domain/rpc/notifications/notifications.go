@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package notificationsrpc holds the shared wire types for the notifications
-// service RPC surface, transcribed verbatim from app/notifications/rpc so
+// service RPC surface, transcribed verbatim from app/db/notifications/rpc so
 // consumers can reference them without pulling in the full service.
 package notificationsrpc
 

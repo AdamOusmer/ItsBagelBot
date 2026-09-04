@@ -1,0 +1,277 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package worker
+
+import (
+	"context"
+	"strconv"
+	"time"
+
+	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
+	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/monitor"
+
+	"go.uber.org/zap"
+)
+
+// processStreamStatus resolves one broadcaster's live state from Twitch (Helix
+// Get Streams) and writes it back into the live projection. It pays the reserved
+// system Helix bucket and runs only on the system lane (where SetLiveWriter has
+// attached the write-back). A permanent Twitch rejection is dropped; transient
+// errors nack so the paced redelivery retries.
+//
+// It calls StreamDetails rather than IsStreamLive so the same Helix response
+// also carries the title/game/viewer snapshot persistStreamInfo projects for
+// the Overview dashboard -- Helix budget on this path is scarce, and a second
+// call just to re-fetch what this one already returned would waste it.
+func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Message) error {
+	if w.live == nil {
+		w.log.Error("dropping stream_status job off the system lane")
+		return nil
+	}
+	if payload.BroadcasterID == "" {
+		w.log.Error("dropping stream_status job without broadcaster id")
+		return nil
+	}
+
+	if err := w.takeSystemHelix(ctx); err != nil {
+		return err
+	}
+
+	details, isLive, err := w.twitch.StreamDetails(ctx, payload.BroadcasterID)
+	if err != nil {
+		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
+	}
+
+	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
+		return err
+	}
+
+	w.persistStreamInfo(ctx, payload.BroadcasterID, isLive, details)
+
+	if isLive {
+		// Proactively re-verify in the background when a channel goes live.
+		w.scheduleModStatus(payload.BroadcasterID, payload.SenderID)
+	}
+
+	w.log.Debug("stream_status resolved",
+		zap.String("broadcaster_id", payload.BroadcasterID), zap.Bool("live", isLive))
+	return nil
+}
+
+// persistStreamInfo projects one Get Streams sample into the per-stream
+// metadata row the Overview dashboard reads (internal/projection's
+// settings:<user_id> hash). This is a DIFFERENT store from w.live above: live
+// writes outgress's own flat live:<id> key, the one every live-gated command
+// actually depends on. Conflating the two would mean a stream-info write
+// failure could look like a live-state failure, so this stays best-effort and
+// separate -- a Valkey error here is logged, never returned, and never blocks
+// or retries the job.
+func (w *Worker) persistStreamInfo(ctx context.Context, broadcasterID string, isLive bool, details twitch.StreamDetails) {
+	if w.streamInfo == nil {
+		return
+	}
+
+	prev, _, err := w.streamInfo.GetStreamInfo(ctx, broadcasterID)
+	if err != nil {
+		w.log.Warn("stream info: prior read failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+
+	info := nextStreamInfo(prev, isLive, details)
+	if err := w.streamInfo.SetStreamInfo(ctx, broadcasterID, info); err != nil {
+		w.log.Warn("stream info: projection write failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+}
+
+// nextStreamInfo folds one Get Streams sample onto the previously projected
+// row. It does no I/O so the merge rules can be unit tested plainly.
+//
+// PeakViewers caveat: this is a high-water mark of the samples outgress
+// happens to observe (this job and the cold-live escalation), never a true
+// stream maximum. A fixed poll would keep it fresher, but was rejected: this
+// path already pays a scarce reserved system Helix bucket per call, and a
+// poll loop would multiply that cost for a number that is advisory ("stream
+// is genuinely popular right now") rather than depended on. Between samples
+// the real peak can run higher and this field will never know it.
+func nextStreamInfo(prev projection.StreamInfo, isLive bool, details twitch.StreamDetails) projection.StreamInfo {
+	if !isLive {
+		prev.EndedAt = time.Now().UTC()
+		return prev
+	}
+
+	prev.Title = details.Title
+	prev.GameName = details.GameName
+	prev.ViewerCount = details.ViewerCount
+	prev.EndedAt = time.Time{}
+	if details.ViewerCount > prev.PeakViewers {
+		prev.PeakViewers = details.ViewerCount
+	}
+	if !details.StartedAt.IsZero() {
+		prev.StartedAt = details.StartedAt
+	}
+	return prev
+}
+
+// seedLiveStatus resolves the broadcaster's current live state right after an
+// EventSub enroll. Twitch only delivers stream.online for sessions that start
+// after the subscription exists, so a channel enrolled (or re-enrolled) while
+// its stream is already running never receives the go-live event for the
+// session in progress; without this seed the live projection stays cold and
+// every live-gated command reads offline until the next stream. Best-effort:
+// the enroll itself already succeeded, and the worker's cold-miss escalation
+// remains the safety net when the seed fails.
+func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
+	if w.live == nil {
+		return
+	}
+	if err := w.takeSystemHelix(ctx); err != nil {
+		w.log.Warn("live seed: no system budget, skipping",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	isLive, err := w.twitch.IsStreamLive(ctx, broadcasterID)
+	if err != nil {
+		w.log.Warn("live seed: stream check failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	if err := w.live.Write(ctx, broadcasterID, isLive); err != nil {
+		w.log.Warn("live seed: projection write failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	if isLive {
+		w.scheduleModStatus(broadcasterID, "")
+	}
+	w.log.Info("live state seeded after enroll",
+		zap.String("broadcaster_id", broadcasterID), zap.Bool("live", isLive))
+}
+
+// streamStatusFailure drops permanent Twitch rejections (retrying can never
+// fix them) and nacks the rest so the paced redelivery retries.
+func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, err error) error {
+	if isPermanent(err) {
+		w.log.Error("dropping stream_status twitch rejected",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		noticeError(ctx, err)
+		return nil
+	}
+
+	w.log.Warn("stream_status check failed, will retry",
+		zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	return err
+}
+
+// HandleStreamEvent reacts to a real Twitch stream.online / stream.offline
+// EventSub message off the ingress stream lane (env NATS_SUBJECT_LANE_STREAM).
+//
+// Background: the worker fleet escalates a cold live query to the system lane's
+// stream_status path, which re-verifies the bot's mod status as a side effect.
+// Once stream.online events flow and the projector writes the live key directly,
+// that live query is no longer cold, so the escalation (and its mod-status
+// re-verify) never runs. This handler restores the re-verify by reacting to the
+// real go-live event itself.
+//
+// It is bound under outgress's OWN durable group (separate from the projector's),
+// so every event is delivered here once in addition to the projector's copy. It
+// does NOT write live state (that is the projector's job); it only re-verifies
+// mod status, best-effort. Decoding is shared with the projector via the domain
+// stream_status decoder. Always acks (returns nil): a re-verify is advisory and
+// must never poison or replay the lane.
+func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
+	log := monitor.TxnLogger(msg.Context(), w.log)
+	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
+	if !ok {
+		// Not a stream.online/offline we understand (or malformed). Ack and move
+		// on; the decoder already rejects everything but those two types.
+		return nil
+	}
+
+	// Only go-live triggers the re-verify; an offline event needs no mod check.
+	if !status.Live {
+		return nil
+	}
+
+	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
+
+	w.scheduleModStatus(broadcasterID, "")
+	w.reauthBeaconOnLive(msg.Context(), broadcasterID)
+
+	log.Debug("mod status refresh scheduled on go-live",
+		zap.String("broadcaster_id", broadcasterID))
+	return nil
+}
+
+// reauthBeaconTTL spaces the go-live reconnect nudge: one chat line per
+// channel per window, however many times the stream restarts.
+const reauthBeaconTTL = 12 * time.Hour
+
+// reauthBeaconOnLive asks the streamer to reconnect, in their own chat, when
+// they go live on a channel whose authorization Twitch revoked. stream.online
+// survives a revocation (it needs no user grant) and chat send runs on the
+// app token backed by the bot's own user:bot grant plus its moderator seat,
+// so this path stays alive exactly when everything scoped is dead. That makes
+// go-live the one reliable moment the bot can still reach the streamer where
+// they are looking. Best-effort at every step; the beacon must never disturb
+// the go-live pipeline.
+func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
+	if w.reauth == nil {
+		return
+	}
+	ch, found, err := w.registry.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return
+	}
+	n, ok := liveNotice(ch)
+	if !ok {
+		return
+	}
+
+	armed, err := w.registry.ArmReauthBeacon(ctx, broadcasterID, reauthBeaconTTL)
+	if err != nil || !armed {
+		return
+	}
+
+	// One locale lookup feeds both surfaces.
+	locale := w.reauth.ResolveLocale(ctx, broadcasterID)
+	w.reauth.NotifyLocalized(ctx, broadcasterID, locale, n)
+
+	if err := w.sendReauthChat(ctx, broadcasterID, locale, n); err != nil {
+		w.log.Warn("reauth chat beacon failed",
+			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	w.log.Info("reauth chat beacon sent",
+		zap.String("broadcaster_id", broadcasterID),
+		zap.String("reason", n.request))
+}
+
+// liveNotice picks which reconnect notice a channel needs at go-live, if any.
+//
+// Revocation wins when both are set: it is the stronger statement (Twitch threw
+// the grant away) and the remedy is identical, so the shared beacon claim
+// deliberately yields one line rather than two for one problem.
+func liveNotice(ch manage.Channel) (notice, bool) {
+	switch {
+	case ch.SubState == subStateRevoked:
+		return noticeRevoked, true
+	case ch.GrantState == manage.GrantDead:
+		return noticeGrantDead, true
+	default:
+		return notice{}, false
+	}
+}
+
+// sendReauthChat pushes the localized reconnect line through the ordinary
+// chat action (registry route defaults + bot sender injection + per-channel
+// chat rate bucket), exactly as if a lane job carried it.
+func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
+	return w.sendBotChat(ctx, broadcasterID, w.reauth.ChatLine(locale, n))
+}

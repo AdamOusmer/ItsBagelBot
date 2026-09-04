@@ -3,8 +3,8 @@
 
 // MOD's values are not a dashboard-private vocabulary: each one is the
 // ModuleView key a sesame module reads its Configs blob out of, so the real
-// contract runs across languages (app/sesame/modules/*.go and, for timers,
-// app/sesame/engine/timers_valkey.go). The TypeScript-side test in
+// contract runs across languages (app/twitch/sesame/modules/*.go and, for timers,
+// app/twitch/sesame/engine/timers_valkey.go). The TypeScript-side test in
 // ../module-catalog.test.ts only proves MOD and the catalog agree with each
 // other — both sides could agree on a name Go stopped using, and the symptom
 // is silent: upsertModule writes a row nothing reads, the feature is simply
@@ -24,7 +24,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { MOD } from './index';
 
-const SESAME = join(import.meta.dir, '../../../../app/sesame');
+const SESAME = join(import.meta.dir, '../../../../app/twitch/sesame');
 const GO_DIRS = ['modules', 'engine'];
 
 // Catalog ids with no sesame module behind them, and why. Anything else in MOD

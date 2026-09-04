@@ -79,7 +79,7 @@ func TestPeakOf(t *testing.T) {
 
 // ---- integration: real Lua semantics need a real Valkey ----
 //
-// Opt-in like app/sesame/engine's hot-path tests (same VALKEY_TEST_ADDR
+// Opt-in like app/twitch/sesame/engine's hot-path tests (same VALKEY_TEST_ADDR
 // convention): the reset-vs-increment decision lives in bumpScript, a Lua
 // state machine that only exists inside a real Valkey interpreter.
 

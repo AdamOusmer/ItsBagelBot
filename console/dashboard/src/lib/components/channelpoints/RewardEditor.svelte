@@ -53,7 +53,7 @@
   ];
 
   // Rehearsal samples: the reward tokens expandReward resolves (see
-  // app/sesame/modules/channelpoints.go), with the draft's own values so the
+  // app/twitch/sesame/modules/channelpoints.go), with the draft's own values so the
   // preview shows the real reply, not placeholders.
   const samples = $derived<Record<string, string>>({
     user: 'sesame_sam',

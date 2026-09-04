@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package module is app/discord/engine's module authoring surface, built to
-// the same shape as app/sesame/module (a fluent Builder producing an
+// the same shape as app/twitch/sesame/module (a fluent Builder producing an
 // immutable Module the engine indexes) for the reason the task that created
 // this package gave: a reader who already knows sesame's shape should not
 // have to learn a second one for Discord.

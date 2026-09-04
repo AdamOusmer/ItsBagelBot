@@ -17,7 +17,7 @@ export const RAFFLE_MODULE: ModuleDef =
   // and each rehearses as its command (a viewer types the trigger, the bot
   // answers) with this reply's own sample values. The status readout, mod
   // confirmations and claim outcomes beyond the first stay fixed system text
-  // (see app/sesame/modules/raffle.go); so do the engine-posted auto-close
+  // (see app/twitch/sesame/modules/raffle.go); so do the engine-posted auto-close
   // and reminder announcements.
   replies: [
     {

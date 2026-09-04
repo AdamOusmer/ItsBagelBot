@@ -437,7 +437,7 @@ spec:
 # the three application nodes (the Deployment's hard hostname DoNotSchedule
 # spread decides the shape) so a burst does not wait on a scale-up.
 # Consumer names are bus.durableName("worker", subject) - sesame
-# shares the worker's pre-existing durable via fleetSubscriber (app/sesame/main.go
+# shares the worker's pre-existing durable via fleetSubscriber (app/twitch/sesame/main.go
 # bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log), ConsumerName=worker),
 # not per-lane groups like outgress. lag = num_pending + num_ack_pending on
 # that durable (see pkg/bus/bus.go laneConsumerConfig). Tune thresholds from

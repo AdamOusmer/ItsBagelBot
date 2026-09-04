@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# transactions (Go, root module) - build from the REPO ROOT:
+#   podman build -t itsbagelbot/transactions -f app/db/transactions/Containerfile .
+FROM docker.io/library/golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+# proxy.golang.org's backing GCS bucket occasionally TLS-handshake-times-out
+# mid-fetch under the ~30 concurrent matrix jobs this workflow runs
+# (observed: "go: github.com/klauspost/compress@v1.19.2: ... net/http: TLS
+# handshake timeout", one job out of the whole build failing while every
+# other job on the same go.mod/go.sum succeeded). go.mod/go.sum/toolchain
+# were verified fine (go mod download and go mod verify both succeed
+# locally and in this exact base image) - go mod download just makes one
+# unretried attempt per module, so a single blip is fatal. Retry instead
+# of masking it with GOFLAGS/GONOSUMCHECK.
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
+
+COPY internal/domain internal/domain
+COPY internal/utils internal/utils
+COPY pkg pkg
+COPY app/db/transactions app/db/transactions
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert ./app/db/transactions/ent/schema \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /transactions ./app/db/transactions
+
+# ---------------------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+COPY --from=build /transactions /transactions
+
+USER nonroot
+ENTRYPOINT ["/transactions"]

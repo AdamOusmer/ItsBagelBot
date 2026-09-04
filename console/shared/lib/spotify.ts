@@ -4,7 +4,7 @@
 // Song requests (Spotify) shapes, shared by the server store and the dashboard
 // components. The sr/redeem halves live inside the "songqueue" module blob:
 // written by the dashboard's songqueue page, read by sesame's songqueue module
-// (app/sesame/modules/songqueue.go). The perm strings are exactly what the
+// (app/twitch/sesame/modules/songqueue.go). The perm strings are exactly what the
 // engine's ParsePerm accepts, so the command gate reads them straight from the
 // blob with no translation.
 import type { RewardOnRedeem } from './types';

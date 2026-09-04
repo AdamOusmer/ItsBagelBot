@@ -44,7 +44,7 @@ import (
 const serviceName = "discord-engine"
 
 // ingressSubjects is DiscordIngressStream's own subject list, bound one
-// durable consumer per subject: same pattern app/outgress's stream/authz
+// durable consumer per subject: same pattern app/twitch/outgress's stream/authz
 // lanes and the old dingress egress role already use for a fixed, known
 // subject set.
 var ingressSubjects = []string{

@@ -25,7 +25,7 @@ type Deps struct {
 }
 
 // All returns every module the dispatcher indexes, mirroring
-// app/sesame/modules.All's role as the single assembly point.
+// app/twitch/sesame/modules.All's role as the single assembly point.
 func All(d Deps) []module.Module {
 	return []module.Module{
 		Welcome(),

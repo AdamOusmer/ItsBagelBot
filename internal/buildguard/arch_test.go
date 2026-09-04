@@ -31,9 +31,9 @@ func deps(t *testing.T, pkg string) []string {
 // line: the New Relic security agent links it for instrumentation hooks, and
 // without a registered driver it cannot open a connection.
 func TestSesameIsReadOnlyToData(t *testing.T) {
-	for _, dep := range deps(t, "ItsBagelBot/app/sesame") {
+	for _, dep := range deps(t, "ItsBagelBot/app/twitch/sesame") {
 		if isDataAccessPackage(dep) {
-			t.Fatalf("app/sesame must not depend on a DB/ent package, but links %q; sesame is read-only to the projection (Valkey + projector RPC)", dep)
+			t.Fatalf("app/twitch/sesame must not depend on a DB/ent package, but links %q; sesame is read-only to the projection (Valkey + projector RPC)", dep)
 		}
 	}
 }
@@ -52,10 +52,10 @@ func isDataAccessPackage(dep string) bool {
 // main, the single composition root. If the engine starts importing the modules
 // package, adding a feature would force engine edits (OCP violation).
 func TestEngineDoesNotImportModules(t *testing.T) {
-	const modules = "ItsBagelBot/app/sesame/modules"
-	for _, dep := range deps(t, "ItsBagelBot/app/sesame/engine") {
+	const modules = "ItsBagelBot/app/twitch/sesame/modules"
+	for _, dep := range deps(t, "ItsBagelBot/app/twitch/sesame/engine") {
 		if dep == modules {
-			t.Fatalf("app/sesame/engine must not import %q; the engine depends on module abstractions only, main wires the concrete modules", modules)
+			t.Fatalf("app/twitch/sesame/engine must not import %q; the engine depends on module abstractions only, main wires the concrete modules", modules)
 		}
 	}
 }

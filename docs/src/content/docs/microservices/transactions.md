@@ -5,7 +5,7 @@ title: Transactions
 description: Processes and records Tebex purchases.
 ---
 
-The Transactions service (`app/transactions/`) handles the financial and purchase records aspect of the bot. 
+The Transactions service (`app/db/transactions/`) handles the financial and purchase records aspect of the bot. 
 
 ## Architecture
 

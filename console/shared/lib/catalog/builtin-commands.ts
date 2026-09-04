@@ -104,7 +104,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
       'Viewers create a clip of the recent stream and the bot replies in chat with the clip link. Add an optional title after the command. Only works while you are live.',
     usage: ['!clip', '!clip <title>'],
     // Real reply format: "<clipper> clipped: <title> → <url>" (see
-    // app/outgress/internal/worker clipReplyText). {user} = the clipper, {target}
+    // app/twitch/outgress/internal/worker clipReplyText). {user} = the clipper, {target}
     // = the title argument (standard command token).
     preview: '{user} clipped: {target} → {clip}',
     previewArgs: 'That is amazing',
@@ -115,7 +115,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     liveOnly: true,
     // The reply is customizable: {clip} is the clip link, {user} the clipper,
     // {target} the title the viewer typed. Stored under the "reply" config key,
-    // read by sesame and expanded by outgress (see app/sesame/modules/clip.go).
+    // read by sesame and expanded by outgress (see app/twitch/sesame/modules/clip.go).
     editable: true,
     replyKey: 'reply',
     tokens: ['clip', 'user', 'target']

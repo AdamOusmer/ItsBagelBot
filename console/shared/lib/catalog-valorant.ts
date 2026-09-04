@@ -4,12 +4,12 @@
 // The Valorant module's catalog definition, split out of types.ts for the
 // same reason as catalog-games.ts: five customizable replies plus settings
 // make it one of the longest MODULE_CATALOG entries, and its token palettes
-// mirror app/sesame/modules/valorant.go (same config keys, same defaults).
+// mirror app/twitch/sesame/modules/valorant.go (same config keys, same defaults).
 import type { ModuleDef } from './types';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
   // All five !val views are gossip lookups, so their token palettes below
-  // mirror app/sesame/modules/valorant.go.
+  // mirror app/twitch/sesame/modules/valorant.go.
   id: 'valorant',
   label: 'Valorant Stats',
   tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',

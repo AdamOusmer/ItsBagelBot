@@ -12,7 +12,7 @@
 // role was the caller and paid nothing: it called the REST client directly
 // with no bucket at all. Outgress's Twitch chat lanes did pay one, through
 // pkg/ratelimit against a fleet-shared Valkey key (ratelimit:discord:global;
-// see the deleted app/outgress/internal/worker/discord.go's
+// see the deleted app/twitch/outgress/internal/worker/discord.go's
 // takeDiscordGlobal for the original).
 //
 // Discord's global limit is per BOT TOKEN, not per process. After the

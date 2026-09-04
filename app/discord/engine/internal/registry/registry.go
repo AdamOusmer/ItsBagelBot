@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Package registry indexes the assembled module.Module set for dispatch,
-// mirroring app/sesame/engine's Registry.
+// mirroring app/twitch/sesame/engine's Registry.
 package registry
 
 import (

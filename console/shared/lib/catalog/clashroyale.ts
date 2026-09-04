@@ -6,7 +6,7 @@ import type { ModuleDef } from './module-def';
 export const CLASHROYALE_MODULE: ModuleDef = 
 {
   // All four !cr views ride gossip's one shared Clash Royale profile cache,
-  // so their token palettes below mirror app/sesame/modules/clashroyale.go.
+  // so their token palettes below mirror app/twitch/sesame/modules/clashroyale.go.
   id: 'clashroyale',
   label: 'Clash Royale Stats',
   tagline: 'Clash Royale profiles, decks and Path of Legends standing in chat.',
