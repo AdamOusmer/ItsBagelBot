@@ -129,7 +129,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, notifications, backup-mysql]
+        values: [users, commands, discord-data, loyalty, modules, transactions, notifications, backup-mysql]
   policyTypes:
     - Egress
   egress:

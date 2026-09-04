@@ -216,7 +216,8 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
         commands: 'scoped',
         modules: 'scoped',
         transactions: 'scoped',
-        notifications: 'scoped'
+        notifications: 'scoped',
+        'discord-data': 'scoped'
       }
     }
   };

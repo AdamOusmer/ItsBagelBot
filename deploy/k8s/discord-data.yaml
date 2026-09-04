@@ -1,0 +1,274 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# discord-data is the MySQL-backed store behind Discord's guild bindings,
+# ticket desk and member XP (ADR 0007: one schema per data service). It sits in
+# the `db` namespace with the other data services, not beside discord-engine in
+# `app`: it owns a schema and a HeatWave connection, which is what the db
+# namespace's network policy and mTLS posture are built around.
+#
+# Unlike loyalty.yaml, which pulls its whole environment with
+# `envFrom: secretRef: loyalty-env`, every key below is wired with an explicit
+# secretKeyRef. That is deliberate and matches deploy/k8s/discord.yaml's rule:
+# the manifest itself is then the proof of what this pod can read, and a key
+# added to the Doppler project later does not silently appear in the pod's
+# environment.
+#
+# Doppler keys this secret must carry (project `discord-data`, config `prd`;
+# the Doppler project and its service token are created by hand):
+#   APP_ENV, NEW_RELIC_LICENSE_KEY   (references to the shared-* projects)
+#   NATS_RPC_USER, NATS_RPC_PASSWORD (discord_data_rpc; no BUS plane -- this
+#                                     service consumes no event lane)
+#   DB_ADDR, DB_USER, DB_PASS, DB_SCHEMA
+#   DB_CA_CERT, DB_TLS_MODE
+#   DB_CLIENT_CERT, DB_CLIENT_KEY    (both or neither: a half-set pair fails
+#                                     closed at startup, by design)
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: discord-data-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: discord-data-doppler-token
+  managedSecret:
+    name: discord-data-env
+    namespace: db
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-data
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  # Three replicas, one per worker node, so a discord-engine pod always has a
+  # local RPC responder for the guild-binding lookup that every gateway event
+  # makes. The verbs are queue-grouped, so the three share the load.
+  replicas: 3
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # The fleet is exactly three worker nodes with one-pod-per-node
+      # anti-affinity: there is no fourth node for a surge pod to land on, so
+      # maxSurge:0 is what keeps the roll from deadlocking.
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-data
+  template:
+    metadata:
+      labels:
+        app: discord-data
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: discord-data
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: discord-data
+      securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload: ndots 1
+      # (the kubelet default of 5 turns every short name into three guaranteed
+      # NXDOMAINs first), single-request-reopen (the parallel A/AAAA pair can
+      # race in conntrack and lose a reply to a full resolver timeout), and
+      # timeout 1 / attempts 3 so a dropped UDP packet costs 1s, not 5s. The
+      # measurements behind each are recorded in deploy/k8s/loyalty.yaml.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-service
+      containers:
+        - name: discord-data
+          image: ghcr.io/adamousmer/itsbagelbot/discord-data:main@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # RPC-only service: it answers request/reply and consumes no
+            # JetStream lane, so there is no NATS_HUB_URL and no BUS identity.
+            # NATS_URL is the local-dev fallback; the RPC plane stays on the
+            # node-local leaf.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus.
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # DB_MAX_OPEN_CONNS (sql pool) and DB_QUERY_CONCURRENCY
+            # (pkg/db/gate.go) are independent stacked gates; 8 each matches
+            # every sibling data service, measured 2026-08-20 against a MySQL
+            # server whose Max_used_connections was 50 of 200.
+            - name: DB_MAX_OPEN_CONNS
+              value: "8"
+            - name: DB_QUERY_CONCURRENCY
+              value: "8"
+            # Literal, not Doppler-sourced: a credential rotation through the
+            # admin console must never be able to turn migrations off. The pod
+            # env outranks whatever the Doppler project holds.
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+            # Serve HTTPS on 8080 with the cert-manager discord-data-tls cert
+            # so the traefik hop to /status is TLS end-to-end (pkg/health reads
+            # the pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/discord-data/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/discord-data/tls/tls.key
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: APP_ENV}
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NEW_RELIC_LICENSE_KEY}
+            # RPC-account credentials for discord_data_rpc.
+            - name: NATS_RPC_USER
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_RPC_USER}
+            - name: NATS_RPC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_RPC_PASSWORD}
+            # HeatWave connection. DB_ADDR must be host:port -- VERIFY_IDENTITY
+            # derives the TLS ServerName from its host (pkg/db/provider.go).
+            - name: DB_ADDR
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_ADDR}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_USER}
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_PASS}
+            - name: DB_SCHEMA
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_SCHEMA}
+            - name: DB_TLS_MODE
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_TLS_MODE}
+            - name: DB_CA_CERT
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_CA_CERT}
+            # mTLS client identity, inline PEM from Doppler rather than a
+            # mounted secret volume. Both or neither: exactly one set is a hard
+            # startup error, by design.
+            - name: DB_CLIENT_CERT
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_CLIENT_CERT}
+            - name: DB_CLIENT_KEY
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: DB_CLIENT_KEY}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/discord-data/tls, readOnly: true}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: discord-data-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: discord-data
+  namespace: db
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: discord-data

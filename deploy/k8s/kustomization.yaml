@@ -24,6 +24,10 @@ resources:
   - modules.yaml
   - notifications.yaml
   - discord.yaml
+  # discord-data is the MySQL-backed store behind Discord's guild bindings,
+  # ticket desk and member XP (schema bagel_discord, namespace db). Listed after
+  # discord.yaml so a fresh apply brings the store up beside its callers.
+  - discord-data.yaml
   - outgress.yaml
   - projector.yaml
   - transactions.yaml
