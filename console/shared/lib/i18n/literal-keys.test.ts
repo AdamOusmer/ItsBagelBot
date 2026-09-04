@@ -58,20 +58,24 @@ const CALL = /\bt\(\s*['"`]([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)['"`]/g;
 // resolving, so it can never rot into a permanent excuse.
 const KNOWN_MISSING = new Set<string>([]);
 
+// One file's worth of unresolved keys. Split out of the test body because the
+// scan is three nested loops (roots, files, matches) and CodeScene is right
+// that reading a failure out of that is harder than it needs to be.
+function missingKeysIn(file: string): string[] {
+  const label = file.split('/src/').pop() ?? file;
+  const out: string[] = [];
+  for (const m of readFileSync(file, 'utf8').matchAll(CALL)) {
+    const key = m[1];
+    if (!resolves(key) && !KNOWN_MISSING.has(key)) out.push(`${key}  (${label})`);
+  }
+  return out;
+}
+
+const ALL_SOURCES = ROOTS.flatMap(sourceFiles);
+
 describe('i18n literal keys', () => {
   test('every t() literal resolves in en.json', () => {
-    const missing: string[] = [];
-    for (const root of ROOTS) {
-      for (const file of sourceFiles(root)) {
-        const src = readFileSync(file, 'utf8');
-        for (const m of src.matchAll(CALL)) {
-          if (!resolves(m[1]) && !KNOWN_MISSING.has(m[1])) {
-            missing.push(`${m[1]}  (${file.split('/src/').pop() ?? file})`);
-          }
-        }
-      }
-    }
-    expect(missing).toEqual([]);
+    expect(ALL_SOURCES.flatMap(missingKeysIn)).toEqual([]);
   });
 
   // The baseline must shrink, never linger. Once a key is given a string, it
