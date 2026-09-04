@@ -47,6 +47,18 @@ SERVICES = {
     "notifications": "notifications",
     "gossip": "gossip",
 }
+# Discord is three runtimes sharing one Doppler project (discord-svc), unlike
+# every service above which owns its project. A shared project cannot hold three
+# different values under the plain NATS_USER/NATS_PASSWORD names, so each
+# runtime's pair is prefixed here and deploy/k8s/discord.yaml maps the prefixed
+# key back onto NATS_USER/NATS_PASSWORD/NATS_RPC_USER/NATS_RPC_PASSWORD in the
+# matching container. The account stems still match nats-auth.conf's users
+# (discord_ingress_bus, discord_ingress_rpc, ...), so the broker hashes land
+# under the same NATS_BCRYPT_<STEM>_{BUS,RPC} names as everything else.
+SHARED_PROJECTS: dict[str, list[str]] = {
+    "discord-svc": ["discord_ingress", "discord_engine", "discord_outgress"],
+}
+
 NO_RPC: set[str] = set()
 # gossip, notifications and transactions are RPC-only (no JetStream/event
 # plane): none of the three ever dial the hub, so none gets a BUS user.
@@ -89,6 +101,20 @@ def main() -> None:
             kv["NATS_RPC_USER"] = f"{svc}_rpc"
             kv["NATS_RPC_PASSWORD"] = rpc_pw
             broker[f"NATS_BCRYPT_{svc.upper()}_RPC"] = bcrypt_hash(rpc_pw)
+        doppler_set(project, kv)
+
+    for project, stems in SHARED_PROJECTS.items():
+        kv = {}
+        for stem in stems:
+            prefix = stem.upper()
+            bus_pw = gen()
+            rpc_pw = gen()
+            kv[f"{prefix}_BUS_USER"] = f"{stem}_bus"
+            kv[f"{prefix}_BUS_PASSWORD"] = bus_pw
+            kv[f"{prefix}_RPC_USER"] = f"{stem}_rpc"
+            kv[f"{prefix}_RPC_PASSWORD"] = rpc_pw
+            broker[f"NATS_BCRYPT_{prefix}_BUS"] = bcrypt_hash(bus_pw)
+            broker[f"NATS_BCRYPT_{prefix}_RPC"] = bcrypt_hash(rpc_pw)
         doppler_set(project, kv)
 
     # System account (server monitoring; no fleet service uses it).
