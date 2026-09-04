@@ -2,6 +2,35 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { test, expect } from '@playwright/test';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// The changelog page renders one entry per file in src/content/changelog,
+// newest version first. Deriving the expectation from those files (rather than
+// hard-coding the release list) keeps the ordering assertion honest without
+// making every release a test edit — the property under test is the ORDER, and
+// the comparator here is written independently of the page's own.
+const CHANGELOG_DIR = fileURLToPath(new URL('../src/content/changelog', import.meta.url));
+const PRERELEASE_RANK = { alpha: 0, beta: 1, prerelease: 2 };
+
+function versionKey(version) {
+    const [core, pre] = version.replace(/^v/, '').split('-');
+    const parts = core.split('.').map(Number);
+    return [...parts, pre ? PRERELEASE_RANK[pre] ?? 3 : 4];
+}
+
+function releasesNewestFirst() {
+    return readdirSync(CHANGELOG_DIR)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => JSON.parse(readFileSync(`${CHANGELOG_DIR}/${f}`, 'utf8')))
+        .sort((a, b) => {
+            const [x, y] = [versionKey(b.version), versionKey(a.version)];
+            for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+                if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+            }
+            return 0;
+        });
+}
 
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
@@ -72,8 +101,10 @@ test.describe('ItsBagelBot site', () => {
 
         // Quiet work bento
         const quiet = page.locator('#quiet-work');
-        await expect(quiet.locator('[data-card]')).toHaveCount(5);
+        await expect(quiet.locator('[data-card]')).toHaveCount(6);
         await expect(quiet).toContainText('While you play, it sweeps the floor.');
+        // Song requests lead the bento: the full-width card is the first one.
+        await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
 
         // Four-layer safety pipeline
         const safety = page.locator('#safety-layers');
@@ -200,32 +231,43 @@ test.describe('ItsBagelBot site', () => {
         await page.goto('/changelog');
 
         await expect(page.locator('.phero__title')).toContainText("What's new.");
+        const releases = releasesNewestFirst();
         const items = page.locator('.clog__item');
-        await expect(items).toHaveCount(5);
+        await expect(items).toHaveCount(releases.length);
 
         // Same publish day must not scramble order: newest version tag first.
-        await expect(items.nth(0).locator('.clog__ver')).toHaveText('v0.1.3-beta');
-        await expect(items.nth(1).locator('.clog__ver')).toHaveText('v0.1.2-beta');
-        await expect(items.nth(2).locator('.clog__ver')).toHaveText('v0.1.1-beta');
-        await expect(items.nth(3).locator('.clog__ver')).toHaveText('v0.1.0-beta');
-        await expect(items.nth(4).locator('.clog__ver')).toHaveText('v0.1.0-alpha');
+        for (const [i, release] of releases.entries()) {
+            await expect(items.nth(i).locator('.clog__ver')).toHaveText(release.version);
+        }
 
-        await expect(items.first()).toContainText('Your Spotify, your modules, fewer clicks');
-        await expect(items.first().locator('.rtag--beta')).toHaveCount(1);
-        await expect(items.first().locator('.clog__highlights li')).toHaveCount(4);
-        await expect(items.first()).toContainText('Add to Twitch starts OAuth right away');
-        await expect(items.first().locator('a[href="https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.3-beta"]')).toHaveCount(1);
+        const newest = releases[0];
+        const title = newest.title.en ?? newest.title;
+        const highlights = newest.highlights.en ?? newest.highlights;
+        await expect(items.first()).toContainText(title);
+        await expect(items.first().locator(`.rtag--${newest.tag}`)).toHaveCount(1);
+        await expect(items.first().locator('.clog__highlights li')).toHaveCount(highlights.length);
+        await expect(items.first()).toContainText(highlights[0]);
+        await expect(items.first().locator(`a[href="${newest.github}"]`)).toHaveCount(1);
 
-        await expect(items.nth(1)).toContainText('JSON data sources in the command editor');
-        await expect(items.nth(2)).toContainText('Security fixes.');
+        // The import wizard names every source it reads, so the release that
+        // shipped it stays findable by the bot a streamer is leaving behind.
+        const importer = items.filter({ hasText: 'Import wizard v1' });
+        await expect(importer.locator('.clog__ver')).toHaveText('v0.1.2-beta');
+        await expect(importer).toContainText('StreamElements, Moobot and Streamlabs Chatbot');
+        await expect(items.filter({ hasText: 'Import from Nightbot' }).locator('.clog__ver')).toHaveText('v0.1.4-beta');
+
         await expect(items.last().locator('.rtag--alpha')).toHaveCount(1);
 
         await expect(page.locator('footer a[aria-label="Changelog"]')).toHaveCount(1);
 
         await page.goto('/fr/changelog');
         await expect(page.locator('.phero__title')).toContainText('Quoi de neuf.');
-        await expect(page.locator('.clog__item').first()).toContainText('Votre Spotify, vos modules, moins de clics');
+        await expect(page.locator('.clog__item').first()).toContainText(newest.title.fr ?? title);
         await expect(page.locator('.rtag--beta').first()).toContainText('Bêta');
+        // The French entry names the same import sources as the English one.
+        await expect(page.locator('.clog__item').filter({ hasText: "Assistant d'import v1" })).toContainText(
+            'StreamElements, Moobot et Streamlabs Chatbot'
+        );
         await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
     });
 

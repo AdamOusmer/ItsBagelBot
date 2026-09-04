@@ -9,6 +9,7 @@
   "highlights": {
     "en": [
       "Loyalty leaderboard. Per-channel rankings, finer mod permissions, and viewer-to-viewer point transfers.",
+      "Import wizard v1. Bring an existing setup over in one pass: commands, timers, counters and quotes from StreamElements, Moobot and Streamlabs Chatbot. Files are parsed in your browser and every item is reviewed before anything is written. (Nightbot joined the wizard in v0.1.4-beta.)",
       "Song Requests console. Its own page, plus standalone !song and !skip.",
       "AutoMod link safety. Dynamic link checks, plus an opt-in clips-only filter.",
       "JSON data sources in the command editor. Build a URL fetch, sample the response as a clickable tree, pick the field you want, and insert it into the reply. No separate fetches page, no pasting raw JSON by hand.",
@@ -17,6 +18,7 @@
     ],
     "fr": [
       "Classement de fidélité. Classements par chaîne, permissions de modération plus fines et transferts de points entre spectateurs.",
+      "Assistant d'import v1. Reprenez une configuration existante en une seule passe : commandes, timers, compteurs et citations depuis StreamElements, Moobot et Streamlabs Chatbot. Les fichiers sont analysés dans votre navigateur et chaque élément est revu avant la moindre écriture. (Nightbot a rejoint l'assistant en v0.1.4-beta.)",
       "Console des demandes de chansons. Sa propre page, plus les commandes !song et !skip.",
       "Sécurité des liens AutoMod. Vérification dynamique des liens, plus un filtre optionnel « clips uniquement ».",
       "Sources de données JSON dans l'éditeur de commandes. Créez une requête URL, échantillonnez la réponse en arbre cliquable, choisissez le champ voulu et insérez-le dans la réponse. Plus de page fetches séparée, plus de collage de JSON brut à la main.",

@@ -1,10 +1,12 @@
 # ItsBagelBot
 
-> ItsBagelBot is an all-in-one Twitch companion bot for streamers: automated chat
-> moderation, custom commands, timers, giveaways, polls, song requests, channel-points
-> rewards, and game-stat integrations. Every feature is free forever, with no feature
-> gates, no trials, and no card required. It is privacy-first (no trackers, no data sold)
-> and source-available.
+> ItsBagelBot is an all-in-one Twitch companion bot for streamers: Spotify song
+> requests (!sr), automated chat moderation, custom commands, timers, giveaways,
+> polls, channel-points rewards, and game-stat integrations. It is a free Twitch
+> song request bot — viewers request tracks in chat and they land in the
+> streamer's own Spotify queue. Every feature is free forever, with no feature
+> gates, no trials, and no card required. It is privacy-first (no trackers, no
+> data sold) and source-available.
 
 ## What it is
 
@@ -18,10 +20,24 @@
 
 - Automated chat moderation: a multi-layer system (static rule gates + a classifier "jury" + a cross-channel raid-signature network) removes spam, slurs, and scam links, usually before viewers see them.
 - Custom commands and variables with cooldowns and shout-outs.
-- Timers, polls, giveaways (verifiably random draws), and self-managing song-request queues.
+- Spotify song requests: viewers type `!sr <song or Spotify link>` in Twitch chat and the track is added to the streamer's real Spotify queue. Free, with no premium gate.
+- Timers, polls, and giveaways (verifiably random draws).
 - Channel Points rewards, including a Govee smart-light integration (viewers redeem to drive stream lights).
 - Game-stat integrations: Hypixel Bedwars stats, MCSR Ranked (Minecraft speedrun) Elo, and Fortnite stats plus the daily item shop, pulled straight into chat.
+- Config import wizard: bring an existing setup over from Nightbot, StreamElements, Moobot or Streamlabs Chatbot — commands, timers, counters and quotes. Files are parsed in the browser and every item is reviewed before it is written. Nightbot connects over OAuth; the others take an export file.
 - Setup takes about two minutes; rules read like sentences, not code. Uninstall anytime.
+
+## Spotify song requests (Twitch)
+
+ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it answers:
+
+- **How do viewers request a song on Twitch?** They type `!sr <song name>` or `!sr <Spotify link>` in chat. ItsBagelBot resolves the track and adds it to the streamer's Spotify queue.
+- **Does it control real Spotify?** Yes. Requests drive the streamer's actual Spotify player, so queue positions stay in sync with what is really playing — it is not a separate in-browser playlist.
+- **What commands are there?** `!sr` (request a song), `!srlist` (show the queue), `!skip` (skip the current track), `!song` / `!np` / `!current` (what is playing right now).
+- **How is it set up?** Connect Spotify from the dashboard's Song Requests page. Streamers can also bring their own Spotify application; the credentials are sealed on our side and never exposed.
+- **Is it free?** Yes. Song requests are part of the free tier, forever. Premium only buys message priority, never features.
+- **Can requests be limited?** Yes — per-viewer limits, queue caps, and moderator skip controls, configured in the dashboard.
+- **What does it cost the streamer?** Nothing. A Spotify account that can play music is the only requirement.
 
 ## Pages
 
@@ -37,7 +53,7 @@
 
 ## Product and resources
 
-- [Dashboard](https://dashboard.itsbagelbot.com): sign in with Twitch to configure the bot.
+- [Dashboard](https://dashboard.itsbagelbot.com): sign in with Twitch to configure the bot; the Song Requests page connects Spotify and holds the live queue.
 - [Documentation](https://docs.itsbagelbot.com): guides, architecture, and reference.
 - [Discord community](https://discord.gg/SZ2remwSDv): fastest support channel.
 - [GitHub](https://github.com/AdamOusmer/ItsBagelBot): source code and issue tracker.
