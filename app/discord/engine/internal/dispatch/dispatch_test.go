@@ -38,6 +38,44 @@ type fakeChannels struct {
 	deleted  []string
 	moved    []string
 	modified []string
+	// opened/claimed/closed/added record the ticket-desk orchestrations, which
+	// outgress performs on the engine's behalf (see
+	// internal/domain/rpc/discordoutgress/ticket.go).
+	opened  []discordoutgress.TicketOpenRequest
+	claimed []discordoutgress.TicketClaimRequest
+	closed  []discordoutgress.TicketCloseRequest
+	added   []discordoutgress.TicketMemberAddRequest
+}
+
+func (f *fakeChannels) TicketOpen(_ context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id := "ch-" + req.Name
+	f.created = append(f.created, id)
+	f.opened = append(f.opened, req)
+	return discordoutgress.TicketOpenReply{ChannelID: id, MessageID: "msg-" + id}, nil
+}
+
+func (f *fakeChannels) TicketClaim(_ context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.claimed = append(f.claimed, req)
+	return discordoutgress.TicketClaimReply{}, nil
+}
+
+func (f *fakeChannels) TicketClose(_ context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = append(f.closed, req)
+	f.deleted = append(f.deleted, req.ChannelID)
+	return discordoutgress.TicketCloseReply{}, nil
+}
+
+func (f *fakeChannels) TicketAddMember(_ context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.added = append(f.added, req)
+	return discordoutgress.TicketMemberAddReply{}, nil
 }
 
 func (f *fakeChannels) CreateChannel(_ context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error) {
@@ -124,7 +162,7 @@ func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordst
 		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
 		Log:  zap.NewNop(),
 	}
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Purge: channels, Log: zap.NewNop()})...)
+	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Tickets: channels, Purge: channels, Log: zap.NewNop()})...)
 	d := &Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: log.publish, Log: zap.NewNop()}
 	return d, channels, store, log
 }
@@ -239,7 +277,7 @@ func interactionPayload(guildID, channelID string, data map[string]any, member m
 }
 
 func TestTicketOpenAndClose(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketCategoryID: "cat"})
+	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: "g1", TicketCategoryID: "cat"})
 	member := map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"}
 
 	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "support",
@@ -247,8 +285,8 @@ func TestTicketOpenAndClose(t *testing.T) {
 	if len(channels.created) != 1 {
 		t.Fatalf("ticket channel = %v", channels.created)
 	}
-	if len(log.byType(ddiscord.TypePostPanel)) != 1 {
-		t.Fatal("expected a panel posted into the new ticket channel")
+	if len(channels.opened) != 1 || len(channels.opened[0].Buttons) != 2 {
+		t.Fatalf("ticket open request = %+v", channels.opened)
 	}
 
 	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],

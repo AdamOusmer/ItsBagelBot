@@ -95,7 +95,6 @@ func main() {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
 	defer valkeyClient.Close()
-	store := discordstore.New(valkeyClient)
 	projStore := projection.NewStore(valkeyClient)
 	// linkguard.New panics on a nil client (deliberately -- see its own
 	// doc), which is why it is built here, right next to the Fatal above
@@ -118,6 +117,11 @@ func main() {
 		return bus.PublishJSON(ctx, pub, ddiscord.Lane(c.Type), c)
 	}
 
+	store := discordstore.Select(discordstore.Selection{
+		Enabled: cfg.DiscordDataEnabled, NC: nc, Prefix: cfg.DiscordDataRPCPrefix,
+		Client: valkeyClient, Log: log,
+	})
+
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
 	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)), Log: log}
 	// ownInvite shares valkeyClient with guard and store above -- it is
@@ -135,7 +139,7 @@ func main() {
 		Log:     log,
 	}
 	reg := registry.New(modules.All(modules.Deps{
-		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
+		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}

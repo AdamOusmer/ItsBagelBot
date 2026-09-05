@@ -70,10 +70,74 @@ type Clone struct {
 }
 
 // Ticket is one private support channel.
+//
+// ID, Status, ClaimedBy and PanelMessageID are only ever populated by the RPC
+// store: they are columns on discord-data's tickets row. The pure-Valkey
+// fallback keeps the three fields the old key held (channel, guild, opener)
+// and leaves the rest zero, which is what the degraded mode's boot WARN is
+// warning about -- see NewRPC.
 type Ticket struct {
-	ChannelID string
+	ID             int
+	ChannelID      string
+	GuildID        string
+	OpenerID       string
+	Status         string
+	ClaimedBy      string
+	PanelMessageID string
+}
+
+// TicketOpen records one newly created ticket channel.
+type TicketOpen struct {
 	GuildID   string
+	ChannelID string
 	OpenerID  string
+	Subject   string
+	// PanelMessageID is the ticket card already posted into the channel.
+	PanelMessageID string
+	// OpenLimit is the guild's per-member cap on simultaneously open tickets.
+	// Zero means unlimited. The check happens where the rows are (see
+	// TicketOpenResult.AtLimit): a caller-side count would need a second round
+	// trip and would still race with itself.
+	OpenLimit int
+}
+
+// TicketOpenResult is what recording a ticket answered. AtLimit is the refusal:
+// the row was NOT written, and OpenCount is how many the opener already holds.
+type TicketOpenResult struct {
+	TicketID  int
+	OpenCount int
+	AtLimit   bool
+}
+
+// TicketClaim marks a ticket as being handled by StaffID.
+type TicketClaim struct {
+	GuildID   string
+	ChannelID string
+	StaffID   string
+}
+
+// TicketClose ends a ticket. A non-empty ArchivedChannelID means the channel
+// was moved into the archive category rather than deleted.
+type TicketClose struct {
+	GuildID           string
+	ChannelID         string
+	ClosedBy          string
+	ArchivedChannelID string
+}
+
+// Transcript is one closed ticket's rendered history.
+type Transcript struct {
+	TicketID     int
+	Body         string
+	MessageCount int
+}
+
+// DeskPanel is the remembered ticket-desk panel message, so a repost can
+// delete the previous one instead of stacking a second panel under the first.
+type DeskPanel struct {
+	GuildID   string
+	ChannelID string
+	MessageID string
 }
 
 // VoiceSeat is one user's voice-channel membership at a point in time; the
@@ -97,12 +161,22 @@ type Store interface {
 	CloneCount(ctx context.Context, g Guild) int
 	ForgetClone(ctx context.Context, c Clone) error
 
-	TrackTicket(ctx context.Context, t Ticket) error
+	TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error)
 	Ticket(ctx context.Context, ch Channel) (Ticket, bool)
-	ForgetTicket(ctx context.Context, ch Channel) error
+	// OpenTicketCount is how many live tickets one member holds in one guild.
+	// Read before the channel is created: it both refuses an over-limit open
+	// without a wasted Discord round trip and numbers the new channel.
+	OpenTicketCount(ctx context.Context, m Member) int
+	ClaimTicket(ctx context.Context, c TicketClaim) error
+	CloseTicket(ctx context.Context, c TicketClose) error
+	// PutTranscript stores a closed ticket's rendered history against its row.
+	// A zero TicketID is a no-op: the pure-Valkey fallback has no ticket rows
+	// to hang a transcript on.
+	PutTranscript(ctx context.Context, t Transcript) error
 
 	ClaimDesk(ctx context.Context, g Guild) bool
-	RememberDesk(ctx context.Context, g Guild) error
+	RememberDesk(ctx context.Context, p DeskPanel) error
+	Desk(ctx context.Context, g Guild) (DeskPanel, bool)
 
 	AddXP(ctx context.Context, m Member) (xp int, leveled bool, level int)
 	ClaimDaily(ctx context.Context, m Member) (ok bool, xp int)
@@ -134,6 +208,31 @@ func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
 func ticketKey(ch Channel) string { return "discord:ticket:" + ch.ID }
 
 func deskKey(g Guild) string { return "discord:ticketdesk:" + g.ID }
+
+// deskClaimed is the desk key's value when the panel was posted but its
+// message id is unknown -- the engine's EnsureDesk posts through a
+// fire-and-forget Command and never learns one. It is the byte the key has
+// always held, kept so an existing claim keeps reading as a claim.
+const deskClaimed = "1"
+
+// parseDeskValue reads the desk key. "1" (or anything without a separator) is
+// a claim with no remembered message; "<channel>|<message>" is a panel a
+// repost can delete first.
+func parseDeskValue(guildID, raw string) (DeskPanel, bool) {
+	channelID, messageID, ok := strings.Cut(raw, "|")
+	if !ok {
+		return DeskPanel{GuildID: guildID}, true
+	}
+	return DeskPanel{GuildID: guildID, ChannelID: channelID, MessageID: messageID}, true
+}
+
+// Ticket status values, mirroring discorddata's (which mirror the ent enum).
+// Duplicated rather than imported: the pure-Valkey path must not depend on the
+// data service's wire package to name the state of its own key.
+const (
+	TicketStatusOpen    = "open"
+	TicketStatusClaimed = "claimed"
+)
 
 func xpKey(m Member) string { return "discord:xp:" + m.key() }
 
@@ -212,37 +311,97 @@ func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
 	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
 }
 
-func (s valkeyStore) TrackTicket(ctx context.Context, t Ticket) error {
+// ticketValue is the pure-Valkey ticket record. It is a pipe-joined triple
+// rather than JSON to stay byte-compatible with the key this store has always
+// written; the claim and panel fields are appended, and a value written by an
+// older build simply parses with them empty.
+func ticketValue(t Ticket) string {
+	return strings.Join([]string{t.GuildID, t.OpenerID, t.ClaimedBy, t.PanelMessageID}, "|")
+}
+
+func parseTicketValue(channelID, raw string) (Ticket, bool) {
+	parts := strings.Split(raw, "|")
+	if len(parts) < 2 {
+		return Ticket{}, false
+	}
+	t := Ticket{ChannelID: channelID, GuildID: parts[0], OpenerID: parts[1], Status: TicketStatusOpen}
+	if len(parts) > 2 {
+		t.ClaimedBy = parts[2]
+	}
+	if len(parts) > 3 {
+		t.PanelMessageID = parts[3]
+	}
+	if t.ClaimedBy != "" {
+		t.Status = TicketStatusClaimed
+	}
+	return t, true
+}
+
+// TrackTicket writes the channel key. The open limit is NOT enforced here: a
+// per-member count would mean a second Valkey keyspace that nothing else reads
+// and that no other replica's writes are ordered against, and this store is
+// already the degraded fallback (see NewRPC's boot WARN).
+func (s valkeyStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
 	ch := Channel{ID: t.ChannelID}
-	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(t.GuildID+"|"+t.OpenerID).Build()).Error()
+	value := ticketValue(Ticket{GuildID: t.GuildID, OpenerID: t.OpenerID, PanelMessageID: t.PanelMessageID})
+	err := s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(value).Build()).Error()
+	return TicketOpenResult{}, err
 }
 
 func (s valkeyStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
-	if err != nil {
+	if err != nil || raw == "" {
 		return Ticket{}, false
 	}
-	if raw == "" {
-		return Ticket{}, false
-	}
-	guildID, openerID, ok := strings.Cut(raw, "|")
-	if !ok {
-		return Ticket{}, false
-	}
-	return Ticket{ChannelID: ch.ID, GuildID: guildID, OpenerID: openerID}, true
+	return parseTicketValue(ch.ID, raw)
 }
 
-func (s valkeyStore) ForgetTicket(ctx context.Context, ch Channel) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(ch)).Build()).Error()
+// OpenTicketCount always answers zero. Counting a member's open tickets means
+// a per-member index this keyspace does not keep, and the fallback mode is
+// already the one without limits (see NewRPC's boot WARN): the number it would
+// have to invent is worse than the honest zero, which lets the ticket open.
+func (s valkeyStore) OpenTicketCount(context.Context, Member) int { return 0 }
+
+func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
+	t, ok := s.Ticket(ctx, Channel{ID: c.ChannelID})
+	if !ok {
+		return nil
+	}
+	t.ClaimedBy = c.StaffID
+	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(Channel{ID: c.ChannelID})).Value(ticketValue(t)).Build()).Error()
 }
+
+// CloseTicket drops the key. Nothing survives a close in this mode -- the
+// history the desk shows lives on discord-data's row, which the fallback has
+// no access to.
+func (s valkeyStore) CloseTicket(ctx context.Context, c TicketClose) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(Channel{ID: c.ChannelID})).Build()).Error()
+}
+
+// PutTranscript drops the transcript. There is no ticket row to attach it to
+// and a 2 MiB Valkey value per closed ticket, kept forever, is the wrong shape
+// for a cache; the close summary still posts to the log channel either way.
+func (s valkeyStore) PutTranscript(context.Context, Transcript) error { return nil }
 
 func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
-	err := s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Nx().Build()).Error()
+	err := s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value(deskClaimed).Nx().Build()).Error()
 	return err == nil
 }
 
-func (s valkeyStore) RememberDesk(ctx context.Context, g Guild) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Build()).Error()
+func (s valkeyStore) RememberDesk(ctx context.Context, p DeskPanel) error {
+	value := deskClaimed
+	if p.MessageID != "" {
+		value = p.ChannelID + "|" + p.MessageID
+	}
+	return s.client.Do(ctx, s.client.B().Set().Key(deskKey(Guild{ID: p.GuildID})).Value(value).Build()).Error()
+}
+
+func (s valkeyStore) Desk(ctx context.Context, g Guild) (DeskPanel, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(deskKey(g)).Build()).ToString()
+	if err != nil || raw == "" {
+		return DeskPanel{}, false
+	}
+	return parseDeskValue(g.ID, raw)
 }
 
 func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
@@ -339,32 +498,35 @@ func levelOf(xp int) int { return ddiscord.LevelOf(int64(xp)) }
 
 // Mem is an in-process Store for tests.
 type Mem struct {
-	mu         sync.Mutex
-	guild      map[string]string
-	clones     map[string]Clone
-	cloneCount map[string]int
-	tickets    map[string]Ticket
-	desk       map[string]bool
-	xp         map[string]int
-	xpCD       map[string]bool
-	daily      map[string]bool
-	occupants  map[string]map[string]struct{}
-	seats      map[string]string
+	mu          sync.Mutex
+	guild       map[string]string
+	clones      map[string]Clone
+	cloneCount  map[string]int
+	tickets     map[string]Ticket
+	transcripts map[int]Transcript
+	ticketSeq   int
+	desk        map[string]DeskPanel
+	xp          map[string]int
+	xpCD        map[string]bool
+	daily       map[string]bool
+	occupants   map[string]map[string]struct{}
+	seats       map[string]string
 }
 
 // NewMem builds an empty memory store.
 func NewMem() *Mem {
 	return &Mem{
-		guild:      map[string]string{},
-		clones:     map[string]Clone{},
-		cloneCount: map[string]int{},
-		tickets:    map[string]Ticket{},
-		desk:       map[string]bool{},
-		xp:         map[string]int{},
-		xpCD:       map[string]bool{},
-		daily:      map[string]bool{},
-		occupants:  map[string]map[string]struct{}{},
-		seats:      map[string]string{},
+		guild:       map[string]string{},
+		clones:      map[string]Clone{},
+		cloneCount:  map[string]int{},
+		tickets:     map[string]Ticket{},
+		transcripts: map[int]Transcript{},
+		desk:        map[string]DeskPanel{},
+		xp:          map[string]int{},
+		xpCD:        map[string]bool{},
+		daily:       map[string]bool{},
+		occupants:   map[string]map[string]struct{}{},
+		seats:       map[string]string{},
 	}
 }
 
@@ -430,11 +592,32 @@ func (m *Mem) ForgetClone(_ context.Context, c Clone) error {
 	return nil
 }
 
-func (m *Mem) TrackTicket(_ context.Context, t Ticket) error {
+// TrackTicket records a ticket and enforces the open limit, which the Valkey
+// store does not: the double is what module tests exercise the limit refusal
+// against, and a double that cannot refuse would let that path go untested.
+func (m *Mem) TrackTicket(_ context.Context, t TicketOpen) (TicketOpenResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.tickets[t.ChannelID] = t
-	return nil
+	count := m.openCountLocked(t.GuildID, t.OpenerID)
+	if t.OpenLimit > 0 && count >= t.OpenLimit {
+		return TicketOpenResult{OpenCount: count, AtLimit: true}, nil
+	}
+	m.ticketSeq++
+	m.tickets[t.ChannelID] = Ticket{
+		ID: m.ticketSeq, ChannelID: t.ChannelID, GuildID: t.GuildID, OpenerID: t.OpenerID,
+		Status: TicketStatusOpen, PanelMessageID: t.PanelMessageID,
+	}
+	return TicketOpenResult{TicketID: m.ticketSeq, OpenCount: count + 1}, nil
+}
+
+func (m *Mem) openCountLocked(guildID, openerID string) int {
+	n := 0
+	for _, t := range m.tickets {
+		if t.GuildID == guildID && t.OpenerID == openerID {
+			n++
+		}
+	}
+	return n
 }
 
 func (m *Mem) Ticket(_ context.Context, ch Channel) (Ticket, bool) {
@@ -444,28 +627,71 @@ func (m *Mem) Ticket(_ context.Context, ch Channel) (Ticket, bool) {
 	return t, ok
 }
 
-func (m *Mem) ForgetTicket(_ context.Context, ch Channel) error {
+func (m *Mem) OpenTicketCount(_ context.Context, mem Member) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.tickets, ch.ID)
+	return m.openCountLocked(mem.GuildID, mem.UserID)
+}
+
+func (m *Mem) ClaimTicket(_ context.Context, c TicketClaim) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.tickets[c.ChannelID]
+	if !ok {
+		return nil
+	}
+	t.ClaimedBy = c.StaffID
+	t.Status = TicketStatusClaimed
+	m.tickets[c.ChannelID] = t
 	return nil
+}
+
+func (m *Mem) CloseTicket(_ context.Context, c TicketClose) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.tickets, c.ChannelID)
+	return nil
+}
+
+// PutTranscript keeps the body so a test can assert what was rendered.
+func (m *Mem) PutTranscript(_ context.Context, t Transcript) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.transcripts[t.TicketID] = t
+	return nil
+}
+
+// Transcript reads back what PutTranscript stored. Test-only: it is not part
+// of Store, because nothing in production reads a transcript back through it.
+func (m *Mem) Transcript(id int) (Transcript, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.transcripts[id]
+	return t, ok
 }
 
 func (m *Mem) ClaimDesk(_ context.Context, g Guild) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.desk[g.ID] {
+	if _, claimed := m.desk[g.ID]; claimed {
 		return false
 	}
-	m.desk[g.ID] = true
+	m.desk[g.ID] = DeskPanel{GuildID: g.ID}
 	return true
 }
 
-func (m *Mem) RememberDesk(_ context.Context, g Guild) error {
+func (m *Mem) RememberDesk(_ context.Context, p DeskPanel) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.desk[g.ID] = true
+	m.desk[p.GuildID] = p
 	return nil
+}
+
+func (m *Mem) Desk(_ context.Context, g Guild) (DeskPanel, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.desk[g.ID]
+	return p, ok
 }
 
 func (m *Mem) AddXP(_ context.Context, mem Member) (int, bool, int) {

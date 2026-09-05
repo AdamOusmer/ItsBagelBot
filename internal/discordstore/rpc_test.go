@@ -206,7 +206,7 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	})
 	rpc.reply(discorddata.VerbTicketClose, discorddata.TicketCloseReply{TicketID: 1, OpenerID: "u1"})
 
-	if err := store.TrackTicket(ctx, Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
+	if _, err := store.TrackTicket(ctx, TicketOpen{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
 		t.Fatalf("TrackTicket: %v", err)
 	}
 	if opened.ChannelID != "c1" || opened.OpenerID != "u1" {
@@ -217,8 +217,8 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	if !ok || got.OpenerID != "u1" || got.GuildID != "g1" {
 		t.Fatalf("Ticket = %+v, %v", got, ok)
 	}
-	if err := store.ForgetTicket(ctx, Channel{ID: "c1"}); err != nil {
-		t.Fatalf("ForgetTicket: %v", err)
+	if err := store.CloseTicket(ctx, TicketClose{ChannelID: "c1", GuildID: "g1"}); err != nil {
+		t.Fatalf("CloseTicket: %v", err)
 	}
 }
 
@@ -228,7 +228,7 @@ func TestRPCStoreTicketReadsFalseWhenUnreachable(t *testing.T) {
 	if _, ok := store.Ticket(context.Background(), Channel{ID: "c1"}); ok {
 		t.Fatal("an unreachable discord-data must read as 'not a ticket channel'")
 	}
-	if err := store.TrackTicket(context.Background(), Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err == nil {
+	if _, err := store.TrackTicket(context.Background(), TicketOpen{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err == nil {
 		t.Fatal("an unreachable discord-data must fail the ticket write")
 	}
 }

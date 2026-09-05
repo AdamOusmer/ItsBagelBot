@@ -418,21 +418,29 @@ func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) e
 	return f.ensureChildChannels(ctx, parentID, out)
 }
 
+// postTicketDesk posts the first desk panel. The spec is a zero Config's --
+// the template defaults -- because setup runs BEFORE the streamer has ever
+// opened the ticket section of the dashboard, so there is no saved copy to
+// render yet; editing it there and pressing Repost is what replaces this
+// message with their own (see the desk.repost RPC).
 func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
 	if out.TicketChannelID == "" {
 		return
 	}
-	_, err := f.api.SendPanel(ctx, discapi.EmbedPost{
+	spec := ddiscord.Config{}.TicketPanel()
+	msg, err := f.api.SendPanel(ctx, discapi.EmbedPost{
 		ChannelID: out.TicketChannelID,
-		Embed:     ddiscord.TicketPanelEmbed(),
-	}, discapi.TicketDeskButtons())
+		Embed:     ddiscord.TicketPanelEmbed(spec),
+	}, discapi.TicketDeskButtons(spec.Button))
 	if err != nil {
 		return
 	}
 	if f.w.store == nil {
 		return
 	}
-	_ = f.w.store.RememberDesk(ctx, discordstore.Guild{ID: out.GuildID})
+	_ = f.w.store.RememberDesk(ctx, discordstore.DeskPanel{
+		GuildID: out.GuildID, ChannelID: out.TicketChannelID, MessageID: msg.ID,
+	})
 }
 
 func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {

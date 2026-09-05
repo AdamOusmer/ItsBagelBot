@@ -3,7 +3,10 @@
 
 package config
 
-import "ItsBagelBot/pkg/env"
+import (
+	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/pkg/env"
+)
 
 // Config is the process env app/discord/engine boots from.
 type Config struct {
@@ -27,6 +30,12 @@ type Config struct {
 	// app/discord/outgress; this is a private prefix between engine and
 	// outgress only.
 	DiscordOutgressRPCPrefix string
+	// DiscordDataEnabled / DiscordDataRPCPrefix pick where the durable half of
+	// the Discord state lives: discord-data (bindings, tickets, XP) with the
+	// guild binding cached in Valkey, or Valkey alone. Off is the pre-service
+	// behaviour and boots with a WARN -- see discordstore.Select.
+	DiscordDataEnabled   bool
+	DiscordDataRPCPrefix string
 	// TwitchOutgressRPCPrefix is Twitch outgress's (app/twitch/outgress) own RPC
 	// prefix -- engine is a CALLER here (the go-live embed's Helix-details
 	// fallback), the same relationship dingress's egress role had to it.
@@ -53,6 +62,8 @@ func Load() Config {
 		NATSURL:                  natsURL,
 		NATSRPCURL:               env.Get("NATS_RPC_URL", natsURL),
 		DiscordOutgressRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
+		DiscordDataEnabled:       env.Get("DISCORD_DATA_ENABLED", "") == "true",
+		DiscordDataRPCPrefix:     env.Get("NATS_DISCORD_DATA_RPC_PREFIX", discordstore.DefaultRPCPrefix),
 		TwitchOutgressRPCPrefix:  env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 		StreamLaneSubject:        env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
 		ClipCreatedSubject:       env.Get("NATS_SUBJECT_CLIP_CREATED", "data.twitch.clip.created"),

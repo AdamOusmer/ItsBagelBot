@@ -3,7 +3,10 @@
 
 package config
 
-import "ItsBagelBot/pkg/env"
+import (
+	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/pkg/env"
+)
 
 // Config is the process env app/discord/outgress boots from. outgress holds
 // every Discord REST call in the split (see main.go's package doc), so it
@@ -32,7 +35,11 @@ type Config struct {
 	// (see internal/domain/rpc/discordoutgress). Private to engine and
 	// outgress; never touched by the dashboard.
 	DiscordEngineRPCPrefix string
-	DiscordEngineRPCQueue  string
+	// DiscordDataEnabled / DiscordDataRPCPrefix pick where the durable half of
+	// the Discord state lives. See discordstore.Select.
+	DiscordDataEnabled    bool
+	DiscordDataRPCPrefix  string
+	DiscordEngineRPCQueue string
 
 	// OutgressRPCPrefix is TWITCH outgress's own RPC prefix (app/twitch/outgress),
 	// unrelated to this service's own two prefixes above. Unused today (no
@@ -56,6 +63,8 @@ func Load() Config {
 		RPCPrefix:              env.Get("NATS_DINGRESS_RPC_PREFIX", "bagel.rpc.dingress"),
 		RPCQueue:               env.Get("NATS_DINGRESS_RPC_QUEUE", "dingress-rpc"),
 		DiscordEngineRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
+		DiscordDataEnabled:     env.Get("DISCORD_DATA_ENABLED", "") == "true",
+		DiscordDataRPCPrefix:   env.Get("NATS_DISCORD_DATA_RPC_PREFIX", discordstore.DefaultRPCPrefix),
 		DiscordEngineRPCQueue:  env.Get("NATS_DISCORD_OUTGRESS_RPC_QUEUE", "discord-outgress-rpc"),
 		OutgressRPCPrefix:      env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 	}

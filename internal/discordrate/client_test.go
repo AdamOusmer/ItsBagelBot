@@ -214,3 +214,13 @@ func (f *fakeRest) SetChannelOverwrite(context.Context, discordapi.ChannelOverwr
 	f.sends++
 	return nil
 }
+
+func (f *fakeRest) ListMessagesFull(context.Context, discordapi.MessagePage) ([]discordapi.FullMessage, error) {
+	f.sends++
+	return nil, nil
+}
+
+func (f *fakeRest) SendFile(context.Context, discordapi.FileUpload) (discordapi.Message, error) {
+	f.sends++
+	return discordapi.Message{}, nil
+}

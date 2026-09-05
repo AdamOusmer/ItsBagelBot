@@ -395,9 +395,17 @@ type ChannelPatch struct {
 	Name                 string
 	UserLimit            int
 	PermissionOverwrites []PermissionOverwrite
+	// ParentID moves the channel between categories. A pointer, unlike the
+	// other fields, because all three states are meaningful and only a pointer
+	// tells them apart: nil leaves the category alone, a pointer to "" sends
+	// JSON null and moves the channel OUT of every category, and a pointer to
+	// an id moves it under that category. The archive step needs the third and
+	// every other caller needs the first.
+	ParentID *string
 }
 
-// ModifyChannel updates a channel's name, user limit, or overwrites.
+// ModifyChannel updates a channel's name, user limit, overwrites, or parent
+// category.
 func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
 	body := map[string]any{}
 	if patch.Name != "" {
@@ -409,7 +417,22 @@ func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
 	if patch.PermissionOverwrites != nil {
 		body["permission_overwrites"] = patch.PermissionOverwrites
 	}
+	addParent(body, patch.ParentID)
 	return c.do(ctx, request{method: http.MethodPatch, path: "/channels/" + url.PathEscape(patch.ID), body: body})
+}
+
+// addParent writes the parent_id field, mapping an empty target onto JSON
+// null (Discord's "no category") rather than the empty string, which it
+// rejects as a malformed snowflake.
+func addParent(body map[string]any, parentID *string) {
+	if parentID == nil {
+		return
+	}
+	if *parentID == "" {
+		body["parent_id"] = nil
+		return
+	}
+	body["parent_id"] = *parentID
 }
 
 // MemberTimeout is PATCH /guilds/{guild}/members/{user} communication_disabled_until.

@@ -66,7 +66,6 @@ func main() {
 	defer valkeyClient.Close()
 
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
-	store := discordstore.New(valkeyClient)
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 	botStatus := kv.NewBotStatusReader(valkeyClient)
@@ -75,6 +74,11 @@ func main() {
 
 	nc := connectNATS(cfg, log)
 	defer nc.Close()
+
+	store := discordstore.Select(discordstore.Selection{
+		Enabled: cfg.DiscordDataEnabled, NC: nc, Prefix: cfg.DiscordDataRPCPrefix,
+		Client: valkeyClient, Log: log,
+	})
 
 	subscribeRPCs(rpcDeps{
 		NC: nc, Cfg: cfg, Rest: rest, Store: store,
@@ -167,10 +171,15 @@ func subscribeRPCs(deps rpcDeps) {
 	}); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, rpc.EngineWiring{
-		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue, App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
-	}); err != nil {
+	engineWiring := rpc.EngineWiring{
+		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue,
+		App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
+	}
+	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, engineWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
+	}
+	if err := rpc.SubscribeTickets(deps.Rest, engineWiring); err != nil {
+		deps.Log.Fatal("failed to subscribe discord ticket rpc", zap.Error(err))
 	}
 }
 
