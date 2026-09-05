@@ -83,6 +83,20 @@ func (_c *TicketCreate) SetNillableSubject(v *string) *TicketCreate {
 	return _c
 }
 
+// SetPanelMessageID sets the "panel_message_id" field.
+func (_c *TicketCreate) SetPanelMessageID(v string) *TicketCreate {
+	_c.mutation.SetPanelMessageID(v)
+	return _c
+}
+
+// SetNillablePanelMessageID sets the "panel_message_id" field if the given value is not nil.
+func (_c *TicketCreate) SetNillablePanelMessageID(v *string) *TicketCreate {
+	if v != nil {
+		_c.SetPanelMessageID(*v)
+	}
+	return _c
+}
+
 // SetOpenedAt sets the "opened_at" field.
 func (_c *TicketCreate) SetOpenedAt(v time.Time) *TicketCreate {
 	_c.mutation.SetOpenedAt(v)
@@ -219,6 +233,10 @@ func (_c *TicketCreate) defaults() {
 		v := ticket.DefaultSubject
 		_c.mutation.SetSubject(v)
 	}
+	if _, ok := _c.mutation.PanelMessageID(); !ok {
+		v := ticket.DefaultPanelMessageID
+		_c.mutation.SetPanelMessageID(v)
+	}
 	if _, ok := _c.mutation.OpenedAt(); !ok {
 		v := ticket.DefaultOpenedAt()
 		_c.mutation.SetOpenedAt(v)
@@ -275,6 +293,11 @@ func (_c *TicketCreate) check() error {
 	if v, ok := _c.mutation.Subject(); ok {
 		if err := ticket.SubjectValidator(v); err != nil {
 			return &ValidationError{Name: "subject", err: fmt.Errorf(`ent: validator failed for field "Ticket.subject": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.PanelMessageID(); ok {
+		if err := ticket.PanelMessageIDValidator(v); err != nil {
+			return &ValidationError{Name: "panel_message_id", err: fmt.Errorf(`ent: validator failed for field "Ticket.panel_message_id": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.OpenedAt(); !ok {
@@ -340,6 +363,10 @@ func (_c *TicketCreate) createSpec() (*Ticket, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Subject(); ok {
 		_spec.SetField(ticket.FieldSubject, field.TypeString, value)
 		_node.Subject = value
+	}
+	if value, ok := _c.mutation.PanelMessageID(); ok {
+		_spec.SetField(ticket.FieldPanelMessageID, field.TypeString, value)
+		_node.PanelMessageID = value
 	}
 	if value, ok := _c.mutation.OpenedAt(); ok {
 		_spec.SetField(ticket.FieldOpenedAt, field.TypeTime, value)
@@ -474,6 +501,24 @@ func (u *TicketUpsert) UpdateSubject() *TicketUpsert {
 // ClearSubject clears the value of the "subject" field.
 func (u *TicketUpsert) ClearSubject() *TicketUpsert {
 	u.SetNull(ticket.FieldSubject)
+	return u
+}
+
+// SetPanelMessageID sets the "panel_message_id" field.
+func (u *TicketUpsert) SetPanelMessageID(v string) *TicketUpsert {
+	u.Set(ticket.FieldPanelMessageID, v)
+	return u
+}
+
+// UpdatePanelMessageID sets the "panel_message_id" field to the value that was provided on create.
+func (u *TicketUpsert) UpdatePanelMessageID() *TicketUpsert {
+	u.SetExcluded(ticket.FieldPanelMessageID)
+	return u
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (u *TicketUpsert) ClearPanelMessageID() *TicketUpsert {
+	u.SetNull(ticket.FieldPanelMessageID)
 	return u
 }
 
@@ -656,6 +701,27 @@ func (u *TicketUpsertOne) UpdateSubject() *TicketUpsertOne {
 func (u *TicketUpsertOne) ClearSubject() *TicketUpsertOne {
 	return u.Update(func(s *TicketUpsert) {
 		s.ClearSubject()
+	})
+}
+
+// SetPanelMessageID sets the "panel_message_id" field.
+func (u *TicketUpsertOne) SetPanelMessageID(v string) *TicketUpsertOne {
+	return u.Update(func(s *TicketUpsert) {
+		s.SetPanelMessageID(v)
+	})
+}
+
+// UpdatePanelMessageID sets the "panel_message_id" field to the value that was provided on create.
+func (u *TicketUpsertOne) UpdatePanelMessageID() *TicketUpsertOne {
+	return u.Update(func(s *TicketUpsert) {
+		s.UpdatePanelMessageID()
+	})
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (u *TicketUpsertOne) ClearPanelMessageID() *TicketUpsertOne {
+	return u.Update(func(s *TicketUpsert) {
+		s.ClearPanelMessageID()
 	})
 }
 
@@ -1016,6 +1082,27 @@ func (u *TicketUpsertBulk) UpdateSubject() *TicketUpsertBulk {
 func (u *TicketUpsertBulk) ClearSubject() *TicketUpsertBulk {
 	return u.Update(func(s *TicketUpsert) {
 		s.ClearSubject()
+	})
+}
+
+// SetPanelMessageID sets the "panel_message_id" field.
+func (u *TicketUpsertBulk) SetPanelMessageID(v string) *TicketUpsertBulk {
+	return u.Update(func(s *TicketUpsert) {
+		s.SetPanelMessageID(v)
+	})
+}
+
+// UpdatePanelMessageID sets the "panel_message_id" field to the value that was provided on create.
+func (u *TicketUpsertBulk) UpdatePanelMessageID() *TicketUpsertBulk {
+	return u.Update(func(s *TicketUpsert) {
+		s.UpdatePanelMessageID()
+	})
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (u *TicketUpsertBulk) ClearPanelMessageID() *TicketUpsertBulk {
+	return u.Update(func(s *TicketUpsert) {
+		s.ClearPanelMessageID()
 	})
 }
 

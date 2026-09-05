@@ -26,6 +26,12 @@ type OpenParams struct {
 	ChannelID string
 	OpenerID  string
 	Subject   string
+	// PanelMessageID is the "Ticket" card the engine posted into the channel
+	// just before recording the row. It arrives at open time rather than in a
+	// later update because the engine has both ids by then (outgress creates
+	// the channel and posts the card in one round trip) and a second write
+	// would be a second transaction for a value that never changes.
+	PanelMessageID string
 	// Limit is the guild's configured per-member cap on open tickets. Zero
 	// means unlimited. It arrives in the request rather than being read here:
 	// the config lives in the modules blob, and this service deliberately owns
@@ -86,6 +92,7 @@ func openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, int, error) {
 		SetChannelID(p.ChannelID).
 		SetOpenerID(p.OpenerID).
 		SetSubject(p.Subject).
+		SetPanelMessageID(p.PanelMessageID).
 		SetStatus(ticket.StatusOpen).
 		Save(ctx)
 	if err != nil {
@@ -104,6 +111,25 @@ func openCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, 
 			ticket.StatusIn(ticket.StatusOpen, ticket.StatusClaimed),
 		).
 		Count(ctx)
+}
+
+// TicketOpenCount is openCount outside a transaction: the desk asks before it
+// creates a channel, both to refuse an over-limit open without a wasted REST
+// round trip and to number the channel it is about to create. The answer is
+// advisory for the same reason openInTx's check is (see TicketOpen).
+func (s *Store) TicketOpenCount(ctx context.Context, guildID, openerID string) (int, error) {
+	if guildID == "" || openerID == "" {
+		return 0, ErrInvalidInput
+	}
+	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		return s.client.Ticket.Query().
+			Where(
+				ticket.GuildIDEQ(guildID),
+				ticket.OpenerIDEQ(openerID),
+				ticket.StatusIn(ticket.StatusOpen, ticket.StatusClaimed),
+			).
+			Count(ctx)
+	})
 }
 
 // TicketClaim marks the ticket in channelID as claimed by staffID. A second

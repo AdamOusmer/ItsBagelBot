@@ -1332,6 +1332,7 @@ type TicketMutation struct {
 	status              *ticket.Status
 	claimed_by          *string
 	subject             *string
+	panel_message_id    *string
 	opened_at           *time.Time
 	claimed_at          *time.Time
 	closed_at           *time.Time
@@ -1685,6 +1686,55 @@ func (m *TicketMutation) ResetSubject() {
 	delete(m.clearedFields, ticket.FieldSubject)
 }
 
+// SetPanelMessageID sets the "panel_message_id" field.
+func (m *TicketMutation) SetPanelMessageID(s string) {
+	m.panel_message_id = &s
+}
+
+// PanelMessageID returns the value of the "panel_message_id" field in the mutation.
+func (m *TicketMutation) PanelMessageID() (r string, exists bool) {
+	v := m.panel_message_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPanelMessageID returns the old "panel_message_id" field's value of the Ticket entity.
+// If the Ticket object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TicketMutation) OldPanelMessageID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPanelMessageID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPanelMessageID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPanelMessageID: %w", err)
+	}
+	return oldValue.PanelMessageID, nil
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (m *TicketMutation) ClearPanelMessageID() {
+	m.panel_message_id = nil
+	m.clearedFields[ticket.FieldPanelMessageID] = struct{}{}
+}
+
+// PanelMessageIDCleared returns if the "panel_message_id" field was cleared in this mutation.
+func (m *TicketMutation) PanelMessageIDCleared() bool {
+	_, ok := m.clearedFields[ticket.FieldPanelMessageID]
+	return ok
+}
+
+// ResetPanelMessageID resets all changes to the "panel_message_id" field.
+func (m *TicketMutation) ResetPanelMessageID() {
+	m.panel_message_id = nil
+	delete(m.clearedFields, ticket.FieldPanelMessageID)
+}
+
 // SetOpenedAt sets the "opened_at" field.
 func (m *TicketMutation) SetOpenedAt(t time.Time) {
 	m.opened_at = &t
@@ -1990,7 +2040,7 @@ func (m *TicketMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TicketMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.guild_id != nil {
 		fields = append(fields, ticket.FieldGuildID)
 	}
@@ -2008,6 +2058,9 @@ func (m *TicketMutation) Fields() []string {
 	}
 	if m.subject != nil {
 		fields = append(fields, ticket.FieldSubject)
+	}
+	if m.panel_message_id != nil {
+		fields = append(fields, ticket.FieldPanelMessageID)
 	}
 	if m.opened_at != nil {
 		fields = append(fields, ticket.FieldOpenedAt)
@@ -2044,6 +2097,8 @@ func (m *TicketMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimedBy()
 	case ticket.FieldSubject:
 		return m.Subject()
+	case ticket.FieldPanelMessageID:
+		return m.PanelMessageID()
 	case ticket.FieldOpenedAt:
 		return m.OpenedAt()
 	case ticket.FieldClaimedAt:
@@ -2075,6 +2130,8 @@ func (m *TicketMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldClaimedBy(ctx)
 	case ticket.FieldSubject:
 		return m.OldSubject(ctx)
+	case ticket.FieldPanelMessageID:
+		return m.OldPanelMessageID(ctx)
 	case ticket.FieldOpenedAt:
 		return m.OldOpenedAt(ctx)
 	case ticket.FieldClaimedAt:
@@ -2135,6 +2192,13 @@ func (m *TicketMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSubject(v)
+		return nil
+	case ticket.FieldPanelMessageID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPanelMessageID(v)
 		return nil
 	case ticket.FieldOpenedAt:
 		v, ok := value.(time.Time)
@@ -2207,6 +2271,9 @@ func (m *TicketMutation) ClearedFields() []string {
 	if m.FieldCleared(ticket.FieldSubject) {
 		fields = append(fields, ticket.FieldSubject)
 	}
+	if m.FieldCleared(ticket.FieldPanelMessageID) {
+		fields = append(fields, ticket.FieldPanelMessageID)
+	}
 	if m.FieldCleared(ticket.FieldClaimedAt) {
 		fields = append(fields, ticket.FieldClaimedAt)
 	}
@@ -2238,6 +2305,9 @@ func (m *TicketMutation) ClearField(name string) error {
 		return nil
 	case ticket.FieldSubject:
 		m.ClearSubject()
+		return nil
+	case ticket.FieldPanelMessageID:
+		m.ClearPanelMessageID()
 		return nil
 	case ticket.FieldClaimedAt:
 		m.ClearClaimedAt()
@@ -2276,6 +2346,9 @@ func (m *TicketMutation) ResetField(name string) error {
 		return nil
 	case ticket.FieldSubject:
 		m.ResetSubject()
+		return nil
+	case ticket.FieldPanelMessageID:
+		m.ResetPanelMessageID()
 		return nil
 	case ticket.FieldOpenedAt:
 		m.ResetOpenedAt()

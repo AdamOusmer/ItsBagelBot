@@ -30,6 +30,8 @@ type Ticket struct {
 	ClaimedBy string `json:"claimed_by,omitempty"`
 	// Subject holds the value of the "subject" field.
 	Subject string `json:"subject,omitempty"`
+	// PanelMessageID holds the value of the "panel_message_id" field.
+	PanelMessageID string `json:"panel_message_id,omitempty"`
 	// OpenedAt holds the value of the "opened_at" field.
 	OpenedAt time.Time `json:"opened_at,omitempty"`
 	// ClaimedAt holds the value of the "claimed_at" field.
@@ -73,7 +75,7 @@ func (*Ticket) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case ticket.FieldID:
 			values[i] = new(sql.NullInt64)
-		case ticket.FieldGuildID, ticket.FieldChannelID, ticket.FieldOpenerID, ticket.FieldStatus, ticket.FieldClaimedBy, ticket.FieldSubject, ticket.FieldClosedBy, ticket.FieldArchivedChannelID:
+		case ticket.FieldGuildID, ticket.FieldChannelID, ticket.FieldOpenerID, ticket.FieldStatus, ticket.FieldClaimedBy, ticket.FieldSubject, ticket.FieldPanelMessageID, ticket.FieldClosedBy, ticket.FieldArchivedChannelID:
 			values[i] = new(sql.NullString)
 		case ticket.FieldOpenedAt, ticket.FieldClaimedAt, ticket.FieldClosedAt:
 			values[i] = new(sql.NullTime)
@@ -133,6 +135,12 @@ func (_m *Ticket) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field subject", values[i])
 			} else if value.Valid {
 				_m.Subject = value.String
+			}
+		case ticket.FieldPanelMessageID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field panel_message_id", values[i])
+			} else if value.Valid {
+				_m.PanelMessageID = value.String
 			}
 		case ticket.FieldOpenedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -224,6 +232,9 @@ func (_m *Ticket) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("subject=")
 	builder.WriteString(_m.Subject)
+	builder.WriteString(", ")
+	builder.WriteString("panel_message_id=")
+	builder.WriteString(_m.PanelMessageID)
 	builder.WriteString(", ")
 	builder.WriteString("opened_at=")
 	builder.WriteString(_m.OpenedAt.Format(time.ANSIC))

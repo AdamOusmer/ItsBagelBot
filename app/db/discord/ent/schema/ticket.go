@@ -40,6 +40,13 @@ func (Ticket) Fields() []ent.Field {
 		// renders in a channel topic without truncating mid-sentence.
 		field.String("subject").MaxLen(120).Optional().Default(""),
 
+		// The id of the "Ticket" card the engine posts into the channel on
+		// open. Kept on the row rather than re-discovered: claiming edits that
+		// card's footer in place, and finding it again would mean paging the
+		// channel's history for a message the bot wrote, which is both a REST
+		// call and ambiguous once the desk posts anything else.
+		field.String("panel_message_id").MaxLen(20).Optional().Default(""),
+
 		field.Time("opened_at").Default(time.Now).Immutable(),
 
 		field.Time("claimed_at").Optional().Nillable(),

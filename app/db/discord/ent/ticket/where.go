@@ -80,6 +80,11 @@ func Subject(v string) predicate.Ticket {
 	return predicate.Ticket(sql.FieldEQ(FieldSubject, v))
 }
 
+// PanelMessageID applies equality check predicate on the "panel_message_id" field. It's identical to PanelMessageIDEQ.
+func PanelMessageID(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldEQ(FieldPanelMessageID, v))
+}
+
 // OpenedAt applies equality check predicate on the "opened_at" field. It's identical to OpenedAtEQ.
 func OpenedAt(v time.Time) predicate.Ticket {
 	return predicate.Ticket(sql.FieldEQ(FieldOpenedAt, v))
@@ -468,6 +473,81 @@ func SubjectEqualFold(v string) predicate.Ticket {
 // SubjectContainsFold applies the ContainsFold predicate on the "subject" field.
 func SubjectContainsFold(v string) predicate.Ticket {
 	return predicate.Ticket(sql.FieldContainsFold(FieldSubject, v))
+}
+
+// PanelMessageIDEQ applies the EQ predicate on the "panel_message_id" field.
+func PanelMessageIDEQ(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldEQ(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDNEQ applies the NEQ predicate on the "panel_message_id" field.
+func PanelMessageIDNEQ(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldNEQ(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDIn applies the In predicate on the "panel_message_id" field.
+func PanelMessageIDIn(vs ...string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldIn(FieldPanelMessageID, vs...))
+}
+
+// PanelMessageIDNotIn applies the NotIn predicate on the "panel_message_id" field.
+func PanelMessageIDNotIn(vs ...string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldNotIn(FieldPanelMessageID, vs...))
+}
+
+// PanelMessageIDGT applies the GT predicate on the "panel_message_id" field.
+func PanelMessageIDGT(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldGT(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDGTE applies the GTE predicate on the "panel_message_id" field.
+func PanelMessageIDGTE(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldGTE(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDLT applies the LT predicate on the "panel_message_id" field.
+func PanelMessageIDLT(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldLT(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDLTE applies the LTE predicate on the "panel_message_id" field.
+func PanelMessageIDLTE(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldLTE(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDContains applies the Contains predicate on the "panel_message_id" field.
+func PanelMessageIDContains(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldContains(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDHasPrefix applies the HasPrefix predicate on the "panel_message_id" field.
+func PanelMessageIDHasPrefix(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldHasPrefix(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDHasSuffix applies the HasSuffix predicate on the "panel_message_id" field.
+func PanelMessageIDHasSuffix(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldHasSuffix(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDIsNil applies the IsNil predicate on the "panel_message_id" field.
+func PanelMessageIDIsNil() predicate.Ticket {
+	return predicate.Ticket(sql.FieldIsNull(FieldPanelMessageID))
+}
+
+// PanelMessageIDNotNil applies the NotNil predicate on the "panel_message_id" field.
+func PanelMessageIDNotNil() predicate.Ticket {
+	return predicate.Ticket(sql.FieldNotNull(FieldPanelMessageID))
+}
+
+// PanelMessageIDEqualFold applies the EqualFold predicate on the "panel_message_id" field.
+func PanelMessageIDEqualFold(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldEqualFold(FieldPanelMessageID, v))
+}
+
+// PanelMessageIDContainsFold applies the ContainsFold predicate on the "panel_message_id" field.
+func PanelMessageIDContainsFold(v string) predicate.Ticket {
+	return predicate.Ticket(sql.FieldContainsFold(FieldPanelMessageID, v))
 }
 
 // OpenedAtEQ applies the EQ predicate on the "opened_at" field.
