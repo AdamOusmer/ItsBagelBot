@@ -18,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/db/discord/ent"
 	"ItsBagelBot/app/db/discord/repository"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
 )
 
@@ -34,7 +35,13 @@ type BindingStore interface {
 	BindingGet(ctx context.Context, guildID string) (uint64, bool, error)
 	BindingSet(ctx context.Context, p repository.BindParams) error
 	BindingDelete(ctx context.Context, guildID string, broadcasterID uint64) error
-	BindingByBroadcaster(ctx context.Context, broadcasterID uint64) (string, bool, error)
+	BindingListByBroadcaster(ctx context.Context, broadcasterID uint64) ([]*ent.GuildBinding, error)
+}
+
+// ConfigStore is the per-guild settings half of the repository.
+type ConfigStore interface {
+	ConfigGet(ctx context.Context, guildID string) (ddiscord.Config, int, bool, error)
+	ConfigSet(ctx context.Context, p repository.SetConfigParams) (int, error)
 }
 
 // TicketStore is the ticket-desk half of the repository.
@@ -59,6 +66,7 @@ type XPStore interface {
 // Store is the whole surface one discord-data process serves.
 type Store interface {
 	BindingStore
+	ConfigStore
 	TicketStore
 	XPStore
 }
@@ -79,6 +87,9 @@ type Wiring struct {
 // caller's job; this returns the first failure.
 func Subscribe(w Wiring) error {
 	if err := subscribeBindings(w); err != nil {
+		return err
+	}
+	if err := subscribeConfigs(w); err != nil {
 		return err
 	}
 	if err := subscribeTickets(w); err != nil {
@@ -107,6 +118,8 @@ func failure(err error) (string, string) {
 		return err.Error(), discorddata.CodeNotFound
 	case errors.Is(err, repository.ErrInvalidInput):
 		return err.Error(), discorddata.CodeInvalid
+	case errors.Is(err, repository.ErrVersionConflict):
+		return err.Error(), discorddata.CodeConflict
 	default:
 		return err.Error(), discorddata.CodeInternal
 	}

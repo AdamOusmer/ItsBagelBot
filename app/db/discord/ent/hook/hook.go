@@ -20,6 +20,18 @@ func (f GuildBindingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GuildBindingMutation", m)
 }
 
+// The GuildConfigFunc type is an adapter to allow the use of ordinary
+// function as GuildConfig mutator.
+type GuildConfigFunc func(context.Context, *ent.GuildConfigMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GuildConfigFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GuildConfigMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GuildConfigMutation", m)
+}
+
 // The MemberXPFunc type is an adapter to allow the use of ordinary
 // function as MemberXP mutator.
 type MemberXPFunc func(context.Context, *ent.MemberXPMutation) (ent.Value, error)

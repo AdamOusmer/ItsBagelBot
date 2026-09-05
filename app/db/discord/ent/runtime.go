@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/discord/ent/guildbinding"
+	"ItsBagelBot/app/db/discord/ent/guildconfig"
 	"ItsBagelBot/app/db/discord/ent/memberxp"
 	"ItsBagelBot/app/db/discord/ent/schema"
 	"ItsBagelBot/app/db/discord/ent/ticket"
@@ -51,6 +52,36 @@ func init() {
 	guildbinding.DefaultUpdatedAt = guildbindingDescUpdatedAt.Default.(func() time.Time)
 	// guildbinding.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	guildbinding.UpdateDefaultUpdatedAt = guildbindingDescUpdatedAt.UpdateDefault.(func() time.Time)
+	guildconfigFields := schema.GuildConfig{}.Fields()
+	_ = guildconfigFields
+	// guildconfigDescGuildID is the schema descriptor for guild_id field.
+	guildconfigDescGuildID := guildconfigFields[0].Descriptor()
+	// guildconfig.GuildIDValidator is a validator for the "guild_id" field. It is called by the builders before save.
+	guildconfig.GuildIDValidator = func() func(string) error {
+		validators := guildconfigDescGuildID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(guild_id string) error {
+			for _, fn := range fns {
+				if err := fn(guild_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// guildconfigDescVersion is the schema descriptor for version field.
+	guildconfigDescVersion := guildconfigFields[3].Descriptor()
+	// guildconfig.DefaultVersion holds the default value on creation for the version field.
+	guildconfig.DefaultVersion = guildconfigDescVersion.Default.(int)
+	// guildconfigDescUpdatedAt is the schema descriptor for updated_at field.
+	guildconfigDescUpdatedAt := guildconfigFields[4].Descriptor()
+	// guildconfig.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	guildconfig.DefaultUpdatedAt = guildconfigDescUpdatedAt.Default.(func() time.Time)
+	// guildconfig.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	guildconfig.UpdateDefaultUpdatedAt = guildconfigDescUpdatedAt.UpdateDefault.(func() time.Time)
 	memberxpFields := schema.MemberXP{}.Fields()
 	_ = memberxpFields
 	// memberxpDescGuildID is the schema descriptor for guild_id field.

@@ -37,28 +37,30 @@ func (s *Store) BindingGet(ctx context.Context, guildID string) (uint64, bool, e
 	return row.BroadcasterID, true, nil
 }
 
-// BindingByBroadcaster is the reverse lookup: the guild this broadcaster
-// installed the bot into, if any.
-func (s *Store) BindingByBroadcaster(ctx context.Context, broadcasterID uint64) (string, bool, error) {
+// BindingListByBroadcaster is the reverse lookup: every guild this broadcaster
+// installed the bot into, oldest binding first so the dashboard's server list
+// keeps a stable order across loads.
+func (s *Store) BindingListByBroadcaster(ctx context.Context, broadcasterID uint64) ([]*ent.GuildBinding, error) {
 	if broadcasterID == 0 {
-		return "", false, ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
-	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.GuildBinding, error) {
-		return s.client.GuildBinding.Query().Where(guildbinding.BroadcasterIDEQ(broadcasterID)).Only(ctx)
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.GuildBinding, error) {
+		return s.client.GuildBinding.Query().
+			Where(guildbinding.BroadcasterIDEQ(broadcasterID)).
+			// Id breaks the tie: two guilds bound inside one clock tick would
+			// otherwise come back in whatever order the engine picked, and
+			// the dashboard's server list would reshuffle between loads.
+			Order(ent.Asc(guildbinding.FieldBoundAt, guildbinding.FieldID)).
+			All(ctx)
 	})
-	if ent.IsNotFound(err) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return row.GuildID, true, nil
 }
 
 // BindingSet binds a guild to a broadcaster. Re-binding the same pair is
-// idempotent (it refreshes installed_by and updated_at); binding either half
-// to a different partner returns ErrBoundElsewhere, which is also what a lost
-// race surfaces as, since the unique indexes decide it rather than this read.
+// idempotent (it refreshes installed_by and updated_at); binding a guild that
+// belongs to a different broadcaster returns ErrBoundElsewhere, which is also
+// what a lost race surfaces as, since the unique index on guild_id decides it
+// rather than this read. A broadcaster binding a second, third or tenth guild
+// is ordinary and always allowed.
 func (s *Store) BindingSet(ctx context.Context, p BindParams) error {
 	if p.GuildID == "" || p.BroadcasterID == 0 {
 		return ErrInvalidInput
@@ -85,17 +87,6 @@ func bindInTx(ctx context.Context, tx *ent.Tx, p BindParams) error {
 	}
 	if existing != nil {
 		return rebindInTx(ctx, tx, existing, p)
-	}
-
-	// The guild is free; the broadcaster still may not be. Checking both halves
-	// here turns "one guild per broadcaster" into the same clean refusal rather
-	// than a raw duplicate-key error surfacing from the insert.
-	taken, err := tx.GuildBinding.Query().Where(guildbinding.BroadcasterIDEQ(p.BroadcasterID)).Exist(ctx)
-	if err != nil {
-		return err
-	}
-	if taken {
-		return ErrBoundElsewhere
 	}
 	return tx.GuildBinding.Create().
 		SetGuildID(p.GuildID).

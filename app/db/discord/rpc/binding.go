@@ -28,8 +28,8 @@ func subscribeBindings(w Wiring) error {
 		w.NC, w.subject(discorddata.VerbBindingDelete), w.QueueGroup, requestTimeout, w.App, w.Log, h.remove); err != nil {
 		return err
 	}
-	return bus.QueueSubscribeJSON[discorddata.BindingByBroadcasterRequest, discorddata.BindingByBroadcasterReply](
-		w.NC, w.subject(discorddata.VerbBindingByBroadcaster), w.QueueGroup, requestTimeout, w.App, w.Log, h.byBroadcaster)
+	return bus.QueueSubscribeJSON[discorddata.BindingListByBroadcasterRequest, discorddata.BindingListByBroadcasterReply](
+		w.NC, w.subject(discorddata.VerbBindingListByBroadcaster), w.QueueGroup, requestTimeout, w.App, w.Log, h.listByBroadcaster)
 }
 
 func (h bindingRPC) get(ctx context.Context, req discorddata.BindingGetRequest) discorddata.BindingGetReply {
@@ -57,11 +57,19 @@ func (h bindingRPC) remove(ctx context.Context, req discorddata.BindingDeleteReq
 	return discorddata.BindingDeleteReply{Error: message, Code: code}
 }
 
-func (h bindingRPC) byBroadcaster(ctx context.Context, req discorddata.BindingByBroadcasterRequest) discorddata.BindingByBroadcasterReply {
-	guildID, found, err := h.repo.BindingByBroadcaster(ctx, req.BroadcasterID)
+func (h bindingRPC) listByBroadcaster(ctx context.Context, req discorddata.BindingListByBroadcasterRequest) discorddata.BindingListByBroadcasterReply {
+	rows, err := h.repo.BindingListByBroadcaster(ctx, req.BroadcasterID)
 	if err != nil {
 		message, code := failure(err)
-		return discorddata.BindingByBroadcasterReply{Error: message, Code: code}
+		return discorddata.BindingListByBroadcasterReply{Error: message, Code: code}
 	}
-	return discorddata.BindingByBroadcasterReply{GuildID: guildID, Found: found}
+	guilds := make([]discorddata.Binding, 0, len(rows))
+	for _, row := range rows {
+		guilds = append(guilds, discorddata.Binding{
+			GuildID:       row.GuildID,
+			BoundAtUnixMs: unixMs(row.BoundAt),
+			InstalledBy:   row.InstalledBy,
+		})
+	}
+	return discorddata.BindingListByBroadcasterReply{Guilds: guilds}
 }

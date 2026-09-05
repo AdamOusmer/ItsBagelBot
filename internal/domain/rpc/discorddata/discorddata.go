@@ -15,14 +15,19 @@
 // that changes whenever a log line is reworded.
 package discorddata
 
+import ddiscord "ItsBagelBot/internal/domain/discord"
+
 // Subject verbs, appended to the service prefix (default
 // "bagel.rpc.discord-data"). Kept here so the server's subscriptions and the
 // client's requests read from one list.
 const (
-	VerbBindingGet           = "binding.get"
-	VerbBindingSet           = "binding.set"
-	VerbBindingDelete        = "binding.delete"
-	VerbBindingByBroadcaster = "binding.by_broadcaster"
+	VerbBindingGet               = "binding.get"
+	VerbBindingSet               = "binding.set"
+	VerbBindingDelete            = "binding.delete"
+	VerbBindingListByBroadcaster = "binding.list_by_broadcaster"
+
+	VerbConfigGet = "config.get"
+	VerbConfigSet = "config.set"
 
 	VerbTicketOpen  = "ticket.open"
 	VerbTicketClaim = "ticket.claim"
@@ -45,8 +50,9 @@ const (
 	// CodeOK is the zero value: the call did what it was asked to.
 	CodeOK = ""
 	// CodeBoundElsewhere: the guild is already bound to a different
-	// broadcaster (or the broadcaster to a different guild). The unique
-	// indexes on guild_bindings make this a database invariant, not a race.
+	// broadcaster. The unique index on guild_bindings.guild_id makes this a
+	// database invariant, not a race. A broadcaster owning several guilds is
+	// ordinary and never raises this.
 	CodeBoundElsewhere = "bound_elsewhere"
 	// CodeNotBound: no binding row exists for the guild the caller named.
 	CodeNotBound = "not_bound"
@@ -56,6 +62,9 @@ const (
 	CodeNotFound = "not_found"
 	// CodeInvalid: the request itself is malformed (missing id, bad limit).
 	CodeInvalid = "invalid"
+	// CodeConflict: config.set carried a version the stored row has moved
+	// past. The caller must re-read and re-apply rather than retry.
+	CodeConflict = "conflict"
 	// CodeInternal: the store failed. The Error field carries the detail.
 	CodeInternal = "internal"
 )
@@ -113,18 +122,64 @@ type BindingDeleteReply struct {
 	Code  string `json:"code,omitempty"`
 }
 
-// BindingByBroadcasterRequest is the reverse lookup: which guild, if any, this
-// broadcaster installed the bot into.
-type BindingByBroadcasterRequest struct {
+// BindingListByBroadcasterRequest is the reverse lookup: every guild this
+// broadcaster installed the bot into. It replaced a by_broadcaster verb that
+// returned a single guild, which could not describe a streamer who runs a main
+// community and a mod-only server off one Twitch channel.
+type BindingListByBroadcasterRequest struct {
 	BroadcasterID uint64 `json:"broadcaster_id"`
 }
 
-// BindingByBroadcasterReply carries the bound guild.
-type BindingByBroadcasterReply struct {
+// BindingListByBroadcasterReply carries every binding, oldest first.
+type BindingListByBroadcasterReply struct {
+	Guilds []Binding `json:"guilds"`
+	Error  string    `json:"error,omitempty"`
+	Code   string    `json:"code,omitempty"`
+}
+
+// Binding is one guild-to-broadcaster link as the dashboard and the engine
+// read it back.
+type Binding struct {
+	GuildID       string `json:"guild_id"`
+	BoundAtUnixMs int64  `json:"bound_at_unix_ms"`
+	InstalledBy   string `json:"installed_by,omitempty"`
+}
+
+// ConfigGetRequest reads one guild's settings.
+type ConfigGetRequest struct {
 	GuildID string `json:"guild_id"`
-	Found   bool   `json:"found"`
-	Error   string `json:"error,omitempty"`
-	Code    string `json:"code,omitempty"`
+}
+
+// ConfigGetReply carries the guild's settings and the version to echo back on
+// the next write. Found is false (with an empty Error) for a guild that was
+// bound but never saved; Config is then the zero value, which is what the
+// caller renders anyway.
+type ConfigGetReply struct {
+	Config  ddiscord.Config `json:"config"`
+	Version int             `json:"version"`
+	Found   bool            `json:"found"`
+	Error   string          `json:"error,omitempty"`
+	Code    string          `json:"code,omitempty"`
+}
+
+// ConfigSetRequest writes one guild's settings. ExpectedVersion is the version
+// the caller read (zero when it read nothing); a mismatch is CodeConflict, not
+// a silent overwrite. BroadcasterID is checked against the guild's binding, so
+// a caller cannot write into a server it does not own.
+type ConfigSetRequest struct {
+	GuildID         string          `json:"guild_id"`
+	BroadcasterID   uint64          `json:"broadcaster_id"`
+	Config          ddiscord.Config `json:"config"`
+	ExpectedVersion int             `json:"expected_version"`
+}
+
+// ConfigSetReply carries the version the row now holds. Fields names the
+// settings that failed validation when Code is CodeInvalid.
+type ConfigSetReply struct {
+	Version int      `json:"version"`
+	Fields  []string `json:"fields,omitempty"`
+	Error   string   `json:"error,omitempty"`
+	Code    string   `json:"code,omitempty"`
 }
 
 // TicketOpenRequest records a newly created ticket channel. OpenLimit is the

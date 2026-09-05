@@ -30,8 +30,35 @@ var (
 			},
 			{
 				Name:    "guildbinding_broadcaster_id",
-				Unique:  true,
+				Unique:  false,
 				Columns: []*schema.Column{GuildBindingsColumns[2]},
+			},
+		},
+	}
+	// GuildConfigsColumns holds the columns for the "guild_configs" table.
+	GuildConfigsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "guild_id", Type: field.TypeString, Size: 20},
+		{Name: "broadcaster_id", Type: field.TypeUint64},
+		{Name: "config", Type: field.TypeJSON},
+		{Name: "version", Type: field.TypeInt, Default: 1},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GuildConfigsTable holds the schema information for the "guild_configs" table.
+	GuildConfigsTable = &schema.Table{
+		Name:       "guild_configs",
+		Columns:    GuildConfigsColumns,
+		PrimaryKey: []*schema.Column{GuildConfigsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "guildconfig_guild_id",
+				Unique:  true,
+				Columns: []*schema.Column{GuildConfigsColumns[1]},
+			},
+			{
+				Name:    "guildconfig_broadcaster_id",
+				Unique:  false,
+				Columns: []*schema.Column{GuildConfigsColumns[2]},
 			},
 		},
 	}
@@ -126,6 +153,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		GuildBindingsTable,
+		GuildConfigsTable,
 		MemberXpsTable,
 		TicketsTable,
 		TicketTranscriptsTable,

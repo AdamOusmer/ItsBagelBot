@@ -20,8 +20,10 @@ import (
 // Sentinel errors the RPC layer maps onto reply codes. Anything else is an
 // internal failure and travels as its own message.
 var (
-	// ErrBoundElsewhere: the guild (or the broadcaster) is already bound to a
-	// different partner. Enforced by the two unique indexes on guild_bindings.
+	// ErrBoundElsewhere: the guild is already bound to a DIFFERENT
+	// broadcaster. Re-binding a guild to the broadcaster it already belongs to
+	// is idempotent, and a broadcaster may own any number of guilds, so this
+	// is the one binding refusal left.
 	ErrBoundElsewhere = errors.New("discord: already bound to a different broadcaster")
 	// ErrNotBound: no binding row exists for that guild.
 	ErrNotBound = errors.New("discord: guild is not bound")
@@ -32,6 +34,8 @@ var (
 	// ErrInvalidInput: the request itself is malformed or names an impossible
 	// transition (claiming a closed ticket, an empty guild id).
 	ErrInvalidInput = errors.New("discord: invalid input")
+	// ErrVersionConflict: the settings row moved on since the caller read it.
+	ErrVersionConflict = errors.New("discord: config version conflict")
 )
 
 // Store is the service's whole data access surface. One type rather than one
