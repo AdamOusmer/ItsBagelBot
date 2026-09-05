@@ -21,6 +21,7 @@
     "./server/boot": "./lib/server/boot.ts",
     "./server/nats": "./lib/server/nats.ts",
     "./server/oauth": "./lib/server/oauth.ts",
+    "./server/oauth-state": "./lib/server/oauth-state.ts",
     "./server/service": "./lib/server/service.ts",
     "./server/rum": "./lib/server/rum.ts",
     "./server/resilience": "./lib/server/resilience.ts",

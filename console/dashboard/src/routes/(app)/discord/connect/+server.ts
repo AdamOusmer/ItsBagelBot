@@ -9,25 +9,21 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { generateState } from '@bagel/shared/server/oauth';
 import {
-  DISCORD_PICK_STATE_COOKIE,
-  DISCORD_STATE_TTL_SECONDS,
+  DISCORD_PICK_LEG,
   discordConfigured,
   discordUserAuthURL,
   discordFail,
+  putDiscordState,
   requireDiscordActor
 } from '$lib/server/discord-oauth';
 
 export const GET: RequestHandler = async ({ cookies, url, locals }) => {
-  requireDiscordActor(locals);
+  const uid = requireDiscordActor(locals);
   if (!discordConfigured()) discordFail('unconfigured');
 
   const state = generateState();
-  cookies.set(DISCORD_PICK_STATE_COOKIE, state, {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: DISCORD_STATE_TTL_SECONDS
-  });
+  // Sealed to this signed-in user, so a state planted in the browser by
+  // somebody else cannot be redeemed under this account.
+  putDiscordState(cookies, url, DISCORD_PICK_LEG, uid, state);
   throw redirect(302, discordUserAuthURL(state));
 };
