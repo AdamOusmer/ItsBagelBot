@@ -21,12 +21,17 @@ type fakeSetupREST struct {
 	guild     discapi.GuildInfo
 	guildErr  error
 	guildHits int
+	// panelID is the id SendPanel hands back, which the desk-repost reply
+	// carries straight through to the dashboard.
+	panelID string
 }
 
 func (f *fakeSetupREST) SendChat(context.Context, discapi.ChatPost) error { return nil }
 
-func (f *fakeSetupREST) SendPanel(context.Context, discapi.EmbedPost, []discapi.Button) (discapi.Message, error) {
-	return discapi.Message{}, nil
+func (f *fakeSetupREST) DeleteMessage(context.Context, discapi.Message) error { return nil }
+
+func (f *fakeSetupREST) SendPanel(_ context.Context, post discapi.EmbedPost, _ []discapi.Button) (discapi.Message, error) {
+	return discapi.Message{ChannelID: post.ChannelID, ID: f.panelID}, nil
 }
 
 func (f *fakeSetupREST) CreateChannel(context.Context, discapi.GuildChannel) (discapi.Snowflake, error) {
@@ -206,5 +211,51 @@ func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 	// switch is load-bearing: the wrapped case must be checked first.
 	if codeFor(setup.ErrGuildNotBound) == codeFor(setup.ErrGuildBoundElsewhere) {
 		t.Fatal("not_bound and bound_elsewhere collapsed into one code")
+	}
+}
+
+func TestHandleDeskRepostAnswersWithTheNewMessageID(t *testing.T) {
+	d := newDiscordRPC(t, &fakeSetupREST{panelID: "m-new"}, fakeBotStatus{}, true)
+
+	got := d.handleDeskRepost(context.Background(), outgressrpc.DiscordDeskRepostRequest{
+		UserID: "b1", GuildID: "g1", ChannelID: "support",
+		Panel: outgressrpc.DiscordPanelSpec{Title: "Need a hand?", Color: 0x112233, Button: "Contact staff"},
+	})
+
+	if got.Error != "" || got.Code != outgressrpc.CodeOK {
+		t.Fatalf("reply = %+v", got)
+	}
+	if got.MessageID != "m-new" {
+		t.Fatalf("message id = %q", got.MessageID)
+	}
+}
+
+func TestHandleDeskRepostRejectsAMissingGuild(t *testing.T) {
+	d := newDiscordRPC(t, &fakeSetupREST{}, fakeBotStatus{}, true)
+
+	got := d.handleDeskRepost(context.Background(), outgressrpc.DiscordDeskRepostRequest{UserID: "b1"})
+
+	if got.Code != outgressrpc.CodeInvalid {
+		t.Fatalf("code = %q, want %q", got.Code, outgressrpc.CodeInvalid)
+	}
+}
+
+func TestHandleDeskRepostOnAnUnboundGuildCarriesNotBound(t *testing.T) {
+	d := newDiscordRPC(t, &fakeSetupREST{}, fakeBotStatus{}, false)
+
+	got := d.handleDeskRepost(context.Background(), outgressrpc.DiscordDeskRepostRequest{
+		UserID: "b1", GuildID: "g1", ChannelID: "support",
+	})
+
+	if got.Code != outgressrpc.CodeNotBound {
+		t.Fatalf("code = %q, want %q", got.Code, outgressrpc.CodeNotBound)
+	}
+}
+
+func TestPanelSpecCarriesEveryField(t *testing.T) {
+	got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t", Body: "b", Color: 7, Button: "go"})
+
+	if got.Title != "t" || got.Body != "b" || got.Color != 7 || got.Button != "go" {
+		t.Fatalf("spec = %+v", got)
 	}
 }

@@ -187,3 +187,34 @@ type DiscordStatusReply struct {
 	Error         string `json:"error,omitempty"`
 	Code          string `json:"code,omitempty"`
 }
+
+// DiscordPanelSpec is the ticket-desk embed's copy, as the dashboard just saved
+// it. It travels on the repost request rather than being read by outgress: see
+// setup.DeskRepostRequest for why outgress holds no per-guild config.
+type DiscordPanelSpec struct {
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
+	// Color is the embed's left bar as a decimal Discord color. Zero means
+	// "not set" and takes the brand default, not black.
+	Color  int    `json:"color,omitempty"`
+	Button string `json:"button,omitempty"`
+}
+
+// DiscordDeskRepostRequest is bagel.rpc.dingress.discord.desk.repost: delete
+// the panel message this guild last posted and put a fresh one in its place.
+// The dashboard calls it after saving the panel embed.
+type DiscordDeskRepostRequest struct {
+	UserID  string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+	// ChannelID is optional: empty reposts into the channel the previous panel
+	// was in.
+	ChannelID string           `json:"channel_id,omitempty"`
+	Panel     DiscordPanelSpec `json:"panel"`
+}
+
+// DiscordDeskRepostReply carries the new panel message's id.
+type DiscordDeskRepostReply struct {
+	MessageID string `json:"message_id,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Code      string `json:"code,omitempty"`
+}
