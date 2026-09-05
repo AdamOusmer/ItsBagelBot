@@ -5,6 +5,8 @@ package repository_test
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/app/db/discord/repository"
@@ -135,4 +137,70 @@ func TestConfigIsPerGuild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "111", one.LiveChannelID)
 	assert.Equal(t, "222", two.LiveChannelID)
+}
+
+// configWriters runs callers concurrent ConfigSet calls that all claim
+// expected and reports how many were accepted. Every refusal must be
+// ErrVersionConflict: a losing writer is a conflict, never an internal error.
+func configWriters(t *testing.T, repo *repository.Store, ctx context.Context, expected int) int {
+	t.Helper()
+	const callers = 4
+	var wg sync.WaitGroup
+	errs := make([]error, callers)
+	wg.Add(callers)
+	for i := range callers {
+		go func() {
+			defer wg.Done()
+			_, errs[i] = repo.ConfigSet(ctx, repository.SetConfigParams{
+				GuildID: "g1", BroadcasterID: 42, ExpectedVersion: expected,
+				Config: ddiscord.Config{GuildID: "g1", LiveChannelID: strconv.Itoa(i)},
+			})
+		}()
+	}
+	wg.Wait()
+
+	won := 0
+	for i := range callers {
+		if errs[i] == nil {
+			won++
+			continue
+		}
+		require.ErrorIs(t, errs[i], repository.ErrVersionConflict, "writer %d", i)
+	}
+	return won
+}
+
+// TestConfigSetFirstEverWriteHasOneWinner is the insert race. A row lock takes
+// nothing on a row that does not exist, so several first-ever saves can all
+// reach the INSERT; the unique index on guild_id decides, and the losers must
+// surface as version conflicts rather than as constraint errors.
+func TestConfigSetFirstEverWriteHasOneWinner(t *testing.T) {
+	repo, ctx := newConcurrentStore(t, "configinsertrace")
+	bindOne(t, repo, ctx, "g1", 42)
+
+	assert.Equal(t, 1, configWriters(t, repo, ctx, 0), "exactly one first-ever write may be accepted")
+
+	_, version, found, err := repo.ConfigGet(ctx, "g1")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, 1, version)
+}
+
+// TestConfigSetUpdateHasOneWinner is the update race, and the reason the write
+// is a conditional UPDATE rather than a read followed by UpdateOne: two tabs
+// holding version 1 must not both save, because each holds a whole Config and
+// the loser's blob would silently replace the winner's.
+func TestConfigSetUpdateHasOneWinner(t *testing.T) {
+	repo, ctx := newConcurrentStore(t, "configupdaterace")
+	bindOne(t, repo, ctx, "g1", 42)
+	_, err := repo.ConfigSet(ctx, repository.SetConfigParams{
+		GuildID: "g1", BroadcasterID: 42, Config: ddiscord.Config{GuildID: "g1"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, configWriters(t, repo, ctx, 1), "exactly one writer at version 1 may be accepted")
+
+	_, version, _, err := repo.ConfigGet(ctx, "g1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, version)
 }

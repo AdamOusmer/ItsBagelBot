@@ -59,7 +59,7 @@ func (s *Store) ConfigSet(ctx context.Context, p SetConfigParams) (int, error) {
 	var version int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return withTx(ctx, s.client, func(tx *ent.Tx) error {
-			got, err := setConfigInTx(ctx, tx, p)
+			got, err := s.setConfigInTx(ctx, tx, p)
 			version = got
 			return err
 		})
@@ -73,26 +73,56 @@ func (s *Store) ConfigSet(ctx context.Context, p SetConfigParams) (int, error) {
 // setConfigInTx is ConfigSet's body. Ownership first, then the version, then
 // the write: a caller who owns nothing must not learn from the error which
 // version a guild's settings are on.
-func setConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) (int, error) {
+func (s *Store) setConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) (int, error) {
 	if err := requireBindingInTx(ctx, tx, p); err != nil {
 		return 0, err
 	}
-	existing, err := tx.GuildConfig.Query().Where(guildconfig.GuildIDEQ(p.GuildID)).Only(ctx)
+	query := tx.GuildConfig.Query().Where(guildconfig.GuildIDEQ(p.GuildID))
+	if s.rowLocks {
+		query = query.ForUpdate()
+	}
+	existing, err := query.Only(ctx)
 	if ent.IsNotFound(err) {
 		return createConfigInTx(ctx, tx, p)
 	}
 	if err != nil {
 		return 0, err
 	}
-	if existing.Version != p.ExpectedVersion {
+	return updateConfigInTx(ctx, tx, p, existing.Version)
+}
+
+// updateConfigInTx applies the write as a conditional UPDATE and reports the
+// version the row now carries.
+//
+// The stored-version check above it is not the lock: it reads a row this
+// transaction may have seen before another writer committed. The lock is the
+// statement itself --
+//
+//	UPDATE guild_configs SET version = version + 1, config = ?, updated_at = ?
+//	WHERE guild_id = ? AND version = ?
+//
+// -- whose rows-affected is zero exactly when somebody else moved the version
+// first. Reading and then UpdateOne(existing) instead would re-derive the new
+// version from a stale read and overwrite the winner, which is the
+// last-write-wins bug the version column exists to prevent. updated_at rides
+// along from the schema's UpdateDefault rather than being set here.
+func updateConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams, stored int) (int, error) {
+	if stored != p.ExpectedVersion {
 		return 0, ErrVersionConflict
 	}
-	version := existing.Version + 1
-	return version, tx.GuildConfig.UpdateOne(existing).
+	affected, err := tx.GuildConfig.Update().
+		Where(guildconfig.GuildIDEQ(p.GuildID), guildconfig.VersionEQ(p.ExpectedVersion)).
 		SetBroadcasterID(p.BroadcasterID).
 		SetConfig(p.Config).
-		SetVersion(version).
-		Exec(ctx)
+		AddVersion(1).
+		Save(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if affected == 0 {
+		return 0, ErrVersionConflict
+	}
+	return p.ExpectedVersion + 1, nil
 }
 
 // requireBindingInTx refuses a write into a guild the caller does not own. An
@@ -116,14 +146,30 @@ func requireBindingInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) erro
 // createConfigInTx inserts the first settings row for a guild. Version 1 is
 // the first stored version, so a caller that read nothing (version 0) is the
 // only one allowed to create it.
+//
+// A row lock takes nothing when the row does not exist yet: MySQL under
+// READ-COMMITTED holds no gap locks, so two first-ever saves for one guild
+// both see no row and both insert. The unique index on guild_id decides, and
+// the loser's constraint error is reported as ErrVersionConflict -- from the
+// losing tab's point of view the settings did move on since it read them,
+// which is exactly the "reload and re-apply" it already handles. Retrying the
+// insert (the way XPAdd retries) would be wrong here: the retry would find the
+// winner's version 1 against an expected 0 and have to refuse anyway.
 func createConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) (int, error) {
 	if p.ExpectedVersion != 0 {
 		return 0, ErrVersionConflict
 	}
-	return 1, tx.GuildConfig.Create().
+	err := tx.GuildConfig.Create().
 		SetGuildID(p.GuildID).
 		SetBroadcasterID(p.BroadcasterID).
 		SetConfig(p.Config).
 		SetVersion(1).
 		Exec(ctx)
+	if ent.IsConstraintError(err) {
+		return 0, ErrVersionConflict
+	}
+	if err != nil {
+		return 0, err
+	}
+	return 1, nil
 }
