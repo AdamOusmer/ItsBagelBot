@@ -4,6 +4,7 @@
 package discord
 
 import (
+	"maps"
 	"testing"
 )
 
@@ -122,5 +123,37 @@ func TestIsTicketStaff(t *testing.T) {
 	// The two are ordered, never independent: mod staff is always desk staff.
 	if !IsTicketStaff([]string{"o"}, withDesk) || !IsModStaff([]string{"o"}, withDesk) {
 		t.Fatal("mod staff must always be ticket staff")
+	}
+}
+
+// The map shape and the stored string shape must mean the same thing, or
+// the setup RPC validates something other than what gets saved.
+func TestFormatPinnedRolesRoundTrips(t *testing.T) {
+	pins := map[string]string{
+		SlotMods: "100000000000000001", SlotOwner: "100000000000000002",
+	}
+
+	raw := FormatPinnedRoles(pins)
+
+	if raw != "mods=100000000000000001,owner=100000000000000002" {
+		t.Fatalf("formatted = %q, want the slots sorted", raw)
+	}
+	back := Config{PinnedRoles: raw}.PinnedRoleMap()
+	if !maps.Equal(back, pins) {
+		t.Fatalf("round trip = %v, want %v", back, pins)
+	}
+	if FormatPinnedRoles(nil) != "" {
+		t.Fatal("no pins must format as the empty (unset) field")
+	}
+}
+
+// An empty id is the dashboard clearing a pin without dropping the key. It
+// has to reach the validator as the malformed pair it is, not vanish.
+func TestFormatPinnedRolesKeepsAnEmptyIDVisibleToTheValidator(t *testing.T) {
+	raw := FormatPinnedRoles(map[string]string{SlotMods: ""})
+
+	bad := ValidateConfig(Config{PinnedRoles: raw})
+	if len(bad) != 1 || bad[0].Code != CodeMalformedPair {
+		t.Fatalf("errors = %+v, want one %s", bad, CodeMalformedPair)
 	}
 }

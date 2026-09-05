@@ -15,6 +15,7 @@ package resolve
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -46,7 +47,36 @@ type Resolver struct {
 	// Nil while the gate is on resolves nothing, so a service that forgets to
 	// wire it fails closed and loudly rather than serving every channel.
 	Tier Status
-	Log  *zap.Logger
+	// Warned dedupes the invalid-config warning. It is a POINTER so the
+	// copies of this value that dispatch and every module hold share one
+	// record; nil (tests, and any caller that forgets it) simply warns
+	// every time, which is noisy rather than wrong.
+	Warned *ConfigWarnings
+	Log    *zap.Logger
+}
+
+// ConfigWarnings remembers which (guild, field) pairs have already been
+// warned about.
+//
+// Without it the warning fires on EVERY event for a guild whose stored
+// config holds one bad field -- thousands of identical lines an hour, which
+// is how a real signal gets filtered out of the log pipeline and then
+// ignored. Deduping is per field rather than per guild because a second bad
+// field is new information.
+type ConfigWarnings struct{ seen sync.Map }
+
+// NewConfigWarnings builds an empty record. Its lifetime is the process:
+// the set is bounded by (guilds x Config fields) and each entry is two
+// short strings, so nothing here needs eviction.
+func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{} }
+
+// first reports whether this pair has not been warned about yet.
+func (w *ConfigWarnings) first(guildID, field string) bool {
+	if w == nil {
+		return true
+	}
+	_, seen := w.seen.LoadOrStore(guildID+"\x00"+field, struct{}{})
+	return !seen
 }
 
 // ByBroadcaster loads the enabled, connected Discord config for a Twitch
@@ -66,7 +96,7 @@ func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) (ddis
 	if !found || !mod.IsEnabled {
 		return ddiscord.Config{}, false
 	}
-	cfg := ddiscord.Parse(mod.Configs)
+	cfg := r.sanitize(ddiscord.Parse(mod.Configs))
 	if !cfg.Connected() {
 		return ddiscord.Config{}, false
 	}
@@ -97,6 +127,24 @@ func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config,
 		return ddiscord.Config{}, "", false
 	}
 	return cfg, b.ID, true
+}
+
+// sanitize drops the fields the stored blob got wrong and warns once per
+// guild per field. It runs on every resolve rather than at write time
+// because the blob is also written by older console builds and by hand; the
+// validation pass it costs is a map build and a sort, well under the
+// projection read it follows.
+func (r Resolver) sanitize(cfg ddiscord.Config) ddiscord.Config {
+	clean, bad := ddiscord.SanitizeConfig(cfg)
+	for _, fe := range bad {
+		if !r.Warned.first(cfg.GuildID, fe.Field) {
+			continue
+		}
+		r.log().Warn("discord config field is invalid; ignoring it",
+			zap.String("guild_id", cfg.GuildID),
+			zap.String("field", fe.Field), zap.String("code", fe.Code))
+	}
+	return clean
 }
 
 // premiumOK applies the beta gate. It runs LAST, after the row is known to

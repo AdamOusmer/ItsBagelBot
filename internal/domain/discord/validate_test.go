@@ -4,6 +4,7 @@
 package discord
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -107,6 +108,79 @@ func TestValidSnowflake(t *testing.T) {
 	for id, want := range cases {
 		if got := ValidSnowflake(id); got != want {
 			t.Fatalf("ValidSnowflake(%q) = %v, want %v", id, got, want)
+		}
+	}
+}
+
+// Sanitize keeps a config usable: the bad field goes, everything around it
+// stays. Refusing the whole blob instead would take a guild's live alerts
+// down over a mistyped ticket colour.
+func TestSanitizeConfigZeroesOnlyTheInvalidFields(t *testing.T) {
+	cfg := Config{
+		GuildID:          "100000000000000001",
+		LiveChannelID:    "100000000000000002",
+		ClipsChannelID:   "#clips",
+		TicketPanelColor: "burgundy",
+		TicketOpenLimit:  "9",
+		LiveEnabled:      "maybe",
+	}
+
+	clean, bad := SanitizeConfig(cfg)
+
+	if len(bad) != 4 {
+		t.Fatalf("errors = %+v, want 4", bad)
+	}
+	if clean.ClipsChannelID != "" || clean.TicketPanelColor != "" ||
+		clean.TicketOpenLimit != "" || clean.LiveEnabled != "" {
+		t.Fatalf("clean = %+v, want every rejected field zeroed", clean)
+	}
+	if clean.GuildID != cfg.GuildID || clean.LiveChannelID != cfg.LiveChannelID {
+		t.Fatalf("clean = %+v, want the valid fields untouched", clean)
+	}
+}
+
+// A zeroed field must read as UNSET, not as a broken value: every reader
+// documents a default for empty, so the guild keeps working.
+func TestSanitizeConfigLeavesZeroedFieldsOnTheirDefaults(t *testing.T) {
+	clean, _ := SanitizeConfig(Config{TicketOpenLimit: "12", TicketTranscriptEnabled: "yes"})
+
+	if clean.TicketOpenLimitN() != TicketOpenLimitDefault {
+		t.Fatalf("limit = %d, want the default %d", clean.TicketOpenLimitN(), TicketOpenLimitDefault)
+	}
+	if !clean.TicketTranscriptOn() {
+		t.Fatal("a zeroed transcript flag must fall back to its default-ON reader")
+	}
+}
+
+func TestSanitizeConfigLeavesAValidConfigAlone(t *testing.T) {
+	cfg := Config{GuildID: "100000000000000001", TicketPanelColor: "#ff8800", LiveEnabled: "off"}
+
+	clean, bad := SanitizeConfig(cfg)
+
+	if len(bad) != 0 {
+		t.Fatalf("errors = %+v, want none", bad)
+	}
+	if clean != cfg {
+		t.Fatalf("clean = %+v, want it unchanged", clean)
+	}
+}
+
+// The zeroing walks Config by JSON tag, so a field whose tag ValidateConfig
+// names must actually exist under that tag. A drifted tag would report an
+// error nothing then clears.
+func TestEveryValidatedFieldNameExistsOnConfig(t *testing.T) {
+	bad := ValidateConfig(Config{
+		GuildID: "x", ClipsChannelID: "x", TicketStaffRoles: "x", TicketPanelColor: "x",
+		TicketOpenLimit: "x", PinnedRoles: "nope", LiveEnabled: "x",
+		TicketPanelTitle: strings.Repeat("t", TicketPanelTitleMax+1),
+	})
+	if len(bad) == 0 {
+		t.Fatal("the fixture was supposed to be invalid")
+	}
+	tags := configFieldsByTag(reflect.TypeOf(Config{}))
+	for _, fe := range bad {
+		if _, ok := tags[fe.Field]; !ok {
+			t.Fatalf("ValidateConfig reports %q, which is not a Config json tag", fe.Field)
 		}
 	}
 }

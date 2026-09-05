@@ -4,6 +4,7 @@
 package discord
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -228,5 +229,52 @@ func sortedKeys(m map[string]string) []string {
 		out = append(out, k)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// SanitizeConfig returns cfg with every field ValidateConfig rejected reset
+// to empty, alongside the errors it found. Empty is not a special value
+// here: every field on Config documents a default for it (see config.go),
+// so a zeroed field behaves exactly like one the streamer never filled in.
+//
+// This is the READER's half of validation. The dashboard is told to fix a
+// bad field (ValidateConfig, at the RPC), but the engine still has to run
+// against whatever is already stored, and a config that was written before
+// a rule existed -- or by an older console -- must not make a module act on
+// a snowflake that cannot be one. Refusing the whole config instead would
+// take a guild's live alerts down over a mistyped ticket colour.
+func SanitizeConfig(cfg Config) (Config, []FieldError) {
+	bad := ValidateConfig(cfg)
+	if len(bad) == 0 {
+		return cfg, nil
+	}
+	v := reflect.ValueOf(&cfg).Elem()
+	byTag := configFieldsByTag(v.Type())
+	for _, fe := range bad {
+		if i, ok := byTag[fe.Field]; ok {
+			v.Field(i).SetString("")
+		}
+	}
+	return cfg, bad
+}
+
+// configFieldsByTag indexes Config's string fields by JSON tag. Reflection
+// rather than a second hand-written table: ValidateConfig already names its
+// fields by tag, and a parallel tag -> pointer table would silently stop
+// zeroing a field the day a tag is renamed -- the failure being an invalid
+// value surviving into a module, which is the one thing this exists to
+// prevent.
+func configFieldsByTag(t reflect.Type) map[string]int {
+	out := make(map[string]int, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Type.Kind() != reflect.String {
+			continue
+		}
+		tag, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if tag != "" && tag != "-" {
+			out[tag] = i
+		}
+	}
 	return out
 }

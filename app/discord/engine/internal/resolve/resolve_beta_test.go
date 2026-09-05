@@ -21,7 +21,7 @@ type betaModules struct{}
 func (betaModules) GetModule(context.Context, uint64, string) (projection.ModuleView, bool, error) {
 	return projection.ModuleView{
 		Name: ddiscord.ModuleName, IsEnabled: true,
-		Configs: []byte(`{"guildId":"g1"}`),
+		Configs: []byte(`{"guildId":"100000000000000001"}`),
 	}, true, nil
 }
 

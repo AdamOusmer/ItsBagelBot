@@ -3,7 +3,10 @@
 
 package discord
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // Role slots are the stable keys the dashboard, the setup fill and
 // Config.PinnedRoles all name a template role by. They are NOT the role's
@@ -152,4 +155,30 @@ func holdsAny(memberRoles, want []string) bool {
 		}
 	}
 	return false
+}
+
+// FormatPinnedRoles renders a slot -> role id map back into the PinnedRoles
+// field's wire form ("slot=roleId,slot=roleId"). It is the inverse of
+// PinnedRoleMap and exists so a caller holding the MAP shape -- the setup
+// RPC, whose request carries pinned_roles as an object -- can validate it
+// with the same ValidateConfig the stored string goes through, instead of
+// growing a second validator that drifts from the first.
+//
+// Slots are emitted in sorted order: Go randomizes map iteration, and a
+// validator whose input reorders itself between two identical calls reports
+// its errors in a different order each time.
+func FormatPinnedRoles(pins map[string]string) string {
+	if len(pins) == 0 {
+		return ""
+	}
+	slots := make([]string, 0, len(pins))
+	for slot := range pins {
+		slots = append(slots, slot)
+	}
+	sort.Strings(slots)
+	pairs := make([]string, 0, len(slots))
+	for _, slot := range slots {
+		pairs = append(pairs, slot+"="+pins[slot])
+	}
+	return strings.Join(pairs, ",")
 }

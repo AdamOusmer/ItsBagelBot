@@ -119,7 +119,8 @@ func main() {
 	}
 
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
-	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)), Log: log}
+	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)),
+		Warned: resolve.NewConfigWarnings(), Log: log}
 	// ownInvite shares valkeyClient with guard and store above -- it is
 	// just another Valkey-backed cache, not a second connection -- and
 	// shares rpc (rpcclient.Client) with Channels/Purge below, since

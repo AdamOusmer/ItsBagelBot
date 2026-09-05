@@ -46,8 +46,26 @@ type DiscordSetupReply struct {
 	RegularsRoleID          string `json:"regulars_role_id,omitempty"`
 	MemberRoleID            string `json:"member_role_id,omitempty"`
 	Refused                 string `json:"refused,omitempty"`
-	Error                   string `json:"error,omitempty"`
+	// DroppedPins names every pinned SLOT whose role id no longer exists in
+	// the guild. The fill fell back to the template for those; the
+	// dashboard must say so, because a pin that silently stopped applying
+	// is indistinguishable from one that never saved.
+	DroppedPins []string `json:"dropped_pins,omitempty"`
+	// Code is the machine-readable failure, "" on success. The console
+	// switches on this instead of matching Error's English prose, which is
+	// translated and rewordable. See CodeInvalid.
+	Code string `json:"code,omitempty"`
+	// Fields names the rejected config fields by their JSON tag when Code
+	// is CodeInvalid, so the dashboard can highlight the inputs rather than
+	// showing one banner over a form with thirty of them.
+	Fields []string `json:"fields,omitempty"`
+	Error  string   `json:"error,omitempty"`
 }
+
+// CodeInvalid rejects a request whose config-bearing fields do not pass
+// ddiscord.ValidateConfig. It fires BEFORE the guild binds, so a refused
+// setup has touched neither Valkey nor Discord.
+const CodeInvalid = "invalid"
 
 // DiscordLayoutRequest is bagel.rpc.outgress.discord.layout: the guild's
 // channels and roles so the dashboard can offer pickers on a lived-in server.
