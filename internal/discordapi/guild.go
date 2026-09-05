@@ -21,6 +21,25 @@ type Snowflake struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type,omitempty"`
+	// Managed is set on a role Discord itself owns: a bot's own role, a
+	// Nitro booster role, an integration's role. None of them can be
+	// removed from a member through the roles API (Discord answers 403), so
+	// StripRoles has to skip them rather than pointlessly burning a call and
+	// a retry on each.
+	Managed bool `json:"managed,omitempty"`
+	// Position is a role's rank in the guild's hierarchy (0 is @everyone,
+	// higher is stronger). Discord refuses -- 403, permanently -- to let a
+	// bot touch a role at or above its OWN highest role, so a strip that
+	// does not read positions burns a call and a retry on every admin role
+	// it can never remove. Zero on channels, which have their own ordering
+	// this client does not use.
+	Position int `json:"position,omitempty"`
+	// VerificationLevel is only set on a guild (GetGuild). It rides
+	// Snowflake rather than a second guild type because the one caller that
+	// needs it -- the lockdown, which must remember the level it is about
+	// to raise -- already reads GetGuild's answer, and a parallel GuildInfo
+	// type would double every interface this client is reached through.
+	VerificationLevel int `json:"verification_level,omitempty"`
 }
 
 // PermissionOverwrite is a Discord channel overwrite.
@@ -212,6 +231,15 @@ func (c *Client) AddMemberRole(ctx context.Context, r MemberRole) error {
 // RemoveMemberRole revokes one role.
 func (c *Client) RemoveMemberRole(ctx context.Context, r MemberRole) error {
 	return c.do(ctx, request{method: http.MethodDelete, path: r.path()})
+}
+
+// RemoveMemberRoleWithReason revokes one role and records why in the guild's
+// audit log. Separate from RemoveMemberRole rather than a widened signature:
+// every other caller (the @Live role, autorole) revokes for a reason the
+// audit log cannot express better than the bot's own name, and a mass strip
+// during a raid is precisely the case a moderator later reads the log for.
+func (c *Client) RemoveMemberRoleWithReason(ctx context.Context, r MemberRole, reason string) error {
+	return c.do(ctx, request{method: http.MethodDelete, path: r.path(), reason: reason})
 }
 
 // ListGuildChannels returns the guild's channels (for matching names on fill).

@@ -12,6 +12,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/discord/outgress/internal/kv"
@@ -181,11 +182,21 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if req.GuildID == "" || req.UserID == "" {
 		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
 	}
-	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID, Subscribers: req.Subscribers})
+	if bad := validateSetup(req); len(bad) > 0 {
+		return outgressrpc.DiscordSetupReply{
+			Code: outgressrpc.CodeInvalid, Fields: bad,
+			Error: "some settings are not valid: " + strings.Join(bad, ", "),
+		}
+	}
+	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{
+		GuildID: req.GuildID, BroadcasterID: req.UserID,
+		Subscribers: req.Subscribers, PinnedRoles: req.PinnedRoles,
+	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
 	}
 	return outgressrpc.DiscordSetupReply{
+		DroppedPins:      got.DroppedPins,
 		GuildID:          got.GuildID,
 		LiveChannelID:    got.LiveChannelID,
 		ClipsChannelID:   got.ClipsChannelID,
@@ -194,6 +205,9 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		LogChannelID:     got.LogChannelID,
 		TicketChannelID:  got.TicketChannelID,
 		TicketCategoryID: got.TicketCategoryID,
+
+		TicketArchiveCategoryID: got.TicketArchiveCategoryID,
+
 		SubsChannelID:    got.SubsChannelID,
 		SubsCategoryID:   got.SubsCategoryID,
 		VIPChannelID:     got.VIPChannelID,
@@ -207,6 +221,31 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		MemberRoleID:     got.MemberRoleID,
 		Refused:          got.Refused,
 	}
+}
+
+// validateSetup runs the domain validator over the request's config-bearing
+// fields and returns the rejected field tags, deduplicated.
+//
+// The map of pins is rendered back into the stored comma form first so this
+// goes through the SAME ddiscord.ValidateConfig the dashboard's saved blob
+// does. A second validator written against the map shape is a second set of
+// rules to keep in step, and the one that would drift is this one -- setup
+// runs once per guild, so nobody notices for months.
+func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
+	cfg := ddiscord.Config{
+		GuildID:     req.GuildID,
+		PinnedRoles: ddiscord.FormatPinnedRoles(req.PinnedRoles),
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, fe := range ddiscord.ValidateConfig(cfg) {
+		if seen[fe.Field] {
+			continue
+		}
+		seen[fe.Field] = true
+		out = append(out, fe.Field)
+	}
+	return out
 }
 
 func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLayoutRequest) outgressrpc.DiscordLayoutReply {

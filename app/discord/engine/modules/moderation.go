@@ -40,15 +40,31 @@ func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 	return b.Build()
 }
 
+// isStaffOrMod is the MODERATION gate: /timeout, /kick, /ban, /purge and the
+// voice-clone owner override. It reads IsModStaff, not IsTicketStaff -- a
+// role added to the ticket desk's staff list must not come with the power to
+// ban, which is exactly what the single IsStaff this replaced handed out.
+func isStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
+	return decode.CanMod(in.Member.Permissions) || ddiscord.IsModStaff(in.Member.Roles, cfg)
+}
+
+// isTicketStaffOrMod is the DESK gate: claiming and closing someone else's
+// ticket. Strictly wider than isStaffOrMod by the configured desk roles.
+func isTicketStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
+	return decode.CanMod(in.Member.Permissions) || ddiscord.IsTicketStaff(in.Member.Roles, cfg)
+}
+
 type moderationModule struct {
 	purgeRPC purgeClient
 	log      *zap.Logger
 }
 
 // requireMod replies "Mods only." and reports false when the interacting
-// member lacks a moderation-capable permission bit.
+// member is neither staff by Bagel role nor moderator by Discord permission
+// bit. Either is enough: see ddiscord.IsModStaff for why the two questions are
+// not the same one.
 func requireMod(c *module.Context, in decode.InteractionEvent, emit module.Emit) bool {
-	if decode.CanMod(in.Member.Permissions) {
+	if isStaffOrMod(c.Config, in) {
 		return true
 	}
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Mods only.", true))

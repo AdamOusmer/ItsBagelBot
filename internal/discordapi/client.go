@@ -114,6 +114,10 @@ type request struct {
 	method string
 	path   string
 	body   any
+	// reason rides X-Audit-Log-Reason where the endpoint supports it. Empty
+	// sends no header at all: Discord shows an empty reason as a blank line
+	// in the audit log, which reads worse than no reason.
+	reason string
 }
 
 func (r request) payload() ([]byte, error) {
@@ -176,10 +180,32 @@ func (c *Client) send(ctx context.Context, req request, payload []byte) (*http.R
 		return nil, err
 	}
 	httpReq.Header.Set("Authorization", "Bot "+c.token)
+	if req.reason != "" {
+		httpReq.Header.Set("X-Audit-Log-Reason", auditReason(req.reason))
+	}
 	if payload != nil {
 		httpReq.Header.Set("Content-Type", "application/json")
 	}
 	return c.http.Do(httpReq)
+}
+
+// auditReasonMax is Discord's documented 512-character cap on
+// X-Audit-Log-Reason. The cap is on the DECODED value, so the truncation
+// happens before escaping; sending more is a 400 on an otherwise valid
+// moderation call, which is the worst possible moment to fail.
+const auditReasonMax = 512
+
+// auditReason percent-encodes a reason for the header. Discord documents the
+// value as URL-encoded, and PathEscape (not QueryEscape) is the right one:
+// QueryEscape writes a space as "+", which Discord's decoder shows literally,
+// and an unescaped newline in a header value is a request-splitting hazard
+// that Go's http client rejects outright.
+func auditReason(reason string) string {
+	r := []rune(reason)
+	if len(r) > auditReasonMax {
+		r = r[:auditReasonMax]
+	}
+	return url.PathEscape(string(r))
 }
 
 // classify maps a non-2xx status onto the typed errors above. The body is

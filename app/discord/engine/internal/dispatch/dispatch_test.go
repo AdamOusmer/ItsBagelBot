@@ -110,6 +110,20 @@ func (l *commandLog) byType(t string) []ddiscord.Command {
 	return out
 }
 
+// Fixture ids are snowflake-SHAPED on purpose: resolve zeroes config fields
+// that cannot be a Discord id (ddiscord.SanitizeConfig), so a fixture using
+// "g1" would resolve as an unconnected guild and every assertion below
+// would pass for the wrong reason.
+const (
+	testGuild      = "100000000000000001"
+	testWelcomeCh  = "100000000000000002"
+	testMemberRole = "100000000000000003"
+	testLogsCh     = "100000000000000004"
+	testVoiceHub   = "100000000000000005"
+	testTicketCat  = "100000000000000006"
+	testSupportCh  = "100000000000000007"
+)
+
 func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordstore.Mem, *commandLog) {
 	channels := &fakeChannels{}
 	store := discordstore.NewMem()
@@ -164,8 +178,8 @@ func memberPayload(guildID string) map[string]any {
 }
 
 func TestWelcomeAndAutorole(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome", MemberRoleID: "member"})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, MemberRoleID: testMemberRole})
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
 
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
 		t.Fatalf("welcome embeds = %d", len(got))
@@ -183,9 +197,9 @@ func TestMemberDispatchGuards(t *testing.T) {
 		guildID string
 		wantLog int
 	}{
-		{name: "goodbye off by default", cfg: ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"}, event: "GUILD_MEMBER_REMOVE", guildID: "g1", wantLog: 0},
-		{name: "join logs when welcome off", cfg: ddiscord.Config{GuildID: "g1", WelcomeEnabled: "off", LogChannelID: "logs"}, event: "GUILD_MEMBER_ADD", guildID: "g1", wantLog: 1},
-		{name: "unbound guild ignored", cfg: ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"}, event: "GUILD_MEMBER_ADD", guildID: "other", wantLog: 0},
+		{name: "goodbye off by default", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_REMOVE", guildID: testGuild, wantLog: 0},
+		{name: "join logs when welcome off", cfg: ddiscord.Config{GuildID: testGuild, WelcomeEnabled: "off", LogChannelID: testLogsCh}, event: "GUILD_MEMBER_ADD", guildID: testGuild, wantLog: 1},
+		{name: "unbound guild ignored", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_ADD", guildID: "other", wantLog: 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -206,8 +220,8 @@ func voicePayload(guildID, channelID string) map[string]any {
 }
 
 func TestJoinToCreateVoice(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 
 	if len(channels.created) != 1 {
 		t.Fatalf("created = %v", channels.created)
@@ -221,11 +235,11 @@ func TestJoinToCreateVoice(t *testing.T) {
 }
 
 func TestEmptyCloneIsDeleted(t *testing.T) {
-	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 	cloneID := channels.created[0]
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", cloneID)))
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "")))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, cloneID)))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, "")))
 
 	if len(channels.deleted) != 1 || channels.deleted[0] != cloneID {
 		t.Fatalf("deleted = %v, want [%s]", channels.deleted, cloneID)
@@ -240,10 +254,10 @@ func interactionPayload(guildID, channelID string, data map[string]any, member m
 }
 
 func TestTicketOpenAndClose(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketCategoryID: "cat"})
+	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketCategoryID: testTicketCat})
 	member := map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "support",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, testSupportCh,
 		map[string]any{"custom_id": discordapi.CustomTicketOpen}, member)))
 	if len(channels.created) != 1 {
 		t.Fatalf("ticket channel = %v", channels.created)
@@ -252,7 +266,7 @@ func TestTicketOpenAndClose(t *testing.T) {
 		t.Fatal("expected a panel posted into the new ticket channel")
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
 		map[string]any{"custom_id": discordapi.CustomTicketClose}, member)))
 	if len(channels.deleted) != 1 {
 		t.Fatalf("deleted = %v", channels.deleted)
@@ -260,17 +274,17 @@ func TestTicketOpenAndClose(t *testing.T) {
 }
 
 func TestDailyAndRank(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
 	member := map[string]any{"user": map[string]any{"id": "u1"}}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		map[string]any{"name": "daily"}, member)))
 	first := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(first) != 1 {
 		t.Fatalf("daily reply = %d", len(first))
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		map[string]any{"name": "daily"}, member)))
 	second := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(second) != 2 {
@@ -286,18 +300,18 @@ func TestDailyAndRank(t *testing.T) {
 }
 
 func TestModerationRequiresPerms(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
 	kickData := map[string]any{"name": "kick", "options": []any{
 		map[string]any{"name": "user", "type": 6, "value": "u2"},
 	}}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 0 {
 		t.Fatal("kick without perms must not fire")
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 1 {
 		t.Fatal("admin kick must fire")
@@ -305,11 +319,11 @@ func TestModerationRequiresPerms(t *testing.T) {
 }
 
 func TestLevelUpOnChat(t *testing.T) {
-	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
-	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: "g1", UserID: "u1"}, Amount: 90})
+	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
+	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: testGuild, UserID: "u1"}, Amount: 90})
 
-	dispatch(t, d, event(t, "MESSAGE_CREATE", "g1", map[string]any{
-		"id": "m1", "guild_id": "g1", "channel_id": "chat", "content": "hi",
+	dispatch(t, d, event(t, "MESSAGE_CREATE", testGuild, map[string]any{
+		"id": "m1", "guild_id": testGuild, "channel_id": "chat", "content": "hi",
 		"author": map[string]any{"id": "u1", "username": "Ada"},
 	}))
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
@@ -318,9 +332,9 @@ func TestLevelUpOnChat(t *testing.T) {
 }
 
 func TestTicketDeskPostedOnce(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketChannelID: "support", WelcomeEnabled: "off"})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketChannelID: testSupportCh, WelcomeEnabled: "off"})
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
 
 	panels := log.byType(ddiscord.TypePostPanel)
 	if len(panels) != 1 {
@@ -329,10 +343,10 @@ func TestTicketDeskPostedOnce(t *testing.T) {
 }
 
 func TestVoiceLockButton(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
 		map[string]any{"custom_id": discordapi.CustomVoiceLock},
 		map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"})))
 

@@ -70,6 +70,7 @@ func main() {
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 	botStatus := kv.NewBotStatusReader(valkeyClient)
+	lockdowns := kv.NewLockdownStore(valkeyClient)
 
 	applicationID := registerSlashCommands(ctx, rest, log)
 
@@ -82,7 +83,8 @@ func main() {
 	})
 
 	lanes := startCommandConsumer(consumerDeps{
-		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log,
+		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID,
+		Reauth: reauth, Lockdowns: lockdowns, Log: log,
 	})
 	defer lanes.Close()
 
@@ -184,6 +186,7 @@ type consumerDeps struct {
 	Rest          *discordrate.LimitedClient
 	ApplicationID string
 	Reauth        kv.ReauthStore
+	Lockdowns     kv.LockdownStore
 	Log           *zap.Logger
 }
 
@@ -192,7 +195,8 @@ type consumerDeps struct {
 func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	log := deps.Log.Named("commands")
 	handlers := &commands.Handlers{
-		Rest: deps.Rest, ApplicationID: deps.ApplicationID, Reauth: deps.Reauth, Log: log,
+		Rest: deps.Rest, ApplicationID: deps.ApplicationID,
+		Reauth: deps.Reauth, Lockdown: deps.Lockdowns, Log: log,
 	}
 	consumer := &commands.Consumer{NATSURL: deps.Cfg.NATSURL, Log: log, Handle: handlers.Dispatch}
 	lanes, err := consumer.Run(deps.Ctx)

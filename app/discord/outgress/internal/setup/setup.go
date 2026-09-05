@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -56,18 +59,27 @@ type GuildSetupResult struct {
 	LogChannelID     string
 	TicketChannelID  string
 	TicketCategoryID string
-	SubsChannelID    string
-	SubsCategoryID   string
-	VIPChannelID     string
-	VIPCategoryID    string
-	OwnerRoleID      string
-	LeadModRoleID    string
-	ModsRoleID       string
-	VIPRoleID        string
-	SubscriberRoleID string
-	RegularsRoleID   string
-	MemberRoleID     string
-	Refused          string // non-empty when the guild looked lived-in
+	// TicketArchiveCategoryID is the Archive category closed tickets move
+	// into. Empty when the fill ran before the category existed, which the
+	// ticket close path reads as "delete the channel instead".
+	TicketArchiveCategoryID string
+	SubsChannelID           string
+	SubsCategoryID          string
+	VIPChannelID            string
+	VIPCategoryID           string
+	OwnerRoleID             string
+	LeadModRoleID           string
+	ModsRoleID              string
+	VIPRoleID               string
+	SubscriberRoleID        string
+	RegularsRoleID          string
+	MemberRoleID            string
+	Refused                 string // non-empty when the guild looked lived-in
+	// DroppedPins is every pinned SLOT whose role id no longer exists in
+	// the guild. The fill fell back to name-match/create for those, and the
+	// dashboard has to say so: a pin that silently stopped applying looks
+	// identical to one that never saved.
+	DroppedPins []string
 }
 
 // GuildEntry is one channel or role the dashboard can pick from.
@@ -93,6 +105,14 @@ type GuildSetupRequest struct {
 	// the Subscriber role and its locked category when it is off, so a server
 	// that does not use the tier never grows a category nobody can open.
 	Subscribers bool
+	// PinnedRoles is slot -> EXISTING guild role id (see
+	// ddiscord.RoleSlots). A pinned slot is ADOPTED: the fill neither
+	// creates nor name-matches that role, it takes the id the streamer
+	// chose. This is the only way to attach the template to a server whose
+	// staff role is called something else and whose members already hold
+	// it -- creating a second "Mods" role next to the real one is the
+	// failure this exists to prevent.
+	PinnedRoles map[string]string
 }
 
 // SetupGuild fills the Bagel community template into an existing guild.
@@ -112,6 +132,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	if err != nil {
 		return GuildSetupResult{}, err
 	}
+	out.DroppedPins = fill.droppedPins
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
 		fill.adopt(&out)
@@ -240,6 +261,8 @@ type guildFill struct {
 	chanByName  map[string]string
 	roleByName  map[string]string
 	subscribers bool
+	pinned      map[string]string
+	droppedPins []string
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
@@ -263,11 +286,66 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	if err != nil {
 		return nil, err
 	}
+	pinned, dropped := adoptablePins(req.PinnedRoles, roles)
+	if len(dropped) > 0 {
+		w.log.Warn("pinned roles name roles this guild no longer has; falling back to the template",
+			zap.String("guild_id", req.GuildID), zap.Strings("slots", dropped))
+	}
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
-		subscribers: req.Subscribers,
+		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
 	}, nil
+}
+
+// adoptablePins keeps only the pins whose role id still EXISTS among the
+// guild's roles, and reports the slots it dropped.
+//
+// A pin is a snowflake stored by the dashboard at some earlier point, and
+// the role it names can be deleted in Discord afterwards with nothing
+// telling Bagel. Adopting a dead id makes the fill "succeed" while every
+// gate it writes references a role no member can hold -- a locked category
+// nobody, the streamer included, can open. Dropping the pin instead falls
+// back to name lookup or create, which is what a server that never pinned
+// gets, and is recoverable by re-pinning.
+func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[string]string, []string) {
+	if len(pins) == 0 {
+		return nil, nil
+	}
+	live := make(map[string]bool, len(roles))
+	for _, r := range roles {
+		live[r.ID] = true
+	}
+	out := make(map[string]string, len(pins))
+	var dropped []string
+	for slot, id := range pins {
+		if live[id] {
+			out[slot] = id
+			continue
+		}
+		dropped = append(dropped, slot)
+	}
+	// Map iteration is randomized and this list reaches the dashboard.
+	sort.Strings(dropped)
+	return out, dropped
+}
+
+// pinnedRole is the id the streamer pinned to the slot this template role
+// name belongs to, or "" when nothing is pinned there.
+func (f *guildFill) pinnedRole(templateName string) string {
+	slot := ddiscord.SlotForRoleName(templateName)
+	if slot == "" {
+		return ""
+	}
+	return f.pinned[slot]
+}
+
+// roleID resolves a template role name to a guild role id, pinned id first.
+func (f *guildFill) roleID(templateName string) string {
+	if id := f.pinnedRole(templateName); id != "" {
+		return id
+	}
+	return f.roleByName[strings.ToLower(templateName)]
 }
 
 func idsByName(list []discapi.Snowflake) map[string]string {
@@ -299,7 +377,7 @@ func (f *guildFill) livedIn() bool {
 // template by name, without creating anything.
 func (f *guildFill) adopt(out *GuildSetupResult) {
 	for _, spec := range ddiscord.CommunityRoles() {
-		out.setRole(namedRef{Name: spec.Name, ID: f.roleByName[strings.ToLower(spec.Name)]})
+		out.setRole(namedRef{Name: spec.Name, ID: f.roleID(spec.Name)})
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
 		out.setChannel(namedRef{Name: spec.Bind, ID: f.chanByName[strings.ToLower(spec.Name)]})
@@ -338,6 +416,14 @@ func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, wa
 func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityRoles() {
 		if !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+			continue
+		}
+		if id := f.pinnedRole(spec.Name); id != "" {
+			// Index the pinned id under the template name so the channel
+			// gates below (gatedOverwrites looks roles up by name) allow the
+			// role the streamer actually pinned, not a same-named stranger.
+			f.roleByName[strings.ToLower(spec.Name)] = id
+			out.setRole(namedRef{Name: spec.Name, ID: id})
 			continue
 		}
 		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name}, f.roleCreator(ctx, spec))
@@ -487,17 +573,18 @@ func (out *GuildSetupResult) setChannel(ch namedRef) {
 
 func (out *GuildSetupResult) channelSlot(name string) *string {
 	slots := map[string]*string{
-		"live":      &out.LiveChannelID,
-		"clips":     &out.ClipsChannelID,
-		"welcome":   &out.WelcomeChannelID,
-		"voice":     &out.VoiceHubID,
-		"logs":      &out.LogChannelID,
-		"tickets":   &out.TicketChannelID,
-		"ticketcat": &out.TicketCategoryID,
-		"subs":      &out.SubsChannelID,
-		"subcat":    &out.SubsCategoryID,
-		"vip":       &out.VIPChannelID,
-		"vipcat":    &out.VIPCategoryID,
+		"live":          &out.LiveChannelID,
+		"clips":         &out.ClipsChannelID,
+		"welcome":       &out.WelcomeChannelID,
+		"voice":         &out.VoiceHubID,
+		"logs":          &out.LogChannelID,
+		"tickets":       &out.TicketChannelID,
+		"ticketcat":     &out.TicketCategoryID,
+		"ticketarchive": &out.TicketArchiveCategoryID,
+		"subs":          &out.SubsChannelID,
+		"subcat":        &out.SubsCategoryID,
+		"vip":           &out.VIPChannelID,
+		"vipcat":        &out.VIPCategoryID,
 	}
 	return slots[name]
 }
@@ -526,6 +613,17 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 	out := []discapi.PermissionOverwrite{{
 		ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permViewChannel),
 	}}
+	allow := permViewChannel | permSendMessages
+	deny := int64(0)
+	if spec.ReadOnly {
+		// A read-only gated channel (the ticket Archive) allows the gate
+		// through to LOOK, not to write. Denying SEND explicitly rather than
+		// merely not allowing it matters because a staff role may already
+		// carry SEND_MESSAGES server-wide, which an absent allow would not
+		// take away.
+		allow = permViewChannel
+		deny = permSendMessages
+	}
 	for _, name := range spec.AllowRoles {
 		id := f.roleByName[strings.ToLower(name)]
 		if id == "" {
@@ -533,7 +631,7 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 		}
 		out = append(out, discapi.PermissionOverwrite{
 			ID: id, Type: overwriteRole,
-			Allow: fmt.Sprintf("%d", permViewChannel|permSendMessages), Deny: "0",
+			Allow: fmt.Sprintf("%d", allow), Deny: fmt.Sprintf("%d", deny),
 		})
 	}
 	return out

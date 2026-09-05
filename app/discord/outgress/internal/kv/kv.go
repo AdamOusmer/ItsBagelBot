@@ -20,6 +20,7 @@ import (
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -182,4 +183,87 @@ func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID GuildID) err
 func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID GuildID) bool {
 	n, err := s.client.Do(ctx, s.client.B().Exists().Key(reauthKey(guildID)).Build()).AsInt64()
 	return err == nil && n > 0
+}
+
+// lockdownTTL bounds how long a lockdown's undo state is kept. A lockdown is
+// an hours-long event, not a permanent setting, and a key that outlived the
+// raid by months would restore a verification level the streamer has since
+// changed by hand. Seven days matches liveMessageTTL for the same reason:
+// it comfortably outlasts the event while still expiring on its own if
+// nobody ever unlocks.
+const lockdownTTL = 7 * 24 * time.Hour
+
+// LockdownChannel is one channel's @everyone overwrite as it stood BEFORE
+// the lockdown muted it.
+//
+// A channel that had no @everyone overwrite at all is stored as an explicit
+// "0"/"0" pair rather than a "delete it again" marker: an overwrite that
+// allows nothing and denies nothing is permission-identical to having none,
+// and carrying the distinction would mean a second REST verb whose only job
+// is to tidy up a row nobody can see.
+type LockdownChannel struct {
+	ChannelID string `json:"channel_id"`
+	Allow     string `json:"allow"`
+	Deny      string `json:"deny"`
+}
+
+// LockdownState is everything Unlock needs to put a guild back.
+//
+// It is stored rather than recomputed because the lockdown DESTROYS the
+// information: once @everyone is denied SEND, nothing on Discord's side
+// still says whether that deny was the streamer's own or ours.
+type LockdownState struct {
+	// VerificationLevel is the level in force before the bump. Not omitempty:
+	// level 0 (NONE) is a real setting a guild must get back.
+	VerificationLevel int `json:"verification_level"`
+	// EveryoneRoleID is the overwrite target the mute was written onto.
+	EveryoneRoleID string `json:"everyone_role_id,omitempty"`
+	// Channels are the channels the lockdown muted, in the order it muted
+	// them.
+	Channels []LockdownChannel `json:"channels,omitempty"`
+}
+
+// LockdownStore remembers what one lockdown displaced so it can be undone.
+type LockdownStore interface {
+	PutLockdown(ctx context.Context, guildID GuildID, state LockdownState) error
+	GetLockdown(ctx context.Context, guildID GuildID) (LockdownState, bool)
+	DeleteLockdown(ctx context.Context, guildID GuildID) error
+}
+
+// NewLockdownStore builds the Valkey-backed store. A nil client yields a nil
+// store, matching New: callers nil-check before use.
+func NewLockdownStore(client valkey.Client) LockdownStore {
+	if client == nil {
+		return nil
+	}
+	return valkeyLockdown{client: client}
+}
+
+type valkeyLockdown struct{ client valkey.Client }
+
+func lockdownKey(guildID GuildID) string { return "discord:lockdown:" + string(guildID) }
+
+func (s valkeyLockdown) PutLockdown(ctx context.Context, guildID GuildID, state LockdownState) error {
+	raw, err := codec.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return s.client.Do(ctx, s.client.B().Set().Key(lockdownKey(guildID)).
+		Value(string(raw)).Ex(lockdownTTL).Build()).Error()
+}
+
+func (s valkeyLockdown) GetLockdown(ctx context.Context, guildID GuildID) (LockdownState, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(lockdownKey(guildID)).Build()).ToString()
+	if err != nil || raw == "" {
+		return LockdownState{}, false
+	}
+	var state LockdownState
+	if err := codec.Unmarshal([]byte(raw), &state); err != nil {
+		return LockdownState{}, false
+	}
+	return state, true
+}
+
+func (s valkeyLockdown) DeleteLockdown(ctx context.Context, guildID GuildID) error {
+	return s.client.Do(ctx, s.client.B().Del().Key(lockdownKey(guildID)).Build()).Error()
 }

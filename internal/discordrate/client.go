@@ -28,6 +28,7 @@ type rest interface {
 	AddMemberRole(ctx context.Context, r discordapi.MemberRole) error
 	ModifyCurrentMember(ctx context.Context, m discordapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discordapi.MemberRole) error
+	RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error
 	MoveMember(ctx context.Context, move discordapi.VoiceMove) error
 	ModifyChannel(ctx context.Context, patch discordapi.ChannelPatch) error
 	TimeoutMember(ctx context.Context, t discordapi.MemberTimeout) error
@@ -44,6 +45,10 @@ type rest interface {
 	BulkOverwriteCommands(ctx context.Context, cat discordapi.CommandCatalog) error
 	GetCurrentApplication(ctx context.Context) (discordapi.Snowflake, error)
 	GetInvite(ctx context.Context, code string) (discordapi.Invite, error)
+	GetGuildMember(ctx context.Context, m discordapi.GuildMember) (discordapi.GuildMemberInfo, error)
+	ListGuildChannelsFull(ctx context.Context, guild discordapi.Guild) ([]discordapi.ChannelInfo, error)
+	ModifyGuild(ctx context.Context, patch discordapi.GuildPatch) error
+	SetChannelOverwrite(ctx context.Context, o discordapi.ChannelOverwrite) error
 }
 
 // LimitedClient decorates a Discord REST client with the shared global
@@ -253,4 +258,42 @@ func (c *LimitedClient) ModifyCurrentMember(ctx context.Context, m discordapi.Cu
 		return err
 	}
 	return c.rest.ModifyCurrentMember(ctx, m)
+}
+
+func (c *LimitedClient) GetGuildMember(ctx context.Context, m discordapi.GuildMember) (discordapi.GuildMemberInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.GuildMemberInfo{}, err
+	}
+	return c.rest.GetGuildMember(ctx, m)
+}
+
+func (c *LimitedClient) ListGuildChannelsFull(ctx context.Context, guild discordapi.Guild) ([]discordapi.ChannelInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return nil, err
+	}
+	return c.rest.ListGuildChannelsFull(ctx, guild)
+}
+
+func (c *LimitedClient) ModifyGuild(ctx context.Context, patch discordapi.GuildPatch) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.ModifyGuild(ctx, patch)
+}
+
+func (c *LimitedClient) SetChannelOverwrite(ctx context.Context, o discordapi.ChannelOverwrite) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.SetChannelOverwrite(ctx, o)
+}
+
+// RemoveMemberRoleWithReason pays the bucket like its reasonless twin. A raid
+// strip is a burst of these, which is exactly what the shared token exists to
+// pace.
+func (c *LimitedClient) RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.RemoveMemberRoleWithReason(ctx, r, reason)
 }

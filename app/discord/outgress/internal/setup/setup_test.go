@@ -6,6 +6,7 @@ package setup
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -19,12 +20,19 @@ import (
 // guildRecorder is a map-backed discordGuildAPI, mirroring the pre-split
 // egress test's fake of the same name.
 type guildRecorder struct {
-	mu        sync.Mutex
-	channels  []discapi.Snowflake
+	mu       sync.Mutex
+	channels []discapi.Snowflake
+	// roles are the guild's EXISTING roles, on top of @everyone. A pin is
+	// only adopted when its id is in here, so a test that pins a role must
+	// say the guild has it.
+	roles     []discapi.Snowflake
 	createdCh []string
 	createdRo []string
 	panels    []string
 	nextID    int
+	// specs keeps each created channel's full spec (by lowercased name) so a
+	// test can assert the permission overwrites a gate actually sent.
+	specs map[string]discapi.ChannelCreate
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -47,6 +55,10 @@ func (r *guildRecorder) CreateChannel(_ context.Context, ch discapi.GuildChannel
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Spec.Name, Type: ch.Spec.Type}
+	if r.specs == nil {
+		r.specs = map[string]discapi.ChannelCreate{}
+	}
+	r.specs[strings.ToLower(ch.Spec.Name)] = ch.Spec
 	r.channels = append(r.channels, out)
 	r.createdCh = append(r.createdCh, ch.Spec.Name)
 	return out, nil
@@ -68,7 +80,7 @@ func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]dis
 }
 
 func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
-	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
+	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
 }
 
 func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {

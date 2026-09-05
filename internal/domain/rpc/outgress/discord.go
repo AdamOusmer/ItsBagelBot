@@ -56,6 +56,10 @@ type DiscordSetupRequest struct {
 	// Subscribers mirrors the streamer's subscriber toggle so the fill can
 	// skip the Subscriber role and its locked category when the tier is off.
 	Subscribers bool `json:"subscribers,omitempty"`
+	// PinnedRoles is slot -> existing guild role id (ddiscord.RoleSlots).
+	// The fill adopts these instead of creating or name-matching, so a
+	// server whose staff role is already called something else keeps it.
+	PinnedRoles map[string]string `json:"pinned_roles,omitempty"`
 }
 
 // DiscordSetupReply is the filled template the dashboard writes into the
@@ -70,20 +74,37 @@ type DiscordSetupReply struct {
 	LogChannelID     string `json:"log_channel_id,omitempty"`
 	TicketChannelID  string `json:"ticket_channel_id,omitempty"`
 	TicketCategoryID string `json:"ticket_category_id,omitempty"`
-	SubsChannelID    string `json:"subs_channel_id,omitempty"`
-	SubsCategoryID   string `json:"subs_category_id,omitempty"`
-	VIPChannelID     string `json:"vip_channel_id,omitempty"`
-	VIPCategoryID    string `json:"vip_category_id,omitempty"`
-	OwnerRoleID      string `json:"owner_role_id,omitempty"`
-	LeadModRoleID    string `json:"lead_mod_role_id,omitempty"`
-	ModsRoleID       string `json:"mods_role_id,omitempty"`
-	VIPRoleID        string `json:"vip_role_id,omitempty"`
-	SubscriberRoleID string `json:"subscriber_role_id,omitempty"`
-	RegularsRoleID   string `json:"regulars_role_id,omitempty"`
-	MemberRoleID     string `json:"member_role_id,omitempty"`
-	Refused          string `json:"refused,omitempty"`
-	Error            string `json:"error,omitempty"`
-	Code             string `json:"code"`
+	// TicketArchiveCategoryID is the Archive category closed tickets move
+	// into; empty when the guild predates it.
+	TicketArchiveCategoryID string `json:"ticket_archive_category_id,omitempty"`
+	SubsChannelID           string `json:"subs_channel_id,omitempty"`
+	SubsCategoryID          string `json:"subs_category_id,omitempty"`
+	VIPChannelID            string `json:"vip_channel_id,omitempty"`
+	VIPCategoryID           string `json:"vip_category_id,omitempty"`
+	OwnerRoleID             string `json:"owner_role_id,omitempty"`
+	LeadModRoleID           string `json:"lead_mod_role_id,omitempty"`
+	ModsRoleID              string `json:"mods_role_id,omitempty"`
+	VIPRoleID               string `json:"vip_role_id,omitempty"`
+	SubscriberRoleID        string `json:"subscriber_role_id,omitempty"`
+	RegularsRoleID          string `json:"regulars_role_id,omitempty"`
+	MemberRoleID            string `json:"member_role_id,omitempty"`
+	Refused                 string `json:"refused,omitempty"`
+	// DroppedPins names every pinned SLOT whose role id no longer exists in
+	// the guild. The fill fell back to the template for those; the
+	// dashboard must say so, because a pin that silently stopped applying
+	// is indistinguishable from one that never saved.
+	DroppedPins []string `json:"dropped_pins,omitempty"`
+	// Fields names the rejected config fields by their JSON tag when Code
+	// is CodeInvalid, so the dashboard can highlight the inputs rather than
+	// showing one banner over a form with thirty of them.
+	Fields []string `json:"fields,omitempty"`
+	Error  string   `json:"error,omitempty"`
+	// Code is the machine-readable failure, CodeOK on success. Merge note
+	// (2026-09-05): feat/discord-roles declared its own CodeInvalid here
+	// with `code,omitempty`; the shared const block above already carries
+	// CodeInvalid, and the no-omitempty rule documented there wins -- a
+	// dropped "code" on success is the ambiguity codes exist to remove.
+	Code string `json:"code"`
 }
 
 // DiscordLayoutRequest is bagel.rpc.dingress.discord.layout: the guild's

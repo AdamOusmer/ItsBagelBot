@@ -159,7 +159,7 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 	}
 	// Every staff tier, not just Mods: a ticket only Mods can read is
 	// invisible to the Lead Mods and the Owner who are meant to escalate to.
-	for _, roleID := range cfg.StaffRoleIDs() {
+	for _, roleID := range cfg.TicketStaffRoleIDs() {
 		overwrites = append(overwrites, decode.OverwriteAllow(decode.OverwriteSpec{
 			TargetID: roleID, Kind: 0, Bits: decode.PermView | decode.PermSend,
 		}))
@@ -177,7 +177,7 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "This is not a ticket.", true))
 		return nil
 	}
-	if !canCloseTicket(t, in) {
+	if !canCloseTicket(t, in, c.Config) {
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Only the opener or a mod can close this.", true))
 		return nil
 	}
@@ -190,9 +190,9 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 	return nil
 }
 
-func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent) bool {
+func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent, cfg ddiscord.Config) bool {
 	if t.OpenerID == in.Member.User.ID {
 		return true
 	}
-	return decode.CanMod(in.Member.Permissions)
+	return isTicketStaffOrMod(cfg, in)
 }
