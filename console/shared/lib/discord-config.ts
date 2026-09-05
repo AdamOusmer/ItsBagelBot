@@ -433,3 +433,118 @@ function normalizeField(rule: Rule, raw: string): string {
   if (rule.kind === 'color' && v !== '') return normalizeHex(v);
   return v;
 }
+
+// ── per-guild config rows ─────────────────────────────────────────────────
+
+/**
+ * The version a `config.get` reports for a guild that has no row yet.
+ *
+ * Zero rather than -1 because outgress's `config.set` compares
+ * `expected_version` against the stored column, and a row that has never been
+ * written has version 0 on the Go side too. Sending -1 for "I have never read
+ * this" would make the very first save look like a conflict.
+ */
+export const DISCORD_CONFIG_VERSION_NEW = 0;
+
+/**
+ * Reads the version out of a `config.get` reply.
+ *
+ * Accepts a string as well as a number: the RPC envelope is JSON and a Go
+ * `uint64` marshalled by a service that ever adds `,string` to its tag would
+ * arrive quoted. Anything else (missing, negative, fractional, past
+ * `Number.MAX_SAFE_INTEGER`) degrades to "never read", which makes the next
+ * save a fresh write rather than an unexplained conflict.
+ */
+export function parseConfigVersion(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0) return raw;
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+    const n = Number.parseInt(raw.trim(), 10);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return DISCORD_CONFIG_VERSION_NEW;
+}
+
+// ── guild permissions (the OAuth picker) ──────────────────────────────────
+
+/**
+ * The two permissions that let a member add a bot to a guild.
+ *
+ * BigInt, not Number, and this is not style. Discord serialises a guild's
+ * permission bitfield as a DECIMAL STRING in `/users/@me/guilds` precisely
+ * because the field outgrew a double: bits past 53 exist today
+ * (USE_EXTERNAL_APPS is bit 50, CREATE_EVENTS bit 44), so `parseInt` on a
+ * guild that carries a high bit silently rounds and can flip a low bit in the
+ * result. The two bits tested here are low, but the parse has to be exact for
+ * the AND to mean anything at all.
+ */
+export const DISCORD_ADMINISTRATOR = 0x8n;
+export const DISCORD_MANAGE_GUILD = 0x20n;
+
+export type GuildPermissionEntry = {
+  id?: string;
+  name?: string;
+  owner?: boolean;
+  permissions?: string | number;
+};
+
+/** Parses Discord's decimal permission string. Anything unparseable is zero:
+ *  a guild whose bitfield we cannot read is one we do not offer. */
+export function guildPermissionBits(raw: string | number | undefined): bigint {
+  if (typeof raw === 'number') {
+    if (!Number.isSafeInteger(raw) || raw < 0) return 0n;
+    return BigInt(raw);
+  }
+  const v = (raw ?? '').trim();
+  if (!/^\d+$/.test(v)) return 0n;
+  return BigInt(v);
+}
+
+/**
+ * Whether this guild may be offered in the picker.
+ *
+ * Owner wins outright: Discord reports the owner's `permissions` as the
+ * everyone-role bitfield in some responses, so an owner with no explicit
+ * Administrator role would otherwise be filtered out of their own server.
+ */
+export function canManageGuild(entry: GuildPermissionEntry): boolean {
+  if (entry.owner === true) return true;
+  const bits = guildPermissionBits(entry.permissions);
+  return (bits & DISCORD_ADMINISTRATOR) !== 0n || (bits & DISCORD_MANAGE_GUILD) !== 0n;
+}
+
+// ── guild presentation ────────────────────────────────────────────────────
+
+/**
+ * The two-letter tile a guild is drawn with.
+ *
+ * Not an <img>: the console CSP is `img-src 'self' data:`, so a tag pointed at
+ * cdn.discordapp.com renders as a broken box with no fix short of proxying
+ * every guild icon through the dashboard, and it would leak the visit to
+ * Discord on every page view. Initials of the first two words when there are
+ * two, otherwise the first two characters, so "Demo Bakery" reads DB and
+ * "Bagels" reads BA.
+ */
+export function guildMonogram(name: string): string {
+  const words = name.trim().split(/\s+/).filter((w) => w !== '');
+  if (words.length === 0) return '?';
+  if (words.length === 1) return [...words[0]].slice(0, 2).join('').toUpperCase();
+  return (([...words[0]][0] ?? '') + ([...words[1]][0] ?? '')).toUpperCase();
+}
+
+/** The pill a server card shows. `reauth` outranks `offline`: a guild whose
+ *  install predates a permission needs the streamer to act, and saying
+ *  "offline" would send them to wait for a reconnect that already happened. */
+export type GuildBotState = 'online' | 'offline' | 'reauth';
+
+export function guildBotState(g: { botPresent?: boolean; needsReauth?: boolean }): GuildBotState {
+  if (g.needsReauth === true) return 'reauth';
+  return g.botPresent === true ? 'online' : 'offline';
+}
+
+/** The picker's badge: a guild Bagel is already in is still pickable (that is
+ *  the re-authorize path) but must not read as a fresh install. */
+export type GuildPickerBadge = 'present' | 'addable';
+
+export function guildPickerBadge(guildId: string, boundIds: readonly string[]): GuildPickerBadge {
+  return boundIds.includes(guildId) ? 'present' : 'addable';
+}

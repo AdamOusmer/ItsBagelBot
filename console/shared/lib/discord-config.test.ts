@@ -5,19 +5,27 @@ import { describe, expect, test } from 'bun:test';
 import {
   CATEGORY_NAME_MAX,
   DISCORD_CONFIG_KEYS,
+  DISCORD_CONFIG_VERSION_NEW,
+  DISCORD_MANAGE_GUILD,
   LIVE_COLOR_HEX,
   PINNED_SLOTS,
   TICKET_OPEN_LIMIT_DEFAULT,
   TICKET_PANEL_BODY_MAX,
   TICKET_PANEL_DEFAULTS,
   blankDiscordConfig,
+  canManageGuild,
   encodeIdList,
   encodeNameList,
   encodePinnedRoles,
+  guildBotState,
+  guildMonogram,
+  guildPermissionBits,
+  guildPickerBadge,
   isHexColor,
   isSnowflake,
   mergeDiscordConfig,
   normalizeHex,
+  parseConfigVersion,
   parseDiscordConfig,
   parseIdList,
   parseNameList,
@@ -268,5 +276,86 @@ describe('accessors', () => {
     const base = { ...blankDiscordConfig(), logChannelId: ID_A };
     expect(ticketLogChannel(base)).toBe(ID_A);
     expect(ticketLogChannel({ ...base, ticketLogChannelId: ID_B })).toBe(ID_B);
+  });
+});
+
+describe('config version', () => {
+  test('a number, a quoted number and nothing all decode', () => {
+    expect(parseConfigVersion(7)).toBe(7);
+    expect(parseConfigVersion('7')).toBe(7);
+    expect(parseConfigVersion(' 12 ')).toBe(12);
+    expect(parseConfigVersion(undefined)).toBe(DISCORD_CONFIG_VERSION_NEW);
+  });
+
+  test('a value that is not a whole non-negative version reads as never-saved', () => {
+    expect(parseConfigVersion(-1)).toBe(DISCORD_CONFIG_VERSION_NEW);
+    expect(parseConfigVersion(1.5)).toBe(DISCORD_CONFIG_VERSION_NEW);
+    expect(parseConfigVersion('abc')).toBe(DISCORD_CONFIG_VERSION_NEW);
+    expect(parseConfigVersion(null)).toBe(DISCORD_CONFIG_VERSION_NEW);
+    expect(parseConfigVersion(Number.MAX_SAFE_INTEGER + 2)).toBe(DISCORD_CONFIG_VERSION_NEW);
+  });
+});
+
+describe('guild permissions', () => {
+  test('ADMINISTRATOR and MANAGE_GUILD each qualify on their own', () => {
+    expect(canManageGuild({ permissions: '8' })).toBe(true);
+    expect(canManageGuild({ permissions: '32' })).toBe(true);
+    expect(canManageGuild({ permissions: '40' })).toBe(true);
+  });
+
+  test('a guild with neither bit is filtered out', () => {
+    // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: a normal member.
+    expect(canManageGuild({ permissions: '3136' })).toBe(false);
+    expect(canManageGuild({ permissions: '0' })).toBe(false);
+    expect(canManageGuild({})).toBe(false);
+  });
+
+  test('owner qualifies whatever the bitfield says', () => {
+    expect(canManageGuild({ owner: true, permissions: '0' })).toBe(true);
+    expect(canManageGuild({ owner: false, permissions: '0' })).toBe(false);
+  });
+
+  test('a bitfield past 2^53 keeps every low bit', () => {
+    // 1 << 50 (USE_EXTERNAL_APPS) plus MANAGE_GUILD. Number.parseInt on this
+    // string rounds and the AND against 0x20 can come out zero, which is the
+    // whole reason the parse is BigInt.
+    const bits = (1n << 50n) | DISCORD_MANAGE_GUILD;
+    expect(canManageGuild({ permissions: bits.toString() })).toBe(true);
+    expect(guildPermissionBits(bits.toString())).toBe(bits);
+    // The same field WITHOUT either management bit must still be refused.
+    expect(canManageGuild({ permissions: (1n << 50n).toString() })).toBe(false);
+  });
+
+  test('a malformed bitfield is worth no permission at all', () => {
+    expect(guildPermissionBits('12x')).toBe(0n);
+    expect(guildPermissionBits('-8')).toBe(0n);
+    expect(guildPermissionBits(undefined)).toBe(0n);
+    expect(guildPermissionBits(8)).toBe(8n);
+    expect(guildPermissionBits(1.5)).toBe(0n);
+  });
+});
+
+describe('guild presentation', () => {
+  test('the monogram takes two initials, or two letters from one word', () => {
+    expect(guildMonogram('Demo Bakery')).toBe('DB');
+    expect(guildMonogram('  the  bagel  house ')).toBe('TB');
+    expect(guildMonogram('Bagels')).toBe('BA');
+    expect(guildMonogram('x')).toBe('X');
+    expect(guildMonogram('   ')).toBe('?');
+  });
+
+  test('reauth outranks offline on the bot pill', () => {
+    expect(guildBotState({ botPresent: true })).toBe('online');
+    expect(guildBotState({ botPresent: false })).toBe('offline');
+    expect(guildBotState({ botPresent: false, needsReauth: true })).toBe('reauth');
+    expect(guildBotState({ botPresent: true, needsReauth: true })).toBe('reauth');
+    expect(guildBotState({})).toBe('offline');
+  });
+
+  test('the picker badge names the guilds Bagel is already in', () => {
+    const bound = [ID_A, ID_B];
+    expect(guildPickerBadge(ID_A, bound)).toBe('present');
+    expect(guildPickerBadge(ID_C, bound)).toBe('addable');
+    expect(guildPickerBadge(ID_A, [])).toBe('addable');
   });
 });
