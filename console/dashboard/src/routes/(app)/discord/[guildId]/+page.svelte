@@ -106,7 +106,7 @@
     if (resetAfter) saveTimer = setTimeout(() => (saveState = 'idle'), resetAfter);
   }
 
-  type ActionResult = { ok?: boolean; error?: string; code?: string; refused?: string };
+  type ActionResult = { ok?: boolean; error?: string; code?: string; refused?: string; fields?: string[] };
   function payloadOf(result: unknown): ActionResult | undefined {
     const r = result as { type: string; data?: ActionResult };
     return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
@@ -117,9 +117,63 @@
   // tables live in $lib/discord-messages so the server list and this page
   // cannot drift apart.
   function refusalText(p: ActionResult | undefined, fallback: string): string {
+    if (p?.code === 'invalid' && p.fields?.length) {
+      return t('discord.errInvalidFields', { fields: p.fields.map(fieldLabel).join(', ') });
+    }
     const key = p?.code ? DISCORD_CODE_KEYS[p.code] : undefined;
     if (key) return t(key);
-    return p?.error ?? fallback;
+    // The translated sentence wins over `p.error`. Actions run on the server,
+    // where there is no locale, so anything they phrase themselves is English
+    // for every reader; the raw text is a last resort for a refusal this
+    // console has no code for at all.
+    return fallback || (p?.error ?? '');
+  }
+
+  /**
+   * A refused field, named the way the page names it.
+   *
+   * The action reports wire field names (`ticketStaffRoleIds`), which are the
+   * one thing this page has spent its whole existence not showing anybody. The
+   * map is a typed literal so the i18n scanner sees the keys; a field missing
+   * from it degrades to its own name rather than to nothing.
+   */
+  type I18nKey = Parameters<typeof t>[0];
+  const FIELD_LABEL_KEYS: Partial<Record<keyof DiscordConfig, I18nKey>> = {
+    liveChannelId: 'discord.liveChannelLabel',
+    clipsChannelId: 'discord.clipsChannelLabel',
+    welcomeChannelId: 'discord.welcomeChannelLabel',
+    voiceHubId: 'discord.voiceHubLabel',
+    logChannelId: 'discord.logChannelLabel',
+    subsChannelId: 'discord.subsChannelLabel',
+    subsCategoryId: 'discord.subsCategoryLabel',
+    vipChannelId: 'discord.vipChannelLabel',
+    vipCategoryId: 'discord.vipCategoryLabel',
+    ticketChannelId: 'discord.ticketChannelLabel',
+    ticketCategoryId: 'discord.ticketCategoryLabel',
+    ticketArchiveCategoryId: 'discord.ticketArchiveLabel',
+    ticketLogChannelId: 'discord.ticketLogLabel',
+    ticketStaffRoleIds: 'discord.staffRolesLabel',
+    ticketOpenLimit: 'discord.openLimitLabel',
+    ticketPanelTitle: 'discord.panelTitleLabel',
+    ticketPanelBody: 'discord.panelBodyLabel',
+    ticketPanelColor: 'discord.panelColorLabel',
+    ticketPanelButton: 'discord.panelButtonLabel',
+    ownerRoleId: 'discord.ownerRoleLabel',
+    leadModRoleId: 'discord.leadModRoleLabel',
+    modsRoleId: 'discord.modsRoleLabel',
+    vipRoleId: 'discord.vipRoleLabel',
+    subscriberRoleId: 'discord.subscriberRoleLabel',
+    regularsRoleId: 'discord.regularsRoleLabel',
+    memberRoleId: 'discord.memberRoleLabel',
+    pinnedRoles: 'discord.pinnedChip',
+    categoryAllow: 'discord.allowLabel',
+    categoryDeny: 'discord.denyLabel',
+    linkAllowList: 'discord.linkGuardLabel'
+  };
+
+  function fieldLabel(field: string): string {
+    const key = FIELD_LABEL_KEYS[field as keyof DiscordConfig];
+    return key ? t(key) : field;
   }
 
   function succeeded(result: { type: string }, p: ActionResult | undefined): boolean {
@@ -142,8 +196,24 @@
       markSave('error', 4000);
       conflicted = p?.code === 'conflict';
       toast('err', refusalText(p, t('discord.toastSaveFailed')));
+      // An `invalid` refusal means the save DID land: every good field was
+      // written and only the named ones kept their stored value. Reseeding is
+      // what makes the refused control snap back to what is actually stored
+      // instead of showing a draft the server rejected.
+      if (p?.code === 'invalid') await invalidateAll();
     };
   };
+
+  /**
+   * The one navigation that must not be guarded.
+   *
+   * Disconnecting redirects to /discord, and there is nothing left to save --
+   * the guild is unbound. Exempting the /discord PATH instead, as this did,
+   * exempted the server list too: clicking "Discord" in the nav with unsaved
+   * changes threw them away silently, which is the exact case the guard
+   * exists for.
+   */
+  let disconnecting = $state(false);
 
   // One factory instead of three near-identical closures: each one-shot action
   // differs only in which two strings it toasts.
@@ -158,6 +228,9 @@
           await invalidateAll();
           return;
         }
+        // A refused disconnect never redirects, so the guard has to come back
+        // on or the next navigation drops the draft silently.
+        disconnecting = false;
         toast('err', refusalText(p, failMsg));
       };
     };
@@ -186,9 +259,9 @@
   let pendingHref = $state('');
   let discardOpen = $state(false);
   beforeNavigate((nav) => {
+    if (disconnecting) return;
     if (!dirty) return;
     if (!nav.to) return;
-    if (nav.to.url.pathname === '/discord') return;
     if (pendingHref === nav.to.url.href) return;
     nav.cancel();
     pendingHref = nav.to.url.href;
@@ -210,9 +283,21 @@
   let disconnectForm = $state<HTMLFormElement | undefined>();
 
   // ── layout ──────────────────────────────────────────────────────────────
-  // Discord channel types: 0 text, 2 voice. Categories arrive as their own
-  // list from outgress rather than being sieved out of channels by type.
-  const textChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 0));
+  // Discord channel types: 0 text, 2 voice, 5 announcement. Categories arrive
+  // as their own list from outgress rather than being sieved out of channels
+  // by type.
+  //
+  // Type 5 belongs in every text picker: an announcement channel takes the
+  // same message a text channel does, and #announcements is the single most
+  // likely place a streamer wants go-live posts. Filtering on type === 0 alone
+  // meant that channel simply was not in the list, with nothing on screen
+  // saying why. It is labelled rather than silently mixed in because it
+  // behaves differently once posted to -- Discord rate-limits it hard and
+  // fans it out to every following server.
+  const TEXTLIKE_TYPES = [0, 5];
+  const textChannels = $derived(
+    (data.layout?.channels ?? []).filter((c: DiscordEntry) => TEXTLIKE_TYPES.includes(c.type))
+  );
   const voiceChannels = $derived((data.layout?.channels ?? []).filter((c: DiscordEntry) => c.type === 2));
   const categories = $derived(data.layout?.categories ?? []);
   const roles = $derived((data.layout?.roles ?? []).filter((r: DiscordEntry) => r.name !== '@everyone'));
@@ -407,6 +492,12 @@
   // rest; the first is the colour every other Bagel embed already uses.
   const SWATCHES = [LIVE_COLOR_HEX, '#52b788', '#5865f2', '#dfe4e9', '#b05a46', '#8a7cc9'] as const;
   const panelColor = $derived(normalizeHex(config.ticketPanelColor));
+
+  /** Announcement channels are offered by name plus a marker, so picking one
+   *  is a choice rather than a surprise. */
+  function optionLabel(opt: DiscordEntry): string {
+    return opt.type === 5 ? `${opt.name} ${t('discord.announcementTag')}` : opt.name;
+  }
   const ticketsOn = $derived(alertOn(config.ticketsEnabled));
 </script>
 
@@ -433,7 +524,7 @@
     >
       <option value="">{t('discord.notSet')}</option>
       {#each options as opt (opt.id)}
-        <option value={opt.id}>{prefix}{opt.name}</option>
+        <option value={opt.id}>{prefix}{optionLabel(opt)}</option>
       {/each}
     </select>
   </div>
@@ -1011,6 +1102,10 @@
       {busy}
       onConfirm={() => {
         disconnectOpen = false;
+        // The redirect the action throws lands on /discord with a draft that
+        // no longer has a row to save into, so the guard has to stand down for
+        // that one navigation and only that one.
+        disconnecting = true;
         disconnectForm?.requestSubmit();
       }}
       onCancel={() => (disconnectOpen = false)}

@@ -374,11 +374,23 @@ export function demoDiscordGuilds() {
 // themselves on.
 export function demoDiscordPicker() {
   return [
+    // Already bound to this broadcaster: the row links straight to its
+    // settings instead of walking Discord's consent screen again.
     { id: '123456789012345678', name: 'Demo Bakery', owner: true, permissions: '8' },
     { id: '456789012345678901', name: 'Toast Club', owner: false, permissions: '32' },
+    // Manageable, but bound to a different Twitch channel (see
+    // demoDiscordBlocked): the row is disabled rather than offering an install
+    // that can only end in bound_elsewhere.
+    { id: '567890123456789012', name: 'Sourdough Guild', owner: true, permissions: '8' },
     // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: never offered.
     { id: '456789012345678999', name: 'Someone Else Server', owner: false, permissions: '3136' }
   ];
+}
+
+/** The guilds a `bound_elsewhere` refusal has been collected for. Live, this
+ *  is a short-lived cookie the install callback writes. */
+export function demoDiscordBlocked() {
+  return ['567890123456789012'];
 }
 
 // One guild's config row. version is non-zero so the demo save exercises the
@@ -452,7 +464,9 @@ export function demoDiscordLayout() {
       { id: '234567890123456789', name: 'now-live', type: 0 },
       { id: '345678901234567890', name: 'clips', type: 0 },
       { id: '456789012345678901', name: 'welcome', type: 0 },
-      { id: '567890123456789012', name: 'announcements', type: 0 },
+      // Type 5 is an announcement channel: text-like for posting, and the
+      // pickers must offer it (labelled) rather than filtering it out.
+      { id: '567890123456789013', name: 'announcements', type: 5 },
       { id: '890123456789012345', name: 'chat', type: 0 },
       { id: '887766554433221100', name: 'support', type: 0 },
       { id: '998877665544332211', name: 'logs', type: 0 },

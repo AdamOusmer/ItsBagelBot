@@ -11,6 +11,9 @@
 // The union types are what makes it safe: a code added here without copy in
 // en.json fails to typecheck against the generated i18n key union.
 
+// `locked` and `tickets_off` are console-local: they never cross the wire, and
+// they exist so a refusal the dashboard itself decided is a translated
+// sentence rather than a hardcoded English one leaking out of an action.
 export const DISCORD_CODE_KEYS: Record<
   string,
   | 'discord.errBoundElsewhere'
@@ -20,6 +23,8 @@ export const DISCORD_CODE_KEYS: Record<
   | 'discord.errRateLimited'
   | 'discord.errInvalid'
   | 'discord.errConflict'
+  | 'discord.errLocked'
+  | 'discord.errTicketsOff'
 > = {
   bound_elsewhere: 'discord.errBoundElsewhere',
   not_bound: 'discord.errNotBound',
@@ -27,7 +32,9 @@ export const DISCORD_CODE_KEYS: Record<
   forbidden: 'discord.errForbidden',
   rate_limited: 'discord.errRateLimited',
   invalid: 'discord.errInvalid',
-  conflict: 'discord.errConflict'
+  conflict: 'discord.errConflict',
+  locked: 'discord.errLocked',
+  tickets_off: 'discord.errTicketsOff'
 };
 
 export const DISCORD_SLUG_KEYS: Record<
@@ -57,6 +64,7 @@ export const DISCORD_PILL_KEYS = {
 } as const;
 
 export const DISCORD_BADGE_KEYS = {
-  present: 'discord.pickPresent',
+  mine: 'discord.pickMine',
+  elsewhere: 'discord.pickElsewhere',
   addable: 'discord.pickAddable'
 } as const;

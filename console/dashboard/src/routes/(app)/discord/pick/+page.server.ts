@@ -12,12 +12,14 @@ import type { Cookies } from '@sveltejs/kit';
 import { logger } from '@bagel/shared/server/logger';
 import { generateState } from '@bagel/shared/server/oauth';
 import {
-  DISCORD_PICK_STATE_COOKIE,
-  DISCORD_STATE_COOKIE,
-  DISCORD_STATE_TTL_SECONDS,
+  DISCORD_INSTALL_LEG,
+  DISCORD_PICK_LEG,
+  boundElsewhereIds,
   discordFail,
   discordInstallURL,
+  discordStateOK,
   listUserGuilds,
+  putDiscordState,
   requireDiscordActor,
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
@@ -36,14 +38,17 @@ export type PickChoice = {
   monogram: string;
   badge: GuildPickerBadge;
   installURL: string;
+  openURL: string;
 };
 
 export const load: PageServerLoad = async ({ locals, cookies, url }) => {
   gateModulePage(locals.session, 'discord');
-  if (DEMO) return demoPick();
+  if (DEMO) return demoPick(cookies);
 
+  // The uid comes first now: the state cookie is sealed to it, so the identity
+  // has to be known before the callback's state can be checked at all.
   const uid = requireDiscordActor(locals);
-  const guilds = await manageableGuilds(takePickCode(cookies, url));
+  const guilds = await manageableGuilds(takePickCode(cookies, url, uid));
   if (guilds.length === 0) discordFail('noguilds');
 
   // One state cookie for the whole picker: whichever row the streamer clicks,
@@ -51,13 +56,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
   // cookie per row and buy nothing -- the guild is read from the token
   // response, not from the link that was clicked.
   const state = generateState();
-  cookies.set(DISCORD_STATE_COOKIE, state, {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: DISCORD_STATE_TTL_SECONDS
-  });
+  putDiscordState(cookies, url, DISCORD_INSTALL_LEG, uid, state);
 
   const bound = await listGuilds({ userId: uid })
     .then((rows) => rows.map((g) => g.guildId))
@@ -68,45 +67,56 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
       return [] as string[];
     });
 
-  return { choices: guilds.map((g) => choice(g, bound, state)) };
+  const elsewhere = boundElsewhereIds(cookies);
+  return { choices: guilds.map((g) => choice(g, bound, elsewhere, state)) };
 };
 
-function choice(g: DiscordUserGuild, bound: string[], state: string): PickChoice {
+function choice(
+  g: DiscordUserGuild,
+  bound: string[],
+  elsewhere: string[],
+  state: string
+): PickChoice {
+  const badge = guildPickerBadge(g.id, bound, elsewhere);
   return {
     guildId: g.id,
     name: g.name,
     monogram: guildMonogram(g.name),
-    badge: guildPickerBadge(g.id, bound),
-    installURL: discordInstallURL(state, g.id)
+    badge,
+    // A server this broadcaster already bound sends them to its settings, and
+    // one that belongs to a different channel offers nothing: walking either
+    // through Discord's consent screen ends where they already are, or at the
+    // same refusal.
+    installURL: badge === 'addable' ? discordInstallURL(state, g.id) : '',
+    openURL: badge === 'mine' ? `/discord/${g.id}` : ''
   };
 }
 
 async function manageableGuilds(code: string): Promise<DiscordUserGuild[]> {
-  const all = await listUserGuilds(code).catch((err) => {
-    logger.warn({ err }, '[discord-pick] guild list failed');
-    return [] as DiscordUserGuild[];
-  });
-  return all.filter(canManageGuild);
+  const r = await listUserGuilds(code);
+  // "No servers" and "Discord said no" are different sentences now: the first
+  // tells the streamer to go fix their permissions, and saying it after a 429
+  // sent them somewhere there was nothing to fix.
+  if (!r.ok) discordFail(r.code);
+  return r.guilds.filter(canManageGuild);
 }
 
-function takePickCode(cookies: Cookies, url: URL): string {
-  const stored = cookies.get(DISCORD_PICK_STATE_COOKIE);
-  cookies.delete(DISCORD_PICK_STATE_COOKIE, { path: '/', secure: url.protocol === 'https:' });
-  const state = url.searchParams.get('state');
+function takePickCode(cookies: Cookies, url: URL, uid: string): string {
+  if (!discordStateOK(cookies, url, DISCORD_PICK_LEG, uid)) discordFail('state');
   const code = (url.searchParams.get('code') ?? '').trim();
-  if (!stored) discordFail('state');
-  if (!state) discordFail('state');
-  if (stored !== state) discordFail('state');
   if (!code) discordFail('oauth');
   return code;
 }
 
-async function demoPick(): Promise<{ choices: PickChoice[] }> {
-  const { demoDiscordPicker, demoDiscordGuilds } = await import('$lib/server/demo-data');
+async function demoPick(cookies: Cookies): Promise<{ choices: PickChoice[] }> {
+  const { demoDiscordPicker, demoDiscordGuilds, demoDiscordBlocked } = await import(
+    '$lib/server/demo-data'
+  );
   const bound = demoDiscordGuilds().map((g) => g.guildId);
+  const elsewhere = [...boundElsewhereIds(cookies), ...demoDiscordBlocked()];
   return {
     choices: demoDiscordPicker()
       .filter(canManageGuild)
-      .map((g) => choice({ ...g, permissions: g.permissions }, bound, 'demo'))
+      .map((g) => choice({ ...g, permissions: g.permissions }, bound, elsewhere, 'demo'))
   };
 }

@@ -33,20 +33,25 @@
               <span class="crest" aria-hidden="true">{c.monogram}</span>
               <span class="server-copy">
                 <span class="server-name">{c.name || t('discord.unknownServer')}</span>
-                <!-- The badge is a chip when Bagel is already in the server and
-                     a line of help when it is not: the chip says the state at a
-                     glance, and repeating it as prose under the name is noise. -->
-                {#if c.badge === 'addable'}
-                  <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
-                {/if}
+                <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
               </span>
+              <!-- Three outcomes, three controls. A server this broadcaster
+                   already bound opens straight onto its settings; one bound to
+                   a different channel offers nothing, because the install can
+                   only end at the refusal that put it in this state; only a
+                   fresh one gets the invite. -->
               <span class="server-actions">
-                {#if c.badge === 'present'}
-                  <Chip on aria-label={t(DISCORD_BADGE_KEYS[c.badge])}>{t('discord.pickPresentChip')}</Chip>
+                {#if c.badge === 'mine'}
+                  <ButtonLink variant="secondary" icon="check" href={c.openURL}>
+                    {t('discord.openCta')}
+                  </ButtonLink>
+                {:else if c.badge === 'elsewhere'}
+                  <Chip disabled aria-disabled="true">{t('discord.pickElsewhereChip')}</Chip>
+                {:else}
+                  <ButtonLink variant="primary" icon="discord" href={c.installURL} data-sveltekit-reload>
+                    {t('discord.pickCta')}
+                  </ButtonLink>
                 {/if}
-                <ButtonLink variant="primary" icon="discord" href={c.installURL} data-sveltekit-reload>
-                  {t('discord.pickCta')}
-                </ButtonLink>
               </span>
             </li>
           {/each}
