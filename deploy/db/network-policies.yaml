@@ -17,7 +17,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, notifications, notifications-cleanup, backup-mysql, backup-k3s]
+        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, notifications-cleanup, backup-mysql, backup-k3s]
   policyTypes:
     - Ingress
     - Egress
@@ -81,7 +81,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, notifications, notifications-cleanup]
+        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, notifications-cleanup]
   policyTypes:
     - Ingress
   ingress:
@@ -90,8 +90,10 @@ spec:
           protocol: TCP
 ---
 # APM exports to New Relic, Resend mail (notifications, transactions gift
-# email) and Tebex (transactions) all ride HTTPS. Explicit so a workload
-# cannot inherit public egress merely by joining default-deny-db.
+# email) and Tebex (transactions) all ride HTTPS. Explicit so a workload cannot
+# inherit public egress merely by joining default-deny-db. discord-data is on
+# the list for the New Relic export alone: it calls neither Discord nor any
+# other public API, and reaches its own dependencies over NATS and 3306.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -102,7 +104,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, notifications, backup-mysql, backup-k3s]
+        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, backup-mysql, backup-k3s]
   policyTypes:
     - Egress
   egress:
