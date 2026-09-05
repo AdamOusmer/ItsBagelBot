@@ -11,6 +11,7 @@ import (
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
+	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -46,10 +47,14 @@ type streamInfoReader interface {
 // share the exact same publish path every other module's Emit ends up at.
 type Publish func(ctx context.Context, c ddiscord.Command) error
 
-// ByBroadcaster resolves a Twitch broadcaster id's Discord module config.
-// Matches resolve.Resolver.ByBroadcaster's signature so main can pass that
-// method directly.
-type ByBroadcaster func(ctx context.Context, broadcasterID uint64) (ddiscord.Config, bool)
+// ByBroadcaster lists every guild a Twitch broadcaster's Discord is live in,
+// with that guild's settings. Matches resolve.Resolver.ByBroadcaster's
+// signature so main can pass that method directly.
+//
+// It is a slice because one broadcaster owns many guilds: a single Twitch
+// event fans out to each of them, and each carries its own channel ids and
+// toggles, so "is this feature on" is a per-guild question.
+type ByBroadcaster func(ctx context.Context, broadcasterID uint64) []discordstore.GuildConfigOf
 
 // Live ports app/dingress/internal/egress/live.go's go-live/offline embed
 // and @Live role handling. It keeps live.go's own NATS input
@@ -85,21 +90,29 @@ func rpcFailed(err error, outgressErr string) bool {
 	return err != nil || outgressErr != ""
 }
 
-// moduleGateOpen reports whether a per-module feature may act for a
-// resolved broadcaster: the broadcaster resolved to a guild, Discord is
-// connected there, and the module's own toggle is on. live.go's announce
-// and clip.go's clipsChannel both spelled out this same three-clause guard
-// before it was named here (CodeScene: Complex Conditional).
-func moduleGateOpen(resolved bool, cfg ddiscord.Config, moduleOn bool) bool {
-	return resolved && cfg.Connected() && moduleOn
+// moduleGateOpen reports whether a per-module feature may act in one resolved
+// guild: Discord is connected there and the module's own toggle is on. The
+// broadcaster-level half of what this used to check (did anything resolve at
+// all) now lives in resolve.Resolver.gateOpen, which runs once per event
+// instead of once per guild.
+func moduleGateOpen(cfg ddiscord.Config, moduleOn bool) bool {
+	return cfg.Connected() && moduleOn
 }
 
+// announce fans one stream event out to every guild the broadcaster connected.
+// A guild with the live toggle off is skipped individually: two servers off one
+// Twitch channel routinely want different announcements.
 func (l *Live) announce(ctx context.Context, status eventtwitch.StreamStatus) {
-	cfg, ok := l.Resolve(ctx, status.BroadcasterID)
-	if !moduleGateOpen(ok, cfg, cfg.LiveOn()) {
+	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
+	for _, guild := range l.Resolve(ctx, status.BroadcasterID) {
+		l.announceIn(ctx, guild.Config, status, broadcasterID)
+	}
+}
+
+func (l *Live) announceIn(ctx context.Context, cfg ddiscord.Config, status eventtwitch.StreamStatus, broadcasterID string) {
+	if !moduleGateOpen(cfg, cfg.LiveOn()) {
 		return
 	}
-	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 	if !status.Live {
 		l.offline(ctx, cfg)
 		return

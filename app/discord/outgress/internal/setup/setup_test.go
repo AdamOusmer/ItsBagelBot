@@ -33,6 +33,11 @@ type guildRecorder struct {
 	// specs keeps each created channel's full spec (by lowercased name) so a
 	// test can assert the permission overwrites a gate actually sent.
 	specs map[string]discapi.ChannelCreate
+
+	getGuildErr error
+	// getGuildCalls counts the REST lookups one listing costs: the picker's
+	// cap exists to bound this burst, not just the slice it returns.
+	getGuildCalls int
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -83,8 +88,16 @@ func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discap
 	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
 }
 
+// getGuildErr, when set, is what the guild lookup answers: the picker's "the
+// bot was kicked" path is a 403 from this call and nothing else.
 func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {
-	return discapi.GuildInfo{ID: g.ID, Name: "Bagel HQ", Icon: "abc", ApproximateMemberCount: 42}, nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.getGuildCalls++
+	if r.getGuildErr != nil {
+		return discapi.GuildInfo{}, r.getGuildErr
+	}
+	return discapi.GuildInfo{ID: g.ID, Name: "server " + g.ID, Icon: "abc", ApproximateMemberCount: 42}, nil
 }
 
 var _ discordGuildAPI = (*guildRecorder)(nil)

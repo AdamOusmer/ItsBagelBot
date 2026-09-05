@@ -40,32 +40,36 @@ func (c *Clip) HandleClipCreated(msg *bus.Message) error {
 	return nil
 }
 
+// announce posts the clip into every guild the broadcaster connected whose
+// clips toggle is on. The embed is built once: it depends only on the clip.
 func (c *Clip) announce(ctx context.Context, created eventdata.ClipCreated) {
-	channelID, guildID, ok := c.clipsChannel(ctx, created.BroadcasterID)
-	if !ok {
+	id, err := strconv.ParseUint(created.BroadcasterID, 10, 64)
+	if err != nil {
 		return
 	}
 	embed := ddiscord.ClipEmbed(ddiscord.ClipCard{URL: created.URL, Clipper: created.Clipper, Title: created.Title})
 	if embed.URL == "" {
 		return
 	}
-	if err := c.Publish(ctx, cmd.PostEmbed(cmd.ChannelTarget(guildID, channelID), embed)); err != nil {
-		c.Log.Warn("discord clip embed publish failed", zap.String("broadcaster_id", created.BroadcasterID), zap.Error(err))
+	for _, guild := range c.Resolve(ctx, id) {
+		channelID, ok := clipsChannel(guild.Config)
+		if !ok {
+			continue
+		}
+		if err := c.Publish(ctx, cmd.PostEmbed(cmd.ChannelTarget(guild.Guild.ID, channelID), embed)); err != nil {
+			c.Log.Warn("discord clip embed publish failed",
+				zap.String("broadcaster_id", created.BroadcasterID),
+				zap.String("guild_id", guild.Guild.ID), zap.Error(err))
+		}
 	}
 }
 
-func (c *Clip) clipsChannel(ctx context.Context, broadcasterID string) (channelID, guildID string, ok bool) {
-	id, err := strconv.ParseUint(broadcasterID, 10, 64)
-	if err != nil {
-		return "", "", false
+// clipsChannel is one guild's clip archive channel, when it has one and the
+// toggle is on.
+func clipsChannel(cfg ddiscord.Config) (string, bool) {
+	if !moduleGateOpen(cfg, cfg.ClipsOn()) {
+		return "", false
 	}
-	cfg, enabled := c.Resolve(ctx, id)
-	if !moduleGateOpen(enabled, cfg, cfg.ClipsOn()) {
-		return "", "", false
-	}
-	channelID = strings.TrimSpace(cfg.ClipsChannelID)
-	if channelID == "" {
-		return "", "", false
-	}
-	return channelID, cfg.GuildID, true
+	channelID := strings.TrimSpace(cfg.ClipsChannelID)
+	return channelID, channelID != ""
 }

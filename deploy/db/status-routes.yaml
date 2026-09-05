@@ -75,10 +75,14 @@ spec:
 # terminates on folds its siblings' reports into its own over the
 # bagel.rpc.health.* RPC (pkg/bus.HealthProbe) before it answers, so the fan-out
 # happens in-process instead of at the edge: /db is projector plus commands,
-# loyalty, modules, notifications and users. An edge route per service reported
-# the same outage under several names — a MySQL blip or a dead NATS lane takes
-# the whole data tier with it, and the status page showed six red rows for one
-# fault — while probing the same pods several times over.
+# discord-data, loyalty, modules, notifications and users (the list projector
+# actually probes is dataTierServices in app/projector/main.go; keep the two in
+# step).
+#
+# An edge route per service reported the same outage under several names — a
+# MySQL blip or a dead NATS lane takes the whole data tier with it, and the
+# status page showed six red rows for one fault — while probing the same pods
+# several times over.
 #
 # /billing is the exception and stays its own vertical with nothing folded into
 # it: the recorded decision (app/transactions/main.go) is that projector's /db

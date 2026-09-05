@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/projection"
 
@@ -14,34 +15,54 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// blobModules serves one fixed module blob, so these tests isolate what
-// resolve does to a config from every other reason resolution can fail.
-type blobModules struct{ blob string }
+// blobModules serves one fixed module row, so these tests isolate what
+// resolve does to a stored config from every other reason resolution can
+// fail. The row now carries only the master switch: the settings themselves
+// come from the store, per guild.
+type blobModules struct{}
 
-func (m blobModules) GetModule(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	return projection.ModuleView{
-		Name: ddiscord.ModuleName, IsEnabled: true, Configs: []byte(m.blob),
-	}, true, nil
+func (blobModules) GetModule(context.Context, uint64, string) (projection.ModuleView, bool, error) {
+	return projection.ModuleView{Name: ddiscord.ModuleName, IsEnabled: true}, true, nil
 }
 
-func resolverForBlob(blob string, log *zap.Logger) Resolver {
+// testGuildID is the guild every case here resolves; a real snowflake,
+// because SanitizeConfig refuses anything that cannot be one.
+const testGuildID = "100000000000000001"
+
+// resolverForConfig binds testGuildID to broadcaster 1 and stores cfg as that
+// guild's settings.
+//
+// Merge note (2026-09-05): these cases used to hand resolve a raw module
+// blob, which is where the settings lived. They moved to discord-data, so
+// the fixture is a store rather than a blob -- the behaviour under test
+// (one bad field is dropped, warned about once, and does not take the guild
+// down with it) is unchanged.
+func resolverForConfig(t *testing.T, cfg ddiscord.Config, log *zap.Logger) Resolver {
+	t.Helper()
+	store := discordstore.NewMem()
+	if err := store.BindGuild(context.Background(), discordstore.Binding{
+		Guild: discordstore.Guild{ID: testGuildID}, Broadcaster: discordstore.Broadcaster{ID: "1"},
+	}); err != nil {
+		t.Fatalf("BindGuild: %v", err)
+	}
+	store.PutGuildConfig(discordstore.Guild{ID: testGuildID}, cfg)
 	return Resolver{
-		Modules: blobModules{blob: blob},
-		Tier:    func(context.Context, uint64) (string, bool) { return "paid", true },
-		Warned:  NewConfigWarnings(), Log: log,
+		Store: store, Modules: blobModules{},
+		Tier:   func(context.Context, uint64) (string, bool) { return "paid", true },
+		Warned: NewConfigWarnings(), Log: log,
 	}
 }
 
-// A stored blob can hold a value no dashboard would send today (an older
+// A stored config can hold a value no dashboard would send today (an older
 // console, a hand edit, a rule added after the write). The bad field is
 // dropped and the rest of the guild keeps working -- refusing the whole
 // config would take that channel's alerts down instead.
 func TestResolveZeroesAnInvalidFieldAndKeepsTheRest(t *testing.T) {
-	cfg, ok := resolverForBlob(
-		`{"guildId":"100000000000000001","liveChannelId":"100000000000000002","clipsChannelId":"#clips"}`,
-		zap.NewNop(),
-	).ByBroadcaster(context.Background(), 1)
+	r := resolverForConfig(t, ddiscord.Config{
+		LiveChannelID: "100000000000000002", ClipsChannelID: "#clips",
+	}, zap.NewNop())
 
+	cfg, _, ok := r.ByGuild(context.Background(), testGuildID)
 	if !ok {
 		t.Fatal("one bad field must not unresolve the guild")
 	}
@@ -58,10 +79,10 @@ func TestResolveZeroesAnInvalidFieldAndKeepsTheRest(t *testing.T) {
 // which is how a real signal gets filtered out and then ignored.
 func TestResolveWarnsOncePerGuildPerField(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
-	r := resolverForBlob(`{"guildId":"100000000000000001","clipsChannelId":"#clips"}`, zap.New(core))
+	r := resolverForConfig(t, ddiscord.Config{ClipsChannelID: "#clips"}, zap.New(core))
 
 	for range 3 {
-		if _, ok := r.ByBroadcaster(context.Background(), 1); !ok {
+		if _, _, ok := r.ByGuild(context.Background(), testGuildID); !ok {
 			t.Fatal("guild did not resolve")
 		}
 	}

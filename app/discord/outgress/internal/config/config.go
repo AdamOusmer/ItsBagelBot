@@ -40,6 +40,10 @@ type Config struct {
 	// wiring for the old dingress-egress role already sets it and a removed
 	// var is a needless deploy-side edit for the agent that owns deploy/**.
 	OutgressRPCPrefix string
+	// DiscordDataRPCPrefix addresses app/db/discord, the MySQL-backed store
+	// behind guild bindings and per-guild settings. See
+	// internal/discordstore.NewRPC.
+	DiscordDataRPCPrefix string
 }
 
 // Load reads process env. Empty DISCORD_BOT_TOKEN leaves the service idle
@@ -58,5 +62,6 @@ func Load() Config {
 		DiscordEngineRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
 		DiscordEngineRPCQueue:  env.Get("NATS_DISCORD_OUTGRESS_RPC_QUEUE", "discord-outgress-rpc"),
 		OutgressRPCPrefix:      env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
+		DiscordDataRPCPrefix:   env.Get("NATS_DISCORD_DATA_RPC_PREFIX", "bagel.rpc.discord-data"),
 	}
 }

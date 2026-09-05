@@ -128,6 +128,9 @@ func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordst
 	channels := &fakeChannels{}
 	store := discordstore.NewMem()
 	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
+	// Per-guild settings live in the store now, not in the module blob: the
+	// blob keeps only the master switch fakeModules reports.
+	store.PutGuildConfig(discordstore.Guild{ID: cfg.GuildID}, cfg)
 	log := &commandLog{}
 
 	// Tier reports premium: Discord is premium-only while it is in beta

@@ -172,7 +172,7 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 	if err != nil {
 		return err
 	}
-	t, ok := h.store.Ticket(ctx, discordstore.Channel{ID: in.ChannelID})
+	t, ok := h.store.Ticket(ctx, discordstore.Guild{ID: c.Config.GuildID}, discordstore.Channel{ID: in.ChannelID})
 	if !ok {
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "This is not a ticket.", true))
 		return nil
@@ -181,7 +181,7 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Only the opener or a mod can close this.", true))
 		return nil
 	}
-	_ = h.store.ForgetTicket(ctx, discordstore.Channel{ID: t.ChannelID})
+	_ = h.store.ForgetTicket(ctx, discordstore.Guild{ID: c.Config.GuildID}, discordstore.Channel{ID: t.ChannelID})
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Closing.", true))
 	reply, err := h.channels.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: t.ChannelID})
 	if rpcFailed(err, reply.Error) {

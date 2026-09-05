@@ -30,6 +30,13 @@ type discordGuildAPI interface {
 	CreateRole(ctx context.Context, role discapi.GuildRole) (discapi.Snowflake, error)
 	ListGuildChannels(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
 	ListGuildRoles(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
+	// GetGuildWithCounts is the ONE guild reader this package uses. Merge
+	// note (2026-09-05): the server picker was written against plain
+	// GetGuild because the with_counts variant did not exist yet, and the
+	// two landed in the same release. Two readers here would mean two
+	// fakes, two error paths and a member count only half the callers get,
+	// for one saved approximation pass on a call the dashboard makes once
+	// per page load.
 	GetGuildWithCounts(ctx context.Context, guild discapi.Guild) (discapi.GuildInfo, error)
 }
 

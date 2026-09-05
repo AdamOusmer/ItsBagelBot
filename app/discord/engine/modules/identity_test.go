@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/discord/engine/module"
+	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -44,8 +45,11 @@ func identityFor(t *testing.T, applied *fakeApplied, status string) (*Identity, 
 	t.Helper()
 	var emitted []ddiscord.Command
 	i := &Identity{
-		Resolve: func(context.Context, uint64) (ddiscord.Config, bool) {
-			return ddiscord.Config{GuildID: "g1"}, true
+		Resolve: func(context.Context, uint64) []discordstore.GuildConfigOf {
+			return []discordstore.GuildConfigOf{{
+				Guild:  discordstore.Guild{ID: "g1"},
+				Config: ddiscord.Config{GuildID: "g1"},
+			}}
 		},
 		Status: func(context.Context, uint64) (string, bool) {
 			if status == "" {

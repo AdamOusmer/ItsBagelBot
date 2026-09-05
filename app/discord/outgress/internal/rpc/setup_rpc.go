@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/discord/outgress/internal/kv"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
+	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
@@ -45,6 +46,17 @@ const statusHandleTimeout = 3 * time.Second
 // handleTimeout bounds the unbind and post handlers: one Valkey round trip
 // (unbind) or one REST call (post).
 const handleTimeout = 1500 * time.Millisecond
+
+// configHandleTimeout bounds a settings read or write: an ownership lookup
+// plus one discord-data round trip, each of which is a single indexed query.
+const configHandleTimeout = 3 * time.Second
+
+// guildsHandleTimeout bounds the server picker: one binding listing plus one
+// GetGuild per bound guild, serially. Ten seconds covers a streamer with a
+// dozen servers even with a Retry-After in the middle; the alternative,
+// fanning the lookups out concurrently, would multiply this bot's share of
+// Discord's global bucket by the number of open dashboards.
+const guildsHandleTimeout = 10 * time.Second
 
 // SetupWiring is what SubscribeSetup needs from main: the connection, the
 // subject prefix and queue group, and the observability handles.
@@ -91,8 +103,11 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 		wire.NC, wire.Prefix+".discord.status", wire.Queue, statusHandleTimeout, wire.App, wire.Log, d.handleStatus); err != nil {
 		return err
 	}
-	return bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
-		wire.NC, wire.Prefix+".discord.post", wire.Queue, handleTimeout, wire.App, wire.Log, d.handlePost)
+	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
+		wire.NC, wire.Prefix+".discord.post", wire.Queue, handleTimeout, wire.App, wire.Log, d.handlePost); err != nil {
+		return err
+	}
+	return subscribeGuildConfig(d, wire)
 }
 
 type discordRPC struct {
@@ -144,10 +159,18 @@ func codeFor(err error) string {
 // broadcaster binding itself. "" means "not one of mine".
 func bindingCode(err error) string {
 	switch {
-	case errors.Is(err, setup.ErrGuildNotBound):
+	case errors.Is(err, setup.ErrGuildNotBound), errors.Is(err, setup.ErrNotBound),
+		errors.Is(err, discordstore.ErrNotBound):
 		return outgressrpc.CodeNotBound
-	case errors.Is(err, setup.ErrGuildBoundElsewhere):
+	case errors.Is(err, setup.ErrGuildBoundElsewhere), errors.Is(err, discordstore.ErrBoundElsewhere):
 		return outgressrpc.CodeBoundElsewhere
+	case errors.Is(err, discordstore.ErrConfigConflict):
+		return outgressrpc.CodeConflict
+	case errors.Is(err, discordstore.ErrStoreUnavailable), errors.Is(err, discordstore.ErrConfigUnavailable):
+		// Spelled out rather than left to the fallthrough: the fallthrough
+		// is CodeUnknown, and an unreachable discord-data is exactly the
+		// retryable case the console must not render as a mystery.
+		return outgressrpc.CodeDiscordUnavailable
 	}
 	return ""
 }
@@ -189,8 +212,11 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		}
 	}
 	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{
-		GuildID: req.GuildID, BroadcasterID: req.UserID,
-		Subscribers: req.Subscribers, PinnedRoles: req.PinnedRoles,
+		GuildID:       req.GuildID,
+		BroadcasterID: req.UserID,
+		Subscribers:   req.Subscribers,
+		PinnedRoles:   req.PinnedRoles,
+		InstalledBy:   req.InstalledBy,
 	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
@@ -411,4 +437,97 @@ func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
 		return false
 	}
 	return d.reauth.NeedsReauth(ctx, guildID)
+}
+
+// subscribeGuildConfig wires the multi-guild surface: the settings a page
+// loads and saves, and the list of servers the picker offers. Split from
+// SubscribeSetup so neither function carries every verb.
+func subscribeGuildConfig(d *discordRPC, wire SetupWiring) error {
+	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigGetRequest, outgressrpc.DiscordConfigGetReply](
+		wire.NC, wire.Prefix+".discord.config.get", wire.Queue, configHandleTimeout, wire.App, wire.Log, d.handleConfigGet); err != nil {
+		return err
+	}
+	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigSetRequest, outgressrpc.DiscordConfigSetReply](
+		wire.NC, wire.Prefix+".discord.config.set", wire.Queue, configHandleTimeout, wire.App, wire.Log, d.handleConfigSet); err != nil {
+		return err
+	}
+	return bus.QueueSubscribeJSON[outgressrpc.DiscordGuildsListRequest, outgressrpc.DiscordGuildsListReply](
+		wire.NC, wire.Prefix+".discord.guilds.list", wire.Queue, guildsHandleTimeout, wire.App, wire.Log, d.handleGuildsList)
+}
+
+func (d *discordRPC) handleConfigGet(ctx context.Context, req outgressrpc.DiscordConfigGetRequest) outgressrpc.DiscordConfigGetReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordConfigGetReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	cfg, version, found, err := d.w.GuildConfig(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
+	if err != nil {
+		message, code := discordFailure(err)
+		return outgressrpc.DiscordConfigGetReply{Error: message, Code: code}
+	}
+	return outgressrpc.DiscordConfigGetReply{Config: cfg, Version: version, Found: found}
+}
+
+func (d *discordRPC) handleConfigSet(ctx context.Context, req outgressrpc.DiscordConfigSetRequest) outgressrpc.DiscordConfigSetReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordConfigSetReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	version, err := d.w.SetGuildConfig(ctx, setup.GuildConfigWrite{
+		GuildID:         req.GuildID,
+		BroadcasterID:   req.UserID,
+		Config:          req.Config,
+		ExpectedVersion: req.ExpectedVersion,
+	})
+	if err != nil {
+		message, code := discordFailure(err)
+		return outgressrpc.DiscordConfigSetReply{Error: message, Code: code}
+	}
+	return outgressrpc.DiscordConfigSetReply{Version: version}
+}
+
+func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.DiscordGuildsListRequest) outgressrpc.DiscordGuildsListReply {
+	if req.UserID == "" {
+		return outgressrpc.DiscordGuildsListReply{Error: "missing user_id", Code: outgressrpc.CodeInvalid}
+	}
+	// The listing is returned even alongside an error: a deadline reached
+	// part-way leaves a usable partial list, and the code tells the dashboard
+	// it is short rather than wrong.
+	guilds, err := d.w.ListGuilds(ctx, req.UserID)
+	out := guildEntries(guilds)
+	if err != nil {
+		message, code := discordFailure(err)
+		return outgressrpc.DiscordGuildsListReply{Guilds: out, Error: message, Code: code}
+	}
+	return outgressrpc.DiscordGuildsListReply{Guilds: out}
+}
+
+// guildEntries renders the worker's summaries onto the wire type.
+func guildEntries(guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
+	out := make([]outgressrpc.DiscordGuildEntry, 0, len(guilds))
+	for _, g := range guilds {
+		out = append(out, outgressrpc.DiscordGuildEntry{
+			GuildID:       g.GuildID,
+			Name:          g.Name,
+			MemberCount:   g.MemberCount,
+			BotPresent:    g.BotPresent,
+			BoundAtUnixMs: g.BoundAtUnixMs,
+		})
+	}
+	return out
+}
+
+// discordFailure maps an error onto the (message, code) pair the console
+// switches on. The message is kept for the one release during which the
+// console still reads text.
+//
+// Merge note (2026-09-05): the per-guild config RPC arrived with its own
+// classifier, a near-copy of codeFor that disagreed on the fallback (it
+// answered discord_unavailable for anything it did not know, which told the
+// console to offer a retry for faults no retry fixes). One classifier now
+// serves both surfaces; the store-layer errors it knew about moved into
+// bindingCode, unavailability included.
+func discordFailure(err error) (string, string) {
+	if err == nil {
+		return "", outgressrpc.CodeOK
+	}
+	return err.Error(), codeFor(err)
 }

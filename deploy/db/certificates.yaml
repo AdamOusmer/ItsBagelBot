@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Server certs for the `db` namespace, issued from the fleet intermediate CA
+# (fleet-selfsigned -> fleet-ca-issuer -> fleet-intermediate-issuer), same shape
+# as deploy/app/certificates.yaml.
+#
+# This file exists because the data services moved to the `db` namespace while
+# their <svc>-tls Certificates stayed declared in deploy/app/certificates.yaml,
+# where cert-manager writes the Secret into `app`. A Secret does not cross
+# namespaces, so those pods mount a Secret this repo does not describe: the
+# db-namespace copies were applied by hand. discord-data is the first one
+# tracked properly. The siblings' certs should follow; until they do, do not
+# read deploy/app/certificates.yaml as the complete picture.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discord-data-tls
+  namespace: db
+spec:
+  secretName: discord-data-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  # The four forms a ClusterIP Service name resolves to. discord-data has no
+  # public status route (health.itsbagelbot.com/db terminates in the projector,
+  # which folds this service in over the health RPC), so nothing dials these
+  # names today; they are here so adding a route later does not need a reissue.
+  dnsNames:
+    - discord-data-status
+    - discord-data-status.db
+    - discord-data-status.db.svc
+    - discord-data-status.db.svc.cluster.local

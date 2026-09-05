@@ -101,6 +101,10 @@ type GuildSetupRequest struct {
 	GuildID        string
 	EveryoneRoleID string
 	BroadcasterID  string
+	// InstalledBy is the Discord user snowflake that ran the install, taken
+	// from the dashboard's OAuth exchange. Recorded on the binding so support
+	// can answer "who added this bot"; empty when the caller did not say.
+	InstalledBy string
 	// Subscribers mirrors the streamer's subscriber toggle. The fill skips
 	// the Subscriber role and its locked category when it is off, so a server
 	// that does not use the tier never grows a category nobody can open.
@@ -133,6 +137,11 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 		return GuildSetupResult{}, err
 	}
 	out.DroppedPins = fill.droppedPins
+	// Every successful path below ends with the engine holding cached settings
+	// for a guild whose channel and role ids just changed. Dropping the entry
+	// here rather than waiting out its TTL is what makes a fresh setup live
+	// immediately.
+	defer w.invalidateConfig(ctx, req.GuildID)
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
 		fill.adopt(&out)
@@ -147,6 +156,14 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	}
 	fill.postTicketDesk(ctx, out)
 	return out, nil
+}
+
+// invalidateConfig drops the engine's cached settings for one guild.
+func (w *Worker) invalidateConfig(ctx context.Context, guildID string) {
+	if w.store == nil || guildID == "" {
+		return
+	}
+	w.store.Invalidate(ctx, discordstore.Guild{ID: guildID})
 }
 
 // GuildLayout lists a bound guild's channels and roles for the dashboard
@@ -199,7 +216,10 @@ func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if w.store == nil {
 		return nil
 	}
-	return w.store.UnbindGuild(ctx, discordstore.Guild{ID: req.GuildID})
+	return w.store.UnbindGuild(ctx, discordstore.Binding{
+		Guild:       discordstore.Guild{ID: req.GuildID},
+		Broadcaster: discordstore.Broadcaster{ID: req.BroadcasterID},
+	})
 }
 
 func entries(in []discapi.Snowflake) []GuildEntry {
@@ -222,7 +242,11 @@ func (w *Worker) bindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
 	}
-	return w.store.BindGuild(ctx, discordstore.Guild{ID: req.GuildID}, discordstore.Broadcaster{ID: req.BroadcasterID})
+	return w.store.BindGuild(ctx, discordstore.Binding{
+		Guild:       discordstore.Guild{ID: req.GuildID},
+		Broadcaster: discordstore.Broadcaster{ID: req.BroadcasterID},
+		InstalledBy: req.InstalledBy,
+	})
 }
 
 func (w *Worker) requireBound(ctx context.Context, req GuildSetupRequest) error {

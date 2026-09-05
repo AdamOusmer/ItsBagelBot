@@ -79,37 +79,47 @@ func (w *ConfigWarnings) first(guildID, field string) bool {
 	return !seen
 }
 
-// ByBroadcaster loads the enabled, connected Discord config for a Twitch
-// broadcaster id. Ported unchanged from egress's Worker.discordConfig: found,
-// enabled, and Connected() are checked in the order that lets every call
-// site bail on the cheapest check first.
-func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) (ddiscord.Config, bool) {
-	if r.Modules == nil {
-		return ddiscord.Config{}, false
+// ByBroadcaster lists every guild a Twitch broadcaster's Discord is live in,
+// with that guild's settings.
+//
+// It returns a slice, not one config, because one broadcaster owns many
+// guilds: a Twitch event (go-live, a new clip) fans out to all of them. The
+// broadcaster-level gate runs once, before any per-guild work, so a channel
+// with Discord switched off or outside the premium beta costs one module read
+// and no guild lookups at all.
+func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []discordstore.GuildConfigOf {
+	if r.Store == nil || !r.gateOpen(ctx, broadcasterID) {
+		return nil
 	}
-	mod, found, err := r.Modules.GetModule(ctx, broadcasterID, ddiscord.ModuleName)
+	guilds, err := r.Store.GuildsOf(ctx, discordstore.Broadcaster{ID: strconv.FormatUint(broadcasterID, 10)})
 	if err != nil {
-		r.log().Warn("discord module read failed; treating as not connected",
+		// Fanning out to nothing is still what happens, but it is now said
+		// out loud: an unreachable store used to be indistinguishable from a
+		// streamer who connected no servers.
+		r.log().Error("discord guild list failed; this Twitch event fans out to nothing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return ddiscord.Config{}, false
+		return nil
 	}
-	if !found || !mod.IsEnabled {
-		return ddiscord.Config{}, false
+	out := make([]discordstore.GuildConfigOf, 0, len(guilds))
+	for _, bound := range guilds {
+		cfg, ok := r.configOf(ctx, bound.Guild)
+		if !ok {
+			continue
+		}
+		out = append(out, discordstore.GuildConfigOf{Guild: bound.Guild, Config: cfg})
 	}
-	cfg := r.sanitize(ddiscord.Parse(mod.Configs))
-	if !cfg.Connected() {
-		return ddiscord.Config{}, false
-	}
-	if !r.premiumOK(ctx, broadcasterID) {
-		return ddiscord.Config{}, false
-	}
-	return cfg, true
+	return out
 }
 
-// ByGuild resolves a Discord guild id to its bound broadcaster's config.
-// Ported from community's Bot.bound, minus the ensureDesk side effect (the
-// dispatcher runs that explicitly, since it needs to emit a Command -- see
-// app/discord/engine/modules/ticket.go's EnsureDesk).
+// ByGuild resolves a Discord guild id to its settings and the broadcaster it
+// is bound to. Ported from community's Bot.bound, minus the ensureDesk side
+// effect (the dispatcher runs that explicitly, since it needs to emit a
+// Command -- see app/discord/engine/modules/ticket.go's EnsureDesk).
+//
+// The settings no longer come from the broadcaster's module blob: that blob is
+// keyed by broadcaster and so could only ever describe one guild. It keeps the
+// master switch, which is what gateOpen still reads; everything per-guild
+// comes from discord-data.
 func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config, string, bool) {
 	if r.Store == nil {
 		return ddiscord.Config{}, "", false
@@ -122,7 +132,10 @@ func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config,
 	if err != nil {
 		return ddiscord.Config{}, "", false
 	}
-	cfg, ok := r.ByBroadcaster(ctx, id)
+	if !r.gateOpen(ctx, id) {
+		return ddiscord.Config{}, "", false
+	}
+	cfg, ok := r.configOf(ctx, discordstore.Guild{ID: guildID})
 	if !ok {
 		return ddiscord.Config{}, "", false
 	}
@@ -134,17 +147,66 @@ func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config,
 // because the blob is also written by older console builds and by hand; the
 // validation pass it costs is a map build and a sort, well under the
 // projection read it follows.
-func (r Resolver) sanitize(cfg ddiscord.Config) ddiscord.Config {
+func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config {
 	clean, bad := ddiscord.SanitizeConfig(cfg)
 	for _, fe := range bad {
-		if !r.Warned.first(cfg.GuildID, fe.Field) {
+		if !r.Warned.first(guildID, fe.Field) {
 			continue
 		}
 		r.log().Warn("discord config field is invalid; ignoring it",
-			zap.String("guild_id", cfg.GuildID),
+			zap.String("guild_id", guildID),
 			zap.String("field", fe.Field), zap.String("code", fe.Code))
 	}
 	return clean
+}
+
+// configOf reads one guild's settings and stamps the guild id into them.
+//
+// The stamp matters: Config.Connected() is "GuildID is set", every module
+// gates on it, and a guild whose settings row was written before the id field
+// was filled would otherwise read as disconnected despite holding a live
+// binding. A bound guild IS connected, by definition, so the binding is the
+// authority here rather than a field the dashboard may not have sent.
+func (r Resolver) configOf(ctx context.Context, g discordstore.Guild) (ddiscord.Config, bool) {
+	cfg, _, ok := r.Store.GuildConfig(ctx, g)
+	if !ok {
+		return ddiscord.Config{}, false
+	}
+	// Merge note (2026-09-05): sanitize used to run on the module blob at
+	// the top of the broadcaster path. Settings now come per guild from
+	// discord-data, and BOTH directions funnel through here, so the
+	// validation pass moved to the one place that reads a stored Config --
+	// it is still one map build and a sort, cheaper than the read it
+	// follows, and it now also covers rows written by an older console.
+	//
+	// The stamp lands AFTER the sanitize, and the guild id is passed in
+	// rather than read off the config: sanitizing a stamped config zeroes
+	// the id whenever the stored row disagrees with the binding, which is
+	// the one field the binding is authoritative for.
+	cfg = r.sanitize(g.ID, cfg)
+	cfg.GuildID = g.ID
+	return cfg, true
+}
+
+// gateOpen reports whether a broadcaster's Discord may act at all: the module
+// row exists, its master switch is on, and the premium beta lets this channel
+// through. It is the broadcaster half of what ByBroadcaster used to do inline,
+// split out because both directions now need it and neither needs the blob's
+// other fields any more.
+func (r Resolver) gateOpen(ctx context.Context, broadcasterID uint64) bool {
+	if r.Modules == nil {
+		return false
+	}
+	mod, found, err := r.Modules.GetModule(ctx, broadcasterID, ddiscord.ModuleName)
+	if err != nil {
+		r.log().Warn("discord module read failed; treating as not connected",
+			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		return false
+	}
+	if !found || !mod.IsEnabled {
+		return false
+	}
+	return r.premiumOK(ctx, broadcasterID)
 }
 
 // premiumOK applies the beta gate. It runs LAST, after the row is known to
