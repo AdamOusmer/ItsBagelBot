@@ -1,0 +1,665 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// The Discord module blob, its defaults, and every rule that decides whether a
+// value the dashboard submits is allowed to reach the row.
+//
+// This lives in shared/ rather than beside the route for one reason: the
+// console test runner only executes `console/shared/**` plus one dashboard
+// file (see console/package.json "test"), so a parser left next to the route
+// is a parser nobody ever runs. It is also the mirror of the Go side —
+// internal/domain/discord/config.go holds the same field names and
+// ValidateConfig holds the same rules — and the two drift silently unless the
+// console half is pinned by tests of its own.
+//
+// Every field is a string. The blob is a flat map<string,string> in MySQL that
+// both sesame and outgress read; typed values would have to be re-encoded at
+// both ends, and a missing key has to be distinguishable from an explicit
+// empty one, which is why the tri-state flags below are '' / 'on' / 'off'
+// rather than booleans.
+
+/** Discord snowflake: 17-20 digits. Discord's own docs cap ids at 20. */
+const SNOWFLAKE = /^\d{17,20}$/;
+
+/** #rrggbb, the only colour shape the embed editor writes. */
+const HEX6 = /^#[0-9a-f]{6}$/;
+
+/**
+ * LIVE_COLOR_HEX mirrors internal/domain/discord/embed.go:33
+ * (`const LiveColor = 0xC47A3A`) — the warm amber every Bagel embed already
+ * uses. Duplicated rather than fetched because the dashboard has to render the
+ * swatch before any RPC round trip, and a colour that arrives late paints the
+ * preview twice.
+ */
+export const LIVE_COLOR_HEX = '#c47a3a';
+
+/** Ticket panel copy defaults. These are what Discord actually posts when the
+ *  field is left empty, so they are shown verbatim as placeholders rather than
+ *  translated: a French placeholder would promise a French embed. */
+export const TICKET_PANEL_DEFAULTS = {
+  title: 'Need help?',
+  body: 'Open a private ticket with the staff.',
+  button: 'Open a ticket',
+  color: LIVE_COLOR_HEX
+} as const;
+
+export const TICKET_PANEL_TITLE_MAX = 100;
+export const TICKET_PANEL_BODY_MAX = 1000;
+export const TICKET_PANEL_BUTTON_MAX = 40;
+export const CATEGORY_LIST_MAX = 500;
+
+export const TICKET_OPEN_LIMIT_MIN = 1;
+export const TICKET_OPEN_LIMIT_MAX = 5;
+export const TICKET_OPEN_LIMIT_DEFAULT = 1;
+
+/** The role slots a streamer can pin to an existing guild role. Order is the
+ *  encoding order, so `encodePinnedRoles` is stable across saves. */
+export const PINNED_SLOTS = [
+  'owner',
+  'leadMod',
+  'mods',
+  'vip',
+  'subscriber',
+  'regulars',
+  'member'
+] as const;
+
+export type PinnedSlot = (typeof PINNED_SLOTS)[number];
+
+export type DiscordConfig = {
+  guildId: string;
+  twitchLogin: string;
+
+  liveChannelId: string;
+  clipsChannelId: string;
+  welcomeChannelId: string;
+  voiceHubId: string;
+  logChannelId: string;
+
+  subsChannelId: string;
+  subsCategoryId: string;
+  vipChannelId: string;
+  vipCategoryId: string;
+
+  ticketChannelId: string;
+  ticketCategoryId: string;
+  ticketArchiveCategoryId: string;
+  ticketLogChannelId: string;
+  ticketStaffRoleIds: string;
+  ticketOpenLimit: string;
+  ticketTranscriptEnabled: string;
+  ticketPanelTitle: string;
+  ticketPanelBody: string;
+  ticketPanelColor: string;
+  ticketPanelButton: string;
+
+  ownerRoleId: string;
+  leadModRoleId: string;
+  modsRoleId: string;
+  vipRoleId: string;
+  subscriberRoleId: string;
+  regularsRoleId: string;
+  memberRoleId: string;
+  pinnedRoles: string;
+
+  liveEnabled: string;
+  clipsEnabled: string;
+  welcomeEnabled: string;
+  goodbyeEnabled: string;
+  voiceEnabled: string;
+  ticketsEnabled: string;
+  logsEnabled: string;
+  subscribersEnabled: string;
+  levelsEnabled: string;
+  linkGuardEnabled: string;
+  autoRoleEnabled: string;
+
+  categoryAllow: string;
+  categoryDeny: string;
+  linkAllowList: string;
+};
+
+/** How each field is checked. One table, so adding a field is one row rather
+ *  than a new branch in three functions. */
+type FieldKind = 'snowflake' | 'snowflakeList' | 'flag' | 'limit' | 'color' | 'pinned' | 'text';
+
+type Rule = { kind: FieldKind; max?: number };
+
+const SNOW: Rule = { kind: 'snowflake' };
+const FLAG: Rule = { kind: 'flag' };
+
+export const FIELD_RULES: Record<keyof DiscordConfig, Rule> = {
+  guildId: SNOW,
+  twitchLogin: { kind: 'text', max: 40 },
+
+  liveChannelId: SNOW,
+  clipsChannelId: SNOW,
+  welcomeChannelId: SNOW,
+  voiceHubId: SNOW,
+  logChannelId: SNOW,
+
+  subsChannelId: SNOW,
+  subsCategoryId: SNOW,
+  vipChannelId: SNOW,
+  vipCategoryId: SNOW,
+
+  ticketChannelId: SNOW,
+  ticketCategoryId: SNOW,
+  ticketArchiveCategoryId: SNOW,
+  ticketLogChannelId: SNOW,
+  ticketStaffRoleIds: { kind: 'snowflakeList' },
+  ticketOpenLimit: { kind: 'limit' },
+  ticketTranscriptEnabled: FLAG,
+  ticketPanelTitle: { kind: 'text', max: TICKET_PANEL_TITLE_MAX },
+  ticketPanelBody: { kind: 'text', max: TICKET_PANEL_BODY_MAX },
+  ticketPanelColor: { kind: 'color' },
+  ticketPanelButton: { kind: 'text', max: TICKET_PANEL_BUTTON_MAX },
+
+  ownerRoleId: SNOW,
+  leadModRoleId: SNOW,
+  modsRoleId: SNOW,
+  vipRoleId: SNOW,
+  subscriberRoleId: SNOW,
+  regularsRoleId: SNOW,
+  memberRoleId: SNOW,
+  pinnedRoles: { kind: 'pinned' },
+
+  liveEnabled: FLAG,
+  clipsEnabled: FLAG,
+  welcomeEnabled: FLAG,
+  goodbyeEnabled: FLAG,
+  voiceEnabled: FLAG,
+  ticketsEnabled: FLAG,
+  logsEnabled: FLAG,
+  subscribersEnabled: FLAG,
+  levelsEnabled: FLAG,
+  linkGuardEnabled: FLAG,
+  autoRoleEnabled: FLAG,
+
+  categoryAllow: { kind: 'text', max: CATEGORY_LIST_MAX },
+  categoryDeny: { kind: 'text', max: CATEGORY_LIST_MAX },
+  linkAllowList: { kind: 'text', max: CATEGORY_LIST_MAX }
+};
+
+export const DISCORD_CONFIG_KEYS = Object.keys(FIELD_RULES) as (keyof DiscordConfig)[];
+
+/** Every field defaults to the empty string: unset, so the Go accessors decide
+ *  what "unset" means per field rather than the console guessing. */
+export function blankDiscordConfig(): DiscordConfig {
+  const out = {} as DiscordConfig;
+  for (const key of DISCORD_CONFIG_KEYS) out[key] = '';
+  return out;
+}
+
+export function isSnowflake(v: string): boolean {
+  return SNOWFLAKE.test(v);
+}
+
+/** A flag that is ON unless it was explicitly turned off. */
+export function alertOn(v: string | undefined): boolean {
+  return v !== 'off';
+}
+
+/** A flag that is OFF unless it was explicitly turned on. */
+export function alertOff(v: string | undefined): boolean {
+  return v === 'on';
+}
+
+export function flagValue(on: boolean): string {
+  return on ? 'on' : 'off';
+}
+
+// ── pinned roles ──────────────────────────────────────────────────────────
+
+export type PinnedRoles = Partial<Record<PinnedSlot, string>>;
+
+const SLOT_SET: ReadonlySet<string> = new Set(PINNED_SLOTS);
+
+/** `owner=123,vip=456` → `{owner:'123', vip:'456'}`. Unknown slots and
+ *  malformed pairs are dropped rather than throwing: this parses a value that
+ *  may predate the current slot list. */
+export function parsePinnedRoles(raw: string): PinnedRoles {
+  const out: PinnedRoles = {};
+  for (const part of raw.split(',')) {
+    const [slot, id] = part.split('=');
+    const key = (slot ?? '').trim();
+    const value = (id ?? '').trim();
+    if (!SLOT_SET.has(key)) continue;
+    if (!SNOWFLAKE.test(value)) continue;
+    out[key as PinnedSlot] = value;
+  }
+  return out;
+}
+
+/** Encodes in PINNED_SLOTS order so a save that changes nothing produces the
+ *  same string and does not look like a change to the dirty guard. */
+export function encodePinnedRoles(pins: PinnedRoles): string {
+  const parts: string[] = [];
+  for (const slot of PINNED_SLOTS) {
+    const id = (pins[slot] ?? '').trim();
+    if (SNOWFLAKE.test(id)) parts.push(`${slot}=${id}`);
+  }
+  return parts.join(',');
+}
+
+export function pinnedRole(config: DiscordConfig, slot: PinnedSlot): string {
+  return parsePinnedRoles(config.pinnedRoles)[slot] ?? '';
+}
+
+// ── snowflake lists ───────────────────────────────────────────────────────
+
+export function parseIdList(raw: string): string[] {
+  const out: string[] = [];
+  for (const part of raw.split(',')) {
+    const v = part.trim();
+    if (SNOWFLAKE.test(v) && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+export function encodeIdList(ids: readonly string[]): string {
+  return parseIdList(ids.join(',')).join(',');
+}
+
+// ── name lists (stream categories, link allow list) ───────────────────────
+
+/** One category name is at most this long. Twitch's own category names top out
+ *  well under it; the cap exists so a paste of a whole sentence becomes a
+ *  visible refusal rather than a chip nobody can read. */
+export const CATEGORY_NAME_MAX = 40;
+
+export function parseNameList(raw: string): string[] {
+  const out: string[] = [];
+  for (const part of raw.split(',')) {
+    const v = part.trim();
+    if (v === '' || v.length > CATEGORY_NAME_MAX) continue;
+    if (!out.some((n) => n.toLowerCase() === v.toLowerCase())) out.push(v);
+  }
+  return out;
+}
+
+export function encodeNameList(names: readonly string[]): string {
+  return parseNameList(names.join(',')).join(', ');
+}
+
+// ── colour ────────────────────────────────────────────────────────────────
+
+/** Accepts `#rgb`, `#rrggbb` and the same two without the hash, in any case.
+ *  Anything else falls back rather than painting an embed a colour the
+ *  streamer did not choose. */
+export function normalizeHex(raw: string, fallback = LIVE_COLOR_HEX): string {
+  const v = raw.trim().toLowerCase().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/.test(v)) return `#${v[0]}${v[0]}${v[1]}${v[1]}${v[2]}${v[2]}`;
+  if (/^[0-9a-f]{6}$/.test(v)) return `#${v}`;
+  return fallback;
+}
+
+export function isHexColor(raw: string): boolean {
+  return HEX6.test(raw.trim().toLowerCase());
+}
+
+// ── ticket panel ──────────────────────────────────────────────────────────
+
+export type TicketPanelSpec = { title: string; body: string; button: string; color: string };
+
+export function ticketPanelSpec(config: DiscordConfig): TicketPanelSpec {
+  return {
+    title: config.ticketPanelTitle || TICKET_PANEL_DEFAULTS.title,
+    body: config.ticketPanelBody || TICKET_PANEL_DEFAULTS.body,
+    button: config.ticketPanelButton || TICKET_PANEL_DEFAULTS.button,
+    color: normalizeHex(config.ticketPanelColor, TICKET_PANEL_DEFAULTS.color)
+  };
+}
+
+export function ticketOpenLimitN(config: DiscordConfig): number {
+  const n = Number.parseInt(config.ticketOpenLimit, 10);
+  if (!Number.isFinite(n)) return TICKET_OPEN_LIMIT_DEFAULT;
+  if (n < TICKET_OPEN_LIMIT_MIN) return TICKET_OPEN_LIMIT_DEFAULT;
+  if (n > TICKET_OPEN_LIMIT_MAX) return TICKET_OPEN_LIMIT_DEFAULT;
+  return n;
+}
+
+/** Staff who see and claim tickets: the explicit list when set, otherwise the
+ *  three staff role slots — the same fallback the Go accessor uses. */
+export function ticketStaffRoleIds(config: DiscordConfig): string[] {
+  const explicit = parseIdList(config.ticketStaffRoleIds);
+  if (explicit.length) return explicit;
+  return parseIdList([config.ownerRoleId, config.leadModRoleId, config.modsRoleId].join(','));
+}
+
+export function ticketLogChannel(config: DiscordConfig): string {
+  return config.ticketLogChannelId || config.logChannelId;
+}
+
+// ── validation + merge ────────────────────────────────────────────────────
+
+export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list' | 'flag' | 'range' | 'color' | 'pinned' | 'length' };
+
+/**
+ * What a field is allowed to CONTAIN, checked before any canonicalisation.
+ *
+ * `color` accepts the shorthand `#abc` and a missing hash because those are
+ * shapes `normalizeHex` turns into a real colour; everything else it would
+ * silently swap for the fallback, which is a refusal, not a normalisation.
+ */
+const CHECKS: Record<FieldKind, (v: string, max: number) => boolean> = {
+  snowflake: (v) => SNOWFLAKE.test(v),
+  snowflakeList: (v) => v.split(',').every((p) => SNOWFLAKE.test(p.trim())),
+  flag: (v) => v === 'on' || v === 'off',
+  limit: (v) => integerInRange(v, TICKET_OPEN_LIMIT_MIN, TICKET_OPEN_LIMIT_MAX),
+  color: (v) => HEX_INPUT.test(v.trim()),
+  pinned: (v) => v.split(',').every(isPinnedPair),
+  text: (v, max) => v.length <= max
+};
+
+/** The colour shapes the editor may submit; `normalizeHex` maps all of them
+ *  onto `#rrggbb`. */
+const HEX_INPUT = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+const CODES: Record<FieldKind, FieldError['code']> = {
+  snowflake: 'snowflake',
+  snowflakeList: 'list',
+  flag: 'flag',
+  limit: 'range',
+  color: 'color',
+  pinned: 'pinned',
+  text: 'length'
+};
+
+function integerInRange(v: string, min: number, max: number): boolean {
+  if (!/^\d+$/.test(v)) return false;
+  const n = Number.parseInt(v, 10);
+  return n >= min && n <= max;
+}
+
+function isPinnedPair(part: string): boolean {
+  const [slot, id] = part.split('=');
+  return SLOT_SET.has((slot ?? '').trim()) && SNOWFLAKE.test((id ?? '').trim());
+}
+
+/** Empty always passes: it is the "unset" value for every field, and the Go
+ *  accessors decide the default. */
+function accepts(rule: Rule, value: string): boolean {
+  if (value === '') return true;
+  return CHECKS[rule.kind](value, rule.max ?? Number.MAX_SAFE_INTEGER);
+}
+
+export function validateDiscordConfig(config: DiscordConfig): FieldError[] {
+  const out: FieldError[] = [];
+  for (const key of DISCORD_CONFIG_KEYS) {
+    const rule = FIELD_RULES[key];
+    if (accepts(rule, config[key])) continue;
+    out.push({ field: key, code: CODES[rule.kind] });
+  }
+  return out;
+}
+
+/** Reads a stored blob back. Non-string values and unknown keys are dropped:
+ *  the row is written by this console but read by two Go services, and a
+ *  number that sneaks in would break their string decode. */
+export function parseDiscordConfig(raw: unknown): DiscordConfig {
+  const out = blankDiscordConfig();
+  if (raw === null) return out;
+  if (typeof raw !== 'object') return out;
+  if (Array.isArray(raw)) return out;
+  const src = raw as Record<string, unknown>;
+  for (const key of DISCORD_CONFIG_KEYS) {
+    const v = src[key];
+    if (typeof v === 'string') out[key] = v;
+  }
+  return out;
+}
+
+export type MergeResult = { config: DiscordConfig; errors: FieldError[] };
+
+/**
+ * Applies a submitted draft on top of the stored blob.
+ *
+ * A field the draft does not carry keeps its stored value, and a field that
+ * fails its rule keeps its stored value *and* reports an error — never a
+ * silent blank. The page has already validated the same rules client-side, so
+ * an error here means a stale form, a hand-rolled POST, or drift between the
+ * two halves; blanking a channel id in any of those cases silently stops
+ * Bagel posting, which is the worst possible failure for this page.
+ */
+export function mergeDiscordConfig(current: DiscordConfig, patch: Record<string, unknown>): MergeResult {
+  const config = { ...current };
+  const errors: FieldError[] = [];
+  for (const key of DISCORD_CONFIG_KEYS) {
+    const raw = patch[key];
+    if (typeof raw !== 'string') continue;
+    const rule = FIELD_RULES[key];
+    const trimmed = raw.trim();
+    // Validate the value the form SENT, then normalise -- not the other way
+    // round. Both list encoders drop an entry they cannot parse, so
+    // normalising first turned `mods=notasnowflake` and `nosuchslot=123` into
+    // an empty string that passed validation: the streamer's pick vanished and
+    // nothing said so. Raw-first makes the same input a visible FieldError.
+    if (!accepts(rule, trimmed)) {
+      errors.push({ field: key, code: CODES[rule.kind] });
+      continue;
+    }
+    config[key] = normalizeField(rule, trimmed);
+  }
+  return { config, errors };
+}
+
+/** Re-encodes the two list shapes and the colour so the stored string is
+ *  canonical whatever spacing or case the form sent. Takes an already-trimmed,
+ *  already-validated value. */
+function normalizeField(rule: Rule, v: string): string {
+  if (rule.kind === 'snowflakeList') return encodeIdList(v.split(','));
+  if (rule.kind === 'pinned') return encodePinnedRoles(parsePinnedRoles(v));
+  if (rule.kind === 'color' && v !== '') return normalizeHex(v);
+  return v;
+}
+
+// ── per-guild config rows ─────────────────────────────────────────────────
+
+/**
+ * The version a `config.get` reports for a guild that has no row yet.
+ *
+ * Zero rather than -1 because outgress's `config.set` compares
+ * `expected_version` against the stored column, and a row that has never been
+ * written has version 0 on the Go side too. Sending -1 for "I have never read
+ * this" would make the very first save look like a conflict.
+ */
+export const DISCORD_CONFIG_VERSION_NEW = 0;
+
+/**
+ * Reads the version out of a `config.get` reply.
+ *
+ * Accepts a string as well as a number: the RPC envelope is JSON and a Go
+ * `uint64` marshalled by a service that ever adds `,string` to its tag would
+ * arrive quoted. Anything else (missing, negative, fractional, past
+ * `Number.MAX_SAFE_INTEGER`) degrades to "never read", which makes the next
+ * save a fresh write rather than an unexplained conflict.
+ */
+export function parseConfigVersion(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0) return raw;
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+    const n = Number.parseInt(raw.trim(), 10);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return DISCORD_CONFIG_VERSION_NEW;
+}
+
+// ── guild permissions (the OAuth picker) ──────────────────────────────────
+
+/**
+ * The two permissions that let a member add a bot to a guild.
+ *
+ * BigInt, not Number, and this is not style. Discord serialises a guild's
+ * permission bitfield as a DECIMAL STRING in `/users/@me/guilds` precisely
+ * because the field outgrew a double: bits past 53 exist today
+ * (USE_EXTERNAL_APPS is bit 50, CREATE_EVENTS bit 44), so `parseInt` on a
+ * guild that carries a high bit silently rounds and can flip a low bit in the
+ * result. The two bits tested here are low, but the parse has to be exact for
+ * the AND to mean anything at all.
+ */
+export const DISCORD_ADMINISTRATOR = 0x8n;
+export const DISCORD_MANAGE_GUILD = 0x20n;
+
+export type GuildPermissionEntry = {
+  id?: string;
+  name?: string;
+  owner?: boolean;
+  permissions?: string | number;
+};
+
+/** Parses Discord's decimal permission string. Anything unparseable is zero:
+ *  a guild whose bitfield we cannot read is one we do not offer. */
+export function guildPermissionBits(raw: string | number | undefined): bigint {
+  if (typeof raw === 'number') {
+    if (!Number.isSafeInteger(raw) || raw < 0) return 0n;
+    return BigInt(raw);
+  }
+  const v = (raw ?? '').trim();
+  if (!/^\d+$/.test(v)) return 0n;
+  return BigInt(v);
+}
+
+/**
+ * Whether this guild may be offered in the picker.
+ *
+ * Owner wins outright: Discord reports the owner's `permissions` as the
+ * everyone-role bitfield in some responses, so an owner with no explicit
+ * Administrator role would otherwise be filtered out of their own server.
+ */
+export function canManageGuild(entry: GuildPermissionEntry): boolean {
+  if (entry.owner === true) return true;
+  const bits = guildPermissionBits(entry.permissions);
+  return (bits & DISCORD_ADMINISTRATOR) !== 0n || (bits & DISCORD_MANAGE_GUILD) !== 0n;
+}
+
+// ── guild presentation ────────────────────────────────────────────────────
+
+/**
+ * The two-letter tile a guild is drawn with.
+ *
+ * Not an <img>: the console CSP is `img-src 'self' data:`, so a tag pointed at
+ * cdn.discordapp.com renders as a broken box with no fix short of proxying
+ * every guild icon through the dashboard, and it would leak the visit to
+ * Discord on every page view. Initials of the first two words when there are
+ * two, otherwise the first two characters, so "Demo Bakery" reads DB and
+ * "Bagels" reads BA.
+ */
+export function guildMonogram(name: string): string {
+  const words = name.trim().split(/\s+/).filter((w) => w !== '');
+  if (words.length === 0) return '?';
+  if (words.length === 1) return [...words[0]].slice(0, 2).join('').toUpperCase();
+  return (([...words[0]][0] ?? '') + ([...words[1]][0] ?? '')).toUpperCase();
+}
+
+/** The pill a server card shows. `reauth` outranks `offline`: a guild whose
+ *  install predates a permission needs the streamer to act, and saying
+ *  "offline" would send them to wait for a reconnect that already happened. */
+export type GuildBotState = 'online' | 'offline' | 'reauth';
+
+export function guildBotState(g: { botPresent?: boolean; needsReauth?: boolean }): GuildBotState {
+  if (g.needsReauth === true) return 'reauth';
+  return g.botPresent === true ? 'online' : 'offline';
+}
+
+/**
+ * The picker's badge.
+ *
+ * Three states, not two. `mine` is a server this broadcaster has already bound
+ * -- clicking through Discord's consent screen again would land back on the
+ * same settings page, so the row offers a direct link instead. `elsewhere` is
+ * a server outgress refused to bind because it belongs to a different Twitch
+ * channel; that row is dead, and offering an install button on it walks the
+ * streamer through two Discord screens to reach the same refusal.
+ *
+ * `elsewhereIds` is what the console LEARNED, not a query: outgress exposes no
+ * "who owns this guild" RPC to the dashboard (see the dingress subject list),
+ * so the only signal available here is a `bound_elsewhere` the install
+ * callback already hit. Anything not in either list is `addable`.
+ */
+export type GuildPickerBadge = 'mine' | 'elsewhere' | 'addable';
+
+export function guildPickerBadge(
+  guildId: string,
+  boundIds: readonly string[],
+  elsewhereIds: readonly string[] = []
+): GuildPickerBadge {
+  if (boundIds.includes(guildId)) return 'mine';
+  if (elsewhereIds.includes(guildId)) return 'elsewhere';
+  return 'addable';
+}
+
+// ── the guild list Discord returns for a user token ───────────────────────
+
+export type DiscordUserGuild = { id: string; name: string; owner: boolean; permissions: string };
+
+/**
+ * One entry of `/users/@me/guilds`.
+ *
+ * `permissions` stays the string Discord sent: the bitfield is parsed with
+ * BigInt in `guildPermissionBits`, and coercing it to a number here would be
+ * the one place the precision is lost.
+ */
+export function parseUserGuild(raw: unknown): DiscordUserGuild | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  if (Array.isArray(raw)) return null;
+  const g = raw as { id?: unknown; name?: unknown; owner?: unknown; permissions?: unknown };
+  if (typeof g.id !== 'string' || g.id === '') return null;
+  return {
+    id: g.id,
+    name: typeof g.name === 'string' ? g.name : '',
+    owner: g.owner === true,
+    permissions: typeof g.permissions === 'string' ? g.permissions : ''
+  };
+}
+
+/**
+ * A whole page of `/users/@me/guilds`.
+ *
+ * `null` means "this is not a guild page", which is the case that matters:
+ * Discord answers a 429 with a JSON OBJECT (`{message, retry_after}`) and its
+ * edge answers an outage with an HTML document, and both used to fall through
+ * `Array.isArray` into an empty list that the picker rendered as "you
+ * administer no servers". A caller that gets `null` reports the transport
+ * failure instead of inventing an answer.
+ */
+export function parseUserGuilds(raw: unknown): DiscordUserGuild[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: DiscordUserGuild[] = [];
+  for (const entry of raw) {
+    const g = parseUserGuild(entry);
+    if (g) out.push(g);
+  }
+  return out;
+}
+
+// ── legacy blob migration ─────────────────────────────────────────────────
+
+/**
+ * The config a pre-split board still carries in its per-user modules blob.
+ *
+ * Before the multi-guild split (§H) the whole config lived in `MOD.discord`,
+ * which structurally allowed one server per broadcaster. The blob is narrowed
+ * to `{twitchLogin}` on the first save after the split, so anything not copied
+ * into the guild row first is lost -- every channel and role id the streamer
+ * ever picked. Returns the config to write, or `null` when there is nothing to
+ * migrate.
+ *
+ * The guild id has to match: a blob that names a DIFFERENT server describes a
+ * binding this guild's row must not inherit, and one that names no server is
+ * either already narrowed or was never set up.
+ */
+export function legacyConfigFor(blob: unknown, guildId: string): DiscordConfig | null {
+  if (!isSnowflake(guildId)) return null;
+  const parsed = parseDiscordConfig(blob);
+  if (parsed.guildId !== guildId) return null;
+  if (!carriesLegacyFields(parsed)) return null;
+  return parsed;
+}
+
+/** guildId and twitchLogin survive the narrowing, so a blob holding only those
+ *  two is already migrated and copying it over a row would be a no-op write. */
+function carriesLegacyFields(config: DiscordConfig): boolean {
+  return DISCORD_CONFIG_KEYS.some(
+    (key) => key !== 'guildId' && key !== 'twitchLogin' && config[key] !== ''
+  );
+}

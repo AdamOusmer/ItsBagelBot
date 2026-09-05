@@ -8,18 +8,142 @@
 // (and fill) someone else's server. Only a member who may add bots to a
 // guild can obtain a code for it, which is the ownership proof outgress
 // relies on.
-import { redirect } from '@sveltejs/kit';
+import { redirect, type Cookies } from '@sveltejs/kit';
 import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import { decodeKey } from '@bagel/shared/server/session';
+import { openOAuthState, sealOAuthState } from '@bagel/shared/server/oauth-state';
+import { encodeIdList, parseIdList, parseUserGuilds, type DiscordUserGuild } from '@bagel/shared';
+
+export type { DiscordUserGuild };
 
 // process.env, not $env/dynamic/private, for the module-eval read: this
 // file imports module-gate, which sits in the boot import graph.
 const DEMO = dev && process.env.DEMO === '1';
 
-export const DISCORD_STATE_COOKIE = 'discord_oauth_state';
+// Two cookies, and two HMAC labels, for the two legs. Sharing one would let a
+// stale state from either flow validate the other, and the two legs carry
+// different consent: one grants us a read of the visitor's guild list, the
+// other adds a bot to a server.
+const INSTALL_COOKIE = 'discord_oauth_state';
+const PICK_COOKIE = 'discord_pick_state';
+const INSTALL_LABEL = 'discord-install';
+const PICK_LABEL = 'discord-pick';
 export const DISCORD_STATE_TTL_SECONDS = 600;
+
+/**
+ * The state cookie's path, and why it is not `__Host-`.
+ *
+ * `__Host-` would be the stronger prefix, but RFC 6265bis §4.1.3.2 makes it
+ * MANDATE `Path=/`, and these cookies have no business riding on every request
+ * to the dashboard -- they exist for two redirects under /discord. `__Secure-`
+ * buys the half that matters against a network attacker (never settable over
+ * plain http, never from a non-secure origin) and puts no constraint on the
+ * path, so that is the trade taken. The prefix has to be dropped entirely over
+ * http or the browser refuses the cookie, which is local dev only.
+ */
+const STATE_PATH = '/discord';
+
+function stateCookieName(base: string, secure: boolean): string {
+  return secure ? `__Secure-${base}` : base;
+}
+
+/** The app's own SESSION_KEY. Read per call, never at module eval: this file
+ *  sits on the boot import graph. */
+function stateKey(): Buffer {
+  return decodeKey(process.env.SESSION_KEY);
+}
+
+type Leg = { cookie: string; label: string };
+
+const INSTALL_LEG: Leg = { cookie: INSTALL_COOKIE, label: INSTALL_LABEL };
+const PICK_LEG: Leg = { cookie: PICK_COOKIE, label: PICK_LABEL };
+
+export const DISCORD_INSTALL_LEG = INSTALL_LEG;
+export const DISCORD_PICK_LEG = PICK_LEG;
+
+/**
+ * Mints a state, seals it to this signed-in user, and stores the cookie.
+ *
+ * The returned value is what goes to Discord; the cookie holds the same state
+ * plus an HMAC over (leg, uid, state), so a cookie planted by one account
+ * cannot be redeemed by another. See @bagel/shared/server/oauth-state.
+ */
+export function putDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: string, state: string): void {
+  const secure = url.protocol === 'https:';
+  cookies.set(stateCookieName(leg.cookie, secure), sealOAuthState(stateKey(), leg.label, uid, state), {
+    path: STATE_PATH,
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    maxAge: DISCORD_STATE_TTL_SECONDS
+  });
+}
+
+/**
+ * Reads the state back, one time, and clears the cookie whatever happens.
+ *
+ * Returns '' when the cookie is absent or was not minted for this leg and this
+ * user; the caller turns that into a named redirect. Both spellings are
+ * deleted because a deployment that changed protocol (or a developer moving
+ * between the two) can leave the other one behind.
+ */
+export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: string): string {
+  const secure = url.protocol === 'https:';
+  const name = stateCookieName(leg.cookie, secure);
+  const raw = cookies.get(name) ?? '';
+  for (const n of [name, leg.cookie]) cookies.delete(n, { path: STATE_PATH, secure });
+  if (!raw) return '';
+  return openOAuthState(stateKey(), leg.label, uid, raw) ?? '';
+}
+
+/**
+ * The whole state check for one callback: the cookie has to exist, be sealed
+ * to this user, and match the state Discord echoed back.
+ */
+export function discordStateOK(cookies: Cookies, url: URL, leg: Leg, uid: string): boolean {
+  const stored = takeDiscordState(cookies, url, leg, uid);
+  const echoed = url.searchParams.get('state') ?? '';
+  return stored !== '' && echoed !== '' && stored === echoed;
+}
+
+// ── servers that belong to somebody else ──────────────────────────────────
+
+const BLOCKED_COOKIE = 'discord_blocked_guilds';
+
+/**
+ * How long the picker remembers a `bound_elsewhere` refusal.
+ *
+ * The dashboard has no way to ASK who owns a guild -- outgress serves no such
+ * subject to it -- so the only signal available is a refusal this browser
+ * already collected. Thirty minutes covers the "try it, get refused, come
+ * back and try the next one" loop that the memory exists to stop, and is short
+ * enough that a genuine hand-over (the other channel disconnects) is not
+ * remembered as permanent.
+ */
+const BLOCKED_TTL_SECONDS = 1800;
+
+/** Cap on the remembered list. A cookie is a request-header budget, and nobody
+ *  walks past a handful of refusals before asking why. */
+const BLOCKED_MAX = 8;
+
+export function rememberBoundElsewhere(cookies: Cookies, url: URL, guildId: string): void {
+  const next = encodeIdList([guildId, ...boundElsewhereIds(cookies)].slice(0, BLOCKED_MAX));
+  if (!next) return;
+  cookies.set(BLOCKED_COOKIE, next, {
+    path: STATE_PATH,
+    httpOnly: true,
+    secure: url.protocol === 'https:',
+    sameSite: 'lax',
+    maxAge: BLOCKED_TTL_SECONDS
+  });
+}
+
+export function boundElsewhereIds(cookies: Cookies): string[] {
+  return parseIdList(cookies.get(BLOCKED_COOKIE) ?? '');
+}
 
 // BotPermissions matches internal/domain/discord.BotPermissions: kick, ban,
 // manage channels, reactions, view, send, manage messages, embed, attach,
@@ -37,7 +161,9 @@ export const DISCORD_STATE_TTL_SECONDS = 600;
 export const DISCORD_BOT_PERMISSIONS = 1102012607574;
 
 const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
+const USER_GUILDS_URL = 'https://discord.com/api/v10/users/@me/guilds';
 const TOKEN_TIMEOUT_MS = 8000;
+const GUILDS_TIMEOUT_MS = 8000;
 
 export function requireDiscordActor(locals: App.Locals): string {
   gateModulePage(locals.session, 'discord');
@@ -47,7 +173,33 @@ export function requireDiscordActor(locals: App.Locals): string {
   return uid;
 }
 
-export function discordFail(slug: string): never {
+/**
+ * The `?e=` slugs the page knows how to explain.
+ *
+ * The first four are OAuth-flow-local — they describe something that went
+ * wrong before any RPC — and the rest are the dingress refusal codes verbatim,
+ * so a redirect that carries a refusal out of the callback names it with the
+ * same word the RPC reply used. The page maps each to a message through a
+ * typed literal map, so a slug added here without copy fails the i18n scan.
+ */
+export const DISCORD_ERROR_SLUGS = [
+  'oauth',
+  'unconfigured',
+  'setup',
+  'state',
+  'noguilds',
+  'conflict',
+  'bound_elsewhere',
+  'not_bound',
+  'discord_unavailable',
+  'forbidden',
+  'rate_limited',
+  'invalid'
+] as const;
+
+export type DiscordErrorSlug = (typeof DISCORD_ERROR_SLUGS)[number];
+
+export function discordFail(slug: DiscordErrorSlug): never {
   throw redirect(302, `/discord?e=${slug}`);
 }
 
@@ -83,6 +235,154 @@ export function discordInviteURL(state: string): string {
   u.searchParams.set('response_type', 'code');
   if (state) u.searchParams.set('state', state);
   return u.toString();
+}
+
+/**
+ * Where Discord sends the visitor back after the USER-authorization leg.
+ *
+ * Derived from the bot-install redirect by swapping the last segment, so a
+ * deployment configures one variable and gets both. DISCORD_PICK_REDIRECT_URI
+ * overrides it for a deployment whose two URIs are not siblings. Either way
+ * the value has to be registered in the Discord application, exactly, or
+ * Discord refuses the authorize call with its own error page.
+ */
+export function discordPickRedirectURI(): string {
+  const explicit = (env.DISCORD_PICK_REDIRECT_URI || '').trim();
+  if (explicit) return explicit;
+  const base = discordRedirectURI();
+  if (!base) return '';
+  return base.replace(/\/callback\/?$/, '/pick');
+}
+
+/**
+ * Step one: ask the visitor which servers they are in.
+ *
+ * `identify guilds` is read-only and adds nothing to any server. The token it
+ * yields is used once, in the callback, to list guilds; it is never persisted
+ * and never logged. We ask before the install so the picker can show real
+ * server names instead of dropping the streamer into Discord's own guild
+ * dropdown, which lists servers Bagel can never be added to.
+ */
+export function discordUserAuthURL(state: string): string {
+  const clientId = discordClientId();
+  const redirect = discordPickRedirectURI();
+  if (!clientId || !redirect) return '';
+  const u = new URL('https://discord.com/oauth2/authorize');
+  u.searchParams.set('client_id', clientId);
+  u.searchParams.set('scope', 'identify guilds');
+  u.searchParams.set('redirect_uri', redirect);
+  u.searchParams.set('response_type', 'code');
+  if (state) u.searchParams.set('state', state);
+  return u.toString();
+}
+
+/**
+ * Step two: install the bot into the guild the streamer picked.
+ *
+ * guild_id preselects it and disable_guild_select stops Discord offering the
+ * dropdown again, so the server named on our picker is the server that gets
+ * the bot. The id is still not trusted afterwards: the callback reads the
+ * bound guild out of the token response (see exchangeInstallCode).
+ */
+export function discordInstallURL(state: string, guildId: string): string {
+  const base = discordInviteURL(state);
+  if (!base || !guildId) return base;
+  const u = new URL(base);
+  u.searchParams.set('guild_id', guildId);
+  u.searchParams.set('disable_guild_select', 'true');
+  return u.toString();
+}
+
+/**
+ * Discord's page size for /users/@me/guilds. The endpoint defaults to 200 and
+ * caps there; asking for more is refused, and asking for less only means more
+ * round trips. A user in more than 200 servers is not exotic (Discord's own
+ * limit is 100 without Nitro and 200 with it, and a bot-heavy account with
+ * multiple logins routinely sits near it), and before pagination those
+ * streamers simply could not see their own server in the picker.
+ */
+const GUILDS_PAGE_LIMIT = 200;
+
+/**
+ * A hard stop on the walk. 10 pages is 2000 guilds, an order of magnitude past
+ * Discord's own per-user ceiling, so hitting it means the endpoint is looping
+ * rather than that somebody is popular -- and an unbounded `after` loop on a
+ * misbehaving upstream is a hung request holding a user token in memory.
+ */
+const GUILDS_MAX_PAGES = 10;
+
+/**
+ * Why listUserGuilds failed, in the same words as the `?e=` slugs.
+ *
+ * It used to return an empty array for every failure, so a 429 and an outage
+ * both rendered "you do not administer any servers" -- a sentence that tells
+ * the streamer to go fix their Discord permissions when the truth is "try
+ * again in a minute".
+ */
+export type UserGuildsResult =
+  | { ok: true; guilds: DiscordUserGuild[] }
+  | { ok: false; code: Extract<DiscordErrorSlug, 'oauth' | 'rate_limited' | 'discord_unavailable'> };
+
+/**
+ * Exchanges the user-authorization code and lists that user's guilds.
+ *
+ * The access token exists only inside this function: it is not returned, not
+ * stored, and not logged, so a leak would need someone to change this file.
+ */
+export async function listUserGuilds(code: string): Promise<UserGuildsResult> {
+  const token = await exchangeUserCode(code);
+  if (!token) return { ok: false, code: 'oauth' };
+  const guilds: DiscordUserGuild[] = [];
+  let after = '';
+  for (let page = 0; page < GUILDS_MAX_PAGES; page++) {
+    const res = await fetchGuildPage(token, after);
+    if (!res.ok) return res;
+    guilds.push(...res.guilds);
+    // A short page is the last page. Discord gives no cursor of its own here;
+    // `after` is the last id seen, and ids are snowflakes so the order is
+    // stable across the walk.
+    if (res.guilds.length < GUILDS_PAGE_LIMIT) return { ok: true, guilds };
+    after = res.guilds[res.guilds.length - 1].id;
+  }
+  return { ok: true, guilds };
+}
+
+async function fetchGuildPage(token: string, after: string): Promise<UserGuildsResult> {
+  const u = new URL(USER_GUILDS_URL);
+  u.searchParams.set('limit', String(GUILDS_PAGE_LIMIT));
+  if (after) u.searchParams.set('after', after);
+  const res = await fetch(u, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(GUILDS_TIMEOUT_MS)
+  }).catch(() => null);
+  if (!res) return { ok: false, code: 'discord_unavailable' };
+  if (res.status === 429) return { ok: false, code: 'rate_limited' };
+  if (!res.ok) return { ok: false, code: 'discord_unavailable' };
+  const json: unknown = await res.json().catch(() => null);
+  // parseUserGuilds returns null for every body that is not a guild page --
+  // the 429 JSON object, an edge HTML page -- so those never masquerade as an
+  // empty list. Tested in shared/lib/discord-config.test.ts.
+  const guilds = parseUserGuilds(json);
+  if (!guilds) return { ok: false, code: 'discord_unavailable' };
+  return { ok: true, guilds };
+}
+
+async function exchangeUserCode(code: string): Promise<string> {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: discordClientId(),
+      client_secret: discordClientSecret(),
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: discordPickRedirectURI()
+    }),
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS)
+  });
+  if (!res.ok) return '';
+  const json = (await res.json()) as { access_token?: unknown };
+  return typeof json.access_token === 'string' ? json.access_token : '';
 }
 
 export function discordTemplateURL(): string {

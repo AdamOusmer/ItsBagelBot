@@ -332,40 +332,128 @@ export function demoSpotifyView() {
   };
 }
 
+// The broadcaster's module row: the master switch, the Twitch login, and the
+// servers they have bound. Two of them, and the second has the bot offline, so
+// the list exercises both pills rather than a uniformly happy row.
 export function demoDiscordView() {
   return {
     enabled: true,
-    connected: true,
+    twitchLogin: 'demo',
+    guilds: demoDiscordGuilds()
+  };
+}
+
+export function demoDiscordGuilds() {
+  return [
+    {
+      // Snowflakes, not names: the live path stores 17-20 digit ids and the
+      // save action validates that shape, so demo must exercise it too.
+      guildId: '123456789012345678',
+      name: 'Demo Bakery',
+      iconUrl: '',
+      memberCount: 1284,
+      botPresent: true,
+      needsReauth: false,
+      boundAtMs: Date.now() - 40 * 24 * 60 * 60 * 1000
+    },
+    {
+      guildId: '987654321098765432',
+      name: 'Crumb Lounge',
+      iconUrl: '',
+      memberCount: 212,
+      botPresent: false,
+      needsReauth: false,
+      boundAtMs: Date.now() - 3 * 24 * 60 * 60 * 1000
+    }
+  ];
+}
+
+// What Discord's /users/@me/guilds would return for the picker. One server
+// Bagel is already in, one the demo user may add it to, and one where they are
+// an ordinary member: the filter and both badges all have a row to prove
+// themselves on.
+export function demoDiscordPicker() {
+  return [
+    // Already bound to this broadcaster: the row links straight to its
+    // settings instead of walking Discord's consent screen again.
+    { id: '123456789012345678', name: 'Demo Bakery', owner: true, permissions: '8' },
+    { id: '456789012345678901', name: 'Toast Club', owner: false, permissions: '32' },
+    // Manageable, but bound to a different Twitch channel (see
+    // demoDiscordBlocked): the row is disabled rather than offering an install
+    // that can only end in bound_elsewhere.
+    { id: '567890123456789012', name: 'Sourdough Guild', owner: true, permissions: '8' },
+    // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: never offered.
+    { id: '456789012345678999', name: 'Someone Else Server', owner: false, permissions: '3136' }
+  ];
+}
+
+/** The guilds a `bound_elsewhere` refusal has been collected for. Live, this
+ *  is a short-lived cookie the install callback writes. */
+export function demoDiscordBlocked() {
+  return ['567890123456789012'];
+}
+
+// One guild's config row. version is non-zero so the demo save exercises the
+// same expected_version round trip the live path does.
+export function demoDiscordConfig() {
+  return {
+    version: 4,
+    found: true,
     config: {
       // Snowflakes, not names: the live path stores 17-20 digit ids and the
       // save action validates that shape, so demo must exercise it too.
       guildId: '123456789012345678',
+      twitchLogin: 'demo',
+
       liveChannelId: '234567890123456789',
       clipsChannelId: '345678901234567890',
       welcomeChannelId: '456789012345678901',
       voiceHubId: '678901234567890123',
-      ownerRoleId: '789012345678901234',
-      vipRoleId: '789012345678901255',
-      subscriberRoleId: '789012345678901266',
-      subscribersEnabled: 'on',
-      leadModRoleId: '789012345678901299',
-      modsRoleId: '',
-      regularsRoleId: '',
-      memberRoleId: '',
       logChannelId: '998877665544332211',
+
+      subsChannelId: '112233445566778899',
+      subsCategoryId: '112233445566778800',
+      vipChannelId: '223344556677889911',
+      vipCategoryId: '223344556677889900',
+
       ticketChannelId: '887766554433221100',
       ticketCategoryId: '776655443322110099',
-      liveEnabled: '',
-      clipsEnabled: '',
-      welcomeEnabled: '',
-      goodbyeEnabled: '',
-      voiceEnabled: '',
-      ticketsEnabled: '',
-      logsEnabled: '',
-      levelsEnabled: '',
+      ticketArchiveCategoryId: '776655443322110088',
+      ticketLogChannelId: '',
+      ticketStaffRoleIds: '789012345678901299,901234567890123456',
+      ticketOpenLimit: '2',
+      ticketTranscriptEnabled: 'on',
+      ticketPanelTitle: 'Need a hand?',
+      ticketPanelBody: 'Open a private ticket and a mod will pick it up.',
+      ticketPanelColor: '#c47a3a',
+      ticketPanelButton: 'Open a ticket',
+
+      ownerRoleId: '789012345678901234',
+      leadModRoleId: '789012345678901299',
+      modsRoleId: '901234567890123456',
+      vipRoleId: '789012345678901255',
+      subscriberRoleId: '789012345678901266',
+      regularsRoleId: '',
+      memberRoleId: '789012345678901277',
+      // One slot pinned to a role the streamer already had, so the demo shows
+      // the pinned chip rather than only the created-by-Bagel path.
+      pinnedRoles: 'mods=901234567890123456',
+
+      liveEnabled: 'on',
+      clipsEnabled: 'on',
+      welcomeEnabled: 'on',
+      goodbyeEnabled: 'off',
+      voiceEnabled: 'on',
+      ticketsEnabled: 'on',
+      logsEnabled: 'on',
+      subscribersEnabled: 'on',
+      levelsEnabled: 'on',
+      linkGuardEnabled: 'off',
+      autoRoleEnabled: 'on',
+
       categoryAllow: '',
-      categoryDeny: '',
-      twitchLogin: 'demo',
+      categoryDeny: 'Just Chatting',
+      linkAllowList: ''
     }
   };
 }
@@ -376,18 +464,62 @@ export function demoDiscordLayout() {
       { id: '234567890123456789', name: 'now-live', type: 0 },
       { id: '345678901234567890', name: 'clips', type: 0 },
       { id: '456789012345678901', name: 'welcome', type: 0 },
-      { id: '567890123456789012', name: 'announcements', type: 0 },
+      // Type 5 is an announcement channel: text-like for posting, and the
+      // pickers must offer it (labelled) rather than filtering it out.
+      { id: '567890123456789013', name: 'announcements', type: 5 },
       { id: '890123456789012345', name: 'chat', type: 0 },
       { id: '887766554433221100', name: 'support', type: 0 },
       { id: '998877665544332211', name: 'logs', type: 0 },
-      { id: '776655443322110099', name: 'Tickets', type: 4 },
+      { id: '112233445566778899', name: 'subs-lounge', type: 0 },
+      { id: '223344556677889911', name: 'vip-lounge', type: 0 },
       { id: '678901234567890123', name: '+ Create voice', type: 2 }
     ],
-    roles: [
-      { id: '789012345678901234', name: 'Live', type: 0 },
-      { id: '901234567890123456', name: 'Mods', type: 0 }
+    categories: [
+      { id: '776655443322110099', name: 'Tickets', type: 4 },
+      { id: '776655443322110088', name: 'Archive', type: 4 },
+      { id: '112233445566778800', name: 'Subscribers', type: 4 },
+      { id: '223344556677889900', name: 'VIP', type: 4 }
     ],
-    needsReauth: false
+    roles: [
+      { id: '789012345678901234', name: 'Owner', type: 0 },
+      { id: '789012345678901299', name: 'Lead Mod', type: 0 },
+      { id: '901234567890123456', name: 'Mods', type: 0 },
+      { id: '789012345678901255', name: 'VIP', type: 0 },
+      { id: '789012345678901266', name: 'Subscriber', type: 0 },
+      { id: '789012345678901277', name: 'Member', type: 0 }
+    ],
+    guild: {
+      id: '123456789012345678',
+      name: 'Demo Bakery',
+      iconUrl: '',
+      memberCount: 1284
+    },
+    needsReauth: false,
+    botOnline: true,
+    botSinceMs: 0,
+    lastCloseCode: 0
+  };
+}
+
+// The gateway status card. sinceMs is filled at call time rather than pinned
+// to a date so the "online for" line stays plausible however long this fixture
+// sits in the repo.
+export function demoDiscordStatus() {
+  return {
+    online: true,
+    sinceMs: Date.now() - 3 * 60 * 60 * 1000,
+    sessionResumes: 2,
+    guildPresent: true,
+    guild: {
+      id: '123456789012345678',
+      name: 'Demo Bakery',
+      iconUrl: '',
+      memberCount: 1284
+    },
+    needsReauth: false,
+    lastCloseCode: 0,
+    code: '' as const,
+    error: ''
   };
 }
 
