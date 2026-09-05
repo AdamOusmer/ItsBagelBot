@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -61,6 +64,11 @@ type GuildSetupResult struct {
 	RegularsRoleID          string
 	MemberRoleID            string
 	Refused                 string // non-empty when the guild looked lived-in
+	// DroppedPins is every pinned SLOT whose role id no longer exists in
+	// the guild. The fill fell back to name-match/create for those, and the
+	// dashboard has to say so: a pin that silently stopped applying looks
+	// identical to one that never saved.
+	DroppedPins []string
 }
 
 // GuildEntry is one channel or role the dashboard can pick from.
@@ -113,6 +121,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	if err != nil {
 		return GuildSetupResult{}, err
 	}
+	out.DroppedPins = fill.droppedPins
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
 		fill.adopt(&out)
@@ -229,6 +238,7 @@ type guildFill struct {
 	roleByName  map[string]string
 	subscribers bool
 	pinned      map[string]string
+	droppedPins []string
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
@@ -252,11 +262,48 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	if err != nil {
 		return nil, err
 	}
+	pinned, dropped := adoptablePins(req.PinnedRoles, roles)
+	if len(dropped) > 0 {
+		w.log.Warn("pinned roles name roles this guild no longer has; falling back to the template",
+			zap.String("guild_id", req.GuildID), zap.Strings("slots", dropped))
+	}
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
-		subscribers: req.Subscribers, pinned: req.PinnedRoles,
+		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
 	}, nil
+}
+
+// adoptablePins keeps only the pins whose role id still EXISTS among the
+// guild's roles, and reports the slots it dropped.
+//
+// A pin is a snowflake stored by the dashboard at some earlier point, and
+// the role it names can be deleted in Discord afterwards with nothing
+// telling Bagel. Adopting a dead id makes the fill "succeed" while every
+// gate it writes references a role no member can hold -- a locked category
+// nobody, the streamer included, can open. Dropping the pin instead falls
+// back to name lookup or create, which is what a server that never pinned
+// gets, and is recoverable by re-pinning.
+func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[string]string, []string) {
+	if len(pins) == 0 {
+		return nil, nil
+	}
+	live := make(map[string]bool, len(roles))
+	for _, r := range roles {
+		live[r.ID] = true
+	}
+	out := make(map[string]string, len(pins))
+	var dropped []string
+	for slot, id := range pins {
+		if live[id] {
+			out[slot] = id
+			continue
+		}
+		dropped = append(dropped, slot)
+	}
+	// Map iteration is randomized and this list reaches the dashboard.
+	sort.Strings(dropped)
+	return out, dropped
 }
 
 // pinnedRole is the id the streamer pinned to the slot this template role

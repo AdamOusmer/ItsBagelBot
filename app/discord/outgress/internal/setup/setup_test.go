@@ -20,8 +20,12 @@ import (
 // guildRecorder is a map-backed discordGuildAPI, mirroring the pre-split
 // egress test's fake of the same name.
 type guildRecorder struct {
-	mu        sync.Mutex
-	channels  []discapi.Snowflake
+	mu       sync.Mutex
+	channels []discapi.Snowflake
+	// roles are the guild's EXISTING roles, on top of @everyone. A pin is
+	// only adopted when its id is in here, so a test that pins a role must
+	// say the guild has it.
+	roles     []discapi.Snowflake
 	createdCh []string
 	createdRo []string
 	panels    []string
@@ -76,7 +80,7 @@ func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]dis
 }
 
 func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
-	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
+	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
 }
 
 var _ discordGuildAPI = (*guildRecorder)(nil)
