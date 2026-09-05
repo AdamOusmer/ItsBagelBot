@@ -96,21 +96,26 @@ func (i *Identity) HandleUserChanged(msg *bus.Message) error {
 		return nil
 	}
 	ctx := msg.Context()
-	cfg, ok := i.Resolve(ctx, changed.UserID)
-	if !ok || cfg.GuildID == "" {
-		return nil
-	}
 	want := ddiscord.IdentityFor(changed.Status)
-	if !i.needsApply(ctx, cfg.GuildID, want) {
-		return nil
+	// A tier change moves the badge in every server the streamer connected,
+	// not just the first one: they all wear the same broadcaster's tier.
+	for _, guild := range i.Resolve(ctx, changed.UserID) {
+		i.applyTo(ctx, guild.Guild.ID, want)
 	}
-	if err := i.Publish(ctx, cmd.SetGuildIdentity(cmd.GuildTarget(cfg.GuildID), want)); err != nil {
-		i.Log.Warn("discord identity publish failed",
-			zap.String("guild_id", cfg.GuildID), zap.Error(err))
-		return nil
-	}
-	i.record(ctx, cfg.GuildID, want)
 	return nil
+}
+
+// applyTo sets one guild's appearance when it is not already wearing want.
+func (i *Identity) applyTo(ctx context.Context, guildID string, want ddiscord.GuildIdentity) {
+	if guildID == "" || !i.needsApply(ctx, guildID, want) {
+		return
+	}
+	if err := i.Publish(ctx, cmd.SetGuildIdentity(cmd.GuildTarget(guildID), want)); err != nil {
+		i.Log.Warn("discord identity publish failed",
+			zap.String("guild_id", guildID), zap.Error(err))
+		return
+	}
+	i.record(ctx, guildID, want)
 }
 
 // needsApply reports whether the guild is not already wearing want. A cache

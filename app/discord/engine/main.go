@@ -95,7 +95,6 @@ func main() {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
 	defer valkeyClient.Close()
-	store := discordstore.New(valkeyClient)
 	projStore := projection.NewStore(valkeyClient)
 	// linkguard.New panics on a nil client (deliberately -- see its own
 	// doc), which is why it is built here, right next to the Fatal above
@@ -108,6 +107,12 @@ func main() {
 		log.Fatal("failed to connect to nats", zap.Error(err))
 	}
 	defer nc.Close()
+
+	// The store is discord-data-backed, not pure Valkey: bindings, per-guild
+	// settings, tickets and XP live in MySQL now, and Valkey keeps only the
+	// caches and the ephemeral voice/desk keyspaces. Built here rather than
+	// beside the Valkey client above because it needs the NATS connection.
+	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
 
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
 	if err != nil {

@@ -66,7 +66,6 @@ func main() {
 	defer valkeyClient.Close()
 
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
-	store := discordstore.New(valkeyClient)
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 
@@ -74,6 +73,11 @@ func main() {
 
 	nc := connectNATS(cfg, log)
 	defer nc.Close()
+
+	// discord-data-backed, same as engine's: the dashboard's setup, unbind
+	// and settings writes must land in MySQL, not in a Valkey key the engine
+	// no longer treats as the truth.
+	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
 
 	subscribeRPCs(rpcDeps{
 		NC: nc, Cfg: cfg, Rest: rest, Store: store,

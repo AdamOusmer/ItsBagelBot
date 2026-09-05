@@ -31,6 +31,10 @@ type Config struct {
 	// prefix -- engine is a CALLER here (the go-live embed's Helix-details
 	// fallback), the same relationship dingress's egress role had to it.
 	TwitchOutgressRPCPrefix string
+	// DiscordDataRPCPrefix addresses app/db/discord, the MySQL-backed store
+	// behind guild bindings, per-guild settings, the ticket desk and member
+	// XP. See internal/discordstore.NewRPC.
+	DiscordDataRPCPrefix string
 
 	// StreamLaneSubject/ClipCreatedSubject are the Twitch inputs Live/Clip
 	// bind their own durable consumers to, same env names outgress and the
@@ -54,6 +58,7 @@ func Load() Config {
 		NATSRPCURL:               env.Get("NATS_RPC_URL", natsURL),
 		DiscordOutgressRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
 		TwitchOutgressRPCPrefix:  env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
+		DiscordDataRPCPrefix:     env.Get("NATS_DISCORD_DATA_RPC_PREFIX", "bagel.rpc.discord-data"),
 		StreamLaneSubject:        env.Get("NATS_SUBJECT_LANE_STREAM", "twitch.ingress.event.stream"),
 		ClipCreatedSubject:       env.Get("NATS_SUBJECT_CLIP_CREATED", "data.twitch.clip.created"),
 		UserChangedSubject:       env.Get("NATS_SUBJECT_USER_CHANGED", "data.users.changed"),
