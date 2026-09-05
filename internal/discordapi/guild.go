@@ -34,6 +34,12 @@ type Snowflake struct {
 	// it can never remove. Zero on channels, which have their own ordering
 	// this client does not use.
 	Position int `json:"position,omitempty"`
+	// VerificationLevel is only set on a guild (GetGuild). It rides
+	// Snowflake rather than a second guild type because the one caller that
+	// needs it -- the lockdown, which must remember the level it is about
+	// to raise -- already reads GetGuild's answer, and a parallel GuildInfo
+	// type would double every interface this client is reached through.
+	VerificationLevel int `json:"verification_level,omitempty"`
 }
 
 // PermissionOverwrite is a Discord channel overwrite.

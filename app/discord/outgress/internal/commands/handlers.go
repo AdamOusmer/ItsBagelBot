@@ -35,6 +35,7 @@ type rest interface {
 	GetGuildMember(ctx context.Context, m discapi.GuildMember) (discapi.GuildMemberInfo, error)
 	ListGuildRoles(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
 	ListGuildChannelsFull(ctx context.Context, guild discapi.Guild) ([]discapi.ChannelInfo, error)
+	GetGuild(ctx context.Context, guild discapi.Guild) (discapi.Snowflake, error)
 	ModifyGuild(ctx context.Context, patch discapi.GuildPatch) error
 	SetChannelOverwrite(ctx context.Context, o discapi.ChannelOverwrite) error
 }
@@ -50,7 +51,18 @@ type Handlers struct {
 	// dashboard can prompt that streamer to re-authorize. Nil disables the
 	// bookkeeping without changing what is sent to Discord.
 	Reauth reauthStore
-	Log    *zap.Logger
+	// Lockdown remembers what a lockdown displaced so /unlock can put it
+	// back. Nil makes a lockdown one-way, which is logged at the moment it
+	// happens rather than discovered at unlock time.
+	Lockdown lockdownStore
+	Log      *zap.Logger
+}
+
+// lockdownStore is the slice of kv.LockdownStore these handlers need.
+type lockdownStore interface {
+	PutLockdown(ctx context.Context, guildID kv.GuildID, state kv.LockdownState) error
+	GetLockdown(ctx context.Context, guildID kv.GuildID) (kv.LockdownState, bool)
+	DeleteLockdown(ctx context.Context, guildID kv.GuildID) error
 }
 
 // reauthStore is the slice of kv.ReauthStore these handlers need.
@@ -80,6 +92,7 @@ var dispatchTable = map[string]commandHandler{
 	ddiscord.TypeTimeoutMember:       (*Handlers).timeoutMember,
 	ddiscord.TypeStripRoles:          stripRoles,
 	ddiscord.TypeLockdown:            lockdown,
+	ddiscord.TypeUnlock:              unlock,
 	ddiscord.TypePostChat:            (*Handlers).postChat,
 	ddiscord.TypePostEmbed:           (*Handlers).postEmbed,
 	ddiscord.TypePostPanel:           (*Handlers).postPanel,

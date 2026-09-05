@@ -40,11 +40,14 @@ type fakeRest struct {
 	// same order as roleRems.
 	roleRemReasons []string
 	// removeErrs is role id -> the error that removal answers with.
-	removeErrs   map[string]error
-	fullChannels []discapi.ChannelInfo
-	guildPatches []discapi.GuildPatch
-	overwrites   []discapi.ChannelOverwrite
-	overwriteErr error
+	removeErrs     map[string]error
+	fullChannels   []discapi.ChannelInfo
+	guildPatches   []discapi.GuildPatch
+	guildPatchErrs []error
+	overwrites     []discapi.ChannelOverwrite
+	overwriteErr   error
+	guild          discapi.Snowflake
+	guildErr       error
 }
 
 func (f *fakeRest) GetGuildMember(_ context.Context, m discapi.GuildMember) (discapi.GuildMemberInfo, error) {
@@ -63,8 +66,18 @@ func (f *fakeRest) ListGuildChannelsFull(_ context.Context, _ discapi.Guild) ([]
 	return f.fullChannels, nil
 }
 func (f *fakeRest) ModifyGuild(_ context.Context, patch discapi.GuildPatch) error {
+	if len(f.guildPatchErrs) > 0 {
+		err := f.guildPatchErrs[0]
+		f.guildPatchErrs = f.guildPatchErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
 	f.guildPatches = append(f.guildPatches, patch)
 	return nil
+}
+func (f *fakeRest) GetGuild(_ context.Context, _ discapi.Guild) (discapi.Snowflake, error) {
+	return f.guild, f.guildErr
 }
 func (f *fakeRest) SetChannelOverwrite(_ context.Context, o discapi.ChannelOverwrite) error {
 	f.overwrites = append(f.overwrites, o)
@@ -601,5 +614,246 @@ func TestSetGuildIdentityOtherErrorStillFails(t *testing.T) {
 	h := &Handlers{Rest: rest, Reauth: &fakeReauth{}}
 	if err := h.Dispatch(context.Background(), premiumIdentityCommand(t)); err == nil {
 		t.Fatal("transient error was swallowed")
+	}
+}
+
+// fakeLockdowns is an in-memory kv.LockdownStore.
+type fakeLockdowns struct {
+	state   map[string]kv.LockdownState
+	putErr  error
+	deleted []string
+}
+
+func newFakeLockdowns() *fakeLockdowns {
+	return &fakeLockdowns{state: map[string]kv.LockdownState{}}
+}
+
+func (f *fakeLockdowns) PutLockdown(_ context.Context, g kv.GuildID, s kv.LockdownState) error {
+	if f.putErr != nil {
+		return f.putErr
+	}
+	f.state[string(g)] = s
+	return nil
+}
+
+func (f *fakeLockdowns) GetLockdown(_ context.Context, g kv.GuildID) (kv.LockdownState, bool) {
+	s, ok := f.state[string(g)]
+	return s, ok
+}
+
+func (f *fakeLockdowns) DeleteLockdown(_ context.Context, g kv.GuildID) error {
+	f.deleted = append(f.deleted, string(g))
+	delete(f.state, string(g))
+	return nil
+}
+
+// lockdownRest is a guild whose cat1 holds one channel of each type a mute
+// means something for, plus a voice channel and a channel in another
+// category that must be left alone.
+func lockdownRest() *fakeRest {
+	return &fakeRest{
+		guild: discapi.Snowflake{ID: "g1", VerificationLevel: 1},
+		fullChannels: []discapi.ChannelInfo{
+			{ID: "c-text", Type: ddiscord.ChannelText, ParentID: "cat1", PermissionOverwrites: []discapi.PermissionOverwrite{
+				{ID: "g1", Type: 0, Allow: "1024", Deny: "0"},
+			}},
+			{ID: "c-news", Type: ddiscord.ChannelNews, ParentID: "cat1"},
+			{ID: "c-forum", Type: ddiscord.ChannelForum, ParentID: "cat1"},
+			{ID: "c-voice", Type: ddiscord.ChannelVoice, ParentID: "cat1"},
+			{ID: "c-other", Type: ddiscord.ChannelText, ParentID: "cat2"},
+		},
+	}
+}
+
+func lockdownCommand(t *testing.T, categories ...string) ddiscord.Command {
+	t.Helper()
+	return ddiscord.Command{
+		Type: ddiscord.TypeLockdown, GuildID: "g1",
+		Payload: mustMarshal(t, ddiscord.LockdownPayload{CategoryIDs: categories}),
+	}
+}
+
+func mutedChannels(rest *fakeRest) []string {
+	var got []string
+	for _, o := range rest.overwrites {
+		got = append(got, o.ChannelID)
+	}
+	return got
+}
+
+// Announcement and forum channels are places members post, so a lockdown
+// that muted only type 0 left the loudest surfaces of a modern server open.
+// Voice carries SPEAK rather than SEND, so writing there changes nothing.
+func TestLockdownMutesEveryPostableChannelType(t *testing.T) {
+	rest := lockdownRest()
+	h := &Handlers{Rest: rest, Lockdown: newFakeLockdowns(), Log: testLogger()}
+
+	dispatchOK(t, h, lockdownCommand(t, "cat1"))
+
+	want := []string{"c-text", "c-news", "c-forum"}
+	if got := mutedChannels(rest); !slices.Equal(got, want) {
+		t.Fatalf("muted = %v, want %v", got, want)
+	}
+}
+
+// The undo state must be written BEFORE anything changes: once @everyone is
+// denied SEND, nothing on Discord's side still says whether that deny was
+// the streamer's own.
+func TestLockdownRecordsTheStateItIsAboutToDisplace(t *testing.T) {
+	rest := lockdownRest()
+	store := newFakeLockdowns()
+	h := &Handlers{Rest: rest, Lockdown: store, Log: testLogger()}
+
+	dispatchOK(t, h, lockdownCommand(t, "cat1"))
+
+	state, ok := store.state["g1"]
+	if !ok {
+		t.Fatal("lockdown recorded no undo state")
+	}
+	if state.VerificationLevel != 1 {
+		t.Fatalf("stored level = %d, want the level in force before the bump (1)", state.VerificationLevel)
+	}
+	if len(state.Channels) != 3 {
+		t.Fatalf("stored channels = %d, want 3", len(state.Channels))
+	}
+	first := state.Channels[0]
+	if first.ChannelID != "c-text" || first.Allow != "1024" || first.Deny != "0" {
+		t.Fatalf("stored channel = %+v, want c-text with its prior 1024/0", first)
+	}
+	// A channel with no @everyone overwrite is remembered as an explicit
+	// zero pair, which restores permission-identically.
+	if state.Channels[1].Allow != "0" || state.Channels[1].Deny != "0" {
+		t.Fatalf("stored channel = %+v, want a zero pair", state.Channels[1])
+	}
+}
+
+// The verification bump is the half that stops NEW accounts. Its failure
+// must return before any channel is touched, or a retry of the whole
+// lockdown finds the door still open.
+func TestLockdownShortCircuitsOnModifyGuildFailure(t *testing.T) {
+	rest := lockdownRest()
+	rest.guildPatchErrs = []error{discapi.ErrForbidden}
+	h := &Handlers{Rest: rest, Lockdown: newFakeLockdowns(), Log: testLogger()}
+
+	err := h.Dispatch(context.Background(), lockdownCommand(t, "cat1"))
+	if !errors.Is(err, discapi.ErrForbidden) {
+		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+	if len(rest.overwrites) != 0 {
+		t.Fatalf("muted %v after the verification bump failed", mutedChannels(rest))
+	}
+}
+
+// Every channel is attempted and every failure is reported: one unwritable
+// channel must not leave the rest of the guild open, and the joined error
+// still nacks so the lane redelivers the idempotent mute.
+func TestLockdownAggregatesPerChannelFailures(t *testing.T) {
+	rest := lockdownRest()
+	rest.overwriteErr = discapi.ErrRateLimited
+	h := &Handlers{Rest: rest, Lockdown: newFakeLockdowns(), Log: testLogger()}
+
+	err := h.Dispatch(context.Background(), lockdownCommand(t, "cat1"))
+	if !errors.Is(err, discapi.ErrRateLimited) {
+		t.Fatalf("err = %v, want ErrRateLimited", err)
+	}
+	if len(rest.overwrites) != 3 {
+		t.Fatalf("attempted = %d channels, want all 3 even after the first failed", len(rest.overwrites))
+	}
+}
+
+// Unparseable allow bits used to read as zero, which rewrote that channel's
+// @everyone allow to nothing -- dropping a VIEW allow and hiding the channel
+// from the whole server as a side effect of a lockdown. Now it fails that
+// channel and the others still go through.
+func TestLockdownFailsOnlyTheChannelWithUnparseableBits(t *testing.T) {
+	rest := lockdownRest()
+	rest.fullChannels[0].PermissionOverwrites[0].Allow = "not-a-bitfield"
+	h := &Handlers{Rest: rest, Lockdown: newFakeLockdowns(), Log: testLogger()}
+
+	err := h.Dispatch(context.Background(), lockdownCommand(t, "cat1"))
+	if err == nil {
+		t.Fatal("an unreadable overwrite must surface, not silently zero the allow bits")
+	}
+	want := []string{"c-news", "c-forum"}
+	if got := mutedChannels(rest); !slices.Equal(got, want) {
+		t.Fatalf("muted = %v, want the other channels still muted %v", got, want)
+	}
+}
+
+// Unlock is the whole point of recording the state: level back, overwrites
+// back verbatim, key gone.
+func TestUnlockRestoresLevelAndOverwrites(t *testing.T) {
+	rest := lockdownRest()
+	store := newFakeLockdowns()
+	h := &Handlers{Rest: rest, Lockdown: store, Log: testLogger()}
+
+	dispatchOK(t, h, lockdownCommand(t, "cat1"))
+	rest.overwrites = nil
+	rest.guildPatches = nil
+
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeUnlock, GuildID: "g1"})
+
+	if len(rest.guildPatches) != 1 {
+		t.Fatalf("guild patches = %d, want 1", len(rest.guildPatches))
+	}
+	if lvl := rest.guildPatches[0].VerificationLevel; lvl == nil || *lvl != 1 {
+		t.Fatalf("restored level = %v, want 1", lvl)
+	}
+	want := []string{"c-text", "c-news", "c-forum"}
+	if got := mutedChannels(rest); !slices.Equal(got, want) {
+		t.Fatalf("restored = %v, want %v", got, want)
+	}
+	if rest.overwrites[0].Overwrite.Allow != "1024" || rest.overwrites[0].Overwrite.Deny != "0" {
+		t.Fatalf("restored overwrite = %+v, want the prior 1024/0", rest.overwrites[0].Overwrite)
+	}
+	if !slices.Equal(store.deleted, []string{"g1"}) {
+		t.Fatalf("deleted = %v, want the guild's key dropped once", store.deleted)
+	}
+}
+
+// No remembered state is TERMINAL, not an error: the key expired or the
+// lockdown predates the store, and no redelivery conjures the old
+// overwrites back.
+func TestUnlockWithoutStateIsTerminal(t *testing.T) {
+	rest := lockdownRest()
+	h := &Handlers{Rest: rest, Lockdown: newFakeLockdowns(), Log: testLogger()}
+
+	dispatchOK(t, h, ddiscord.Command{Type: ddiscord.TypeUnlock, GuildID: "g1"})
+
+	if len(rest.guildPatches) != 0 || len(rest.overwrites) != 0 {
+		t.Fatal("unlock touched the guild with nothing remembered")
+	}
+}
+
+// A refused restore must nack: a channel left muted is a channel nobody can
+// talk in, and the write is idempotent.
+func TestUnlockSurfacesRestoreFailure(t *testing.T) {
+	rest := lockdownRest()
+	store := newFakeLockdowns()
+	h := &Handlers{Rest: rest, Lockdown: store, Log: testLogger()}
+	dispatchOK(t, h, lockdownCommand(t, "cat1"))
+	rest.overwriteErr = discapi.ErrRateLimited
+
+	err := h.Dispatch(context.Background(), ddiscord.Command{Type: ddiscord.TypeUnlock, GuildID: "g1"})
+	if !errors.Is(err, discapi.ErrRateLimited) {
+		t.Fatalf("err = %v, want ErrRateLimited", err)
+	}
+	if len(store.deleted) != 0 {
+		t.Fatal("the undo state must survive a failed restore")
+	}
+}
+
+// A lockdown must still happen when its undo state cannot be written:
+// an unliftable lockdown beats a raid that was never stopped.
+func TestLockdownProceedsWhenTheStoreFails(t *testing.T) {
+	rest := lockdownRest()
+	store := newFakeLockdowns()
+	store.putErr = errors.New("valkey unreachable")
+	h := &Handlers{Rest: rest, Lockdown: store, Log: testLogger()}
+
+	dispatchOK(t, h, lockdownCommand(t, "cat1"))
+
+	if len(rest.guildPatches) != 1 || len(rest.overwrites) != 3 {
+		t.Fatalf("patches = %d, mutes = %d, want 1 and 3", len(rest.guildPatches), len(rest.overwrites))
 	}
 }

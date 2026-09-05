@@ -193,3 +193,13 @@ func Lockdown(t Target, everyoneRoleID string, categoryIDs []string, reason Reas
 		Payload: marshal(ddiscord.LockdownPayload{EveryoneRoleID: everyoneRoleID, CategoryIDs: categoryIDs}),
 	}
 }
+
+// Unlock reverses a Lockdown. It carries no payload: what to restore was
+// recorded by the lockdown itself (outgress's kv.LockdownStore), because the
+// mute DESTROYS the information -- once @everyone is denied SEND, nothing on
+// Discord's side still says whether that deny was the streamer's or ours.
+func Unlock(t Target, reason Reason) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeUnlock, GuildID: t.GuildID, Reason: string(reason),
+	}
+}

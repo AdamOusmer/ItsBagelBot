@@ -32,6 +32,10 @@ const (
 	ChannelCategory   = 4
 	ChannelNews       = 5
 	ChannelStageVoice = 13
+	// ChannelForum is a forum channel. Members post threads in it, so a
+	// lockdown that skipped it left the loudest surface of a modern server
+	// wide open.
+	ChannelForum = 15
 )
 
 // RoleSpec is one role the fill creates (or matches by name).
