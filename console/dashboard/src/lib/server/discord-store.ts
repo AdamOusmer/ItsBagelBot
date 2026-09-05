@@ -219,12 +219,29 @@ export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
 }
 
 /**
+ * The per-user blob as it stands right now, before any narrowing.
+ *
+ * Read lazily rather than folded into `readDiscord`: it is only interesting on
+ * the one path that migrates a pre-split board (see `legacyConfigFor`), and
+ * putting it on `DiscordView` would ship the whole old config down to every
+ * page render for nothing.
+ */
+export async function readLegacyBlob(user: DiscordUser): Promise<DiscordConfig> {
+  const rows = await listModules(user.userId);
+  return parseDiscordConfig(rows.find((r) => r.name === DISCORD_MODULE)?.configs);
+}
+
+/**
  * Writes the module row back.
  *
  * Only two fields go in. The old blob's channel and role ids are deliberately
  * NOT carried forward: the first save after this ships narrows the row, and
  * anything still reading a snowflake out of `MOD.discord` is reading a value
  * that is no longer maintained. The per-guild rows are the source of truth.
+ *
+ * Callers must have written those ids onto the guild row FIRST: narrowing is
+ * destructive and there is no second copy. `legacyConfigFor` names the blob
+ * that still needs migrating.
  */
 export async function saveDiscordModule(save: DiscordSave): Promise<void> {
   await upsertModule(save.userId, DISCORD_MODULE, save.enabled, { twitchLogin: save.twitchLogin });

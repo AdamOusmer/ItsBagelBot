@@ -16,7 +16,9 @@ import {
   pinnedRolesOf,
   readDiscord,
   readGuildConfig,
+  readLegacyBlob,
   repostDesk,
+  saveDiscordModule,
   saveGuildConfig,
   setupGuild,
   unbindGuild,
@@ -31,7 +33,13 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
 import { DISCORD_DEF } from '$lib/server/discord-def';
-import { alertOff, alertOn, mergeDiscordConfig } from '@bagel/shared';
+import {
+  DISCORD_CONFIG_VERSION_NEW,
+  alertOff,
+  alertOn,
+  legacyConfigFor,
+  mergeDiscordConfig
+} from '@bagel/shared';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -52,6 +60,7 @@ type DiscordGuildPage = {
   guilds: DiscordGuildSummary[];
   config: DiscordConfig;
   version: number;
+  found: boolean;
   layout: DiscordLayout;
   status: DiscordStatus;
   configured: boolean;
@@ -68,6 +77,7 @@ function blankPage(guildId: string, locked: boolean): DiscordGuildPage {
     guilds: [],
     config: { ...blankDiscordConfig(), guildId },
     version: 0,
+    found: false,
     layout: blankLayout(),
     status: blankStatus(),
     configured: discordConfigured(),
@@ -109,14 +119,56 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     justConnected: url.searchParams.get('connected') === '1',
     refused: url.searchParams.get('refused') === '1'
   };
+  const reads = await guildReads(target);
   return {
     ...blankPage(guildId, locked),
     ...flags,
     enabled: view.enabled,
     guilds: view.guilds,
-    ...(await guildReads(target))
+    ...reads,
+    ...(await migrateLegacy(target, view.twitchLogin, view.enabled, reads))
   };
 };
+
+/**
+ * Copies a pre-split board's config off the per-user modules blob.
+ *
+ * Before the multi-guild split (§H) the whole config lived in `MOD.discord`.
+ * The blob is narrowed to `{twitchLogin}` on the first write after the split,
+ * so a board that has not been touched since still holds every channel and
+ * role id the streamer picked -- and the guild row holds none of them. First
+ * load of the guild page is the moment to move them, because it is the first
+ * moment we know WHICH guild the blob describes.
+ *
+ * Order is the whole point: the guild row is written first and the blob is
+ * narrowed only after that write is acknowledged. A failure anywhere leaves
+ * the blob intact and the page rendering defaults, so the next load tries
+ * again rather than having quietly destroyed the only copy.
+ */
+async function migrateLegacy(
+  target: DiscordGuildTarget,
+  twitchLogin: string,
+  enabled: boolean,
+  reads: { config: DiscordConfig; version: number; found: boolean; degraded: boolean }
+): Promise<{ config: DiscordConfig; version: number } | null> {
+  if (reads.found || reads.degraded) return null;
+  try {
+    const legacy = legacyConfigFor(await readLegacyBlob({ userId: target.userId }), target.guildId);
+    if (!legacy) return null;
+    const config = { ...legacy, twitchLogin: twitchLogin || legacy.twitchLogin };
+    const saved = await saveGuildConfig({ ...target, config, expectedVersion: DISCORD_CONFIG_VERSION_NEW });
+    if (saved.error || saved.code) {
+      logger.warn({ code: saved.code }, '[discord] legacy config migration refused');
+      return null;
+    }
+    await saveDiscordModule({ userId: target.userId, enabled, twitchLogin });
+    logger.info({ guildId: target.guildId }, '[discord] migrated the legacy module blob onto the guild row');
+    return { config, version: saved.version };
+  } catch (e) {
+    logger.warn({ err: e }, '[discord] legacy config migration failed');
+    return null;
+  }
+}
 
 async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   const { demoDiscordView, demoDiscordConfig, demoDiscordLayout, demoDiscordStatus } = await import(
@@ -135,6 +187,7 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
     guilds: view.guilds,
     config: { ...row.config, guildId },
     version: row.version,
+    found: row.found,
     layout: { ...demoDiscordLayout(), guild, botOnline: g.botPresent },
     status: { ...demoDiscordStatus(), guild, online: g.botPresent, guildPresent: g.botPresent },
     configured: true,
@@ -147,9 +200,16 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
 // failure there degrades the page. Layout and status are decorative: the
 // pickers fall back to a disabled control and the status card to an offline
 // pill, so a blip in either must not take the page with it.
-async function guildReads(
-  target: DiscordGuildTarget
-): Promise<{ config: DiscordConfig; version: number; layout: DiscordLayout; status: DiscordStatus; degraded: boolean }> {
+type GuildReads = {
+  config: DiscordConfig;
+  version: number;
+  found: boolean;
+  layout: DiscordLayout;
+  status: DiscordStatus;
+  degraded: boolean;
+};
+
+async function guildReads(target: DiscordGuildTarget): Promise<GuildReads> {
   const [row, layout, status] = await Promise.all([
     readGuildConfig(target).catch((e) => {
       logger.warn({ err: e }, '[discord] guild config unavailable');
@@ -159,9 +219,19 @@ async function guildReads(
     loadStatus(target)
   ]);
   if (!row) {
-    return { config: { ...blankDiscordConfig(), guildId: target.guildId }, version: 0, layout, status, degraded: true };
+    return {
+      config: { ...blankDiscordConfig(), guildId: target.guildId },
+      version: 0,
+      // `found` false plus `degraded` true is "we do not know", which must
+      // never be read as "this guild has no config" -- that is the state the
+      // legacy migration refuses to act on.
+      found: false,
+      layout,
+      status,
+      degraded: true
+    };
   }
-  return { config: row.config, version: row.version, layout, status, degraded: false };
+  return { config: row.config, version: row.version, found: row.found, layout, status, degraded: false };
 }
 
 async function loadLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
@@ -214,14 +284,17 @@ async function attempt<T>(work: ActionWork, run: () => Promise<T>): Promise<Outc
 }
 
 // A soft refusal: the call reached outgress and it said no. `code` is what the
-// page switches on; `error` is the human sentence it falls back to.
-type Refusal = { error: string; code?: string };
+// page switches on; `error` is the sentence an older outgress sent, kept only
+// as a last resort. `fields` names the controls a validation refusal was
+// about, so the page can say which pick did not take.
+type Refusal = { error: string; code?: string; fields?: string[] };
 
 function refusalOf(data: Record<string, unknown>): Refusal | null {
   const error = typeof data.error === 'string' ? data.error : '';
   const code = typeof data.code === 'string' ? data.code : '';
   if (!error && !code) return null;
-  return { error, code };
+  const fields = Array.isArray(data.fields) ? (data.fields as string[]) : undefined;
+  return { error, code, ...(fields ? { fields } : {}) };
 }
 
 // Ownership again, per action. A page that rendered before a guild was
@@ -243,7 +316,7 @@ function discordAction<T extends Record<string, unknown>>(
     // are not. Without this, a stale form on a downgraded board would still
     // save.
     if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
-      return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
+      return fail(403, { ok: false, code: 'locked', error: 'Discord is in beta and open to Premium channels only.' });
     }
     if (DEMO) return { ok: true };
     const r = await attempt(work, async () => {
@@ -296,10 +369,12 @@ export const actions: Actions = {
   save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
     const row = await readGuildConfig(ctx.target);
     const { config, errors } = mergeDiscordConfig(row.config, parseDraft(ctx.form.get('config')));
-    // A rejected field kept its stored value rather than being blanked, so the
-    // save is still safe to apply; the refusal tells the streamer which
-    // control did not take instead of leaving them to notice later.
-    if (errors.length) return { error: `Some settings were not valid: ${fieldNames(errors)}.`, code: 'invalid' };
+    // Persist FIRST, refuse second. `mergeDiscordConfig`'s contract is that a
+    // rejected field keeps its stored value and every accepted one is applied,
+    // so the merged config is always safe to write -- and returning the
+    // refusal before writing threw away the twenty good changes in the same
+    // draft to punish the one bad one, which is what a streamer reads as "the
+    // save button does nothing".
     const result = await saveGuildConfig({
       ...ctx.target,
       config,
@@ -307,6 +382,9 @@ export const actions: Actions = {
     });
     if (result.error || result.code) return { error: result.error, code: result.code };
     auditDashboardImpersonation(ctx.session, 'discord:save', ctx.guildId);
+    if (errors.length) {
+      return { error: `Some settings were not valid: ${fieldNames(errors)}.`, code: 'invalid', fields: errors.map((e) => e.field) };
+    }
     return { version: result.version };
   }),
 
@@ -337,7 +415,9 @@ export const actions: Actions = {
 
   repost: discordAction({ label: 'repost', failMsg: 'Could not repost the ticket panel.' }, async (ctx) => {
     const row = await readGuildConfig(ctx.target);
-    if (!alertOn(row.config.ticketsEnabled)) return { error: 'Turn the ticket desk on first.', code: 'invalid' };
+    if (!alertOn(row.config.ticketsEnabled)) {
+      return { error: 'Turn the ticket desk on first.', code: 'tickets_off' };
+    }
     const result = await repostDesk(ctx.target);
     if (result.error) return { error: result.error, code: result.code };
     auditDashboardImpersonation(ctx.session, 'discord:repost', ctx.guildId);
