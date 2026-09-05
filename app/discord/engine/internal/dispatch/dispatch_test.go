@@ -35,6 +35,7 @@ import (
 type fakeChannels struct {
 	mu       sync.Mutex
 	created  []string
+	panels   []discordoutgress.TicketPanelRequest
 	deleted  []string
 	moved    []string
 	modified []string
@@ -76,6 +77,13 @@ func (f *fakeChannels) TicketAddMember(_ context.Context, req discordoutgress.Ti
 	defer f.mu.Unlock()
 	f.added = append(f.added, req)
 	return discordoutgress.TicketMemberAddReply{}, nil
+}
+
+func (f *fakeChannels) TicketPanel(_ context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.panels = append(f.panels, req)
+	return discordoutgress.TicketPanelReply{MessageID: "m-panel"}, nil
 }
 
 func (f *fakeChannels) CreateChannel(_ context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error) {

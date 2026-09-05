@@ -29,7 +29,12 @@ type stubTickets struct {
 	openErr    error
 	closeReply discordoutgress.TicketCloseReply
 
+	panelReply discordoutgress.TicketPanelReply
+	panelErr   error
+
 	opened  []discordoutgress.TicketOpenRequest
+	panels  []discordoutgress.TicketPanelRequest
+	renamed []discordoutgress.ChannelModifyRequest
 	claimed []discordoutgress.TicketClaimRequest
 	closed  []discordoutgress.TicketCloseRequest
 	added   []discordoutgress.TicketMemberAddRequest
@@ -37,7 +42,20 @@ type stubTickets struct {
 }
 
 func newStubTickets() *stubTickets {
-	return &stubTickets{openReply: discordoutgress.TicketOpenReply{ChannelID: "c-new", MessageID: "m-new"}}
+	return &stubTickets{
+		openReply:  discordoutgress.TicketOpenReply{ChannelID: "c-new", MessageID: "m-new"},
+		panelReply: discordoutgress.TicketPanelReply{MessageID: "m-panel"},
+	}
+}
+
+func (s *stubTickets) TicketPanel(_ context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
+	s.panels = append(s.panels, req)
+	return s.panelReply, s.panelErr
+}
+
+func (s *stubTickets) ModifyChannel(_ context.Context, req discordoutgress.ChannelModifyRequest) (discordoutgress.ChannelModifyReply, error) {
+	s.renamed = append(s.renamed, req)
+	return discordoutgress.ChannelModifyReply{}, nil
 }
 
 func (s *stubTickets) TicketOpen(_ context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
@@ -144,8 +162,14 @@ func TestTicketOpenCreatesRecordsAndAnswers(t *testing.T) {
 		t.Fatalf("open requests = %+v", f.tickets.opened)
 	}
 	req := f.tickets.opened[0]
-	if req.Name != "ticket-ada-1" {
+	// The create cannot know the row id yet (the row is keyed on the channel
+	// this call is creating), so it goes out unnumbered and is renamed once
+	// the row exists.
+	if req.Name != "ticket-ada" {
 		t.Fatalf("channel name = %q", req.Name)
+	}
+	if len(f.tickets.renamed) != 1 || f.tickets.renamed[0].Name != "ticket-ada-1" {
+		t.Fatalf("rename = %+v, want the row id", f.tickets.renamed)
 	}
 	if req.ParentID != "cat" {
 		t.Fatalf("parent = %q", req.ParentID)
@@ -163,17 +187,27 @@ func TestTicketOpenCreatesRecordsAndAnswers(t *testing.T) {
 	}
 }
 
-func TestTicketOpenNumbersTheSecondChannel(t *testing.T) {
-	cfg := baseConfig()
-	cfg.TicketOpenLimit = "3"
-	f := newDesk(t, cfg)
+// A reopened ticket is numbered from the ROW id, not from how many the opener
+// currently holds. The old count-based name gave this second channel
+// "ticket-ada-1" all over again, and after archiving the guild had two
+// indistinguishable "closed-ticket-ada-1" channels.
+func TestTicketChannelNumberComesFromTheRowNotTheCount(t *testing.T) {
+	f := newDesk(t, baseConfig()) // limit 1: the first must be closed first
+	ctx := context.Background()
 
 	f.press(t, f.mod.open, opener("u1", "Ada"))
+	if err := f.store.CloseTicket(ctx, discordstore.TicketClose{GuildID: "g1", ChannelID: "c-new"}); err != nil {
+		t.Fatalf("close the first ticket: %v", err)
+	}
+
 	f.tickets.openReply = discordoutgress.TicketOpenReply{ChannelID: "c-2", MessageID: "m-2"}
 	f.press(t, f.mod.open, opener("u1", "Ada"))
 
-	if got := f.tickets.opened[1].Name; got != "ticket-ada-2" {
-		t.Fatalf("second channel = %q, want the opener's nth ticket", got)
+	if got := f.store.OpenTicketCount(ctx, discordstore.Member{GuildID: "g1", UserID: "u1"}); got != 1 {
+		t.Fatalf("held tickets = %d, want 1 (so held+1 would name this one -1)", got)
+	}
+	if len(f.tickets.renamed) != 2 || f.tickets.renamed[1].Name != "ticket-ada-2" {
+		t.Fatalf("rename = %+v, want ticket-ada-2", f.tickets.renamed)
 	}
 }
 
@@ -201,7 +235,7 @@ func TestTicketOpenRollsTheChannelBackWhenTheRowLoses(t *testing.T) {
 	_, _ = f.store.TrackTicket(ctx, discordstore.TicketOpen{GuildID: "g1", ChannelID: "old1", OpenerID: "u1"})
 	_, _ = f.store.TrackTicket(ctx, discordstore.TicketOpen{GuildID: "g1", ChannelID: "old2", OpenerID: "u1"})
 
-	cmds := f.createTicketPress(t, opener("u1", "Ada"), 1)
+	cmds := f.createTicketPress(t, opener("u1", "Ada"))
 
 	if len(f.tickets.deleted) != 1 || f.tickets.deleted[0] != "c-new" {
 		t.Fatalf("rollback deletes = %v", f.tickets.deleted)
@@ -211,12 +245,12 @@ func TestTicketOpenRollsTheChannelBackWhenTheRowLoses(t *testing.T) {
 	}
 }
 
-// createTicket takes the held count as a parameter; press only passes the
-// handler shape, so this adapts it.
-func (f *deskFixture) createTicketPress(t *testing.T, in decode.InteractionEvent, held int) []ddiscord.Command {
+// createTicketPress drives the create half directly, past the pre-checks open
+// performs, so a test can reach the record-and-roll-back path.
+func (f *deskFixture) createTicketPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	return f.press(t, func(ctx context.Context, c *module.Context, emit module.Emit) error {
-		return f.mod.createTicket(ctx, c, in, held, emit)
+		return f.mod.createTicket(ctx, c, in, emit)
 	}, in)
 }
 
@@ -531,3 +565,195 @@ func TestRPCFailedCoversBothShapes(t *testing.T) {
 		t.Fatal("a clean reply is not a failure")
 	}
 }
+
+// panelPress drives /ticket panel, which takes the decoded interaction the
+// slash router already parsed rather than re-reading it from the event.
+func (f *deskFixture) panelPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
+	t.Helper()
+	return f.press(t, func(ctx context.Context, c *module.Context, emit module.Emit) error {
+		return f.mod.panel(ctx, c, in, emit)
+	}, in)
+}
+
+// Posting the desk panel is a staff action. Ungated, any member could paste a
+// second real "Open a ticket" button into any channel they can run a slash
+// command in.
+func TestTicketPanelRefusesNonStaff(t *testing.T) {
+	f := newDesk(t, baseConfig())
+
+	cmds := f.panelPress(t, inTicket("u2", []string{"stranger"}))
+
+	if got := followupText(t, cmds); got != "Only ticket staff can post the panel." {
+		t.Fatalf("followup = %q", got)
+	}
+	if len(f.tickets.panels) != 0 {
+		t.Fatalf("a refused panel must not post: %+v", f.tickets.panels)
+	}
+}
+
+func TestTicketPanelRemembersTheRealMessageID(t *testing.T) {
+	f := newDesk(t, baseConfig())
+
+	cmds := f.panelPress(t, inTicket("u1", []string{"helper"}))
+
+	if got := followupText(t, cmds); got != "Ticket panel posted." {
+		t.Fatalf("followup = %q", got)
+	}
+	if len(f.tickets.panels) != 1 || f.tickets.panels[0].ChannelID != "support" {
+		t.Fatalf("panel requests = %+v", f.tickets.panels)
+	}
+	desk, ok := f.store.Desk(context.Background(), discordstore.Guild{ID: "g1"})
+	if !ok || desk.MessageID != "m-panel" {
+		t.Fatalf("desk pointer = %+v, %v, want the posted message id", desk, ok)
+	}
+}
+
+// A panel that never posted must not leave a pointer behind, and must answer
+// the interaction rather than leaving it spinning on "thinking".
+func TestTicketPanelAnswersWhenThePostFails(t *testing.T) {
+	f := newDesk(t, baseConfig())
+	f.tickets.panelReply = discordoutgress.TicketPanelReply{Error: "forbidden", Code: "forbidden"}
+
+	cmds := f.panelPress(t, inTicket("u1", []string{"helper"}))
+
+	if got := followupText(t, cmds); got != "Could not post the ticket panel right now." {
+		t.Fatalf("followup = %q", got)
+	}
+	if _, ok := f.store.Desk(context.Background(), discordstore.Guild{ID: "g1"}); ok {
+		t.Fatal("a failed post must not leave a desk pointer")
+	}
+}
+
+// A prior panel's id survives a claim-shaped remember: the repost path needs
+// something to delete, or it stacks a second live panel under the first.
+func TestTicketPanelDoesNotEraseAPriorPointer(t *testing.T) {
+	f := newDesk(t, baseConfig())
+	ctx := context.Background()
+	if err := f.store.RememberDesk(ctx, discordstore.DeskPanel{GuildID: "g1", ChannelID: "support", MessageID: "m-old"}); err != nil {
+		t.Fatalf("seed the pointer: %v", err)
+	}
+	f.tickets.panelReply = discordoutgress.TicketPanelReply{Error: "rate limited"}
+
+	f.panelPress(t, inTicket("u1", []string{"helper"}))
+
+	desk, _ := f.store.Desk(ctx, discordstore.Guild{ID: "g1"})
+	if desk.MessageID != "m-old" {
+		t.Fatalf("desk pointer = %+v, want the prior panel kept", desk)
+	}
+}
+
+// The ticket keyspace is keyed on the channel id alone, so a row written for
+// one guild answers a lookup made from any other. Without the guild check a
+// member of guild B could claim, close or add people to guild A's private
+// support channel.
+func TestTicketActionsRefuseAnotherGuildsTicket(t *testing.T) {
+	const refusal = "This is not a ticket in this server."
+	cases := []struct {
+		name string
+		run  func(f *deskFixture, in decode.InteractionEvent) []ddiscord.Command
+	}{
+		{name: "claim", run: func(f *deskFixture, in decode.InteractionEvent) []ddiscord.Command {
+			return f.press(t, f.mod.claim, in)
+		}},
+		{name: "close", run: func(f *deskFixture, in decode.InteractionEvent) []ddiscord.Command {
+			return f.press(t, f.mod.close, in)
+		}},
+		{name: "add", run: func(f *deskFixture, in decode.InteractionEvent) []ddiscord.Command {
+			return f.press(t, func(ctx context.Context, c *module.Context, emit module.Emit) error {
+				return f.mod.add(ctx, c, in, decode.InteractionOption{Name: "add"}, emit)
+			}, in)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDesk(t, baseConfig())
+			f.store.SeedTicket(discordstore.Ticket{
+				ID: 1, ChannelID: "c-new", GuildID: "g-other", OpenerID: "u1",
+				Status: discordstore.TicketStatusOpen,
+			})
+
+			in := inTicket("u1", []string{"helper"}) // opener AND staff: only the guild refuses
+			cmds := tc.run(f, in)
+
+			if got := followupText(t, cmds); got != refusal {
+				t.Fatalf("followup = %q, want %q", got, refusal)
+			}
+			if len(f.tickets.claimed)+len(f.tickets.closed)+len(f.tickets.added) != 0 {
+				t.Fatal("a cross-guild action must not reach outgress")
+			}
+		})
+	}
+}
+
+// The close button stays pressable on a ticket that is already done: the row
+// survives the close and an archived channel keeps its buttons. Running the
+// sequence again would re-page a channel that may not exist and post a second
+// summary.
+func TestTicketCloseRefusesAnAlreadyClosedTicket(t *testing.T) {
+	for _, status := range []string{discordstore.TicketStatusClosed, discordstore.TicketStatusArchived} {
+		t.Run(status, func(t *testing.T) {
+			f := newDesk(t, baseConfig())
+			f.store.SeedTicket(discordstore.Ticket{
+				ID: 1, ChannelID: "c-new", GuildID: "g1", OpenerID: "u1", Status: status,
+			})
+
+			cmds := f.press(t, f.mod.close, inTicket("u1", []string{"helper"}))
+
+			if got := followupText(t, cmds); got != "This ticket is already closed." {
+				t.Fatalf("followup = %q", got)
+			}
+			if len(f.tickets.closed) != 0 {
+				t.Fatalf("a second close must not run the sequence: %+v", f.tickets.closed)
+			}
+		})
+	}
+}
+
+// A close Discord performed but the row never took is retried on the next
+// interaction that touches the channel. Without it the row says "open"
+// forever and the opener's count never comes back down.
+func TestTicketPendingCloseIsRetriedOnTheNextInteraction(t *testing.T) {
+	f := newDesk(t, baseConfig())
+	ctx := context.Background()
+	f.store.SeedTicket(discordstore.Ticket{
+		ID: 1, ChannelID: "c-new", GuildID: "g1", OpenerID: "u1", Status: discordstore.TicketStatusOpen,
+	})
+	done := discordstore.TicketClose{GuildID: "g1", ChannelID: "c-new", ClosedBy: "u1", ArchivedChannelID: "c-new"}
+	if err := f.store.MarkPendingClose(ctx, done); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+
+	f.press(t, f.mod.close, inTicket("u1", []string{"helper"}))
+
+	if _, ok := f.store.PendingClose(ctx, discordstore.Channel{ID: "c-new"}); ok {
+		t.Fatal("the marker must be cleared once the row takes the close")
+	}
+	if _, ok := f.store.Ticket(ctx, discordstore.Channel{ID: "c-new"}); ok {
+		t.Fatal("the retry must record the close")
+	}
+	if len(f.tickets.closed) != 0 {
+		t.Fatalf("the retry is a store write, not a second Discord close: %+v", f.tickets.closed)
+	}
+}
+
+// The pure-Valkey fallback cannot number, cap or transcribe a ticket, so the
+// desk refuses rather than handing out a channel it can never manage.
+func TestTicketOpenRefusesWithoutADurableStore(t *testing.T) {
+	f := newDesk(t, baseConfig())
+	f.mod.store = fallbackStore{Store: f.store}
+
+	cmds := f.press(t, f.mod.open, opener("u1", "Ada"))
+
+	if got := followupText(t, cmds); !strings.Contains(got, "unavailable") {
+		t.Fatalf("followup = %q, want the desk to say it is unavailable", got)
+	}
+	if len(f.tickets.opened) != 0 {
+		t.Fatal("a refused open must not create a channel")
+	}
+}
+
+// fallbackStore is the memory double answering TicketsDurable the way the
+// pure-Valkey store does.
+type fallbackStore struct{ discordstore.Store }
+
+func (fallbackStore) TicketsDurable(context.Context) bool { return false }
