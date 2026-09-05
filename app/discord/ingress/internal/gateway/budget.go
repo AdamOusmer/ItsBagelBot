@@ -4,8 +4,13 @@
 package gateway
 
 import (
+	"context"
 	"sync"
 	"time"
+
+	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"go.uber.org/zap"
 )
 
 // The connect budget exists because of a real incident, 2026-09-05: Discord
@@ -57,6 +62,44 @@ const (
 	connectWindow       = 24 * time.Hour
 )
 
+// The window outlives the process, and that is the fourth rule.
+//
+// The 2026-09-05 loop was a crash-loop shape: both underlying bugs killed
+// the process, and a budget that starts empty on every boot bounds nothing
+// at all -- 800 attempts per pod lifetime is 800 attempts per crash, and
+// Discord's counter is per token per day no matter how often the pod came
+// back. So the attempt log is written through to Valkey
+// (discord.BotConnectsKey) and read back at boot.
+//
+// Alternative considered and rejected: keeping the count in the status key
+// this pod already writes. It is one Valkey round trip fewer, but the key is
+// a whole-document overwrite, so two pods -- which is exactly the accident
+// this budget guards against -- would clobber each other's counts instead of
+// adding to them. A sorted set adds.
+//
+// Valkey being unreachable degrades to the in-memory window rather than
+// blocking a connect: an ingress that cannot reach Valkey must still be able
+// to hold a gateway session, and a budget that is merely per-process is
+// exactly what shipped before this. It says so once, at WARN.
+
+// ConnectLog persists the rolling connect window outside this process. The
+// gateway package deliberately knows nothing about Valkey -- handing it a
+// client would make every gateway test need one, the same split
+// botstatus's package doc describes -- so this is the entire surface.
+type ConnectLog interface {
+	// Load reports every attempt still inside the window, oldest first, and
+	// is free to prune the ones before since as it reads.
+	Load(ctx context.Context, since time.Time) ([]time.Time, error)
+	// Add appends one attempt.
+	Add(ctx context.Context, at time.Time) error
+}
+
+// storeTimeout bounds one ConnectLog round trip. It matches botstatus's own
+// per-write bound and exists for the same reason: these calls sit on the
+// connect path, so an unbounded Do against a Valkey that is failing over
+// would stall reconnects behind bookkeeping nothing waits on.
+const storeTimeout = 2 * time.Second
+
 // budgetSchedule is the four numbers above, in a struct so tests can shrink
 // them to milliseconds. Production always uses defaultBudgetSchedule.
 type budgetSchedule struct {
@@ -107,6 +150,13 @@ type connectBudget struct {
 	mu    sync.Mutex
 	sched budgetSchedule
 	now   func() time.Time
+	// store is the shared window, nil when nothing persists it.
+	store ConnectLog
+	log   *zap.Logger
+	// warnOnce keeps the degraded-to-memory notice to one line. Valkey
+	// failing means it fails on every note and every record, and a per-call
+	// WARN would bury the gateway's own logs under bookkeeping noise.
+	warnOnce sync.Once
 
 	// last is when the most recent socket was opened, zero before the first.
 	last time.Time
@@ -121,25 +171,88 @@ type connectBudget struct {
 	attempts []time.Time
 }
 
-func newConnectBudget() *connectBudget {
-	return &connectBudget{sched: defaultBudgetSchedule(), now: time.Now}
+// newConnectBudget builds the budget and seeds its window from store, so a
+// pod that just crash-looped starts with whatever its predecessors already
+// spent rather than a clean 800.
+func newConnectBudget(store ConnectLog, log *zap.Logger) *connectBudget {
+	b := &connectBudget{sched: defaultBudgetSchedule(), now: time.Now, store: store, log: log}
+	b.reload()
+	return b
+}
+
+// reload replaces the in-memory window with the shared one. It is
+// best-effort in both directions: a store that answers nothing leaves the
+// window exactly as it was, so a Valkey outage can only ever lose history,
+// never invent it.
+func (b *connectBudget) reload() {
+	if b.store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
+	defer cancel()
+	now := b.now()
+	seen, err := b.store.Load(ctx, now.Add(-b.sched.window))
+	if err != nil {
+		b.degraded(err)
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.attempts = seen
+	b.prune(now)
+}
+
+// persist writes one attempt through to the shared window.
+func (b *connectBudget) persist(at time.Time) {
+	if b.store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
+	defer cancel()
+	if err := b.store.Add(ctx, at); err != nil {
+		b.degraded(err)
+	}
+}
+
+// degraded says, once, that the ceiling is now only as good as this
+// process's own memory.
+func (b *connectBudget) degraded(err error) {
+	b.warnOnce.Do(func() {
+		b.logger().Warn("discord connect budget is not persisted; counting this process only",
+			zap.String("key", ddiscord.BotConnectsKey), zap.Error(err))
+	})
+}
+
+func (b *connectBudget) logger() *zap.Logger {
+	if b.log != nil {
+		return b.log
+	}
+	return zap.NewNop()
 }
 
 // note records that a socket is being opened right now. It is called on
 // every attempt, including the very first, so the ceiling counts what
 // Discord counts.
 func (b *connectBudget) note() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	now := b.now()
+	b.mu.Lock()
 	b.prune(now)
 	b.last = now
 	b.attempts = append(b.attempts, now)
+	b.mu.Unlock()
+	// Outside the lock: this is a network round trip, and the only thing it
+	// guards is a counter every other reader takes for a snapshot anyway.
+	b.persist(now)
 }
 
 // record folds one finished session's uptime into the flap detector and
 // reports the budget state that follows from it.
 func (b *connectBudget) record(up time.Duration) Budget {
+	// Read the shared window back before judging it. A second ingress -- the
+	// accident this budget exists to survive -- spends the same token's
+	// allowance, and a state published from this pod's own attempts alone
+	// would report an affordable window while the token was already gone.
+	b.reload()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	// Prune before the verdict, not only in delay(): state() reads Connects

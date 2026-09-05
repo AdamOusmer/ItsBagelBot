@@ -21,6 +21,26 @@ import (
 // (and louder) fact than "the key expired".
 const BotStatusKey = "discord:bot:status"
 
+// BotConnectsKey is the rolling record of gateway connect attempts, a sorted
+// set living beside the status key: score is the attempt's unix ms, member
+// is that same stamp joined to the pod that made it so two pods cannot
+// collide on one score.
+//
+// It is persisted rather than counted in memory because the incident it
+// exists for was a crash-loop. On 2026-09-05 both loops that spent this
+// bot's identify allowance killed and restarted the process, and a counter
+// that starts at zero on every boot bounds nothing: 800 attempts per pod
+// lifetime is 800 attempts per crash. Discord counts per token, across the
+// whole day, regardless of how many times the pod came back.
+const BotConnectsKey = "discord:bot:connects"
+
+// BotConnectsTTL keeps the set one hour past the window it describes. It is
+// not the pruning mechanism -- readers and writers drop aged-out members
+// themselves, because a 24h TTL on the key would expire the whole window
+// every time the last attempt happened to be 24h old -- it is the sweep that
+// stops an abandoned key outliving the deployment that wrote it.
+const BotConnectsTTL = 25 * time.Hour
+
 // BotStatus is the gateway session's state as ingress last observed it.
 type BotStatus struct {
 	Connected bool `json:"connected"`

@@ -125,6 +125,12 @@ type Session struct {
 	// and every time a dispatch lands. Nil is a no-op.
 	Status Status
 
+	// Connects, if set, persists the connect budget's rolling window across
+	// restarts. Nil counts in this process only, which is what the budget
+	// degrades to anyway when the store is unreachable -- see budget.go for
+	// why a per-process count bounds nothing against a crash-loop.
+	Connects ConnectLog
+
 	// budget throttles connect attempts (see budget.go). Unexported and
 	// nil in production wiring: Run builds the real one. Tests install a
 	// schedule measured in milliseconds so they can assert the rules
@@ -235,7 +241,7 @@ func (s Session) connectBudget() *connectBudget {
 	if s.budget != nil {
 		return s.budget
 	}
-	return newConnectBudget()
+	return newConnectBudget(s.Connects, s.log())
 }
 
 // connect runs one socket and reports how long it stayed up next to the

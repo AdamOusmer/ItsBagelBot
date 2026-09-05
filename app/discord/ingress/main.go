@@ -98,7 +98,8 @@ func main() {
 	// the status key that says WHICH ingress wrote it, which matters the one
 	// time two replicas exist by accident (two Identify sessions on one bot
 	// token fight, see this file's package doc).
-	status := botstatus.New(valkeyClient, env.Get("HOSTNAME", ""), log)
+	pod := env.Get("HOSTNAME", "")
+	status := botstatus.New(valkeyClient, pod, log)
 	go status.Run(ctx)
 
 	health.ServeSet(cfg.ListenAddr, healthSet(rpcConn, status, log))
@@ -109,6 +110,10 @@ func main() {
 		Handle: r,
 		Log:    log,
 		Status: status,
+		// The connect window survives a restart deliberately: the loop that
+		// got this bot's token reset was a crash-loop, and a per-process
+		// count of 800 is 800 per crash (see gateway/budget.go).
+		Connects: botstatus.NewConnectLog(valkeyClient, pod),
 		Presence: &presence.Source{
 			Fetch: presence.NewFetch(rpcConn, cfg.UsersCountsSubject),
 			Log:   log,
