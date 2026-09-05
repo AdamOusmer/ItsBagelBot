@@ -14,7 +14,6 @@
     Icon,
     PageHead,
     PageToolbar,
-    MasterToggle,
     SaveStatus,
     SegmentedControl,
     Switch,
@@ -25,6 +24,8 @@
     encodePinnedRoles,
     flagValue,
     getI18n,
+    guildBotState,
+    guildMonogram,
     normalizeHex,
     parseIdList,
     parseNameList,
@@ -42,7 +43,8 @@
     type PinnedSlot
   } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
-  import type { DiscordEntry } from '$lib/server/discord-store';
+  import { DISCORD_CODE_KEYS, DISCORD_PILL_KEYS } from '$lib/discord-messages';
+  import type { DiscordEntry, DiscordGuildSummary } from '$lib/server/discord-store';
   import DiscordEmbedPreview from './DiscordEmbedPreview.svelte';
 
   let { data } = $props();
@@ -59,6 +61,11 @@
   let seed = data;
   // svelte-ignore state_referenced_locally
   let baseline = $state(JSON.stringify(data.config));
+  // The version the draft was read at. It rides along in every save form so
+  // outgress can refuse a write that would clobber someone else's.
+  // svelte-ignore state_referenced_locally
+  let version = $state<number>(data.version ?? 0);
+  let conflicted = $state(false);
   let busy = $state(false);
   $effect(() => {
     if (data !== seed) {
@@ -66,8 +73,18 @@
       enabled = data.enabled ?? false;
       config = { ...data.config };
       baseline = JSON.stringify(data.config);
+      version = data.version ?? 0;
     }
   });
+
+  async function reloadPage() {
+    conflicted = false;
+    // The draft is abandoned deliberately: reseeding from the server is the
+    // whole point of the button, and keeping the local edits would just
+    // reproduce the conflict on the next save.
+    baseline = payload;
+    await invalidateAll();
+  }
 
   const payload = $derived(JSON.stringify(config));
   const dirty = $derived(payload !== baseline);
@@ -96,46 +113,11 @@
   }
 
   // The refusal contract: switch on `code`, fall back to the sentence outgress
-  // sent while it is still the only thing an older deployment returns.
-  const CODE_KEYS: Record<
-    string,
-    | 'discord.errBoundElsewhere'
-    | 'discord.errNotBound'
-    | 'discord.errUnavailable'
-    | 'discord.errForbidden'
-    | 'discord.errRateLimited'
-    | 'discord.errInvalid'
-  > = {
-    bound_elsewhere: 'discord.errBoundElsewhere',
-    not_bound: 'discord.errNotBound',
-    discord_unavailable: 'discord.errUnavailable',
-    forbidden: 'discord.errForbidden',
-    rate_limited: 'discord.errRateLimited',
-    invalid: 'discord.errInvalid'
-  };
-
-  const SLUG_KEYS: Record<
-    string,
-    | 'discord.errOauth'
-    | 'discord.errUnconfigured'
-    | 'discord.errSetup'
-    | 'discord.errState'
-    | 'discord.errBoundElsewhere'
-    | 'discord.errNotBound'
-    | 'discord.errUnavailable'
-    | 'discord.errForbidden'
-    | 'discord.errRateLimited'
-    | 'discord.errInvalid'
-  > = {
-    oauth: 'discord.errOauth',
-    unconfigured: 'discord.errUnconfigured',
-    setup: 'discord.errSetup',
-    state: 'discord.errState',
-    ...CODE_KEYS
-  };
-
+  // sent while it is still the only thing an older deployment returns. The
+  // tables live in $lib/discord-messages so the server list and this page
+  // cannot drift apart.
   function refusalText(p: ActionResult | undefined, fallback: string): string {
-    const key = p?.code ? CODE_KEYS[p.code] : undefined;
+    const key = p?.code ? DISCORD_CODE_KEYS[p.code] : undefined;
     if (key) return t(key);
     return p?.error ?? fallback;
   }
@@ -152,11 +134,13 @@
       const p = payloadOf(result);
       if (succeeded(result, p)) {
         markSave('saved', 4000);
+        conflicted = false;
         toast('ok', t('discord.toastSaved'));
         await invalidateAll();
         return;
       }
       markSave('error', 4000);
+      conflicted = p?.code === 'conflict';
       toast('err', refusalText(p, t('discord.toastSaveFailed')));
     };
   };
@@ -234,13 +218,11 @@
   const roles = $derived((data.layout?.roles ?? []).filter((r: DiscordEntry) => r.name !== '@everyone'));
   // Each picker asks its own list, so a reply that carried channels but no
   // roles disables the role pickers alone instead of the whole page.
-  const layoutDown = $derived(
-    data.connected && textChannels.length === 0 && roles.length === 0 && categories.length === 0
-  );
+  const layoutDown = $derived(textChannels.length === 0 && roles.length === 0 && categories.length === 0);
 
   const guild = $derived(data.status?.guildPresent ? data.status.guild : (data.layout?.guild ?? data.status.guild));
   const guildName = $derived(guild.name || t('discord.unknownServer'));
-  const monogram = $derived(guildName.trim().slice(0, 2).toUpperCase());
+  const monogram = $derived(guildMonogram(guildName));
 
   // Discord serves guild icons from its own CDN, and the console CSP is
   // img-src 'self' data: — an <img> pointed at cdn.discordapp.com renders as a
@@ -249,6 +231,7 @@
   // never 404s and cannot leak the visit to Discord.
   const botOnline = $derived(data.status?.online === true && data.status?.guildPresent === true);
   const needsReauth = $derived(data.status?.needsReauth === true || data.layout?.needsReauth === true);
+  const pillState = $derived(guildBotState({ botPresent: botOnline, needsReauth }));
 
   // Only the fatal close codes get their own sentence: they are the ones the
   // streamer can act on. Everything else is a transient disconnect the
@@ -289,10 +272,47 @@
 
   const memberCount = $derived(guild.memberCount > 0 ? guild.memberCount.toLocaleString() : '');
 
-  // ── connect wizard ──────────────────────────────────────────────────────
-  const WIZARD_STEPS = $derived([t('discord.stepInvite'), t('discord.stepLayout'), t('discord.stepDone')]);
-  let wizardStep = $state('');
-  const wizardValue = $derived(wizardStep || WIZARD_STEPS[0]);
+  // ── server switcher ─────────────────────────────────────────────────────
+  // A broadcaster owns many servers, so the toolbar's lead slot is how you get
+  // from one to the next without going back to the list.
+  const otherGuilds = $derived<DiscordGuildSummary[]>(data.guilds ?? []);
+
+  /**
+   * Switcher labels, made unique.
+   *
+   * Discord happily lets one person own two servers with the same name, and
+   * SegmentedControl keys its options by their string. Without the suffix the
+   * second one would be unclickable and the first would look selected for
+   * both.
+   */
+  function uniqueLabels(names: string[]): string[] {
+    const seen = new Map<string, number>();
+    return names.map((raw) => {
+      const name = raw || t('discord.unknownServer');
+      const n = (seen.get(name) ?? 0) + 1;
+      seen.set(name, n);
+      return n === 1 ? name : `${name} (${n})`;
+    });
+  }
+
+  const switchLabels = $derived(uniqueLabels(otherGuilds.map((g) => g.name)));
+  const switchIndex = $derived(otherGuilds.findIndex((g) => g.guildId === data.guildId));
+  const switchValue = $derived(switchLabels[switchIndex] ?? switchLabels[0] ?? '');
+  // Segmented up to three, a select past that: four pills already wrap the
+  // toolbar on a laptop, and the list page is the right surface for browsing
+  // more than a handful.
+  const SEGMENTED_MAX = 3;
+
+  function switchTo(guildId: string) {
+    if (!guildId || guildId === data.guildId) return;
+    goto(`/discord/${guildId}`);
+  }
+
+  function switchToLabel(label: string) {
+    const i = switchLabels.indexOf(label);
+    if (i < 0) return;
+    switchTo(otherGuilds[i].guildId);
+  }
 
   // ── roles ───────────────────────────────────────────────────────────────
   type RoleRow = { slot: PinnedSlot; field: keyof DiscordConfig; label: string; help: string };
@@ -477,8 +497,19 @@
       <AlertBanner>{t('discord.degraded')}</AlertBanner>
     {/if}
 
-    {#if data.errorSlug && SLUG_KEYS[data.errorSlug]}
-      <AlertBanner variant="warn" icon="ban">{t(SLUG_KEYS[data.errorSlug])}</AlertBanner>
+    <!--
+      A save refused because the row moved under us. Not retried and not
+      merged: two drafts of the same server differ in ways only a human can
+      reconcile, and the old module-blob save silently reverted whichever mod
+      saved first.
+    -->
+    {#if conflicted}
+      <AlertBanner variant="warn" icon="ban">
+        {t('discord.conflictBody')}
+        {#snippet action()}
+          <Button variant="secondary" icon="power" onclick={reloadPage}>{t('discord.conflictCta')}</Button>
+        {/snippet}
+      </AlertBanner>
     {/if}
 
     {#if data.justConnected && data.refused}
@@ -512,28 +543,36 @@
 
     <PageToolbar>
       {#snippet lead()}
-        <MasterToggle
-          action="?/toggle"
-          bind:enabled
-          label={t('discord.masterLabel')}
-          hint={enabled ? t('discord.masterHintOn') : t('discord.masterHintOff')}
-          ariaLabel={t('discord.masterAria')}
-          failMessage={t('discord.masterFail')}
-        />
+        <div class="switcher">
+          <ButtonLink variant="ghost" icon="list" href="/discord">{t('discord.allServersCta')}</ButtonLink>
+          {#if otherGuilds.length > 1 && otherGuilds.length <= SEGMENTED_MAX}
+            <SegmentedControl
+              options={switchLabels}
+              label={t('discord.switcherLabel')}
+              bind:value={() => switchValue, switchToLabel}
+            />
+          {:else if otherGuilds.length > SEGMENTED_MAX}
+            <label class="sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
+            <select
+              id="dc-switcher"
+              class="setting-input"
+              value={data.guildId}
+              onchange={(e) => switchTo(e.currentTarget.value)}
+            >
+              {#each otherGuilds as g, i (g.guildId)}
+                <option value={g.guildId}>{switchLabels[i]}</option>
+              {/each}
+            </select>
+          {/if}
+        </div>
       {/snippet}
       {#snippet trail()}
-        {#if data.connected}
-          <ButtonLink variant="ghost" icon="power" href="/discord/connect" data-sveltekit-reload>
-            {t('discord.reconnectCta')}
-          </ButtonLink>
-          <Button variant="destructive" icon="ban" onclick={() => (disconnectOpen = true)}>
-            {t('discord.disconnectCta')}
-          </Button>
-        {:else if data.configured}
-          <ButtonLink variant="primary" icon="discord" href="/discord/connect" data-sveltekit-reload>
-            {t('discord.connectCta')}
-          </ButtonLink>
-        {/if}
+        <ButtonLink variant="ghost" icon="power" href="/discord/connect" data-sveltekit-reload>
+          {t('discord.reconnectCta')}
+        </ButtonLink>
+        <Button variant="destructive" icon="ban" onclick={() => (disconnectOpen = true)}>
+          {t('discord.disconnectCta')}
+        </Button>
       {/snippet}
     </PageToolbar>
 
@@ -541,463 +580,424 @@
     <section class="block reveal" style="--i:1" aria-labelledby="dc-status-h">
       <h2 id="dc-status-h" class="block-title">{t('discord.statusTitle')}</h2>
       <Card>
-        {#if data.connected}
-          <div class="server">
-            <span class="crest" aria-hidden="true">{monogram}</span>
-            <span class="server-copy">
-              <span class="server-name">{guildName}</span>
-              <span class="tr-help">
-                {#if memberCount}{t('discord.statusMembers', { n: memberCount })}{:else}{t('discord.statusNoMembers')}{/if}
-              </span>
+        <div class="server">
+          <span class="crest" aria-hidden="true">{monogram}</span>
+          <span class="server-copy">
+            <span class="server-name">{guildName}</span>
+            <span class="tr-help">
+              {#if memberCount}{t('discord.statusMembers', { n: memberCount })}{:else}{t('discord.statusNoMembers')}{/if}
             </span>
-            <span class="pill {botOnline ? 'on' : 'off'}">
-              <Icon name={botOnline ? 'check' : 'ban'} size={13} />
-              {botOnline ? t('discord.statusOnline') : t('discord.statusOffline')}
-            </span>
+          </span>
+          <span class="pill {pillState}">
+            <Icon name={pillState === 'online' ? 'check' : pillState === 'reauth' ? 'power' : 'ban'} size={13} />
+            {t(DISCORD_PILL_KEYS[pillState])}
+          </span>
+        </div>
+
+        <dl class="facts">
+          <div class="fact">
+            <dt>{t('discord.statusSince')}</dt>
+            <dd>{uptime || t('discord.statusUnknown')}</dd>
           </div>
+          <div class="fact">
+            <dt>{t('discord.statusResumes')}</dt>
+            <dd>{data.status?.sessionResumes ?? 0}</dd>
+          </div>
+        </dl>
 
-          <dl class="facts">
-            <div class="fact">
-              <dt>{t('discord.statusSince')}</dt>
-              <dd>{uptime || t('discord.statusUnknown')}</dd>
-            </div>
-            <div class="fact">
-              <dt>{t('discord.statusResumes')}</dt>
-              <dd>{data.status?.sessionResumes ?? 0}</dd>
-            </div>
-          </dl>
-
-          {#if !botOnline && closeKey}
-            <p class="hint">{t(closeKey)}</p>
-          {:else if !botOnline}
-            <p class="hint">{t('discord.statusReconnecting')}</p>
-          {/if}
-        {:else}
-          <p class="hint">{t('discord.statusNotConnected')}</p>
+        {#if !botOnline && closeKey}
+          <p class="hint">{t(closeKey)}</p>
+        {:else if !botOnline}
+          <p class="hint">{t('discord.statusReconnecting')}</p>
         {/if}
       </Card>
     </section>
 
-    <!-- 2) Connect wizard: three steps, no ids, only while disconnected. -->
-    {#if !data.connected}
-      <section class="block reveal" style="--i:2" aria-labelledby="dc-connect-h">
-        <h2 id="dc-connect-h" class="block-title">{t('discord.connectTitle')}</h2>
-        <Card>
-          <p class="hint">{t('discord.connectHelp')}</p>
-          <SegmentedControl options={WIZARD_STEPS} bind:value={() => wizardValue, (v) => (wizardStep = v)} label={t('discord.wizardLabel')} />
+    <!-- 2) Channels, grouped by what they are for. -->
+    <section class="block reveal" style="--i:2" aria-labelledby="dc-channels-h">
+      <h2 id="dc-channels-h" class="block-title">{t('discord.channelsTitle')}</h2>
+      <Card>
+        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+          <input type="hidden" name="config" value={payload} />
+          <input type="hidden" name="version" value={version} />
+          <p class="hint">{t('discord.channelsHelp')}</p>
 
-          <div class="wizard">
-            {#if wizardValue === WIZARD_STEPS[0]}
-              <p class="hint">{t('discord.stepInviteBody')}</p>
-              <div class="row">
-                {#if data.templateURL}
-                  <ButtonLink variant="secondary" icon="plus" href={data.templateURL} target="_blank" rel="noopener noreferrer">
-                    {t('discord.createCta')}
-                  </ButtonLink>
-                {/if}
-                {#if data.configured}
-                  <ButtonLink variant="primary" icon="discord" href="/discord/connect" data-sveltekit-reload>
-                    {t('discord.connectCta')}
-                  </ButtonLink>
-                {:else}
-                  <Button variant="primary" type="button" disabled>{t('discord.connectCta')}</Button>
-                {/if}
-              </div>
-              {#if !data.configured}
-                <p class="hint">{t('discord.connectUnconfigured')}</p>
-              {/if}
-            {:else if wizardValue === WIZARD_STEPS[1]}
-              <p class="hint">{t('discord.stepLayoutBody')}</p>
-            {:else}
-              <p class="hint">{t('discord.stepDoneBody')}</p>
-            {/if}
-          </div>
-        </Card>
-      </section>
-    {/if}
+          <h3 class="group">{t('discord.groupAnnounce')}</h3>
+          {@render picker('liveChannelId', t('discord.liveChannelLabel'), t('discord.liveChannelHelp'), textChannels, '#')}
+          {@render picker('clipsChannelId', t('discord.clipsChannelLabel'), t('discord.clipsChannelHelp'), textChannels, '#')}
 
-    {#if data.connected}
-      <!-- 3) Channels, grouped by what they are for. -->
-      <section class="block reveal" style="--i:3" aria-labelledby="dc-channels-h">
-        <h2 id="dc-channels-h" class="block-title">{t('discord.channelsTitle')}</h2>
-        <Card>
-          <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
-            <input type="hidden" name="config" value={payload} />
-            <p class="hint">{t('discord.channelsHelp')}</p>
+          <h3 class="group">{t('discord.groupCommunity')}</h3>
+          {@render picker('welcomeChannelId', t('discord.welcomeChannelLabel'), t('discord.welcomeChannelHelp'), textChannels, '#')}
+          {@render picker('voiceHubId', t('discord.voiceHubLabel'), t('discord.voiceHubHelp'), voiceChannels, '')}
+          {@render picker('logChannelId', t('discord.logChannelLabel'), t('discord.logChannelHelp'), textChannels, '#')}
 
-            <h3 class="group">{t('discord.groupAnnounce')}</h3>
-            {@render picker('liveChannelId', t('discord.liveChannelLabel'), t('discord.liveChannelHelp'), textChannels, '#')}
-            {@render picker('clipsChannelId', t('discord.clipsChannelLabel'), t('discord.clipsChannelHelp'), textChannels, '#')}
+          <h3 class="group">{t('discord.groupSubs')}</h3>
+          {@render picker('subsChannelId', t('discord.subsChannelLabel'), t('discord.subsChannelHelp'), textChannels, '#')}
+          {@render picker('subsCategoryId', t('discord.subsCategoryLabel'), t('discord.subsCategoryHelp'), categories, '')}
 
-            <h3 class="group">{t('discord.groupCommunity')}</h3>
-            {@render picker('welcomeChannelId', t('discord.welcomeChannelLabel'), t('discord.welcomeChannelHelp'), textChannels, '#')}
-            {@render picker('voiceHubId', t('discord.voiceHubLabel'), t('discord.voiceHubHelp'), voiceChannels, '')}
-            {@render picker('logChannelId', t('discord.logChannelLabel'), t('discord.logChannelHelp'), textChannels, '#')}
+          <h3 class="group">{t('discord.groupVip')}</h3>
+          {@render picker('vipChannelId', t('discord.vipChannelLabel'), t('discord.vipChannelHelp'), textChannels, '#')}
+          {@render picker('vipCategoryId', t('discord.vipCategoryLabel'), t('discord.vipCategoryHelp'), categories, '')}
 
-            <h3 class="group">{t('discord.groupSubs')}</h3>
-            {@render picker('subsChannelId', t('discord.subsChannelLabel'), t('discord.subsChannelHelp'), textChannels, '#')}
-            {@render picker('subsCategoryId', t('discord.subsCategoryLabel'), t('discord.subsCategoryHelp'), categories, '')}
+          {@render saveBar(t('discord.save'))}
+        </form>
+      </Card>
+    </section>
 
-            <h3 class="group">{t('discord.groupVip')}</h3>
-            {@render picker('vipChannelId', t('discord.vipChannelLabel'), t('discord.vipChannelHelp'), textChannels, '#')}
-            {@render picker('vipCategoryId', t('discord.vipCategoryLabel'), t('discord.vipCategoryHelp'), categories, '')}
+    <!-- 3) Roles: staff and tiers, each pinnable to a role you already have. -->
+    <section class="block reveal" style="--i:3" aria-labelledby="dc-roles-h">
+      <h2 id="dc-roles-h" class="block-title">{t('discord.rolesTitle')}</h2>
+      <Card>
+        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+          <input type="hidden" name="config" value={payload} />
+          <input type="hidden" name="version" value={version} />
+          <p class="hint">{t('discord.rolesHelp')}</p>
 
-            {@render saveBar(t('discord.save'))}
-          </form>
-        </Card>
-      </section>
-
-      <!-- 4) Roles: staff and tiers, each pinnable to a role you already have. -->
-      <section class="block reveal" style="--i:4" aria-labelledby="dc-roles-h">
-        <h2 id="dc-roles-h" class="block-title">{t('discord.rolesTitle')}</h2>
-        <Card>
-          <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
-            <input type="hidden" name="config" value={payload} />
-            <p class="hint">{t('discord.rolesHelp')}</p>
-
-            <h3 class="group">{t('discord.groupStaff')}</h3>
-            {#each staffRoles as row (row.slot)}
-              <div class="setting-row">
-                <label class="tr-text" for="dc-{row.field}">
-                  <span class="tr-label">{row.label}</span>
-                  <span class="tr-help" id="dch-{row.field}">{row.help}</span>
-                </label>
-                <span class="role-controls">
-                  <Chip
-                    on={isPinned(row)}
-                    onclick={() => togglePin(row)}
-                    aria-pressed={isPinned(row)}
-                    disabled={config[row.field] === ''}
-                  >
-                    {t('discord.pinnedChip')}
-                  </Chip>
-                  <select
-                    id="dc-{row.field}"
-                    class="setting-input"
-                    aria-describedby="dch-{row.field}"
-                    disabled={roles.length === 0}
-                    value={config[row.field]}
-                    onchange={(e) => set(row.field, e.currentTarget.value)}
-                  >
-                    <option value="">{t('discord.notSet')}</option>
-                    {#each roles as opt (opt.id)}
-                      <option value={opt.id}>@{opt.name}</option>
-                    {/each}
-                  </select>
-                </span>
-              </div>
-            {/each}
-
-            <h3 class="group">{t('discord.groupTiers')}</h3>
-            {#each tierRoles as row (row.slot)}
-              <div class="setting-row">
-                <label class="tr-text" for="dc-{row.field}">
-                  <span class="tr-label">{row.label}</span>
-                  <span class="tr-help" id="dch-{row.field}">{row.help}</span>
-                </label>
-                <span class="role-controls">
-                  <Chip
-                    on={isPinned(row)}
-                    onclick={() => togglePin(row)}
-                    aria-pressed={isPinned(row)}
-                    disabled={config[row.field] === ''}
-                  >
-                    {t('discord.pinnedChip')}
-                  </Chip>
-                  <select
-                    id="dc-{row.field}"
-                    class="setting-input"
-                    aria-describedby="dch-{row.field}"
-                    disabled={roles.length === 0}
-                    value={config[row.field]}
-                    onchange={(e) => set(row.field, e.currentTarget.value)}
-                  >
-                    <option value="">{t('discord.notSet')}</option>
-                    {#each roles as opt (opt.id)}
-                      <option value={opt.id}>@{opt.name}</option>
-                    {/each}
-                  </select>
-                </span>
-              </div>
-            {/each}
-
+          <h3 class="group">{t('discord.groupStaff')}</h3>
+          {#each staffRoles as row (row.slot)}
             <div class="setting-row">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.autoRoleLabel')}</span>
-                <span class="tr-help" id="dcs-autoRole">{t('discord.autoRoleHelp')}</span>
-              </span>
-              <Switch
-                label={t('discord.autoRoleLabel')}
-                describedby="dcs-autoRole"
-                checked={alertOn(config.autoRoleEnabled)}
-                onchange={(v) => setFlag('autoRoleEnabled', v)}
-              />
-            </div>
-
-            <p class="hint">{t('discord.pinHelp')}</p>
-            {@render saveBar(t('discord.save'))}
-          </form>
-        </Card>
-      </section>
-
-      <!-- 5) Stream posts + the category allow/deny lists. -->
-      <section class="block reveal" style="--i:5" aria-labelledby="dc-posts-h">
-        <h2 id="dc-posts-h" class="block-title">{t('discord.postsTitle')}</h2>
-        <Card>
-          <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
-            <input type="hidden" name="config" value={payload} />
-            <p class="hint">{t('discord.postsHelp')}</p>
-            {@render switchRows(postSwitches)}
-
-            <div class="setting-row stacked">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.allowLabel')}</span>
-                <span class="tr-help" id="dch-allow">{t('discord.allowTag')}</span>
-              </span>
-              {@render chipList('categoryAllow', allowList)}
-              <span class="adder">
-                <input
+              <label class="tr-text" for="dc-{row.field}">
+                <span class="tr-label">{row.label}</span>
+                <span class="tr-help" id="dch-{row.field}">{row.help}</span>
+              </label>
+              <span class="role-controls">
+                <Chip
+                  on={isPinned(row)}
+                  onclick={() => togglePin(row)}
+                  aria-pressed={isPinned(row)}
+                  disabled={config[row.field] === ''}
+                >
+                  {t('discord.pinnedChip')}
+                </Chip>
+                <select
+                  id="dc-{row.field}"
                   class="setting-input"
-                  aria-describedby="dch-allow"
-                  aria-label={t('discord.allowLabel')}
-                  maxlength={CATEGORY_NAME_MAX}
-                  placeholder={t('discord.allowPlaceholder')}
-                  bind:value={allowDraft}
-                  onkeydown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    e.preventDefault();
-                    commitAllow();
-                  }}
-                />
-                <Button variant="secondary" icon="plus" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
-              </span>
-            </div>
-
-            <div class="setting-row stacked">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.denyLabel')}</span>
-                <span class="tr-help" id="dch-deny">{t('discord.denyTag')}</span>
-              </span>
-              {@render chipList('categoryDeny', denyList)}
-              <span class="adder">
-                <input
-                  class="setting-input"
-                  aria-describedby="dch-deny"
-                  aria-label={t('discord.denyLabel')}
-                  maxlength={CATEGORY_NAME_MAX}
-                  placeholder={t('discord.denyPlaceholder')}
-                  bind:value={denyDraft}
-                  onkeydown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    e.preventDefault();
-                    commitDeny();
-                  }}
-                />
-                <Button variant="secondary" icon="plus" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
-              </span>
-            </div>
-
-            {@render saveBar(t('discord.save'))}
-          </form>
-        </Card>
-      </section>
-
-      <!-- 6) Community ops: one declared list, one loop. -->
-      <section class="block reveal" style="--i:6" aria-labelledby="dc-community-h">
-        <h2 id="dc-community-h" class="block-title">{t('discord.communityTitle')}</h2>
-        <Card>
-          <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
-            <input type="hidden" name="config" value={payload} />
-            <p class="hint">{t('discord.communityHelp')}</p>
-            {@render switchRows(communitySwitches)}
-            <p class="hint">{t('discord.tierRolesHelp')}</p>
-            {@render saveBar(t('discord.save'))}
-          </form>
-        </Card>
-      </section>
-
-      <!-- 7) Ticket desk, including the panel embed and its live preview. -->
-      <section class="block reveal" style="--i:7" aria-labelledby="dc-tickets-h">
-        <h2 id="dc-tickets-h" class="block-title">{t('discord.ticketsTitle')}</h2>
-        <Card>
-          <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
-            <input type="hidden" name="config" value={payload} />
-            <p class="hint">{t('discord.ticketsSectionHelp')}</p>
-
-            <div class="setting-row">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.ticketsLabel')}</span>
-                <span class="tr-help" id="dcs-tickets">{t('discord.ticketsHelp')}</span>
-              </span>
-              <Switch
-                label={t('discord.ticketsLabel')}
-                describedby="dcs-tickets"
-                checked={ticketsOn}
-                onchange={(v) => setFlag('ticketsEnabled', v)}
-              />
-            </div>
-
-            {@render picker('ticketChannelId', t('discord.ticketChannelLabel'), t('discord.ticketChannelHelp'), textChannels, '#')}
-            {@render picker('ticketCategoryId', t('discord.ticketCategoryLabel'), t('discord.ticketCategoryHelp'), categories, '')}
-            {@render picker('ticketArchiveCategoryId', t('discord.ticketArchiveLabel'), t('discord.ticketArchiveHelp'), categories, '')}
-            {@render picker('ticketLogChannelId', t('discord.ticketLogLabel'), t('discord.ticketLogHelp'), textChannels, '#')}
-
-            <fieldset class="setting-row stacked staff">
-              <legend class="tr-label">{t('discord.staffRolesLabel')}</legend>
-              <span class="tr-help" id="dch-staff">{t('discord.staffRolesHelp')}</span>
-              {#if roles.length === 0}
-                <span class="tr-help">{t('discord.staffRolesEmpty')}</span>
-              {:else}
-                <div class="checks">
-                  {#each roles as role (role.id)}
-                    <label class="check">
-                      <input
-                        type="checkbox"
-                        aria-describedby="dch-staff"
-                        checked={staffSelected.includes(role.id)}
-                        onchange={(e) => toggleStaffRole(role.id, e.currentTarget.checked)}
-                      />
-                      <span>@{role.name}</span>
-                    </label>
+                  aria-describedby="dch-{row.field}"
+                  disabled={roles.length === 0}
+                  value={config[row.field]}
+                  onchange={(e) => set(row.field, e.currentTarget.value)}
+                >
+                  <option value="">{t('discord.notSet')}</option>
+                  {#each roles as opt (opt.id)}
+                    <option value={opt.id}>@{opt.name}</option>
                   {/each}
-                </div>
-              {/if}
-            </fieldset>
-
-            <div class="setting-row">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.openLimitLabel')}</span>
-                <span class="tr-help">{t('discord.openLimitHelp')}</span>
-              </span>
-              <SegmentedControl
-                options={LIMIT_OPTIONS}
-                label={t('discord.openLimitLabel')}
-                bind:value={
-                  () => String(ticketOpenLimitN(config)), (v) => set('ticketOpenLimit', v)
-                }
-              />
-            </div>
-
-            <div class="setting-row">
-              <span class="tr-text">
-                <span class="tr-label">{t('discord.transcriptLabel')}</span>
-                <span class="tr-help" id="dcs-transcript">{t('discord.transcriptHelp')}</span>
-              </span>
-              <Switch
-                label={t('discord.transcriptLabel')}
-                describedby="dcs-transcript"
-                checked={alertOn(config.ticketTranscriptEnabled)}
-                onchange={(v) => setFlag('ticketTranscriptEnabled', v)}
-              />
-            </div>
-
-            <h3 class="group">{t('discord.panelTitle')}</h3>
-            <p class="hint">{t('discord.panelHelp')}</p>
-
-            <div class="setting-row">
-              <label class="tr-text" for="dc-panel-title">
-                <span class="tr-label">{t('discord.panelTitleLabel')}</span>
-                <span class="tr-help">{TICKET_PANEL_DEFAULTS.title}</span>
-              </label>
-              <input
-                id="dc-panel-title"
-                class="setting-input"
-                maxlength={TICKET_PANEL_TITLE_MAX}
-                placeholder={TICKET_PANEL_DEFAULTS.title}
-                value={config.ticketPanelTitle}
-                oninput={(e) => set('ticketPanelTitle', e.currentTarget.value)}
-              />
-            </div>
-
-            <div class="setting-row stacked">
-              <label class="tr-text" for="dc-panel-body">
-                <span class="tr-label">{t('discord.panelBodyLabel')}</span>
-                <span class="tr-help">{TICKET_PANEL_DEFAULTS.body}</span>
-              </label>
-              <textarea
-                id="dc-panel-body"
-                class="setting-input setting-textarea"
-                maxlength={TICKET_PANEL_BODY_MAX}
-                placeholder={TICKET_PANEL_DEFAULTS.body}
-                value={config.ticketPanelBody}
-                oninput={(e) => set('ticketPanelBody', e.currentTarget.value)}
-              ></textarea>
-            </div>
-
-            <div class="setting-row">
-              <label class="tr-text" for="dc-panel-button">
-                <span class="tr-label">{t('discord.panelButtonLabel')}</span>
-                <span class="tr-help">{TICKET_PANEL_DEFAULTS.button}</span>
-              </label>
-              <input
-                id="dc-panel-button"
-                class="setting-input"
-                maxlength={TICKET_PANEL_BUTTON_MAX}
-                placeholder={TICKET_PANEL_DEFAULTS.button}
-                value={config.ticketPanelButton}
-                oninput={(e) => set('ticketPanelButton', e.currentTarget.value)}
-              />
-            </div>
-
-            <div class="setting-row">
-              <label class="tr-text" for="dc-panel-color">
-                <span class="tr-label">{t('discord.panelColorLabel')}</span>
-                <span class="tr-help">{t('discord.panelColorHelp')}</span>
-              </label>
-              <span class="colors">
-                {#each SWATCHES as swatch (swatch)}
-                  <button
-                    type="button"
-                    class="swatch {panelColor === swatch ? 'on' : ''}"
-                    style="background: {swatch}"
-                    aria-label={t('discord.swatchLabel', { hex: swatch })}
-                    aria-pressed={panelColor === swatch}
-                    onclick={() => set('ticketPanelColor', swatch)}
-                  ></button>
-                {/each}
-                <input
-                  id="dc-panel-color"
-                  type="color"
-                  class="color-input"
-                  value={panelColor}
-                  oninput={(e) => set('ticketPanelColor', normalizeHex(e.currentTarget.value))}
-                />
+                </select>
               </span>
             </div>
+          {/each}
 
-            <DiscordEmbedPreview
-              caption={t('discord.panelPreviewCaption')}
-              title={panel.title}
-              body={panel.body}
-              button={panel.button}
-              color={panel.color}
+          <h3 class="group">{t('discord.groupTiers')}</h3>
+          {#each tierRoles as row (row.slot)}
+            <div class="setting-row">
+              <label class="tr-text" for="dc-{row.field}">
+                <span class="tr-label">{row.label}</span>
+                <span class="tr-help" id="dch-{row.field}">{row.help}</span>
+              </label>
+              <span class="role-controls">
+                <Chip
+                  on={isPinned(row)}
+                  onclick={() => togglePin(row)}
+                  aria-pressed={isPinned(row)}
+                  disabled={config[row.field] === ''}
+                >
+                  {t('discord.pinnedChip')}
+                </Chip>
+                <select
+                  id="dc-{row.field}"
+                  class="setting-input"
+                  aria-describedby="dch-{row.field}"
+                  disabled={roles.length === 0}
+                  value={config[row.field]}
+                  onchange={(e) => set(row.field, e.currentTarget.value)}
+                >
+                  <option value="">{t('discord.notSet')}</option>
+                  {#each roles as opt (opt.id)}
+                    <option value={opt.id}>@{opt.name}</option>
+                  {/each}
+                </select>
+              </span>
+            </div>
+          {/each}
+
+          <div class="setting-row">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.autoRoleLabel')}</span>
+              <span class="tr-help" id="dcs-autoRole">{t('discord.autoRoleHelp')}</span>
+            </span>
+            <Switch
+              label={t('discord.autoRoleLabel')}
+              describedby="dcs-autoRole"
+              checked={alertOn(config.autoRoleEnabled)}
+              onchange={(v) => setFlag('autoRoleEnabled', v)}
             />
-
-            {@render saveBar(t('discord.save'))}
-          </form>
-
-          <div class="repost">
-            <p class="hint">{t('discord.repostHelp')}</p>
-            <form method="POST" action="?/repost" use:enhance={repostSubmit}>
-              <Button variant="secondary" type="submit" icon="ticket" loading={busy} disabled={!ticketsOn}>
-                {t('discord.repostCta')}
-              </Button>
-            </form>
           </div>
-        </Card>
-      </section>
 
-      <!-- 8) Rebuild: re-runs the fill, adopting whatever is pinned. -->
-      <section class="block reveal" style="--i:8" aria-labelledby="dc-setup-h">
-        <h2 id="dc-setup-h" class="block-title">{t('discord.setupTitle')}</h2>
-        <Card>
-          <p class="hint">{t('discord.setupHelp')}</p>
-          <form method="POST" action="?/setup" use:enhance={setupSubmit}>
-            <Button variant="secondary" type="submit" icon="server" loading={busy}>{t('discord.setupCta')}</Button>
+          <p class="hint">{t('discord.pinHelp')}</p>
+          {@render saveBar(t('discord.save'))}
+        </form>
+      </Card>
+    </section>
+
+    <!-- 4) Stream posts + the category allow/deny lists. -->
+    <section class="block reveal" style="--i:4" aria-labelledby="dc-posts-h">
+      <h2 id="dc-posts-h" class="block-title">{t('discord.postsTitle')}</h2>
+      <Card>
+        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+          <input type="hidden" name="config" value={payload} />
+          <input type="hidden" name="version" value={version} />
+          <p class="hint">{t('discord.postsHelp')}</p>
+          {@render switchRows(postSwitches)}
+
+          <div class="setting-row stacked">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.allowLabel')}</span>
+              <span class="tr-help" id="dch-allow">{t('discord.allowTag')}</span>
+            </span>
+            {@render chipList('categoryAllow', allowList)}
+            <span class="adder">
+              <input
+                class="setting-input"
+                aria-describedby="dch-allow"
+                aria-label={t('discord.allowLabel')}
+                maxlength={CATEGORY_NAME_MAX}
+                placeholder={t('discord.allowPlaceholder')}
+                bind:value={allowDraft}
+                onkeydown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  commitAllow();
+                }}
+              />
+              <Button variant="secondary" icon="plus" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
+            </span>
+          </div>
+
+          <div class="setting-row stacked">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.denyLabel')}</span>
+              <span class="tr-help" id="dch-deny">{t('discord.denyTag')}</span>
+            </span>
+            {@render chipList('categoryDeny', denyList)}
+            <span class="adder">
+              <input
+                class="setting-input"
+                aria-describedby="dch-deny"
+                aria-label={t('discord.denyLabel')}
+                maxlength={CATEGORY_NAME_MAX}
+                placeholder={t('discord.denyPlaceholder')}
+                bind:value={denyDraft}
+                onkeydown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  commitDeny();
+                }}
+              />
+              <Button variant="secondary" icon="plus" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
+            </span>
+          </div>
+
+          {@render saveBar(t('discord.save'))}
+        </form>
+      </Card>
+    </section>
+
+    <!-- 5) Community ops: one declared list, one loop. -->
+    <section class="block reveal" style="--i:5" aria-labelledby="dc-community-h">
+      <h2 id="dc-community-h" class="block-title">{t('discord.communityTitle')}</h2>
+      <Card>
+        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+          <input type="hidden" name="config" value={payload} />
+          <input type="hidden" name="version" value={version} />
+          <p class="hint">{t('discord.communityHelp')}</p>
+          {@render switchRows(communitySwitches)}
+          <p class="hint">{t('discord.tierRolesHelp')}</p>
+          {@render saveBar(t('discord.save'))}
+        </form>
+      </Card>
+    </section>
+
+    <!-- 6) Ticket desk, including the panel embed and its live preview. -->
+    <section class="block reveal" style="--i:6" aria-labelledby="dc-tickets-h">
+      <h2 id="dc-tickets-h" class="block-title">{t('discord.ticketsTitle')}</h2>
+      <Card>
+        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+          <input type="hidden" name="config" value={payload} />
+          <input type="hidden" name="version" value={version} />
+          <p class="hint">{t('discord.ticketsSectionHelp')}</p>
+
+          <div class="setting-row">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.ticketsLabel')}</span>
+              <span class="tr-help" id="dcs-tickets">{t('discord.ticketsHelp')}</span>
+            </span>
+            <Switch
+              label={t('discord.ticketsLabel')}
+              describedby="dcs-tickets"
+              checked={ticketsOn}
+              onchange={(v) => setFlag('ticketsEnabled', v)}
+            />
+          </div>
+
+          {@render picker('ticketChannelId', t('discord.ticketChannelLabel'), t('discord.ticketChannelHelp'), textChannels, '#')}
+          {@render picker('ticketCategoryId', t('discord.ticketCategoryLabel'), t('discord.ticketCategoryHelp'), categories, '')}
+          {@render picker('ticketArchiveCategoryId', t('discord.ticketArchiveLabel'), t('discord.ticketArchiveHelp'), categories, '')}
+          {@render picker('ticketLogChannelId', t('discord.ticketLogLabel'), t('discord.ticketLogHelp'), textChannels, '#')}
+
+          <fieldset class="setting-row stacked staff">
+            <legend class="tr-label">{t('discord.staffRolesLabel')}</legend>
+            <span class="tr-help" id="dch-staff">{t('discord.staffRolesHelp')}</span>
+            {#if roles.length === 0}
+              <span class="tr-help">{t('discord.staffRolesEmpty')}</span>
+            {:else}
+              <div class="checks">
+                {#each roles as role (role.id)}
+                  <label class="check">
+                    <input
+                      type="checkbox"
+                      aria-describedby="dch-staff"
+                      checked={staffSelected.includes(role.id)}
+                      onchange={(e) => toggleStaffRole(role.id, e.currentTarget.checked)}
+                    />
+                    <span>@{role.name}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </fieldset>
+
+          <div class="setting-row">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.openLimitLabel')}</span>
+              <span class="tr-help">{t('discord.openLimitHelp')}</span>
+            </span>
+            <SegmentedControl
+              options={LIMIT_OPTIONS}
+              label={t('discord.openLimitLabel')}
+              bind:value={
+                () => String(ticketOpenLimitN(config)), (v) => set('ticketOpenLimit', v)
+              }
+            />
+          </div>
+
+          <div class="setting-row">
+            <span class="tr-text">
+              <span class="tr-label">{t('discord.transcriptLabel')}</span>
+              <span class="tr-help" id="dcs-transcript">{t('discord.transcriptHelp')}</span>
+            </span>
+            <Switch
+              label={t('discord.transcriptLabel')}
+              describedby="dcs-transcript"
+              checked={alertOn(config.ticketTranscriptEnabled)}
+              onchange={(v) => setFlag('ticketTranscriptEnabled', v)}
+            />
+          </div>
+
+          <h3 class="group">{t('discord.panelTitle')}</h3>
+          <p class="hint">{t('discord.panelHelp')}</p>
+
+          <div class="setting-row">
+            <label class="tr-text" for="dc-panel-title">
+              <span class="tr-label">{t('discord.panelTitleLabel')}</span>
+              <span class="tr-help">{TICKET_PANEL_DEFAULTS.title}</span>
+            </label>
+            <input
+              id="dc-panel-title"
+              class="setting-input"
+              maxlength={TICKET_PANEL_TITLE_MAX}
+              placeholder={TICKET_PANEL_DEFAULTS.title}
+              value={config.ticketPanelTitle}
+              oninput={(e) => set('ticketPanelTitle', e.currentTarget.value)}
+            />
+          </div>
+
+          <div class="setting-row stacked">
+            <label class="tr-text" for="dc-panel-body">
+              <span class="tr-label">{t('discord.panelBodyLabel')}</span>
+              <span class="tr-help">{TICKET_PANEL_DEFAULTS.body}</span>
+            </label>
+            <textarea
+              id="dc-panel-body"
+              class="setting-input setting-textarea"
+              maxlength={TICKET_PANEL_BODY_MAX}
+              placeholder={TICKET_PANEL_DEFAULTS.body}
+              value={config.ticketPanelBody}
+              oninput={(e) => set('ticketPanelBody', e.currentTarget.value)}
+            ></textarea>
+          </div>
+
+          <div class="setting-row">
+            <label class="tr-text" for="dc-panel-button">
+              <span class="tr-label">{t('discord.panelButtonLabel')}</span>
+              <span class="tr-help">{TICKET_PANEL_DEFAULTS.button}</span>
+            </label>
+            <input
+              id="dc-panel-button"
+              class="setting-input"
+              maxlength={TICKET_PANEL_BUTTON_MAX}
+              placeholder={TICKET_PANEL_DEFAULTS.button}
+              value={config.ticketPanelButton}
+              oninput={(e) => set('ticketPanelButton', e.currentTarget.value)}
+            />
+          </div>
+
+          <div class="setting-row">
+            <label class="tr-text" for="dc-panel-color">
+              <span class="tr-label">{t('discord.panelColorLabel')}</span>
+              <span class="tr-help">{t('discord.panelColorHelp')}</span>
+            </label>
+            <span class="colors">
+              {#each SWATCHES as swatch (swatch)}
+                <button
+                  type="button"
+                  class="swatch {panelColor === swatch ? 'on' : ''}"
+                  style="background: {swatch}"
+                  aria-label={t('discord.swatchLabel', { hex: swatch })}
+                  aria-pressed={panelColor === swatch}
+                  onclick={() => set('ticketPanelColor', swatch)}
+                ></button>
+              {/each}
+              <input
+                id="dc-panel-color"
+                type="color"
+                class="color-input"
+                value={panelColor}
+                oninput={(e) => set('ticketPanelColor', normalizeHex(e.currentTarget.value))}
+              />
+            </span>
+          </div>
+
+          <DiscordEmbedPreview
+            caption={t('discord.panelPreviewCaption')}
+            title={panel.title}
+            body={panel.body}
+            button={panel.button}
+            color={panel.color}
+          />
+
+          {@render saveBar(t('discord.save'))}
+        </form>
+
+        <div class="repost">
+          <p class="hint">{t('discord.repostHelp')}</p>
+          <form method="POST" action="?/repost" use:enhance={repostSubmit}>
+            <Button variant="secondary" type="submit" icon="ticket" loading={busy} disabled={!ticketsOn}>
+              {t('discord.repostCta')}
+            </Button>
           </form>
-        </Card>
-      </section>
-    {/if}
+        </div>
+      </Card>
+    </section>
+
+    <!-- 7) Rebuild: re-runs the fill, adopting whatever is pinned. -->
+    <section class="block reveal" style="--i:7" aria-labelledby="dc-setup-h">
+      <h2 id="dc-setup-h" class="block-title">{t('discord.setupTitle')}</h2>
+      <Card>
+        <p class="hint">{t('discord.setupHelp')}</p>
+        <form method="POST" action="?/setup" use:enhance={setupSubmit}>
+          <Button variant="secondary" type="submit" icon="server" loading={busy}>{t('discord.setupCta')}</Button>
+        </form>
+      </Card>
+    </section>
 
     <form method="POST" action="?/disconnect" use:enhance={disconnectSubmit} bind:this={disconnectForm} hidden></form>
 
@@ -1096,8 +1096,12 @@
   }
   /* Green / red from the console status quad, never colour alone: each pill
      carries its own icon and its own word. */
-  .pill.on { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); }
-  .pill.off { color: #cf8a78; background: rgba(176, 90, 70, 0.12); }
+  .pill.online { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); }
+  .pill.offline { color: #cf8a78; background: rgba(176, 90, 70, 0.12); }
+  .pill.reauth { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.14); }
+
+  .switcher { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  .switcher .setting-input { width: min(220px, 60vw); }
 
   .facts { display: flex; flex-wrap: wrap; gap: 26px; margin: 16px 0 0; }
   .fact { display: flex; flex-direction: column; gap: 2px; }
@@ -1115,9 +1119,6 @@
     color: var(--bb-white);
     font-variant-numeric: tabular-nums;
   }
-
-  .wizard { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
-  .wizard .hint { margin: 0; }
 
   /* ── setting rows ── */
   .setting-row {

@@ -1,8 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Discord bot-install callback. The guild id comes from the code exchange
-// (see discord-oauth.ts), never from the query string.
+// Step two of two: the bot-install callback. The guild id comes from the code
+// exchange (see discord-oauth.ts), never from the query string: the query
+// guild_id is caller-supplied, and trusting it let any signed-in user bind
+// (and fill) someone else's server. Only a member who may add bots to a guild
+// can obtain a code for it, which is the ownership proof outgress relies on.
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { logger } from '@bagel/shared/server/logger';
@@ -13,11 +16,13 @@ import {
   requireDiscordActor
 } from '$lib/server/discord-oauth';
 import {
+  blankDiscordConfig,
+  persistSetup,
   pinnedRolesOf,
   readDiscord,
-  saveDiscord,
+  readGuildConfig,
+  saveDiscordModule,
   setupGuild,
-  type DiscordConfig,
   type DiscordGuildTarget
 } from '$lib/server/discord-store';
 import { alertOff } from '@bagel/shared';
@@ -28,7 +33,7 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   const uid = requireDiscordActor(locals);
   const target = { userId: uid, guildId: await exchangedGuild(cookies, url) };
   try {
-    throw redirect(302, `/discord?${await connectGuild(locals, target)}`);
+    throw redirect(302, `/discord/${target.guildId}?${await connectGuild(locals, target)}`);
   } catch (err) {
     if (isRedirect(err)) throw err;
     logger.error({ err }, '[discord-callback] persist failed');
@@ -57,12 +62,15 @@ function takeInstallCode(cookies: Cookies, url: URL): string {
   return code;
 }
 
-// connectGuild binds the guild, fills or adopts its layout, persists the
-// module blob and returns the query string for the dashboard redirect.
+// connectGuild binds the guild, fills or adopts its layout, writes the guild's
+// own config row, and returns the query string for the dashboard redirect.
+// The module row is only touched to turn Discord on: a broadcaster adding a
+// second server must not have their first one's settings rewritten.
 async function connectGuild(locals: App.Locals, target: DiscordGuildTarget): Promise<string> {
-  const view = await readDiscord(target);
-  const login = locals.session?.login ? locals.session.login : view.config.twitchLogin;
-  const seeded = { ...view.config, guildId: target.guildId, twitchLogin: login };
+  const view = await readDiscord({ userId: target.userId }).catch(() => null);
+  const login = locals.session?.login ? locals.session.login : (view?.twitchLogin ?? '');
+  const row = await readGuildConfig(target).catch(() => null);
+  const seeded = { ...(row?.config ?? blankDiscordConfig()), guildId: target.guildId, twitchLogin: login };
   const result = await setupGuild(
     { ...target, subscribers: alertOff(seeded.subscribersEnabled), pinnedRoles: pinnedRolesOf(seeded) },
     seeded
@@ -70,18 +78,11 @@ async function connectGuild(locals: App.Locals, target: DiscordGuildTarget): Pro
   // The refusal is named by its code now, not by matching outgress's English.
   if (result.code === 'bound_elsewhere') discordFail('bound_elsewhere');
   if (result.error) {
-    logger.warn({ err: result.error }, '[discord-callback] setup failed; keeping the guild id');
+    logger.warn({ err: result.error }, '[discord-callback] setup failed; keeping the binding');
   }
-  await saveDiscord({ userId: target.userId, enabled: true, config: { ...configToKeep(result, seeded), twitchLogin: login } });
+  await persistSetup(target, { ...(result.error ? seeded : result.config), twitchLogin: login });
+  await saveDiscordModule({ userId: target.userId, enabled: true, twitchLogin: login });
   auditDashboardImpersonation(locals.session, 'discord:connect', target.guildId);
   if (result.refused) return 'connected=1&refused=1';
   return 'connected=1';
-}
-
-function configToKeep(
-  result: { error: string; config: DiscordConfig },
-  seeded: DiscordConfig
-): DiscordConfig {
-  if (result.error) return seeded;
-  return result.config;
 }

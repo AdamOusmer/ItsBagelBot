@@ -332,10 +332,59 @@ export function demoSpotifyView() {
   };
 }
 
+// The broadcaster's module row: the master switch, the Twitch login, and the
+// servers they have bound. Two of them, and the second has the bot offline, so
+// the list exercises both pills rather than a uniformly happy row.
 export function demoDiscordView() {
   return {
     enabled: true,
-    connected: true,
+    twitchLogin: 'demo',
+    guilds: demoDiscordGuilds()
+  };
+}
+
+export function demoDiscordGuilds() {
+  return [
+    {
+      // Snowflakes, not names: the live path stores 17-20 digit ids and the
+      // save action validates that shape, so demo must exercise it too.
+      guildId: '123456789012345678',
+      name: 'Demo Bakery',
+      iconUrl: '',
+      memberCount: 1284,
+      botPresent: true,
+      needsReauth: false,
+      boundAtMs: Date.now() - 40 * 24 * 60 * 60 * 1000
+    },
+    {
+      guildId: '987654321098765432',
+      name: 'Crumb Lounge',
+      iconUrl: '',
+      memberCount: 212,
+      botPresent: false,
+      needsReauth: false,
+      boundAtMs: Date.now() - 3 * 24 * 60 * 60 * 1000
+    }
+  ];
+}
+
+// What Discord's /users/@me/guilds would return for the picker: one server the
+// demo user owns and one they are only a member of, so the filter has
+// something to actually filter.
+export function demoDiscordPicker() {
+  return [
+    { id: '123456789012345678', name: 'Demo Bakery', owner: true, permissions: '8' },
+    { id: '987654321098765432', name: 'Crumb Lounge', owner: false, permissions: '32' },
+    { id: '456789012345678999', name: 'Someone Else Server', owner: false, permissions: '3136' }
+  ];
+}
+
+// One guild's config row. version is non-zero so the demo save exercises the
+// same expected_version round trip the live path does.
+export function demoDiscordConfig() {
+  return {
+    version: 4,
+    found: true,
     config: {
       // Snowflakes, not names: the live path stores 17-20 digit ids and the
       // save action validates that shape, so demo must exercise it too.
