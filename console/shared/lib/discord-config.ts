@@ -335,15 +335,26 @@ export function ticketLogChannel(config: DiscordConfig): string {
 
 export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list' | 'flag' | 'range' | 'color' | 'pinned' | 'length' };
 
+/**
+ * What a field is allowed to CONTAIN, checked before any canonicalisation.
+ *
+ * `color` accepts the shorthand `#abc` and a missing hash because those are
+ * shapes `normalizeHex` turns into a real colour; everything else it would
+ * silently swap for the fallback, which is a refusal, not a normalisation.
+ */
 const CHECKS: Record<FieldKind, (v: string, max: number) => boolean> = {
   snowflake: (v) => SNOWFLAKE.test(v),
   snowflakeList: (v) => v.split(',').every((p) => SNOWFLAKE.test(p.trim())),
   flag: (v) => v === 'on' || v === 'off',
   limit: (v) => integerInRange(v, TICKET_OPEN_LIMIT_MIN, TICKET_OPEN_LIMIT_MAX),
-  color: (v) => isHexColor(v),
+  color: (v) => HEX_INPUT.test(v.trim()),
   pinned: (v) => v.split(',').every(isPinnedPair),
   text: (v, max) => v.length <= max
 };
+
+/** The colour shapes the editor may submit; `normalizeHex` maps all of them
+ *  onto `#rrggbb`. */
+const HEX_INPUT = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 const CODES: Record<FieldKind, FieldError['code']> = {
   snowflake: 'snowflake',
@@ -417,17 +428,26 @@ export function mergeDiscordConfig(current: DiscordConfig, patch: Record<string,
   for (const key of DISCORD_CONFIG_KEYS) {
     const raw = patch[key];
     if (typeof raw !== 'string') continue;
-    const value = normalizeField(FIELD_RULES[key], raw);
-    if (accepts(FIELD_RULES[key], value)) config[key] = value;
-    else errors.push({ field: key, code: CODES[FIELD_RULES[key].kind] });
+    const rule = FIELD_RULES[key];
+    const trimmed = raw.trim();
+    // Validate the value the form SENT, then normalise -- not the other way
+    // round. Both list encoders drop an entry they cannot parse, so
+    // normalising first turned `mods=notasnowflake` and `nosuchslot=123` into
+    // an empty string that passed validation: the streamer's pick vanished and
+    // nothing said so. Raw-first makes the same input a visible FieldError.
+    if (!accepts(rule, trimmed)) {
+      errors.push({ field: key, code: CODES[rule.kind] });
+      continue;
+    }
+    config[key] = normalizeField(rule, trimmed);
   }
   return { config, errors };
 }
 
-/** Trims, and re-encodes the two list shapes so the stored string is canonical
- *  whatever spacing the form sent. */
-function normalizeField(rule: Rule, raw: string): string {
-  const v = raw.trim();
+/** Re-encodes the two list shapes and the colour so the stored string is
+ *  canonical whatever spacing or case the form sent. Takes an already-trimmed,
+ *  already-validated value. */
+function normalizeField(rule: Rule, v: string): string {
   if (rule.kind === 'snowflakeList') return encodeIdList(v.split(','));
   if (rule.kind === 'pinned') return encodePinnedRoles(parsePinnedRoles(v));
   if (rule.kind === 'color' && v !== '') return normalizeHex(v);
@@ -541,10 +561,105 @@ export function guildBotState(g: { botPresent?: boolean; needsReauth?: boolean }
   return g.botPresent === true ? 'online' : 'offline';
 }
 
-/** The picker's badge: a guild Bagel is already in is still pickable (that is
- *  the re-authorize path) but must not read as a fresh install. */
-export type GuildPickerBadge = 'present' | 'addable';
+/**
+ * The picker's badge.
+ *
+ * Three states, not two. `mine` is a server this broadcaster has already bound
+ * -- clicking through Discord's consent screen again would land back on the
+ * same settings page, so the row offers a direct link instead. `elsewhere` is
+ * a server outgress refused to bind because it belongs to a different Twitch
+ * channel; that row is dead, and offering an install button on it walks the
+ * streamer through two Discord screens to reach the same refusal.
+ *
+ * `elsewhereIds` is what the console LEARNED, not a query: outgress exposes no
+ * "who owns this guild" RPC to the dashboard (see the dingress subject list),
+ * so the only signal available here is a `bound_elsewhere` the install
+ * callback already hit. Anything not in either list is `addable`.
+ */
+export type GuildPickerBadge = 'mine' | 'elsewhere' | 'addable';
 
-export function guildPickerBadge(guildId: string, boundIds: readonly string[]): GuildPickerBadge {
-  return boundIds.includes(guildId) ? 'present' : 'addable';
+export function guildPickerBadge(
+  guildId: string,
+  boundIds: readonly string[],
+  elsewhereIds: readonly string[] = []
+): GuildPickerBadge {
+  if (boundIds.includes(guildId)) return 'mine';
+  if (elsewhereIds.includes(guildId)) return 'elsewhere';
+  return 'addable';
+}
+
+// ── the guild list Discord returns for a user token ───────────────────────
+
+export type DiscordUserGuild = { id: string; name: string; owner: boolean; permissions: string };
+
+/**
+ * One entry of `/users/@me/guilds`.
+ *
+ * `permissions` stays the string Discord sent: the bitfield is parsed with
+ * BigInt in `guildPermissionBits`, and coercing it to a number here would be
+ * the one place the precision is lost.
+ */
+export function parseUserGuild(raw: unknown): DiscordUserGuild | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  if (Array.isArray(raw)) return null;
+  const g = raw as { id?: unknown; name?: unknown; owner?: unknown; permissions?: unknown };
+  if (typeof g.id !== 'string' || g.id === '') return null;
+  return {
+    id: g.id,
+    name: typeof g.name === 'string' ? g.name : '',
+    owner: g.owner === true,
+    permissions: typeof g.permissions === 'string' ? g.permissions : ''
+  };
+}
+
+/**
+ * A whole page of `/users/@me/guilds`.
+ *
+ * `null` means "this is not a guild page", which is the case that matters:
+ * Discord answers a 429 with a JSON OBJECT (`{message, retry_after}`) and its
+ * edge answers an outage with an HTML document, and both used to fall through
+ * `Array.isArray` into an empty list that the picker rendered as "you
+ * administer no servers". A caller that gets `null` reports the transport
+ * failure instead of inventing an answer.
+ */
+export function parseUserGuilds(raw: unknown): DiscordUserGuild[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: DiscordUserGuild[] = [];
+  for (const entry of raw) {
+    const g = parseUserGuild(entry);
+    if (g) out.push(g);
+  }
+  return out;
+}
+
+// ── legacy blob migration ─────────────────────────────────────────────────
+
+/**
+ * The config a pre-split board still carries in its per-user modules blob.
+ *
+ * Before the multi-guild split (§H) the whole config lived in `MOD.discord`,
+ * which structurally allowed one server per broadcaster. The blob is narrowed
+ * to `{twitchLogin}` on the first save after the split, so anything not copied
+ * into the guild row first is lost -- every channel and role id the streamer
+ * ever picked. Returns the config to write, or `null` when there is nothing to
+ * migrate.
+ *
+ * The guild id has to match: a blob that names a DIFFERENT server describes a
+ * binding this guild's row must not inherit, and one that names no server is
+ * either already narrowed or was never set up.
+ */
+export function legacyConfigFor(blob: unknown, guildId: string): DiscordConfig | null {
+  if (!isSnowflake(guildId)) return null;
+  const parsed = parseDiscordConfig(blob);
+  if (parsed.guildId !== guildId) return null;
+  if (!carriesLegacyFields(parsed)) return null;
+  return parsed;
+}
+
+/** guildId and twitchLogin survive the narrowing, so a blob holding only those
+ *  two is already migrated and copying it over a row would be a no-op write. */
+function carriesLegacyFields(config: DiscordConfig): boolean {
+  return DISCORD_CONFIG_KEYS.some(
+    (key) => key !== 'guildId' && key !== 'twitchLogin' && config[key] !== ''
+  );
 }

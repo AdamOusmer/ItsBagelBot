@@ -21,6 +21,7 @@ import {
   guildMonogram,
   guildPermissionBits,
   guildPickerBadge,
+  legacyConfigFor,
   isHexColor,
   isSnowflake,
   mergeDiscordConfig,
@@ -28,6 +29,8 @@ import {
   parseConfigVersion,
   parseDiscordConfig,
   parseIdList,
+  parseUserGuild,
+  parseUserGuilds,
   parseNameList,
   parsePinnedRoles,
   pinnedRole,
@@ -125,6 +128,41 @@ describe('merge', () => {
     expect(config.ticketPanelColor).toBe(LIVE_COLOR_HEX);
     // Encoded in PINNED_SLOTS order, not submission order.
     expect(config.pinnedRoles).toBe(`owner=${ID_A},vip=${ID_B}`);
+  });
+
+  test('a malformed role id in a list is refused, not silently dropped', () => {
+    const current = { ...blankDiscordConfig(), ticketStaffRoleIds: ID_A };
+    const { config, errors } = mergeDiscordConfig(current, { ticketStaffRoleIds: `${ID_B},notasnowflake` });
+    // The encoder would have dropped the bad half and stored ID_B, which reads
+    // to the streamer as "one of my two picks vanished for no reason".
+    expect(config.ticketStaffRoleIds).toBe(ID_A);
+    expect(errors).toEqual([{ field: 'ticketStaffRoleIds', code: 'list' }]);
+  });
+
+  test('an unknown pin slot is refused, not silently dropped', () => {
+    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), {
+      pinnedRoles: `nosuchslot=${ID_A}`
+    });
+    expect(config.pinnedRoles).toBe('');
+    expect(errors).toEqual([{ field: 'pinnedRoles', code: 'pinned' }]);
+  });
+
+  test('a malformed role id in a pin pair is refused', () => {
+    const { errors } = mergeDiscordConfig(blankDiscordConfig(), { pinnedRoles: 'mods=notasnowflake' });
+    expect(errors).toEqual([{ field: 'pinnedRoles', code: 'pinned' }]);
+  });
+
+  test('a colour that is not a colour is refused rather than swapped', () => {
+    const current = { ...blankDiscordConfig(), ticketPanelColor: '#52b788' };
+    const { config, errors } = mergeDiscordConfig(current, { ticketPanelColor: 'rebeccapurple' });
+    expect(config.ticketPanelColor).toBe('#52b788');
+    expect(errors).toEqual([{ field: 'ticketPanelColor', code: 'color' }]);
+  });
+
+  test('the colour shorthand still normalises', () => {
+    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketPanelColor: 'ABC' });
+    expect(config.ticketPanelColor).toBe('#aabbcc');
+    expect(errors).toEqual([]);
   });
 
   test('a flag only accepts on/off', () => {
@@ -352,10 +390,86 @@ describe('guild presentation', () => {
     expect(guildBotState({})).toBe('offline');
   });
 
-  test('the picker badge names the guilds Bagel is already in', () => {
+  test('the picker badge separates my servers from someone else\'s', () => {
     const bound = [ID_A, ID_B];
-    expect(guildPickerBadge(ID_A, bound)).toBe('present');
+    expect(guildPickerBadge(ID_A, bound)).toBe('mine');
     expect(guildPickerBadge(ID_C, bound)).toBe('addable');
     expect(guildPickerBadge(ID_A, [])).toBe('addable');
+    expect(guildPickerBadge(ID_C, bound, [ID_C])).toBe('elsewhere');
+    // A guild in both lists is mine: my own binding is the stronger fact.
+    expect(guildPickerBadge(ID_A, bound, [ID_A])).toBe('mine');
+  });
+});
+
+describe('parseUserGuilds', () => {
+  test('keeps the permission bitfield as the string Discord sent', () => {
+    const guilds = parseUserGuilds([
+      { id: ID_A, name: 'Demo Bakery', owner: true, permissions: '1125899906842623' }
+    ]);
+    expect(guilds).toEqual([
+      { id: ID_A, name: 'Demo Bakery', owner: true, permissions: '1125899906842623' }
+    ]);
+  });
+
+  test('a 429 body is not an empty guild list', () => {
+    expect(parseUserGuilds({ message: 'You are being rate limited.', retry_after: 1.5 })).toBeNull();
+  });
+
+  test('an HTML error page is not an empty guild list', () => {
+    expect(parseUserGuilds('<!DOCTYPE html><html><body>502</body></html>')).toBeNull();
+  });
+
+  test('every non-array body is refused rather than emptied', () => {
+    for (const body of [null, undefined, 0, '', {}, { guilds: [] }]) {
+      expect(parseUserGuilds(body)).toBeNull();
+    }
+  });
+
+  test('junk entries are dropped, good ones survive', () => {
+    const guilds = parseUserGuilds([null, 'x', {}, { id: '' }, { id: ID_B }, [ID_C]]);
+    expect(guilds).toEqual([{ id: ID_B, name: '', owner: false, permissions: '' }]);
+  });
+
+  test('a numeric permissions field is not trusted as a string', () => {
+    expect(parseUserGuild({ id: ID_A, permissions: 8 })?.permissions).toBe('');
+  });
+});
+
+describe('legacyConfigFor', () => {
+  const legacy = {
+    guildId: ID_A,
+    twitchLogin: 'demo',
+    liveChannelId: ID_B,
+    modsRoleId: ID_C,
+    levelsEnabled: 'off',
+    somethingRemoved: 'ignored'
+  };
+
+  test('a blob naming this guild is the config to migrate', () => {
+    const out = legacyConfigFor(legacy, ID_A);
+    expect(out?.liveChannelId).toBe(ID_B);
+    expect(out?.modsRoleId).toBe(ID_C);
+    expect(out?.levelsEnabled).toBe('off');
+    // Unknown keys never reach the guild row.
+    expect(Object.keys(out ?? {})).toEqual([...DISCORD_CONFIG_KEYS]);
+  });
+
+  test('a blob naming a different guild is not inherited', () => {
+    expect(legacyConfigFor(legacy, ID_B)).toBeNull();
+  });
+
+  test('an already narrowed blob has nothing to migrate', () => {
+    expect(legacyConfigFor({ guildId: ID_A, twitchLogin: 'demo' }, ID_A)).toBeNull();
+    expect(legacyConfigFor({ twitchLogin: 'demo' }, ID_A)).toBeNull();
+  });
+
+  test('a missing or malformed blob is not a migration', () => {
+    for (const blob of [null, undefined, 'x', [legacy], 7]) {
+      expect(legacyConfigFor(blob, ID_A)).toBeNull();
+    }
+  });
+
+  test('a guild id that is not a snowflake never migrates', () => {
+    expect(legacyConfigFor({ ...legacy, guildId: 'abc' }, 'abc')).toBeNull();
   });
 });
