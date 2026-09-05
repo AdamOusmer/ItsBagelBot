@@ -151,8 +151,14 @@ type Store interface {
 	ForgetClone(ctx context.Context, c Clone) error
 
 	TrackTicket(ctx context.Context, t Ticket) error
-	Ticket(ctx context.Context, ch Channel) (Ticket, bool)
-	ForgetTicket(ctx context.Context, ch Channel) error
+	// Ticket and ForgetTicket both take the guild the channel belongs to.
+	// They used to address a ticket by channel alone -- a Discord channel
+	// snowflake is globally unique, so the guild looked redundant -- but that
+	// made the guild filter optional all the way down into discord-data,
+	// where it is what stops a caller holding a channel id from another
+	// guild from closing that guild's ticket.
+	Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool)
+	ForgetTicket(ctx context.Context, g Guild, ch Channel) error
 
 	ClaimDesk(ctx context.Context, g Guild) bool
 	RememberDesk(ctx context.Context, g Guild) error
@@ -313,22 +319,24 @@ func (s valkeyStore) TrackTicket(ctx context.Context, t Ticket) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(t.GuildID+"|"+t.OpenerID).Build()).Error()
 }
 
-func (s valkeyStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
+// Ticket reads the node-local ticket key, refusing a channel that belongs to a
+// different guild than the caller named.
+func (s valkeyStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
-	if err != nil {
-		return Ticket{}, false
-	}
-	if raw == "" {
+	if err != nil || raw == "" {
 		return Ticket{}, false
 	}
 	guildID, openerID, ok := strings.Cut(raw, "|")
-	if !ok {
+	if !ok || guildID != g.ID {
 		return Ticket{}, false
 	}
 	return Ticket{ChannelID: ch.ID, GuildID: guildID, OpenerID: openerID}, true
 }
 
-func (s valkeyStore) ForgetTicket(ctx context.Context, ch Channel) error {
+func (s valkeyStore) ForgetTicket(ctx context.Context, g Guild, ch Channel) error {
+	if _, ok := s.Ticket(ctx, g, ch); !ok {
+		return nil
+	}
 	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(ch)).Build()).Error()
 }
 
@@ -597,16 +605,22 @@ func (m *Mem) TrackTicket(_ context.Context, t Ticket) error {
 	return nil
 }
 
-func (m *Mem) Ticket(_ context.Context, ch Channel) (Ticket, bool) {
+func (m *Mem) Ticket(_ context.Context, g Guild, ch Channel) (Ticket, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	t, ok := m.tickets[ch.ID]
-	return t, ok
+	if !ok || t.GuildID != g.ID {
+		return Ticket{}, false
+	}
+	return t, true
 }
 
-func (m *Mem) ForgetTicket(_ context.Context, ch Channel) error {
+func (m *Mem) ForgetTicket(_ context.Context, g Guild, ch Channel) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if t, ok := m.tickets[ch.ID]; !ok || t.GuildID != g.ID {
+		return nil
+	}
 	delete(m.tickets, ch.ID)
 	return nil
 }

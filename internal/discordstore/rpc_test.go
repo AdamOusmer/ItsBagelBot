@@ -201,11 +201,19 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 		_ = codec.FastUnmarshal(request, &opened)
 		return discorddata.TicketOpenReply{TicketID: 1, OpenCount: 1}
 	})
-	rpc.reply(discorddata.VerbTicketGet, discorddata.TicketGetReply{
-		Ticket: discorddata.Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"},
-		Found:  true,
+	var fetched discorddata.TicketGetRequest
+	rpc.on(discorddata.VerbTicketGet, func(request []byte) any {
+		_ = codec.FastUnmarshal(request, &fetched)
+		return discorddata.TicketGetReply{
+			Ticket: discorddata.Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"},
+			Found:  true,
+		}
 	})
-	rpc.reply(discorddata.VerbTicketClose, discorddata.TicketCloseReply{TicketID: 1, OpenerID: "u1"})
+	var closed discorddata.TicketCloseRequest
+	rpc.on(discorddata.VerbTicketClose, func(request []byte) any {
+		_ = codec.FastUnmarshal(request, &closed)
+		return discorddata.TicketCloseReply{TicketID: 1, OpenerID: "u1"}
+	})
 
 	if err := store.TrackTicket(ctx, Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
 		t.Fatalf("TrackTicket: %v", err)
@@ -214,19 +222,24 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 		t.Fatalf("open request = %+v", opened)
 	}
 
-	got, ok := store.Ticket(ctx, Channel{ID: "c1"})
+	got, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"})
 	if !ok || got.OpenerID != "u1" || got.GuildID != "g1" {
 		t.Fatalf("Ticket = %+v, %v", got, ok)
 	}
-	if err := store.ForgetTicket(ctx, Channel{ID: "c1"}); err != nil {
+	if err := store.ForgetTicket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); err != nil {
 		t.Fatalf("ForgetTicket: %v", err)
+	}
+	// The guild has to travel on both verbs: discord-data scopes the ticket
+	// lookup by it, and refuses a request that omits it.
+	if fetched.GuildID != "g1" || closed.GuildID != "g1" {
+		t.Fatalf("guild_id missing: get = %+v, close = %+v", fetched, closed)
 	}
 }
 
 func TestRPCStoreTicketReadsFalseWhenUnreachable(t *testing.T) {
 	store, _, _ := newTestRPCStore(t)
 
-	if _, ok := store.Ticket(context.Background(), Channel{ID: "c1"}); ok {
+	if _, ok := store.Ticket(context.Background(), Guild{ID: "g1"}, Channel{ID: "c1"}); ok {
 		t.Fatal("an unreachable discord-data must read as 'not a ticket channel'")
 	}
 	if err := store.TrackTicket(context.Background(), Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err == nil {

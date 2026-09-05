@@ -6,6 +6,7 @@ package repository_test
 import (
 	"context"
 	"strconv"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/app/db/discord/ent/ticket"
@@ -277,4 +278,79 @@ func TestTranscriptPutRejectsUnknownTicketAndOversizeBody(t *testing.T) {
 	require.NoError(t, err)
 	oversize := make([]byte, repository.MaxTranscriptBytes+1)
 	assert.ErrorIs(t, repo.TranscriptPut(ctx, id, string(oversize), 1), repository.ErrInvalidInput)
+}
+
+// TestTicketOpenLimitHoldsUnderConcurrentOpens is why the open count is taken
+// under a row lock rather than as a plain COUNT: a member who already holds
+// live tickets must not be able to race several opens past the guild's cap by
+// pressing the button twice.
+func TestTicketOpenLimitHoldsUnderConcurrentOpens(t *testing.T) {
+	repo, ctx := newConcurrentStore(t, "ticketopenrace")
+
+	// One live ticket already exists, so the lock has rows to hold. With a
+	// limit of two, exactly one of the concurrent opens may be accepted.
+	_, _, err := openOne(t, repo, ctx, "c0", 2)
+	require.NoError(t, err)
+
+	const callers = 4
+	var wg sync.WaitGroup
+	errs := make([]error, callers)
+	wg.Add(callers)
+	for i := range callers {
+		go func() {
+			defer wg.Done()
+			_, _, errs[i] = openOne(t, repo, ctx, "c"+strconv.Itoa(i+1), 2)
+		}()
+	}
+	wg.Wait()
+
+	opened := 0
+	for i := range callers {
+		if errs[i] == nil {
+			opened++
+			continue
+		}
+		require.ErrorIs(t, errs[i], repository.ErrOpenLimit, "opener %d", i)
+	}
+	assert.Equal(t, 1, opened, "the limit of two leaves room for exactly one more open")
+
+	rows, _, err := repo.TicketList(ctx, repository.ListParams{GuildID: "g1", Status: string(ticket.StatusOpen)})
+	require.NoError(t, err)
+	assert.Len(t, rows, 2)
+}
+
+// TestTicketVerbsRequireTheGuild pins the mandatory guild filter. Addressing a
+// ticket by channel alone used to be allowed, which let a caller holding a
+// channel id from someone else's guild claim or close that guild's ticket.
+func TestTicketVerbsRequireTheGuild(t *testing.T) {
+	repo, ctx := newStore(t, "ticketguildrequired")
+	_, _, err := openOne(t, repo, ctx, "c1", 0)
+	require.NoError(t, err)
+
+	_, _, err = repo.TicketGet(ctx, "", "c1")
+	assert.ErrorIs(t, err, repository.ErrInvalidInput)
+	_, err = repo.TicketClaim(ctx, "", "c1", "staff1")
+	assert.ErrorIs(t, err, repository.ErrInvalidInput)
+	_, _, err = repo.TicketClose(ctx, repository.CloseParams{ChannelID: "c1", ClosedBy: "staff1"})
+	assert.ErrorIs(t, err, repository.ErrInvalidInput)
+}
+
+// TestTicketVerbsRefuseAnotherGuildsChannel is the same filter from the other
+// side: a well-formed request naming the wrong guild must miss, not act.
+func TestTicketVerbsRefuseAnotherGuildsChannel(t *testing.T) {
+	repo, ctx := newStore(t, "ticketwrongguild")
+	_, _, err := openOne(t, repo, ctx, "c1", 0)
+	require.NoError(t, err)
+
+	_, err = repo.TicketClaim(ctx, "otherguild", "c1", "staff1")
+	assert.ErrorIs(t, err, repository.ErrNotFound)
+	_, _, err = repo.TicketClose(ctx, repository.CloseParams{
+		GuildID: "otherguild", ChannelID: "c1", ClosedBy: "staff1",
+	})
+	assert.ErrorIs(t, err, repository.ErrNotFound)
+
+	row, found, err := repo.TicketGet(ctx, "g1", "c1")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, ticket.StatusOpen, row.Status, "neither refused verb may have changed the row")
 }

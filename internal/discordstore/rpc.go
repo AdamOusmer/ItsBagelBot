@@ -232,9 +232,9 @@ func (s *rpcStore) TrackTicket(ctx context.Context, t Ticket) error {
 // Ticket resolves the ticket a button press belongs to. A transport failure is
 // (zero, false): the caller's next step is an ephemeral "this is not a ticket
 // channel", which is the right answer to give when the store cannot say.
-func (s *rpcStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
+func (s *rpcStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool) {
 	reply, err := request[discorddata.TicketGetReply](ctx, s.rpc, s.subject(discorddata.VerbTicketGet),
-		discorddata.TicketGetRequest{ChannelID: ch.ID})
+		discorddata.TicketGetRequest{GuildID: g.ID, ChannelID: ch.ID})
 	if err != nil {
 		s.log.Error("discord-data ticket.get failed", zap.String("channel_id", ch.ID), zap.Error(err))
 		return Ticket{}, false
@@ -252,9 +252,9 @@ func (s *rpcStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
 // ForgetTicket closes the ticket in ch. The row survives: the desk, the
 // transcript and the audit trail all need the history the Valkey key it
 // replaces used to throw away.
-func (s *rpcStore) ForgetTicket(ctx context.Context, ch Channel) error {
+func (s *rpcStore) ForgetTicket(ctx context.Context, g Guild, ch Channel) error {
 	reply, err := request[discorddata.TicketCloseReply](ctx, s.rpc, s.subject(discorddata.VerbTicketClose),
-		discorddata.TicketCloseRequest{ChannelID: ch.ID})
+		discorddata.TicketCloseRequest{GuildID: g.ID, ChannelID: ch.ID})
 	if err != nil {
 		return err
 	}

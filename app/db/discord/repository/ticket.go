@@ -8,10 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-
 	"ItsBagelBot/app/db/discord/ent"
-	"ItsBagelBot/app/db/discord/ent/predicate"
 	"ItsBagelBot/app/db/discord/ent/ticket"
 	"ItsBagelBot/pkg/db"
 )
@@ -37,13 +34,16 @@ type OpenParams struct {
 // opener's resulting open count. Replaying the same channel is idempotent and
 // returns the existing row.
 //
-// The limit check is advisory, not an invariant. Under READ-COMMITTED MySQL
-// takes no gap locks, so two simultaneous opens by one member can both see
-// count == limit-1 and both insert. Making it exact would need either
-// SERIALIZABLE for this path or a per-member lock row, and the cost of being
-// wrong is one extra ticket channel a staff member closes -- far below the cost
-// of either. The invariant that does matter, one ticket per channel, is the
-// unique index and is enforced by the database.
+// The limit is counted over the opener's live rows held FOR UPDATE, so two
+// simultaneous opens by one member serialize on those rows instead of both
+// reading count == limit-1 and both inserting. It is still not an absolute
+// invariant: the lock covers rows that exist, and MySQL under READ-COMMITTED
+// takes no gap locks, so a member with no live ticket at all can still race
+// two first opens past a limit of one. Closing that would need SERIALIZABLE
+// for this path or a per-member lock row, and the cost of being wrong in that
+// one case is one extra ticket channel a staff member closes. The invariant
+// that does matter, one ticket per channel, is the unique index and is
+// enforced by the database.
 func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) {
 	if p.GuildID == "" || p.ChannelID == "" || p.OpenerID == "" {
 		return 0, 0, ErrInvalidInput
@@ -52,7 +52,7 @@ func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) 
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return withTx(ctx, s.client, func(tx *ent.Tx) error {
 			var openErr error
-			id, count, openErr = openInTx(ctx, tx, p)
+			id, count, openErr = s.openInTx(ctx, tx, p)
 			return openErr
 		})
 	})
@@ -63,8 +63,8 @@ func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) 
 }
 
 // openInTx is TicketOpen's body inside the transaction.
-func openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, int, error) {
-	count, err := openCount(ctx, tx, p.GuildID, p.OpenerID)
+func (s *Store) openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, int, error) {
+	count, err := s.lockedOpenCount(ctx, tx, p.GuildID, p.OpenerID)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -94,16 +94,32 @@ func openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, int, error) {
 	return row.ID, count + 1, nil
 }
 
-// openCount counts one member's live tickets in one guild. Claimed counts as
-// open: a ticket a staff member is working is still one the opener holds.
-func openCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, error) {
-	return tx.Ticket.Query().
+// lockedOpenCount counts one member's live tickets in one guild, holding them
+// for update. Claimed counts as open: a ticket a staff member is working is
+// still one the opener holds.
+//
+// It selects the rows rather than issuing COUNT(*) because the point is the
+// lock, and FOR UPDATE has nothing to attach to on an aggregate. The row set
+// it walks is bounded by the guild's configured limit (1..5), so materializing
+// it costs nothing. This mirrors XPAdd's lockedMember, including why SQLite --
+// the enttest dialect -- skips the clause: it rejects FOR UPDATE outright and
+// takes a file-wide write lock for the whole transaction instead, which is
+// strictly stronger. See Store.rowLocks.
+func (s *Store) lockedOpenCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, error) {
+	query := tx.Ticket.Query().
 		Where(
 			ticket.GuildIDEQ(guildID),
 			ticket.OpenerIDEQ(openerID),
 			ticket.StatusIn(ticket.StatusOpen, ticket.StatusClaimed),
-		).
-		Count(ctx)
+		)
+	if s.rowLocks {
+		query = query.ForUpdate()
+	}
+	rows, err := query.All(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return len(rows), nil
 }
 
 // TicketClaim marks the ticket in channelID as claimed by staffID. A second
@@ -111,7 +127,7 @@ func openCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, 
 // claimed_at, so the desk's "claimed N minutes ago" stays honest. Claiming a
 // closed or archived ticket is ErrInvalidInput; there is no such transition.
 func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error) {
-	if channelID == "" || staffID == "" {
+	if guildID == "" || channelID == "" || staffID == "" {
 		return 0, ErrInvalidInput
 	}
 	var id int
@@ -151,7 +167,7 @@ type CloseParams struct {
 // retries a close whenever a button press and a slash command race, and a
 // second write would move closed_at and corrupt the recorded duration.
 func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, error) {
-	if p.ChannelID == "" {
+	if p.GuildID == "" || p.ChannelID == "" {
 		return 0, "", ErrInvalidInput
 	}
 	var id int
@@ -177,15 +193,6 @@ func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, er
 	return id, openerID, err
 }
 
-// optionalGuild scopes a channel lookup to one guild, or to any guild when the
-// caller did not name one. See liveTicket for why that is safe.
-func optionalGuild(guildID string) predicate.Ticket {
-	if guildID == "" {
-		return func(*sql.Selector) {}
-	}
-	return ticket.GuildIDEQ(guildID)
-}
-
 // closedStatus picks the terminal status from whether the channel survived.
 func closedStatus(archivedChannelID string) ticket.Status {
 	if archivedChannelID != "" {
@@ -194,16 +201,19 @@ func closedStatus(archivedChannelID string) ticket.Status {
 	return ticket.StatusClosed
 }
 
-// liveTicket loads a ticket by channel, mapping absence (and a channel that
-// belongs to a different guild) onto ErrNotFound.
+// liveTicket loads a ticket by channel within one guild, mapping absence (and
+// a channel that belongs to a different guild) onto ErrNotFound.
 //
-// An empty guildID matches any guild. A Discord channel snowflake is globally
-// unique, so the guild is a defence-in-depth filter rather than part of the
-// key, and the legacy Store verbs the engine still calls address a ticket by
-// channel alone.
+// The guild is mandatory rather than an optional narrowing. It used to be
+// optional because a Discord channel snowflake is globally unique, which makes
+// the filter redundant for a well-formed caller -- but it is exactly the
+// filter that stops a caller who reached this RPC with a channel id from
+// another guild from claiming or closing that guild's ticket. Every verb now
+// carries the guild (the engine has it on c.Config.GuildID at every call
+// site), so nothing is left needing the loose form.
 func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*ent.Ticket, error) {
 	row, err := tx.Ticket.Query().
-		Where(ticket.ChannelIDEQ(channelID), optionalGuild(guildID)).
+		Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
 		Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, ErrNotFound
@@ -217,12 +227,12 @@ func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*en
 // TicketGet resolves a ticket from the channel a button was pressed in. A
 // channel with no ticket is (nil, false, nil).
 func (s *Store) TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error) {
-	if channelID == "" {
+	if guildID == "" || channelID == "" {
 		return nil, false, ErrInvalidInput
 	}
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Ticket, error) {
 		return s.client.Ticket.Query().
-			Where(ticket.ChannelIDEQ(channelID), optionalGuild(guildID)).
+			Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
 			Only(ctx)
 	})
 	if ent.IsNotFound(err) {
