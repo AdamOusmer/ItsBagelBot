@@ -27,6 +27,9 @@ type guildRecorder struct {
 	nextID    int
 
 	getGuildErr error
+	// getGuildCalls counts the REST lookups one listing costs: the picker's
+	// cap exists to bound this burst, not just the slice it returns.
+	getGuildCalls int
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -78,6 +81,7 @@ func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discap
 func (r *guildRecorder) GetGuild(_ context.Context, guild discapi.Guild) (discapi.Snowflake, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.getGuildCalls++
 	if r.getGuildErr != nil {
 		return discapi.Snowflake{}, r.getGuildErr
 	}

@@ -78,6 +78,10 @@ type GuildSetupRequest struct {
 	GuildID        string
 	EveryoneRoleID string
 	BroadcasterID  string
+	// InstalledBy is the Discord user snowflake that ran the install, taken
+	// from the dashboard's OAuth exchange. Recorded on the binding so support
+	// can answer "who added this bot"; empty when the caller did not say.
+	InstalledBy string
 	// Subscribers mirrors the streamer's subscriber toggle. The fill skips
 	// the Subscriber role and its locked category when it is off, so a server
 	// that does not use the tier never grows a category nobody can open.
@@ -167,7 +171,10 @@ func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if w.store == nil {
 		return nil
 	}
-	return w.store.UnbindGuild(ctx, discordstore.Guild{ID: req.GuildID})
+	return w.store.UnbindGuild(ctx, discordstore.Binding{
+		Guild:       discordstore.Guild{ID: req.GuildID},
+		Broadcaster: discordstore.Broadcaster{ID: req.BroadcasterID},
+	})
 }
 
 func entries(in []discapi.Snowflake) []GuildEntry {
@@ -190,7 +197,11 @@ func (w *Worker) bindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
 	}
-	return w.store.BindGuild(ctx, discordstore.Guild{ID: req.GuildID}, discordstore.Broadcaster{ID: req.BroadcasterID})
+	return w.store.BindGuild(ctx, discordstore.Binding{
+		Guild:       discordstore.Guild{ID: req.GuildID},
+		Broadcaster: discordstore.Broadcaster{ID: req.BroadcasterID},
+		InstalledBy: req.InstalledBy,
+	})
 }
 
 func (w *Worker) requireBound(ctx context.Context, req GuildSetupRequest) error {

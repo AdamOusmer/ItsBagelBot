@@ -92,7 +92,7 @@ func TestRPCStoreBroadcasterCachesTheBinding(t *testing.T) {
 
 func TestRPCStoreBroadcasterFallsBackToTheCache(t *testing.T) {
 	store, rpc, mem := newTestRPCStore(t)
-	_ = mem.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "77"})
+	_ = mem.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}})
 	rpc.fail[discorddata.VerbBindingGet] = errors.New("nats: timeout")
 
 	got, ok := store.Broadcaster(context.Background(), Guild{ID: "g1"})
@@ -103,7 +103,7 @@ func TestRPCStoreBroadcasterFallsBackToTheCache(t *testing.T) {
 
 func TestRPCStoreBroadcasterDropsTheCacheWhenTheBindingIsGone(t *testing.T) {
 	store, rpc, mem := newTestRPCStore(t)
-	_ = mem.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "77"})
+	_ = mem.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}})
 	rpc.reply(discorddata.VerbBindingGet, discorddata.BindingGetReply{Found: false})
 
 	if _, ok := store.Broadcaster(context.Background(), Guild{ID: "g1"}); ok {
@@ -122,7 +122,7 @@ func TestRPCStoreBindGuildWritesThroughAndCaches(t *testing.T) {
 		return discorddata.BindingSetReply{}
 	})
 
-	if err := store.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "77"}); err != nil {
+	if err := store.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}}); err != nil {
 		t.Fatalf("BindGuild: %v", err)
 	}
 	if seen.GuildID != "g1" || seen.BroadcasterID != 77 {
@@ -137,7 +137,7 @@ func TestRPCStoreBindGuildFailsLoudlyAndCachesNothing(t *testing.T) {
 	store, rpc, mem := newTestRPCStore(t)
 	rpc.fail[discorddata.VerbBindingSet] = errors.New("nats: no responders")
 
-	if err := store.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "77"}); err == nil {
+	if err := store.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}}); err == nil {
 		t.Fatal("an unreachable discord-data must fail the write, not silently ack it")
 	}
 	if _, ok := mem.Broadcaster(context.Background(), Guild{ID: "g1"}); ok {
@@ -152,7 +152,7 @@ func TestRPCStoreBindGuildSurfacesBoundElsewhere(t *testing.T) {
 		Code:  discorddata.CodeBoundElsewhere,
 	})
 
-	err := store.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "77"})
+	err := store.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}})
 	if !errors.Is(err, ErrBoundElsewhere) {
 		t.Fatalf("BindGuild error = %v; want ErrBoundElsewhere", err)
 	}
@@ -161,7 +161,7 @@ func TestRPCStoreBindGuildSurfacesBoundElsewhere(t *testing.T) {
 func TestRPCStoreBindGuildRejectsANonNumericBroadcaster(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 
-	if err := store.BindGuild(context.Background(), Guild{ID: "g1"}, Broadcaster{ID: "nope"}); err == nil {
+	if err := store.BindGuild(context.Background(), Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "nope"}}); err == nil {
 		t.Fatal("a non-numeric Twitch id must be refused before the round trip")
 	}
 	if len(rpc.calls) != 0 {
@@ -172,10 +172,11 @@ func TestRPCStoreBindGuildRejectsANonNumericBroadcaster(t *testing.T) {
 func TestRPCStoreUnbindDropsTheCacheOnlyOnSuccess(t *testing.T) {
 	store, rpc, mem := newTestRPCStore(t)
 	ctx := context.Background()
-	_ = mem.BindGuild(ctx, Guild{ID: "g1"}, Broadcaster{ID: "77"})
+	_ = mem.BindGuild(ctx, Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}})
 
 	rpc.fail[discorddata.VerbBindingDelete] = errors.New("nats: timeout")
-	if err := store.UnbindGuild(ctx, Guild{ID: "g1"}); err == nil {
+	unbind := Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "77"}}
+	if err := store.UnbindGuild(ctx, unbind); err == nil {
 		t.Fatal("a failed unbind must return an error")
 	}
 	if _, ok := mem.Broadcaster(ctx, Guild{ID: "g1"}); !ok {
@@ -184,7 +185,7 @@ func TestRPCStoreUnbindDropsTheCacheOnlyOnSuccess(t *testing.T) {
 
 	delete(rpc.fail, discorddata.VerbBindingDelete)
 	rpc.reply(discorddata.VerbBindingDelete, discorddata.BindingDeleteReply{})
-	if err := store.UnbindGuild(ctx, Guild{ID: "g1"}); err != nil {
+	if err := store.UnbindGuild(ctx, unbind); err != nil {
 		t.Fatalf("UnbindGuild: %v", err)
 	}
 	if _, ok := mem.Broadcaster(ctx, Guild{ID: "g1"}); ok {
@@ -307,10 +308,21 @@ func TestRPCStoreXPReadsZeroWhenUnreachable(t *testing.T) {
 	}
 }
 
-// TestRPCStoreDelegatesTheLocalKeyspaces is the composition guarantee: voice,
+// The three tests below are one composition guarantee split three ways: voice,
 // clone and desk state must still be served by the embedded local store, with
-// no RPC traffic at all.
-func TestRPCStoreDelegatesTheLocalKeyspaces(t *testing.T) {
+// no RPC traffic at all. They were one function until it grew past the
+// complexity gate; each now owns one keyspace, and noRPC carries the shared
+// assertion.
+
+// noRPC fails when any of the local keyspaces reached the wire.
+func noRPC(t *testing.T, rpc *fakeRequester) {
+	t.Helper()
+	if len(rpc.calls) != 0 {
+		t.Fatalf("the local keyspaces must cost no RPC, got %v", rpc.calls)
+	}
+}
+
+func TestRPCStoreDelegatesTheCloneKeyspace(t *testing.T) {
 	store, rpc, mem := newTestRPCStore(t)
 	ctx := context.Background()
 
@@ -323,41 +335,97 @@ func TestRPCStoreDelegatesTheLocalKeyspaces(t *testing.T) {
 	if store.CloneCount(ctx, Guild{ID: "g1"}) != 1 {
 		t.Fatal("CloneCount did not reach the local store")
 	}
+	if _, ok := mem.Clone(ctx, Channel{ID: "v1"}); !ok {
+		t.Fatal("the clone did not land in the embedded local store")
+	}
+	noRPC(t, rpc)
+}
+
+func TestRPCStoreDelegatesTheDeskLock(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+
 	if !store.ClaimDesk(ctx, Guild{ID: "g1"}) || store.ClaimDesk(ctx, Guild{ID: "g1"}) {
 		t.Fatal("the desk lock must be claimable exactly once")
 	}
+	noRPC(t, rpc)
+}
+
+func TestRPCStoreDelegatesVoiceOccupancy(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+
 	left, empty := store.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "v1"})
 	if left != "" || empty {
 		t.Fatalf("UpdateVoiceOccupancy = %q, %v; want the first seat to leave nothing", left, empty)
 	}
-	if _, ok := mem.Clone(ctx, Channel{ID: "v1"}); !ok {
-		t.Fatal("the clone did not land in the embedded local store")
-	}
-	if len(rpc.calls) != 0 {
-		t.Fatalf("the local keyspaces must cost no RPC, got %v", rpc.calls)
-	}
+	noRPC(t, rpc)
 }
 
 func TestRPCStoreGuildsOfListsEveryBoundGuild(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	rpc.reply(discorddata.VerbBindingListByBroadcaster, discorddata.BindingListByBroadcasterReply{
-		Guilds: []discorddata.Binding{{GuildID: "g1"}, {GuildID: "g2"}},
+		Guilds: []discorddata.Binding{{GuildID: "g1", BoundAtUnixMs: 111}, {GuildID: "g2", BoundAtUnixMs: 222}},
 	})
 
-	got := store.GuildsOf(context.Background(), Broadcaster{ID: "42"})
-	if len(got) != 2 || got[0].ID != "g1" || got[1].ID != "g2" {
+	got, err := store.GuildsOf(context.Background(), Broadcaster{ID: "42"})
+	if err != nil {
+		t.Fatalf("GuildsOf: %v", err)
+	}
+	if len(got) != 2 || got[0].Guild.ID != "g1" || got[1].Guild.ID != "g2" {
 		t.Fatalf("want both guilds in order, got %v", got)
+	}
+	// The bind timestamp has to survive the hop: it is what the dashboard's
+	// server card shows as "connected since".
+	if got[0].BoundAtUnixMs != 111 || got[1].BoundAtUnixMs != 222 {
+		t.Fatalf("bound_at_unix_ms lost in translation: %+v", got)
 	}
 }
 
-func TestRPCStoreGuildsOfIsEmptyWhenTheStoreCannotSay(t *testing.T) {
+// TestRPCStoreGuildsOfFailsLoudlyWhenTheStoreCannotSay is the property an
+// empty slice used to hide: a caller cannot tell "this streamer connected no
+// servers" from "the store is down" unless the store says so.
+func TestRPCStoreGuildsOfFailsLoudlyWhenTheStoreCannotSay(t *testing.T) {
 	store, _, _ := newTestRPCStore(t)
 
-	if got := store.GuildsOf(context.Background(), Broadcaster{ID: "42"}); got != nil {
-		t.Fatalf("an unreachable discord-data must fan out to nothing, got %v", got)
+	got, err := store.GuildsOf(context.Background(), Broadcaster{ID: "42"})
+	if !errors.Is(err, ErrStoreUnavailable) || got != nil {
+		t.Fatalf("GuildsOf = %v, %v; want nil, ErrStoreUnavailable", got, err)
 	}
-	if got := store.GuildsOf(context.Background(), Broadcaster{ID: "not-numeric"}); got != nil {
-		t.Fatalf("a non-numeric broadcaster id must not reach the wire, got %v", got)
+	if _, err := store.GuildsOf(context.Background(), Broadcaster{ID: "not-numeric"}); err == nil {
+		t.Fatal("a non-numeric broadcaster id must be refused before the wire")
+	}
+}
+
+// TestRPCStoreGuildsOfCachesAndInvalidates pins the cache symmetry with
+// Broadcaster: the listing is served from Valkey for guildsCacheTTL, and both
+// write verbs drop it so a server added seconds ago shows up at once.
+func TestRPCStoreGuildsOfCachesAndInvalidates(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+	rpc.reply(discorddata.VerbBindingListByBroadcaster, discorddata.BindingListByBroadcasterReply{
+		Guilds: []discorddata.Binding{{GuildID: "g1"}},
+	})
+	rpc.reply(discorddata.VerbBindingSet, discorddata.BindingSetReply{})
+
+	if _, err := store.GuildsOf(ctx, Broadcaster{ID: "42"}); err != nil {
+		t.Fatalf("GuildsOf: %v", err)
+	}
+	if _, err := store.GuildsOf(ctx, Broadcaster{ID: "42"}); err != nil {
+		t.Fatalf("GuildsOf: %v", err)
+	}
+	if got := rpc.called(discorddata.VerbBindingListByBroadcaster); got != 1 {
+		t.Fatalf("binding.list_by_broadcaster called %d times; the cache must hold the second", got)
+	}
+
+	if err := store.BindGuild(ctx, Binding{Guild: Guild{ID: "g2"}, Broadcaster: Broadcaster{ID: "42"}}); err != nil {
+		t.Fatalf("BindGuild: %v", err)
+	}
+	if _, err := store.GuildsOf(ctx, Broadcaster{ID: "42"}); err != nil {
+		t.Fatalf("GuildsOf: %v", err)
+	}
+	if got := rpc.called(discorddata.VerbBindingListByBroadcaster); got != 2 {
+		t.Fatalf("binding.list_by_broadcaster called %d times; a bind must invalidate the listing", got)
 	}
 }
 
@@ -430,5 +498,71 @@ func TestRPCStoreInvalidateDropsTheCachedSettings(t *testing.T) {
 
 	if _, _, ok := mem.GuildConfig(context.Background(), Guild{ID: "g1"}); ok {
 		t.Fatal("Invalidate must drop the entry")
+	}
+}
+
+// TestRPCStoreBindGuildCarriesTheInstaller: discord-data records who ran the
+// install so support can answer "who added this bot"; the field is useless if
+// the store drops it on the way.
+func TestRPCStoreBindGuildCarriesTheInstaller(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	var sent discorddata.BindingSetRequest
+	rpc.on(discorddata.VerbBindingSet, func(request []byte) any {
+		_ = codec.FastUnmarshal(request, &sent)
+		return discorddata.BindingSetReply{}
+	})
+
+	err := store.BindGuild(context.Background(), Binding{
+		Guild:       Guild{ID: "g1"},
+		Broadcaster: Broadcaster{ID: "42"},
+		InstalledBy: "discord-user-9",
+	})
+	if err != nil {
+		t.Fatalf("BindGuild: %v", err)
+	}
+	if sent.InstalledBy != "discord-user-9" {
+		t.Fatalf("installed_by = %q; want it threaded through", sent.InstalledBy)
+	}
+}
+
+// TestRPCStoreUnbindCarriesTheBroadcaster: without it discord-data's owner
+// guard cannot fire, and a stale unbind for a guild that has since been
+// re-bound to somebody else drops the new owner's row.
+func TestRPCStoreUnbindCarriesTheBroadcaster(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	var sent discorddata.BindingDeleteRequest
+	rpc.on(discorddata.VerbBindingDelete, func(request []byte) any {
+		_ = codec.FastUnmarshal(request, &sent)
+		return discorddata.BindingDeleteReply{}
+	})
+
+	bind := Binding{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "42"}}
+	if err := store.UnbindGuild(context.Background(), bind); err != nil {
+		t.Fatalf("UnbindGuild: %v", err)
+	}
+	if sent.BroadcasterID != 42 {
+		t.Fatalf("broadcaster_id = %d; want the owner guard to have something to check", sent.BroadcasterID)
+	}
+}
+
+// TestRPCStoreBindingOfReportsProvenance is what an ownership check reads. The
+// event path may serve a cached binding through a discord-data blip; an
+// ownership decision may not, so the two must be distinguishable.
+func TestRPCStoreBindingOfReportsProvenance(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+	rpc.reply(discorddata.VerbBindingGet, discorddata.BindingGetReply{BroadcasterID: 42, Found: true})
+
+	if _, source, ok := store.BindingOf(ctx, Guild{ID: "g1"}); !ok || source != BindingFromStore {
+		t.Fatalf("BindingOf source = %v, ok = %v; want the authoritative answer", source, ok)
+	}
+
+	rpc.fail[discorddata.VerbBindingGet] = errors.New("nats: timeout")
+	got, source, ok := store.BindingOf(ctx, Guild{ID: "g1"})
+	if !ok || got.ID != "42" {
+		t.Fatalf("BindingOf = %+v, %v; want the cached binding still served", got, ok)
+	}
+	if source != BindingFromCache {
+		t.Fatalf("source = %v; a cache fallback must say so", source)
 	}
 }

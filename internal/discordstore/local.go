@@ -45,6 +45,18 @@ const bindingCacheTTL = 10 * time.Minute
 // costs.
 const configCacheTTL = 60 * time.Second
 
+// guildsCacheTTL bounds how long a cached "which guilds does this broadcaster
+// own" answer is served without asking discord-data.
+//
+// Sixty seconds, matching configCacheTTL rather than bindingCacheTTL. The
+// listing feeds two callers with opposite tolerances: the dashboard's server
+// picker, which a streamer reloads seconds after adding a server, and the
+// Twitch fan-out, which posts to every guild on it. Both write verbs drop the
+// key directly, so the TTL is only the backstop for an invalidation a replica
+// never saw -- and a minute is short enough that a server added on another
+// replica shows up before the streamer reaches for the reload button.
+const guildsCacheTTL = 60 * time.Second
+
 // localStore is the node-local half of the state Discord features need: the
 // whole Store surface, plus the cache and cooldown primitives that never leave
 // the node and so are not part of the cross-process interface. Both the Valkey
@@ -74,6 +86,14 @@ type localStore interface {
 	cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Config, version int)
 	// dropConfig invalidates one guild's settings.
 	dropConfig(ctx context.Context, g Guild)
+	// cachedGuilds reads one broadcaster's cached guild list.
+	cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool)
+	// cacheGuilds stores one broadcaster's guild list with guildsCacheTTL.
+	cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding)
+	// dropGuilds invalidates one broadcaster's guild list. Both write verbs
+	// call it, which is what keeps the listing symmetric with the binding
+	// cache: bind and unbind invalidate directly, the TTL is the backstop.
+	dropGuilds(ctx context.Context, b Broadcaster)
 	// takeXPCooldown reports whether this message earns XP, taking the 60s
 	// per-member cooldown when it does. It stays local by design: a rate
 	// limiter with a TTL is the one thing Valkey is better at than MySQL, and
@@ -107,7 +127,10 @@ func (s valkeyStore) cacheBroadcaster(ctx context.Context, g Guild, b Broadcaste
 }
 
 func (s valkeyStore) dropBroadcaster(ctx context.Context, g Guild) {
-	_ = s.UnbindGuild(ctx, g)
+	// The binding key and its cache entry are the same key here, so dropping
+	// the cache is the DEL UnbindGuild issues -- minus the guild-list
+	// invalidation, which has no broadcaster to address at this point.
+	_ = s.client.Do(ctx, s.client.B().Del().Key(guildKey(g)).Build()).Error()
 }
 
 func (s valkeyStore) cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool) {
@@ -156,6 +179,60 @@ func (m *Mem) dropConfig(_ context.Context, g Guild) {
 	delete(m.configs, g.ID)
 }
 
+func (s valkeyStore) cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildsKey(b)).Build()).ToString()
+	if err != nil || raw == "" {
+		return nil, false
+	}
+	var entry []Binding
+	if err := codec.FastUnmarshal([]byte(raw), &entry); err != nil {
+		return nil, false
+	}
+	return entry, true
+}
+
+func (s valkeyStore) cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding) {
+	if b.ID == "" {
+		return
+	}
+	body, err := codec.FastMarshal(guilds)
+	if err != nil {
+		return
+	}
+	// Failing to cache is not failing the read, same as cacheBroadcaster.
+	_ = s.client.Do(ctx, s.client.B().Set().Key(guildsKey(b)).Value(string(body)).
+		ExSeconds(int64(guildsCacheTTL.Seconds())).Build()).Error()
+}
+
+func (s valkeyStore) dropGuilds(ctx context.Context, b Broadcaster) {
+	if b.ID == "" {
+		return
+	}
+	_ = s.client.Do(ctx, s.client.B().Del().Key(guildsKey(b)).Build()).Error()
+}
+
+// The memory double's guild-list cache is its own map, not its GuildsOf: the
+// RPC store composes a local half purely for these three, and a double whose
+// cache methods were no-ops would let a caching bug pass every test.
+func (m *Mem) cachedGuilds(_ context.Context, b Broadcaster) ([]Binding, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	got, ok := m.guildsCache[b.ID]
+	return got, ok
+}
+
+func (m *Mem) cacheGuilds(_ context.Context, b Broadcaster, guilds []Binding) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.guildsCache[b.ID] = guilds
+}
+
+func (m *Mem) dropGuilds(_ context.Context, b Broadcaster) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.guildsCache, b.ID)
+}
+
 func (s valkeyStore) takeXPCooldown(ctx context.Context, m Member) bool {
 	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
 	return err == nil
@@ -166,11 +243,11 @@ func (m *Mem) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool
 }
 
 func (m *Mem) cacheBroadcaster(ctx context.Context, g Guild, b Broadcaster) {
-	_ = m.BindGuild(ctx, g, b)
+	_ = m.BindGuild(ctx, Binding{Guild: g, Broadcaster: b})
 }
 
 func (m *Mem) dropBroadcaster(ctx context.Context, g Guild) {
-	_ = m.UnbindGuild(ctx, g)
+	_ = m.UnbindGuild(ctx, Binding{Guild: g})
 }
 
 func (m *Mem) takeXPCooldown(_ context.Context, mem Member) bool {

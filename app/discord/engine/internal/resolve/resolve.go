@@ -61,14 +61,22 @@ func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []dis
 	if r.Store == nil || !r.gateOpen(ctx, broadcasterID) {
 		return nil
 	}
-	guilds := r.Store.GuildsOf(ctx, discordstore.Broadcaster{ID: strconv.FormatUint(broadcasterID, 10)})
+	guilds, err := r.Store.GuildsOf(ctx, discordstore.Broadcaster{ID: strconv.FormatUint(broadcasterID, 10)})
+	if err != nil {
+		// Fanning out to nothing is still what happens, but it is now said
+		// out loud: an unreachable store used to be indistinguishable from a
+		// streamer who connected no servers.
+		r.log().Error("discord guild list failed; this Twitch event fans out to nothing",
+			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		return nil
+	}
 	out := make([]discordstore.GuildConfigOf, 0, len(guilds))
-	for _, g := range guilds {
-		cfg, ok := r.configOf(ctx, g)
+	for _, bound := range guilds {
+		cfg, ok := r.configOf(ctx, bound.Guild)
 		if !ok {
 			continue
 		}
-		out = append(out, discordstore.GuildConfigOf{Guild: g, Config: cfg})
+		out = append(out, discordstore.GuildConfigOf{Guild: bound.Guild, Config: cfg})
 	}
 	return out
 }

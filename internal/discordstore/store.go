@@ -52,6 +52,13 @@ var ErrConfigUnavailable = errors.New("discordstore: guild settings need the dis
 // re-read and re-apply rather than retry.
 var ErrConfigConflict = errors.New("discordstore: guild settings changed since they were read")
 
+// ErrStoreUnavailable is a read that could not reach discord-data and had no
+// authoritative answer to give. It is distinct from "nothing found" on
+// purpose: a caller that turns an unreachable store into an empty list posts
+// nothing, disconnects nothing and shows the streamer an empty server picker,
+// all of which look like a deliberate answer.
+var ErrStoreUnavailable = errors.New("discordstore: discord-data is unreachable")
+
 // ErrNotBound is a settings write into a guild the caller does not own, or
 // that nothing owns. The two are one error on purpose: distinguishing them
 // would tell an unbound caller that a guild id it guessed is in use.
@@ -80,6 +87,36 @@ func (m Member) key() string { return m.GuildID + ":" + m.UserID }
 
 // Broadcaster is the Twitch user id the guild reverse-index points at.
 type Broadcaster struct{ ID string }
+
+// Binding is one guild-to-broadcaster link. It is the argument of both write
+// verbs and the element GuildsOf returns: bind needs the installer, unbind
+// needs the broadcaster for the owner guard, and the listing needs the
+// timestamp, so one struct beats three argument lists that drift apart.
+type Binding struct {
+	Guild       Guild
+	Broadcaster Broadcaster
+	// InstalledBy is the Discord user snowflake that ran the setup. Write
+	// only: discord-data records it so support can answer "who added this
+	// bot", and nothing on this side reads it back.
+	InstalledBy string
+	// BoundAtUnixMs is filled by GuildsOf and ignored on writes.
+	BoundAtUnixMs int64
+}
+
+// BindingSource says where a resolved binding came from.
+type BindingSource int
+
+const (
+	// BindingFromStore: discord-data answered. The only provenance an
+	// ownership decision may be made on.
+	BindingFromStore BindingSource = iota
+	// BindingFromCache: discord-data was unreachable and the cached binding
+	// was served instead. Good enough to keep routing gateway events, NOT good
+	// enough to decide whether a dashboard caller owns a guild: the cache
+	// entry may predate an unbind, and the answer to "is this yours" would
+	// then be yes for a server that is no longer theirs.
+	BindingFromCache
+)
 
 // SetConfig is one guild's settings write. ExpectedVersion is the version the
 // caller read (zero when it read nothing); discord-data refuses a mismatch
@@ -126,13 +163,18 @@ type Store interface {
 	// Broadcaster resolves a Discord guild to the Twitch broadcaster it is
 	// bound to. Written by BindGuild (outgress, on guild setup).
 	Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
-	BindGuild(ctx context.Context, g Guild, b Broadcaster) error
-	UnbindGuild(ctx context.Context, g Guild) error
+	// BindingOf is Broadcaster with the answer's provenance attached. An
+	// ownership check must use this one and refuse BindingFromCache; the
+	// event path uses Broadcaster, where a cached answer is the point.
+	BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool)
+	BindGuild(ctx context.Context, bind Binding) error
+	UnbindGuild(ctx context.Context, bind Binding) error
 
 	// GuildsOf lists every guild a broadcaster installed the bot into. One
 	// broadcaster owns many guilds, so a Twitch-driven producer fans out over
-	// this rather than resolving "the" guild.
-	GuildsOf(ctx context.Context, b Broadcaster) []Guild
+	// this rather than resolving "the" guild. An unreachable store is
+	// ErrStoreUnavailable, never an empty slice.
+	GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error)
 	// GuildConfig reads one guild's settings and the version to echo back on
 	// the next write. Found is false for a guild that was bound but never
 	// saved, which reads the same as a guild with everything switched off.
@@ -186,6 +228,10 @@ func New(client valkey.Client) Store { return newLocal(client) }
 
 func guildKey(g Guild) string { return "discord:guild:" + g.ID }
 
+// guildsKey caches one broadcaster's whole guild list. Written on every
+// listing, dropped by both write verbs, and short-lived: see guildsCacheTTL.
+func guildsKey(b Broadcaster) string { return "discord:guilds:" + b.ID }
+
 // cfgKey caches one guild's settings. Read on every gateway event, written
 // only from the dashboard, and invalidated directly by outgress on save -- so
 // the TTL is only the backstop for an invalidation this process never saw.
@@ -212,6 +258,14 @@ func occupantsKey(ch Channel) string { return "discord:voiceoccupants:" + ch.ID 
 // guild+user so a user in no guild's voice channel simply has no key.
 func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
 
+// BindingOf answers from the store of record: a process wired to New holds no
+// cache in front of anything, so its binding reads are authoritative by
+// construction.
+func (s valkeyStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
+	b, ok := s.Broadcaster(ctx, g)
+	return b, BindingFromStore, ok
+}
+
 func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildKey(g)).Build()).ToString()
 	if err != nil {
@@ -223,18 +277,17 @@ func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, boo
 	return Broadcaster{ID: raw}, true
 }
 
-func (s valkeyStore) BindGuild(ctx context.Context, g Guild, b Broadcaster) error {
-	if g.ID == "" {
+func (s valkeyStore) BindGuild(ctx context.Context, bind Binding) error {
+	if bind.Guild.ID == "" || bind.Broadcaster.ID == "" {
 		return nil
 	}
-	if b.ID == "" {
-		return nil
-	}
-	return s.client.Do(ctx, s.client.B().Set().Key(guildKey(g)).Value(b.ID).Build()).Error()
+	s.dropGuilds(ctx, bind.Broadcaster)
+	return s.client.Do(ctx, s.client.B().Set().Key(guildKey(bind.Guild)).Value(bind.Broadcaster.ID).Build()).Error()
 }
 
-func (s valkeyStore) UnbindGuild(ctx context.Context, g Guild) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(g)).Build()).Error()
+func (s valkeyStore) UnbindGuild(ctx context.Context, bind Binding) error {
+	s.dropGuilds(ctx, bind.Broadcaster)
+	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(bind.Guild)).Build()).Error()
 }
 
 // GuildsOf has no Valkey answer. The reverse index this store keeps is
@@ -242,10 +295,10 @@ func (s valkeyStore) UnbindGuild(ctx context.Context, g Guild) error {
 // it would mean a KEYS scan of the whole keyspace on every dashboard load.
 // discord-data indexes the column instead, so this direction exists only on
 // the RPC-backed store.
-func (s valkeyStore) GuildsOf(_ context.Context, b Broadcaster) []Guild {
-	zap.L().Warn("discord guild list needs the discord-data-backed store; answering empty",
+func (s valkeyStore) GuildsOf(_ context.Context, b Broadcaster) ([]Binding, error) {
+	zap.L().Warn("discord guild list needs the discord-data-backed store; refusing",
 		zap.String("broadcaster_id", b.ID))
-	return nil
+	return nil, ErrStoreUnavailable
 }
 
 // GuildConfig is not served here. Guild settings have no Valkey store of
@@ -455,6 +508,10 @@ type Mem struct {
 	occupants  map[string]map[string]struct{}
 	seats      map[string]string
 	configs    map[string]memConfig
+	// guildsCache backs the localStore guild-list cache the RPC store
+	// composes. It is deliberately separate from guild: GuildsOf reads live
+	// state, this is the cache in front of discord-data.
+	guildsCache map[string][]Binding
 }
 
 // memConfig is one guild's stored settings in the memory double.
@@ -466,17 +523,18 @@ type memConfig struct {
 // NewMem builds an empty memory store.
 func NewMem() *Mem {
 	return &Mem{
-		guild:      map[string]string{},
-		clones:     map[string]Clone{},
-		cloneCount: map[string]int{},
-		tickets:    map[string]Ticket{},
-		desk:       map[string]bool{},
-		xp:         map[string]int{},
-		xpCD:       map[string]bool{},
-		daily:      map[string]bool{},
-		occupants:  map[string]map[string]struct{}{},
-		seats:      map[string]string{},
-		configs:    map[string]memConfig{},
+		guild:       map[string]string{},
+		clones:      map[string]Clone{},
+		cloneCount:  map[string]int{},
+		tickets:     map[string]Ticket{},
+		desk:        map[string]bool{},
+		xp:          map[string]int{},
+		xpCD:        map[string]bool{},
+		daily:       map[string]bool{},
+		occupants:   map[string]map[string]struct{}{},
+		seats:       map[string]string{},
+		configs:     map[string]memConfig{},
+		guildsCache: map[string][]Binding{},
 	}
 }
 
@@ -487,6 +545,12 @@ func (m *Mem) PutGuild(g Guild, b Broadcaster) {
 	m.guild[g.ID] = b.ID
 }
 
+// BindingOf answers from the memory store of record.
+func (m *Mem) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
+	b, ok := m.Broadcaster(ctx, g)
+	return b, BindingFromStore, ok
+}
+
 func (m *Mem) Broadcaster(_ context.Context, g Guild) (Broadcaster, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -494,26 +558,26 @@ func (m *Mem) Broadcaster(_ context.Context, g Guild) (Broadcaster, bool) {
 	return Broadcaster{ID: v}, ok
 }
 
-func (m *Mem) BindGuild(_ context.Context, g Guild, b Broadcaster) error {
+func (m *Mem) BindGuild(_ context.Context, bind Binding) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if g.ID == "" || b.ID == "" {
+	if bind.Guild.ID == "" || bind.Broadcaster.ID == "" {
 		return nil
 	}
-	m.guild[g.ID] = b.ID
+	m.guild[bind.Guild.ID] = bind.Broadcaster.ID
 	return nil
 }
 
-func (m *Mem) UnbindGuild(_ context.Context, g Guild) error {
+func (m *Mem) UnbindGuild(_ context.Context, bind Binding) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.guild, g.ID)
+	delete(m.guild, bind.Guild.ID)
 	return nil
 }
 
 // GuildsOf lists the guilds bound to b, in guild-id order so a test asserting
 // on the slice does not depend on map iteration.
-func (m *Mem) GuildsOf(_ context.Context, b Broadcaster) []Guild {
+func (m *Mem) GuildsOf(_ context.Context, b Broadcaster) ([]Binding, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	ids := make([]string, 0, len(m.guild))
@@ -523,11 +587,11 @@ func (m *Mem) GuildsOf(_ context.Context, b Broadcaster) []Guild {
 		}
 	}
 	sort.Strings(ids)
-	out := make([]Guild, 0, len(ids))
+	out := make([]Binding, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, Guild{ID: id})
+		out = append(out, Binding{Guild: Guild{ID: id}, Broadcaster: b})
 	}
-	return out
+	return out, nil
 }
 
 func (m *Mem) GuildConfig(_ context.Context, g Guild) (ddiscord.Config, int, bool) {

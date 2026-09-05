@@ -24,14 +24,14 @@ func TestMemBroadcaster(t *testing.T) {
 func TestMemBindAndUnbindGuild(t *testing.T) {
 	m := NewMem()
 	g := Guild{ID: "g1"}
-	if err := m.BindGuild(context.Background(), g, Broadcaster{ID: "42"}); err != nil {
+	if err := m.BindGuild(context.Background(), Binding{Guild: g, Broadcaster: Broadcaster{ID: "42"}}); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	got, ok := m.Broadcaster(context.Background(), g)
 	if !ok || got.ID != "42" {
 		t.Fatalf("broadcaster = %+v, %v", got, ok)
 	}
-	if err := m.UnbindGuild(context.Background(), g); err != nil {
+	if err := m.UnbindGuild(context.Background(), Binding{Guild: g}); err != nil {
 		t.Fatalf("unbind: %v", err)
 	}
 	if _, ok := m.Broadcaster(context.Background(), g); ok {

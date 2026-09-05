@@ -22,7 +22,7 @@ func configRPCFor(t *testing.T, guildIDs ...string) *discordRPC {
 	t.Helper()
 	store := discordstore.NewMem()
 	for _, id := range guildIDs {
-		if err := store.BindGuild(context.Background(), discordstore.Guild{ID: id}, discordstore.Broadcaster{ID: "42"}); err != nil {
+		if err := store.BindGuild(context.Background(), discordstore.Binding{Guild: discordstore.Guild{ID: id}, Broadcaster: discordstore.Broadcaster{ID: "42"}}); err != nil {
 			t.Fatalf("BindGuild: %v", err)
 		}
 	}
@@ -98,5 +98,22 @@ func TestHandleGuildsListReturnsEveryBinding(t *testing.T) {
 	// No REST client is wired, so nothing could confirm the bot is there.
 	if got.Guilds[0].BotPresent {
 		t.Fatalf("want bot_present false with no Discord client, got %+v", got.Guilds[0])
+	}
+}
+
+// TestHandleGuildsListSaysTimeoutAndKeepsThePartial: a deadline reached
+// part-way leaves a list the dashboard can still render. The code says it is
+// short; an empty reply would have said the streamer connected nothing.
+func TestHandleGuildsListSaysTimeoutAndKeepsThePartial(t *testing.T) {
+	d := configRPCFor(t, "guild-1", "guild-2")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	got := d.handleGuildsList(ctx, outgressrpc.DiscordGuildsListRequest{UserID: "42"})
+	if got.Code != outgressrpc.DiscordCodeTimeout {
+		t.Fatalf("want the timeout code, got %+v", got)
+	}
+	if got.Guilds == nil {
+		t.Fatal("a partial listing must still travel")
 	}
 }

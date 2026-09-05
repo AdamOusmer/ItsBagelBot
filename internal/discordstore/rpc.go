@@ -83,70 +83,96 @@ func (s *rpcStore) subject(verb string) string { return s.prefix + "." + verb }
 // BindGuild), because acknowledging a setup that was never persisted leaves the
 // dashboard showing a link that does not exist.
 func (s *rpcStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
+	b, _, ok := s.BindingOf(ctx, g)
+	return b, ok
+}
+
+// BindingOf is Broadcaster with the provenance of the answer. Callers deciding
+// ownership refuse BindingFromCache; callers routing an event ignore it, which
+// is what Broadcaster above spells.
+func (s *rpcStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
 	reply, err := request[discorddata.BindingGetReply](ctx, s.rpc, s.subject(discorddata.VerbBindingGet),
 		discorddata.BindingGetRequest{GuildID: g.ID})
 	if err != nil {
 		s.log.Error("discord-data binding.get failed; serving the cached binding",
 			zap.String("guild_id", g.ID), zap.Error(err))
-		return s.cachedBroadcaster(ctx, g)
+		cached, ok := s.cachedBroadcaster(ctx, g)
+		return cached, BindingFromCache, ok
 	}
 	if !reply.Found {
 		// A guild that really has no binding must not keep answering from a
 		// stale cache entry after an unbind this replica did not see.
 		s.dropBroadcaster(ctx, g)
-		return Broadcaster{}, false
+		return Broadcaster{}, BindingFromStore, false
 	}
 	b := Broadcaster{ID: strconv.FormatUint(reply.BroadcasterID, 10)}
 	s.cacheBroadcaster(ctx, g, b)
-	return b, true
+	return b, BindingFromStore, true
 }
 
 // BindGuild binds a guild to a broadcaster. It fails loudly: no cache write
 // happens unless discord-data confirmed the row.
-func (s *rpcStore) BindGuild(ctx context.Context, g Guild, b Broadcaster) error {
-	broadcasterID, err := strconv.ParseUint(b.ID, 10, 64)
+func (s *rpcStore) BindGuild(ctx context.Context, bind Binding) error {
+	broadcasterID, err := strconv.ParseUint(bind.Broadcaster.ID, 10, 64)
 	if err != nil {
 		return errors.New("discordstore: broadcaster id must be numeric")
 	}
 	reply, err := request[discorddata.BindingSetReply](ctx, s.rpc, s.subject(discorddata.VerbBindingSet),
-		discorddata.BindingSetRequest{GuildID: g.ID, BroadcasterID: broadcasterID})
+		discorddata.BindingSetRequest{
+			GuildID:       bind.Guild.ID,
+			BroadcasterID: broadcasterID,
+			InstalledBy:   bind.InstalledBy,
+		})
 	if err != nil {
 		return err
 	}
 	if err := replyError(reply.Error, reply.Code); err != nil {
 		return err
 	}
-	s.cacheBroadcaster(ctx, g, b)
+	s.cacheBroadcaster(ctx, bind.Guild, bind.Broadcaster)
+	s.dropGuilds(ctx, bind.Broadcaster)
 	return nil
 }
 
 // UnbindGuild removes a binding, dropping the cache entry only once
 // discord-data confirmed the delete.
-func (s *rpcStore) UnbindGuild(ctx context.Context, g Guild) error {
+// The broadcaster travels with the delete so discord-data's owner guard can
+// fire: without it a stale unbind for a guild that has since been re-bound to
+// somebody else drops the new owner's row.
+func (s *rpcStore) UnbindGuild(ctx context.Context, bind Binding) error {
+	broadcasterID, err := strconv.ParseUint(bind.Broadcaster.ID, 10, 64)
+	if err != nil {
+		return errors.New("discordstore: broadcaster id must be numeric")
+	}
 	reply, err := request[discorddata.BindingDeleteReply](ctx, s.rpc, s.subject(discorddata.VerbBindingDelete),
-		discorddata.BindingDeleteRequest{GuildID: g.ID})
+		discorddata.BindingDeleteRequest{GuildID: bind.Guild.ID, BroadcasterID: broadcasterID})
 	if err != nil {
 		return err
 	}
 	if err := replyError(reply.Error, reply.Code); err != nil {
 		return err
 	}
-	s.dropBroadcaster(ctx, g)
+	s.dropBroadcaster(ctx, bind.Guild)
+	s.dropGuilds(ctx, bind.Broadcaster)
 	return nil
 }
 
-// GuildsOf lists every guild the broadcaster installed the bot into. It is
-// NOT cached: it is read on dashboard loads and on Twitch fan-out, both of
-// which must see a guild the streamer added seconds ago, and it is one indexed
-// lookup rather than the per-event hot path the binding cache exists for.
+// GuildsOf lists every guild the broadcaster installed the bot into, through a
+// short Valkey cache symmetric with Broadcaster's: both write verbs drop the
+// key, so the TTL only covers an invalidation this replica never saw.
 //
-// A failure is an empty slice, not an error: every caller's next step is a
-// loop, and fanning out to nothing is the safe answer when the store cannot
-// say which guilds are bound.
-func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) []Guild {
+// A failure is ErrStoreUnavailable, never an empty slice. Every caller's next
+// step is a loop, and an empty loop is indistinguishable from "this streamer
+// connected no servers" -- which silently posts nothing on the Twitch fan-out
+// and shows an empty picker on the dashboard, both of which read as a
+// deliberate answer rather than as an outage.
+func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error) {
 	broadcasterID, err := strconv.ParseUint(b.ID, 10, 64)
 	if err != nil {
-		return nil
+		return nil, errors.New("discordstore: broadcaster id must be numeric")
+	}
+	if cached, ok := s.cachedGuilds(ctx, b); ok {
+		return cached, nil
 	}
 	reply, err := request[discorddata.BindingListByBroadcasterReply](ctx, s.rpc,
 		s.subject(discorddata.VerbBindingListByBroadcaster),
@@ -154,13 +180,19 @@ func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) []Guild {
 	if err != nil || reply.Error != "" {
 		s.log.Error("discord-data binding.list_by_broadcaster failed",
 			zap.String("broadcaster_id", b.ID), zap.String("reply_error", reply.Error), zap.Error(err))
-		return nil
+		return nil, ErrStoreUnavailable
 	}
-	out := make([]Guild, 0, len(reply.Guilds))
+	out := make([]Binding, 0, len(reply.Guilds))
 	for _, binding := range reply.Guilds {
-		out = append(out, Guild{ID: binding.GuildID})
+		out = append(out, Binding{
+			Guild:         Guild{ID: binding.GuildID},
+			Broadcaster:   b,
+			InstalledBy:   binding.InstalledBy,
+			BoundAtUnixMs: binding.BoundAtUnixMs,
+		})
 	}
-	return out
+	s.cacheGuilds(ctx, b, out)
+	return out, nil
 }
 
 // GuildConfig reads one guild's settings through the Valkey cache in front of

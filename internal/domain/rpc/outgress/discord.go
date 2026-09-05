@@ -15,6 +15,10 @@ type DiscordSetupRequest struct {
 	// Subscribers mirrors the streamer's subscriber toggle so the fill can
 	// skip the Subscriber role and its locked category when the tier is off.
 	Subscribers bool `json:"subscribers,omitempty"`
+	// InstalledBy is the Discord user snowflake that ran the install, known to
+	// the dashboard from the OAuth exchange. Recorded on the binding so
+	// support can answer "who added this bot"; empty is accepted.
+	InstalledBy string `json:"installed_by,omitempty"`
 }
 
 // DiscordSetupReply is the filled template the dashboard writes into the
@@ -116,6 +120,11 @@ const (
 	// DiscordCodeUnavailable: the store or Discord itself could not be
 	// reached. Transient; the dashboard offers a retry.
 	DiscordCodeUnavailable = "discord_unavailable"
+	// DiscordCodeTimeout: the reply ran out of time part-way and carries
+	// whatever was gathered. Unlike DiscordCodeUnavailable the payload is
+	// usable, so the dashboard renders it and says the list may be short
+	// rather than replacing the page with an error.
+	DiscordCodeTimeout = "timeout"
 )
 
 // DiscordConfigGetRequest is bagel.rpc.dingress.discord.config.get: one
@@ -187,9 +196,8 @@ type DiscordGuildEntry struct {
 	// because the binding is still there and the streamer needs to see it to
 	// disconnect or re-invite.
 	BotPresent bool `json:"bot_present"`
-	// BoundAtUnixMs is zero: the store surface returns guild ids only, and the
-	// listing is already oldest-binding-first, which is the ordering the
-	// picker wants. It is carried so a card that later shows "connected since"
-	// does not need a wire change.
+	// BoundAtUnixMs is when the streamer connected this server. The listing is
+	// already oldest-binding-first, so the picker does not need it to sort;
+	// it is here for the card's "connected since".
 	BoundAtUnixMs int64 `json:"bound_at_unix_ms,omitempty"`
 }

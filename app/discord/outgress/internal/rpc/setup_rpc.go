@@ -111,7 +111,12 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if req.GuildID == "" || req.UserID == "" {
 		return outgressrpc.DiscordSetupReply{Error: "missing guild_id or user_id"}
 	}
-	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID, Subscribers: req.Subscribers})
+	got, err := d.w.SetupGuild(ctx, setup.GuildSetupRequest{
+		GuildID:       req.GuildID,
+		BroadcasterID: req.UserID,
+		Subscribers:   req.Subscribers,
+		InstalledBy:   req.InstalledBy,
+	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error()}
 	}
@@ -242,34 +247,59 @@ func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.Disco
 	if req.UserID == "" {
 		return outgressrpc.DiscordGuildsListReply{Error: "missing user_id", Code: outgressrpc.DiscordCodeInvalid}
 	}
+	// The listing is returned even alongside an error: a deadline reached
+	// part-way leaves a usable partial list, and the code tells the dashboard
+	// it is short rather than wrong.
 	guilds, err := d.w.ListGuilds(ctx, req.UserID)
+	out := guildEntries(guilds)
 	if err != nil {
 		message, code := discordFailure(err)
-		return outgressrpc.DiscordGuildsListReply{Error: message, Code: code}
-	}
-	out := make([]outgressrpc.DiscordGuildEntry, 0, len(guilds))
-	for _, g := range guilds {
-		out = append(out, outgressrpc.DiscordGuildEntry{GuildID: g.GuildID, Name: g.Name, BotPresent: g.BotPresent})
+		return outgressrpc.DiscordGuildsListReply{Guilds: out, Error: message, Code: code}
 	}
 	return outgressrpc.DiscordGuildsListReply{Guilds: out}
+}
+
+// guildEntries renders the worker's summaries onto the wire type.
+func guildEntries(guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
+	out := make([]outgressrpc.DiscordGuildEntry, 0, len(guilds))
+	for _, g := range guilds {
+		out = append(out, outgressrpc.DiscordGuildEntry{
+			GuildID:       g.GuildID,
+			Name:          g.Name,
+			BotPresent:    g.BotPresent,
+			BoundAtUnixMs: g.BoundAtUnixMs,
+		})
+	}
+	return out
 }
 
 // discordFailure maps an error onto the (message, code) pair the console
 // switches on. The message is kept for the one release during which the
 // console still reads text.
 func discordFailure(err error) (string, string) {
-	switch {
-	case err == nil:
+	if err == nil {
 		return "", outgressrpc.DiscordCodeOK
-	case errors.Is(err, setup.ErrNotBound):
-		return err.Error(), outgressrpc.DiscordCodeNotBound
+	}
+	return err.Error(), discordCode(err)
+}
+
+// discordCode classifies a non-nil failure. Split from discordFailure to keep
+// each side inside the complexity gate as the code list grows.
+//
+// ErrStoreUnavailable is not listed: it lands on the default, which is the
+// same code. It is spelled out here only to say that is deliberate rather than
+// an omission.
+func discordCode(err error) string {
+	switch {
+	case errors.Is(err, setup.ErrNotBound), errors.Is(err, discordstore.ErrNotBound):
+		return outgressrpc.DiscordCodeNotBound
 	case errors.Is(err, setup.ErrGuildBoundElsewhere):
-		return err.Error(), outgressrpc.DiscordCodeBoundElsewhere
+		return outgressrpc.DiscordCodeBoundElsewhere
 	case errors.Is(err, discordstore.ErrConfigConflict):
-		return err.Error(), outgressrpc.DiscordCodeConflict
-	case errors.Is(err, discordstore.ErrNotBound):
-		return err.Error(), outgressrpc.DiscordCodeNotBound
+		return outgressrpc.DiscordCodeConflict
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return outgressrpc.DiscordCodeTimeout
 	default:
-		return err.Error(), outgressrpc.DiscordCodeUnavailable
+		return outgressrpc.DiscordCodeUnavailable
 	}
 }

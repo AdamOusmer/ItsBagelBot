@@ -33,7 +33,7 @@ func resolverWithTier(tier Status) Resolver {
 
 func seededStore() discordstore.Store {
 	mem := discordstore.NewMem()
-	_ = mem.BindGuild(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Broadcaster{ID: "1"})
+	_ = mem.BindGuild(context.Background(), discordstore.Binding{Guild: discordstore.Guild{ID: "g1"}, Broadcaster: discordstore.Broadcaster{ID: "1"}})
 	mem.PutGuildConfig(discordstore.Guild{ID: "g1"}, ddiscord.Config{GuildID: "g1"})
 	return mem
 }
@@ -91,7 +91,7 @@ func TestByBroadcasterListsEveryGuild(t *testing.T) {
 	mem := discordstore.NewMem()
 	ctx := context.Background()
 	for _, id := range []string{"g1", "g2"} {
-		_ = mem.BindGuild(ctx, discordstore.Guild{ID: id}, discordstore.Broadcaster{ID: "1"})
+		_ = mem.BindGuild(ctx, discordstore.Binding{Guild: discordstore.Guild{ID: id}, Broadcaster: discordstore.Broadcaster{ID: "1"}})
 		mem.PutGuildConfig(discordstore.Guild{ID: id}, ddiscord.Config{})
 	}
 	r.Store = mem
@@ -112,7 +112,7 @@ func TestByBroadcasterListsEveryGuild(t *testing.T) {
 func TestGuildWithNoSettingsDoesNotResolve(t *testing.T) {
 	r := resolverWithTier(tierOf("paid", true))
 	mem := discordstore.NewMem()
-	_ = mem.BindGuild(context.Background(), discordstore.Guild{ID: "g9"}, discordstore.Broadcaster{ID: "1"})
+	_ = mem.BindGuild(context.Background(), discordstore.Binding{Guild: discordstore.Guild{ID: "g9"}, Broadcaster: discordstore.Broadcaster{ID: "1"}})
 	r.Store = mem
 
 	if _, _, ok := r.ByGuild(context.Background(), "g9"); ok {

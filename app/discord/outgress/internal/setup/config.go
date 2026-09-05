@@ -28,11 +28,23 @@ type GuildConfigWrite struct {
 	ExpectedVersion int
 }
 
+// MaxListedGuilds caps how many servers one listing describes.
+//
+// Twenty-five is not a Discord limit; it is the point past which the picker
+// stops being a picker. Each entry costs one REST GetGuild, so an unbounded
+// list also turns one dashboard load into an unbounded burst against a shared
+// rate limit -- and the streamers this beta serves run one or two servers, not
+// twenty-six. A broadcaster who really needs more gets a paged listing, not a
+// slower page.
+const MaxListedGuilds = 25
+
 // GuildSummary is one connected server, as the dashboard's server picker
 // shows it.
 type GuildSummary struct {
 	GuildID string
 	Name    string
+	// BoundAtUnixMs is when this server was connected.
+	BoundAtUnixMs int64
 	// BotPresent is false when Discord answers 403 or 404: the bot was kicked
 	// or the server is gone. The entry is still returned, because the binding
 	// still exists and the streamer needs to see it to act on it.
@@ -72,14 +84,29 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 // ListGuilds lists every server the broadcaster connected. A guild Discord
 // refuses to describe is still listed, with BotPresent false: dropping it
 // would hide a binding the streamer cannot then disconnect.
+//
+// The loop re-checks the deadline before each entry and returns what it has
+// with ctx.Err(). One entry is one REST round trip, so a list of twenty
+// against a slow Discord can outlive the RPC's own timeout; returning the
+// first twelve and saying the list is short beats returning nothing, and
+// beats a reply the caller has already given up on.
 func (w *Worker) ListGuilds(ctx context.Context, broadcasterID string) ([]GuildSummary, error) {
 	if w.store == nil {
 		return nil, nil
 	}
-	guilds := w.store.GuildsOf(ctx, discordstore.Broadcaster{ID: broadcasterID})
+	guilds, err := w.store.GuildsOf(ctx, discordstore.Broadcaster{ID: broadcasterID})
+	if err != nil {
+		return nil, err
+	}
+	if len(guilds) > MaxListedGuilds {
+		guilds = guilds[:MaxListedGuilds]
+	}
 	out := make([]GuildSummary, 0, len(guilds))
-	for _, g := range guilds {
-		out = append(out, w.summarize(ctx, g.ID))
+	for _, bound := range guilds {
+		if err := ctx.Err(); err != nil {
+			return out, err
+		}
+		out = append(out, w.summarize(ctx, bound))
 	}
 	return out, nil
 }
@@ -88,16 +115,19 @@ func (w *Worker) ListGuilds(ctx context.Context, broadcasterID string) ([]GuildS
 // than a with_counts variant: the REST client has no such call yet, and the
 // picker shows the name and the presence pill, neither of which needs the
 // member count.
-func (w *Worker) summarize(ctx context.Context, guildID string) GuildSummary {
+func (w *Worker) summarize(ctx context.Context, bound discordstore.Binding) GuildSummary {
+	out := GuildSummary{GuildID: bound.Guild.ID, BoundAtUnixMs: bound.BoundAtUnixMs}
 	if w.discord == nil {
-		return GuildSummary{GuildID: guildID}
+		return out
 	}
-	got, err := w.discord.GetGuild(ctx, discapi.Guild{ID: guildID})
+	got, err := w.discord.GetGuild(ctx, discapi.Guild{ID: bound.Guild.ID})
 	if err != nil {
-		w.logMissingGuild(guildID, err)
-		return GuildSummary{GuildID: guildID}
+		w.logMissingGuild(bound.Guild.ID, err)
+		return out
 	}
-	return GuildSummary{GuildID: guildID, Name: got.Name, BotPresent: true}
+	out.Name = got.Name
+	out.BotPresent = true
+	return out
 }
 
 // logMissingGuild separates the two reasons a guild cannot be described. A 403
@@ -115,6 +145,12 @@ func (w *Worker) logMissingGuild(guildID string, err error) {
 // than allowed, and reported as ErrNotBound rather than as "bound elsewhere":
 // the dashboard's two cases are "this is not yours" and "someone else claimed
 // this guild", and only the second is worth its own screen.
+// It refuses outright when the binding came from the Valkey cache rather than
+// from discord-data. The cache exists so a data-service blip does not stop
+// gateway events; an ownership decision is the one place that trade is wrong,
+// because a cache entry can outlive an unbind and would then answer "yes, this
+// server is yours" for a server that no longer is. Reading someone else's
+// settings is a worse outcome than a dashboard that says "try again".
 func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest) error {
 	if w.store == nil {
 		return nil
@@ -122,7 +158,10 @@ func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest) 
 	if req.GuildID == "" || req.BroadcasterID == "" {
 		return ErrNotBound
 	}
-	owner, ok := w.store.Broadcaster(ctx, discordstore.Guild{ID: req.GuildID})
+	owner, source, ok := w.store.BindingOf(ctx, discordstore.Guild{ID: req.GuildID})
+	if source == discordstore.BindingFromCache {
+		return discordstore.ErrStoreUnavailable
+	}
 	if !ok || owner.ID != req.BroadcasterID {
 		return ErrNotBound
 	}
