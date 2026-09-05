@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -151,4 +152,118 @@ func fastHello() ([]byte, error) {
 		return nil, err
 	}
 	return codec.Marshal(packet{Op: opHello, D: d})
+}
+
+// racingConn reproduces the interleaving socket.writerGrace exists for: the
+// pump's Read fails FIRST, with a generic codeless error, while the
+// heartbeat's Write is still inside Discord's close frame and has not
+// reported anything yet.
+//
+// A real socket produces this whenever a writer takes the close frame: the
+// writer's Close makes the parked Read return immediately, and the Write it
+// was racing returns its own error microseconds later. The old non-blocking
+// poll in firstError looked at that instant, found nothing, and reported no
+// close code for a 4004.
+type racingConn struct {
+	mu      sync.Mutex
+	reads   [][]byte
+	writes  int
+	release chan struct{}
+	// lag is how long the failing Write takes to return after it has
+	// released the pump's Read.
+	lag  time.Duration
+	once sync.Once
+}
+
+func newRacingConn(t *testing.T, lag time.Duration) *racingConn {
+	t.Helper()
+	hello, err := fastHello()
+	if err != nil {
+		t.Fatalf("marshal hello: %v", err)
+	}
+	return &racingConn{reads: [][]byte{hello}, release: make(chan struct{}), lag: lag}
+}
+
+func (c *racingConn) Read(ctx context.Context) ([]byte, error) {
+	c.mu.Lock()
+	if len(c.reads) > 0 {
+		raw := c.reads[0]
+		c.reads = c.reads[1:]
+		c.mu.Unlock()
+		return raw, nil
+	}
+	c.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.release:
+		return nil, errors.New("use of closed network connection")
+	}
+}
+
+func (c *racingConn) Write(context.Context, []byte) error {
+	c.mu.Lock()
+	c.writes++
+	n := c.writes
+	c.mu.Unlock()
+	if n < 2 {
+		return nil // the Identify goes through
+	}
+	c.unblockRead()
+	time.Sleep(c.lag)
+	return authFailure()
+}
+
+func (c *racingConn) Close() error {
+	c.unblockRead()
+	return nil
+}
+
+func (c *racingConn) unblockRead() { c.once.Do(func() { close(c.release) }) }
+
+func (c *racingConn) CloseCode(err error) int {
+	if code := websocket.CloseStatus(err); code >= 0 {
+		return int(code)
+	}
+	return 0
+}
+
+// The pump must wait for the writer rather than deciding from an empty
+// channel that a socket died codeless. Without the grace this is a 4004
+// reported as close code 0, which reconnects forever.
+func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
+	conn := newRacingConn(t, 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
+
+	code, err := sess.oneSocket(ctx, "ws://x", &resumeState{})
+
+	if code != ddiscord.CloseAuthenticationFailed {
+		t.Fatalf("close code = %d, want %d: the read won the race and the write carried the frame",
+			code, ddiscord.CloseAuthenticationFailed)
+	}
+	if !errors.As(err, &websocket.CloseError{}) {
+		t.Fatalf("err = %v, want the close frame, not the pump's codeless read error", err)
+	}
+}
+
+// And the wait is bounded. A writer stuck in a send on a connection nobody
+// is draining is not about to produce a close code, and holding the
+// reconnect behind it indefinitely trades one loop for a stall.
+func TestCodelessReadGivesUpAfterTheGrace(t *testing.T) {
+	conn := newRacingConn(t, writerGrace+time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
+
+	start := time.Now()
+	code, _ := sess.oneSocket(ctx, "ws://x", &resumeState{})
+
+	if code != 0 {
+		t.Fatalf("close code = %d, want 0: no writer reported inside the grace", code)
+	}
+	if waited := time.Since(start); waited > writerGrace+500*time.Millisecond {
+		t.Fatalf("waited %s, want the grace to bound it at %s", waited, writerGrace)
+	}
 }

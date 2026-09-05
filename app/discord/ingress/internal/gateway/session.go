@@ -565,12 +565,13 @@ func (s Session) sendPresence(ctx context.Context, sk *socket, force bool) {
 	if !ok {
 		return
 	}
-	if err := writeJSON(ctx, sk.conn, presenceUpdateBody(name)); err != nil {
-		// Warn (presence is cosmetic) and still funnel: a write that fails
-		// here failed on the same socket the heartbeat writes to, and it may
-		// be carrying the close frame that explains why.
+	// socket.write, not writeJSON: it funnels the failure back to the pump
+	// (a write that fails here failed on the same socket the heartbeat
+	// writes to, and it may be carrying the close frame that explains why)
+	// and it is what makes this goroutine visible to firstError's grace
+	// while the write is still in flight. Warn only -- presence is cosmetic.
+	if err := sk.write(ctx, presenceUpdateBody(name)); err != nil {
 		s.log().Warn("discord presence update failed", zap.Error(err))
-		sk.writeFailed(err)
 	}
 }
 
@@ -638,12 +639,12 @@ func (s Session) heartbeat(ctx context.Context, sk *socket, intervalMS int, st *
 			// The last received sequence, not nil. Discord compares this
 			// against what it sent to notice a client has fallen behind;
 			// a permanent null claims nothing was ever received.
-			if err := writeJSON(ctx, sk.conn, heartbeatBody(st.sequence())); err != nil {
-				// Returning silently here was the bug: this goroutine is
-				// where a fatal close frame most often lands, and dropping
-				// the error left the pump to report a codeless "connection
-				// closed" that reconnected forever. See socket.firstError.
-				sk.writeFailed(err)
+			// socket.write funnels the error to the pump. Returning silently
+			// here was the bug: this goroutine is where a fatal close frame
+			// most often lands, and dropping the error left the pump to
+			// report a codeless "connection closed" that reconnected
+			// forever. See socket.firstError.
+			if err := sk.write(ctx, heartbeatBody(st.sequence())); err != nil {
 				return
 			}
 		}
