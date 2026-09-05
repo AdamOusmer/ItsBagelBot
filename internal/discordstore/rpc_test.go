@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/codec"
 )
@@ -321,5 +322,100 @@ func TestRPCStoreDelegatesTheLocalKeyspaces(t *testing.T) {
 	}
 	if len(rpc.calls) != 0 {
 		t.Fatalf("the local keyspaces must cost no RPC, got %v", rpc.calls)
+	}
+}
+
+func TestRPCStoreGuildsOfListsEveryBoundGuild(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	rpc.reply(discorddata.VerbBindingListByBroadcaster, discorddata.BindingListByBroadcasterReply{
+		Guilds: []discorddata.Binding{{GuildID: "g1"}, {GuildID: "g2"}},
+	})
+
+	got := store.GuildsOf(context.Background(), Broadcaster{ID: "42"})
+	if len(got) != 2 || got[0].ID != "g1" || got[1].ID != "g2" {
+		t.Fatalf("want both guilds in order, got %v", got)
+	}
+}
+
+func TestRPCStoreGuildsOfIsEmptyWhenTheStoreCannotSay(t *testing.T) {
+	store, _, _ := newTestRPCStore(t)
+
+	if got := store.GuildsOf(context.Background(), Broadcaster{ID: "42"}); got != nil {
+		t.Fatalf("an unreachable discord-data must fan out to nothing, got %v", got)
+	}
+	if got := store.GuildsOf(context.Background(), Broadcaster{ID: "not-numeric"}); got != nil {
+		t.Fatalf("a non-numeric broadcaster id must not reach the wire, got %v", got)
+	}
+}
+
+func TestRPCStoreGuildConfigCachesAndServesTheCacheOnFailure(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	rpc.reply(discorddata.VerbConfigGet, discorddata.ConfigGetReply{
+		Config: ddiscord.Config{LiveChannelID: "123"}, Version: 3, Found: true,
+	})
+
+	cfg, version, ok := store.GuildConfig(context.Background(), Guild{ID: "g1"})
+	if !ok || version != 3 || cfg.LiveChannelID != "123" {
+		t.Fatalf("want the stored settings, got %+v v%d ok=%v", cfg, version, ok)
+	}
+
+	// discord-data goes away: the cached settings keep the guild serving.
+	rpc.fail[discorddata.VerbConfigGet] = errors.New("no responders")
+	cfg, version, ok = store.GuildConfig(context.Background(), Guild{ID: "g1"})
+	if !ok || version != 3 || cfg.LiveChannelID != "123" {
+		t.Fatalf("want the cached settings, got %+v v%d ok=%v", cfg, version, ok)
+	}
+}
+
+func TestRPCStoreGuildConfigDropsTheCacheWhenTheRowIsGone(t *testing.T) {
+	store, rpc, mem := newTestRPCStore(t)
+	mem.PutGuildConfig(Guild{ID: "g1"}, ddiscord.Config{LiveChannelID: "123"})
+	rpc.reply(discorddata.VerbConfigGet, discorddata.ConfigGetReply{Found: false})
+
+	if _, _, ok := store.GuildConfig(context.Background(), Guild{ID: "g1"}); ok {
+		t.Fatal("a deleted settings row must not answer from cache")
+	}
+	if _, _, ok := mem.GuildConfig(context.Background(), Guild{ID: "g1"}); ok {
+		t.Fatal("the stale cache entry must be dropped")
+	}
+}
+
+func TestRPCStoreSetGuildConfigMapsTheReplyCodes(t *testing.T) {
+	store, rpc, mem := newTestRPCStore(t)
+	mem.PutGuildConfig(Guild{ID: "g1"}, ddiscord.Config{LiveChannelID: "123"})
+	rpc.reply(discorddata.VerbConfigSet, discorddata.ConfigSetReply{Version: 4})
+
+	set := SetConfig{Guild: Guild{ID: "g1"}, Broadcaster: Broadcaster{ID: "42"}, ExpectedVersion: 3}
+	version, err := store.SetGuildConfig(context.Background(), set)
+	if err != nil || version != 4 {
+		t.Fatalf("want version 4, got %d err=%v", version, err)
+	}
+	if _, _, ok := mem.GuildConfig(context.Background(), Guild{ID: "g1"}); ok {
+		t.Fatal("a successful write must invalidate the cache")
+	}
+
+	rpc.reply(discorddata.VerbConfigSet, discorddata.ConfigSetReply{
+		Error: "stale", Code: discorddata.CodeConflict,
+	})
+	if _, err := store.SetGuildConfig(context.Background(), set); !errors.Is(err, ErrConfigConflict) {
+		t.Fatalf("want ErrConfigConflict, got %v", err)
+	}
+
+	rpc.reply(discorddata.VerbConfigSet, discorddata.ConfigSetReply{
+		Error: "not yours", Code: discorddata.CodeNotBound,
+	})
+	if _, err := store.SetGuildConfig(context.Background(), set); !errors.Is(err, ErrNotBound) {
+		t.Fatalf("want ErrNotBound, got %v", err)
+	}
+}
+
+func TestRPCStoreInvalidateDropsTheCachedSettings(t *testing.T) {
+	store, _, mem := newTestRPCStore(t)
+	mem.PutGuildConfig(Guild{ID: "g1"}, ddiscord.Config{LiveChannelID: "123"})
+
+	store.Invalidate(context.Background(), Guild{ID: "g1"})
+
+	if _, _, ok := mem.GuildConfig(context.Background(), Guild{ID: "g1"}); ok {
+		t.Fatal("Invalidate must drop the entry")
 	}
 }

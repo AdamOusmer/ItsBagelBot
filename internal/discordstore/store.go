@@ -29,6 +29,8 @@ package discordstore
 
 import (
 	"context"
+	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,7 +38,24 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
+
+// ErrConfigUnavailable is what the pure-Valkey store answers on the settings
+// write path. Guild settings have no Valkey store of record -- they live in
+// discord-data -- so a process holding this store can only refuse, loudly,
+// rather than accept a write nothing will ever read back.
+var ErrConfigUnavailable = errors.New("discordstore: guild settings need the discord-data-backed store")
+
+// ErrConfigConflict is a settings write whose expected version no longer
+// matches: another tab (or another replica) saved first. The caller must
+// re-read and re-apply rather than retry.
+var ErrConfigConflict = errors.New("discordstore: guild settings changed since they were read")
+
+// ErrNotBound is a settings write into a guild the caller does not own, or
+// that nothing owns. The two are one error on purpose: distinguishing them
+// would tell an unbound caller that a guild id it guessed is in use.
+var ErrNotBound = errors.New("discordstore: guild is not bound to this broadcaster")
 
 const (
 	xpPerMessage = 15
@@ -61,6 +80,24 @@ func (m Member) key() string { return m.GuildID + ":" + m.UserID }
 
 // Broadcaster is the Twitch user id the guild reverse-index points at.
 type Broadcaster struct{ ID string }
+
+// SetConfig is one guild's settings write. ExpectedVersion is the version the
+// caller read (zero when it read nothing); discord-data refuses a mismatch
+// rather than letting two dashboard tabs overwrite each other.
+type SetConfig struct {
+	Guild           Guild
+	Broadcaster     Broadcaster
+	Config          ddiscord.Config
+	ExpectedVersion int
+}
+
+// GuildConfigOf pairs a guild with the settings that guild carries. It is what
+// a broadcaster-driven producer (go-live, clips) iterates: one Twitch event
+// fans out to every guild the broadcaster installed the bot into.
+type GuildConfigOf struct {
+	Guild  Guild
+	Config ddiscord.Config
+}
 
 // Clone is one join-to-create voice channel.
 type Clone struct {
@@ -91,6 +128,22 @@ type Store interface {
 	Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
 	BindGuild(ctx context.Context, g Guild, b Broadcaster) error
 	UnbindGuild(ctx context.Context, g Guild) error
+
+	// GuildsOf lists every guild a broadcaster installed the bot into. One
+	// broadcaster owns many guilds, so a Twitch-driven producer fans out over
+	// this rather than resolving "the" guild.
+	GuildsOf(ctx context.Context, b Broadcaster) []Guild
+	// GuildConfig reads one guild's settings and the version to echo back on
+	// the next write. Found is false for a guild that was bound but never
+	// saved, which reads the same as a guild with everything switched off.
+	GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
+	// SetGuildConfig writes one guild's settings and returns the version the
+	// row now holds.
+	SetGuildConfig(ctx context.Context, set SetConfig) (int, error)
+	// Invalidate drops one guild's cached settings. Outgress calls it after
+	// every successful write so the engine picks the change up on its next
+	// event instead of at the end of the cache TTL.
+	Invalidate(ctx context.Context, g Guild)
 
 	TrackClone(ctx context.Context, c Clone) error
 	Clone(ctx context.Context, ch Channel) (Clone, bool)
@@ -126,6 +179,11 @@ type valkeyStore struct {
 func New(client valkey.Client) Store { return newLocal(client) }
 
 func guildKey(g Guild) string { return "discord:guild:" + g.ID }
+
+// cfgKey caches one guild's settings. Read on every gateway event, written
+// only from the dashboard, and invalidated directly by outgress on save -- so
+// the TTL is only the backstop for an invalidation this process never saw.
+func cfgKey(g Guild) string { return "discord:cfg:" + g.ID }
 
 func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
 
@@ -171,6 +229,44 @@ func (s valkeyStore) BindGuild(ctx context.Context, g Guild, b Broadcaster) erro
 
 func (s valkeyStore) UnbindGuild(ctx context.Context, g Guild) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(g)).Build()).Error()
+}
+
+// GuildsOf has no Valkey answer. The reverse index this store keeps is
+// guild->broadcaster, one key per guild; listing a broadcaster's guilds from
+// it would mean a KEYS scan of the whole keyspace on every dashboard load.
+// discord-data indexes the column instead, so this direction exists only on
+// the RPC-backed store.
+func (s valkeyStore) GuildsOf(_ context.Context, b Broadcaster) []Guild {
+	zap.L().Warn("discord guild list needs the discord-data-backed store; answering empty",
+		zap.String("broadcaster_id", b.ID))
+	return nil
+}
+
+// GuildConfig is not served here. Guild settings have no Valkey store of
+// record -- discord-data holds them and this store has only the cache in front
+// of it -- so answering from the cache would mean serving settings that may
+// have been deleted, with no way to ever notice. A process that reaches this
+// method is wired to New instead of NewRPC, which is a deployment mistake, so
+// it warns rather than failing silently.
+func (s valkeyStore) GuildConfig(_ context.Context, g Guild) (ddiscord.Config, int, bool) {
+	zap.L().Warn("discord guild settings need the discord-data-backed store; answering not-found",
+		zap.String("guild_id", g.ID))
+	return ddiscord.Config{}, 0, false
+}
+
+// SetGuildConfig refuses for the same reason, loudly: a write accepted here
+// would be acknowledged to the dashboard and then read back by nobody.
+func (s valkeyStore) SetGuildConfig(_ context.Context, set SetConfig) (int, error) {
+	zap.L().Warn("discord guild settings need the discord-data-backed store; refusing the write",
+		zap.String("guild_id", set.Guild.ID))
+	return 0, ErrConfigUnavailable
+}
+
+// Invalidate drops the cached settings. This one IS the Valkey store's job
+// even here: the cache is the only part of the settings path that lives in
+// Valkey, and outgress runs in a process that may hold either store.
+func (s valkeyStore) Invalidate(ctx context.Context, g Guild) {
+	s.dropConfig(ctx, g)
 }
 
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
@@ -350,6 +446,13 @@ type Mem struct {
 	daily      map[string]bool
 	occupants  map[string]map[string]struct{}
 	seats      map[string]string
+	configs    map[string]memConfig
+}
+
+// memConfig is one guild's stored settings in the memory double.
+type memConfig struct {
+	Config  ddiscord.Config
+	Version int
 }
 
 // NewMem builds an empty memory store.
@@ -365,6 +468,7 @@ func NewMem() *Mem {
 		daily:      map[string]bool{},
 		occupants:  map[string]map[string]struct{}{},
 		seats:      map[string]string{},
+		configs:    map[string]memConfig{},
 	}
 }
 
@@ -397,6 +501,62 @@ func (m *Mem) UnbindGuild(_ context.Context, g Guild) error {
 	defer m.mu.Unlock()
 	delete(m.guild, g.ID)
 	return nil
+}
+
+// GuildsOf lists the guilds bound to b, in guild-id order so a test asserting
+// on the slice does not depend on map iteration.
+func (m *Mem) GuildsOf(_ context.Context, b Broadcaster) []Guild {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ids := make([]string, 0, len(m.guild))
+	for guildID, broadcasterID := range m.guild {
+		if broadcasterID == b.ID {
+			ids = append(ids, guildID)
+		}
+	}
+	sort.Strings(ids)
+	out := make([]Guild, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, Guild{ID: id})
+	}
+	return out
+}
+
+func (m *Mem) GuildConfig(_ context.Context, g Guild) (ddiscord.Config, int, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	got, ok := m.configs[g.ID]
+	if !ok {
+		return ddiscord.Config{}, 0, false
+	}
+	return got.Config, got.Version, true
+}
+
+// SetGuildConfig applies the same two checks the real store does: the caller
+// must own the guild, and must hold the current version.
+func (m *Mem) SetGuildConfig(_ context.Context, set SetConfig) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.guild[set.Guild.ID] != set.Broadcaster.ID || set.Broadcaster.ID == "" {
+		return 0, ErrNotBound
+	}
+	if m.configs[set.Guild.ID].Version != set.ExpectedVersion {
+		return 0, ErrConfigConflict
+	}
+	version := set.ExpectedVersion + 1
+	m.configs[set.Guild.ID] = memConfig{Config: set.Config, Version: version}
+	return version, nil
+}
+
+// Invalidate is a no-op: the memory store has no cache in front of itself.
+func (m *Mem) Invalidate(_ context.Context, _ Guild) {}
+
+// PutGuildConfig seeds settings without going through the ownership and
+// version checks, for tests that are about something else.
+func (m *Mem) PutGuildConfig(g Guild, cfg ddiscord.Config) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.configs[g.ID] = memConfig{Config: cfg, Version: m.configs[g.ID].Version + 1}
 }
 
 func (m *Mem) TrackClone(_ context.Context, c Clone) error {

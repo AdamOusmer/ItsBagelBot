@@ -13,6 +13,7 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -134,6 +135,88 @@ func (s *rpcStore) UnbindGuild(ctx context.Context, g Guild) error {
 	return nil
 }
 
+// GuildsOf lists every guild the broadcaster installed the bot into. It is
+// NOT cached: it is read on dashboard loads and on Twitch fan-out, both of
+// which must see a guild the streamer added seconds ago, and it is one indexed
+// lookup rather than the per-event hot path the binding cache exists for.
+//
+// A failure is an empty slice, not an error: every caller's next step is a
+// loop, and fanning out to nothing is the safe answer when the store cannot
+// say which guilds are bound.
+func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) []Guild {
+	broadcasterID, err := strconv.ParseUint(b.ID, 10, 64)
+	if err != nil {
+		return nil
+	}
+	reply, err := request[discorddata.BindingListByBroadcasterReply](ctx, s.rpc,
+		s.subject(discorddata.VerbBindingListByBroadcaster),
+		discorddata.BindingListByBroadcasterRequest{BroadcasterID: broadcasterID})
+	if err != nil || reply.Error != "" {
+		s.log.Error("discord-data binding.list_by_broadcaster failed",
+			zap.String("broadcaster_id", b.ID), zap.String("reply_error", reply.Error), zap.Error(err))
+		return nil
+	}
+	out := make([]Guild, 0, len(reply.Guilds))
+	for _, binding := range reply.Guilds {
+		out = append(out, Guild{ID: binding.GuildID})
+	}
+	return out
+}
+
+// GuildConfig reads one guild's settings through the Valkey cache in front of
+// discord-data.
+//
+// The fallback matches Broadcaster's, and for the same reason: a data-service
+// blip must not stop every gateway event in every guild, and settings that
+// changed inside the last minute are a far smaller wrong than that. The write
+// path below fails loudly instead.
+func (s *rpcStore) GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool) {
+	reply, err := request[discorddata.ConfigGetReply](ctx, s.rpc, s.subject(discorddata.VerbConfigGet),
+		discorddata.ConfigGetRequest{GuildID: g.ID})
+	if err != nil || reply.Error != "" {
+		s.log.Error("discord-data config.get failed; serving the cached settings",
+			zap.String("guild_id", g.ID), zap.String("reply_error", reply.Error), zap.Error(err))
+		return s.cachedConfig(ctx, g)
+	}
+	if !reply.Found {
+		// A guild whose settings were deleted must not keep answering from a
+		// cache entry this replica's invalidation never reached.
+		s.dropConfig(ctx, g)
+		return ddiscord.Config{}, 0, false
+	}
+	s.cacheConfig(ctx, g, reply.Config, reply.Version)
+	return reply.Config, reply.Version, true
+}
+
+// SetGuildConfig writes one guild's settings. The cache entry is dropped
+// rather than refreshed: the reply carries only the version, and re-deriving
+// the stored blob from the request would cache whatever the caller sent even
+// if discord-data normalized it.
+func (s *rpcStore) SetGuildConfig(ctx context.Context, set SetConfig) (int, error) {
+	broadcasterID, err := strconv.ParseUint(set.Broadcaster.ID, 10, 64)
+	if err != nil {
+		return 0, errors.New("discordstore: broadcaster id must be numeric")
+	}
+	reply, err := request[discorddata.ConfigSetReply](ctx, s.rpc, s.subject(discorddata.VerbConfigSet),
+		discorddata.ConfigSetRequest{
+			GuildID:         set.Guild.ID,
+			BroadcasterID:   broadcasterID,
+			Config:          set.Config,
+			ExpectedVersion: set.ExpectedVersion,
+		})
+	if err != nil {
+		return 0, err
+	}
+	if err := replyError(reply.Error, reply.Code); err != nil {
+		return 0, err
+	}
+	s.dropConfig(ctx, set.Guild)
+	return reply.Version, nil
+}
+
+// Invalidate drops one guild's cached settings.
+func (s *rpcStore) Invalidate(ctx context.Context, g Guild) { s.dropConfig(ctx, g) }
+
 // TrackTicket records a newly opened ticket. It passes no open limit: this
 // verb is the legacy channel-tracking call, and the per-member cap belongs to
 // the ticket desk module, which calls ticket.open with its configured limit.
@@ -224,6 +307,10 @@ func replyError(message, code string) error {
 	switch {
 	case code == discorddata.CodeBoundElsewhere:
 		return ErrBoundElsewhere
+	case code == discorddata.CodeConflict:
+		return ErrConfigConflict
+	case code == discorddata.CodeNotBound:
+		return ErrNotBound
 	case message != "":
 		return errors.New(message)
 	default:
