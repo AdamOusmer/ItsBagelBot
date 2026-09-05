@@ -127,13 +127,15 @@
                   <span class="server-name">{g.name || t('discord.unknownServer')}</span>
                   <span class="tr-help">{memberLabel(g)}</span>
                 </span>
-                <span class="pill {state}">
-                  <Icon name={state === 'online' ? 'check' : state === 'reauth' ? 'power' : 'ban'} size={13} />
-                  {t(DISCORD_PILL_KEYS[state])}
+                <span class="server-actions">
+                  <span class="pill {state}">
+                    <Icon name={state === 'online' ? 'check' : state === 'reauth' ? 'power' : 'ban'} size={13} />
+                    {t(DISCORD_PILL_KEYS[state])}
+                  </span>
+                  <ButtonLink variant="secondary" href="/discord/{g.guildId}">
+                    {t('discord.openCta')}
+                  </ButtonLink>
                 </span>
-                <ButtonLink variant="secondary" icon="settings" href="/discord/{g.guildId}">
-                  {t('discord.openCta')}
-                </ButtonLink>
               </li>
             {/each}
           </ul>
@@ -216,8 +218,14 @@
   .pill.offline { color: #cf8a78; background: rgba(176, 90, 70, 0.12); }
   .pill.reauth { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.14); }
 
+  .server-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
   @media (max-width: 600px) {
+    /* Crest and name stay on one line, pill and button drop to the next,
+       indented to the name rather than the card edge: wrapping the copy
+       instead put the crest on the second line next to the pill, which read
+       like two separate rows. 58px = the 44px crest plus its 14px gap. */
     .server { flex-wrap: wrap; }
-    .server-copy { flex-basis: 100%; order: -1; }
+    .server-actions { flex-basis: 100%; padding-left: 58px; }
   }
 </style>

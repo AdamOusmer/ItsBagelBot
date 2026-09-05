@@ -368,13 +368,15 @@ export function demoDiscordGuilds() {
   ];
 }
 
-// What Discord's /users/@me/guilds would return for the picker: one server the
-// demo user owns and one they are only a member of, so the filter has
-// something to actually filter.
+// What Discord's /users/@me/guilds would return for the picker. One server
+// Bagel is already in, one the demo user may add it to, and one where they are
+// an ordinary member: the filter and both badges all have a row to prove
+// themselves on.
 export function demoDiscordPicker() {
   return [
     { id: '123456789012345678', name: 'Demo Bakery', owner: true, permissions: '8' },
-    { id: '987654321098765432', name: 'Crumb Lounge', owner: false, permissions: '32' },
+    { id: '456789012345678901', name: 'Toast Club', owner: false, permissions: '32' },
+    // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: never offered.
     { id: '456789012345678999', name: 'Someone Else Server', owner: false, permissions: '3136' }
   ];
 }

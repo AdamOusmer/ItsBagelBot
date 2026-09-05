@@ -512,7 +512,7 @@
     "pickPresent": "Bagel est déjà dans ce serveur.",
     "pickPresentChip": "Déjà présent",
     "pickPrivacy": "Nous avons demandé votre liste de serveurs à Discord pour construire cette page. Elle sert une seule fois, ici, et n’est jamais conservée.",
-    "pickTitle": "Vos serveurs",
+    "pickTitle": "Serveurs que vous gérez",
     "pickTitleEm": "serveur",
     "pickTitlePre": "Choisissez un",
     "pinHelp": "Un emplacement épinglé garde le rôle choisi : la prochaine configuration le reprend au lieu d’en créer ou d’en renommer un par son nom.",

@@ -225,7 +225,7 @@
   const monogram = $derived(guildMonogram(guildName));
 
   // Discord serves guild icons from its own CDN, and the console CSP is
-  // img-src 'self' data: — an <img> pointed at cdn.discordapp.com renders as a
+  // img-src 'self' data:, so an <img> pointed at cdn.discordapp.com renders as a
   // broken box with a console error and no way to fix it short of proxying
   // every guild icon through the dashboard. A monogram tile costs nothing,
   // never 404s and cannot leak the visit to Discord.

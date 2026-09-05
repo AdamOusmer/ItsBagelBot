@@ -83,7 +83,7 @@ function blankPage(guildId: string, locked: boolean): DiscordGuildPage {
  * guildId is a path segment, so it is caller-supplied: without this any
  * signed-in broadcaster could read (and save) another one's server just by
  * typing its id. `guilds.list` is derived from the bindings outgress owns, so
- * membership in it IS the proof. 404 rather than 403 on purpose — a 403 would
+ * membership in it IS the proof. 404 rather than 403 on purpose: a 403 would
  * confirm the guild exists and is somebody's.
  */
 function ownedGuild(guilds: DiscordGuildSummary[], guildId: string): DiscordGuildSummary {
@@ -123,16 +123,20 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
     '$lib/server/demo-data'
   );
   const view = demoDiscordView();
-  ownedGuild(view.guilds, guildId);
+  const g = ownedGuild(view.guilds, guildId);
   const row = demoDiscordConfig();
+  // The layout and status fixtures describe one server; re-stamping them with
+  // the picked guild is what makes switching servers in demo show a different
+  // server rather than the same card twice under two names.
+  const guild = { id: guildId, name: g.name, iconUrl: '', memberCount: g.memberCount };
   return {
     ...blankPage(guildId, false),
     enabled: view.enabled,
     guilds: view.guilds,
     config: { ...row.config, guildId },
     version: row.version,
-    layout: demoDiscordLayout(),
-    status: demoDiscordStatus(),
+    layout: { ...demoDiscordLayout(), guild, botOnline: g.botPresent },
+    status: { ...demoDiscordStatus(), guild, online: g.botPresent, guildPresent: g.botPresent },
     configured: true,
     justConnected: url.searchParams.get('connected') === '1',
     refused: url.searchParams.get('refused') === '1'

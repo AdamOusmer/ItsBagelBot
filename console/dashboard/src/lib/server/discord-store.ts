@@ -95,7 +95,7 @@ function messageCode(error: string): DiscordCode {
 }
 
 // The module row: the master switch and the Twitch login, plus every guild
-// this broadcaster has bound. No channel or role ids — those are per guild.
+// this broadcaster has bound. No channel or role ids: those are per guild.
 export type DiscordView = {
   enabled: boolean;
   twitchLogin: string;

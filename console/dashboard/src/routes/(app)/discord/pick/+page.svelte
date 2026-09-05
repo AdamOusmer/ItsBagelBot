@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, ButtonLink, Card, Chip, EmptyState, PageHead, getI18n } from '@bagel/shared';
+  import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, getI18n } from '@bagel/shared';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
 
   let { data } = $props();
@@ -33,18 +33,28 @@
               <span class="crest" aria-hidden="true">{c.monogram}</span>
               <span class="server-copy">
                 <span class="server-name">{c.name || t('discord.unknownServer')}</span>
-                <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
+                <!-- The badge is a chip when Bagel is already in the server and
+                     a line of help when it is not: the chip says the state at a
+                     glance, and repeating it as prose under the name is noise. -->
+                {#if c.badge === 'addable'}
+                  <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
+                {/if}
               </span>
-              {#if c.badge === 'present'}
-                <Chip on>{t('discord.pickPresentChip')}</Chip>
-              {/if}
-              <ButtonLink variant="primary" icon="discord" href={c.installURL} data-sveltekit-reload>
-                {t('discord.pickCta')}
-              </ButtonLink>
+              <span class="server-actions">
+                {#if c.badge === 'present'}
+                  <Chip on aria-label={t(DISCORD_BADGE_KEYS[c.badge])}>{t('discord.pickPresentChip')}</Chip>
+                {/if}
+                <ButtonLink variant="primary" icon="discord" href={c.installURL} data-sveltekit-reload>
+                  {t('discord.pickCta')}
+                </ButtonLink>
+              </span>
             </li>
           {/each}
         </ul>
-        <AlertBanner icon="lock">{t('discord.pickPrivacy')}</AlertBanner>
+        <!-- Not an AlertBanner: that component defaults to the danger tone and
+             role="alert", and a note about what we did with the guild list is
+             reassurance, not a problem the reader has to act on. -->
+        <p class="note"><Icon name="lock" size={13} />{t('discord.pickPrivacy')}</p>
       {/if}
     </Card>
   </section>
@@ -103,8 +113,26 @@
   }
   .tr-help { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
 
+  .note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bb-muted);
+  }
+
+  .server-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
   @media (max-width: 600px) {
+    /* See the server list: crest and name on one line, the badge and the
+       button indented under the name on the next. 58px = crest plus gap. */
     .server { flex-wrap: wrap; }
-    .server-copy { flex-basis: 100%; order: -1; }
+    .server-actions { flex-basis: 100%; padding-left: 58px; }
   }
 </style>

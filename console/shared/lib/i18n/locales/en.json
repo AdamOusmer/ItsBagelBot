@@ -512,7 +512,7 @@
     "pickPresent": "Bagel is already in this server.",
     "pickPresentChip": "Already here",
     "pickPrivacy": "We asked Discord for your server list to build this page. That list is used once, here, and is never stored.",
-    "pickTitle": "Your servers",
+    "pickTitle": "Servers you manage",
     "pickTitleEm": "server",
     "pickTitlePre": "Pick a",
     "pinHelp": "A pinned slot keeps the role you chose: the next setup adopts it instead of creating or renaming one by name.",
