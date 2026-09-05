@@ -257,6 +257,20 @@ func (c Config) TicketPanel() TicketPanelSpec {
 	return spec
 }
 
+// OrDefaults fills a spec that crossed a process boundary. TicketPanel already
+// resolves every field, but a spec that arrived over RPC was assembled by the
+// caller and may carry blanks (a dashboard that sent only the fields it
+// changed, a zero Color meaning "unset" rather than black).
+func (s TicketPanelSpec) OrDefaults() TicketPanelSpec {
+	s.Title = firstNonEmpty(s.Title, TicketPanelTitleDefault)
+	s.Body = firstNonEmpty(s.Body, TicketPanelBodyDefault)
+	s.Button = firstNonEmpty(s.Button, TicketPanelButtonDefault)
+	if s.Color == 0 {
+		s.Color = LiveColor
+	}
+	return s
+}
+
 func firstNonEmpty(v, fallback string) string {
 	if t := strings.TrimSpace(v); t != "" {
 		return t

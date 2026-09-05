@@ -29,7 +29,13 @@ type guildRecorder struct {
 	createdCh []string
 	createdRo []string
 	panels    []string
-	nextID    int
+	deleted   []string
+	deleteErr error
+	// panelPosts/panelButtons keep the whole post, not just the button ids, so
+	// the desk-repost tests can assert the copy that was rendered.
+	panelPosts   []discapi.EmbedPost
+	panelButtons []discapi.Button
+	nextID       int
 	// specs keeps each created channel's full spec (by lowercased name) so a
 	// test can assert the permission overwrites a gate actually sent.
 	specs map[string]discapi.ChannelCreate
@@ -47,12 +53,25 @@ func (r *guildRecorder) nextSnowflake(prefix string) string {
 
 func (r *guildRecorder) SendChat(context.Context, discapi.ChatPost) error { return nil }
 
+func (r *guildRecorder) DeleteMessage(_ context.Context, m discapi.Message) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deleted = append(r.deleted, m.ID)
+	return r.deleteErr
+}
+
+// newGuildRecorder is the zero recorder, named so a test reads as "a guild
+// with nothing in it yet" rather than as a struct literal.
+func newGuildRecorder() *guildRecorder { return &guildRecorder{} }
+
 func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, btn := range buttons {
 		r.panels = append(r.panels, btn.CustomID)
 	}
+	r.panelPosts = append(r.panelPosts, post)
+	r.panelButtons = append(r.panelButtons, buttons...)
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("panel-")}, nil
 }
 

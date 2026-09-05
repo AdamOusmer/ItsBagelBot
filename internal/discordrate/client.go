@@ -49,6 +49,8 @@ type rest interface {
 	ListGuildChannelsFull(ctx context.Context, guild discordapi.Guild) ([]discordapi.ChannelInfo, error)
 	ModifyGuild(ctx context.Context, patch discordapi.GuildPatch) error
 	SetChannelOverwrite(ctx context.Context, o discordapi.ChannelOverwrite) error
+	ListMessagesFull(ctx context.Context, page discordapi.MessagePage) ([]discordapi.FullMessage, error)
+	SendFile(ctx context.Context, up discordapi.FileUpload) (discordapi.Message, error)
 }
 
 // LimitedClient decorates a Discord REST client with the shared global
@@ -296,4 +298,21 @@ func (c *LimitedClient) RemoveMemberRoleWithReason(ctx context.Context, r discor
 		return err
 	}
 	return c.rest.RemoveMemberRoleWithReason(ctx, r, reason)
+}
+
+// ListMessagesFull pays one token per PAGE, not per message: the transcript
+// path calls this up to twenty times for one closing ticket, and each call is
+// one request against Discord's bucket.
+func (c *LimitedClient) ListMessagesFull(ctx context.Context, page discordapi.MessagePage) ([]discordapi.FullMessage, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return nil, err
+	}
+	return c.rest.ListMessagesFull(ctx, page)
+}
+
+func (c *LimitedClient) SendFile(ctx context.Context, up discordapi.FileUpload) (discordapi.Message, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.Message{}, err
+	}
+	return c.rest.SendFile(ctx, up)
 }

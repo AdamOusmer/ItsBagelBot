@@ -141,7 +141,7 @@ func main() {
 		Log:     log,
 	}
 	reg := registry.New(modules.All(modules.Deps{
-		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
+		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}

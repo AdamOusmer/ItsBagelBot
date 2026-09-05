@@ -99,6 +99,7 @@ var (
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"open", "claimed", "closed", "archived"}, Default: "open"},
 		{Name: "claimed_by", Type: field.TypeString, Nullable: true, Size: 20, Default: ""},
 		{Name: "subject", Type: field.TypeString, Nullable: true, Size: 120, Default: ""},
+		{Name: "panel_message_id", Type: field.TypeString, Nullable: true, Size: 20, Default: ""},
 		{Name: "opened_at", Type: field.TypeTime},
 		{Name: "claimed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "closed_at", Type: field.TypeTime, Nullable: true},

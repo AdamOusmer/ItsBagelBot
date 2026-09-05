@@ -78,11 +78,12 @@ func main() {
 
 	// discord-data-backed, same as engine's: the dashboard's setup, unbind
 	// and settings writes must land in MySQL, not in a Valkey key the engine
-	// no longer treats as the truth.
+	// no longer treats as the truth. Unconditional -- see the note on
+	// discordstore.DefaultRPCPrefix for why the Valkey-only mode is gone.
 	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
 
 	subscribeRPCs(rpcDeps{
-		NC: nc, Cfg: cfg, Rest: rest, Store: store,
+		NC: nc, Cfg: cfg, Rest: rest, Store: store, ApplicationID: applicationID,
 		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, NRApp: nrApp, Log: log,
 	})
 
@@ -152,15 +153,16 @@ func connectNATS(cfg config.Config, log *zap.Logger) *nats.Conn {
 // parameters into one struct (CodeScene: Excess Number of Function
 // Arguments, over its 4-parameter limit).
 type rpcDeps struct {
-	NC        *nats.Conn
-	Cfg       config.Config
-	Rest      *discordrate.LimitedClient
-	Store     discordstore.Store
-	LiveStore kv.LiveStore
-	Reauth    kv.ReauthStore
-	BotStatus kv.BotStatusReader
-	NRApp     *newrelic.Application
-	Log       *zap.Logger
+	NC            *nats.Conn
+	Cfg           config.Config
+	Rest          *discordrate.LimitedClient
+	Store         discordstore.Store
+	ApplicationID string
+	LiveStore     kv.LiveStore
+	Reauth        kv.ReauthStore
+	BotStatus     kv.BotStatusReader
+	NRApp         *newrelic.Application
+	Log           *zap.Logger
 }
 
 // subscribeRPCs wires the dashboard-facing guild setup RPC and the
@@ -173,10 +175,16 @@ func subscribeRPCs(deps rpcDeps) {
 	}); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, rpc.EngineWiring{
-		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue, App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
-	}); err != nil {
+	engineWiring := rpc.EngineWiring{
+		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue,
+		App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
+	}
+	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, engineWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
+	}
+	ticketDeps := rpc.TicketDeps{Memo: deps.Store, BotID: deps.ApplicationID}
+	if err := rpc.SubscribeTickets(deps.Rest, ticketDeps, engineWiring); err != nil {
+		deps.Log.Fatal("failed to subscribe discord ticket rpc", zap.Error(err))
 	}
 }
 

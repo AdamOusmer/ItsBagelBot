@@ -3,6 +3,11 @@
 
 package discord
 
+import (
+	"strconv"
+	"time"
+)
+
 // Embed is the Discord embed object outgress posts for go-live / clips.
 type Embed struct {
 	Title       string       `json:"title,omitempty"`
@@ -122,12 +127,17 @@ func GoodbyeContent(in Goodbye) string {
 	return in.Display + " left."
 }
 
-// TicketPanelEmbed is the persistent support-desk message.
-func TicketPanelEmbed() Embed {
+// TicketPanelEmbed is the persistent support-desk message. It takes the
+// resolved spec rather than reading a Config: the desk panel is rendered from
+// three places (the setup fill, the engine's EnsureDesk, and the dashboard's
+// desk.repost RPC), and only one of them holds a Config -- passing the already
+// resolved spec is what lets the other two render the streamer's own copy
+// without carrying a config reader they otherwise have no use for.
+func TicketPanelEmbed(spec TicketPanelSpec) Embed {
 	return Embed{
-		Title:       "Need help?",
-		Description: "Open a private ticket with the button. Mods will see it.",
-		Color:       LiveColor,
+		Title:       spec.Title,
+		Description: spec.Body,
+		Color:       spec.Color,
 		Footer:      &EmbedFooter{Text: "Bagel tickets"},
 	}
 }
@@ -135,6 +145,11 @@ func TicketPanelEmbed() Embed {
 // TicketOpened is the card posted into a newly created ticket channel.
 type TicketOpened struct {
 	Opener string
+	// ClaimedBy is the display name of the staff member who claimed the
+	// ticket, empty while it is unclaimed. It rides the same embed (the claim
+	// handler edits this message in place) so the channel shows one card whose
+	// footer is the ticket's state, rather than a second card nobody reads.
+	ClaimedBy string
 }
 
 // TicketOpenedEmbed greets the opener and points at the Close button.
@@ -147,8 +162,72 @@ func TicketOpenedEmbed(in TicketOpened) Embed {
 		Title:       "Ticket",
 		Description: who + " opened this ticket. Mods will reply here.",
 		Color:       LiveColor,
-		Footer:      &EmbedFooter{Text: "Close with the button when you are done."},
+		Footer:      &EmbedFooter{Text: ticketFooter(in.ClaimedBy)},
 	}
+}
+
+func ticketFooter(claimedBy string) string {
+	if claimedBy == "" {
+		return "Close with the button when you are done."
+	}
+	return "Claimed by " + claimedBy
+}
+
+// TicketClosed is the close summary posted into the ticket log channel.
+type TicketClosed struct {
+	Opener       string
+	Closer       string
+	Duration     time.Duration
+	MessageCount int
+	ChannelName  string
+}
+
+// TicketClosedEmbed is the audit card a closed ticket leaves behind: who
+// opened it, who closed it, how long it was open and how many messages the
+// transcript holds.
+func TicketClosedEmbed(in TicketClosed) Embed {
+	e := Embed{
+		Title:       "Ticket closed",
+		Description: ticketClosedTitle(in.ChannelName),
+		Color:       LiveColor,
+		Fields: []EmbedField{
+			{Name: "Opened by", Value: orUnknown(in.Opener), Inline: true},
+			{Name: "Closed by", Value: orUnknown(in.Closer), Inline: true},
+			{Name: "Open for", Value: HumanDuration(in.Duration), Inline: true},
+		},
+	}
+	e.Fields = append(e.Fields, EmbedField{Name: "Messages", Value: strconv.Itoa(in.MessageCount), Inline: true})
+	return e
+}
+
+func ticketClosedTitle(channelName string) string {
+	if channelName == "" {
+		return "A ticket was closed."
+	}
+	return "#" + channelName + " was closed."
+}
+
+func orUnknown(v string) string {
+	if v == "" {
+		return "unknown"
+	}
+	return v
+}
+
+// HumanDuration renders a ticket's lifetime the way a moderator reads it:
+// whole minutes under an hour, hours and minutes above. Seconds are dropped
+// rather than rounded up, because "0m" for a ticket opened and closed by
+// accident is more honest than "1m".
+func HumanDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	hours := int(d / time.Hour)
+	minutes := int(d/time.Minute) % 60
+	if hours == 0 {
+		return strconv.Itoa(minutes) + "m"
+	}
+	return strconv.Itoa(hours) + "h " + strconv.Itoa(minutes) + "m"
 }
 
 // VoiceRoom is the control card posted into a join-to-create clone.

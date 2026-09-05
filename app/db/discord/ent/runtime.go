@@ -202,18 +202,24 @@ func init() {
 	ticket.DefaultSubject = ticketDescSubject.Default.(string)
 	// ticket.SubjectValidator is a validator for the "subject" field. It is called by the builders before save.
 	ticket.SubjectValidator = ticketDescSubject.Validators[0].(func(string) error)
+	// ticketDescPanelMessageID is the schema descriptor for panel_message_id field.
+	ticketDescPanelMessageID := ticketFields[6].Descriptor()
+	// ticket.DefaultPanelMessageID holds the default value on creation for the panel_message_id field.
+	ticket.DefaultPanelMessageID = ticketDescPanelMessageID.Default.(string)
+	// ticket.PanelMessageIDValidator is a validator for the "panel_message_id" field. It is called by the builders before save.
+	ticket.PanelMessageIDValidator = ticketDescPanelMessageID.Validators[0].(func(string) error)
 	// ticketDescOpenedAt is the schema descriptor for opened_at field.
-	ticketDescOpenedAt := ticketFields[6].Descriptor()
+	ticketDescOpenedAt := ticketFields[7].Descriptor()
 	// ticket.DefaultOpenedAt holds the default value on creation for the opened_at field.
 	ticket.DefaultOpenedAt = ticketDescOpenedAt.Default.(func() time.Time)
 	// ticketDescClosedBy is the schema descriptor for closed_by field.
-	ticketDescClosedBy := ticketFields[9].Descriptor()
+	ticketDescClosedBy := ticketFields[10].Descriptor()
 	// ticket.DefaultClosedBy holds the default value on creation for the closed_by field.
 	ticket.DefaultClosedBy = ticketDescClosedBy.Default.(string)
 	// ticket.ClosedByValidator is a validator for the "closed_by" field. It is called by the builders before save.
 	ticket.ClosedByValidator = ticketDescClosedBy.Validators[0].(func(string) error)
 	// ticketDescArchivedChannelID is the schema descriptor for archived_channel_id field.
-	ticketDescArchivedChannelID := ticketFields[10].Descriptor()
+	ticketDescArchivedChannelID := ticketFields[11].Descriptor()
 	// ticket.DefaultArchivedChannelID holds the default value on creation for the archived_channel_id field.
 	ticket.DefaultArchivedChannelID = ticketDescArchivedChannelID.Default.(string)
 	// ticket.ArchivedChannelIDValidator is a validator for the "archived_channel_id" field. It is called by the builders before save.

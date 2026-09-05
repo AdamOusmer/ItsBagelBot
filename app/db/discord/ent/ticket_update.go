@@ -83,6 +83,26 @@ func (_u *TicketUpdate) ClearSubject() *TicketUpdate {
 	return _u
 }
 
+// SetPanelMessageID sets the "panel_message_id" field.
+func (_u *TicketUpdate) SetPanelMessageID(v string) *TicketUpdate {
+	_u.mutation.SetPanelMessageID(v)
+	return _u
+}
+
+// SetNillablePanelMessageID sets the "panel_message_id" field if the given value is not nil.
+func (_u *TicketUpdate) SetNillablePanelMessageID(v *string) *TicketUpdate {
+	if v != nil {
+		_u.SetPanelMessageID(*v)
+	}
+	return _u
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (_u *TicketUpdate) ClearPanelMessageID() *TicketUpdate {
+	_u.mutation.ClearPanelMessageID()
+	return _u
+}
+
 // SetClaimedAt sets the "claimed_at" field.
 func (_u *TicketUpdate) SetClaimedAt(v time.Time) *TicketUpdate {
 	_u.mutation.SetClaimedAt(v)
@@ -237,6 +257,11 @@ func (_u *TicketUpdate) check() error {
 			return &ValidationError{Name: "subject", err: fmt.Errorf(`ent: validator failed for field "Ticket.subject": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PanelMessageID(); ok {
+		if err := ticket.PanelMessageIDValidator(v); err != nil {
+			return &ValidationError{Name: "panel_message_id", err: fmt.Errorf(`ent: validator failed for field "Ticket.panel_message_id": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ClosedBy(); ok {
 		if err := ticket.ClosedByValidator(v); err != nil {
 			return &ValidationError{Name: "closed_by", err: fmt.Errorf(`ent: validator failed for field "Ticket.closed_by": %w`, err)}
@@ -276,6 +301,12 @@ func (_u *TicketUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.SubjectCleared() {
 		_spec.ClearField(ticket.FieldSubject, field.TypeString)
+	}
+	if value, ok := _u.mutation.PanelMessageID(); ok {
+		_spec.SetField(ticket.FieldPanelMessageID, field.TypeString, value)
+	}
+	if _u.mutation.PanelMessageIDCleared() {
+		_spec.ClearField(ticket.FieldPanelMessageID, field.TypeString)
 	}
 	if value, ok := _u.mutation.ClaimedAt(); ok {
 		_spec.SetField(ticket.FieldClaimedAt, field.TypeTime, value)
@@ -401,6 +432,26 @@ func (_u *TicketUpdateOne) SetNillableSubject(v *string) *TicketUpdateOne {
 // ClearSubject clears the value of the "subject" field.
 func (_u *TicketUpdateOne) ClearSubject() *TicketUpdateOne {
 	_u.mutation.ClearSubject()
+	return _u
+}
+
+// SetPanelMessageID sets the "panel_message_id" field.
+func (_u *TicketUpdateOne) SetPanelMessageID(v string) *TicketUpdateOne {
+	_u.mutation.SetPanelMessageID(v)
+	return _u
+}
+
+// SetNillablePanelMessageID sets the "panel_message_id" field if the given value is not nil.
+func (_u *TicketUpdateOne) SetNillablePanelMessageID(v *string) *TicketUpdateOne {
+	if v != nil {
+		_u.SetPanelMessageID(*v)
+	}
+	return _u
+}
+
+// ClearPanelMessageID clears the value of the "panel_message_id" field.
+func (_u *TicketUpdateOne) ClearPanelMessageID() *TicketUpdateOne {
+	_u.mutation.ClearPanelMessageID()
 	return _u
 }
 
@@ -571,6 +622,11 @@ func (_u *TicketUpdateOne) check() error {
 			return &ValidationError{Name: "subject", err: fmt.Errorf(`ent: validator failed for field "Ticket.subject": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PanelMessageID(); ok {
+		if err := ticket.PanelMessageIDValidator(v); err != nil {
+			return &ValidationError{Name: "panel_message_id", err: fmt.Errorf(`ent: validator failed for field "Ticket.panel_message_id": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ClosedBy(); ok {
 		if err := ticket.ClosedByValidator(v); err != nil {
 			return &ValidationError{Name: "closed_by", err: fmt.Errorf(`ent: validator failed for field "Ticket.closed_by": %w`, err)}
@@ -627,6 +683,12 @@ func (_u *TicketUpdateOne) sqlSave(ctx context.Context) (_node *Ticket, err erro
 	}
 	if _u.mutation.SubjectCleared() {
 		_spec.ClearField(ticket.FieldSubject, field.TypeString)
+	}
+	if value, ok := _u.mutation.PanelMessageID(); ok {
+		_spec.SetField(ticket.FieldPanelMessageID, field.TypeString, value)
+	}
+	if _u.mutation.PanelMessageIDCleared() {
+		_spec.ClearField(ticket.FieldPanelMessageID, field.TypeString)
 	}
 	if value, ok := _u.mutation.ClaimedAt(); ok {
 		_spec.SetField(ticket.FieldClaimedAt, field.TypeTime, value)

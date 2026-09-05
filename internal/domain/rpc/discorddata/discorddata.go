@@ -33,6 +33,7 @@ const (
 	VerbTicketClaim = "ticket.claim"
 	VerbTicketClose = "ticket.close"
 	VerbTicketGet   = "ticket.get"
+	VerbTicketCount = "ticket.count"
 	VerbTicketList  = "ticket.list"
 
 	VerbTranscriptPut = "transcript.put"
@@ -191,6 +192,9 @@ type TicketOpenRequest struct {
 	OpenerID  string `json:"opener_id"`
 	Subject   string `json:"subject,omitempty"`
 	OpenLimit int    `json:"open_limit,omitempty"`
+	// PanelMessageID is the ticket card the engine already posted into the
+	// channel; claiming edits that message's footer in place.
+	PanelMessageID string `json:"panel_message_id,omitempty"`
 }
 
 // TicketOpenReply carries the new row's id and the opener's resulting open
@@ -251,6 +255,27 @@ type TicketGetReply struct {
 	Code   string `json:"code,omitempty"`
 }
 
+// TicketCountRequest asks how many live (open or claimed) tickets one member
+// holds in one guild.
+//
+// Not in the original verb table, and deliberately added: without it the desk
+// can only learn the count by attempting an open, which means creating a
+// Discord channel and deleting it again every time somebody at their limit
+// presses the button -- two REST calls on exactly the path that should be
+// cheap. The count is also what numbers the channel (ticket-<name>-<n>), which
+// must be decided BEFORE the channel is created.
+type TicketCountRequest struct {
+	GuildID  string `json:"guild_id"`
+	OpenerID string `json:"opener_id"`
+}
+
+// TicketCountReply carries the member's live-ticket count.
+type TicketCountReply struct {
+	Count int    `json:"count"`
+	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
+}
+
 // TicketListRequest pages one guild's tickets. Status is empty for every
 // status, or one of the Status* constants. Cursor is the previous reply's
 // NextCursor; the listing is newest-first by ticket id.
@@ -282,6 +307,7 @@ type Ticket struct {
 	ClaimedBy         string `json:"claimed_by,omitempty"`
 	ClosedBy          string `json:"closed_by,omitempty"`
 	ArchivedChannelID string `json:"archived_channel_id,omitempty"`
+	PanelMessageID    string `json:"panel_message_id,omitempty"`
 	OpenedAtUnixMs    int64  `json:"opened_at_unix_ms"`
 	ClaimedAtUnixMs   int64  `json:"claimed_at_unix_ms,omitempty"`
 	ClosedAtUnixMs    int64  `json:"closed_at_unix_ms,omitempty"`

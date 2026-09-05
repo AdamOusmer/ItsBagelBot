@@ -354,3 +354,49 @@ func TestTicketVerbsRefuseAnotherGuildsChannel(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, ticket.StatusOpen, row.Status, "neither refused verb may have changed the row")
 }
+
+func TestTicketOpenStoresThePanelMessageID(t *testing.T) {
+	repo, ctx := newStore(t, "ticketpanelmsg")
+
+	_, _, err := repo.TicketOpen(ctx, repository.OpenParams{
+		GuildID: "g1", ChannelID: "c1", OpenerID: "member1", PanelMessageID: "m1",
+	})
+	require.NoError(t, err)
+
+	row, found, err := repo.TicketGet(ctx, "g1", "c1")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "m1", row.PanelMessageID, "the claim edit needs the card it must patch")
+}
+
+func TestTicketOpenCountCountsLiveTicketsOnly(t *testing.T) {
+	repo, ctx := newStore(t, "ticketcount")
+
+	n, err := repo.TicketOpenCount(ctx, "g1", "member1")
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+
+	_, _, err = openOne(t, repo, ctx, "c1", 0)
+	require.NoError(t, err)
+	_, _, err = openOne(t, repo, ctx, "c2", 0)
+	require.NoError(t, err)
+
+	n, err = repo.TicketOpenCount(ctx, "g1", "member1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	// A claimed ticket is still one the opener holds; a closed one is not.
+	_, err = repo.TicketClaim(ctx, "g1", "c1", "mod1")
+	require.NoError(t, err)
+	_, _, err = repo.TicketClose(ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c2", ClosedBy: "mod1"})
+	require.NoError(t, err)
+
+	n, err = repo.TicketOpenCount(ctx, "g1", "member1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	// Another member's tickets never count against this one.
+	n, err = repo.TicketOpenCount(ctx, "g1", "member2")
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+}

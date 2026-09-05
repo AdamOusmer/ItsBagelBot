@@ -72,6 +72,13 @@ func newRPCStore(requester Requester, local localStore, prefix string, log *zap.
 
 func (s *rpcStore) subject(verb string) string { return s.prefix + "." + verb }
 
+// TicketsDurable shadows the embedded local store's answer. Tickets opened
+// through this store get a discord-data row: an id, an enforced open limit and
+// a transcript. A discord-data that is DOWN surfaces per call, as an error the
+// open path already rolls the channel back on -- not as a mode where the desk
+// pretends the limit does not exist.
+func (*rpcStore) TicketsDurable(context.Context) bool { return true }
+
 // Broadcaster resolves a guild to its broadcaster, through the Valkey cache in
 // front of discord-data.
 //
@@ -249,16 +256,26 @@ func (s *rpcStore) SetGuildConfig(ctx context.Context, set SetConfig) (int, erro
 // Invalidate drops one guild's cached settings.
 func (s *rpcStore) Invalidate(ctx context.Context, g Guild) { s.dropConfig(ctx, g) }
 
-// TrackTicket records a newly opened ticket. It passes no open limit: this
-// verb is the legacy channel-tracking call, and the per-member cap belongs to
-// the ticket desk module, which calls ticket.open with its configured limit.
-func (s *rpcStore) TrackTicket(ctx context.Context, t Ticket) error {
+// TrackTicket records a newly opened ticket, with the guild's per-member cap
+// enforced by discord-data inside the same transaction that inserts the row.
+// CodeLimit is a refusal, not an error: the caller answers the opener with the
+// count instead of logging a failure.
+func (s *rpcStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
 	reply, err := request[discorddata.TicketOpenReply](ctx, s.rpc, s.subject(discorddata.VerbTicketOpen),
-		discorddata.TicketOpenRequest{GuildID: t.GuildID, ChannelID: t.ChannelID, OpenerID: t.OpenerID})
+		discorddata.TicketOpenRequest{
+			GuildID: t.GuildID, ChannelID: t.ChannelID, OpenerID: t.OpenerID, Subject: t.Subject,
+			PanelMessageID: t.PanelMessageID, OpenLimit: t.OpenLimit,
+		})
 	if err != nil {
-		return err
+		return TicketOpenResult{}, err
 	}
-	return replyError(reply.Error, reply.Code)
+	if reply.Code == discorddata.CodeLimit {
+		return TicketOpenResult{OpenCount: reply.OpenCount, AtLimit: true}, nil
+	}
+	if err := replyError(reply.Error, reply.Code); err != nil {
+		return TicketOpenResult{}, err
+	}
+	return TicketOpenResult{TicketID: reply.TicketID, OpenCount: reply.OpenCount}, nil
 }
 
 // Ticket resolves the ticket a button press belongs to. A transport failure is
@@ -275,18 +292,64 @@ func (s *rpcStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, boo
 		return Ticket{}, false
 	}
 	return Ticket{
-		ChannelID: reply.Ticket.ChannelID,
-		GuildID:   reply.Ticket.GuildID,
-		OpenerID:  reply.Ticket.OpenerID,
+		ID:             reply.Ticket.ID,
+		ChannelID:      reply.Ticket.ChannelID,
+		GuildID:        reply.Ticket.GuildID,
+		OpenerID:       reply.Ticket.OpenerID,
+		Status:         reply.Ticket.Status,
+		ClaimedBy:      reply.Ticket.ClaimedBy,
+		PanelMessageID: reply.Ticket.PanelMessageID,
 	}, true
 }
 
-// ForgetTicket closes the ticket in ch. The row survives: the desk, the
-// transcript and the audit trail all need the history the Valkey key it
-// replaces used to throw away.
-func (s *rpcStore) ForgetTicket(ctx context.Context, g Guild, ch Channel) error {
+// OpenTicketCount asks discord-data how many live tickets the member holds. A
+// transport failure answers zero, which lets the open through: the row insert
+// still carries the limit and refuses there, so the worst case is one ticket
+// past the cap rather than a desk that stops working when the RPC blips.
+func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) int {
+	reply, err := request[discorddata.TicketCountReply](ctx, s.rpc, s.subject(discorddata.VerbTicketCount),
+		discorddata.TicketCountRequest{GuildID: m.GuildID, OpenerID: m.UserID})
+	if err != nil || reply.Error != "" {
+		s.log.Error("discord-data ticket.count failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+		return 0
+	}
+	return reply.Count
+}
+
+// ClaimTicket records who is handling the ticket.
+func (s *rpcStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
+	reply, err := request[discorddata.TicketClaimReply](ctx, s.rpc, s.subject(discorddata.VerbTicketClaim),
+		discorddata.TicketClaimRequest{GuildID: c.GuildID, ChannelID: c.ChannelID, StaffID: c.StaffID})
+	if err != nil {
+		return err
+	}
+	return replyError(reply.Error, reply.Code)
+}
+
+// CloseTicket ends the ticket in c. The row survives: the desk, the transcript
+// and the audit trail all need the history the Valkey key it replaces used to
+// throw away.
+func (s *rpcStore) CloseTicket(ctx context.Context, c TicketClose) error {
 	reply, err := request[discorddata.TicketCloseReply](ctx, s.rpc, s.subject(discorddata.VerbTicketClose),
-		discorddata.TicketCloseRequest{GuildID: g.ID, ChannelID: ch.ID})
+		discorddata.TicketCloseRequest{
+			GuildID: c.GuildID, ChannelID: c.ChannelID,
+			ClosedBy: c.ClosedBy, ArchivedChannelID: c.ArchivedChannelID,
+		})
+	if err != nil {
+		return err
+	}
+	return replyError(reply.Error, reply.Code)
+}
+
+// PutTranscript stores a closed ticket's rendered history. A zero TicketID
+// means the close never got a row (the fallback path), and there is nothing to
+// attach the body to.
+func (s *rpcStore) PutTranscript(ctx context.Context, t Transcript) error {
+	if t.TicketID == 0 {
+		return nil
+	}
+	reply, err := request[discorddata.TranscriptPutReply](ctx, s.rpc, s.subject(discorddata.VerbTranscriptPut),
+		discorddata.TranscriptPutRequest{TicketID: t.TicketID, Body: t.Body, MessageCount: t.MessageCount})
 	if err != nil {
 		return err
 	}

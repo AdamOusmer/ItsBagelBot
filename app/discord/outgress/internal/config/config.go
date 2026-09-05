@@ -3,7 +3,10 @@
 
 package config
 
-import "ItsBagelBot/pkg/env"
+import (
+	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/pkg/env"
+)
 
 // Config is the process env app/discord/outgress boots from. outgress holds
 // every Discord REST call in the split (see main.go's package doc), so it
@@ -62,6 +65,6 @@ func Load() Config {
 		DiscordEngineRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
 		DiscordEngineRPCQueue:  env.Get("NATS_DISCORD_OUTGRESS_RPC_QUEUE", "discord-outgress-rpc"),
 		OutgressRPCPrefix:      env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
-		DiscordDataRPCPrefix:   env.Get("NATS_DISCORD_DATA_RPC_PREFIX", "bagel.rpc.discord-data"),
+		DiscordDataRPCPrefix:   env.Get("NATS_DISCORD_DATA_RPC_PREFIX", discordstore.DefaultRPCPrefix),
 	}
 }

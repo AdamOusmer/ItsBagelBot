@@ -405,6 +405,14 @@ spec:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.cache.svc.cluster.local:6380
+            # discord-data holds the durable half of the Discord state:
+            # guild bindings, ticket rows and transcripts, member XP. Off
+            # keeps all of it in Valkey, which boots with a WARN and loses
+            # the ticket open limit, transcripts and ticket history.
+            - name: DISCORD_DATA_ENABLED
+              value: "true"
+            - name: NATS_DISCORD_DATA_RPC_PREFIX
+              value: bagel.rpc.discord-data
             - name: GOMEMLIMIT
               value: 512MiB
             - name: TLS_CERT_FILE
@@ -617,6 +625,14 @@ spec:
                   fieldPath: status.hostIP
             - name: VALKEY_LOCAL_ADDR
               value: valkey-local.cache.svc.cluster.local:6380
+            # discord-data holds the durable half of the Discord state:
+            # guild bindings, ticket rows and transcripts, member XP. Off
+            # keeps all of it in Valkey, which boots with a WARN and loses
+            # the ticket open limit, transcripts and ticket history.
+            - name: DISCORD_DATA_ENABLED
+              value: "true"
+            - name: NATS_DISCORD_DATA_RPC_PREFIX
+              value: bagel.rpc.discord-data
             - name: GOMEMLIMIT
               value: 512MiB
             - name: TLS_CERT_FILE

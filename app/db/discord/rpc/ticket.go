@@ -33,6 +33,10 @@ func subscribeTickets(w Wiring) error {
 		w.NC, w.subject(discorddata.VerbTicketGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.get); err != nil {
 		return err
 	}
+	if err := bus.QueueSubscribeJSON[discorddata.TicketCountRequest, discorddata.TicketCountReply](
+		w.NC, w.subject(discorddata.VerbTicketCount), w.QueueGroup, requestTimeout, w.App, w.Log, h.count); err != nil {
+		return err
+	}
 	if err := bus.QueueSubscribeJSON[discorddata.TicketListRequest, discorddata.TicketListReply](
 		w.NC, w.subject(discorddata.VerbTicketList), w.QueueGroup, requestTimeout, w.App, w.Log, h.list); err != nil {
 		return err
@@ -59,6 +63,8 @@ func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) 
 		OpenerID:  req.OpenerID,
 		Subject:   req.Subject,
 		Limit:     req.OpenLimit,
+
+		PanelMessageID: req.PanelMessageID,
 	})
 	if err != nil {
 		message, code := failure(err)
@@ -103,6 +109,15 @@ func (h ticketRPC) get(ctx context.Context, req discorddata.TicketGetRequest) di
 		return discorddata.TicketGetReply{}
 	}
 	return discorddata.TicketGetReply{Ticket: ticketView(row), Found: true}
+}
+
+func (h ticketRPC) count(ctx context.Context, req discorddata.TicketCountRequest) discorddata.TicketCountReply {
+	n, err := h.repo.TicketOpenCount(ctx, req.GuildID, req.OpenerID)
+	if err != nil {
+		message, code := failure(err)
+		return discorddata.TicketCountReply{Error: message, Code: code}
+	}
+	return discorddata.TicketCountReply{Count: n}
 }
 
 func (h ticketRPC) list(ctx context.Context, req discorddata.TicketListRequest) discorddata.TicketListReply {
@@ -158,6 +173,7 @@ func ticketView(row *ent.Ticket) discorddata.Ticket {
 		ClaimedBy:         row.ClaimedBy,
 		ClosedBy:          row.ClosedBy,
 		ArchivedChannelID: row.ArchivedChannelID,
+		PanelMessageID:    row.PanelMessageID,
 		OpenedAtUnixMs:    unixMs(row.OpenedAt),
 		ClaimedAtUnixMs:   unixMsPtr(row.ClaimedAt),
 		ClosedAtUnixMs:    unixMsPtr(row.ClosedAt),

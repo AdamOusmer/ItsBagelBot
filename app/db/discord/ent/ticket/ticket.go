@@ -27,6 +27,8 @@ const (
 	FieldClaimedBy = "claimed_by"
 	// FieldSubject holds the string denoting the subject field in the database.
 	FieldSubject = "subject"
+	// FieldPanelMessageID holds the string denoting the panel_message_id field in the database.
+	FieldPanelMessageID = "panel_message_id"
 	// FieldOpenedAt holds the string denoting the opened_at field in the database.
 	FieldOpenedAt = "opened_at"
 	// FieldClaimedAt holds the string denoting the claimed_at field in the database.
@@ -59,6 +61,7 @@ var Columns = []string{
 	FieldStatus,
 	FieldClaimedBy,
 	FieldSubject,
+	FieldPanelMessageID,
 	FieldOpenedAt,
 	FieldClaimedAt,
 	FieldClosedAt,
@@ -91,6 +94,10 @@ var (
 	DefaultSubject string
 	// SubjectValidator is a validator for the "subject" field. It is called by the builders before save.
 	SubjectValidator func(string) error
+	// DefaultPanelMessageID holds the default value on creation for the "panel_message_id" field.
+	DefaultPanelMessageID string
+	// PanelMessageIDValidator is a validator for the "panel_message_id" field. It is called by the builders before save.
+	PanelMessageIDValidator func(string) error
 	// DefaultOpenedAt holds the default value on creation for the "opened_at" field.
 	DefaultOpenedAt func() time.Time
 	// DefaultClosedBy holds the default value on creation for the "closed_by" field.
@@ -167,6 +174,11 @@ func ByClaimedBy(opts ...sql.OrderTermOption) OrderOption {
 // BySubject orders the results by the subject field.
 func BySubject(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSubject, opts...).ToFunc()
+}
+
+// ByPanelMessageID orders the results by the panel_message_id field.
+func ByPanelMessageID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPanelMessageID, opts...).ToFunc()
 }
 
 // ByOpenedAt orders the results by the opened_at field.

@@ -96,7 +96,7 @@ func TestMemDeskClaim(t *testing.T) {
 	if m.ClaimDesk(context.Background(), g) {
 		t.Fatal("second desk claim")
 	}
-	_ = m.RememberDesk(context.Background(), Guild{ID: "g2"})
+	_ = m.RememberDesk(context.Background(), DeskPanel{GuildID: "g2"})
 	if m.ClaimDesk(context.Background(), Guild{ID: "g2"}) {
 		t.Fatal("remembered desk")
 	}
@@ -156,5 +156,94 @@ func TestMemVoiceOccupancySameChannelUpdateIsNotALeave(t *testing.T) {
 	left, leftEmpty := m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
 	if leftEmpty {
 		t.Fatalf("same-channel update must not report empty (left=%q)", left)
+	}
+}
+
+// The pure-Valkey store cannot number, cap or transcribe a ticket, and says
+// so. The desk refuses to open in that mode rather than handing out a channel
+// it can never manage.
+func TestTicketsDurableIsFalseOnTheValkeyFallback(t *testing.T) {
+	if (valkeyStore{}).TicketsDurable(context.Background()) {
+		t.Fatal("the pure-Valkey fallback must not claim durable tickets")
+	}
+	if !NewMem().TicketsDurable(context.Background()) {
+		t.Fatal("the memory double stands in for the durable path")
+	}
+}
+
+// A remember with no message id is a CLAIM, not an overwrite: letting it win
+// would erase the id of a panel that is actually posted, and the repost path
+// would then stack a second live panel under the first.
+func TestRememberDeskNeverErasesAKnownPanel(t *testing.T) {
+	ctx := context.Background()
+	m := NewMem()
+
+	if err := m.RememberDesk(ctx, DeskPanel{GuildID: "g1", ChannelID: "c1", MessageID: "m1"}); err != nil {
+		t.Fatalf("remember: %v", err)
+	}
+	if err := m.RememberDesk(ctx, DeskPanel{GuildID: "g1", ChannelID: "c1"}); err != nil {
+		t.Fatalf("re-remember: %v", err)
+	}
+
+	got, ok := m.Desk(ctx, Guild{ID: "g1"})
+	if !ok || got.MessageID != "m1" {
+		t.Fatalf("desk = %+v, %v, want the original message id kept", got, ok)
+	}
+}
+
+func TestPendingCloseRoundTrips(t *testing.T) {
+	ctx := context.Background()
+	m := NewMem()
+	done := TicketClose{GuildID: "g1", ChannelID: "c1", ClosedBy: "u9", ArchivedChannelID: "c1"}
+
+	if _, ok := m.PendingClose(ctx, Channel{ID: "c1"}); ok {
+		t.Fatal("nothing was marked yet")
+	}
+	if err := m.MarkPendingClose(ctx, done); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+	got, ok := m.PendingClose(ctx, Channel{ID: "c1"})
+	if !ok || got != done {
+		t.Fatalf("pending = %+v, %v", got, ok)
+	}
+	if err := m.ClearPendingClose(ctx, Channel{ID: "c1"}); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if _, ok := m.PendingClose(ctx, Channel{ID: "c1"}); ok {
+		t.Fatal("the marker survived being cleared")
+	}
+}
+
+// The summary memo is what keeps a retried close from stacking a second card
+// and a second transcript upload in the log channel.
+func TestClaimSummaryIsOncePerTicket(t *testing.T) {
+	ctx := context.Background()
+	m := NewMem()
+
+	if !m.ClaimSummary(ctx, 7) {
+		t.Fatal("the first close must claim")
+	}
+	if m.ClaimSummary(ctx, 7) {
+		t.Fatal("the retry must not claim")
+	}
+	if !m.ClaimSummary(ctx, 8) {
+		t.Fatal("a different ticket claims independently")
+	}
+	// The fallback has no row ids; a zero always posts rather than never.
+	if !m.ClaimSummary(ctx, 0) || !m.ClaimSummary(ctx, 0) {
+		t.Fatal("a ticket with no row id must always post")
+	}
+}
+
+func TestTicketOverNamesTheTerminalStates(t *testing.T) {
+	for _, status := range []string{TicketStatusClosed, TicketStatusArchived} {
+		if !TicketOver(status) {
+			t.Fatalf("%q is terminal", status)
+		}
+	}
+	for _, status := range []string{TicketStatusOpen, TicketStatusClaimed, ""} {
+		if TicketOver(status) {
+			t.Fatalf("%q is not terminal", status)
+		}
 	}
 }

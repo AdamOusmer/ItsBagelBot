@@ -63,3 +63,50 @@ func TestRegisterStillReturnsTheIDOnACatalogFailure(t *testing.T) {
 		t.Fatalf("id = %s, want app-1 even on a catalog failure", id)
 	}
 }
+
+// The catalog is a bulk OVERWRITE: a subcommand missing from this list is
+// deregistered at the next outgress boot and the engine handler behind it
+// becomes unreachable with no error anywhere. Pinning the ticket group is what
+// makes that a failing test rather than a silent regression.
+func TestCatalogPinsTheTicketSubcommands(t *testing.T) {
+	var ticket *discordapi.AppCommand
+	for i, cmd := range Catalog() {
+		if cmd.Name == "ticket" {
+			ticket = &Catalog()[i]
+			break
+		}
+	}
+	if ticket == nil {
+		t.Fatal("no /ticket command in the catalog")
+	}
+	want := map[string]bool{"open": false, "close": false, "claim": false, "add": false, "panel": false}
+	for _, sub := range ticket.Options {
+		if _, ok := want[sub.Name]; !ok {
+			t.Fatalf("unexpected /ticket subcommand %q", sub.Name)
+		}
+		want[sub.Name] = true
+		if sub.Type != 1 {
+			t.Fatalf("/ticket %s type = %d, want 1 (SUB_COMMAND)", sub.Name, sub.Type)
+		}
+	}
+	for name, seen := range want {
+		if !seen {
+			t.Fatalf("/ticket %s is missing from the catalog", name)
+		}
+	}
+	add := subcommand(t, ticket, "add")
+	if len(add.Options) != 1 || add.Options[0].Name != "user" || add.Options[0].Type != 6 || !add.Options[0].Required {
+		t.Fatalf("/ticket add options = %+v, want one required USER option", add.Options)
+	}
+}
+
+func subcommand(t *testing.T, cmd *discordapi.AppCommand, name string) discordapi.AppCommandOption {
+	t.Helper()
+	for _, sub := range cmd.Options {
+		if sub.Name == name {
+			return sub
+		}
+	}
+	t.Fatalf("no /%s %s", cmd.Name, name)
+	return discordapi.AppCommandOption{}
+}

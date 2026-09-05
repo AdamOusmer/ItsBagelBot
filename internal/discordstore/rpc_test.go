@@ -228,15 +228,15 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	sent := scriptTicketVerbs(rpc)
 
-	if err := store.TrackTicket(ctx, Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
+	if _, err := store.TrackTicket(ctx, TicketOpen{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
 		t.Fatalf("TrackTicket: %v", err)
 	}
 	got, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"})
 	if !ok || got.OpenerID != "u1" || got.GuildID != "g1" {
 		t.Fatalf("Ticket = %+v, %v", got, ok)
 	}
-	if err := store.ForgetTicket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); err != nil {
-		t.Fatalf("ForgetTicket: %v", err)
+	if err := store.CloseTicket(ctx, TicketClose{ChannelID: "c1", GuildID: "g1"}); err != nil {
+		t.Fatalf("CloseTicket: %v", err)
 	}
 	if sent.open.ChannelID != "c1" || sent.open.OpenerID != "u1" {
 		t.Fatalf("open request = %+v", sent.open)
@@ -254,8 +254,8 @@ func TestRPCStoreTicketVerbsCarryTheGuild(t *testing.T) {
 	if _, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); !ok {
 		t.Fatal("Ticket did not resolve")
 	}
-	if err := store.ForgetTicket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); err != nil {
-		t.Fatalf("ForgetTicket: %v", err)
+	if err := store.CloseTicket(ctx, TicketClose{GuildID: "g1", ChannelID: "c1"}); err != nil {
+		t.Fatalf("CloseTicket: %v", err)
 	}
 	if sent.get.GuildID != "g1" || sent.close.GuildID != "g1" {
 		t.Fatalf("guild_id missing: get = %+v, close = %+v", sent.get, sent.close)
@@ -268,7 +268,7 @@ func TestRPCStoreTicketReadsFalseWhenUnreachable(t *testing.T) {
 	if _, ok := store.Ticket(context.Background(), Guild{ID: "g1"}, Channel{ID: "c1"}); ok {
 		t.Fatal("an unreachable discord-data must read as 'not a ticket channel'")
 	}
-	if err := store.TrackTicket(context.Background(), Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err == nil {
+	if _, err := store.TrackTicket(context.Background(), TicketOpen{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err == nil {
 		t.Fatal("an unreachable discord-data must fail the ticket write")
 	}
 }

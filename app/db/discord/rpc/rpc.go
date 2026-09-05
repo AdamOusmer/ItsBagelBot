@@ -50,6 +50,7 @@ type TicketStore interface {
 	TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error)
 	TicketClose(ctx context.Context, p repository.CloseParams) (int, string, error)
 	TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error)
+	TicketOpenCount(ctx context.Context, guildID, openerID string) (int, error)
 	TicketList(ctx context.Context, p repository.ListParams) ([]*ent.Ticket, string, error)
 	TranscriptPut(ctx context.Context, ticketID int, body string, messageCount int) error
 	TranscriptGet(ctx context.Context, ticketID int) (*ent.TicketTranscript, bool, error)

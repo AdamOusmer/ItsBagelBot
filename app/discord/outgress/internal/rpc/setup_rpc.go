@@ -43,6 +43,11 @@ const layoutHandleTimeout = 10 * time.Second
 // "unknown".
 const statusHandleTimeout = 3 * time.Second
 
+// deskRepostTimeout bounds the repost: one Valkey read, one message delete and
+// one panel post. Ten seconds rather than handleTimeout's 1.5s because two of
+// the three are REST calls that can each sit behind a Retry-After.
+const deskRepostTimeout = 10 * time.Second
+
 // handleTimeout bounds the unbind and post handlers: one Valkey round trip
 // (unbind) or one REST call (post).
 const handleTimeout = 1500 * time.Millisecond
@@ -103,11 +108,35 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 		wire.NC, wire.Prefix+".discord.status", wire.Queue, statusHandleTimeout, wire.App, wire.Log, d.handleStatus); err != nil {
 		return err
 	}
+	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordDeskRepostRequest, outgressrpc.DiscordDeskRepostReply](
+		wire.NC, wire.Prefix+".discord.desk.repost", wire.Queue, deskRepostTimeout, wire.App, wire.Log, d.handleDeskRepost); err != nil {
+		return err
+	}
 	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
 		wire.NC, wire.Prefix+".discord.post", wire.Queue, handleTimeout, wire.App, wire.Log, d.handlePost); err != nil {
 		return err
 	}
 	return subscribeGuildConfig(d, wire)
+}
+
+// handleDeskRepost replaces the guild's ticket panel with one rendered from
+// the copy the dashboard just saved.
+func (d *discordRPC) handleDeskRepost(ctx context.Context, req outgressrpc.DiscordDeskRepostRequest) outgressrpc.DiscordDeskRepostReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordDeskRepostReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	id, err := d.w.RepostDesk(ctx, setup.DeskRepostRequest{
+		GuildID: req.GuildID, BroadcasterID: req.UserID, ChannelID: req.ChannelID,
+		Panel: panelSpec(req.Panel),
+	})
+	if err != nil {
+		return outgressrpc.DiscordDeskRepostReply{Error: err.Error(), Code: codeFor(err)}
+	}
+	return outgressrpc.DiscordDeskRepostReply{MessageID: id}
+}
+
+func panelSpec(in outgressrpc.DiscordPanelSpec) ddiscord.TicketPanelSpec {
+	return ddiscord.TicketPanelSpec{Title: in.Title, Body: in.Body, Color: in.Color, Button: in.Button}
 }
 
 type discordRPC struct {

@@ -26,6 +26,7 @@ import (
 type discordGuildAPI interface {
 	SendChat(ctx context.Context, post discapi.ChatPost) error
 	SendPanel(ctx context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error)
+	DeleteMessage(ctx context.Context, m discapi.Message) error
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	CreateRole(ctx context.Context, role discapi.GuildRole) (discapi.Snowflake, error)
 	ListGuildChannels(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)

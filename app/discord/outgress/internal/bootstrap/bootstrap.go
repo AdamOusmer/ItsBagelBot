@@ -48,6 +48,8 @@ func Catalog() []discordapi.AppCommand {
 			Options: []discordapi.AppCommandOption{
 				{Type: 1, Name: "open", Description: "Open a private ticket"},
 				{Type: 1, Name: "close", Description: "Close this ticket"},
+				{Type: 1, Name: "claim", Description: "Claim this ticket"},
+				{Type: 1, Name: "add", Description: "Add a member to this ticket", Options: []discordapi.AppCommandOption{user}},
 				{Type: 1, Name: "panel", Description: "Post the ticket button"},
 			},
 		},
