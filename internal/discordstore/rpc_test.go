@@ -193,36 +193,44 @@ func TestRPCStoreUnbindDropsTheCacheOnlyOnSuccess(t *testing.T) {
 	}
 }
 
-func TestRPCStoreTicketRoundTrip(t *testing.T) {
-	store, rpc, _ := newTestRPCStore(t)
-	ctx := context.Background()
+// ticketRequests captures what the three ticket verbs actually put on the
+// wire, so the round-trip test can assert on the requests without growing a
+// closure per verb inline.
+type ticketRequests struct {
+	open  discorddata.TicketOpenRequest
+	get   discorddata.TicketGetRequest
+	close discorddata.TicketCloseRequest
+}
 
-	var opened discorddata.TicketOpenRequest
+// scriptTicketVerbs answers the three verbs and records their requests.
+func scriptTicketVerbs(rpc *fakeRequester) *ticketRequests {
+	sent := &ticketRequests{}
 	rpc.on(discorddata.VerbTicketOpen, func(request []byte) any {
-		_ = codec.FastUnmarshal(request, &opened)
+		_ = codec.FastUnmarshal(request, &sent.open)
 		return discorddata.TicketOpenReply{TicketID: 1, OpenCount: 1}
 	})
-	var fetched discorddata.TicketGetRequest
 	rpc.on(discorddata.VerbTicketGet, func(request []byte) any {
-		_ = codec.FastUnmarshal(request, &fetched)
+		_ = codec.FastUnmarshal(request, &sent.get)
 		return discorddata.TicketGetReply{
 			Ticket: discorddata.Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"},
 			Found:  true,
 		}
 	})
-	var closed discorddata.TicketCloseRequest
 	rpc.on(discorddata.VerbTicketClose, func(request []byte) any {
-		_ = codec.FastUnmarshal(request, &closed)
+		_ = codec.FastUnmarshal(request, &sent.close)
 		return discorddata.TicketCloseReply{TicketID: 1, OpenerID: "u1"}
 	})
+	return sent
+}
+
+func TestRPCStoreTicketRoundTrip(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+	sent := scriptTicketVerbs(rpc)
 
 	if err := store.TrackTicket(ctx, Ticket{ChannelID: "c1", GuildID: "g1", OpenerID: "u1"}); err != nil {
 		t.Fatalf("TrackTicket: %v", err)
 	}
-	if opened.ChannelID != "c1" || opened.OpenerID != "u1" {
-		t.Fatalf("open request = %+v", opened)
-	}
-
 	got, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"})
 	if !ok || got.OpenerID != "u1" || got.GuildID != "g1" {
 		t.Fatalf("Ticket = %+v, %v", got, ok)
@@ -230,10 +238,27 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	if err := store.ForgetTicket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); err != nil {
 		t.Fatalf("ForgetTicket: %v", err)
 	}
-	// The guild has to travel on both verbs: discord-data scopes the ticket
-	// lookup by it, and refuses a request that omits it.
-	if fetched.GuildID != "g1" || closed.GuildID != "g1" {
-		t.Fatalf("guild_id missing: get = %+v, close = %+v", fetched, closed)
+	if sent.open.ChannelID != "c1" || sent.open.OpenerID != "u1" {
+		t.Fatalf("open request = %+v", sent.open)
+	}
+}
+
+// TestRPCStoreTicketVerbsCarryTheGuild: discord-data scopes the ticket lookup
+// by guild and refuses a request that omits it, so a store that dropped the
+// field would turn every button press into "this is not a ticket".
+func TestRPCStoreTicketVerbsCarryTheGuild(t *testing.T) {
+	store, rpc, _ := newTestRPCStore(t)
+	ctx := context.Background()
+	sent := scriptTicketVerbs(rpc)
+
+	if _, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); !ok {
+		t.Fatal("Ticket did not resolve")
+	}
+	if err := store.ForgetTicket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"}); err != nil {
+		t.Fatalf("ForgetTicket: %v", err)
+	}
+	if sent.get.GuildID != "g1" || sent.close.GuildID != "g1" {
+		t.Fatalf("guild_id missing: get = %+v, close = %+v", sent.get, sent.close)
 	}
 }
 
