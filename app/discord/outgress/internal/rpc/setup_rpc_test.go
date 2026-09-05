@@ -5,7 +5,10 @@ package rpc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
@@ -195,7 +198,14 @@ func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 		{discapi.ErrForbidden, outgressrpc.CodeForbidden},
 		{discapi.ErrRateLimited, outgressrpc.CodeRateLimited},
 		{discapi.ErrBadRequest, outgressrpc.CodeInvalid},
-		{discapi.ErrChannelNotFound, outgressrpc.CodeOK},
+		{discapi.ErrChannelNotFound, outgressrpc.CodeNotFound},
+		{context.DeadlineExceeded, outgressrpc.CodeTimeout},
+		{context.Canceled, outgressrpc.CodeTimeout},
+		{fmt.Errorf("wrapped: %w", discapi.ErrChannelNotFound), outgressrpc.CodeNotFound},
+		// The catch-all. An unclassified failure must never answer CodeOK:
+		// the console reads "" as success and would render an error reply as
+		// a completed action.
+		{errors.New("discord: something nobody has classified"), outgressrpc.CodeUnknown},
 	}
 	for _, tc := range cases {
 		if got := codeFor(tc.err); got != tc.want {
@@ -206,5 +216,38 @@ func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 	// switch is load-bearing: the wrapped case must be checked first.
 	if codeFor(setup.ErrGuildNotBound) == codeFor(setup.ErrGuildBoundElsewhere) {
 		t.Fatal("not_bound and bound_elsewhere collapsed into one code")
+	}
+}
+
+// TestBotOnlineNeedsAFreshHeartbeat is the shared-definition test: the
+// layout reply and the status reply must agree on what "online" means, and
+// connected:true alone is not it. The status key has no TTL, so an ingress
+// that was killed mid-session leaves connected:true behind forever; without
+// the staleness check the dashboard pill stayed green for a bot that no
+// longer existed.
+func TestBotOnlineNeedsAFreshHeartbeat(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	cases := []struct {
+		name string
+		st   ddiscord.BotStatus
+		want bool
+	}{
+		{"connected and beating", ddiscord.BotStatus{
+			Connected: true, HeartbeatUnixMS: now.Add(-time.Second).UnixMilli(),
+		}, true},
+		{"connected but the writer died", ddiscord.BotStatus{
+			Connected: true, HeartbeatUnixMS: now.Add(-ddiscord.BotHeartbeatMaxAge - time.Second).UnixMilli(),
+		}, false},
+		{"not connected", ddiscord.BotStatus{
+			Connected: false, HeartbeatUnixMS: now.UnixMilli(),
+		}, false},
+		// No heartbeat at all is a status written before the first beat, not
+		// a stale one: HeartbeatStale reads 0 as "no evidence".
+		{"connected, no beat yet", ddiscord.BotStatus{Connected: true}, true},
+	}
+	for _, tc := range cases {
+		if got := botOnline(tc.st, now); got != tc.want {
+			t.Fatalf("%s: botOnline = %t, want %t", tc.name, got, tc.want)
+		}
 	}
 }

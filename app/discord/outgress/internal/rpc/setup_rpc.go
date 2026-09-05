@@ -111,29 +111,62 @@ type botStatusReader interface {
 // message is still returned alongside it for one release; this is what
 // replaces the console matching substrings of that message.
 //
-// An unrecognised error deliberately maps to CodeOK rather than to a
-// catch-all: a wrong code makes the console render a confident, wrong
-// explanation, while no code makes it fall back to showing the message,
-// which is at least true.
+// An unrecognised error maps to CodeUnknown, not to CodeOK. Mapping it to
+// CodeOK was the earlier reading -- "no code is at least not a wrong code"
+// -- but it puts the console in the one state it cannot handle: a reply that
+// carries an Error and a code meaning "nothing went wrong", which every
+// `if (reply.code)` branch reads as success. An explicit unknown lets the
+// console fall back to showing the message *and* still know it failed.
+//
+// Split across three helpers by the layer the error comes from, not to
+// shorten the list: a single switch over ten cases trips CodeScene's
+// cyclomatic limit, and the next code added would have to split it anyway.
 func codeFor(err error) string {
 	switch {
 	case err == nil:
 		return outgressrpc.CodeOK
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		// The handler's own bus timeout, not Discord's: the console shows
+		// "try again" rather than an explanation of a fault we never saw.
+		return outgressrpc.CodeTimeout
+	}
+	if code := bindingCode(err); code != "" {
+		return code
+	}
+	if code := discordCode(err); code != "" {
+		return code
+	}
+	return outgressrpc.CodeUnknown
+}
+
+// bindingCode classifies the errors setup raises about the guild-to-
+// broadcaster binding itself. "" means "not one of mine".
+func bindingCode(err error) string {
+	switch {
 	case errors.Is(err, setup.ErrGuildNotBound):
 		return outgressrpc.CodeNotBound
 	case errors.Is(err, setup.ErrGuildBoundElsewhere):
 		return outgressrpc.CodeBoundElsewhere
+	}
+	return ""
+}
+
+// discordCode classifies what the Discord REST client reports. "" means
+// "not one of mine".
+func discordCode(err error) string {
+	switch {
 	case errors.Is(err, setup.ErrDiscordUnavailable), errors.Is(err, discapi.ErrAuth):
 		return outgressrpc.CodeDiscordUnavailable
 	case errors.Is(err, discapi.ErrForbidden):
 		return outgressrpc.CodeForbidden
 	case errors.Is(err, discapi.ErrRateLimited):
 		return outgressrpc.CodeRateLimited
+	case errors.Is(err, discapi.ErrChannelNotFound):
+		return outgressrpc.CodeNotFound
 	case errors.Is(err, discapi.ErrBadRequest):
 		return outgressrpc.CodeInvalid
-	default:
-		return outgressrpc.CodeOK
 	}
+	return ""
 }
 
 // reauthReader is the read slice of kv.ReauthStore. Only the read half is
@@ -221,9 +254,22 @@ func (d *discordRPC) fillBotFields(ctx context.Context, reply *outgressrpc.Disco
 	if !ok {
 		return
 	}
-	reply.BotOnline = st.Connected
+	reply.BotOnline = botOnline(st, time.Now())
 	reply.BotSinceUnixMS = st.SinceUnixMS
 	reply.LastCloseCode = st.LastCloseCode
+}
+
+// botOnline is the one definition of "the bot is up", shared by the layout
+// reply and the status reply so the two cannot disagree on the same page.
+//
+// Connected alone is not it. The status key has no TTL (see
+// discord.BotStatusKey), so an ingress that was killed mid-session leaves
+// connected:true behind permanently and the dashboard pill stays green for a
+// bot that no longer exists. HeartbeatStale is the in-band staleness that
+// separates "connected" from "connected, and something is still there to say
+// so".
+func botOnline(st ddiscord.BotStatus, now time.Time) bool {
+	return st.Connected && !st.HeartbeatStale(now)
 }
 
 // guildInfo fetches the server card, or nil when Discord refuses. Nil rather
@@ -251,7 +297,7 @@ func (d *discordRPC) handleStatus(ctx context.Context, req outgressrpc.DiscordSt
 	}
 	st, _ := d.botStatus(ctx)
 	reply := outgressrpc.DiscordStatusReply{
-		Online:         st.Connected,
+		Online:         botOnline(st, time.Now()),
 		SinceUnixMS:    st.SinceUnixMS,
 		SessionResumes: st.Resumes,
 		LastCloseCode:  st.LastCloseCode,

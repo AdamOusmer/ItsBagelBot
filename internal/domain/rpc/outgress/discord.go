@@ -10,6 +10,12 @@ package outgress
 // or reworded error silently change behaviour. The message stays for one
 // release so an older console keeps working; new branching switches on the
 // code.
+//
+// Every Code field is serialized WITHOUT omitempty, deliberately. CodeOK is
+// the empty string, so omitempty dropped the field entirely on the success
+// path and the console could not tell "this service sends codes and nothing
+// went wrong" from "this reply came from a build that predates codes" -- the
+// exact ambiguity codes were added to remove. The four bytes are worth it.
 const (
 	// CodeOK is the empty code an untroubled reply carries.
 	CodeOK = ""
@@ -26,9 +32,21 @@ const (
 	CodeRateLimited = "rate_limited"
 	// CodeInvalid: the request itself was malformed.
 	CodeInvalid = "invalid"
+	// CodeNotFound: Discord answered 404 for the channel the call named --
+	// deleted, or never in this guild. Distinct from CodeInvalid because
+	// nothing about the request is wrong; the world changed underneath it.
+	CodeNotFound = "not_found"
+	// CodeTimeout: the handler ran out of time before Discord answered.
+	// The console retries this one; it does not retry a refusal.
+	CodeTimeout = "timeout"
+	// CodeUnknown: the call failed and nothing above classified it. This
+	// exists so a non-empty Error can never travel with an empty Code: the
+	// console reads "" as success, so an unclassified failure carrying ""
+	// was silently rendered as one.
+	CodeUnknown = "unknown"
 )
 
-// DiscordSetupRequest is bagel.rpc.outgress.discord.setup. UserID is the
+// DiscordSetupRequest is bagel.rpc.dingress.discord.setup. UserID is the
 // Twitch broadcaster the guild binds to. The dashboard proves the caller
 // installed the bot in GuildID (OAuth code exchange) before asking; outgress
 // only refuses a guild already bound to a different broadcaster.
@@ -65,10 +83,10 @@ type DiscordSetupReply struct {
 	MemberRoleID     string `json:"member_role_id,omitempty"`
 	Refused          string `json:"refused,omitempty"`
 	Error            string `json:"error,omitempty"`
-	Code             string `json:"code,omitempty"`
+	Code             string `json:"code"`
 }
 
-// DiscordLayoutRequest is bagel.rpc.outgress.discord.layout: the guild's
+// DiscordLayoutRequest is bagel.rpc.dingress.discord.layout: the guild's
 // channels and roles so the dashboard can offer pickers on a lived-in server.
 type DiscordLayoutRequest struct {
 	UserID  string `json:"user_id"`
@@ -119,10 +137,10 @@ type DiscordLayoutReply struct {
 	// the prompt, and it clears itself the first time a rename succeeds.
 	NeedsReauth bool   `json:"needs_reauth,omitempty"`
 	Error       string `json:"error,omitempty"`
-	Code        string `json:"code,omitempty"`
+	Code        string `json:"code"`
 }
 
-// DiscordUnbindRequest is bagel.rpc.outgress.discord.unbind: drop the
+// DiscordUnbindRequest is bagel.rpc.dingress.discord.unbind: drop the
 // guild→broadcaster reverse index on disconnect. Only the bound broadcaster
 // can unbind.
 type DiscordUnbindRequest struct {
@@ -132,10 +150,10 @@ type DiscordUnbindRequest struct {
 
 type DiscordUnbindReply struct {
 	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Code  string `json:"code"`
 }
 
-// DiscordPostRequest is bagel.rpc.outgress.discord.post: Bagel's own
+// DiscordPostRequest is bagel.rpc.dingress.discord.post: Bagel's own
 // changelog/status channel, or any connected guild channel the operator names.
 type DiscordPostRequest struct {
 	ChannelID string `json:"channel_id"`
@@ -144,7 +162,7 @@ type DiscordPostRequest struct {
 
 type DiscordPostReply struct {
 	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Code  string `json:"code"`
 }
 
 // DiscordStatusRequest is bagel.rpc.dingress.discord.status: is the bot
@@ -176,5 +194,5 @@ type DiscordStatusReply struct {
 	// a non-zero value on an online bot is history, not a fault.
 	LastCloseCode int    `json:"last_close_code,omitempty"`
 	Error         string `json:"error,omitempty"`
-	Code          string `json:"code,omitempty"`
+	Code          string `json:"code"`
 }
