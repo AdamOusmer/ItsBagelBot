@@ -187,14 +187,97 @@ func TestResumeDoesNotResetOnlineSince(t *testing.T) {
 // The connect budget rides out on the key so a reader can tell "offline"
 // from "offline, and this process is deliberately holding back".
 func TestBudgetReachesTheKey(t *testing.T) {
-	r, _ := newTestReporter()
+	r, c := newTestReporter()
 	ctx := context.Background()
 
-	r.Budget(ctx, gateway.Budget{Flapping: true, Connects: 137})
+	park := c.t.Add(6 * time.Hour)
+	r.Budget(ctx, gateway.Budget{Flapping: true, Connects: 137, AtCeiling: true, ParkUntil: park})
 
 	got := r.Snapshot()
-	if !got.Flapping || got.ConnectsInWindow != 137 {
+	if !got.Flapping || got.ConnectsInWindow != 137 || !got.AtCeiling {
 		t.Fatalf("status = %+v, want the budget mirrored", got)
+	}
+	if got.ParkUntilUnixMS != park.UnixMilli() {
+		t.Fatalf("park_until = %d, want %d", got.ParkUntilUnixMS, park.UnixMilli())
+	}
+
+	// A budget with nothing holding it back must publish no deadline at all.
+	// time.Time's zero value has a large negative UnixMilli, which would
+	// read as a park that expired in the year 1.
+	r.Budget(ctx, gateway.Budget{Connects: 3})
+	if got := r.Snapshot(); got.ParkUntilUnixMS != 0 || got.AtCeiling {
+		t.Fatalf("status = %+v, want no park published", got)
+	}
+}
+
+// A spent ceiling is a stop, not a slow-down: the pod will not open another
+// socket until the window frees, so it must leave the load balancer. It must
+// NOT fail liveness -- restarting does not give Discord's counter back.
+func TestCeilingFailsReadinessButNotLiveness(t *testing.T) {
+	r, c := newTestReporter()
+	ctx := context.Background()
+	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
+	r.Down(ctx, gateway.Down{Code: 4000})
+
+	r.Budget(ctx, gateway.Budget{Connects: 800, AtCeiling: true, ParkUntil: c.t.Add(time.Hour)})
+
+	if err := r.ReadyCheck().Probe(ctx); err == nil {
+		t.Fatal("a pod that has stopped dialling until tomorrow must not stay ready")
+	}
+	if err := r.LiveCheck().Probe(ctx); err != nil {
+		t.Fatalf("the ceiling must not restart the pod: %v", err)
+	}
+}
+
+// Flapping is the opposite call: the process is still dialling, just
+// slowly, so the pod stays ready and the key carries the fact instead.
+func TestFlappingStaysReadyAndIsSurfaced(t *testing.T) {
+	r, _ := newTestReporter()
+	ctx := context.Background()
+	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
+	r.Down(ctx, gateway.Down{Code: 4000})
+
+	r.Budget(ctx, gateway.Budget{Flapping: true, Connects: 5})
+
+	if err := r.ReadyCheck().Probe(ctx); err != nil {
+		t.Fatalf("flapping must stay ready: %v", err)
+	}
+	if got := r.Snapshot(); !got.Flapping {
+		t.Fatalf("status = %+v, want flapping surfaced on the key", got)
+	}
+}
+
+// The contract's §D keeps BOTH liveness clocks. This is the one the event
+// clock cannot see: the socket keeps delivering, so LastEventUnixMS stays
+// fresh, while the republish goroutine that publishes the key has stopped.
+// Every other process in the fleet is reading a frozen connected:true.
+func TestStaleStatusHeartbeatFailsLiveness(t *testing.T) {
+	r, c := newTestReporter()
+	ctx := context.Background()
+	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
+
+	// Advance past the heartbeat window while a real event keeps arriving,
+	// but never beat: that is a wedged Reporter.Run with a healthy socket.
+	c.t = c.t.Add(ddiscord.BotHeartbeatMaxAge - time.Second)
+	r.mu.Lock()
+	r.cur.LastEventUnixMS = c.t.UnixMilli()
+	r.mu.Unlock()
+	if err := r.LiveCheck().Probe(ctx); err != nil {
+		t.Fatalf("inside the window: %v", err)
+	}
+
+	c.t = c.t.Add(2 * time.Second)
+	r.mu.Lock()
+	r.cur.LastEventUnixMS = c.t.UnixMilli()
+	r.mu.Unlock()
+	if err := r.LiveCheck().Probe(ctx); err == nil {
+		t.Fatal("a status key nobody is refreshing must fail liveness")
+	}
+
+	// And the beat clears it, because the beat is exactly what it measures.
+	r.beat(ctx)
+	if err := r.LiveCheck().Probe(ctx); err != nil {
+		t.Fatalf("after a beat: %v", err)
 	}
 }
 
@@ -216,6 +299,7 @@ func TestBotStatusRoundTrips(t *testing.T) {
 		Connected: true, SinceUnixMS: 12, SessionID: "s", Resumes: 2, GuildCount: 3,
 		LastEventUnixMS: 14, LastCloseCode: 4000, LastCloseReason: "x",
 		HeartbeatUnixMS: 15, Pod: "p",
+		Flapping: true, ConnectsInWindow: 137, AtCeiling: true, ParkUntilUnixMS: 16,
 	}
 	raw, err := ddiscord.EncodeBotStatus(want)
 	if err != nil {

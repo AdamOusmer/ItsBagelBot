@@ -93,6 +93,11 @@ type Budget struct {
 	// AtCeiling is true when Connects reached the ceiling: the next connect
 	// is parked until the oldest attempt ages out of the window.
 	AtCeiling bool
+	// ParkUntil is when the next connect becomes affordable again, zero
+	// while the only thing holding it back is the ordinary minInterval
+	// spacing. It rides out to the status key so a dashboard can say when
+	// the bot comes back rather than only that it is gone.
+	ParkUntil time.Time
 }
 
 // connectBudget throttles how often Session may open a socket. It counts
@@ -137,6 +142,12 @@ func (b *connectBudget) note() {
 func (b *connectBudget) record(up time.Duration) Budget {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	// Prune before the verdict, not only in delay(): state() reads Connects
+	// and AtCeiling straight off the window, and this is the value that gets
+	// published and logged. Without it a pod that spent its allowance
+	// yesterday kept reporting AtCeiling long after the window had freed --
+	// the reconnect schedule was right and the status key was not.
+	b.prune(b.now())
 	if up < b.sched.flapUptime {
 		b.shortRuns++
 	} else {
@@ -171,11 +182,28 @@ func (b *connectBudget) snapshot() Budget {
 
 // state assumes the lock is held and the window is pruned.
 func (b *connectBudget) state() Budget {
-	return Budget{
+	st := Budget{
 		Flapping:  b.flapping,
 		Connects:  len(b.attempts),
 		AtCeiling: len(b.attempts) >= b.sched.ceiling,
 	}
+	st.ParkUntil = b.parkUntil(st)
+	return st
+}
+
+// parkUntil is the deadline behind the two rules that stop the bot rather
+// than merely pace it. The ordinary minInterval spacing is deliberately not
+// one of them: a 5s gap between identifies is what a healthy reconnect looks
+// like, and publishing it as a park would put a countdown on the dashboard
+// during every routine gateway roll.
+func (b *connectBudget) parkUntil(st Budget) time.Time {
+	if st.AtCeiling && len(b.attempts) > 0 {
+		return b.attempts[0].Add(b.sched.window)
+	}
+	if st.Flapping && !b.last.IsZero() {
+		return b.last.Add(b.sched.flapWait)
+	}
+	return time.Time{}
 }
 
 // spacing is rule (a), escalated to rule (b) while flapping.

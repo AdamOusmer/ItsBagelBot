@@ -52,6 +52,17 @@ type BotStatus struct {
 	// resetting the token, so this is the number an operator wants before
 	// restarting a pod "just to see".
 	ConnectsInWindow int `json:"connects_in_window,omitempty"`
+	// AtCeiling is true once ConnectsInWindow has spent the whole rolling
+	// allowance and ingress has stopped dialling until the window frees.
+	// Unlike Flapping this is not a slow-down, it is a stop: the bot will
+	// not come back on its own before ParkUntilUnixMS, so readiness fails
+	// on it rather than reporting a pod that is quietly doing nothing.
+	AtCeiling bool `json:"at_ceiling,omitempty"`
+	// ParkUntilUnixMS is when the connect budget will next allow a socket,
+	// zero when nothing beyond the ordinary 5s identify spacing is holding
+	// one back. "Offline, back at 14:07" and "offline" need different
+	// answers from whoever is reading, and only this pod knows the deadline.
+	ParkUntilUnixMS int64 `json:"park_until_unix_ms,omitempty"`
 }
 
 const (

@@ -151,7 +151,19 @@ func (r *Reporter) Budget(ctx context.Context, b gateway.Budget) {
 	r.write(ctx, r.apply(func(s *ddiscord.BotStatus, _ time.Time) {
 		s.Flapping = b.Flapping
 		s.ConnectsInWindow = b.Connects
+		s.AtCeiling = b.AtCeiling
+		s.ParkUntilUnixMS = unixMilli(b.ParkUntil)
 	}))
+}
+
+// unixMilli keeps a zero deadline zero. time.Time's own UnixMilli turns the
+// zero value into a large negative number, which would publish a park that
+// expired in the year 1 rather than no park at all.
+func unixMilli(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
 }
 
 // Event notes a dispatch or a gateway heartbeat ACK. It does not publish:
@@ -225,26 +237,37 @@ func (r *Reporter) write(ctx context.Context, s ddiscord.BotStatus) {
 	}
 }
 
-// ReadyCheck is the /readyz verdict: a fatal close, a socket that has gone
-// silent, or a process that has never connected at all.
+// ReadyCheck is the /readyz verdict: a fatal close, a spent connect budget,
+// a socket that has gone silent, or a process that has never connected at
+// all.
 //
 // An ordinary disconnect is deliberately NOT unready. Reconnects happen
 // several times a day (Discord rolls gateway nodes) and last about a second;
 // flapping the pod's readiness through every one of them would make rollouts
-// and the status page lie about a bot that is fine. The first connection is
-// the exception: until it lands there is no session to be between.
+// and the status page lie about a bot that is fine. Flapping is the same
+// judgement one step further out: the process is still dialling, just
+// slowly, so it stays Ready and says so on the key instead.
+//
+// A spent ceiling is the exception, and the difference is that it is a stop
+// rather than a slow-down. The pod will not open another socket until the
+// rolling window frees (up to 24h), so reporting Ready would hold a routed,
+// permanently sessionless pod in place while a restart -- which is what
+// actually spends a fresh allowance -- never happens. The first connection
+// is unready for the same reason: until it lands there is no session to be
+// between.
 func (r *Reporter) ReadyCheck() health.Check {
 	return health.Check{Name: "gateway", Probe: func(context.Context) error {
-		return r.verdict(verdictRules{requireUp: true})
+		return r.verdict(verdictRules{requireUp: true, failAtCeiling: true})
 	}}
 }
 
-// LiveCheck is the /healthz gate. It shares the silent-socket condition with
+// LiveCheck is the /healthz gate. It shares the stale-socket conditions with
 // readiness, tolerates a fatal close for discord.BotFatalGrace (see that
 // constant), and deliberately does NOT require a first connection: a pod
 // still working through its Identify -- or waiting out backoff against a
 // Discord outage -- must stay out of the load balancer without being killed
-// and restarted into the same wait.
+// and restarted into the same wait. A spent ceiling is likewise not fatal
+// here: restarting the pod does not give Discord's counter back.
 func (r *Reporter) LiveCheck() health.Check {
 	return health.Check{Name: "gateway", Probe: func(context.Context) error {
 		return r.verdict(verdictRules{grace: ddiscord.BotFatalGrace})
@@ -252,8 +275,10 @@ func (r *Reporter) LiveCheck() health.Check {
 }
 
 var (
-	errGatewayStalled = errors.New("gateway connected but no event or heartbeat ack within " + ddiscord.BotEventMaxAge.String())
-	errGatewayNeverUp = errors.New("gateway has not connected yet")
+	errGatewayStalled     = errors.New("gateway connected but no event or heartbeat ack within " + ddiscord.BotEventMaxAge.String())
+	errGatewayBeatStalled = errors.New("gateway status key not refreshed within " + ddiscord.BotHeartbeatMaxAge.String())
+	errGatewayNeverUp     = errors.New("gateway has not connected yet")
+	errGatewayAtCeiling   = errors.New("gateway connect budget spent; parked until the rolling window frees")
 )
 
 // verdictRules is what separates the readiness verdict from the liveness one.
@@ -264,19 +289,30 @@ type verdictRules struct {
 	grace time.Duration
 	// requireUp fails while the process has never connected.
 	requireUp bool
+	// failAtCeiling fails while the connect budget is spent.
+	failAtCeiling bool
 }
 
 // verdict reports why the gateway is unhealthy, or nil.
 //
-// The liveness signal here is the *event* clock, not this Reporter's own
-// republish beat: the beat is refreshed by a ticker that keeps running
-// happily inside a process whose socket has silently stopped delivering, so
-// it only ever proves the process is alive. LastEventUnixMS is advanced by
-// real gateway traffic, and by the heartbeat ACKs Discord sends roughly
-// every 41s even on a silent guild, so it goes stale exactly when the socket
-// stops carrying anything. HeartbeatUnixMS stays on the key for readers
-// outside this process, which have no other way to tell a live ingress from
-// a crashed one that left connected:true behind.
+// Both staleness clocks count, per the gateway contract's §D: healthz fails
+// when the event clock goes stale OR when the key's own heartbeat does while
+// connected:true. They answer different questions and an earlier revision
+// here kept only the first, on the argument that the republish ticker proves
+// nothing about the socket. True, and beside the point -- the two failures
+// do not overlap:
+//
+//   - LastEventUnixMS is advanced by real gateway traffic and by the
+//     heartbeat ACKs Discord sends roughly every 41s even on a silent guild.
+//     It goes stale when the socket stops carrying anything.
+//   - HeartbeatUnixMS is advanced by Reporter.Run's ticker and by every
+//     transition. It goes stale when that goroutine itself stops: a panicked
+//     or wedged republish loop leaves a status key frozen at connected:true
+//     that every other process in the fleet still believes, and no event
+//     clock inside this process can see that from the outside.
+//
+// Checking both is what makes the published key and this pod's own verdict
+// agree, which is the whole reason the field is on the key.
 func (r *Reporter) verdict(rules verdictRules) error {
 	r.mu.Lock()
 	cur, fatalSince, everUp, now := r.cur, r.fatalSince, r.everUp, r.now()
@@ -288,8 +324,20 @@ func (r *Reporter) verdict(rules verdictRules) error {
 	if rules.requireUp && !everUp {
 		return errGatewayNeverUp
 	}
+	if rules.failAtCeiling && cur.AtCeiling {
+		return errGatewayAtCeiling
+	}
+	return stale(cur, now)
+}
+
+// stale is the pair of staleness clocks, split out so verdict stays one
+// straight line of rules.
+func stale(cur ddiscord.BotStatus, now time.Time) error {
 	if cur.EventStale(now) {
 		return errGatewayStalled
+	}
+	if cur.HeartbeatStale(now) {
+		return errGatewayBeatStalled
 	}
 	return nil
 }
