@@ -101,6 +101,11 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	if err != nil {
 		return GuildSetupResult{}, err
 	}
+	// Every successful path below ends with the engine holding cached settings
+	// for a guild whose channel and role ids just changed. Dropping the entry
+	// here rather than waiting out its TTL is what makes a fresh setup live
+	// immediately.
+	defer w.invalidateConfig(ctx, req.GuildID)
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
 		fill.adopt(&out)
@@ -115,6 +120,14 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	}
 	fill.postTicketDesk(ctx, out)
 	return out, nil
+}
+
+// invalidateConfig drops the engine's cached settings for one guild.
+func (w *Worker) invalidateConfig(ctx context.Context, guildID string) {
+	if w.store == nil || guildID == "" {
+		return
+	}
+	w.store.Invalidate(ctx, discordstore.Guild{ID: guildID})
 }
 
 // GuildLayout lists a bound guild's channels and roles for the dashboard

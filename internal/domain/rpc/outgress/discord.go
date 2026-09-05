@@ -3,6 +3,8 @@
 
 package outgress
 
+import ddiscord "ItsBagelBot/internal/domain/discord"
+
 // DiscordSetupRequest is bagel.rpc.outgress.discord.setup. UserID is the
 // Twitch broadcaster the guild binds to. The dashboard proves the caller
 // installed the bot in GuildID (OAuth code exchange) before asking; outgress
@@ -90,4 +92,104 @@ type DiscordPostRequest struct {
 
 type DiscordPostReply struct {
 	Error string `json:"error,omitempty"`
+}
+
+// Reply codes for the dashboard-facing Discord RPC. The console switches on
+// these instead of matching substrings of an error message that changes
+// whenever a log line is reworded. The empty string is success.
+const (
+	DiscordCodeOK = ""
+	// DiscordCodeBoundElsewhere: the guild belongs to a different Twitch
+	// channel. A broadcaster adding a second, third or tenth server is
+	// ordinary and never raises this.
+	DiscordCodeBoundElsewhere = "bound_elsewhere"
+	// DiscordCodeNotBound: the caller does not own that guild, or nothing
+	// does. The two are one code on purpose, so a caller cannot probe which
+	// guild ids exist.
+	DiscordCodeNotBound = "not_bound"
+	// DiscordCodeConflict: the settings moved on since the caller read them.
+	// The dashboard reloads rather than retrying the same write.
+	DiscordCodeConflict = "conflict"
+	// DiscordCodeInvalid: the settings failed validation. Fields names the
+	// controls to flag.
+	DiscordCodeInvalid = "invalid"
+	// DiscordCodeUnavailable: the store or Discord itself could not be
+	// reached. Transient; the dashboard offers a retry.
+	DiscordCodeUnavailable = "discord_unavailable"
+)
+
+// DiscordConfigGetRequest is bagel.rpc.dingress.discord.config.get: one
+// guild's settings, for the dashboard page. UserID is the Twitch broadcaster
+// and is checked against the guild's binding.
+type DiscordConfigGetRequest struct {
+	UserID  string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+}
+
+// DiscordConfigGetReply carries the settings and the version to echo back on
+// save. Found is false for a guild that was bound but never saved; Config is
+// then the zero value, which is what the page renders anyway.
+type DiscordConfigGetReply struct {
+	Config  ddiscord.Config `json:"config"`
+	Version int             `json:"version"`
+	Found   bool            `json:"found"`
+	Code    string          `json:"code"`
+	Error   string          `json:"error,omitempty"`
+}
+
+// DiscordConfigSetRequest is bagel.rpc.dingress.discord.config.set.
+// ExpectedVersion is the version the page loaded with; a mismatch is refused
+// with DiscordCodeConflict rather than silently discarding whatever the other
+// open tab saved.
+type DiscordConfigSetRequest struct {
+	UserID          string          `json:"user_id"`
+	GuildID         string          `json:"guild_id"`
+	Config          ddiscord.Config `json:"config"`
+	ExpectedVersion int             `json:"expected_version"`
+}
+
+// DiscordConfigSetReply carries the version the settings now hold. Fields
+// names the controls that failed validation when Code is DiscordCodeInvalid.
+type DiscordConfigSetReply struct {
+	Version int      `json:"version"`
+	Fields  []string `json:"fields,omitempty"`
+	Code    string   `json:"code"`
+	Error   string   `json:"error,omitempty"`
+}
+
+// DiscordGuildsListRequest is bagel.rpc.dingress.discord.guilds.list: every
+// server this broadcaster connected, for the server picker.
+type DiscordGuildsListRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// DiscordGuildsListReply carries the servers, oldest binding first.
+type DiscordGuildsListReply struct {
+	Guilds []DiscordGuildEntry `json:"guilds"`
+	Code   string              `json:"code"`
+	Error  string              `json:"error,omitempty"`
+}
+
+// DiscordGuildEntry is one connected server as the picker shows it.
+type DiscordGuildEntry struct {
+	GuildID string `json:"guild_id"`
+	Name    string `json:"name,omitempty"`
+	// IconURL is empty: the dashboard draws a monogram because the page's CSP
+	// forbids Discord's image CDN, so fetching the icon hash here would cost a
+	// REST field nothing renders.
+	IconURL string `json:"icon_url,omitempty"`
+	// MemberCount is zero until the REST client grows a with_counts variant of
+	// GetGuild (it lands with the bot-status work). The picker shows the name
+	// and the presence pill, neither of which needs it.
+	MemberCount int `json:"member_count,omitempty"`
+	// BotPresent is false when Discord answers 403 or 404 for the guild: the
+	// bot was kicked, or the server was deleted. The entry is still listed,
+	// because the binding is still there and the streamer needs to see it to
+	// disconnect or re-invite.
+	BotPresent bool `json:"bot_present"`
+	// BoundAtUnixMs is zero: the store surface returns guild ids only, and the
+	// listing is already oldest-binding-first, which is the ordering the
+	// picker wants. It is carried so a card that later shows "connected since"
+	// does not need a wire change.
+	BoundAtUnixMs int64 `json:"bound_at_unix_ms,omitempty"`
 }

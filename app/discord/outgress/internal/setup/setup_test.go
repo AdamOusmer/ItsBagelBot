@@ -25,6 +25,8 @@ type guildRecorder struct {
 	createdRo []string
 	panels    []string
 	nextID    int
+
+	getGuildErr error
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -69,6 +71,17 @@ func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]dis
 
 func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
 	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
+}
+
+// getGuildErr, when set, is what GetGuild answers: the picker's "the bot was
+// kicked" path is a 403 from this call and nothing else.
+func (r *guildRecorder) GetGuild(_ context.Context, guild discapi.Guild) (discapi.Snowflake, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.getGuildErr != nil {
+		return discapi.Snowflake{}, r.getGuildErr
+	}
+	return discapi.Snowflake{ID: guild.ID, Name: "server " + guild.ID}, nil
 }
 
 var _ discordGuildAPI = (*guildRecorder)(nil)

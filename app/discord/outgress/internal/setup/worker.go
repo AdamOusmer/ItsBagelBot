@@ -30,6 +30,7 @@ type discordGuildAPI interface {
 	CreateRole(ctx context.Context, role discapi.GuildRole) (discapi.Snowflake, error)
 	ListGuildChannels(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
 	ListGuildRoles(ctx context.Context, guild discapi.Guild) ([]discapi.Snowflake, error)
+	GetGuild(ctx context.Context, guild discapi.Guild) (discapi.Snowflake, error)
 }
 
 // Worker holds everything the setup/layout/unbind/post RPC needs.
