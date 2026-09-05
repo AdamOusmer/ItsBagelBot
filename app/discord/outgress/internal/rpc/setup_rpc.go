@@ -303,6 +303,7 @@ func (d *discordRPC) handleStatus(ctx context.Context, req outgressrpc.DiscordSt
 		LastCloseCode:  st.LastCloseCode,
 		NeedsReauth:    d.needsReauth(ctx, kv.GuildID(req.GuildID)),
 	}
+	withBudget(&reply, st)
 	got, err := d.w.GuildInfo(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
 	if err != nil {
 		reply.Error, reply.Code = err.Error(), codeFor(err)
@@ -311,6 +312,18 @@ func (d *discordRPC) handleStatus(ctx context.Context, req outgressrpc.DiscordSt
 	reply.GuildPresent = true
 	reply.GuildName, reply.IconURL, reply.MemberCount = got.Name, got.IconURL(), got.ApproximateMemberCount
 	return reply
+}
+
+// withBudget copies ingress's connect budget onto the reply. It is a
+// separate pass rather than four more lines in the literal because
+// handleStatus already carries every branch the complexity gate allows, and
+// because these four fields answer one question together: is the bot merely
+// offline, or has its ingress stopped dialling on purpose.
+func withBudget(reply *outgressrpc.DiscordStatusReply, st ddiscord.BotStatus) {
+	reply.Flapping = st.Flapping
+	reply.ConnectsInWindow = st.ConnectsInWindow
+	reply.AtCeiling = st.AtCeiling
+	reply.ParkUntilUnixMS = st.ParkUntilUnixMS
 }
 
 // botStatus reads the published gateway status. A nil reader (no Valkey

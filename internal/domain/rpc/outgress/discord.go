@@ -192,7 +192,18 @@ type DiscordStatusReply struct {
 	// LastCloseCode explains an offline bot (see
 	// internal/domain/discord.CloseCodeMessage). It survives reconnects, so
 	// a non-zero value on an online bot is history, not a fault.
-	LastCloseCode int    `json:"last_close_code,omitempty"`
-	Error         string `json:"error,omitempty"`
-	Code          string `json:"code"`
+	LastCloseCode int `json:"last_close_code,omitempty"`
+	// The connect budget, straight off the bot status key. An offline bot
+	// and an offline bot whose ingress has deliberately stopped dialling are
+	// different answers, and on 2026-09-05 the difference was a token reset
+	// nobody saw coming. Flapping means slowed down and still trying;
+	// AtCeiling means stopped until ParkUntilUnixMS, which is the one number
+	// that tells a streamer when to look again rather than to file a ticket.
+	Flapping         bool  `json:"flapping,omitempty"`
+	ConnectsInWindow int   `json:"connects_in_window,omitempty"`
+	AtCeiling        bool  `json:"at_ceiling,omitempty"`
+	ParkUntilUnixMS  int64 `json:"park_until_unix_ms,omitempty"`
+
+	Error string `json:"error,omitempty"`
+	Code  string `json:"code"`
 }

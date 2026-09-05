@@ -251,3 +251,46 @@ func TestBotOnlineNeedsAFreshHeartbeat(t *testing.T) {
 		}
 	}
 }
+
+// The dashboard has to be able to tell "the bot is offline" from "the bot is
+// offline and its ingress has stopped dialling until tomorrow morning". The
+// budget rides the status key; handleStatus must carry all four fields
+// through, including the deadline that says when to look again.
+func TestHandleStatusCarriesTheConnectBudget(t *testing.T) {
+	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ"}}
+	status := fakeBotStatus{ok: true, st: ddiscord.BotStatus{
+		LastCloseCode: 4000, Flapping: true, ConnectsInWindow: 800,
+		AtCeiling: true, ParkUntilUnixMS: 1_700_000_000_000,
+	}}
+	d := newDiscordRPC(t, rest, status, true)
+
+	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
+
+	if !got.Flapping || got.ConnectsInWindow != 800 || !got.AtCeiling {
+		t.Fatalf("budget fields = %+v, want the key's own values", got)
+	}
+	if got.ParkUntilUnixMS != 1_700_000_000_000 {
+		t.Fatalf("park_until_unix_ms = %d, want the key's deadline", got.ParkUntilUnixMS)
+	}
+	if got.Online {
+		t.Fatalf("reply = %+v, want offline: a parked ingress holds no session", got)
+	}
+}
+
+// A bot with a healthy session publishes no budget pressure, and the reply
+// must not invent any -- an at_ceiling that is merely a stale default puts a
+// permanent warning on a dashboard for a bot that is fine.
+func TestHandleStatusOmitsAnUnpressuredBudget(t *testing.T) {
+	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ"}}
+	status := fakeBotStatus{ok: true, st: ddiscord.BotStatus{Connected: true, ConnectsInWindow: 4}}
+	d := newDiscordRPC(t, rest, status, true)
+
+	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
+
+	if got.Flapping || got.AtCeiling || got.ParkUntilUnixMS != 0 {
+		t.Fatalf("budget fields = %+v, want nothing flagged", got)
+	}
+	if got.ConnectsInWindow != 4 {
+		t.Fatalf("connects_in_window = %d, want 4 published even when healthy", got.ConnectsInWindow)
+	}
+}
