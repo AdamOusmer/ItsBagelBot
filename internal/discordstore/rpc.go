@@ -71,6 +71,13 @@ func newRPCStore(requester Requester, local localStore, prefix string, log *zap.
 
 func (s *rpcStore) subject(verb string) string { return s.prefix + "." + verb }
 
+// TicketsDurable shadows the embedded local store's answer. Tickets opened
+// through this store get a discord-data row: an id, an enforced open limit and
+// a transcript. A discord-data that is DOWN surfaces per call, as an error the
+// open path already rolls the channel back on -- not as a mode where the desk
+// pretends the limit does not exist.
+func (*rpcStore) TicketsDurable(context.Context) bool { return true }
+
 // Broadcaster resolves a guild to its broadcaster, through the Valkey cache in
 // front of discord-data.
 //

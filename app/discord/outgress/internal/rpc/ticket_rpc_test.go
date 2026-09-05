@@ -87,7 +87,38 @@ func newTicketRPC(t *testing.T, reply func(recordedCall) (int, string)) (*ticket
 	tr := &scriptedTransport{reply: reply}
 	client := discapi.NewClient("bot-token")
 	client.SetTransport(tr)
-	return &ticketRPC{rest: client, log: zap.NewNop()}, tr
+	return &ticketRPC{rest: client, botID: "bot9", log: zap.NewNop()}, tr
+}
+
+// onceMemo is the summary memo: it claims a ticket id exactly once.
+type onceMemo struct{ claimed map[int]bool }
+
+func newOnceMemo() *onceMemo { return &onceMemo{claimed: map[int]bool{}} }
+
+// ClaimSummary mirrors discordstore's contract, including the part that
+// matters here: a ticket with no row id always claims.
+func (m *onceMemo) ClaimSummary(_ context.Context, ticketID int) bool {
+	if ticketID <= 0 {
+		return true
+	}
+	if m.claimed[ticketID] {
+		return false
+	}
+	m.claimed[ticketID] = true
+	return true
+}
+
+// indexOf is the position of the first call matching method+path, or -1. The
+// close path'"'"'s ORDER is behaviour, not incidental, so the tests assert on it.
+func (s *scriptedTransport) indexOf(method, path string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, c := range s.calls {
+		if c.method == method && c.path == path {
+			return i
+		}
+	}
+	return -1
 }
 
 // messagePage renders n messages, newest first, with ids counting down from
@@ -445,5 +476,224 @@ func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
 	}
 	if got := archivedName("ticket-ada-" + strconv.Itoa(1)); got != "closed-ticket-ada-1" {
 		t.Fatalf("archivedName = %q", got)
+	}
+}
+
+// The bot needs an explicit overwrite on the ticket channel it just created:
+// a staff-only ticket category that denies @everyone denies the bot too, and
+// the desk then 403s on every call into the channel it opened. Only outgress
+// knows the application id, so the overwrite is appended here rather than by
+// the engine that built the rest of the set.
+func TestTicketOpenGrantsTheBotItsOwnOverwrite(t *testing.T) {
+	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+		if call.path == "/guilds/g1/channels" {
+			return 200, `{"id":"c-new"}`
+		}
+		return 200, `{"id":"m-new"}`
+	})
+
+	h.open(context.Background(), discordoutgress.TicketOpenRequest{
+		GuildID: "g1", Name: "ticket-ada",
+		Overwrites: []discapi.PermissionOverwrite{{ID: "g1", Type: 0, Allow: "0", Deny: "1024"}},
+	})
+
+	creates := tr.find(http.MethodPost, "/guilds/g1/channels")
+	if len(creates) != 1 {
+		t.Fatalf("creates = %d", len(creates))
+	}
+	body := creates[0].body
+	want := `{"id":"bot9","type":1,"allow":"` + permTicketBotBits + `","deny":"0"}`
+	if !strings.Contains(body, want) {
+		t.Fatalf("create body %q missing the bot overwrite %q", body, want)
+	}
+	// The engine'"'"'s own overwrites survive alongside it.
+	if !strings.Contains(body, `{"id":"g1","type":0,"allow":"0","deny":"1024"}`) {
+		t.Fatalf("create body %q dropped the engine overwrite", body)
+	}
+}
+
+// An overwrite'"'"'s unused half is the string "0", never "". Discord'"'"'s overwrite
+// object types allow and deny as strings; an empty one is rejected outright by
+// newer API versions and read as "leave the existing value" by older ones,
+// which on the archive PATCH means a deny lands on top of an allow we meant to
+// clear. decode.OverwriteAllow/OverwriteDeny use the same convention.
+func TestArchiveOverwritesCarryBothHalves(t *testing.T) {
+	h, tr := newTicketRPC(t, nil)
+
+	h.close(context.Background(), discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", OpenerID: "u1",
+		ArchiveCategoryID: "cat1", StaffRoleIDs: []string{"rmod"},
+	})
+
+	patches := tr.find(http.MethodPatch, "/channels/c1")
+	if len(patches) != 1 {
+		t.Fatalf("patches = %d", len(patches))
+	}
+	for _, want := range []string{
+		`{"id":"g1","type":0,"allow":"0","deny":"1024"}`,
+		`{"id":"u1","type":1,"allow":"0","deny":"1024"}`,
+		`{"id":"rmod","type":0,"allow":"66560","deny":"0"}`,
+	} {
+		if !strings.Contains(patches[0].body, want) {
+			t.Fatalf("patch body %q missing %q", patches[0].body, want)
+		}
+	}
+	if strings.Contains(patches[0].body, `"allow":""`) || strings.Contains(patches[0].body, `"deny":""`) {
+		t.Fatalf("patch body carries an empty permission half: %q", patches[0].body)
+	}
+}
+
+// The channel is disposed of BEFORE the summary posts. The summary is the step
+// most likely to fail slowly (a missing, forbidden or rate-limited log
+// channel), and when it ran first a failure there left the ticket channel
+// sitting in the open category with a closed row behind it.
+func TestTicketCloseDisposesBeforePostingTheSummary(t *testing.T) {
+	h, tr := newTicketRPC(t, nil)
+
+	h.close(context.Background(), discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
+		LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	})
+
+	dispose := tr.indexOf(http.MethodPatch, "/channels/c1")
+	summary := tr.indexOf(http.MethodPost, "/channels/log1/messages")
+	if dispose < 0 || summary < 0 {
+		t.Fatalf("calls = dispose %d, summary %d", dispose, summary)
+	}
+	if dispose > summary {
+		t.Fatal("the channel must be archived before the summary posts")
+	}
+}
+
+// A retried close must not stack a second card and a second transcript upload
+// in the log channel. The memo is keyed on the ticket row id.
+func TestTicketCloseSummaryPostsOncePerTicket(t *testing.T) {
+	h, tr := newTicketRPC(t, nil)
+	h.memo = newOnceMemo()
+	req := discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", TicketID: 42,
+		LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	}
+
+	h.close(context.Background(), req)
+	h.close(context.Background(), req)
+
+	if posts := tr.find(http.MethodPost, "/channels/log1/messages"); len(posts) != 1 {
+		t.Fatalf("log posts = %d, want 1 across two closes", len(posts))
+	}
+}
+
+// A ticket with no row id (the pure-Valkey fallback) has nothing to key the
+// memo on, so it posts every time rather than never.
+func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
+	h, tr := newTicketRPC(t, nil)
+	h.memo = newOnceMemo()
+	req := discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	}
+
+	h.close(context.Background(), req)
+	h.close(context.Background(), req)
+
+	if posts := tr.find(http.MethodPost, "/channels/log1/messages"); len(posts) != 2 {
+		t.Fatalf("log posts = %d, want one per close", len(posts))
+	}
+}
+
+// The upload is the half that fails on its own -- a payload too large, or a
+// proxy that rejects multipart. When the card only ever travelled attached to
+// the file, that failure took the close record with it.
+func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
+	uploaded := false
+	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+		if call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages") {
+			return 200, messagePage(1000, 2)
+		}
+		if strings.HasPrefix(call.contentType, "multipart/") {
+			uploaded = true
+			return 400, `{"message":"Request entity too large"}`
+		}
+		return 200, `{"id":"m-new"}`
+	})
+
+	h.close(context.Background(), discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
+		Transcript: true, LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	})
+
+	if !uploaded {
+		t.Fatal("the upload was never attempted")
+	}
+	posts := tr.find(http.MethodPost, "/channels/log1/messages")
+	if len(posts) != 2 {
+		t.Fatalf("log posts = %d, want the upload plus the fallback embed", len(posts))
+	}
+	fallback := posts[1]
+	if strings.HasPrefix(fallback.contentType, "multipart/") {
+		t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
+	}
+	if !strings.Contains(fallback.body, uploadFailedNote) {
+		t.Fatalf("fallback body %q must say the upload failed", fallback.body)
+	}
+}
+
+// A history that could not be paged in full is marked, in the reply and in the
+// body, so a short transcript is never mistaken for a short conversation.
+func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
+	pages := 0
+	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
+		if call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages") {
+			pages++
+			if pages == 1 {
+				return 200, messagePage(1000, discapi.MessagePageMax)
+			}
+			return 500, `{"message":"Internal Server Error"}`
+		}
+		return 200, `{"id":"m-new"}`
+	})
+
+	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
+		Transcript: true, LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	})
+
+	if !reply.Truncated {
+		t.Fatalf("reply = %+v, want truncated", reply)
+	}
+	if !strings.Contains(reply.TranscriptBody, "transcript incomplete") {
+		t.Fatalf("transcript %q must carry the truncation line", firstLine(reply.TranscriptBody))
+	}
+	if reply.MessageCount != discapi.MessagePageMax {
+		t.Fatalf("message count = %d, want the partial page kept", reply.MessageCount)
+	}
+}
+
+func TestTicketPanelReturnsThePostedMessageID(t *testing.T) {
+	h, tr := newTicketRPC(t, func(recordedCall) (int, string) { return 200, `{"id":"m-panel"}` })
+
+	reply := h.panel(context.Background(), discordoutgress.TicketPanelRequest{
+		GuildID: "g1", ChannelID: "desk1",
+		Buttons: []ddiscord.ButtonSpec{{Style: 1, Label: "Open a ticket", CustomID: discapi.CustomTicketOpen}},
+	})
+
+	if reply.Error != "" || reply.MessageID != "m-panel" {
+		t.Fatalf("reply = %+v", reply)
+	}
+	posts := tr.find(http.MethodPost, "/channels/desk1/messages")
+	if len(posts) != 1 || !strings.Contains(posts[0].body, discapi.CustomTicketOpen) {
+		t.Fatalf("panel post = %+v", posts)
+	}
+}
+
+func TestTicketPanelRefusesAnEmptyChannel(t *testing.T) {
+	h, tr := newTicketRPC(t, nil)
+
+	reply := h.panel(context.Background(), discordoutgress.TicketPanelRequest{GuildID: "g1"})
+
+	if reply.Code != outgressrpc.CodeInvalid || reply.MessageID != "" {
+		t.Fatalf("reply = %+v", reply)
+	}
+	if len(tr.calls) != 0 {
+		t.Fatalf("a refused panel must not call Discord: %+v", tr.calls)
 	}
 }

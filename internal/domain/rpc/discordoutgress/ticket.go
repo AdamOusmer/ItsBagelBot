@@ -85,8 +85,15 @@ type TicketCloseSummary struct {
 // posts the summary; an empty ArchiveCategoryID deletes the channel instead of
 // moving it.
 type TicketCloseRequest struct {
-	GuildID           string             `json:"guild_id"`
-	ChannelID         string             `json:"channel_id"`
+	GuildID   string `json:"guild_id"`
+	ChannelID string `json:"channel_id"`
+	// TicketID is the discord-data row id. It is what makes the close
+	// summary idempotent: outgress remembers the summary it posted against
+	// this id, so a retried close (the engine's deadline expired, the user
+	// pressed the button twice) does not stack a second card and a second
+	// transcript in the log channel. Zero -- the pure-Valkey fallback, which
+	// has no row ids -- skips the memo and posts every time.
+	TicketID          int                `json:"ticket_id,omitempty"`
 	ChannelName       string             `json:"channel_name,omitempty"`
 	OpenerID          string             `json:"opener_id,omitempty"`
 	Transcript        bool               `json:"transcript,omitempty"`
@@ -104,8 +111,13 @@ type TicketCloseRequest struct {
 // twice, bounded at 2 MiB by ddiscord.TranscriptByteCap -- 4 MiB of the 8 MiB
 // max_payload in the worst case, which only a pasted-logs ticket ever reaches.
 type TicketCloseReply struct {
-	MessageCount      int    `json:"message_count,omitempty"`
-	TranscriptBody    string `json:"transcript_body,omitempty"`
+	MessageCount   int    `json:"message_count,omitempty"`
+	TranscriptBody string `json:"transcript_body,omitempty"`
+	// Truncated marks a transcript that is missing its oldest messages,
+	// because the message cap tripped or a page of history failed. It travels
+	// to the ticket row so a reader of the stored transcript knows the same
+	// thing the person reading the attached file does.
+	Truncated         bool   `json:"truncated,omitempty"`
 	ArchivedChannelID string `json:"archived_channel_id,omitempty"`
 	Error             string `json:"error,omitempty"`
 	Code              string `json:"code,omitempty"`
@@ -125,4 +137,26 @@ type TicketMemberAddRequest struct {
 type TicketMemberAddReply struct {
 	Error string `json:"error,omitempty"`
 	Code  string `json:"code,omitempty"`
+}
+
+// TicketPanelRequest is bagel.rpc.discord-outgress.ticket.panel: post the
+// persistent desk panel and hand back the message's id.
+//
+// It is an RPC and not the fire-and-forget PostPanel Command the desk used to
+// emit for exactly one reason: the id. Without it the engine records a desk
+// pointer with an empty message id, and "repost the panel" can only stack a
+// second panel under the first because it has nothing to delete.
+type TicketPanelRequest struct {
+	GuildID   string                `json:"guild_id"`
+	ChannelID string                `json:"channel_id"`
+	Content   string                `json:"content,omitempty"`
+	Embed     ddiscord.Embed        `json:"embed"`
+	Buttons   []ddiscord.ButtonSpec `json:"buttons,omitempty"`
+}
+
+// TicketPanelReply carries the posted panel's id, or the reason there is none.
+type TicketPanelReply struct {
+	MessageID string `json:"message_id,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Code      string `json:"code,omitempty"`
 }
