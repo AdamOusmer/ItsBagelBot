@@ -5,7 +5,7 @@ package dispatch
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -348,19 +349,27 @@ func TestVoiceLockButton(t *testing.T) {
 	}
 }
 
-// flakyPublish fails the first failUntil calls and succeeds after, counting
-// every attempt.
+// flakyPublish fails the first failFor calls with failWith (defaulting to a
+// proven pre-admission error) and succeeds after, counting every attempt.
 type flakyPublish struct {
 	attempts int
 	failFor  int
+	// failWith is the error the failing attempts return. Zero means
+	// nats.ErrNoResponders: the broker never saw the bytes, which is the
+	// only condition under which republishing is a first delivery rather
+	// than a duplicate.
+	failWith error
 }
 
 func (f *flakyPublish) publish(context.Context, ddiscord.Command) error {
 	f.attempts++
-	if f.attempts <= f.failFor {
-		return errors.New("no responders")
+	if f.attempts > f.failFor {
+		return nil
 	}
-	return nil
+	if f.failWith != nil {
+		return f.failWith
+	}
+	return nats.ErrNoResponders
 }
 
 func observedDispatcher(pub func(context.Context, ddiscord.Command) error) (*Dispatcher, *observer.ObservedLogs) {
@@ -436,5 +445,44 @@ func TestUndecodableInteractionIsLogged(t *testing.T) {
 	fields := warns[0].ContextMap()
 	if fields["guild_id"] != "g1" || fields["event_type"] != "INTERACTION_CREATE" {
 		t.Fatalf("warn fields = %v, want the type and guild", fields)
+	}
+}
+
+// A PubAck timeout is NOT proof the publish failed: JetStream may have
+// stored the message and lost only the acknowledgement. Republishing there
+// posts the streamer's message into their guild twice, which is worse than
+// the miss, so an ambiguous outcome is logged once and dropped.
+func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
+	pub := &flakyPublish{failFor: 99, failWith: nats.ErrTimeout}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 1 {
+		t.Fatalf("attempts = %d, want 1: a timeout may already have been stored", pub.attempts)
+	}
+	errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
+	if len(errs) != 1 {
+		t.Fatalf("error logs = %d, want exactly one", len(errs))
+	}
+	fields := errs[0].ContextMap()
+	if fields["retried"] != false {
+		t.Fatalf("log fields = %v, want retried=false so an operator knows to go look on the stream", fields)
+	}
+	if fields["subject"] == "" || fields["type"] != "post" {
+		t.Fatalf("log fields = %v, want the subject and type to find the message with", fields)
+	}
+}
+
+// A wrapped pre-admission error still retries: the classification is
+// errors.Is, not string matching, so pkg/bus is free to annotate.
+func TestPublishRetriesWrappedPreAdmissionErrors(t *testing.T) {
+	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrConnectionClosed)}
+	d, _ := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (one wrapped failure, one success)", pub.attempts)
 	}
 }

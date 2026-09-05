@@ -11,6 +11,7 @@ package dispatch
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
@@ -23,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -121,11 +123,39 @@ func (d *Dispatcher) publishAll(ctx context.Context, cmds []ddiscord.Command) {
 	for _, c := range cmds {
 		if err := d.publishRetry(ctx, c); err != nil {
 			// ERROR, not WARN: this is a command the user asked for that
-			// nothing will ever run, and it is the only trace it existed.
-			d.Log.Error("discord command lost after retries",
-				zap.String("type", c.Type), zap.Int("attempts", publishAttempts), zap.Error(err))
+			// either nothing will ever run, or ran without us knowing. The
+			// subject is logged next to the type because that pair is what
+			// an operator needs to go look for the message on the stream and
+			// settle which of the two it was.
+			d.Log.Error("discord command publish failed",
+				zap.String("subject", ddiscord.Lane(c.Type)),
+				zap.String("type", c.Type),
+				zap.Bool("retried", preAdmission(err)),
+				zap.Error(err))
 		}
 	}
+}
+
+// preAdmission reports whether err proves the publish never reached the
+// stream, which is the only condition under which republishing is safe.
+//
+// pkg/bus offers no idempotent republish to lean on instead. Publication.ID
+// looks like one, but Publisher.PublishOwnedWithID's own contract says the
+// ID "is not sent as Nats-Msg-Id and does not make replays idempotent", and
+// the Publisher doc states outright that fleet publishing does not use
+// broker deduplication -- so a deterministic id would buy nothing here, and
+// wiring one would only make the duplicate look sanctioned.
+//
+// That leaves classification. No responders and a closed connection are both
+// proven pre-admission: the broker never saw the bytes, so a retry is the
+// same first delivery. A PubAck timeout is NOT -- JetStream may have stored
+// the message and lost only the acknowledgement, exactly the ambiguous
+// outcome pkg/bus documents as dropped rather than replayed. Republishing
+// there posts the streamer's message into their guild twice, which is worse
+// than the miss the retry was trying to avoid, so anything unrecognised
+// falls to the safe side and is logged instead.
+func preAdmission(err error) bool {
+	return errors.Is(err, nats.ErrNoResponders) || errors.Is(err, nats.ErrConnectionClosed)
 }
 
 func (d *Dispatcher) publishRetry(ctx context.Context, c ddiscord.Command) error {
@@ -134,7 +164,7 @@ func (d *Dispatcher) publishRetry(ctx context.Context, c ddiscord.Command) error
 		if err = d.Publish(ctx, c); err == nil {
 			return nil
 		}
-		if attempt == publishAttempts-1 {
+		if !preAdmission(err) || attempt == publishAttempts-1 {
 			break
 		}
 		if waitErr := sleep(ctx, publishRetryDelay); waitErr != nil {
