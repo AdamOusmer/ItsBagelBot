@@ -1,16 +1,23 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Discord module blob + outgress RPCs. Channel/role snowflakes live in the
-// module row sesame and outgress both read; the bot token never does.
+// Discord module row + outgress RPCs.
 //
-// The blob's shape, defaults and validation live in @bagel/shared's
+// One broadcaster owns MANY guilds. The per-user module row therefore holds
+// only the master switch and the Twitch login; every channel, role and toggle
+// lives in a per-guild row that outgress owns and serves through
+// `config.get` / `config.set`. Before this, the whole config sat in the
+// modules blob, which structurally allowed exactly one server per broadcaster
+// and had no version to guard a concurrent save with.
+//
+// The config's shape, defaults and validation live in @bagel/shared's
 // discord-config so they can be unit-tested (the console runner only executes
 // shared/**); this file is the transport half.
 import { rpc } from '@bagel/shared/server/nats';
 import {
   MOD,
   encodePinnedRoles,
+  parseConfigVersion,
   parseDiscordConfig,
   parsePinnedRoles,
   type DiscordConfig,
@@ -38,6 +45,15 @@ const STATUS_TIMEOUT_MS = 3000;
 // calls that can each eat a Retry-After.
 const REPOST_TIMEOUT_MS = 10000;
 const UNBIND_TIMEOUT_MS = 5000;
+// A per-guild config row read: one Valkey hit or one MySQL row through
+// discord-data. The shared read default (2 s) is right for it.
+const CONFIG_GET_TIMEOUT_MS = 2000;
+const CONFIG_SET_TIMEOUT_MS = 5000;
+// guilds.list is one binding lookup plus a GetGuildWithCounts per bound guild.
+// Discord's own calls are cached by outgress, but a cold list of half a dozen
+// servers still walks them, so this sits well above the write default rather
+// than turning a slow-but-working list into a degraded page.
+const GUILDS_TIMEOUT_MS = 8000;
 
 /**
  * The refusal codes every dingress reply now carries.
@@ -51,6 +67,7 @@ const UNBIND_TIMEOUT_MS = 5000;
  */
 export const DISCORD_CODES = [
   'bound_elsewhere',
+  'conflict',
   'not_bound',
   'discord_unavailable',
   'forbidden',
@@ -77,10 +94,34 @@ function messageCode(error: string): DiscordCode {
   return '';
 }
 
+// The module row: the master switch and the Twitch login, plus every guild
+// this broadcaster has bound. No channel or role ids — those are per guild.
 export type DiscordView = {
   enabled: boolean;
-  connected: boolean;
+  twitchLogin: string;
+  guilds: DiscordGuildSummary[];
+};
+
+// One row of the server list. needsReauth is not in the guilds.list contract
+// yet (outgress learns it per guild from Discord's own 403 on a rename); it is
+// read optimistically so the list can show the reauth pill the day outgress
+// starts sending it, and reads false until then.
+export type DiscordGuildSummary = {
+  guildId: string;
+  name: string;
+  iconUrl: string;
+  memberCount: number;
+  botPresent: boolean;
+  needsReauth: boolean;
+  boundAtMs: number;
+};
+
+// A per-guild config row. `found` false is a guild that is bound but has never
+// been saved: the page renders defaults and the first save writes version 1.
+export type DiscordGuildConfig = {
   config: DiscordConfig;
+  version: number;
+  found: boolean;
 };
 
 export type DiscordEntry = { id: string; name: string; type: number };
@@ -162,21 +203,110 @@ export type DiscordGuildTarget = {
   pinnedRoles?: PinnedRoles;
 };
 
-export type DiscordSave = { userId: string; enabled: boolean; config: DiscordConfig };
+export type DiscordSave = { userId: string; enabled: boolean; twitchLogin: string };
 
 export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
   const rows = await listModules(user.userId);
   const row = rows.find((r) => r.name === DISCORD_MODULE);
-  const config = parseDiscordConfig(row?.configs);
   return {
     enabled: row ? row.is_enabled : false,
-    connected: config.guildId.trim() !== '',
-    config
+    // Still parsed through the full config parser: the row predates the split
+    // and a board that has not been touched since still carries the old blob,
+    // whose extra keys we now simply ignore.
+    twitchLogin: parseDiscordConfig(row?.configs).twitchLogin,
+    guilds: await listGuilds(user)
   };
 }
 
-export async function saveDiscord(save: DiscordSave): Promise<void> {
-  await upsertModule(save.userId, DISCORD_MODULE, save.enabled, save.config);
+/**
+ * Writes the module row back.
+ *
+ * Only two fields go in. The old blob's channel and role ids are deliberately
+ * NOT carried forward: the first save after this ships narrows the row, and
+ * anything still reading a snowflake out of `MOD.discord` is reading a value
+ * that is no longer maintained. The per-guild rows are the source of truth.
+ */
+export async function saveDiscordModule(save: DiscordSave): Promise<void> {
+  await upsertModule(save.userId, DISCORD_MODULE, save.enabled, { twitchLogin: save.twitchLogin });
+}
+
+type GuildsReply = CodedReply & {
+  guilds?: {
+    guild_id?: string;
+    name?: string;
+    icon_url?: string;
+    member_count?: number;
+    bot_present?: boolean;
+    needs_reauth?: boolean;
+    bound_at?: number;
+  }[];
+};
+
+// listGuilds is the ownership check as well as the list: a guild absent from
+// this reply is one this broadcaster does not own, and every per-guild route
+// 404s on that rather than trusting the id in the URL.
+export async function listGuilds(user: DiscordUser): Promise<DiscordGuildSummary[]> {
+  const r = await rpc<GuildsReply>(
+    `${SUB.dingressRpc}.discord.guilds.list`,
+    { user_id: user.userId },
+    GUILDS_TIMEOUT_MS
+  );
+  if (r.error) throw new Error(r.error);
+  return (r.guilds ?? [])
+    .filter((g) => typeof g.guild_id === 'string' && g.guild_id !== '')
+    .map((g) => ({
+      guildId: String(g.guild_id),
+      name: g.name ?? '',
+      iconUrl: g.icon_url ?? '',
+      memberCount: Number(g.member_count ?? 0),
+      botPresent: g.bot_present === true,
+      needsReauth: g.needs_reauth === true,
+      boundAtMs: Number(g.bound_at ?? 0)
+    }));
+}
+
+type ConfigGetReply = CodedReply & { config?: unknown; version?: unknown; found?: boolean };
+
+export async function readGuildConfig(target: DiscordGuildTarget): Promise<DiscordGuildConfig> {
+  const r = await rpc<ConfigGetReply>(
+    `${SUB.dingressRpc}.discord.config.get`,
+    { user_id: target.userId, guild_id: target.guildId },
+    CONFIG_GET_TIMEOUT_MS
+  );
+  if (r.error) throw new Error(r.error);
+  return {
+    config: { ...parseDiscordConfig(r.config), guildId: target.guildId },
+    version: parseConfigVersion(r.version),
+    found: r.found === true
+  };
+}
+
+export type DiscordGuildSave = DiscordGuildTarget & { config: DiscordConfig; expectedVersion: number };
+
+export type DiscordSaveResult = { version: number; code: DiscordCode; error: string };
+
+/**
+ * Writes one guild's config, refusing if the row moved since it was read.
+ *
+ * expected_version is not optimism for its own sake: a broadcaster's mods can
+ * hold this page open on two screens, and the module row it replaced merged
+ * blindly, so the second save silently reverted the first one's channel
+ * pickers. A `conflict` reply is surfaced as "someone else saved, reload"
+ * rather than retried, because the two drafts differ in ways only a human can
+ * reconcile.
+ */
+export async function saveGuildConfig(save: DiscordGuildSave): Promise<DiscordSaveResult> {
+  const r = await rpc<CodedReply & { version?: unknown }>(
+    `${SUB.dingressRpc}.discord.config.set`,
+    {
+      user_id: save.userId,
+      guild_id: save.guildId,
+      config: save.config,
+      expected_version: save.expectedVersion
+    },
+    CONFIG_SET_TIMEOUT_MS
+  );
+  return { version: parseConfigVersion(r.version), code: replyCode(r), error: r.error ?? '' };
 }
 
 type SetupReply = CodedReply & {
@@ -265,6 +395,24 @@ function applySetup(current: DiscordConfig, guildId: string, r: SetupReply): Dis
     next[key] = v;
   }
   return next;
+}
+
+/**
+ * Writes a finished setup's snowflakes into the guild row.
+ *
+ * The version is re-read immediately before the write rather than carried in
+ * from the page's load. Setup writes the same row on the outgress side, so the
+ * version the page holds is routinely one behind by the time a 40-second fill
+ * returns, and refusing the rebuild the streamer just asked for with "someone
+ * else saved this" would be a lie. Safe because the reply carries exactly what
+ * outgress wrote, so re-applying it is idempotent.
+ */
+export async function persistSetup(
+  target: DiscordGuildTarget,
+  config: DiscordConfig
+): Promise<DiscordSaveResult> {
+  const fresh = await readGuildConfig(target);
+  return saveGuildConfig({ userId: target.userId, guildId: target.guildId, config, expectedVersion: fresh.version });
 }
 
 type WireEntry = { id?: string; name?: string; type?: number };

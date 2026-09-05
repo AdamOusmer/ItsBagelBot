@@ -19,6 +19,11 @@ import { env } from '$env/dynamic/private';
 const DEMO = dev && process.env.DEMO === '1';
 
 export const DISCORD_STATE_COOKIE = 'discord_oauth_state';
+// A second cookie for the user-authorization leg. Sharing one with the bot
+// install leg would let a stale state from either flow validate the other, and
+// the two legs carry different consent: one grants us a read of the visitor's
+// guild list, the other adds a bot to a server.
+export const DISCORD_PICK_STATE_COOKIE = 'discord_pick_state';
 export const DISCORD_STATE_TTL_SECONDS = 600;
 
 // BotPermissions matches internal/domain/discord.BotPermissions: kick, ban,
@@ -37,7 +42,9 @@ export const DISCORD_STATE_TTL_SECONDS = 600;
 export const DISCORD_BOT_PERMISSIONS = 1102012607574;
 
 const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
+const USER_GUILDS_URL = 'https://discord.com/api/v10/users/@me/guilds';
 const TOKEN_TIMEOUT_MS = 8000;
+const GUILDS_TIMEOUT_MS = 8000;
 
 export function requireDiscordActor(locals: App.Locals): string {
   gateModulePage(locals.session, 'discord');
@@ -61,6 +68,8 @@ export const DISCORD_ERROR_SLUGS = [
   'unconfigured',
   'setup',
   'state',
+  'noguilds',
+  'conflict',
   'bound_elsewhere',
   'not_bound',
   'discord_unavailable',
@@ -107,6 +116,118 @@ export function discordInviteURL(state: string): string {
   u.searchParams.set('response_type', 'code');
   if (state) u.searchParams.set('state', state);
   return u.toString();
+}
+
+/**
+ * Where Discord sends the visitor back after the USER-authorization leg.
+ *
+ * Derived from the bot-install redirect by swapping the last segment, so a
+ * deployment configures one variable and gets both. DISCORD_PICK_REDIRECT_URI
+ * overrides it for a deployment whose two URIs are not siblings. Either way
+ * the value has to be registered in the Discord application, exactly, or
+ * Discord refuses the authorize call with its own error page.
+ */
+export function discordPickRedirectURI(): string {
+  const explicit = (env.DISCORD_PICK_REDIRECT_URI || '').trim();
+  if (explicit) return explicit;
+  const base = discordRedirectURI();
+  if (!base) return '';
+  return base.replace(/\/callback\/?$/, '/pick');
+}
+
+/**
+ * Step one: ask the visitor which servers they are in.
+ *
+ * `identify guilds` is read-only and adds nothing to any server. The token it
+ * yields is used once, in the callback, to list guilds; it is never persisted
+ * and never logged. We ask before the install so the picker can show real
+ * server names instead of dropping the streamer into Discord's own guild
+ * dropdown, which lists servers Bagel can never be added to.
+ */
+export function discordUserAuthURL(state: string): string {
+  const clientId = discordClientId();
+  const redirect = discordPickRedirectURI();
+  if (!clientId || !redirect) return '';
+  const u = new URL('https://discord.com/oauth2/authorize');
+  u.searchParams.set('client_id', clientId);
+  u.searchParams.set('scope', 'identify guilds');
+  u.searchParams.set('redirect_uri', redirect);
+  u.searchParams.set('response_type', 'code');
+  if (state) u.searchParams.set('state', state);
+  return u.toString();
+}
+
+/**
+ * Step two: install the bot into the guild the streamer picked.
+ *
+ * guild_id preselects it and disable_guild_select stops Discord offering the
+ * dropdown again, so the server named on our picker is the server that gets
+ * the bot. The id is still not trusted afterwards: the callback reads the
+ * bound guild out of the token response (see exchangeInstallCode).
+ */
+export function discordInstallURL(state: string, guildId: string): string {
+  const base = discordInviteURL(state);
+  if (!base || !guildId) return base;
+  const u = new URL(base);
+  u.searchParams.set('guild_id', guildId);
+  u.searchParams.set('disable_guild_select', 'true');
+  return u.toString();
+}
+
+export type DiscordUserGuild = { id: string; name: string; owner: boolean; permissions: string };
+
+/**
+ * Exchanges the user-authorization code and lists that user's guilds.
+ *
+ * The access token exists only inside this function: it is not returned, not
+ * stored, and not logged, so a leak would need someone to change this file.
+ * Returns an empty list on any failure; the caller turns that into a named
+ * redirect rather than a stack trace with a token in it.
+ */
+export async function listUserGuilds(code: string): Promise<DiscordUserGuild[]> {
+  const token = await exchangeUserCode(code);
+  if (!token) return [];
+  const res = await fetch(USER_GUILDS_URL, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(GUILDS_TIMEOUT_MS)
+  });
+  if (!res.ok) return [];
+  const json: unknown = await res.json();
+  if (!Array.isArray(json)) return [];
+  return json.map(userGuild).filter((g): g is DiscordUserGuild => g !== null);
+}
+
+function userGuild(raw: unknown): DiscordUserGuild | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const g = raw as { id?: unknown; name?: unknown; owner?: unknown; permissions?: unknown };
+  if (typeof g.id !== 'string' || g.id === '') return null;
+  return {
+    id: g.id,
+    name: typeof g.name === 'string' ? g.name : '',
+    owner: g.owner === true,
+    // Kept as the string Discord sent: the bitfield is parsed with BigInt in
+    // shared/discord-config, and coercing it to a number here would be the one
+    // place the precision is lost.
+    permissions: typeof g.permissions === 'string' ? g.permissions : ''
+  };
+}
+
+async function exchangeUserCode(code: string): Promise<string> {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: discordClientId(),
+      client_secret: discordClientSecret(),
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: discordPickRedirectURI()
+    }),
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS)
+  });
+  if (!res.ok) return '';
+  const json = (await res.json()) as { access_token?: unknown };
+  return typeof json.access_token === 'string' ? json.access_token : '';
 }
 
 export function discordTemplateURL(): string {
