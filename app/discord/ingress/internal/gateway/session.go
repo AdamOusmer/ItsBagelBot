@@ -74,6 +74,11 @@ type Status interface {
 	// and a wedged one look identical from the outside; this is the only
 	// evidence that separates them.
 	Event(ctx context.Context)
+	// Budget publishes the connect budget after every finished socket. A
+	// reader that sees Flapping or AtCeiling knows the bot is offline
+	// because this process is deliberately holding back, not because it
+	// gave up or died.
+	Budget(ctx context.Context, b Budget)
 }
 
 // Dial opens a gateway WebSocket.
@@ -119,6 +124,12 @@ type Session struct {
 	// Status, if set, is told every time the socket comes up or goes down
 	// and every time a dispatch lands. Nil is a no-op.
 	Status Status
+
+	// budget throttles connect attempts (see budget.go). Unexported and
+	// nil in production wiring: Run builds the real one. Tests install a
+	// schedule measured in milliseconds so they can assert the rules
+	// without sleeping through a 5 minute flap wait.
+	budget *connectBudget
 }
 
 // defaultPresenceInterval only applies if a caller wires a PresenceSource
@@ -134,31 +145,111 @@ func (s Session) Run(ctx context.Context) error {
 	url := s.gatewayURL()
 	st := &resumeState{}
 	rc := newReconnect()
+	bud := s.connectBudget()
 	for {
+		bud.note()
 		up, code, err := s.connect(ctx, url, st)
 		if ctx.Err() != nil {
+			// Report BEFORE returning. The status key has no TTL (see
+			// discord.BotStatusKey), so a pod that shut down without this
+			// left connected:true behind forever and the dashboard showed a
+			// green pill for a bot that no longer existed. The write needs
+			// its own context: ctx is already cancelled here, and a Valkey
+			// call under a cancelled context fails instantly.
+			s.reportFinalDown(ctx, code, err)
 			return ctx.Err()
 		}
 		s.reportDown(ctx, code, err)
 		if ddiscord.FatalCloseCode(code) {
 			return s.parkOnFatal(ctx, code, err)
 		}
-		s.log().Warn("discord gateway socket ended; reconnecting",
-			zap.Int("close_code", code), zap.Error(err))
-		if err := waitBeforeReconnect(ctx, rc.next(up)); err != nil {
+		wait := s.afterSocket(ctx, budgetInputs{bud: bud, rc: rc}, sessionEnd{up: up, code: code, err: err})
+		if err := waitBeforeReconnect(ctx, wait); err != nil {
 			return err
 		}
 	}
 }
 
+// sessionEnd is one finished socket: how long it was up, and what killed it.
+type sessionEnd struct {
+	up   time.Duration
+	code int
+	err  error
+}
+
+// budgetInputs is the pair of schedulers Run carries across iterations. They
+// travel together because afterSocket asks both and takes the longer wait;
+// passing them as one value keeps the argument list short enough for the
+// complexity gate.
+type budgetInputs struct {
+	bud *connectBudget
+	rc  *reconnect
+}
+
+// afterSocket folds a dead socket into both schedules and reports how long
+// to wait before the next connect.
+//
+// The budget floors the backoff rather than replacing it: backoff is what
+// makes an ordinary blip invisible, and the budget is what makes a loop
+// impossible. Whichever says "wait longer" wins.
+func (s Session) afterSocket(ctx context.Context, in budgetInputs, end sessionEnd) time.Duration {
+	state := in.bud.record(end.up)
+	s.reportBudget(ctx, state)
+	s.logSocketEnd(end, state)
+	wait := in.rc.next(end.up)
+	if d := in.bud.delay(); d > wait {
+		wait = d
+	}
+	return wait
+}
+
+// logSocketEnd says why the next connect is waiting. The two budget cases
+// are ERROR, not WARN: they mean this process has decided to stop trying at
+// the normal rate, which is exactly the fact nobody had when the token was
+// reset (see budget.go).
+func (s Session) logSocketEnd(end sessionEnd, state Budget) {
+	if state.Flapping {
+		s.log().Error("gateway flapping",
+			zap.Int("close_code", end.code),
+			zap.String("meaning", ddiscord.CloseCodeMessage(end.code)),
+			zap.Duration("uptime", end.up),
+			zap.Int("connects_in_window", state.Connects),
+			zap.Duration("wait", flapWait),
+			zap.Error(end.err))
+		return
+	}
+	if state.AtCeiling {
+		s.log().Error("gateway connect budget exhausted; parked until the window frees",
+			zap.Int("connects_in_window", state.Connects),
+			zap.Duration("window", connectWindow),
+			zap.Int("close_code", end.code),
+			zap.Error(end.err))
+		return
+	}
+	s.log().Warn("discord gateway socket ended; reconnecting",
+		zap.Int("close_code", end.code), zap.Error(end.err))
+}
+
+// connectBudget is the production budget unless a test installed its own.
+func (s Session) connectBudget() *connectBudget {
+	if s.budget != nil {
+		return s.budget
+	}
+	return newConnectBudget()
+}
+
 // connect runs one socket and reports how long it stayed up next to the
 // close code it died with. The uptime is what resets the backoff schedule
-// (see reconnect.next), so it is measured around the dial too: a dial that
-// fails instantly is as much a failed attempt as a socket that dies.
+// (see reconnect.next), and it is measured from READY/RESUMED, not from
+// before the dial: a dial into a blackhole sits in the TCP/TLS handshake for
+// as long as the timeout allows, and counting that as uptime let a socket
+// that never carried a single byte reset the backoff and hammer Discord's
+// identify budget at a steady 1s. A connection that never reached
+// READY/RESUMED reports zero uptime, which is what it earned.
 func (s Session) connect(ctx context.Context, url string, st *resumeState) (time.Duration, int, error) {
-	start := time.Now()
+	st.resetUp()
 	code, err := s.oneSocket(ctx, dialURLFor(url, st), st)
-	return time.Since(start), code, err
+	return st.upFor(time.Now()), code, err
 }
 
 // parkOnFatal logs the one ERROR line for a fatal close and then blocks
@@ -185,6 +276,32 @@ func (s Session) reportDown(ctx context.Context, code int, err error) {
 		return
 	}
 	s.Status.Down(ctx, Down{Code: code, Reason: errText(err), Fatal: ddiscord.FatalCloseCode(code)})
+}
+
+// finalDownTimeout bounds the one status write that happens after ctx is
+// already cancelled. 2s matches botstatus's own per-write bound: long enough
+// for a Valkey round trip including a reconnect, short enough that a Valkey
+// that is itself down cannot hold the pod past its termination grace.
+const finalDownTimeout = 2 * time.Second
+
+// reportFinalDown writes the shutdown transition under a context detached
+// from the cancelled one. WithoutCancel keeps the trace and any values on it
+// while dropping the cancellation, which is the whole point: the deadline
+// below is the only thing that may stop this write.
+func (s Session) reportFinalDown(ctx context.Context, code int, err error) {
+	if s.Status == nil {
+		return
+	}
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalDownTimeout)
+	defer cancel()
+	s.reportDown(wctx, code, err)
+}
+
+func (s Session) reportBudget(ctx context.Context, b Budget) {
+	if s.Status == nil {
+		return
+	}
+	s.Status.Budget(ctx, b)
 }
 
 func (s Session) reportUp(ctx context.Context, up Up) {
@@ -249,11 +366,21 @@ func waitBeforeReconnect(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// dialTimeout bounds one handshake. Without it a dial inherits only Run's
+// context, which lives for the life of the process: a gateway host that
+// accepts the TCP connection and then answers nothing (a blackholed route,
+// a half-open NAT entry) parked the whole ingress in Dial indefinitely, with
+// the status key still claiming whatever the previous socket left there.
+// 30s is well past Discord's own handshake latency (tens of ms) and past a
+// slow TLS negotiation on a congested node, so it only ever fires on a
+// connection that was never going to complete.
+const dialTimeout = 30 * time.Second
+
 // oneSocket dials, pumps, and reports the close code the socket died with.
 // The code is read off the connection before the deferred Close runs,
 // because Close is what replaces a peer's close frame with our own.
 func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) (int, error) {
-	conn, err := s.Dial(ctx, url)
+	conn, err := s.dialConn(ctx, url)
 	if err != nil {
 		return 0, err
 	}
@@ -262,20 +389,30 @@ func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) (in
 	return conn.CloseCode(perr), perr
 }
 
+// dialConn bounds the handshake and nothing else: the deadline is released
+// as soon as Dial returns, because a Conn must outlive the context that
+// opened it (coder/websocket's Dial uses its context for the handshake
+// only, and cancelling it afterwards does not touch the connection).
+func (s Session) dialConn(ctx context.Context, url string) (Conn, error) {
+	dctx, cancel := context.WithTimeout(ctx, dialTimeout)
+	defer cancel()
+	return s.Dial(dctx, url)
+}
+
 func (s Session) pump(ctx context.Context, conn Conn, st *resumeState) error {
-	beats := make(chan struct{}, 1)
-	defer close(beats)
+	sk := newSocket(conn)
+	defer close(sk.stop)
 	for {
 		pkt, err := readPacket(ctx, conn)
 		if err != nil {
-			return err
+			return sk.firstError(err)
 		}
 		// Record the sequence before handling: it is what a resume replays
 		// from and what the heartbeat reports, and both must reflect
 		// everything received even if handling this packet fails.
 		st.note(pkt.S)
-		if err := s.handlePacket(ctx, conn, pkt, beats, st); err != nil {
-			return err
+		if err := s.handlePacket(ctx, sk, pkt, st); err != nil {
+			return sk.firstError(err)
 		}
 	}
 }
@@ -292,10 +429,17 @@ func readPacket(ctx context.Context, conn Conn) (packet, error) {
 	return pkt, nil
 }
 
-func (s Session) handlePacket(ctx context.Context, conn Conn, pkt packet, beats chan struct{}, st *resumeState) error {
+func (s Session) handlePacket(ctx context.Context, sk *socket, pkt packet, st *resumeState) error {
 	switch pkt.Op {
 	case opHello:
-		return s.onHello(ctx, conn, pkt, beats, st)
+		return s.onHello(ctx, sk, pkt, st)
+	case opHeartbeatAck:
+		// An ACK is Discord answering on a socket that is otherwise silent,
+		// and it is the only traffic a bot in a quiet guild sees. It counts
+		// as an event so the liveness clock (discord.BotEventMaxAge)
+		// measures "is this socket delivering", not "is this guild busy".
+		s.noteEvent(ctx)
+		return nil
 	case opReconnect:
 		// Reconnect is Discord asking politely; the session stays valid, so
 		// the state is kept and the next socket resumes into it.
@@ -332,20 +476,20 @@ func (s Session) warnDispatch(ctx context.Context, pkt packet, st *resumeState) 
 	}
 }
 
-func (s Session) onHello(ctx context.Context, conn Conn, pkt packet, beats chan struct{}, st *resumeState) error {
+func (s Session) onHello(ctx context.Context, sk *socket, pkt packet, st *resumeState) error {
 	var hello helloData
 	if err := codec.Unmarshal(pkt.D, &hello); err != nil {
 		return err
 	}
-	identified, err := s.openSession(ctx, conn, st)
+	identified, err := s.openSession(ctx, sk.conn, st)
 	if err != nil {
 		return err
 	}
-	go s.heartbeat(ctx, conn, hello.HeartbeatInterval, beats, st)
+	go s.heartbeat(ctx, sk, hello.HeartbeatInterval, st)
 	// Presence is forced only after an Identify. A resumed session keeps the
 	// activity it already had, so re-sending it there would spend one of
 	// Discord's 5-per-20s presence updates to set what is already set.
-	go s.presenceLoop(ctx, conn, beats, identified)
+	go s.presenceLoop(ctx, sk, identified)
 	return nil
 }
 
@@ -379,7 +523,7 @@ func (s Session) openSession(ctx context.Context, conn Conn, st *resumeState) (i
 // second one: closing it (pump's defer) ends both goroutines together when
 // this socket dies, which is correct -- there is nothing left to refresh
 // presence on until the next Hello starts a new presenceLoop.
-func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct{}, force bool) {
+func (s Session) presenceLoop(ctx context.Context, sk *socket, force bool) {
 	if s.Presence == nil {
 		return
 	}
@@ -387,17 +531,17 @@ func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct
 	if interval <= 0 {
 		interval = defaultPresenceInterval
 	}
-	s.sendPresence(ctx, conn, force)
+	s.sendPresence(ctx, sk, force)
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-stop:
+		case <-sk.stop:
 			return
 		case <-t.C:
-			s.sendPresence(ctx, conn, false)
+			s.sendPresence(ctx, sk, false)
 		}
 	}
 }
@@ -407,7 +551,7 @@ func (s Session) presenceLoop(ctx context.Context, conn Conn, stop <-chan struct
 // PresenceSource.Forget) so a reconnect resends even an unchanged count; a
 // plain ticker tick leaves the dedup alone so an unchanged count sends
 // nothing, staying well inside Discord's 5-updates-per-20s budget.
-func (s Session) sendPresence(ctx context.Context, conn Conn, force bool) {
+func (s Session) sendPresence(ctx context.Context, sk *socket, force bool) {
 	if force {
 		s.Presence.Forget()
 	}
@@ -415,8 +559,12 @@ func (s Session) sendPresence(ctx context.Context, conn Conn, force bool) {
 	if !ok {
 		return
 	}
-	if err := writeJSON(ctx, conn, presenceUpdateBody(name)); err != nil {
+	if err := writeJSON(ctx, sk.conn, presenceUpdateBody(name)); err != nil {
+		// Warn (presence is cosmetic) and still funnel: a write that fails
+		// here failed on the same socket the heartbeat writes to, and it may
+		// be carrying the close frame that explains why.
 		s.log().Warn("discord presence update failed", zap.Error(err))
+		sk.writeFailed(err)
 	}
 }
 
@@ -429,6 +577,7 @@ func (s Session) onDispatch(ctx context.Context, pkt packet, st *resumeState) er
 		// socket as ordinary dispatches. Nothing to do but say so.
 		s.log().Info("discord gateway session resumed")
 		sessionID, _, _ := st.resumable()
+		st.markUp(time.Now())
 		s.reportUp(ctx, Up{SessionID: sessionID, Resumed: true})
 		return nil
 	}
@@ -441,6 +590,7 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 		return err
 	}
 	st.ready(ready.SessionID, ready.ResumeGatewayURL)
+	st.markUp(time.Now())
 	s.reportUp(ctx, Up{SessionID: ready.SessionID, GuildCount: len(ready.Guilds)})
 	if s.Handle == nil {
 		return nil
@@ -448,17 +598,25 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 	return s.Handle.Ready(ctx, Identity{ApplicationID: ready.Application.ID, BotUserID: ready.User.ID})
 }
 
-func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
-	if s.Status != nil {
-		s.Status.Event(ctx)
+// noteEvent tells Status something arrived on this socket. Both a dispatch
+// and a heartbeat ACK go through it, because the question it answers is
+// "did the socket deliver anything", not "did the guild do anything".
+func (s Session) noteEvent(ctx context.Context) {
+	if s.Status == nil {
+		return
 	}
+	s.Status.Event(ctx)
+}
+
+func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
+	s.noteEvent(ctx)
 	if s.Handle == nil {
 		return nil
 	}
 	return s.Handle.Dispatch(ctx, Event{Type: pkt.T, Raw: pkt.D})
 }
 
-func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop <-chan struct{}, st *resumeState) {
+func (s Session) heartbeat(ctx context.Context, sk *socket, intervalMS int, st *resumeState) {
 	if intervalMS <= 0 {
 		return
 	}
@@ -468,13 +626,18 @@ func (s Session) heartbeat(ctx context.Context, conn Conn, intervalMS int, stop 
 		select {
 		case <-ctx.Done():
 			return
-		case <-stop:
+		case <-sk.stop:
 			return
 		case <-t.C:
 			// The last received sequence, not nil. Discord compares this
 			// against what it sent to notice a client has fallen behind;
 			// a permanent null claims nothing was ever received.
-			if err := writeJSON(ctx, conn, heartbeatBody(st.sequence())); err != nil {
+			if err := writeJSON(ctx, sk.conn, heartbeatBody(st.sequence())); err != nil {
+				// Returning silently here was the bug: this goroutine is
+				// where a fatal close frame most often lands, and dropping
+				// the error left the pump to report a codeless "connection
+				// closed" that reconnected forever. See socket.firstError.
+				sk.writeFailed(err)
 				return
 			}
 		}

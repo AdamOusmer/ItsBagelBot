@@ -5,12 +5,15 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/coder/websocket"
 )
 
 type scriptedConn struct {
@@ -23,18 +26,41 @@ type scriptedConn struct {
 	// kills one.
 	readErr   error
 	closeCode int
+	// writeErr, when set, fails Write with it. That is how Discord's fatal
+	// close frames most often surface in production: on the heartbeat's
+	// write, not on the pump's read. writeErrAfter is how many writes
+	// succeed first, so a test can let the Identify through and fail only
+	// the heartbeat that follows it.
+	writeErr      error
+	writeErrAfter int
+	// closed, when non-nil, is closed by Close and unblocks a Read that is
+	// parked waiting for a frame -- the way a real socket behaves when a
+	// writer goroutine closes it out from under the pump. Nil (the literal
+	// most tests build) blocks forever on that select arm, which is the
+	// old behaviour.
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
 func (s *scriptedConn) Read(ctx context.Context) ([]byte, error) {
 	s.mu.Lock()
 	if len(s.reads) == 0 {
 		err := s.readErr
+		closed := s.closed
 		s.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
-		<-ctx.Done()
-		return nil, ctx.Err()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-closed:
+			// Deliberately codeless and generic: this is what the pump sees
+			// when a writer closed the socket, and the point of
+			// socket.firstError is that this must not be the error the
+			// caller ends up with.
+			return nil, errors.New("use of closed network connection")
+		}
 	}
 	raw := s.reads[0]
 	s.reads = s.reads[1:]
@@ -53,15 +79,35 @@ func (s *scriptedConn) Write(_ context.Context, data []byte) error {
 	cp := append([]byte(nil), data...)
 	s.mu.Lock()
 	s.wrote = append(s.wrote, cp)
+	var err error
+	if len(s.wrote) > s.writeErrAfter {
+		err = s.writeErr
+	}
 	s.mu.Unlock()
+	return err
+}
+
+func (s *scriptedConn) Close() error {
+	s.mu.Lock()
+	closed := s.closed
+	s.mu.Unlock()
+	if closed != nil {
+		s.closeOnce.Do(func() { close(closed) })
+	}
 	return nil
 }
 
-func (s *scriptedConn) Close() error { return nil }
-
-// CloseCode reports whatever code the script attached to this connection,
-// mirroring wsConn: a non-close error carries no code.
-func (s *scriptedConn) CloseCode(error) int { return s.closeCode }
+// CloseCode mirrors wsConn: a real close frame carries its own code, and
+// only an error that is not one falls back to whatever the script attached.
+// Delegating to websocket.CloseStatus here is what makes the write-error
+// test exercise the real routing rather than a fake that answers 4004 to
+// anything.
+func (s *scriptedConn) CloseCode(err error) int {
+	if code := websocket.CloseStatus(err); code >= 0 {
+		return int(code)
+	}
+	return s.closeCode
+}
 
 // wroteSnapshot returns a lock-protected copy of what has been written so
 // far. Presence tests read this after a background heartbeat/presenceLoop

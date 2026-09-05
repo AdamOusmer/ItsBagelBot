@@ -65,9 +65,11 @@ func TestReconnectSchedulesAndResetsAfterStableSocket(t *testing.T) {
 
 // recStatus records the lifecycle callbacks Session makes.
 type recStatus struct {
-	mu   sync.Mutex
-	ups  []Up
-	down []Down
+	mu       sync.Mutex
+	ups      []Up
+	down     []Down
+	budgets  []Budget
+	eventHit int
 }
 
 func (r *recStatus) Up(_ context.Context, up Up) {
@@ -82,12 +84,42 @@ func (r *recStatus) Down(_ context.Context, d Down) {
 	r.down = append(r.down, d)
 }
 
-func (r *recStatus) Event(context.Context) {}
+func (r *recStatus) Event(context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.eventHit++
+}
+
+func (r *recStatus) Budget(_ context.Context, b Budget) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.budgets = append(r.budgets, b)
+}
 
 func (r *recStatus) downs() []Down {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]Down(nil), r.down...)
+}
+
+func (r *recStatus) budgetStates() []Budget {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Budget(nil), r.budgets...)
+}
+
+func (r *recStatus) events() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.eventHit
+}
+
+// openBudget is a connect budget that holds nothing back. Tests that assert
+// the *backoff* schedule install it so the 5s connect floor (budget.go) does
+// not decide their timing for them; tests about the budget itself build one
+// with a real schedule and a fake clock.
+func openBudget() *connectBudget {
+	return &connectBudget{now: time.Now, sched: budgetSchedule{ceiling: 1 << 30, window: connectWindow}}
 }
 
 // dialCounter builds a Dial that hands out a socket dying with code every
@@ -139,7 +171,9 @@ func TestNonFatalCloseKeepsReconnecting(t *testing.T) {
 	defer cancel()
 
 	st := &recStatus{}
-	sess := Session{Token: "bot-token", Dial: dial, Status: st}
+	// openBudget: this test is about the backoff schedule, and the real
+	// connect budget's 5s floor would make one dial the correct answer.
+	sess := Session{Token: "bot-token", Dial: dial, Status: st, budget: openBudget()}
 	if err := sess.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Run err = %v, want the context error", err)
 	}

@@ -3,7 +3,10 @@
 
 package gateway
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // resumeState is what makes a reconnect continue a session instead of
 // starting a new one.
@@ -29,6 +32,44 @@ type resumeState struct {
 	sessionID string
 	resumeURL string
 	seq       *int
+	// upAt is when the current connection reached READY or RESUMED, zero
+	// until it does. It is the clock behind the backoff reset (see
+	// reconnect.stableFor), and it lives here rather than in a type of its
+	// own because it is written from exactly the two functions that already
+	// hold this state -- readyFrom and the RESUMED branch of onDispatch --
+	// while a second pointer would have to be threaded through every
+	// function in the pump chain for one time.Time.
+	upAt time.Time
+}
+
+// resetUp clears the clock at the start of a connection attempt.
+func (r *resumeState) resetUp() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.upAt = time.Time{}
+}
+
+// markUp records that this connection reached READY or RESUMED. The first
+// one wins: a socket that resumes and then receives a second RESUMED is
+// still the same connection, and restamping would understate its uptime.
+func (r *resumeState) markUp(now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.upAt.IsZero() {
+		r.upAt = now
+	}
+}
+
+// upFor reports how long this connection has been up, or zero if it never
+// reached READY/RESUMED -- which is exactly what a dial that hung or a
+// socket that died mid-handshake earned.
+func (r *resumeState) upFor(now time.Time) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.upAt.IsZero() {
+		return 0
+	}
+	return now.Sub(r.upAt)
 }
 
 // note records the sequence of a received packet. Discord sends s only on
