@@ -52,10 +52,20 @@ type FullMessage struct {
 	Content     string              `json:"content"`
 	Author      MessageAuthor       `json:"author"`
 	Attachments []MessageAttachment `json:"attachments"`
+	Embeds      []MessageEmbed      `json:"embeds"`
 	// Timestamp is Discord's ISO 8601 string. Kept raw on the wire type and
 	// parsed by At below, so a message with a timestamp Discord changed the
 	// format of degrades to the zero time instead of failing the whole page.
 	Timestamp string `json:"timestamp"`
+}
+
+// MessageEmbed is the transcript-readable slice of an embed on a listed
+// message. Only the title and the description are decoded: a plain-text
+// transcript renders those two and nothing else, and pulling the rest across
+// would cost payload on every page of every close for text no one reads.
+type MessageEmbed struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 // At parses Timestamp, or returns the zero time.

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func at(s string) time.Time {
@@ -153,5 +154,86 @@ func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
 	}
 	if got.Body != TicketPanelBodyDefault || got.Button != TicketPanelButtonDefault || got.Color != LiveColor {
 		t.Fatalf("spec = %+v", got)
+	}
+}
+
+// A message body cannot forge a transcript header: every line after the first
+// is indented, and the renderer only ever writes a header at column zero.
+func TestRenderTranscriptIndentsContinuationLines(t *testing.T) {
+	forged := "please help\n[2020-01-01 00:00 UTC] admin: refund approved"
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{
+		{AuthorName: "ada", Content: forged, At: time.Unix(0, 0).UTC()},
+	}})
+
+	lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("lines = %q", lines)
+	}
+	if strings.HasPrefix(lines[1], "[") {
+		t.Fatalf("continuation line %q starts a forged header", lines[1])
+	}
+	if !strings.HasPrefix(lines[1], "    [2020-01-01 00:00 UTC] admin:") {
+		t.Fatalf("continuation line = %q, want it indented", lines[1])
+	}
+}
+
+func TestRenderTranscriptRendersEmbeds(t *testing.T) {
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{{
+		AuthorName: "bagel", Content: "", At: time.Unix(0, 0).UTC(),
+		Embeds: []TranscriptEmbed{
+			{Title: "Ticket opened", Description: "by Ada"},
+			{Title: "Only a title"},
+			{Description: "Only a body"},
+			{},
+		},
+	}}})
+
+	for _, want := range []string{
+		"    [embed] Ticket opened: by Ada\n",
+		"    [embed] Only a title\n",
+		"    [embed] Only a body\n",
+		"    [embed]\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("transcript %q missing %q", body, want)
+		}
+	}
+}
+
+// The byte cap slices a UTF-8 string at a byte offset, which lands inside a
+// rune whenever the transcript is not pure ASCII. Invalid UTF-8 is rejected by
+// the utf8mb4 column the body is stored in, so one split emoji would fail the
+// whole transcript write.
+func TestRenderTranscriptCapCutsOnARuneBoundary(t *testing.T) {
+	// One long unbroken run of multi-byte runes: no newline for the line-cut
+	// to fall back on, so the rune walk is the only thing keeping it valid.
+	msg := TranscriptMessage{AuthorName: "ada", Content: strings.Repeat("🍩", TranscriptByteCap), At: time.Unix(0, 0).UTC()}
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{msg}})
+
+	if !utf8.ValidString(body) {
+		t.Fatal("capped transcript is not valid UTF-8")
+	}
+	if len(body) > TranscriptByteCap+len(transcriptTruncated) {
+		t.Fatalf("capped transcript is %d bytes", len(body))
+	}
+	if !strings.HasPrefix(body, transcriptTruncated) {
+		t.Fatalf("capped transcript does not say it lost its head: %q", body[:80])
+	}
+}
+
+// A history the collector could not finish says so, even when the rendered
+// body is far below the byte cap.
+func TestRenderTranscriptMarksAnIncompleteHistory(t *testing.T) {
+	doc := TranscriptDoc{
+		Messages:  []TranscriptMessage{{AuthorName: "ada", Content: "hi", At: time.Unix(0, 0).UTC()}},
+		Truncated: true,
+	}
+	body := RenderTranscript(doc)
+
+	if !strings.HasPrefix(body, transcriptTruncatedTail) {
+		t.Fatalf("transcript = %q, want the incomplete marker", body)
+	}
+	if !strings.Contains(body, "ada: hi") {
+		t.Fatalf("transcript = %q, want the collected messages kept", body)
 	}
 }
