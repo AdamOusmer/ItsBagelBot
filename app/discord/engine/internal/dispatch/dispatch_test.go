@@ -477,7 +477,7 @@ func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
 // A wrapped pre-admission error still retries: the classification is
 // errors.Is, not string matching, so pkg/bus is free to annotate.
 func TestPublishRetriesWrappedPreAdmissionErrors(t *testing.T) {
-	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrConnectionClosed)}
+	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrNoResponders)}
 	d, _ := observedDispatcher(pub.publish)
 
 	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})

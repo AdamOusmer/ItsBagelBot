@@ -111,9 +111,10 @@ func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {
 // Publish retry budget. A command that fails to publish is gone: the
 // ingress message is ACKed either way (see Handle), so nothing redelivers
 // it and the user's button press simply does nothing. Three attempts over
-// 200 ms clears the failure this actually sees -- a lane publish landing
-// during a NATS reconnect -- without holding the ingress consumer long
-// enough to matter (its AckWait is measured in seconds, not milliseconds).
+// 200 ms clears the one failure preAdmission can prove is safe to repeat --
+// a lane whose stream is momentarily unprovisioned, which answers no
+// responders -- without holding the ingress consumer long enough to matter
+// (its AckWait is measured in seconds, not milliseconds).
 const (
 	publishAttempts   = 3
 	publishRetryDelay = 100 * time.Millisecond
@@ -136,8 +137,8 @@ func (d *Dispatcher) publishAll(ctx context.Context, cmds []ddiscord.Command) {
 	}
 }
 
-// preAdmission reports whether err proves the publish never reached the
-// stream, which is the only condition under which republishing is safe.
+// preAdmission reports whether err proves the broker stored nothing, which
+// is the only condition under which republishing is safe.
 //
 // pkg/bus offers no idempotent republish to lean on instead. Publication.ID
 // looks like one, but Publisher.PublishOwnedWithID's own contract says the
@@ -146,16 +147,34 @@ func (d *Dispatcher) publishAll(ctx context.Context, cmds []ddiscord.Command) {
 // broker deduplication -- so a deterministic id would buy nothing here, and
 // wiring one would only make the duplicate look sanctioned.
 //
-// That leaves classification. No responders and a closed connection are both
-// proven pre-admission: the broker never saw the bytes, so a retry is the
-// same first delivery. A PubAck timeout is NOT -- JetStream may have stored
-// the message and lost only the acknowledgement, exactly the ambiguous
-// outcome pkg/bus documents as dropped rather than replayed. Republishing
-// there posts the streamer's message into their guild twice, which is worse
-// than the miss the retry was trying to avoid, so anything unrecognised
-// falls to the safe side and is logged instead.
+// This classification is only meaningful because Publish is wired to the
+// CONFIRMED path (main.confirmedPublisher -> bus.PublishConfirmed). The
+// asynchronous path returns before the broker answers: its only errors are
+// "bus: publisher is closed" and the caller's context error, and the real
+// cohort verdict is stashed for a Flush nobody here calls
+// (pkg/bus/batch_publisher.go, admit + complete + takeWindowErrLocked).
+//
+// nats.ErrConnectionClosed used to be treated as proof and is deliberately
+// gone. joinAsyncCohort wraps a refused send with %w AFTER everything
+// nats.go already accepted is on the wire and normally stored: "bus: async
+// cohort sent and stored 5/8 messages; the remainder never reached the
+// wire: %w". errors.Is cannot tell that from a cohort that stored nothing,
+// and joinAsyncCohort's own doc says the consequence out loud -- "A caller
+// that retries on this error stores the sent prefix twice". A closed
+// connection is also the one error a 200 ms retry could not fix anyway.
+//
+// No responders is what survives. JetStream answers it when no stream is
+// listening on the subject at all, one batch worker's whole cohort belongs
+// to a single stream (publisherPool.streamFor picks the worker), so a
+// no-responders verdict is proof the broker stored none of it. A PubAck
+// timeout is NOT -- JetStream may have stored the message and lost only the
+// acknowledgement, exactly the ambiguous outcome pkg/bus documents as
+// dropped rather than replayed. Republishing there posts the streamer's
+// message into their guild twice, which is worse than the miss the retry
+// was trying to avoid, so anything unrecognised falls to the safe side and
+// is logged instead.
 func preAdmission(err error) bool {
-	return errors.Is(err, nats.ErrNoResponders) || errors.Is(err, nats.ErrConnectionClosed)
+	return errors.Is(err, nats.ErrNoResponders)
 }
 
 func (d *Dispatcher) publishRetry(ctx context.Context, c ddiscord.Command) error {
