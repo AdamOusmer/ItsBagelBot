@@ -7,7 +7,7 @@ import type { PageServerLoad } from './$types';
 import { resolveLogin } from '$lib/server/services';
 import { readLoyalty, topStandings } from '$lib/server/loyalty-store';
 import { listCommands, listModules } from '$lib/server/commands-store';
-import { publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
+import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
 
 // The root-level [user] segment exists for exactly one surface: the
 // leaderboard.itsbagelbot.com/<user> host. Every other hostname keeps its old
@@ -41,7 +41,7 @@ function requireLogin(segment: string): string {
 async function requireChannel(login: string): Promise<Channel> {
 	const found = await resolveLogin(login).catch(() => null);
 	if (!found?.userId) throw error(404, 'Channel not found');
-	return { userId: found.userId, login, channelName: found.displayName || found.username || login };
+	return { userId: found.userId, login, channelName: channelLabel(found, login) };
 }
 
 /** The channel's top standings, degrading to an empty board over an outage. */
