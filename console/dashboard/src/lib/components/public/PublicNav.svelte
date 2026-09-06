@@ -193,44 +193,64 @@
     box-shadow: 0 0 24px rgba(82, 183, 136, 0.35);
   }
 
-  /* Hamburger (web/src/components/ui/Hamburger.astro): three bars that fold
-     into a cross while the menu is open. */
+  /* Hamburger (web/src/components/ui/Hamburger.astro): a 44px circle that
+     matches the nav pill; three bars fold into a cross while the menu is open. */
   .hamburger {
-    display: none;
-    width: 42px;
-    height: 42px;
-    background: transparent;
-    border: 1px solid rgba(240, 236, 228, 0.14);
-    border-radius: 8px;
-    padding: 0;
-    cursor: pointer;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 5px;
-    align-self: center;
-    position: relative;
-    z-index: 51;
-    touch-action: manipulation;
-    transition: border-color 180ms ease, background 180ms ease;
+      display: none;
+      width: 44px;
+      height: 44px;
+      background: rgba(240, 236, 228, 0.05);
+      border: 1px solid rgba(240, 236, 228, 0.14);
+      border-radius: 999px;
+      padding: 0;
+      cursor: pointer;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      align-self: center;
+      position: relative;
+      z-index: 51;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 180ms ease,
+                  background 180ms ease,
+                  transform 280ms var(--bb-ease-out-expo);
   }
-  .hamburger:hover, .hamburger:focus-visible {
-    border-color: rgba(224, 196, 154, 0.5);
-    background: rgba(201, 168, 124, 0.08);
-    outline: none;
+
+  .hamburger:hover,
+  .hamburger:focus-visible {
+      border-color: rgba(224, 196, 154, 0.5);
+      background: rgba(201, 168, 124, 0.1);
+      outline: none;
   }
+
+  .hamburger:active { transform: scale(0.92); }
+
+  .hamburger.is-open {
+      border-color: rgba(224, 196, 154, 0.55);
+      background: rgba(201, 168, 124, 0.14);
+  }
+
+  /* Three pills, the middle one shorter so the glyph reads as a mark rather
+     than a grille; they fold into a cross while the menu is open. Bar pitch
+     is 6px (2px bar + 4px gap), so the outer bars travel 6px to meet. */
   .hamburger span {
-    display: block;
-    width: 22px;
-    height: 2px;
-    background: var(--bb-white);
-    border-radius: 2px;
-    transform-origin: center;
-    transition: transform 280ms var(--bb-ease-out-expo), opacity 180ms ease;
+      display: block;
+      width: 18px;
+      height: 2px;
+      background: var(--bb-white);
+      border-radius: 999px;
+      transform-origin: center;
+      transition: transform 280ms var(--bb-ease-out-expo),
+                  width 280ms var(--bb-ease-out-expo),
+                  opacity 180ms ease;
   }
-  .hamburger.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-  .hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-  .hamburger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  .hamburger span:nth-child(2) { width: 12px; }
+
+  .hamburger.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .hamburger.is-open span:nth-child(2) { opacity: 0; width: 0; }
+  .hamburger.is-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
   /* The open menu covers the page; the page must not scroll under it. */
   :global(body.nav-menu-open) { overflow: hidden; }
