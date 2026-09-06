@@ -339,7 +339,8 @@ export function demoDiscordView() {
   return {
     enabled: true,
     twitchLogin: 'demo',
-    guilds: demoDiscordGuilds()
+    guilds: demoDiscordGuilds(),
+    truncated: false
   };
 }
 
@@ -354,6 +355,7 @@ export function demoDiscordGuilds() {
       memberCount: 1284,
       botPresent: true,
       needsReauth: false,
+      reauthUnknown: false,
       boundAtMs: Date.now() - 40 * 24 * 60 * 60 * 1000
     },
     {
@@ -363,6 +365,7 @@ export function demoDiscordGuilds() {
       memberCount: 212,
       botPresent: false,
       needsReauth: false,
+      reauthUnknown: false,
       boundAtMs: Date.now() - 3 * 24 * 60 * 60 * 1000
     }
   ];

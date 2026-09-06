@@ -35,6 +35,11 @@
 
   const guilds = $derived<DiscordGuildSummary[]>(data.guilds ?? []);
 
+  // Never colour alone: every pill carries its own icon and its own word, and
+  // `unknown` gets a neutral one because the listing never read that guild's
+  // reauth flag.
+  const PILL_ICONS = { online: 'check', offline: 'ban', reauth: 'power', unknown: 'dots' } as const;
+
   function memberLabel(g: DiscordGuildSummary): string {
     if (g.memberCount <= 0) return t('discord.statusNoMembers');
     return t('discord.statusMembers', { n: g.memberCount.toLocaleString() });
@@ -115,6 +120,14 @@
           </EmptyState>
         {:else}
           <p class="hint">{t('discord.serversHelp')}</p>
+          <!-- outgress caps how many bindings it describes. Without saying so,
+               a streamer over the cap sees a short list and no sign of it,
+               which reads as Bagel having lost a server. -->
+          {#if data.truncated}
+            <AlertBanner variant="warn" icon="list">
+              {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
+            </AlertBanner>
+          {/if}
           <ul class="servers">
             {#each guilds as g (g.guildId)}
               {@const state = guildBotState(g)}
@@ -129,7 +142,7 @@
                 </span>
                 <span class="server-actions">
                   <span class="pill {state}">
-                    <Icon name={state === 'online' ? 'check' : state === 'reauth' ? 'power' : 'ban'} size={13} />
+                    <Icon name={PILL_ICONS[state]} size={13} />
                     {t(DISCORD_PILL_KEYS[state])}
                   </span>
                   <ButtonLink variant="secondary" href="/discord/{g.guildId}">
@@ -217,6 +230,10 @@
   .pill.online { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); }
   .pill.offline { color: #cf8a78; background: rgba(176, 90, 70, 0.12); }
   .pill.reauth { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.14); }
+  /* Steel, deliberately neither green nor red: this guild's reauth flag was
+     never read, so a coloured pill would assert health or a fault that nobody
+     checked. */
+  .pill.unknown { color: var(--bb-muted); background: rgba(136, 128, 119, 0.14); }
 
   .server-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 

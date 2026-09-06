@@ -29,6 +29,7 @@ type DiscordListPage = {
   locked: boolean;
   enabled: boolean;
   guilds: DiscordGuildSummary[];
+  truncated: boolean;
   templateURL: string;
   configured: boolean;
   errorSlug: string;
@@ -40,6 +41,7 @@ function blankPage(errorSlug: string, locked: boolean): DiscordListPage {
     locked,
     enabled: false,
     guilds: [],
+    truncated: false,
     templateURL: discordTemplateURL(),
     configured: discordConfigured(),
     errorSlug,

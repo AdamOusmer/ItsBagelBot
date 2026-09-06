@@ -334,16 +334,28 @@ export function isHexColor(raw: string): boolean {
 
 /**
  * Turns a stored `#rrggbb` into the integer Discord's embed `color` field
- * wants, the same value Go's ddiscord.ParseHexColor produces.
+ * wants, the same value Go's ddiscord.ParseHexColor produces, or null when
+ * there is no colour to send.
  *
  * It exists because the two sides of the ticket-panel embed disagree on the
  * type: the config blob and the colour input hold a hex string, while the
  * `panel` object on `desk.repost` is the wire form of ddiscord.TicketPanelSpec,
  * whose Color is an int. Sending the string instead round-trips through Go's
  * JSON as a type error and the panel is posted with the default colour.
+ *
+ * Integration fix (2026-09-05): this used to substitute LIVE_COLOR_HEX for a
+ * blank field and outgress used to read a zero Color as "unset", so #000000
+ * was the one colour the picker could not save -- every repost of a black
+ * panel came back brand amber -- and an untouched panel froze today's brand
+ * colour into the wire instead of following it. DiscordPanelSpec.Color is a
+ * *int now: absent or null means "brand default", 0 means black. So an unset
+ * or unparsable hex is null here and the caller OMITS the key; only a colour
+ * the streamer actually chose travels, and 0 travels as 0.
  */
-export function hexToDiscordColor(raw: string, fallback = LIVE_COLOR_HEX): number {
-  return Number.parseInt(normalizeHex(raw, fallback).slice(1), 16);
+export function hexToDiscordColor(raw: string): number | null {
+  const v = raw.trim();
+  if (v === '' || !HEX_INPUT.test(v)) return null;
+  return Number.parseInt(normalizeHex(v).slice(1), 16);
 }
 
 // ── ticket panel ──────────────────────────────────────────────────────────
@@ -356,6 +368,28 @@ export function ticketPanelSpec(config: DiscordConfig): TicketPanelSpec {
     body: config.ticketPanelBody || TICKET_PANEL_DEFAULTS.body,
     button: config.ticketPanelButton || TICKET_PANEL_DEFAULTS.button,
     color: normalizeHex(config.ticketPanelColor, TICKET_PANEL_DEFAULTS.color)
+  };
+}
+
+/** The `panel` object of a `desk.repost` request, matching outgress's
+ *  DiscordPanelSpec: the copy defaulted exactly as the preview shows it, and
+ *  `color` present ONLY when the streamer picked one (see hexToDiscordColor).
+ *  The spec above keeps a hex for the swatch and the preview, which is why
+ *  this is a second shape rather than a field on it. */
+export type TicketPanelPayload = { title: string; body: string; button: string; color?: number };
+
+/** Built here rather than in the dashboard's store because the console test
+ *  runner only executes shared/**: the omission is the behaviour worth
+ *  pinning, and a payload assembled in a route file could never be asserted
+ *  on. */
+export function ticketPanelPayload(config: DiscordConfig): TicketPanelPayload {
+  const spec = ticketPanelSpec(config);
+  const color = hexToDiscordColor(config.ticketPanelColor);
+  return {
+    title: spec.title,
+    body: spec.body,
+    button: spec.button,
+    ...(color === null ? {} : { color })
   };
 }
 
@@ -643,13 +677,28 @@ export function guildMonogram(name: string): string {
   return (([...words[0]][0] ?? '') + ([...words[1]][0] ?? '')).toUpperCase();
 }
 
-/** The pill a server card shows. `reauth` outranks `offline`: a guild whose
- *  install predates a permission needs the streamer to act, and saying
- *  "offline" would send them to wait for a reconnect that already happened. */
-export type GuildBotState = 'online' | 'offline' | 'reauth';
+/**
+ * The pill a server card shows.
+ *
+ * `reauth` outranks `offline`: a guild whose install predates a permission
+ * needs the streamer to act, and saying "offline" would send them to wait for
+ * a reconnect that already happened.
+ *
+ * `unknown` outranks BOTH colours. The listing's reauth lookups run after the
+ * handler's deadline can pass, and a lookup that failed reports `needsReauth`
+ * false -- indistinguishable from a healthy grant. `reauthUnknown` says the
+ * flag was never read, so the row shows a neutral pill rather than asserting
+ * health (green) or a fault (red) nobody checked.
+ */
+export type GuildBotState = 'online' | 'offline' | 'reauth' | 'unknown';
 
-export function guildBotState(g: { botPresent?: boolean; needsReauth?: boolean }): GuildBotState {
+export function guildBotState(g: {
+  botPresent?: boolean;
+  needsReauth?: boolean;
+  reauthUnknown?: boolean;
+}): GuildBotState {
   if (g.needsReauth === true) return 'reauth';
+  if (g.reauthUnknown === true) return 'unknown';
   return g.botPresent === true ? 'online' : 'offline';
 }
 

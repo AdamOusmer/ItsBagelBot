@@ -18,11 +18,10 @@ import {
   MOD,
   droppedPinNotice,
   encodePinnedRoles,
-  hexToDiscordColor,
   parseConfigVersion,
   parseDiscordConfig,
   parsePinnedRoles,
-  ticketPanelSpec,
+  ticketPanelPayload,
   type DiscordConfig,
   type PinnedRoles,
   type PinnedSlot
@@ -112,6 +111,12 @@ export type DiscordView = {
   enabled: boolean;
   twitchLogin: string;
   guilds: DiscordGuildSummary[];
+  // True when outgress had more bindings than it listed (its own cap). It is
+  // a property of the LIST, not of any guild in it: a streamer with more
+  // servers than the cap otherwise sees a short list and no sign of it, which
+  // reads as Bagel having lost a server rather than as a page showing the
+  // first N.
+  truncated: boolean;
 };
 
 // One row of the server list. needsReauth is per guild, not per account:
@@ -127,6 +132,13 @@ export type DiscordGuildSummary = {
   memberCount: number;
   botPresent: boolean;
   needsReauth: boolean;
+  // reauthUnknown says needsReauth was never actually read for this guild, so
+  // false above means "we do not know", not "the grant is fine". The listing's
+  // reauth lookups run after its deadline can pass, and every one of them then
+  // reports false -- a dead grant rendered as a healthy server on exactly the
+  // slow load where the streamer is already suspicious. The pill goes neutral
+  // on this rather than green (see guildBotState).
+  reauthUnknown: boolean;
   boundAtMs: number;
 };
 
@@ -226,13 +238,15 @@ export type DiscordSave = { userId: string; enabled: boolean; twitchLogin: strin
 export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
   const rows = await listModules(user.userId);
   const row = rows.find((r) => r.name === DISCORD_MODULE);
+  const list = await listGuildsPage(user);
   return {
     enabled: row ? row.is_enabled : false,
     // Still parsed through the full config parser: the row predates the split
     // and a board that has not been touched since still carries the old blob,
     // whose extra keys we now simply ignore.
     twitchLogin: parseDiscordConfig(row?.configs).twitchLogin,
-    guilds: await listGuilds(user)
+    guilds: list.guilds,
+    truncated: list.truncated
   };
 }
 
@@ -266,6 +280,7 @@ export async function saveDiscordModule(save: DiscordSave): Promise<void> {
 }
 
 type GuildsReply = CodedReply & {
+  truncated?: boolean;
   guilds?: {
     guild_id?: string;
     name?: string;
@@ -273,31 +288,46 @@ type GuildsReply = CodedReply & {
     member_count?: number;
     bot_present?: boolean;
     needs_reauth?: boolean;
+    reauth_unknown?: boolean;
     bound_at_unix_ms?: number;
   }[];
 };
 
-// listGuilds is the ownership check as well as the list: a guild absent from
-// this reply is one this broadcaster does not own, and every per-guild route
-// 404s on that rather than trusting the id in the URL.
-export async function listGuilds(user: DiscordUser): Promise<DiscordGuildSummary[]> {
+export type DiscordGuildList = { guilds: DiscordGuildSummary[]; truncated: boolean };
+
+// listGuildsPage is the whole reply: the rows plus whether outgress had more
+// of them than it sent. Every caller that only needs the rows goes through
+// listGuilds below, so the flag cannot be dropped on the floor by accident in
+// the two places that do an ownership check with it.
+export async function listGuildsPage(user: DiscordUser): Promise<DiscordGuildList> {
   const r = await rpc<GuildsReply>(
     `${SUB.dingressRpc}.discord.guilds.list`,
     { user_id: user.userId },
     GUILDS_TIMEOUT_MS
   );
   if (r.error) throw new Error(r.error);
-  return (r.guilds ?? [])
-    .filter((g) => typeof g.guild_id === 'string' && g.guild_id !== '')
-    .map((g) => ({
-      guildId: String(g.guild_id),
-      name: g.name ?? '',
-      iconUrl: g.icon_url ?? '',
-      memberCount: Number(g.member_count ?? 0),
-      botPresent: g.bot_present === true,
-      needsReauth: g.needs_reauth === true,
-      boundAtMs: Number(g.bound_at_unix_ms ?? 0)
-    }));
+  return {
+    guilds: (r.guilds ?? [])
+      .filter((g) => typeof g.guild_id === 'string' && g.guild_id !== '')
+      .map((g) => ({
+        guildId: String(g.guild_id),
+        name: g.name ?? '',
+        iconUrl: g.icon_url ?? '',
+        memberCount: Number(g.member_count ?? 0),
+        botPresent: g.bot_present === true,
+        needsReauth: g.needs_reauth === true,
+        reauthUnknown: g.reauth_unknown === true,
+        boundAtMs: Number(g.bound_at_unix_ms ?? 0)
+      })),
+    truncated: r.truncated === true
+  };
+}
+
+// listGuilds is the ownership check as well as the list: a guild absent from
+// this reply is one this broadcaster does not own, and every per-guild route
+// 404s on that rather than trusting the id in the URL.
+export async function listGuilds(user: DiscordUser): Promise<DiscordGuildSummary[]> {
+  return (await listGuildsPage(user)).guilds;
 }
 
 type ConfigGetReply = CodedReply & { config?: unknown; version?: unknown; found?: boolean };
@@ -574,19 +604,18 @@ export async function repostDesk(
   // and on a desk that had never been posted the missing channel failed the
   // call outright. Sending both makes the reposted panel exactly what the
   // editor above it shows.
-  const panel = ticketPanelSpec(config);
+  // The payload OMITS `color` unless the streamer picked one:
+  // DiscordPanelSpec.Color is a *int where absent means "brand default" and 0
+  // means #000000. Sending the fallback amber for an untouched panel froze
+  // today's brand colour into the wire, and sending 0 for "unset" made black
+  // unsavable. ticketPanelPayload owns that decision so it can be tested.
   const r = await rpc<CodedReply & { message_id?: string }>(
     `${SUB.dingressRpc}.discord.desk.repost`,
     {
       user_id: target.userId,
       guild_id: target.guildId,
       channel_id: config.ticketChannelId ?? '',
-      panel: {
-        title: panel.title,
-        body: panel.body,
-        button: panel.button,
-        color: hexToDiscordColor(panel.color)
-      }
+      panel: ticketPanelPayload(config)
     },
     REPOST_TIMEOUT_MS
   );

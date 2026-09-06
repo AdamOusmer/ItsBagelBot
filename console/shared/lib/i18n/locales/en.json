@@ -549,6 +549,7 @@
     "save": "Save settings",
     "serversHelp": "Each server keeps its own channels, roles and settings. Open one to change it.",
     "serversTitle": "Your servers",
+    "serversTruncated": "Showing the first {n} servers. You have connected more than this list can show.",
     "setupCta": "Set up this server",
     "setupHelp": "Re-runs the fill: creates anything missing, adopts your pinned roles, and leaves everything else alone.",
     "setupTitle": "Rebuild the server",

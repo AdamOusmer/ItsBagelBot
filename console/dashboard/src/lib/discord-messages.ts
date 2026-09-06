@@ -60,13 +60,16 @@ export const DISCORD_SLUG_KEYS: Record<
   ...DISCORD_CODE_KEYS
 };
 
-// The bot pill, per state. Three states, not a boolean: a guild whose install
+// The bot pill, per state. Four states, not a boolean: a guild whose install
 // predates a permission needs the streamer to act, and "offline" would send
-// them to wait for a reconnect that already happened.
+// them to wait for a reconnect that already happened -- while `unknown` is the
+// listing admitting it never read this guild's reauth flag, which must not be
+// painted as either health or fault (see guildBotState).
 export const DISCORD_PILL_KEYS = {
   online: 'discord.statusOnline',
   offline: 'discord.statusOffline',
-  reauth: 'discord.statusReauth'
+  reauth: 'discord.statusReauth',
+  unknown: 'discord.statusUnknown'
 } as const;
 
 export const DISCORD_BADGE_KEYS = {

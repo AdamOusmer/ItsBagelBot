@@ -37,8 +37,10 @@ import {
   parseNameList,
   parsePinnedRoles,
   pinnedRole,
+  hexToDiscordColor,
   ticketLogChannel,
   ticketOpenLimitN,
+  ticketPanelPayload,
   ticketPanelSpec,
   ticketStaffRoleIds,
   validateDiscordConfig
@@ -393,6 +395,17 @@ describe('guild presentation', () => {
     expect(guildBotState({})).toBe('offline');
   });
 
+  test('an unread reauth flag is neutral, never green and never red', () => {
+    // The listing reports needsReauth false both for a healthy grant and for
+    // a lookup that never ran, so reauthUnknown has to beat botPresent in
+    // BOTH directions or the pill asserts something nobody checked.
+    expect(guildBotState({ botPresent: true, reauthUnknown: true })).toBe('unknown');
+    expect(guildBotState({ botPresent: false, reauthUnknown: true })).toBe('unknown');
+    // A flag that WAS read and came back true still wins: that one is known.
+    expect(guildBotState({ botPresent: true, needsReauth: true, reauthUnknown: true })).toBe('reauth');
+    expect(guildBotState({ botPresent: true, reauthUnknown: false })).toBe('online');
+  });
+
   test('the picker badge separates my servers from someone else\'s', () => {
     const bound = [ID_A, ID_B];
     expect(guildPickerBadge(ID_A, bound)).toBe('mine');
@@ -544,5 +557,37 @@ describe('refused fields', () => {
 
   test('no refusal is an empty map', () => {
     expect(fieldErrorsByField(undefined)).toEqual({ byField: {}, first: '', unknown: [] });
+  });
+});
+
+describe('the repost panel payload', () => {
+  test('a colour the streamer never set is omitted, not defaulted on the wire', () => {
+    // Absent key, not 0 and not the brand hex: outgress reads absent as
+    // "paint it the brand colour", so sending one freezes today's amber into
+    // every panel and sending 0 would paint them black.
+    const payload = ticketPanelPayload(blankDiscordConfig());
+    expect('color' in payload).toBe(false);
+    expect(hexToDiscordColor('')).toBeNull();
+    expect(payload.title).toBe(TICKET_PANEL_DEFAULTS.title);
+  });
+
+  test('black is a colour, not an absence', () => {
+    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: '#000000' }).color).toBe(0);
+    expect(hexToDiscordColor('#000')).toBe(0);
+    expect(hexToDiscordColor('#000000')).toBe(0);
+  });
+
+  test('a chosen colour travels as the decimal Go parses', () => {
+    const payload = ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: LIVE_COLOR_HEX });
+    expect(payload.color).toBe(0xc47a3a);
+    expect(hexToDiscordColor('C47A3A')).toBe(0xc47a3a);
+  });
+
+  test('an unparsable colour is omitted, and the merge reports it as a field error', () => {
+    const payload = ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: 'rebeccapurple' });
+    expect('color' in payload).toBe(false);
+    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketPanelColor: 'rebeccapurple' });
+    expect(errors).toEqual([{ field: 'ticketPanelColor', code: 'color' }]);
+    expect(config.ticketPanelColor).toBe('');
   });
 });

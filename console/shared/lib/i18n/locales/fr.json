@@ -549,6 +549,7 @@
     "save": "Enregistrer",
     "serversHelp": "Chaque serveur garde ses propres salons, rôles et réglages. Ouvrez-en un pour le modifier.",
     "serversTitle": "Vos serveurs",
+    "serversTruncated": "Affichage des {n} premiers serveurs. Vous en avez connecté plus que cette liste ne peut afficher.",
     "setupCta": "Configurer ce serveur",
     "setupHelp": "Relance le remplissage : crée ce qui manque, reprend vos rôles épinglés et ne touche à rien d’autre.",
     "setupTitle": "Reconstruire le serveur",

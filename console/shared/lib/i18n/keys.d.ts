@@ -527,6 +527,7 @@ export type KnownMessageKey =
   | 'discord.save'
   | 'discord.serversHelp'
   | 'discord.serversTitle'
+  | 'discord.serversTruncated'
   | 'discord.setupCta'
   | 'discord.setupHelp'
   | 'discord.setupTitle'
