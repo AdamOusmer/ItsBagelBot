@@ -3,7 +3,7 @@
 
 // Action bodies for the /counters page's value-writing verbs. Kept out of the
 // route so +page.server.ts stays thin wiring; each returns the audit detail
-// (or null for a validation failure) — the shape mutate() expects, and it
+// (or null for a validation failure), the shape mutate() expects, and it
 // throws on a service-level "unknown counter" so mutate masks it.
 import { setCounter, getCounter, deleteCounterEntry } from './loyalty-store';
 import { namedValue, bucketTarget, bucketLabel, resolveAddTarget, normalizeName } from './counter-form';

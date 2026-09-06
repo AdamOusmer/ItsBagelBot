@@ -71,7 +71,7 @@
 
     // Only activate on desktop fine-pointer (same breakpoint as the dashboard).
     const fine = window.matchMedia('(min-width: 901px) and (pointer: fine)');
-    // Reduced-motion also disables the lerped cursor — and unlike `fine`, it
+    // Reduced-motion also disables the lerped cursor, and unlike `fine`, it
     // can flip mid-session (OS toggle), so it gates the class/loop live
     // instead of removing the elements at init.
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -123,7 +123,7 @@
             }
 
             // Lerp ring geometry. Release ease raised 0.16 → 0.28 (2026-08-31):
-            // user feedback read the trailing ring as site-wide sluggishness —
+            // user feedback read the trailing ring as site-wide sluggishness:
             // at 0.16 the ring sat a full ring-width behind the dot on an
             // ordinary sweep. 0.28 keeps a hint of trail; past ~0.35 the ring
             // hard-locks to the dot and the two layers read as one blob.
@@ -165,7 +165,7 @@
             start();
         };
 
-        // Event delegation — catches dynamically added elements too.
+        // Event delegation: catches dynamically added elements too.
         const onOver = (e: PointerEvent) => {
             const el = (e.target as Element | null)?.closest<HTMLElement>(SEL);
             if (el) { target = el; start(); }
@@ -177,7 +177,7 @@
         };
 
         // Mark html so CSS can hide the native cursor (same class the dashboard
-        // uses) — but only while reduced-motion is off. Users with OS-level
+        // uses), but only while reduced-motion is off. Users with OS-level
         // large-cursor / reduced-motion settings keep the native cursor; the
         // CSS media query above hides the dot/ring for them.
         const syncMotionPref = () => {

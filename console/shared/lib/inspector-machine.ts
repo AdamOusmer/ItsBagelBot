@@ -51,7 +51,7 @@ const clone = <T>(v: T): T => {
     try {
       return structuredClone(v);
     } catch {
-      // proxied state — clone via JSON below
+      // proxied state, clone via JSON below
     }
   }
   return JSON.parse(JSON.stringify(v)) as T;

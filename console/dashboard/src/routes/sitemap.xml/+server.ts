@@ -11,19 +11,19 @@ import { seoHost, SEO_ORIGIN, type SeoHost } from '$lib/server/seo-hosts';
 // all four from one build.
 //
 // Only hosts with something to declare get a document. A host with an empty
-// urlset is worse than no sitemap at all — Search Console reports it as an
-// error against the property and keeps reporting it — so those 404 instead,
+// urlset is worse than no sitemap at all: Search Console reports it as an
+// error against the property and keeps reporting it, so those 404 instead,
 // and robots.txt omits the `Sitemap:` line for them to match.
 
 /**
  * Paths each host publishes, relative to its own origin.
  *
- * dashboard   — nothing. Every page is behind the session gate; /login is the
+ * dashboard   : nothing. Every page is behind the session gate; /login is the
  *               one public document and a sign-in form is not a search result.
- * stats       — the root only. /stats answers the same page on this host, but
+ * stats       : the root only. /stats answers the same page on this host, but
  *               the page's canonical <link> points at the root, so listing both
  *               would put a URL in the sitemap that canonicalizes away.
- * leaderboard — empty for now, and the gap worth closing. One /<login> board per
+ * leaderboard : empty for now, and the gap worth closing. One /<login> board per
  * commands      enrolled channel, one /user/<login> command page likewise, and
  *               both are orphan URLs: nothing on the web links to them, and the
  *               bot hands the command page out in chat, which no crawler reads.

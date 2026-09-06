@@ -39,8 +39,8 @@ function asConfig(raw: unknown): Record<string, string> {
 
 // Merge the catalog (the modules we expose) with the broadcaster's stored rows.
 // Modules absent from the catalog (system, bagel, ...) are never surfaced, and
-// a delegate's grid drops tiles their grant cannot open (delegateCanOpen) —
-// such a tile would only bounce off the route guard. Owners see everything.
+// a delegate's grid drops tiles their grant cannot open (delegateCanOpen).
+// Such a tile would only bounce off the route guard. Owners see everything.
 // A beta module stays listed for a free channel but locked (betaLocked), so
 // the tile can sell the feature rather than hide it.
 function merge(rows: ModuleView[], session: Session | null | undefined, premium: boolean): ModuleState[] {
@@ -115,7 +115,7 @@ export const actions: Actions = {
 
 // flipModule writes the enable flag, preserving the stored config. The tile
 // only flips enabled: re-read the stored config and write it back untouched.
-// Never rebuild it from the tile form — the page flattens every config value
+// Never rebuild it from the tile form: the page flattens every config value
 // to a string for its reply inputs, which would corrupt the nested blobs some
 // modules own (channel-points rewards, timers) into "[object Object]" and wipe
 // them on a toggle.

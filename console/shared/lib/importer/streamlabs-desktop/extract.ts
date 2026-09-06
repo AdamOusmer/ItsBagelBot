@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Feature-table readers and row parsers — the port of extract.go. Commands,
+// Feature-table readers and row parsers: the port of extract.go. Commands,
 // timers and quotes each get one reader over the SectionContext built by
 // ./index; quote dates parse through the strict layout table below.
 
@@ -74,7 +74,7 @@ function reindex(diags: ImportDiagnostic[], idx: number): void {
 }
 
 // readTable selects one feature table and scans it whole; a missing table or
-// read failure degrades to an empty list plus one manifest-level diagnostic —
+// read failure degrades to an empty list plus one manifest-level diagnostic,
 // the shared preamble every extractor used to repeat.
 function readTable(ctx: SectionContext, candidates: string[]): Row[] {
   const table = findTable(ctx.tables, candidates);
@@ -196,7 +196,7 @@ function applyRowCooldown(r: Row, cmd: NonNullable<ImportManifest['commands']>[n
   const secs = goAtoi(cd.value.trim());
   // SLCB stores command cooldowns in seconds (its chat helper
   // "!Command Cooldown <cmd> <minutes>" converts before write); the
-  // minutes reading was rejected — FORMAT_NOTES.md carries why.
+  // minutes reading was rejected: FORMAT_NOTES.md carries why.
   // omitempty parity: a clamped 0 is omitted, like the Go manifest.
   if (secs !== null && clampCooldown(secs) > 0) cmd.cooldown_seconds = clampCooldown(secs);
 }
@@ -223,7 +223,7 @@ export function extractTimers(ctx: SectionContext): NonNullable<ImportManifest['
 
   if (defaultedInterval) {
     diags.push(manifestWarn(
-      `Chatbot.db stores the timer interval globally, not per timer; every imported timer defaults to ${DEFAULT_TIMER_INTERVAL_SECONDS}s — adjust in the dashboard`
+      `Chatbot.db stores the timer interval globally, not per timer; every imported timer defaults to ${DEFAULT_TIMER_INTERVAL_SECONDS}s, adjust in the dashboard`
     ));
   }
   return entries;
@@ -341,9 +341,9 @@ function orderStable<T>(items: T[], warns: ImportDiagnostic[][], key: (item: T) 
 
 // --- dates ---------------------------------------------------------------------
 
-// parseQuoteDate tries the layouts SLCB is known to persist dates with — its
+// parseQuoteDate tries the layouts SLCB is known to persist dates with (its
 // configurable display format plus the two storage formats .NET's SQLite layer
-// emits natively — and returns RFC 3339 (UTC) on success.
+// emits natively), and returns RFC 3339 (UTC) on success.
 export function parseQuoteDate(raw: string): string | null {
   raw = raw.trim();
   // Ordered like the Go layout table; each parser is strict about padding so
@@ -439,7 +439,7 @@ function parseRFC3339(s: string): DateUTC | null {
 
 // exact builds strict parsers for the fixed .NET storage/display shapes.
 // "MM" requires two digits, "M/D" one or two, "H" one or two with "PM"
-// uppercase-only — matching Go time.Parse's fixed vs flexible numeric widths.
+// uppercase-only, matching Go time.Parse's fixed vs flexible numeric widths.
 function exact(re: RegExp, shape: 'YMDHMS' | 'MDYHM' | 'MDYHM12' | 'MDY'): (s: string) => DateUTC | null {
   return (s) => {
     const m = re.exec(s);

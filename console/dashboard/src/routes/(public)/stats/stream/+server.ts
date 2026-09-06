@@ -9,7 +9,7 @@ import { publicBoards } from '$lib/server/public-boards';
 // leak-safe shape as (app)/events (hoisted idempotent cleanup wired to the
 // enqueue throw, the request abort and cancel()), with two differences: the
 // page is public, so there is no session or board id to key on, and there is
-// no live-hub subscription to push from — the counters are polled here, once
+// no live-hub subscription to push from: the counters are polled here, once
 // per connection, and pushed down as whole snapshots.
 //
 // Each tick carries both halves of the page: the global counters as the default
@@ -19,7 +19,7 @@ import { publicBoards } from '$lib/server/public-boards';
 //
 // Cost: publicStats() reads one single-flighted cache key (POLICY.live) and
 // publicBoards() one more that is itself shared across pods through Valkey, so
-// N concurrent viewers on a pod still cost ~1 read per tick, not N — and the
+// N concurrent viewers on a pod still cost ~1 read per tick, not N, and the
 // boards cost the whole deployment one read per tick rather than one per pod.
 //
 // No separate keepalive timer: a data frame every 2s already keeps the

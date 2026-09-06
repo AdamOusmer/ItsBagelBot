@@ -39,7 +39,7 @@ export function consoleKitConfig({ directives = {} } = {}) {
     adapter: adapter({ precompress: true }),
     // Default per-route chunking, NOT output.bundleStrategy:'single'. The single
     // strategy shipped one ~693 KB minified bundle that every page had to parse,
-    // evaluate and hydrate as one continuous main-thread task — measured at
+    // evaluate and hydrate as one continuous main-thread task: measured at
     // ~294 ms of CPU on an M-series for /login alone (2026-08-25), i.e. the
     // ~1 s "all JavaScript freezes on load" on mid-range hardware. Per-route
     // chunks let each page evaluate only what it renders. Reintroduce 'single'

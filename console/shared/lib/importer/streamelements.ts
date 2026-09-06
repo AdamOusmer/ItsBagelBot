@@ -89,8 +89,8 @@ export interface SeEnvelope {
 }
 
 // fetchStreamElements resolves the channel's config over the kappa v2 API:
-// resolve channelId via /kappa/v2/channels/me, then read the bot collections
-// — the flow their API docs describe for every bot endpoint.
+// resolve channelId via /kappa/v2/channels/me, then read the bot collections,
+// the flow their API docs describe for every bot endpoint.
 export async function fetchStreamElements(
   credential: string,
   opts: FetchOptions = {}
@@ -169,7 +169,7 @@ async function requestJSON<T>(req: KappaRequest, signal: AbortSignal): Promise<T
   }
 }
 
-// readCapped reads the body but refuses to buffer more than cap bytes — the
+// readCapped reads the body but refuses to buffer more than cap bytes: the
 // port of Go's io.LimitReader + oversize rejection. A hostile server streaming
 // forever must not balloon the dashboard pod's memory.
 async function readCapped(res: Response, cap: number, path: string): Promise<string> {
@@ -218,7 +218,7 @@ function joinChunks(chunks: Uint8Array[], total: number): string {
 // a revoked one without this nudge.
 function authHint(status: number): string {
   return status === 401 || status === 403
-    ? ' (re-copy the JWT from streamelements.com/dashboard/account/channels, "Show secrets" — tokens expire)'
+    ? ' (re-copy the JWT from streamelements.com/dashboard/account/channels, "Show secrets"; tokens expire)'
     : '';
 }
 
@@ -307,7 +307,7 @@ interface BotCommand {
 
 // decodeBotCommand mirrors encoding/json's struct decode. Field-shape errors
 // throw; the caller reports the entry as skipped. (Go's json error strings for
-// mismatched types are runtime-specific and NOT reproduced — documented
+// mismatched types are runtime-specific and NOT reproduced: documented
 // divergence, exercised by no committed fixture.)
 function decodeBotCommand(entry: unknown): BotCommand {
   if (entry === null || typeof entry !== 'object')
@@ -348,7 +348,7 @@ function optionalFlag(v: unknown): boolean | undefined {
 // flexText accepts every message shape observed in timer payloads: a plain
 // string or an array of strings / {text} objects (the dashboard writes the
 // rotating-message variant). Joined with newlines so CanonicalizeResponse sees
-// the same line structure upstream did. Error strings mirror Go's verbatim —
+// the same line structure upstream did. Error strings mirror Go's verbatim:
 // they surface in the *_skipped diagnostic prose.
 function flexText(v: unknown): string {
   if (v === undefined || v === null) return '';
@@ -445,7 +445,7 @@ export const SE_CODE = {
 // accessLevel levels per StreamElements' own documentation, which states these
 // seven values are the only ones the bot accepts.
 //
-// Decision record — accessLevel → perm tier:
+// Decision record: accessLevel → perm tier:
 //
 //	100 Everyone         → everyone    (direct)
 //	250 Subscriber       → sub         (direct)
@@ -461,7 +461,7 @@ export const SE_CODE = {
 // Moderator lands on lead_mod rather than mod: SE super mods are a
 // manually-assigned trust tier strictly between mod and broadcaster, which is
 // exactly the niche lead_mod occupies here. Unknown numerics cannot be trusted
-// as "more than everyone" — inventing trust from an undocumented value is the
+// as "more than everyone": inventing trust from an undocumented value is the
 // one unrecoverable mistake a permission mapper can make.
 const ACCESS_LEVELS: readonly {
   level: number;
@@ -494,7 +494,7 @@ const q = (s: string): string => JSON.stringify(s);
 // Parse translates a fetched envelope into the canonical manifest. It never
 // pre-filters on collisions (the service layer owns those) and reports every
 // lossy translation as a warn diagnostic; items that cannot land at all are
-// either excluded outright (regex commands, disabled items — with a *_skipped
+// either excluded outright (regex commands, disabled items, with a *_skipped
 // warn naming them) or carried with an error diagnostic commit drops.
 export function parseStreamElements(raw: Uint8Array | string): {
   manifest: ImportManifest;
@@ -899,10 +899,10 @@ function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
 
 function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
   const idx = timers.length;
-  // Decision record — interval units: StreamElements timer intervals are
+  // Decision record: interval units: StreamElements timer intervals are
   // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
   // API's own examples (online 5, offline 30) only make sense on a minute
-  // scale — a 5-second repeating announcement would sit below any sane rate
+  // scale: a 5-second repeating announcement would sit below any sane rate
   // limit and below this engine's 30s floor. Multiply by 60 here, once, so
   // the manifest carries seconds like every consumer expects; commit clamps
   // sub-floor values itself.
@@ -971,7 +971,7 @@ function firstLine(s: string): string {
 const MAX_PASSES = 3;
 
 // legacyHeads are the bare-{...} names worth treating as variables. Anything
-// else inside plain braces is left completely alone — braces are punctuation.
+// else inside plain braces is left completely alone: braces are punctuation.
 const LEGACY_HEADS = new Set([
   'user', 'sender', 'source', 'touser', 'target', 'channel',
   'getcount', 'count', 'choose', 'random', 'args'
@@ -979,13 +979,13 @@ const LEGACY_HEADS = new Set([
 
 // translateVariables rewrites StreamElements variable references into this
 // bot's single-pass {key} substitution syntax. Both documented delimiter
-// styles — $(name) and ${name}, interchangeable upstream — plus the older
+// styles ($(name) and ${name}, interchangeable upstream) plus the older
 // bare-{name} community shorthand are recognized; unknown $()/${} tokens stay
 // literal and are reported (the broadcaster clearly attempted a variable),
 // while unknown bare braces stay literal silently (braces are ordinary chat
 // punctuation, and warning on every stray pair would bury real findings).
 //
-// Decision record — StreamElements variable table:
+// Decision record: StreamElements variable table:
 //
 //	$(user) / ${user} / $(user.name)   → {user}
 //	$(sender) / $(source) / .name      → {sender}
@@ -1256,7 +1256,7 @@ type TokenOutcome = { repl: string; warned: boolean };
 
 // MAX_FETCH_URL_BYTES mirrors the FetchURL validator (≤512 chars, https-only)
 // that ingestion will enforce per definition. A longer or scheme-less URL is
-// refused HERE — left literal with the standard unmapped warn — rather than
+// refused HERE (left literal with the standard unmapped warn) rather than
 // synthesized into a def that can only fail wholesale at save time, taking its
 // URL out of the reply text where it stayed visible.
 const MAX_FETCH_URL_BYTES = 512;
@@ -1277,17 +1277,17 @@ export interface FetchSlotSink {
 // exists only to serve a command in this same manifest, so the commands cap
 // bounds it by construction and one fewer magic number cannot drift from the
 // mirrored server-side table. Past the cap a token stays literal (fail
-// visible) — never a dangling {urlfetch:} reference.
+// visible), never a dangling {urlfetch:} reference.
 export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
 // makeFetchSlotSink builds the per-command slot allocator over one shared
 // import-level def map. Slot rule: the first distinct argument set in a reply
 // takes the bare fetchDefSlug('se', command), the Nth distinct one (N≥2)
-// appends _N — underscore, not hyphen: the commands service's def-name
+// appends _N (underscore, not hyphen): the commands service's def-name
 // grammar is ^[a-z0-9_]{1,32}$ and refused every hyphenated name this
 // importer used to synthesize.
-// Identical argument sets within ONE command share their def — equality is
-// byte-exact here, so merging is safe — but distinct slots never merge even
+// Identical argument sets within ONE command share their def (equality is
+// byte-exact here, so merging is safe) but distinct slots never merge even
 // when their URLs look equal, matching the Moobot-side rule where equality is
 // unknowable until the URL is re-entered; cross-source consistency beats a
 // half-def deduplication that behaves differently per importer.
@@ -1323,7 +1323,7 @@ function fetchDefFor(key: string, url: string, jsonPath: string[] | undefined): 
 }
 
 // registerFetchDef admits one definition into the import-level map: false at
-// the cap, and false with a warn when the slug is already taken — two
+// the cap, and false with a warn when the slug is already taken: two
 // exported commands normalized onto one name; first wins (deterministic by
 // export order), because the loser's tokens would silently re-point at
 // another command's data source.
@@ -1343,7 +1343,7 @@ function registerFetchDef(
 }
 
 // parseUrlfetchArgs splits a $urlfetch body into (url, json_path). The first
-// word is the URL (https/http required — our engine rejects everything else at
+// word is the URL (https/http required: our engine rejects everything else at
 // save AND fetch, so importing a def we know is dead helps nobody); any
 // remainder is SE's dot-path into a JSON response, split on '.' with empties
 // dropped. Segments are stored as-written: segment grammar/depth validation
@@ -1362,8 +1362,8 @@ function parseUrlfetchArgs(body: string): { url: string; jsonPath: string[] | un
 
 // urlfetchRule maps one $(urlfetch URL [json.path]) token onto its synthesized
 // definition reference. Extraction-at-import is safe by construction: the URL
-// is copied byte-exact out of the reply text into the definition — no fetch,
-// no resolution, no key handling happens here — and the reply keeps working at
+// is copied byte-exact out of the reply text into the definition (no fetch,
+// no resolution, no key handling happens here) and the reply keeps working at
 // runtime through the reviewed, sandboxed definition instead of an unreviewed
 // URL pasted into chat text. Without a sink (timers, keyword triggers) or with
 // unusable arguments there is nothing to extract into, so the token stays
@@ -1422,7 +1422,7 @@ const silentLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: fa
 const flaggedLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: true });
 
 // unmapped keeps an attempted-but-unmappable variable literal. Explicit
-// $(…)/${…} attempts warn — someone clearly wrote a variable — while
+// $(…)/${…} attempts warn (someone clearly wrote a variable) while
 // bare-brace bodies stay silent except the counter families: bare braces are
 // ambiguous punctuation, but rewriting count/getcount would drop their
 // increment side-effect.
@@ -1454,7 +1454,7 @@ function touserParam(v: TokenView): TokenOutcome {
   return v.restRaw === '' ? ok('{touser}') : unmapped(v);
 }
 
-// argsRange maps $(1:) — words 1..end — to {args}; every other numeric form
+// argsRange maps $(1:) (words 1..end) to {args}; every other numeric form
 // stays put.
 function argsRange(v: TokenView): TokenOutcome {
   return v.delimited && v.restRaw === ':' ? ok('{args}') : unmapped(v);
@@ -1560,7 +1560,7 @@ function pickKey(items: string[] | null): string | null {
 // pickItems splits a random.pick argument list honoring quotes: items may be
 // wrapped in '…', "…" or `…` to carry spaces, and both space- and comma-
 // separated lists are accepted (SE's two documented forms). Returns null when
-// the list cannot survive our {choice:…} comma-splitting grammar — leaving
+// the list cannot survive our {choice:…} comma-splitting grammar: leaving
 // the token literal beats corrupting it.
 function pickItems(spec: string): string[] | null {
   const raw = splitPickList(spec);

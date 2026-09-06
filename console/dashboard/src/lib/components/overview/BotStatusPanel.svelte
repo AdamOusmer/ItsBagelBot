@@ -15,8 +15,8 @@
   //
   // Online is the common case, so it gets the quiet treatment: one row, dot +
   // title + meta + the two management actions as small pills. Every other kind
-  // (still loading, or genuinely needs attention) keeps the larger card — icon
-  // tile, title, a sentence of detail, and one primary recovery action — because
+  // (still loading, or genuinely needs attention) keeps the larger card (icon
+  // tile, title, a sentence of detail, and one primary recovery action) because
   // those are the moments the streamer actually has to read and act on.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -62,7 +62,7 @@
   const live = $derived(kind === 'online');
 
   // The one-line strip only ever replaces the ONLINE reading, and only once we
-  // actually know that (not mid-check) — a loading online guess must not skip
+  // actually know that (not mid-check): a loading online guess must not skip
   // straight to the quiet row.
   const strip = $derived(!loading && kind === 'online');
 
@@ -113,23 +113,23 @@
 </script>
 
 {#if strip}
-  <!-- Online: dot, title, plan meta, then the two management pills — one row,
+  <!-- Online: dot, title, plan meta, then the two management pills: one row,
        wraps under itself on narrow viewports instead of forcing scroll. -->
   <Card as="section" sheen class="ov-status ov-status--strip" aria-label={t('overview.statusHeading')}>
-    <span class="ov-strip__dot" class:live aria-hidden="true"></span>
+    <i class="bb-mark ov-strip__dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
     <span class="ov-strip__title">{title}</span>
     {#if planLabel}<span class="ov-strip__meta">{planLabel}</span>{/if}
     <div class="ov-strip__spacer"></div>
     {#if isDelegate}
       <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
     {:else if ui?.canManage}
-      <button type="button" class="ov-pillbtn" disabled={busy} onclick={() => onRestart?.()}>
+      <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onRestart?.()}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
         </svg>
         {t('overview.restart')}
       </button>
-      <button type="button" class="ov-pillbtn" disabled={busy} onclick={() => onDisconnect?.()}>
+      <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onDisconnect?.()}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M18.4 5.6a9 9 0 1 1-12.8 0" />
           <line x1="12" y1="2" x2="12" y2="12" />
@@ -153,7 +153,7 @@
         <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>
       {:else}
         <p class="ov-status__state tone-{tone}">
-          <span class="dot" class:live aria-hidden="true"></span>
+          <i class="bb-mark dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
           <span class="state-text">{title}</span>
         </p>
         {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
@@ -220,7 +220,7 @@
   }
 
   /* The one-line strip: dot, bold title, mono meta, spacer, two pill actions.
-     flex-wrap is the whole narrow-screen story here — no separate breakpoint
+     flex-wrap is the whole narrow-screen story here: no separate breakpoint
      rules needed, the row just folds under itself. */
   :global(.ov-status--strip) {
     display: flex;
@@ -228,21 +228,13 @@
     align-items: center;
     gap: 12px;
   }
+  /* Was a 9px round dot with a glow + ov-pulse; now the global .bb-mark
+     square. Live is filled, everything else hollow, so the guard that only
+     stopped ov-pulse is gone with it. */
   .ov-strip__dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--bb-status-success);
-  }
-  .ov-strip__dot.live {
-    box-shadow: 0 0 8px var(--bb-status-success);
-    animation: ov-pulse 2.4s ease-in-out infinite;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ov-strip__dot.live {
-      animation: none;
-    }
+    width: 7px;
+    height: 7px;
+    color: var(--bb-status-success);
   }
   .ov-strip__title {
     font-family: var(--bb-font-display);
@@ -262,36 +254,9 @@
     flex: 1 1 auto;
     min-width: 8px;
   }
-  .ov-pillbtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 34px;
-    padding: 0 14px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border);
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    cursor: pointer;
-    transition:
-      border-color 200ms ease,
-      color 200ms ease;
-  }
-  .ov-pillbtn svg {
-    flex: none;
-    width: 13px;
-    height: 13px;
-  }
-  .ov-pillbtn:hover:not(:disabled) {
-    border-color: var(--bb-tan);
-    color: var(--bb-white);
-  }
-  .ov-pillbtn:disabled {
+  /* .ov-pillbtn was a 999px pill; these are controls, so they are .bb-chip
+     now and only the disabled state stays scoped. */
+  .bb-chip:disabled {
     opacity: 0.5;
     cursor: default;
   }
@@ -351,32 +316,22 @@
   .tone-warning .state-text {
     color: var(--bb-status-warning-fg);
   }
+  /* Round glowing dot + ov-pulse replaced by the global .bb-mark; tone now
+     paints currentColor, and hollow (not live) reads as off without colour.
+     Sized up from the 5px default to sit against the display-size state. */
   .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--bb-muted);
+    width: 8px;
+    height: 8px;
+    color: var(--bb-muted);
   }
   .tone-success .dot {
-    background: var(--bb-status-success);
+    color: var(--bb-status-success);
   }
   .tone-error .dot {
-    background: var(--bb-status-error);
+    color: var(--bb-status-error);
   }
   .tone-warning .dot {
-    background: var(--bb-status-warning);
-  }
-  .dot.live {
-    box-shadow: 0 0 8px var(--bb-status-success);
-    animation: ov-pulse 2.4s ease-in-out infinite;
-  }
-  @keyframes ov-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .dot.live { animation: none; }
+    color: var(--bb-status-warning);
   }
 
   .ov-status__detail {

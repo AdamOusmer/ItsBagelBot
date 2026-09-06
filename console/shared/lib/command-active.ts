@@ -3,7 +3,7 @@
 
 // #221: editing a command must not change whether it is enabled. The inspector
 // draft used to snapshot Active at open, so a content Save wrote that snapshot
-// back — a disabled command came back on, and a row toggle with the inspector
+// back: a disabled command came back on, and a row toggle with the inspector
 // open reverted on save. Content writes take the live row; only Create (no
 // live row yet) takes the draft checkbox.
 

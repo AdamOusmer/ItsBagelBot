@@ -19,7 +19,7 @@ const sections = [
 ---
 
 <Layout
-    title="The modules handbook — ItsBagelBot Guides"
+    title="The modules handbook - ItsBagelBot Guides"
     description="Every ItsBagelBot module explained: chat alerts, auto shoutout, trigger words, loyalty points, channel-point rewards, timers, raffles, wager games, play queue, quotes, game stats, emote pyramids and AutoMod."
     ogType="article"
 >
@@ -176,7 +176,7 @@ const sections = [
                 <code>!duel 100</code>, everyone adds their own stake while the window is open, then
                 the bot draws one winner weighted by stake and they take everything. The challenge:
                 <code>!duel @maya_live 500</code> names an opponent who must type
-                <code>!duel accept</code> before time runs out — equal stakes, a coin flip, winner
+                <code>!duel accept</code> before time runs out: equal stakes, a coin flip, winner
                 takes both. Declines, cancellations and no-shows always refund every point.
             </p>
             <p class="gtip">
@@ -191,7 +191,7 @@ const sections = [
             <p>
                 A timed draw chat can't argue with. Viewers enter once with <code>!join</code>; the
                 bot counts down out loud on a reminder cadence you set, then draws the winners
-                itself when time runs out — uniformly at random, one entry per viewer, with a
+                itself when time runs out, uniformly at random, one entry per viewer, with a
                 verifiable receipt kept. Winners confirm with <code>!claim</code>. You and your
                 mods start one with <code>!raffle open</code>, close early with
                 <code>!raffle draw</code>, or abort with <code>!raffle cancel</code>.
@@ -201,13 +201,13 @@ const sections = [
                 caption="Opened, reminded, drawn, confirmed."
                 lines={[
                     { who: 'mod', name: 'mod_sam', text: '!raffle open 10' },
-                    { who: 'bot', text: 'Raffle is LIVE! Type !join to enter — drawing in 10 min!' },
-                    { who: 'bot', text: 'Raffle reminder: ~5 min left! 14 entered so far — type !join! Winners must !claim.' },
+                    { who: 'bot', text: 'Raffle is LIVE! Type !join to enter. Drawing in 10 min!' },
+                    { who: 'bot', text: 'Raffle reminder: ~5 min left! 14 entered so far, type !join! Winners must !claim.' },
                     { who: 'viewer', name: 'maya_live', text: '!join' },
                     { who: 'bot', text: "@maya_live you're in! 15 entered so far. Good luck!" },
-                    { who: 'bot', text: '@crustycrumbs, @maya_live — congratulations! You won the raffle (2 winner(s) from 15)! Type !claim within 15 min to confirm your prize!' },
+                    { who: 'bot', text: '@crustycrumbs, @maya_live, congratulations! You won the raffle (2 winner(s) from 15)! Type !claim within 15 min to confirm your prize!' },
                     { who: 'viewer', name: 'maya_live', text: '!claim' },
-                    { who: 'bot', text: '@maya_live your prize is confirmed — enjoy!' },
+                    { who: 'bot', text: '@maya_live your prize is confirmed, enjoy!' },
                 ]}
             />
             <h3>Play Queue</h3>
@@ -241,7 +241,7 @@ const sections = [
             <p>
                 A cheer squad for chat's art projects. The module watches chat stack the same emote
                 into a pyramid (1-2-3 and back down) or hold a streak of single-emote messages, and
-                fires a celebration line when one lands clean — nothing else posted in between.
+                fires a celebration line when one lands clean, nothing else posted in between.
                 Fully automatic: no commands, no settings, just the switch.
             </p>
         </Fragment>
@@ -273,7 +273,7 @@ const sections = [
                         <tr>
                             <td>Clash Royale Stats</td>
                             <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
-                            <td>Lifetime profile (level, win/loss, win rate), the current battle deck with its average elixir, Path of Legends standing, and trophy-road record — by player tag.</td>
+                            <td>Lifetime profile (level, win/loss, win rate), the current battle deck with its average elixir, Path of Legends standing, and trophy-road record, by player tag.</td>
                         </tr>
                         <tr>
                             <td>Valorant Stats</td>

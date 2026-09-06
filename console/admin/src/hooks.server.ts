@@ -61,7 +61,7 @@ const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
 
-  // Staff gate for every non-public request — form actions and +server.ts
+  // Staff gate for every non-public request: form actions and +server.ts
   // endpoints included, which layout loads never cover. The per-route
   // requireAdmin checks stay as defense in depth; this hook makes "session
   // exists but is no longer active staff" die at the door (adminCheck is

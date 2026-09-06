@@ -2,8 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The desktop rail: flat sections, always open, every page one click away.
-  // Its whole character is one moving part — a single highlight that glides
-  // between rows — so nothing else in here animates on navigation. The one
+  // Its whole character is one moving part (a single highlight that glides
+  // between rows) so nothing else in here animates on navigation. The one
   // nested group (Modules, which fans out into the sections the /modules page
   // is divided into) collapses, because listing seven sub-rows permanently
   // pushed Billing/Settings below the fold on a 720px-tall laptop.

@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * LegalShell — legal pages that respect the reader. A sticky scrollspy table
+ * LegalShell: legal pages that respect the reader. A sticky scrollspy table
  * of contents (desktop) and a "plain words" one-liner on every section so
  * nobody has to parse legalese to get the gist. (The reading-progress bar is
  * site-wide now: ui/ReadingProgress, mounted in Layout.)
@@ -53,7 +53,7 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
                     <div class="lshell__block" id={section.id} data-legal-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                         <h2>{section.heading}</h2>
                         <p class="lshell__plain">
-                            <span class="lshell__plain-tag">{labels.plain}</span>
+                            <span class="lshell__plain-tag bb-tag bb-tag--bare">{labels.plain}</span>
                             {section.plain}
                         </p>
                         <Content />
@@ -186,12 +186,8 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
         margin: 0 0 16px;
     }
 
+    /* .bb-tag--bare carries the mono/uppercase treatment now. */
     .lshell__plain-tag {
-        display: inline-block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.6rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
         color: var(--green-glow, #52b788);
         margin-right: 8px;
     }

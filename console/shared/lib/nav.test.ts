@@ -65,7 +65,7 @@ describe('nav registry', () => {
   });
 
   // Delegate visibility: ownerOnly entries (Overview, Settings) drop; grants
-  // gate the rest. A commands-only delegate gets exactly one entry — this is
+  // gate the rest. A commands-only delegate gets exactly one entry: this is
   // the shape guard.ts bounce logic assumes.
   test('a delegate sees only granted sections, never owner-only ones', () => {
     const items = dashboardNavItems({ isDelegate: true, sections: ['commands'], section: 'commands' });

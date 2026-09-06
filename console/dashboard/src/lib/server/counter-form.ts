@@ -50,7 +50,7 @@ export function bucketLabel(t: CounterTarget): string {
 // entry-scoped counter. Command scope keys on the command alone; the viewer
 // scopes resolve the typed username to its Twitch id (throwing when no such
 // account) and stamp the login. Returns null when the form lacks the key part
-// the scope needs — the caller maps that to a validation failure.
+// the scope needs. The caller maps that to a validation failure.
 export async function resolveAddTarget(
   scope: CounterScope,
   login: string,

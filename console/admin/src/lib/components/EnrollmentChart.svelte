@@ -3,8 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Daily enrollment vs registered base, as two aligned panels sharing one
   // x-axis: bars for signups per UTC day (magnitude), a line for the
-  // registered-users total derived backwards from today's count. Two panels —
-  // never a dual axis — because the measures live on different scales.
+  // registered-users total derived backwards from today's count. Two panels
+  // (never a dual axis) because the measures live on different scales.
   import type { EnrollmentWire } from '$lib/server/services';
 
   let { enrollment }: { enrollment: EnrollmentWire } = $props();
@@ -65,7 +65,7 @@
   const xMid = (i: number) => PAD_L + i * band + band / 2;
 
   // Bar path: 3px-rounded top corners (the data end), square base on the
-  // baseline. Zero days draw nothing — an empty slot is honest.
+  // baseline. Zero days draw nothing. An empty slot is honest.
   function barPath(i: number, count: number): string {
     if (count <= 0) return '';
     const w = Math.max(band - 2, 1.5);

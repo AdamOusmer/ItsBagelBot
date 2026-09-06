@@ -84,7 +84,7 @@
 
   let dialogForm = $state<HTMLFormElement | null>(null);
 
-  // Minted keys are shown exactly once — the server never stores them.
+  // Minted keys are shown exactly once: the server never stores them.
   let mintedKey = $state('');
   let mintedCopied = $state(false);
 
@@ -213,7 +213,7 @@
             <div>
               <dt>Auto-migrate (Doppler)</dt>
               <dd title="Doppler's value. deploy/k8s/*.yaml pins DB_AUTO_MIGRATE as a pod env var, which outranks this, so production may differ.">
-                {svc.autoMigrate || '—'}
+                {svc.autoMigrate || '-'}
               </dd>
             </div>
           </dl>
@@ -319,7 +319,7 @@
         </label>
       {:else if pending.kind === 'revoke'}
         <p class="dialog-note">
-          Drops the MySQL user and every grant it holds. Revoke only retired users — the service
+          Drops the MySQL user and every grant it holds. Revoke only retired users: the service
           crashes if you drop the one in Doppler.
         </p>
         <label>Database user to revoke
@@ -327,7 +327,7 @@
         </label>
       {:else if pending.kind === 'mint'}
         <p class="dialog-note">
-          Issues a Doppler service token that can only <b>read {pending.svc.project}/{pending.svc.config}</b> —
+          Issues a Doppler service token that can only <b>read {pending.svc.project}/{pending.svc.config}</b>,
           the narrowest credential Doppler can mint. The key is shown once.
         </p>
         <label>Token name

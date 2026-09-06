@@ -23,9 +23,9 @@
       <span class="resp">{command.summary}</span>
     </span>
     {#if command.perm === 'mod'}
-      <span class="tag">{t('modules.permMods')}</span>
+      <span class="bb-tag bb-tag--bare">{t('modules.permMods')}</span>
     {:else if command.perm === 'lead_mod'}
-      <span class="tag">{t('modules.permLeadMods')}</span>
+      <span class="bb-tag bb-tag--bare">{t('modules.permLeadMods')}</span>
     {:else}
       <span class="mini-spacer" aria-hidden="true"></span>
     {/if}
@@ -65,17 +65,8 @@
     min-width: 0;
   }
 
-  .tag {
-    font-family: var(--bb-font-mono);
-    font-size: 9.5px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-    border: 1px solid var(--rule-tan, rgba(201, 168, 124, 0.3));
-    border-radius: 4px;
-    padding: 2px 6px;
-    white-space: nowrap;
-  }
+  /* Was a 4px-radius tan-outlined pill; the role label is now the global
+     .bb-tag--bare, frameless because the row already has its own rule. */
   .mini-spacer { width: 0; }
 
   @media (max-width: 760px) {

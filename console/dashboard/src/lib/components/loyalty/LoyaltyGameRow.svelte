@@ -69,7 +69,7 @@
       {#if chips.length}
         <span class="cmds">
           {#each chips as chip (chip)}
-            <span class="cmd">{chip}</span>
+            <span class="cmd bb-tag bb-tag--bare">{chip}</span>
           {/each}
         </span>
       {/if}
@@ -154,18 +154,10 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .cmds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-  .cmd {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    background: rgba(201, 168, 124, 0.08);
-    border-radius: 6px;
-    padding: 2px 7px;
-    white-space: nowrap;
-  }
+  .cmds { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+  /* Was a filled 6px-radius pill. These print literal chat triggers, so the
+     global .bb-tag uppercase is turned off here; the rest comes from --bare. */
+  .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
 
   .side {
     display: inline-flex;

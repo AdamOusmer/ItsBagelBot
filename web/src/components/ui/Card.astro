@@ -7,7 +7,7 @@
  *
  * Two shapes:
  *  - Flat: one plate, atmosphere (arc + sheen) washing the whole card.
- *  - Banded: pass a `band` slot and the card grows a housing — a darker
+ *  - Banded: pass a `band` slot and the card grows a housing, a darker
  *    #0A0A0A band on top holding the visual, with the atmosphere and the
  *    mono channel `label` inset in its corner; body copy sits below on the
  *    #111110 plate. "Character from structure, not from more glow."
@@ -79,12 +79,12 @@ const banded = Astro.slots.has("band");
     }
 
     /* 3a housing: the band is a fixture the visual sits in, not a picture
-       frame — page-ink background, hairline seam, atmosphere contained.
+       frame: page-ink background, hairline seam, atmosphere contained.
 
        A FIXED height, never a min-height: cards sit side by side in a grid,
        and a floor lets the one card whose visual runs tall (Games' rifle
        drawing was 131px against its neighbours' 105px) push its own seam down
-       while the others stay at the floor — two different housings in one row.
+       while the others stay at the floor, two different housings in one row.
        Sections set --card-band-h once for the whole grid, sized to their
        tallest visual, so every seam in the row lands on the same line. */
     .card__band {

@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Behaviour contract for the Nightbot parser. Unlike moobot.test.ts and
-// streamelements.test.ts there is no Go implementation to pin against — no Go
-// Nightbot parser ever existed — so these expectations ARE the contract:
+// streamelements.test.ts there is no Go implementation to pin against (no Go
+// Nightbot parser ever existed) so these expectations ARE the contract:
 // change one only when the mapping itself is meant to change.
 
 import { describe, expect, test } from 'bun:test';
@@ -80,13 +80,13 @@ describe('commands', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({
         commands: [
-          command({ name: '!HELLO', message: 'Hi $(touser), welcome to $(channel) — $(query)', coolDown: 45 })
+          command({ name: '!HELLO', message: 'Hi $(touser), welcome to $(channel), $(query)', coolDown: 45 })
         ]
       })
     );
     expect(manifest.commands?.[0]).toEqual({
       name: 'hello',
-      responses: ['Hi {touser}, welcome to {channel} — {args}'],
+      responses: ['Hi {touser}, welcome to {channel}, {args}'],
       permission: 'everyone',
       cooldown_seconds: 45
     });
@@ -293,7 +293,7 @@ describe('spam protection', () => {
 // --- fetch flow (OAuth-token API pull) ---------------------------------------
 
 // Local stand-in server, mirroring streamelements.test.ts: records every
-// request (snapshotted eagerly — Bun recycles Request internals once the
+// request (snapshotted eagerly, Bun recycles Request internals once the
 // handler resolves) and answers via `handler`.
 interface Recorded {
   path: string;

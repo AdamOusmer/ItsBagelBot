@@ -142,7 +142,7 @@
         <span class="creator__label">Creator code</span>
         <span class="creator__row">
           <strong>{creatorCode}</strong>
-          <span class="creator__hint">{copied === 'cc' ? 'Copied' : 'Click to copy'}</span>
+          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'}>{copied === 'cc' ? 'Copied' : 'Click to copy'}</span>
         </span>
       </button>
     {/if}
@@ -163,10 +163,10 @@
       <span class="sr-only">Search commands</span>
       <input type="search" bind:value={query} placeholder="Search a command or what it does…" />
     </label>
-    <div class="tabs" role="tablist" aria-label="Command source">
+    <div class="bb-tabs" role="tablist" aria-label="Command source">
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
-        <button class="tab" class:on role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
+        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
           <span>{f.label}</span>
           <span class="tab__count">{countOf(f.id)}</span>
         </button>
@@ -198,12 +198,12 @@
                     {#if copied === row.key}
                       <span class="copied">Copied</span>
                     {/if}
-                    <span class="tag tag--source">{row.source}</span>
+                    <span class="bb-tag bb-tag--alpha">{row.source}</span>
                     {#if row.perm}
-                      <span class="tag">{row.perm}</span>
+                      <span class="bb-tag bb-tag--bare">{row.perm}</span>
                     {/if}
                     {#if row.cooldown > 0}
-                      <span class="tag" title="Cooldown">
+                      <span class="bb-tag bb-tag--bare" title="Cooldown">
                         <svg aria-hidden="true" viewBox="0 0 24 24" width="11" height="11">
                           <circle cx="12" cy="12" r="9"></circle>
                           <path d="M12 7v5l3 2"></path>
@@ -212,7 +212,7 @@
                       </span>
                     {/if}
                     {#if row.liveOnly}
-                      <span class="tag tag--live"><span class="dot" aria-hidden="true"></span>Live only</span>
+                      <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>Live only<i class="bb-sweep" aria-hidden="true"></i></span>
                     {/if}
                     {#if row.uses}
                       <span class="uses">{row.uses} uses</span>
@@ -249,7 +249,7 @@
                   aria-pressed={moduleId === mod.id}
                   onclick={() => pickModule(mod.id)}
                 >
-                  <span class="dot" aria-hidden="true"></span>
+                  <i class="bb-mark" aria-hidden="true"></i>
                   <span class="mod__text">
                     <span class="mod__label">{mod.label}</span>
                     <span class="mod__tagline">{mod.tagline}</span>
@@ -422,13 +422,9 @@
     color: var(--bb-tan-pale);
     text-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
   }
-  .creator__hint {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
+  /* Was bare muted text; it is the copy trigger's confirmation, so it wears a
+     .bb-chip frame and flips to .is-done. Only the type scale stays local. */
+  .creator__hint { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
 
   .notice { margin-bottom: 24px; }
 
@@ -482,29 +478,8 @@
     box-shadow: 0 0 0 1px rgba(82, 183, 136, 0.35), 0 0 24px rgba(82, 183, 136, 0.18);
   }
 
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    height: 42px;
-    padding: 0 14px;
-    border-radius: 999px;
-    border: 1px solid var(--bb-border);
-    background: var(--bb-card-bg);
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color 180ms, background 180ms, color 180ms;
-  }
-  .tab:hover, .tab:focus-visible { border-color: rgba(201, 168, 124, 0.35); color: var(--bb-white); }
-  .tab.on {
-    border-color: rgba(82, 183, 136, 0.5);
-    background: rgba(82, 183, 136, 0.12);
-    color: var(--bb-white);
-  }
+  /* The rail wraps on narrow toolbars; .bb-tabs is inline-flex by default. */
+  .bb-tabs { display: flex; flex-wrap: wrap; }
   .tab__count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
 
   /* ── columns ── */
@@ -619,32 +594,8 @@
     color: var(--bb-tan-light);
   }
 
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border: 1px solid var(--bb-border);
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.25);
-    white-space: nowrap;
-  }
-  .tag svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .tag--source { color: var(--bb-tan); }
-  .tag--live {
-    gap: 6px;
-    border-color: rgba(82, 183, 136, 0.3);
-    background: rgba(82, 183, 136, 0.1);
-    color: var(--bb-green-glow);
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    flex: none;
-    border-radius: 999px;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(82, 183, 136, 0.7);
-  }
+  /* The cooldown clock rides inside a .bb-tag, which sets no svg presentation. */
+  .row__tags svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .uses { color: var(--bb-muted); white-space: nowrap; padding-left: 4px; }
   .copied { color: var(--bb-green-glow); animation: fadeIn 180ms ease-out; }
 
@@ -682,7 +633,7 @@
   .mod:disabled { cursor: default; }
   .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(201, 168, 124, 0.06); }
   .mod.on { background: rgba(82, 183, 136, 0.12); }
-  .mod .dot { width: 7px; height: 7px; }
+  .mod :global(.bb-mark) { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
   .mod__tagline {

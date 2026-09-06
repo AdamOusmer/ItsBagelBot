@@ -68,7 +68,7 @@ function decodeJson(bytes: Uint8Array): unknown {
 // rowsOf pulls one named collection out of the document. The API answers with
 // {"_total":N,"commands":[…]}, a hand-stapled bundle nests those responses
 // under the same names ({"commands":{"_total":N,"commands":[…]}}), and terser
-// exporters carry just the array — all three land here as the array.
+// exporters carry just the array, all three land here as the array.
 function rowsOf(doc: NbRow, key: string): NbRow[] {
   const node = doc[key];
   if (Array.isArray(node)) return node.filter(isObj);
@@ -81,7 +81,7 @@ function rowsOf(doc: NbRow, key: string): NbRow[] {
 // words; a saved single filter or a bare term array is accepted too. The live
 // API (verified against api-docs.nightbot.tv 2026-09-01) carries "blacklist"
 // as ONE newline-delimited string, while community exporters split it into an
-// array — both land here as individual terms (the parse layer trims, drops
+// array, both land here as individual terms (the parse layer trims, drops
 // blanks and dedups, so a naive split costs nothing).
 function blacklistTerms(doc: NbRow): string[] {
   const out: string[] = [];

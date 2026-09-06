@@ -102,7 +102,7 @@
     try {
       sessionStorage.setItem(INTENT_KEY, JSON.stringify({ kind, recipient }));
     } catch {
-      /* private mode / storage disabled — modal falls back to the premium copy */
+      /* private mode / storage disabled: modal falls back to the premium copy */
     }
   }
 
@@ -318,7 +318,7 @@
   });
 
   // When a self-purchase flips to paid while the modal is open, mark the
-  // activation with confetti — unless the choreography is about to throw it
+  // activation with confetti, unless the choreography is about to throw it
   // anyway. `optimisticPaid` is set in the same tick as `playCelebration`, so
   // without that guard this always won the race and the celebration opened
   // with its own finale.
@@ -355,7 +355,7 @@
     if (form === lastForm) return;
     lastForm = form;
     if (!form) return;
-    // A form result means the action did not redirect to Tebex — re-enable the
+    // A form result means the action did not redirect to Tebex, so re-enable the
     // buttons instead of leaving them stuck on the loading state, and drop the
     // cancel confirmation so its error surfaces as a toast.
     launching = false;
@@ -364,7 +364,7 @@
     cancelling = false;
     cancelDialogOpen = false;
     if (form.error) toast('err', String(form.error));
-    // A gift error re-renders the whole page (plain POST), losing the modal —
+    // A gift error re-renders the whole page (plain POST), losing the modal:
     // reopen it and repopulate the fields the action echoed back.
     if (form.gift) {
       giftModalOpen = true;
@@ -388,7 +388,7 @@
     {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
   </PageHead>
 
-  <!-- 6. Error / unavailable state — announced (AlertBanner is role="alert"). -->
+  <!-- 6. Error / unavailable state: announced (AlertBanner is role="alert"). -->
   {#if data.degraded}
     <AlertBanner>{t('billing.degraded')}</AlertBanner>
   {/if}
@@ -396,7 +396,7 @@
   {#if !isPaid}
     <!-- ────── SELECTION VIEW (free plan) ────── -->
 
-    <!-- 1. Current plan + status — TEXT, announced on change. -->
+    <!-- 1. Current plan + status: TEXT, announced on change. -->
     <p class="plan-status" role="status">
       <span class="ps-label">{t('billing.currentPlan')}</span>
       <span class="ps-value">{statusLabel}</span>
@@ -414,7 +414,7 @@
           <span class="plan-per">{t('billing.priceForever')}</span>
         </p>
         <p class="plan-desc">{t('billing.freeDesc')}</p>
-        <!-- 4. Features — semantic list. -->
+        <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each freeFeatures as feature}
             <li><Icon name="check" size={15} />{feature}</li>
@@ -433,13 +433,13 @@
           <span class="plan-per">{t('billing.perMonth')}</span>
         </p>
         <p class="plan-desc">{t('billing.premiumDesc')}</p>
-        <!-- 4. Features — semantic list. -->
+        <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each premiumFeatures as feature}
             <li><Icon name="check" size={15} />{feature}</li>
           {/each}
         </ul>
-        <!-- 2. Primary billing action — the ONE primary on the page. -->
+        <!-- 2. Primary billing action: the ONE primary on the page. -->
         <div class="plan-buttons">
           <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={onSubscribeSubmit}>
             <input type="hidden" name="plan" value="monthly" />
@@ -480,7 +480,7 @@
         <div class="premium-hero-badge">
           <img src="/premium-logo.png" alt="" />
         </div>
-        <!-- 1. Current plan + status — TEXT, announced on change. -->
+        <!-- 1. Current plan + status: TEXT, announced on change. -->
         <div class="premium-hero-text" role="status">
           <span class="premium-eyebrow">{t('billing.currentPlan')}</span>
           <h2 class="premium-title">{statusLabel}</h2>
@@ -514,13 +514,13 @@
       <div class="premium-hero-actions">
         {#if canManage}
           <div class="premium-actions-row">
-            <!-- 2. Primary billing action — the ONE primary. -->
+            <!-- 2. Primary billing action: the ONE primary. -->
             <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
               <Button type="submit" variant="primary" loading={managing} aria-describedby="manage-note">
                 {t('billing.manageSubscription')}
               </Button>
             </form>
-            <!-- 5. Cancellation — confirmed first via ConfirmDialog. -->
+            <!-- 5. Cancellation: confirmed first via ConfirmDialog. -->
             <Button variant="destructive" onclick={openCancel}>
               {t('billing.cancelSubscription')}
             </Button>
@@ -533,7 +533,7 @@
       </div>
     </div>
 
-    <!-- 4. Features — what the current plan includes. -->
+    <!-- 4. Features: what the current plan includes. -->
     <section class="premium-includes">
       <h3 class="includes-h">{t('billing.premiumIncludes')}</h3>
       <ul class="plan-feats plan-feats--flow">

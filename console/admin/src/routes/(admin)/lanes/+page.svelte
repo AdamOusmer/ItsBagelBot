@@ -247,7 +247,7 @@
                 {/if}
               </div>
             </div>
-            <span class="lsubject" title={l.subject}>{l.subject || '—'}</span>
+            <span class="lsubject" title={l.subject}>{l.subject || '-'}</span>
             <span class="num {l.pending > 0 ? 'hot' : ''}">{l.pending.toLocaleString()}</span>
             <span class="num">{l.inFlight}</span>
             <span class="num">{l.rate}</span>

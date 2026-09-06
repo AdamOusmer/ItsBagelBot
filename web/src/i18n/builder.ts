@@ -7,7 +7,7 @@
 // dynamic tokens in app/twitch/sesame/module/vars.go, module reply tokens in each
 // app/twitch/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
 // (mirrored by console/shared/lib/commands-validate.ts). If a token isn't
-// expanded there, it doesn't belong here — the bot leaves unknown braces
+// expanded there, it doesn't belong here, the bot leaves unknown braces
 // as literal text.
 
 import { defaultLang, type Lang } from './ui';
@@ -444,7 +444,7 @@ export const SURFACES: SurfaceDef[] = [
     vars: [
       v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
       v('{opponent}', 'lowk3y_', { en: 'Opponent', fr: 'Adversaire' }, { en: 'The other player in that match.', fr: "L'autre joueur de ce match." }),
-      v('{result}', 'won', { en: 'Result', fr: 'Résultat' }, { en: 'Win, loss or draw — forfeits and decay matches are called out too.', fr: 'Victoire, défaite ou nul — les forfaits et matchs de déclin sont aussi signalés.' }),
+      v('{result}', 'won', { en: 'Result', fr: 'Résultat' }, { en: 'Win, loss or draw. Forfeits and decay matches are called out too.', fr: 'Victoire, défaite ou nul. Les forfaits et matchs de déclin sont aussi signalés.' }),
       v('{time}', '11:03.135', { en: 'Time', fr: 'Temps' }, { en: "The match's completion time, when it reached one.", fr: "Le temps de fin du match, s'il y en a un." }),
       v('{seed}', 'Desert Temple', { en: 'Seed', fr: 'Seed' }, { en: 'The seed type for that match.', fr: 'Le type de seed de ce match.' }),
       v('{structure}', 'Treasure', { en: 'Structure', fr: 'Structure' }, { en: 'The bastion structure type for that match.', fr: 'Le type de structure du bastion pour ce match.' }),
@@ -612,8 +612,8 @@ export function builderRecipes(lang: Lang): { label: string; text: string }[] {
 // UI copy for the builder page chrome, both locales.
 const UI = {
   metaTitle: {
-    en: 'Command Builder — ItsBagelBot',
-    fr: 'Constructeur de commandes — ItsBagelBot',
+    en: 'Command Builder - ItsBagelBot',
+    fr: 'Constructeur de commandes - ItsBagelBot',
   },
   metaDesc: {
     en: 'Build powerful ItsBagelBot commands without the syntax: click variables, watch a live chat rehearsal, then send the finished command straight to your dashboard.',
@@ -652,7 +652,7 @@ const UI = {
     fr: 'Une variable est un espace réservé. Écrivez «Bonjour {user}» et si Maya l’utilise, le bot dit «Bonjour Maya». Gardez les deux accolades telles quelles; une variable inconnue reste du texte littéral.',
   },
   previewTitle: { en: 'Live rehearsal', fr: 'Répétition en direct' },
-  // Rehearsal chrome — word-for-word the dashboard's chatPreview catalog
+  // Rehearsal chrome: word-for-word the dashboard's chatPreview catalog
   // (console/shared/lib/i18n/{en,fr}.ts), so the builder reads as the same
   // surface reaching out onto the marketing site.
   rehearsal: { en: 'Chat rehearsal', fr: 'Répétition du chat' },

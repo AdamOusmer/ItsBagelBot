@@ -5,8 +5,8 @@
 // as a JSON array where RFC 6749 §5.1 (and oauth4webapi) require a string.
 // The exchange itself succeeded, then parsing threw OperationProcessingError
 // on every login. These tests run the REAL library parser over Twitch-shaped
-// bodies, so a future oauth4webapi bump that changes strictness — or a future
-// Twitch fix that removes the quirk — surfaces here instead of at login.
+// bodies, so a future oauth4webapi bump that changes strictness (or a future
+// Twitch fix that removes the quirk) surfaces here instead of at login.
 import { describe, expect, it } from 'bun:test';
 import {
   processAuthorizationCodeResponse,

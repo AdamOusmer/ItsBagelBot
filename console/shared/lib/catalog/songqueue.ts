@@ -30,7 +30,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   commands: [
     {
       trigger: '!sr',
-      summary: 'Show now playing, or queue a track by name, artist – song, or Spotify link.'
+      summary: 'Show now playing, or queue a track by name, "artist - song", or a Spotify link.'
     },
     { trigger: '!remove', summary: 'Take back your queued request, or drop a position as a mod.' },
     {

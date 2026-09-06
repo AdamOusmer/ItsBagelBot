@@ -5,7 +5,7 @@
   // counters. The bound `value` is the wire format: a newline-delimited string,
   // one line per chat message.
   //
-  // maxLines > 1 renders one field per message with an "Add line" button —
+  // maxLines > 1 renders one field per message with an "Add line" button:
   // each field is one chat message the bot will send (commands allow up to 5).
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
@@ -20,7 +20,7 @@
   type PaletteToken = { token: string; hint?: string; label?: string };
 
   // Mirrors the set sesame's expandCommand + ParseDynamic actually expand
-  // (app/twitch/sesame/engine/vars.go) — a token offered here must render in chat.
+  // (app/twitch/sesame/engine/vars.go): a token offered here must render in chat.
   const DEFAULT_TOKENS: PaletteToken[] = [
     { token: '{user}', hint: 'commandEditor.tokUser' },
     { token: '{target}', hint: 'commandEditor.tokTarget' },
@@ -46,7 +46,7 @@
     tokens?: PaletteToken[];
     placeholder?: string;
     maxLines?: number;
-    // The channel's saved data sources. Supplied only on the command surface —
+    // The channel's saved data sources. Supplied only on the command surface:
     // module replies and rewards have no defs to pick, and the chip hides
     // itself there via pickerOn rather than rendering an empty menu.
     fetchDefs?: SourceDef[];
@@ -110,7 +110,7 @@
     focusField(focused);
   }
 
-  // A field is one message: Enter never inserts a newline — with room left it
+  // A field is one message: Enter never inserts a newline, with room left it
   // adds the next field instead; Backspace on an empty field folds it away.
   function onKeydown(e: KeyboardEvent, i: number) {
     if (e.key === 'Enter') {

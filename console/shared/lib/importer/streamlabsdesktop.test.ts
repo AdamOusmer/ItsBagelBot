@@ -145,7 +145,7 @@ const fullSpec: Spec = {
   ],
   timers: ['Follow $mychannel for $randnum(60) minute drops!', '$count uses and counting!'],
   quotes: [
-    ['I am a cat! – AnkhHeart', '01/02/2015 3:04 PM'],
+    ['I am a cat! - AnkhHeart', '01/02/2015 3:04 PM'],
     ['Duct tape solves all problems!', '2015-06-07 08:09:10'],
     ['Unparseable date quote', 'not a date at all']
   ]
@@ -192,7 +192,7 @@ const unitSpec: Spec = {
   ...fullSpec,
   commands: fullSpec.commands!.filter((c) => c.name !== '!quote'),
   quotes: [
-    ['I am a cat! – AnkhHeart', '01/02/2015 3:04 PM'],
+    ['I am a cat! - AnkhHeart', '01/02/2015 3:04 PM'],
     ['Unparseable date quote', 'not a date at all']
   ]
 };
@@ -268,7 +268,7 @@ describe('schema fallbacks', () => {
     db.run(`CREATE TABLE Timer (Message TEXT)`);
     const r = await parseStreamLabsDesktop(db.export());
     // The singular spelling satisfies the timer candidates, so no timers
-    // section diagnostic fires — exactly like the Go fixture asserts.
+    // section diagnostic fires, exactly like the Go fixture asserts.
     expect(r.manifest.timers).toBeUndefined();
     expect(r.diagnostics.some((d) => d.message.includes('"timers"'))).toBe(false);
     expect(r.diagnostics.some((d) => d.message.includes('"commands"'))).toBe(true);

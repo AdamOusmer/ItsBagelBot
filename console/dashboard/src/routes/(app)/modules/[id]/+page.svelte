@@ -15,7 +15,7 @@
   const { t } = getI18n();
   const def = $derived(data.def);
   // A module with no editable replies (its lines are fixed system text, e.g. the
-  // play queue) shows only its read-only command list — no builder inspector.
+  // play queue) shows only its read-only command list: no builder inspector.
   const hasReplies = $derived(def.replies.length > 0);
   const parentDef = $derived(def.parent ? moduleDef(def.parent) : undefined);
 
@@ -36,7 +36,7 @@
   const isTriggers = $derived(def.id === MOD.triggers);
   // svelte-ignore state_referenced_locally
   let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
-  // The inspector column exists for any module that has an editable ledger —
+  // The inspector column exists for any module that has an editable ledger:
   // fixed replies or the dynamic trigger list.
   const hasInspector = $derived(isTriggers || hasReplies);
   // Whether there is any deck at all (replies, triggers, or a read-only command
@@ -382,7 +382,7 @@
 
   async function saveRule() {
     if (ruleIndex === null) return;
-    // Phrases are stored as structured JSON now, so any characters are safe —
+    // Phrases are stored as structured JSON now, so any characters are safe:
     // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
     const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
@@ -542,9 +542,12 @@
         <span class="tr-help">{t('modules.enabledHelp')}</span>
       </div>
       {#if data.locked}
-        <span class="status-text">{t('modules.betaLocked')}</span>
+        <span class="status-text bb-tag bb-tag--quiet"><i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>{t('modules.betaLocked')}</span>
       {:else}
-        <span class="status-text" class:on={enabled}>{enabled ? t('modules.statusOn') : t('modules.statusOff')}</span>
+        <span class="status-text bb-tag {enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
+          <i class="bb-mark {enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
+          {enabled ? t('modules.statusOn') : t('modules.statusOff')}
+        </span>
         <SaveStatus state={modStatus['module'] ?? 'idle'} />
         <Switch
           checked={enabled}
@@ -794,15 +797,10 @@
   .tr-label { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
   .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  /* Status word — never colour alone: the text says On/Off, colour only tints. */
-  .status-text {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .status-text.on { color: var(--bb-green-glow, #52b788); }
+  /* Status word, never colour alone: the text says On/Off and the mark goes
+     solid/hollow; the global live/quiet label only tints it. The Switch beside
+     it keeps its own pill: that one is a control, not a status. */
+  .status-text { flex: none; }
 
   /* A disabled module stays fully readable: no page-wide dimming, just a note
      spelling out that the lists below are inactive until it is turned on. */

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Builder inspector for one module reply — the same surface as editing a custom
+  // Builder inspector for one module reply, the same surface as editing a custom
   // command's response: the shared ResponseEditor (message + token chips) and the
   // ChatPreview rehearsal (ItsBagelBot name + logo).
   //
@@ -9,8 +9,8 @@
   //  - event replies (shoutout, alerts): framed by the firing event (`tag`),
   //    bot line only.
   //  - command replies (gossip modules: reply.command set): same surface as a
-  //    custom command — "Chat rehearsal" border, a sample viewer typing the
-  //    trigger — and the token palette swaps to the reply's supported variables.
+  //    custom command ("Chat rehearsal" border, a sample viewer typing the
+  //    trigger), and the token palette swaps to the reply's supported variables.
   // Both rehearse with kind="reply": ONLY this reply's previewSamples (plus the
   //    dynamic tokens) substitute, so foreign tokens stay marked as unknown.
   //
@@ -63,7 +63,7 @@
   {#if isCommand}
     <!-- Same surface as the commands page: viewer types the trigger, the bot
          answers. kind="reply" because sesame expands only this reply's own
-         tokens (plus {random}/{choice:…}) — never the command set. -->
+         tokens (plus {random}/{choice:…}): never the command set. -->
     <ChatPreview
       kind="reply"
       name={reply.command}

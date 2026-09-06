@@ -44,7 +44,7 @@ export const STATUS_PREFIX = SUB.status;
 // user:<id> also covers user-login: only via the coarse 'users:'-adjacent
 // prefixes below; login-keyed lookups decay by policy (5s fresh).
 // commands/modules/delegation fire on every dashboard save and admin caches
-// none of that data — explicit no-ops so they don't churn user keys.
+// none of that data: explicit no-ops so they don't churn user keys.
 const SCOPES: ScopeMap = {
   status: (id) => ['users:', `user:${id}`, `token:${id}`],
   grant: (id) => ['users:', `user:${id}`, `token:${id}`],
@@ -157,7 +157,7 @@ function isDigits(s: string): boolean {
 }
 
 // Dual-key lookup (numeric id vs. login) plus a write-through side-set of the
-// canonical user:<id> key on a login hit — the factory's single cache-key shape
+// canonical user:<id> key on a login hit: the factory's single cache-key shape
 // doesn't fit this cleanly, so it stays hand-written.
 export async function userLookup(q: string): Promise<AdminUserWire> {
   const req = isDigits(q) ? { user_id: q } : { username: q };
@@ -408,7 +408,7 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
 //
 // The responder is no longer a no-op: it answers with the service's real health
 // report, so a sibling service can fold it into a public /status. It is still
-// side-effect-free — every check is a read — but the number here is no longer a
+// side-effect-free (every check is a read), but the number here is no longer a
 // pure transport measurement, and a service whose own checks are slow will show
 // that latency rather than only the round trip. The responder caches its report
 // for a second (rpcHealthTTL in pkg/bus), which is what keeps this panel's

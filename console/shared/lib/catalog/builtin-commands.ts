@@ -6,7 +6,7 @@ import type { Perm } from '../types';
 // --- Built-in command catalog --------------------------------------------
 // Built-in commands are behaviors baked into the bot (not user text). They show
 // on the commands page alongside custom commands, flagged builtin, but they
-// cannot be renamed, deleted, or given a custom response — only toggled on/off.
+// cannot be renamed, deleted, or given a custom response: only toggled on/off.
 // Their per-user on/off state lives in the modules service under `id` (a missing
 // row means defaultActive). Adding one is a row here + the matching sesame
 // built-in module. They are deliberately NOT in MODULE_CATALOG (never shown on
@@ -23,7 +23,7 @@ export interface BuiltinCommandDef {
   // usage lists example invocations shown in the inspector.
   usage: string[];
   // preview is the bot REPLY template, rendered through ChatPreview (as a
-  // reply rehearsal: only previewSamples substitute — built-in replies are
+  // reply rehearsal: only previewSamples substitute, built-in replies are
   // bare token replacers with no dynamic tokens or slash-verb routing).
   // previewArgs is what the viewer types after the trigger.
   preview: string;

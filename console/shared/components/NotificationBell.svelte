@@ -2,8 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Topbar notification bell: unread badge + an anchored dropdown of recent
-  // items (not a centered modal — notifications are a glance, not a task).
-  // Presentational only — the host page owns fetching/caching the list and
+  // items (not a centered modal, notifications are a glance, not a task).
+  // Presentational only: the host page owns fetching/caching the list and
   // wiring onMarkRead to its own form action (mark-read semantics differ
   // between the dashboard, which tracks per-user read state, and admin,
   // which has none and passes no onMarkRead at all).
@@ -59,6 +59,16 @@
   // Suppress the badge only for peek-capable hosts (dashboard); the admin bell
   // has no per-user read state and keeps its badge behavior unchanged.
   const showBadge = $derived(unreadCount > 0 && !(onOpen && peeked));
+
+  // Severity -> shared .bb-tag variant. Same map as the settings notification
+  // list, so one level reads identically in both surfaces. No variant is red,
+  // so critical takes --alpha plus the danger colour below.
+  const LEVEL_TAG: Record<string, string> = {
+    info: 'bb-tag--quiet',
+    success: 'bb-tag--live',
+    warning: 'bb-tag--pre',
+    critical: 'bb-tag--alpha'
+  };
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') open = false; }} />
@@ -73,7 +83,7 @@
     onclick={toggle}
   >
     <Icon name="bell" size={16} />
-    {#if showBadge}<span class="badge">{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
+    {#if showBadge}<span class="bb-tag bb-tag--bare badge"><i class="bb-mark" aria-hidden="true"></i>{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
   </button>
 
   {#if open}
@@ -97,7 +107,7 @@
         <div class="items">
           {#each notifications as n (n.id)}
             <div class="item" class:unread={!n.read}>
-              <span class="level {n.level}">{n.level}</span>
+              <span class="bb-tag {LEVEL_TAG[n.level] ?? 'bb-tag--quiet'} level {n.level}">{n.level}</span>
               <div class="text">
                 <b>{n.title}</b>
                 <p>{n.body}</p>
@@ -126,12 +136,12 @@
   .icon-btn:hover, .icon-btn.open { border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); color: var(--bb-tan-pale); }
   .icon-btn.open { background: rgba(201, 168, 124, 0.1); }
 
+  /* Was a filled 999px counter circle; the count is an indicator, not a
+     control, so it is a bare .bb-tag with a .bb-mark beside the number. */
   .badge {
-    position: absolute; top: -5px; right: -5px;
-    min-width: 16px; height: 16px; padding: 0 4px;
-    border-radius: 999px; background: var(--bb-tan, #c9a87c); color: #0a0a0a;
-    font-family: var(--bb-font-body); font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center;
-    box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.85);
+    position: absolute; top: -7px; right: -11px;
+    gap: 4px; font-size: 9.5px; letter-spacing: 0.08em;
+    color: var(--bb-tan, #c9a87c); pointer-events: none;
   }
 
   .scrim { position: fixed; inset: 0; z-index: 89; }
@@ -178,14 +188,10 @@
   .text b { font-family: var(--bb-font-body); font-size: 13.5px; color: var(--bb-white); }
   .text p { margin: 4px 0 0; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
 
-  .level {
-    font-family: var(--bb-font-body); font-weight: 600; font-size: 10px;
-    padding: 3px 9px; border-radius: var(--bb-radius-pill, 100px); border: 1px solid transparent; white-space: nowrap;
-  }
-  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--bb-border); }
-  .level.success { background: rgba(82,183,136,0.12); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.3); }
-  .level.warning { background: rgba(201,168,124,0.12); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.3); }
-  .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
+  /* Pill triad retired: the .bb-tag variants above carry info/success/warning.
+     Only the layout and critical's red survive as scoped rules. */
+  .level { font-size: 10px; white-space: nowrap; }
+  .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
 
   .btn.sm { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
 

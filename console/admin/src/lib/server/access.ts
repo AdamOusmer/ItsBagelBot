@@ -48,7 +48,7 @@ export function canManage(actor: AdminRole, target: AdminRole): boolean {
 // callback (tailnet-driven); auth.check confirms allowlist membership + role.
 // DEMO mode returns a synthetic owner so the console runs without OAuth + NATS.
 //
-// Caching is adminCheck's (fabric, `auth:<id>`, 5s fresh) — no separate cache
+// Caching is adminCheck's (fabric, `auth:<id>`, 5s fresh). No separate cache
 // here. The old private 30s Map gave a revoked admin up to 30s of stale access
 // per replica with no invalidation path; adminCheck's key is evicted by the
 // 'staff' invalidation scope, so staff changes revoke access on every replica

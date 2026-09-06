@@ -56,7 +56,7 @@
     onSubmit: SubmitFunction;
     // Edit: live row enabled state. The inspector Switch posts the same toggle
     // as the row so Active is not a draft field (#221). Create still uses the
-    // checkbox below — there is no row yet.
+    // checkbox below: there is no row yet.
     liveActive?: boolean;
     onToggleActive?: (next: boolean) => void;
   } = $props();
@@ -82,7 +82,7 @@
     try {
       sessionStorage.setItem(key, current);
     } catch {
-      /* storage full/unavailable — drafts are best-effort */
+      /* storage full/unavailable: drafts are best-effort */
     }
   });
 
@@ -106,7 +106,7 @@
 </script>
 
 <!-- novalidate: the shared validator owns validation (inline FieldError copy),
-     not the browser's native tooltips — enhance must always run. The fields
+     not the browser's native tooltips. enhance must always run. The fields
      scroll; the EditorFooter stays pinned so Save/Cancel never fall below the
      fold. -->
 <form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit}>

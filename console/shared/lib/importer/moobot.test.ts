@@ -4,7 +4,7 @@
 // Golden PARITY test: the browser-side Moobot parser (moobot.ts) was a port of
 // app/importer/source/moobot, which was deleted when the importer service
 // folded into the dashboard (2026-08-23). This suite replays the fixture
-// corpus through the port and asserts the outputs match the committed golden —
+// corpus through the port and asserts the outputs match the committed golden:
 // same manifest bytes, same detect verdict, same diagnostic
 // {severity,item_index,code} sequence. The corpus passed against the Go
 // implementation byte-for-byte before that implementation was removed; the
@@ -45,7 +45,7 @@ const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH));
 
 // Corpus mirrors goldenCorpus() in app/importer/source/moobot/golden_test.go,
 // rebuilt semantically (Go mutates via map[string]any + re-marshal; key order
-// differs but content — all we compare — is identical).
+// differs but content, all we compare, is identical).
 function corpus(): Map<string, Uint8Array> {
   const raw = readFileSync(FIXTURE_PATH, 'utf8');
   const doc = JSON.parse(raw) as Record<string, unknown>;
@@ -228,7 +228,7 @@ describe('urlfetch mapping', () => {
   test('slug collisions with existing channel items surface via CollisionRef', () => {
     const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', 'weather'));
     // The slug itself ("moobot_weather") is the name that could clash with an
-    // existing item — a plain "weather" command on the channel does not.
+    // existing item, a plain "weather" command on the channel does not.
     expect(findCollisions(['moobot_weather'], manifest)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
     // The imported command "weather" would of course collide with itself on
     // the channel; only an unrelated existing list stays fully clean.

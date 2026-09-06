@@ -8,19 +8,19 @@
   // The shell is the marketing site's instrument panel (QuietWork Cards,
   // variant 3a). Two shapes:
   //  - Flat: one plate; `atmosphere` opts into the arc + sheen light.
-  //  - Banded: pass a `band` snippet and the card grows a housing — a darker
+  //  - Banded: pass a `band` snippet and the card grows a housing: a darker
   //    page-ink band on top holding the visual, with the atmosphere and the
   //    mono `label` inset in its corner; `children` render below on the card
   //    plate inside a padded body. Banded cards wrap children in a body box,
   //    so flex-on-root cards (loyalty's .status-row, the importer's .stepper)
   //    must stay flat.
   //
-  // `atmosphere` is OFF by default. It belongs to the PUBLIC surfaces only —
+  // `atmosphere` is OFF by default. It belongs to the PUBLIC surfaces only:
   // the stats page, channel leaderboards, /user/[channel]. Signed-in
   // dashboard pages stack many cards per screen and the light reads as noise
   // there, so they stay flat ink. Do not enable it inside (app).
   //
-  // `hover` keeps the interactive language — border brighten, small lift, and
+  // `hover` keeps the interactive language: border brighten, small lift, and
   // the atmosphere's opacity bump. It is opt-in because the console stacks
   // dense non-interactive panels that must not react to a passing cursor.
   //
@@ -29,7 +29,7 @@
   // two sites with different hover languages.
   //
   // `as` picks the tag so a card can stay a landmark. Pages that need a
-  // <section> with aria-labelledby must pass as="section" — rendering it as a
+  // <section> with aria-labelledby must pass as="section": rendering it as a
   // bare <div> silently drops the labelled region from the a11y tree.
   import type { Snippet } from 'svelte';
   import CardAtmosphere from './CardAtmosphere.svelte';
@@ -80,7 +80,7 @@
   }
   /* Stacking context only where it is needed: it keeps the atmosphere's
      z-index:-1 between this card's background and its content instead of
-     letting it escape to the page. Flat cards must not create one — an
+     letting it escape to the page. Flat cards must not create one: an
      inspector's sticky panel and the overlay stack sit above them. Banded
      cards isolate the BAND instead, so the housing ink paints under the
      light but the card root stays context-free. */
@@ -95,7 +95,7 @@
     padding: 0;
   }
 
-  /* 3a housing: the band is a fixture the visual sits in — page-ink
+  /* 3a housing: the band is a fixture the visual sits in: page-ink
      background, hairline seam, atmosphere contained.
 
      A FIXED height, never a min-height: banded cards sit side by side in a
@@ -151,7 +151,7 @@
      handed. Written as `.card.banded > .card__body` it scored 0,4,0 and beat
      every page's own `.tiles .card__body` (0,3,0): the stats tiles asked for
      a flex column with a gap, silently got this `display: block` instead, and
-     their gap stopped existing — which is how the counter's rate line ended
+     their gap stopped existing, which is how the counter's rate line ended
      up printed through the digits. The defaults below stay defaults. */
   :where(.card.banded) > :where(.card__body) {
     position: relative;

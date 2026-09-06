@@ -49,16 +49,16 @@
                is legible from the list. -->
           <span class="tags">
             {#if r.maxPerStreamEnabled && r.maxPerStream === 1}
-              <span class="tag">{t('channelpoints.chipOnce')}</span>
+              <span class="bb-tag bb-tag--bare">{t('channelpoints.chipOnce')}</span>
             {:else if r.maxPerStreamEnabled}
-              <span class="tag">{t('channelpoints.chipPerStream', { n: r.maxPerStream })}</span>
+              <span class="bb-tag bb-tag--bare">{t('channelpoints.chipPerStream', { n: r.maxPerStream })}</span>
             {/if}
-            {#if r.maxPerUserPerStreamEnabled}<span class="tag">{t('channelpoints.chipPerUser', { n: r.maxPerUserPerStream })}</span>{/if}
-            {#if r.globalCooldownEnabled}<span class="tag">{t('channelpoints.chipCooldown', { n: r.globalCooldownSeconds })}</span>{/if}
-            {#if r.isUserInputRequired}<span class="tag">{t('channelpoints.chipInput')}</span>{/if}
-            {#if r.onRedeem === 'cancel'}<span class="tag">{t('channelpoints.chipRefund')}</span>{/if}
-            {#if r.counter}<span class="tag">{t('channelpoints.chipCounterName', { name: r.counter })}</span>{/if}
-            {#if r.points > 0}<span class="tag">{t('channelpoints.chipPointsAward', { n: r.points })}</span>{/if}
+            {#if r.maxPerUserPerStreamEnabled}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipPerUser', { n: r.maxPerUserPerStream })}</span>{/if}
+            {#if r.globalCooldownEnabled}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipCooldown', { n: r.globalCooldownSeconds })}</span>{/if}
+            {#if r.isUserInputRequired}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipInput')}</span>{/if}
+            {#if r.onRedeem === 'cancel'}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipRefund')}</span>{/if}
+            {#if r.counter}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipCounterName', { name: r.counter })}</span>{/if}
+            {#if r.points > 0}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipPointsAward', { n: r.points })}</span>{/if}
           </span>
         </span>
         <span class="resp">
@@ -71,7 +71,8 @@
         <!-- Cost + visibility STATE as labelled TEXT (never colour alone). -->
         <span class="meta">
           <span class="cost"><span class="sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
-          <span class="state-tag {r.isEnabled ? 'on' : 'off'}">
+          <span class="bb-tag {r.isEnabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
+            <i class="bb-mark {r.isEnabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
             {r.isEnabled ? t('channelpoints.stateVisible') : t('channelpoints.stateHidden')}
           </span>
         </span>
@@ -126,16 +127,9 @@
   }
   .swatch :global(svg) { stroke-width: 1.8; }
 
-  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
-  .tag {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    color: var(--bb-muted);
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-radius: 8px;
-    padding: 1px 6px;
-    white-space: nowrap;
-  }
+  /* Was a row of bordered 8px-radius pills; the tags now use the global
+     .bb-tag--bare labels, so the gap carries the separation, not a frame. */
+  .tags { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .resp {
     font-family: var(--bb-font-body);
     font-size: 13px;
@@ -156,20 +150,6 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .state-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 9.5px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-radius: var(--bb-radius-pill, 100px);
-    padding: 1px 8px;
-    white-space: nowrap;
-  }
-  .state-tag.on { color: var(--bb-green-glow, #52b788); border-color: rgba(82, 183, 136, 0.4); }
-  .state-tag.off { color: var(--bb-muted); }
-
   .mini {
     display: inline-flex;
     align-items: center;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-  // Key custody card for urlfetch definitions — the Govee/Spotify custody
+  // Key custody card for urlfetch definitions: the Govee/Spotify custody
   // model: values are write-only (sent once, never rendered back or
   // prefilled), lists show label + last4 only, and rotation is re-entering a
   // value against an existing label. Deleting a key is confirmed inline with
@@ -173,7 +173,7 @@
 <small class="note">{t('fetches.keyNote')}</small>
 
 <!-- No undo toast here: unlike command deletes there is no snapshot to
-     restore from — a deleted key is destroyed server-side. -->
+     restore from: a deleted key is destroyed server-side. -->
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('fetches.keyDeleteTitle', { label: deleteTarget?.label ?? '' })}

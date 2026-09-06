@@ -32,7 +32,7 @@
       "accessLevel": 100,
       "_id": "5c0a5172de9a4c5b7da14df2",
       "regex": "",
-      "reply": "$(urlfetch https://api.q.example/random) — no wait: ${urlfetch https://api.q.example/random}",
+      "reply": "$(urlfetch https://api.q.example/random), no wait: ${urlfetch https://api.q.example/random}",
       "command": "quote",
       "channel": "5b2e2007760aeb7729487dab",
       "createdAt": "2026-01-02T00:00:00.000Z",

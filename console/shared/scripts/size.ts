@@ -1,5 +1,5 @@
 /**
- * Bundle size gate for @bagel/shared — the bolota pattern (bolota/scripts/
+ * Bundle size gate for @bagel/shared: the bolota pattern (bolota/scripts/
  * size.ts) applied to the entries the console apps bundle rather than
  * externalise.
  *
@@ -14,7 +14,7 @@
  * headroom over the measurement: gzip output differs slightly by platform
  * (bolota once failed CI on a ~100 B linux/x64 vs macOS/arm64 delta with no
  * source change). Raising one is allowed and expected when a feature
- * genuinely costs bytes — record what grew, the measured figure, and the
+ * genuinely costs bytes: record what grew, the measured figure, and the
  * room left, in a comment next to the number, in the same commit.
  */
 
@@ -34,7 +34,7 @@ const ENTRIES: {
     // 2026-08-24: 18577 B gzip at introduction of this gate (parser ported
     // from the Go importer service when it folded into the dashboard; the
     // engine-split refactor of PR #648 is inside this number). Largest row
-    // here and client-facing — the first candidate for a lazy import if the
+    // here and client-facing: the first candidate for a lazy import if the
     // import page's chunk ever needs to shrink.
     name: "import page (moobot + caps)",
     budget: 19100,
@@ -51,7 +51,7 @@ const ENTRIES: {
     // Raised from 7750 (2026-08-24) for the urlfetch importer feature: parsing
     // now walks command replies for $(urlfetch ...) tokens and synthesizes
     // deduped ManifestFetch entries (the fetchDefs Map plus the IMPORT_ITEM_CAPS
-    // import pulled in for it), landing at 8007 B gzip on macOS/arm64 — already
+    // import pulled in for it), landing at 8007 B gzip on macOS/arm64, already
     // over the old budget on its own. On top of that this repo's CI runner is
     // linux/x64, which gzips the same bytes ~100-150 B larger than macOS/arm64
     // (see the size-budgets skill); 8420 covers that delta and keeps the usual
@@ -65,13 +65,13 @@ const ENTRIES: {
   {
     // SERVER-SIDE ONLY (see the module's own header): sql.js is a lazy
     // dynamic import precisely so its ~1.5MB wasm never enters a bundle.
-    // sql.js stays external here for the same reason — this row proves the
+    // sql.js stays external here for the same reason: this row proves the
     // module ITSELF stays light, and blows up loudly if the wasm ever becomes
     // a static import someone tries to bundle. Initial measurement
     // 2026-08-24: 8058 B gzip.
     //
     // Raised from 8300 (2026-08-24): the parser itself hasn't grown, still
-    // 8058 B gzip on macOS/arm64, but that left only 242 B (2.9%) of room —
+    // 8058 B gzip on macOS/arm64, but that left only 242 B (2.9%) of room:
     // too thin to survive CI's linux/x64 runner, which gzips the same bytes
     // ~100-150 B larger than macOS/arm64 (see the size-budgets skill). 8460
     // keeps the usual ~3% of room above the linux-side estimate (8058 + 150 =
@@ -118,7 +118,7 @@ for (const entry of ENTRIES) {
 rmSync(DIR, { recursive: true, force: true });
 if (failed) {
   console.error(
-    "\nsize gate failed. If the growth is deliberate, raise the budget in console/shared/scripts/size.ts with what grew, the measured figure, and the room left — in the same commit.",
+    "\nsize gate failed. If the growth is deliberate, raise the budget in console/shared/scripts/size.ts with what grew, the measured figure, and the room left, in the same commit.",
   );
   process.exit(1);
 }

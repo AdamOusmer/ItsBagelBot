@@ -39,7 +39,7 @@
   let iosOpen = $state(false);
   let closeBtn = $state<HTMLButtonElement | null>(null);
 
-  // Already running as an installed PWA — nothing to offer.
+  // Already running as an installed PWA. Nothing to offer.
   function isStandalone(): boolean {
     const nav = window.navigator as Navigator & { standalone?: boolean };
     return window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;

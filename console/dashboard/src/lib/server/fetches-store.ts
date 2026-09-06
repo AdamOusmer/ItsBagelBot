@@ -29,7 +29,7 @@ export interface FetchDefView {
   key_label: string;
 }
 
-/** label + last4 only — the plaintext never comes back over any verb. */
+/** label + last4 only: the plaintext never comes back over any verb. */
 export interface FetchKeyView {
   label: string;
   last4: string;
@@ -57,7 +57,7 @@ export interface FetchDefInput {
   jsonPath: string[];
   isActive: boolean;
   keyLabel: string;
-  // originalName, when set and different from name, renames in place — the
+  // originalName, when set and different from name, renames in place: the
   // upsert shape of dashboard.go's command rename (single row update, not
   // delete-old + create-new).
   originalName?: string;
@@ -151,7 +151,7 @@ export interface FetchTestReply {
   values: string[];
   ms: number;
   /**
-   * Raw upstream body, present only because this call sets DryRun — gossip
+   * Raw upstream body, present only because this call sets DryRun: gossip
    * attaches it so the field picker can render a clickable tree of the real
    * response instead of asking a non-technical author to paste one.
    *
@@ -169,7 +169,7 @@ export interface FetchTestReply {
 const FETCH_TEST_TIMEOUT_MS = 8000;
 
 // rehearseFetch posts the REAL chat-path request with DryRun+Fresh: same
-// subject (bagel.rpc.gossip.custom.fetch), same SSRF gate, same buckets —
+// subject (bagel.rpc.gossip.custom.fetch), same SSRF gate, same buckets:
 // dry_run only skips the emit and the bucket spend, fresh skips the positive
 // cache read so authors see live data.
 //

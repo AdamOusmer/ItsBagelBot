@@ -19,7 +19,7 @@
   // definition feel like a second product you had to go configure before you
   // could write a command; authors did not find it, and the ones who did were
   // met with a builder that asked them to paste raw JSON. Here a data source is
-  // what it actually is — a variable you insert into a reply — so it is created
+  // what it actually is (a variable you insert into a reply) so it is created
   // and picked from inside the command editor, and never named anywhere else.
   //
   // Two surfaces:
@@ -131,7 +131,7 @@
   }
 
   // Fetch one real response so the author can click a value out of it. Sent
-  // with an EMPTY path on purpose — we want the whole document to build a tree
+  // with an EMPTY path on purpose: we want the whole document to build a tree
   // from, and a path the author has not chosen yet would fail validation.
   async function fetchSample() {
     err = '';
@@ -201,7 +201,7 @@
 
   // Delete is two-tap rather than one: the × arms, a second click commits.
   // There is no undo, and the old page guarded this with a full confirm dialog
-  // listing the commands that quote the source — too heavy for a popover, but
+  // listing the commands that quote the source (too heavy for a popover), but
   // deleting on a single stray click would be worse than either.
   let armedDelete = $state('');
 
@@ -240,7 +240,7 @@
        could drop into the reply, and put eight identical pills in one row. -->
   <button
     type="button"
-    class="picker"
+    class="picker bb-chip bb-chip--muted"
     title={t('commandEditor.tokUrlfetch')}
     aria-haspopup="dialog"
     aria-expanded={open}
@@ -364,7 +364,7 @@
       <JsonTree json={sample} onPick={onPickPath} leafTitle={(segs) => `${tokenFor(slug || 'name')} → ${buildJsonPath(segs)}`} />
       <div class="chosen">
         {#if pathPicked && path.length > 0}
-          <span class="chosen-tag">{t('fetches.builderPicked')}</span>
+          <span class="chosen-tag bb-tag bb-tag--bare">{t('fetches.builderPicked')}</span>
           <code>{buildJsonPath(path)}</code>
           <button type="button" class="link" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</button>
         {:else}
@@ -387,20 +387,10 @@
 
   /* Menu trigger, not a token chip: body font and a caret so it reads as
      "opens something" next to the literal {user}/{args} pills. */
-  .picker {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-family: var(--bb-font-body);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    background: transparent;
-    border: 1px solid var(--rule, var(--bb-border));
-    border-radius: 999px;
-    padding: 3px 10px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
-  }
+  /* Frame/sizing come from the global .bb-chip control. The body font is
+     kept deliberately (see the comment on the trigger above): in mono this
+     read as a literal {user}/{args} token rather than a menu. */
+  .picker { gap: 5px; font-family: var(--bb-font-body); color: var(--bb-muted); }
   .picker:hover,
   .picker[aria-expanded='true'] {
     color: var(--bb-white);
@@ -525,7 +515,8 @@
 
   .pick-prompt { margin: 0; font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
   .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-  .chosen-tag { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
+  /* Was a plain muted body run; now the global .bb-tag--bare label. */
+  .chosen-tag { flex: none; }
   /* A deep path is longer than the card is wide; wrap it rather than let it
      push the card's content box out from the inside. */
   .chosen code {

@@ -4,7 +4,7 @@
 import type { Reroute } from '@sveltejs/kit';
 
 // stats.itsbagelbot.com is this same app answering under a second hostname:
-// its root serves the public stats page. This hook is universal — it runs on
+// its root serves the public stats page. This hook is universal: it runs on
 // the server and in the client router alike, so a client-side navigation to
 // '/' on the stats host (the language switch, for one) resolves to the same
 // route the server rendered. Every other path falls through to the normal

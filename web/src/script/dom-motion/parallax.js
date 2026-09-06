@@ -6,8 +6,8 @@
  * the global stylesheet consumes via `translate` and `transform` on top-level
  * page regions (header/main/section/footer) and on the ornaments frame.
  *
- * The motion is intentionally more pronounced than a subtle micro-interaction
- * — the goal is to make the page feel slightly weightless, drifting against
+ * The motion is intentionally more pronounced than a subtle micro-interaction:
+ * the goal is to make the page feel slightly weightless, drifting against
  * the cursor with a soft 3D tilt.
  */
 

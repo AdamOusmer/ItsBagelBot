@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Inline reward editor (create + edit share it), rendered in the page's
-  // docked inspector — the same surface as the command editor. The whole draft
+  // docked inspector, the same surface as the command editor. The whole draft
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';

@@ -21,7 +21,7 @@
   // ~95% of the correction lands within 3τ ≈ 600ms, which reads as a drift
   // rather than a jump.
   const TAU_MS = 200;
-  // Rates are a read-out, not an odometer — settle them a touch more slowly.
+  // Rates are a read-out, not an odometer, so settle them a touch more slowly.
   const RATE_TAU_MS = 300;
   // A throttled tab (or a slept laptop) must not integrate minutes of rate into
   // a single frame.
@@ -63,7 +63,7 @@
 
   type Frame = typeof display;
 
-  // Trajectory bookkeeping — deliberately not $state: it is read and written by
+  // Trajectory bookkeeping, deliberately not $state: it is read and written by
   // the animation frame, never rendered.
   let snapAt = 0; // performance.now() when the current snapshot landed
   let introAt = 0; // start of the 0 -> value rise
@@ -75,7 +75,7 @@
   /**
    * Where the totals should stand *right now*: the last snapshot's numbers plus
    * its rate times the time since it landed. This is what makes the counters
-   * live — between snapshots the display keeps climbing at the fleet's own
+   * live: between snapshots the display keeps climbing at the fleet's own
    * rate instead of sitting still for 2s and then stepping.
    */
   function targetFrame(now: number): Frame {
@@ -206,7 +206,7 @@
       }
     };
     // The boards arrive on their own event so the counter frame keeps its
-    // shape. They are printed as sent — no extrapolation, no chase: a rank is
+    // shape. They are printed as sent, no extrapolation, no chase: a rank is
     // a fact about a moment, not a trajectory.
     es.addEventListener('boards', (ev) => {
       try {
@@ -263,7 +263,7 @@
   const totalFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const rateFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
 
-  const PENDING = '—';
+  const PENDING = '-';
 
   // Split at render time, not in the catalogs: the stagger is presentation, and
   // the headline stays one translatable sentence.
@@ -295,7 +295,7 @@
 
   // Both boards label a channel with the name the fleet stored for it, which is
   // a display name: usually the login with capitals, which the public channel
-  // page lowercases on the way in — but not always (a localized display name
+  // page lowercases on the way in, but not always (a localized display name
   // has no login shape at all). Link by id when the label cannot be one, rather
   // than linking somewhere that 404s.
   const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
@@ -468,8 +468,7 @@
   </section>
 
   <footer class="foot reveal" style="--i:7.5">
-    <span class="pip" aria-hidden="true"></span>
-    <span>{t('stats.liveNote')}</span>
+    <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('stats.liveNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
   </footer>
 </main>
 
@@ -546,8 +545,8 @@
   }
 
   /* The shared Card, scaled up: the numerals are the subject here, so the tile
-     just gets more padding and a column layout. Everything else — surface,
-     hairline border, radius, hover spotlight/lift — is the Card's own. */
+     just gets more padding and a column layout. Everything else (surface,
+     hairline border, radius, hover spotlight/lift) is the Card's own. */
   .tile-wrap { min-width: 0; }
 
   /* The tile is a banded Card: the head lives in the housing band, so the
@@ -558,7 +557,7 @@
     min-width: 0;
   }
   /* 32px icon, or a label wrapped to two lines on a narrow screen, plus the
-     housing's padding — one height for the pair either way. */
+     housing's padding: one height for the pair either way. */
   .tiles :global(.card__band) {
     --card-band-h: calc(70px * var(--d, 1));
     padding: calc(14px * var(--d, 1)) var(--card-pad);
@@ -569,7 +568,7 @@
      wrapped and printed the rate line through the digits.
 
      container-type makes this box the reference for the counter's cqi font
-     size below — the counter has to fit the tile it is in, not the tile it
+     size below: the counter has to fit the tile it is in, not the tile it
      had when the number was shorter. */
   .tiles :global(.card__body) {
     display: flex;
@@ -622,7 +621,7 @@
     /* Sized against the tile, not the viewport, because the counter only ever
        grows. clamp(30px, 5vw, 60px) was set when the total was shorter; by
        2,506,163,926 the number needed 11.32em and no longer fit one line at
-       ANY width — it wrapped mid-group ("2,506,163," / "926") on desktop as
+       ANY width, it wrapped mid-group ("2,506,163," / "926") on desktop as
        well as on a phone.
 
        8cqi is the tile's inline size divided by 12.5, and an eleven-digit
@@ -630,7 +629,7 @@
        which is the wider of the two locales. So the number that wraps is the
        first one past a hundred billion, and the wrap is safe when it comes:
        overflow-wrap below still breaks it and the gap above no longer
-       collapses. Viewport units cannot do this — the tile is one column wide
+       collapses. Viewport units cannot do this: the tile is one column wide
        on a phone and half a grid wide on a desktop at the same vw. */
     font-size: clamp(20px, 8cqi, 60px);
     line-height: 1;
@@ -649,7 +648,7 @@
   }
 
   /* Rate subline: the tile's second number, deliberately a read-out rather than
-     an odometer — same tabular figures, a third of the size. */
+     an odometer, same tabular figures, a third of the size. */
   .rate {
     display: flex;
     align-items: baseline;
@@ -783,7 +782,7 @@
   .chan a:hover, .chan a:focus-visible { color: var(--bb-green-glow); border-bottom-color: currentColor; }
   .unnamed { color: var(--bb-muted); font-style: italic; }
 
-  /* Feed board: one big tan total, then the podium as a list — the ranking is
+  /* Feed board: one big tan total, then the podium as a list, the ranking is
      one number per row, so a table would be three quarters chrome. */
   .feed-total { display: flex; flex-direction: column; gap: 4px; }
   .feed-total .num {
@@ -836,16 +835,6 @@
     text-transform: uppercase;
     color: var(--bb-muted);
   }
-  .pip {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(82, 183, 136, 0.7);
-    animation: blink 2.4s ease-in-out infinite;
-  }
-
-  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
   @media (max-width: 900px) {
     .boards { grid-template-columns: minmax(0, 1fr); }
@@ -855,7 +844,4 @@
     .tiles { grid-template-columns: minmax(0, 1fr); }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .pip { animation: none; }
-  }
 </style>

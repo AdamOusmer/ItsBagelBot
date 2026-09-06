@@ -3,17 +3,17 @@
 
 // CacheFabric: one per-app facade over the hybrid read path.
 //
-//   L1  SwrCache        — in-process, SWR + single-flight + generations.
-//   L2  Valkey readers  — node-local projection, only for keys that have one
+//   L1  SwrCache        : in-process, SWR + single-flight + generations.
+//   L2  Valkey readers  : node-local projection, only for keys that have one
 //                         (tier/account/ban, commands, modules). Admin keys
 //                         have no projection and degrade cleanly to L1-only.
-//   L3  RPC loader      — the caller-supplied load function.
+//   L3  RPC loader      : the caller-supplied load function.
 //
 // The fabric also owns the invalidation-bus wiring (scope map as data) and the
 // New Relic cache metrics, so apps construct one fabric in their services
 // module and stop hand-rolling cached()/invalidate()/listener plumbing.
 //
-// The console never WRITES the Valkey projection — the Go projector owns it.
+// The console never WRITES the Valkey projection: the Go projector owns it.
 // The write half of the hybrid model stays the existing projector `*.replace`
 // RPC push after mutations.
 import newrelic from 'newrelic';
@@ -54,7 +54,7 @@ const NOOP_METRICS: CacheMetrics = {
 };
 
 export interface CacheFabricOptions {
-  /** 'dashboard' | 'admin' — used in metric names. */
+  /** 'dashboard' | 'admin': used in metric names. */
   app: string;
   /** Invalidation-bus routing, declared as data. Must include '*'. */
   scopes: ScopeMap;

@@ -140,11 +140,11 @@ stale-if-error behavior are unchanged.
 
 The detailed documentation lives in [`docs/`](../docs/). Useful starting points include:
 
-- [Current system state](../docs/src/content/docs/reference/system-overview.md) — the authoritative running shape, data plane, and request flow.
-- [Architecture overview](../docs/src/content/docs/architecture/index.md) — system context and external dependencies.
-- [Service registry](../docs/src/content/docs/microservices/index.md) — service ownership and communication boundaries.
-- [RPC contracts](../docs/src/content/docs/reference/rpc-contracts.md) — the NATS request-reply surface.
-- [Architecture decisions](../docs/src/content/docs/adr/index.md) — why the major technical choices were made.
+- [Current system state](../docs/src/content/docs/reference/system-overview.md): the authoritative running shape, data plane, and request flow.
+- [Architecture overview](../docs/src/content/docs/architecture/index.md): system context and external dependencies.
+- [Service registry](../docs/src/content/docs/microservices/index.md): service ownership and communication boundaries.
+- [RPC contracts](../docs/src/content/docs/reference/rpc-contracts.md): the NATS request-reply surface.
+- [Architecture decisions](../docs/src/content/docs/adr/index.md): why the major technical choices were made.
 
 ***
 

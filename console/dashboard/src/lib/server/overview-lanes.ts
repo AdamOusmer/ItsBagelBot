@@ -5,7 +5,7 @@
 // the page loader and the /overview/stream SSE endpoint serve byte-identical
 // shapes from one place. The lanes are the panels whose data changes while
 // the page is open (stream metadata, per-stream counters, chat volume, the
-// activity feed and its answered-tonight fold) — none of which publish cache
+// activity feed and its answered-tonight fold), none of which publish cache
 // invalidations, so the layout's /events stream never fires for them and a
 // snapshot-only read would sit frozen until a manual reload. The SSE endpoint
 // re-reads these lanes on a short tick instead; everything else on the page
@@ -48,7 +48,7 @@ function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real:
 // whole stream: the feed store is hard-capped (50 rows), so these counts cover
 // the rows still in that window, not every command answered since the stream
 // started. A true per-stream total would need a per-command counter, and the
-// counter namespace is system-owned with one registered name per counter — a
+// counter namespace is system-owned with one registered name per counter: a
 // row per broadcaster per trigger is not a schema this can mint.
 function answeredFromFeed(feed: ActivityFeed): AnsweredTonight {
   if (!feed.ok) return degradedAnsweredTonight();

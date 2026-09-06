@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Call-sign strip: with the sidebar gone this is the only chrome above the
-  // content — station mark, route readout, wall clock, and the signed-in
+  // content: station mark, route readout, wall clock, and the signed-in
   // operator. One thin ruled line, everything else is page.
   import type { Snippet } from 'svelte';
   import { afterNavigate } from '$app/navigation';
@@ -66,7 +66,7 @@
   // on any completed navigation (covers back/forward too).
   afterNavigate(() => (menuOpen = false));
 
-  // Local wall-clock readout — the strip's "master control" pulse.
+  // Local wall-clock readout: the strip's "master control" pulse.
   let now = $state('');
   $effect(() => {
     const fmt = () => (now = new Date().toLocaleTimeString(undefined, { hour12: false }));

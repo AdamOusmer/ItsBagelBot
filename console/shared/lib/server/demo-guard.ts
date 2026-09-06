@@ -7,7 +7,7 @@
 // `dev` constant, so a production build carries no demo code at all, and
 // scripts/assert-demo-gated.mjs + scripts/assert-production-clean.ts fail the
 // build if one ever survives. A DEMO that reaches a production image is
-// therefore inert — which is exactly why it must not be ignored: it means an
+// therefore inert, which is exactly why it must not be ignored: it means an
 // operator believes the pod is a demo instance when it cannot be one.
 //
 // The question asked here is deliberately broader than enablement. Turning

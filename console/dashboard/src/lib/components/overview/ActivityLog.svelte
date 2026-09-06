@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // "What the bot just did" — the newest work the bot has done this stream.
+  // "What the bot just did": the newest work the bot has done this stream.
   //
   // Rows are keyed by id so Svelte moves the existing nodes when a new row is
   // pushed onto the head instead of recreating the list; only the arriving row
@@ -44,9 +44,10 @@
   <div class="ov-log__head">
     <h2 id="ov-log-h" class="ov-log__h">{t('overview.botJustDid')}</h2>
     {#if feed.ok && feed.rows.length}
-      <span class="ov-log__live">
-        <span class="ov-dot ov-dot--live" aria-hidden="true"></span>
+      <span class="bb-tag bb-tag--incoming">
+        <i class="bb-mark bb-mark--plus" aria-hidden="true"></i>
         {t('overview.feedLive')}
+        <i class="bb-sweep" aria-hidden="true"></i>
       </span>
     {/if}
   </div>
@@ -60,7 +61,7 @@
       {#each feed.rows as row (row.id)}
         <li class="ov-log__row">
           <span class="ov-log__time">{clockFace(row.at)}</span>
-          <span class="ov-log__chip ov-log__chip--{row.kind}">{t(KIND_LABEL[row.kind])}</span>
+          <span class="bb-tag bb-tag--bare ov-log__chip ov-log__chip--{row.kind}">{t(KIND_LABEL[row.kind])}</span>
           <span class="ov-log__text">{row.text}</span>
           <span class="ov-log__meta">{row.meta}</span>
         </li>
@@ -96,25 +97,8 @@
     color: var(--bb-white);
     margin: 0;
   }
-  .ov-log__live {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-status-success-fg);
-  }
-  .ov-dot--live {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--bb-status-success);
-    box-shadow: 0 0 6px var(--bb-status-success);
-    animation: ov-pulse 2s ease-in-out infinite;
-  }
+  /* .ov-log__live/.ov-dot--live (glowing ov-pulse dot) dropped for the global
+     .bb-tag--incoming label; .bb-sweep carries the motion. */
   .ov-log__list {
     list-style: none;
     margin: 0;
@@ -136,39 +120,27 @@
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }
+  /* Pill fill/border/radius gone: the row is already bordered, so the kind
+     chip is a .bb-tag--bare label. Only layout + colour stay scoped here. */
   .ov-log__chip {
     flex: none;
     min-width: 78px;
-    text-align: center;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-family: var(--bb-font-mono);
+    justify-content: center;
     font-size: 9.5px;
     letter-spacing: 0.12em;
-    text-transform: uppercase;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border);
     color: var(--bb-muted);
   }
   .ov-log__chip--command {
-    background: var(--bb-status-success-bg);
-    border-color: var(--bb-status-success-border);
     color: var(--bb-status-success-fg);
   }
   .ov-log__chip--automod {
-    background: var(--bb-status-error-bg);
-    border-color: var(--bb-status-error-border);
     color: var(--bb-status-error-fg);
   }
   .ov-log__chip--timer,
   .ov-log__chip--reward {
-    background: var(--bb-status-warning-bg);
-    border-color: var(--bb-status-warning-border);
     color: var(--bb-status-warning-fg);
   }
   .ov-log__chip--event {
-    background: var(--bb-status-info-bg);
-    border-color: var(--bb-status-info-border);
     color: var(--bb-status-info-fg);
   }
   .ov-log__text {
@@ -225,9 +197,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .ov-dot--live {
-      animation: none;
-    }
     .ov-log__row {
       animation: none;
     }

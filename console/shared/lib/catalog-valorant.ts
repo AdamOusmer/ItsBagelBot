@@ -14,7 +14,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
   label: 'Valorant Stats',
   tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',
   description:
-    'One command, five looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag") — viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
+    'One command, five looks: !val shows a player\'s competitive standing (tier, RR, last game\'s RR change, peak tier); !val matches lists their recent ranked games as agent K/D/A results; !val account shows who a Riot ID resolves to, with their account level; !val lb prints the top 10 of any regional leaderboard, PC or console; !val shop shows today\'s global skin rotation with VP prices and the reset countdown. The squashed forms !valrank, !valmatches, !valaccount, !vallb and !valshop work too. Link your Riot ID below ("Name#Tag"). Viewers can also name any player, e.g. "!val Frosty#EUW1", and add a shard or ladder anywhere in the line to scope that one lookup ("!val eu Frosty#EUW1", "!val lb console ap"). Leave the region blank and the bot detects the shard from the account itself.',
   icon: 'crosshair',
   category: 'Stats',
   defaultEnabled: false,
@@ -22,7 +22,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
     {
       key: 'rank',
       label: '!val',
-      tagline: 'Competitive standing — !val, !val rank or !valrank.',
+      tagline: 'Competitive standing: !val, !val rank or !valrank.',
       event: '!val',
       command: 'val',
       enableKey: 'rankEnabled',
@@ -100,7 +100,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       label: 'Linked Riot ID',
       type: 'text',
       placeholder: 'Frosty#EUW1',
-      help: 'Default player for every command, as "Name#Tag" — Valorant has no name-only lookup, so the #tag is required.'
+      help: 'Default player for every command, as "Name#Tag". Valorant has no name-only lookup, so the #tag is required.'
     },
     {
       key: 'region',

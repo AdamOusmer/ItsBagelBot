@@ -8,7 +8,7 @@ import { seoHost, type SeoHost } from '$lib/server/seo-hosts';
 //
 // It had to stop being a static file: SvelteKit serves static/ from one build
 // to all four hostnames, so the dashboard's `Disallow: /` was also the answer
-// leaderboard.itsbagelbot.com gave for every channel board it publishes — the
+// leaderboard.itsbagelbot.com gave for every channel board it publishes. The
 // pages exist, render server-side for exactly this reason, and were told to
 // every crawler as off-limits. A static file cannot say four things.
 //
@@ -16,13 +16,13 @@ import { seoHost, type SeoHost } from '$lib/server/seo-hosts';
 // one its URL is handed out under, and disallowed on the other three. The app
 // serves every route on every hostname, so without that the same document is
 // four URLs and search engines pick the winner themselves. /user/<login> is the
-// case that matters — the bot posts commands.itsbagelbot.com/user/<login> in
+// case that matters: the bot posts commands.itsbagelbot.com/user/<login> in
 // chat, so that is its host, and routes/user/[channel] now 308s every other
 // host there. Deliberately NOT also disallowed off-host: a crawler that cannot
 // fetch the URL cannot see the redirect either, and the redirect is the
 // stronger signal. Let it follow.
 
-const DASHBOARD = `# ItsBagelBot Dashboard — https://dashboard.itsbagelbot.com
+const DASHBOARD = `# ItsBagelBot Dashboard: https://dashboard.itsbagelbot.com
 # A private, auth-gated app. Only the public sign-in landing should be indexed;
 # everything else sits behind login and must not be crawled or indexed.
 
@@ -32,12 +32,12 @@ Allow: /login
 Disallow: /
 `;
 
-const STATS = `# ItsBagelBot Stats — https://stats.itsbagelbot.com
+const STATS = `# ItsBagelBot Stats: https://stats.itsbagelbot.com
 # The root IS the public stats page (hooks.ts reroutes '/' to /stats on this
 # host) and is the canonical URL the page declares, so the root is the one
 # document to index. Everything else this host answers is either the same page
 # under its unpinned /stats path, a data or SSE endpoint behind it, or an authed
-# route that redirects to sign-in — none of them search results.
+# route that redirects to sign-in, none of them search results.
 #
 # /sitemap.xml is allowed explicitly: a sitemap that robots.txt disallows cannot
 # be fetched, which would make the Sitemap line below point at a closed door.
@@ -50,7 +50,7 @@ Disallow: /
 Sitemap: https://stats.itsbagelbot.com/sitemap.xml
 `;
 
-const LEADERBOARD = `# ItsBagelBot Leaderboards — https://leaderboard.itsbagelbot.com
+const LEADERBOARD = `# ItsBagelBot Leaderboards: https://leaderboard.itsbagelbot.com
 # One public board per channel at /<login>, each declaring this host in its
 # canonical URL. They are meant to be found, so the default here is Allow.
 #
@@ -79,7 +79,7 @@ Disallow: /readyz
 Disallow: /status
 `;
 
-const COMMANDS = `# ItsBagelBot Commands — https://commands.itsbagelbot.com
+const COMMANDS = `# ItsBagelBot Commands: https://commands.itsbagelbot.com
 # The short host the bot hands out in chat: !cmd answers with
 # commands.itsbagelbot.com/user/<login>, a channel's public command page. That
 # is the only document this host publishes; the app answers its other routes

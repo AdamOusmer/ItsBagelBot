@@ -7,8 +7,8 @@
   // The toggle posts to ?/toggleBuiltin (built-in state lives in the modules
   // service) via the page's shared optimistic toggle handler.
   //
-  // The layout mirrors CommandEditor — same field labels, spacing, and a
-  // rehearsal-style preview card — so switching between a custom command and a
+  // The layout mirrors CommandEditor (same field labels, spacing, and a
+  // rehearsal-style preview card), so switching between a custom command and a
   // built-in in the same docked inspector reads as one consistent surface.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -96,7 +96,7 @@
   </div>
 
   {#if def.editable && replySubmit}
-    <!-- Editable reply: same surface as a custom command — message editor with a
+    <!-- Editable reply: same surface as a custom command: message editor with a
          token palette, then the chat rehearsal. Saved to the modules-service
          config (via ?/saveBuiltinReply), not the commands service. -->
     <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={replySubmit}>
@@ -108,7 +108,7 @@
         <small class="hint">{t('builtinInspector.replyHint')}</small>
       </div>
       <!-- kind="reply": built-in replies are expanded by a bare token replacer
-           (e.g. clipExpand) — only def.previewSamples substitute, no dynamic
+           (e.g. clipExpand), only def.previewSamples substitute, no dynamic
            tokens. Leading slash-verbs still route (outgress sendBotLine). -->
       <ChatPreview
         kind="reply"

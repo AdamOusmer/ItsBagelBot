@@ -15,7 +15,7 @@
 //   commands.itsbagelbot.com    the short host the bot hands out in chat
 //                               (!cmd answers with <host>/user/<login>). Same
 //                               /user/<login> route every hostname serves, on
-//                               a branded name — so this is the one host where
+//                               a branded name, so this is the one host where
 //                               that route is opened to crawlers.
 //
 // All four are declared together in deploy/k8s/console-dashboard.yaml; keep
@@ -23,7 +23,7 @@
 // merely unstyled, it is locked down (see the fallback in seoHost below).
 //
 // Before this existed there was a single static/robots.txt served to all four,
-// written for the dashboard alone — so `Disallow: /` reached the leaderboard and
+// written for the dashboard alone, so `Disallow: /` reached the leaderboard and
 // commands hosts too and told crawlers to skip every channel board and command
 // page they publish. Verified live before the fix: leaderboard.itsbagelbot.com
 // answered 200 for a board and `Disallow: /` for robots.txt in the same breath.
@@ -44,8 +44,8 @@ const KIND_BY_LABEL: Readonly<Record<string, SeoHost>> = {
 };
 
 /**
- * Which of the four surfaces this request landed on. Anything unrecognized —
- * a preview hostname, a raw pod IP, plain localhost — reads as 'dashboard',
+ * Which of the four surfaces this request landed on. Anything unrecognized
+ * (a preview hostname, a raw pod IP, plain localhost) reads as 'dashboard',
  * the most restrictive stance, so a host we did not plan for is never the one
  * that accidentally opens the app to indexing.
  */
@@ -72,7 +72,7 @@ export const SEO_ORIGIN: Readonly<Record<SeoHost, string>> = {
  *
  * The app answers its whole route table under every hostname traefik gives it,
  * so a page is only "on one host" if it says so itself. Without this, the same
- * document is four URLs — which is how leaderboard.itsbagelbot.com/user/<login>
+ * document is four URLs, which is how leaderboard.itsbagelbot.com/user/<login>
  * came to serve the commands page under the leaderboard origin.
  *
  * 308 rather than 301: the permanent redirect that promises the method is not

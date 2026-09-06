@@ -3,7 +3,7 @@
 
 // Timers store: a broadcaster's repeating chat messages, stream-only.
 //
-// Unlike channel points there is no external Twitch entity to CRUD — the
+// Unlike channel points there is no external Twitch entity to CRUD, the
 // "timers" module blob (the same modules service every other feature uses) is
 // the sole source of truth. sesame arms every enabled timer on stream.online,
 // disarms them on stream.offline, and fires each off its own Valkey key expiry

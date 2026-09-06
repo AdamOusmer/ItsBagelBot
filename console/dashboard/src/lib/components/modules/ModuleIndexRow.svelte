@@ -47,10 +47,10 @@
       {#if chips.chips.length}
         <span class="cmds">
           {#each chips.chips as chip (chip)}
-            <span class="cmd">{chip}</span>
+            <span class="cmd bb-tag bb-tag--bare">{chip}</span>
           {/each}
           {#if chips.extra}
-            <span class="cmd more">{t('modules.moreCommands', { n: chips.extra })}</span>
+            <span class="cmd more bb-tag bb-tag--bare">{t('modules.moreCommands', { n: chips.extra })}</span>
           {/if}
         </span>
       {/if}
@@ -62,7 +62,7 @@
       <a class="always lock" href="/billing" data-cursor="off"><Icon name="gem" size={12} /> {t('modules.betaPremium')}</a>
     {:else if toggleable}
       {#if module.enabled}
-        <span class="state live">{t('modules.statusOn')}</span>
+        <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('modules.statusOn')}</span>
       {/if}
       <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
         <input type="hidden" name="name" value={def.id} />
@@ -164,21 +164,13 @@
   .cmds {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 6px 14px;
     margin-top: 6px;
   }
-  .cmd {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    background: rgba(201, 168, 124, 0.08);
-    border-radius: 6px;
-    padding: 3px 8px;
-    white-space: nowrap;
-  }
-  .cmd.more { color: var(--bb-muted); border-color: var(--rule); background: transparent; }
+  /* Was a filled 6px-radius pill. These print literal chat triggers, so the
+     global .bb-tag uppercase is turned off here; the rest comes from --bare. */
+  .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
+  .cmd.more { color: var(--bb-muted); }
 
   /* Filled rather than a hairline outline, and a size up: at 9.5px with a
      45%-alpha border this read as decoration and people missed that the
@@ -209,14 +201,6 @@
     padding: 0 16px 0 8px;
     flex: none;
   }
-  .state {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .state.live { color: var(--bb-green-glow); }
   .always {
     font-family: var(--bb-font-mono);
     font-size: 10.5px;

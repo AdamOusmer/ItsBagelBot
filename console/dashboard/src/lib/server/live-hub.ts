@@ -4,7 +4,7 @@
 // In-process fan-out of cache-invalidation events to connected browser clients.
 //
 // The Go cache-invalidation bus already fans every write out to EVERY console
-// replica (no queue group — see shared/lib/server/invalidation.ts). This hub is
+// replica (no queue group, see shared/lib/server/invalidation.ts). This hub is
 // the last hop: it forwards the invalidations for a given board id to that
 // board's open SSE connections ON THIS REPLICA, so the browser re-fetches the
 // moment state changes instead of polling. A browser is connected to exactly one

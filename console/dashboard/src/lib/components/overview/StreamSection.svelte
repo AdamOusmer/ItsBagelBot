@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // "This stream" — the page's headline panel. Left column is the stream itself
+  // "This stream": the page's headline panel. Left column is the stream itself
   // (live/offline, elapsed time, title, per-stream counters); right column is the
   // chat-volume curve.
   //
@@ -76,9 +76,10 @@
       {:else if !meta.known}
         <p class="ov-stream__notice">{t('overview.streamNeverSeen')}</p>
       {:else if meta.live}
-        <span class="ov-pill ov-pill--live">
-          <span class="ov-dot ov-dot--live" aria-hidden="true"></span>
+        <span class="bb-tag bb-tag--live">
+          <i class="bb-mark" aria-hidden="true"></i>
           {t('overview.streamLive')}
+          <i class="bb-sweep" aria-hidden="true"></i>
         </span>
         <div class="ov-stream__big">{elapsed}</div>
         {#if meta.title}<p class="ov-stream__title">{meta.title}</p>{/if}
@@ -89,8 +90,8 @@
           })}
         </p>
       {:else}
-        <span class="ov-pill">
-          <span class="ov-dot" aria-hidden="true"></span>
+        <span class="bb-tag bb-tag--quiet">
+          <i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>
           {t('overview.streamOffline')}
         </span>
         <div class="ov-stream__big">{sinceEnd}</div>
@@ -164,38 +165,8 @@
     color: var(--bb-muted);
     margin: 0 0 14px;
   }
-  .ov-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    align-self: flex-start;
-    padding: 5px 12px 5px 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border);
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .ov-pill--live {
-    background: var(--bb-status-success-bg);
-    border-color: var(--bb-status-success-border);
-    color: var(--bb-status-success-fg);
-  }
-  .ov-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: none;
-    background: var(--bb-muted);
-  }
-  .ov-dot--live {
-    background: var(--bb-status-success);
-    box-shadow: 0 0 6px var(--bb-status-success);
-    animation: ov-pulse 2.4s ease-in-out infinite;
-  }
+  /* .ov-pill/.ov-dot (pill + glowing ov-pulse dot) dropped for the global
+     .bb-tag / .bb-mark label vocabulary; .bb-sweep carries the live motion. */
   .ov-stream__big {
     font-family: var(--bb-font-display);
     font-weight: 800;
@@ -289,11 +260,6 @@
     .ov-stream__stats {
       flex-wrap: wrap;
       gap: 16px 22px;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ov-dot--live {
-      animation: none;
     }
   }
 </style>

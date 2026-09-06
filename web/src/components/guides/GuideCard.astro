@@ -3,10 +3,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * GuideCard — one entry on the guides hub. A numbered chapter card in the
+ * GuideCard: one entry on the guides hub. A numbered chapter card in the
  * site's warm-card language: mono index, display title, body teaser, and a
  * meta strip (reading time · section count) so readers can budget attention
- * before committing — the hub is a menu, not a maze. Atmosphere matches the
+ * before committing: the hub is a menu, not a maze. Atmosphere matches the
  * shared Card (header orbs, no pointer tracking).
  */
 import CardAtmosphere from '../ui/CardAtmosphere.astro';
@@ -33,7 +33,7 @@ const { index, href, title, description, meta, chips = [], revealIndex = 0 } = A
         <span class="gcard__desc">{description}</span>
         {chips.length > 0 && (
             <span class="gcard__chips">
-                {chips.map((chip) => <i>{chip}</i>)}
+                {chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
             </span>
         )}
     </span>
@@ -101,18 +101,13 @@ const { index, href, title, description, meta, chips = [], revealIndex = 0 } = A
         max-width: 58ch;
     }
 
-    .gcard__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+    .gcard__chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 3px; }
 
+    /* Were 99px tinted pills; .bb-tag--bare makes them labels inside the
+       card's own frame, so only the colour stays local. */
     .gcard__chips i {
-        font-family: var(--font-mono, "DM Mono", monospace);
         font-style: normal;
-        font-size: 0.68rem;
         color: var(--tan-light, #e0c49a);
-        background: rgba(201, 168, 124, 0.07);
-        border: 1px solid rgba(201, 168, 124, 0.14);
-        border-radius: 99px;
-        padding: 3px 9px;
-        white-space: nowrap;
     }
 
     .gcard__meta {

@@ -30,7 +30,7 @@
 
 <style>
   /* Flat ink rail: a single right rule separates it from the canvas.
-     No glass, no shadow — the indexed entries carry the structure. */
+     No glass, no shadow: the indexed entries carry the structure. */
   .sidebar {
     position: sticky; top: 0; align-self: start; height: 100vh;
     display: none; flex-direction: column;

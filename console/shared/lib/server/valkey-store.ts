@@ -20,7 +20,7 @@
 // A single HGETALL serves tier+active+ban+modules+commands. Every read is
 // fault-isolated: a timeout or error returns a "miss" (known:false /
 // projected:false) so the caller degrades to the projector RPC, never throwing
-// into SSR. Valkey is optional — if no addr is configured the store is a no-op
+// into SSR. Valkey is optional: if no addr is configured the store is a no-op
 // and the read path is purely RPC.
 import Redis from 'iovalkey';
 import type { CommandView } from '../types';
@@ -42,8 +42,8 @@ const OP_TIMEOUT_MS = 200;
 const breaker = new CircuitBreaker({ name: 'valkey', failureThreshold: 3, resetMs: 5_000 });
 
 // Revocation reads get their OWN breaker, deliberately not the shared read-tier
-// one above. A cached read tripping that breaker is harmless — the caller falls
-// through to RPC — but it must never take the session-revocation check down with
+// one above. A cached read tripping that breaker is harmless (the caller falls
+// through to RPC), but it must never take the session-revocation check down with
 // it: a security control silently disabled by an unrelated component's failure
 // is exactly how a revoked session stays alive. Same failure-open posture, just
 // not the same fate.
@@ -56,7 +56,7 @@ const revocationBreaker = new CircuitBreaker({
 /**
  * Run a Valkey op under the breaker + a per-op timeout. Returns `fallback` (the
  * caller's miss sentinel) on a disabled store, an open circuit, a timeout, or
- * any error — never throws into SSR.
+ * any error: never throws into SSR.
  */
 async function op<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
   const c = get();
@@ -103,7 +103,7 @@ function get(): Redis | null {
     tls,
     // No offline queue: while Valkey is unreachable, ops fail immediately and
     // readers fall through to RPC (op() returns the miss sentinel). Queueing
-    // would buy nothing here — every op is already bounded by OP_TIMEOUT_MS —
+    // would buy nothing here (every op is already bounded by OP_TIMEOUT_MS),
     // and an extended outage would grow the queue without bound. The boot
     // warm() + readyz probe cover the brief cold-connect window.
     enableOfflineQueue: false,
@@ -128,7 +128,7 @@ export function warm(): void {
 /**
  * Probe the read pool, connecting it as a side effect (PING under the breaker +
  * timeout). Returns true when Valkey is reachable OR unconfigured (Valkey is an
- * optional read tier, never a readiness blocker — see the readyz handler).
+ * optional read tier, never a readiness blocker, see the readyz handler).
  *
  * Wired into /readyz so every probe re-warms the pool: a rotated-in pod's pool
  * is hot within one probe interval of boot regardless of boot-time state, so the
@@ -146,17 +146,17 @@ export async function ready(): Promise<boolean> {
 /**
  * Read-only revocation check for session-revocation.ts: both keys in one
  * MGET so a single op() budget covers the whole check. This is a NODE-LOCAL
- * (replica) read, same as every other lookup in this file — a session
+ * (replica) read, same as every other lookup in this file: a session
  * revoked on the master can still pass here for the replication window
  * (typically milliseconds). That is the accepted tradeoff for keeping
  * revocation checks on the hot request-guard path cheap; it is not
  * compensated for with retries or a master read here.
  *
- * Unlike this file's other reads (which degrade silently — a cache miss is
+ * Unlike this file's other reads (which degrade silently, a cache miss is
  * routine), a failure here is logged: revocation is a security control, and
  * a Valkey blip that always fails open is worth surfacing even though it
  * must never block the request. Returns [null, null] on a cold/absent key
- * OR on any failure — the caller cannot and must not tell those apart.
+ * OR on any failure: the caller cannot and must not tell those apart.
  */
 export interface RevocationKeys {
   /** Absent for a session sealed before sids existed. */
@@ -169,7 +169,7 @@ export async function getRevocation({ sid, userId }: RevocationKeys): Promise<[s
   if (!c) return [null, null];
   try {
     // A session sealed before sids existed has no per-session key to look up,
-    // but the user's revoke-all epoch still applies to it — read that alone
+    // but the user's revoke-all epoch still applies to it: read that alone
     // rather than skipping the check, or "sign out everywhere" would miss
     // exactly the long-lived cookies it exists to kill.
     const keys = sid ? [sessionRevokedKey(sid), sessionRevokedAllKey(userId)] : [sessionRevokedAllKey(userId)];
@@ -188,7 +188,7 @@ export interface ValkeyUser {
   status: string;
   active: boolean;
   banned: boolean;
-  /** False when the user has never been projected (cold key) — escalate to RPC. */
+  /** False when the user has never been projected (cold key): escalate to RPC. */
   known: boolean;
 }
 
@@ -225,7 +225,7 @@ export function getCommands(
         commands.push(JSON.parse(value) as CommandView);
         projected = true;
       } catch {
-        // Malformed entry — skip.
+        // Malformed entry: skip.
       }
     }
     return { commands, projected };

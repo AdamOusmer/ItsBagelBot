@@ -7,7 +7,7 @@
 //
 //   - The Govee API key is a secret. It is stored encrypted at rest by the
 //     modules service (Tink AEAD, that service's own keyset) and reached here
-//     only through set/clear/status verbs — the value never comes back, the UI
+//     only through set/clear/status verbs: the value never comes back, the UI
 //     shows "key on file" or not.
 //   - The device list is fetched live from Govee through the gossip service
 //     (bagel.rpc.gossip.govee.devices), which authenticates with the stored

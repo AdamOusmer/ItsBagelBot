@@ -70,7 +70,7 @@ export interface DefForm {
 // No is_active is parsed: the pause toggle is gone from the UI, so every
 // definition the builder writes is active. The field still exists in the store
 // and the projection, which is why the write below hard-codes true instead of
-// dropping it — a def saved without it would read back as paused and silently
+// dropping it: a def saved without it would read back as paused and silently
 // stop resolving.
 export function parseDefForm(f: FormData): DefForm {
   const kindRaw = String(f.get('kind') ?? 'plain');
@@ -110,7 +110,7 @@ export async function testRunThrottle(uid: string): Promise<string | null> {
   if (DEMO) return null;
   const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
   if (decision.allowed) return null;
-  return 'Too many test runs — each one calls the real API. Wait about 10 seconds and try again.';
+  return 'Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.';
 }
 
 // Fields that must be sound before we dial a third-party host for real. The
@@ -258,7 +258,7 @@ export async function removeFetchDef(uid: string, session: Session | null, form:
 /**
  * Rehearsal dry-run: executes the REAL chat path (same gossip subject, SSRF
  * gate, buckets) with DryRun+Fresh and the posted draft inline as Def. Returns
- * the raw body as `sample` so the builder can render a clickable tree — that is
+ * the raw body as `sample` so the builder can render a clickable tree. That is
  * the whole point of the call for a non-technical author, who otherwise has to
  * paste a response by hand. Nothing is persisted.
  */

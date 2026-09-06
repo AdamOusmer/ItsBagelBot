@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// $parameter translation and the SLCB permission mapping — the port of
+// $parameter translation and the SLCB permission mapping: the port of
 // parameters.go. Every SLCB-specific destination is decided here before the
 // shared permission table is consulted.
 
@@ -101,7 +101,7 @@ const SLCB_PERMS: Record<string, PermOutcome> = {
 function widenedRegulars(): PermOutcome {
   return {
     kind: 'unmapped',
-    reason: (raw) => `permission ${JSON.stringify(raw)} (channel regulars) has no tier here; widened to everyone — tighten it after import if needed`
+    reason: (raw) => `permission ${JSON.stringify(raw)} (channel regulars) has no tier here; widened to everyone, tighten it after import if needed`
   };
 }
 
@@ -169,7 +169,7 @@ const SIMPLE_PARAMS: Record<string, string> = {
 
 // externalParams stay literal but mark the command script/API-dependent: their
 // values come from HTTP calls, local files or wall-clock countdowns that have
-// no import-time equivalent ($desc is stripped entirely instead — see
+// no import-time equivalent ($desc is stripped entirely instead, see
 // translateVariables). Names follow the official Parameters wiki page.
 const EXTERNAL_PARAMS = new Set([
   'readapi',
@@ -392,7 +392,7 @@ function unknownParam(s: ScanState, cursor: ParamCursor): number {
 }
 
 // scanIdent reads a $parameter identifier starting at start; returns the name
-// and the index just past it. Identifiers begin with a letter or underscore —
+// and the index just past it. Identifiers begin with a letter or underscore:
 // chat text like "$5" or "100$" must stay literal dollars, so a leading digit
 // terminates the scan immediately.
 // ParamCursor is a scanned $parameter: its identifier and the index just past
@@ -409,7 +409,7 @@ function scanIdent(text: string, start: number): ParamCursor {
 }
 
 // hasIdentStart checks the first character after '$': identifiers begin with
-// a letter or underscore — chat text like "$5" or "100$" must stay literal
+// a letter or underscore: chat text like "$5" or "100$" must stay literal
 // dollars, so a leading digit terminates the scan immediately.
 function hasIdentStart(text: string, start: number): boolean {
   if (start >= text.length) return false;

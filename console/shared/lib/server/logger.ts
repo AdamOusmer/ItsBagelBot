@@ -10,14 +10,14 @@
 // so those lines reach New Relic undecorated. Every server-side log therefore
 // goes through this singleton.
 //
-// Deliberately a bare `pino()` writing JSON to stdout — NO worker-thread transport
+// Deliberately a bare `pino()` writing JSON to stdout: NO worker-thread transport
 // (pino-pretty et al.). Transports spawn a worker thread that (a) does not survive
 // the distroless adapter-node bundle and (b) moves log emission off the main thread
 // where the agent's local-decoration hook cannot see it. Forwarding is off in the
 // cluster (FORWARDING_ENABLED=false); the agent decorates, Fluent Bit ships stdout.
 //
 // LOG_LEVEL is read from `process.env` (safe at module eval, unlike SvelteKit's
-// `$env/dynamic/private`, which deadlocks the boot import graph — see config.ts).
+// `$env/dynamic/private`, which deadlocks the boot import graph, see config.ts).
 // adapter-node exposes the same values on process.env.
 import pino from 'pino';
 

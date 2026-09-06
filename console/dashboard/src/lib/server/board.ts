@@ -16,7 +16,7 @@ const DEMO = dev && env.DEMO === '1';
 // route.
 //
 // With no session there is no board. In a production build that is a dead end
-// — the (app) layout's login redirect is the only legitimate outcome — so it
+// (the (app) layout's login redirect is the only legitimate outcome), so it
 // redirects rather than falling back to a placeholder id: the old `?? 'demo'`
 // tail was not demo-gated, so a sessionless request reaching one of these
 // loads issued real RPCs scoped to a board id a real account could one day

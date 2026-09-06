@@ -23,7 +23,7 @@
     onchange
   }: {
     checked?: boolean;
-    // Accessible name. Required — a switch with no label is unusable by AT.
+    // Accessible name. Required: a switch with no label is unusable by AT.
     label: string;
     // id of visible descriptive text, wired to aria-describedby.
     describedby?: string;

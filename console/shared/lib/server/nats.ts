@@ -29,9 +29,9 @@ function rpcSegment(subject: string): string {
 
 // The console holds two connections on two accounts (per-account isolation):
 //
-//   * 'rpc'  — the per-service RPC account (NATS_RPC_USER/PASSWORD): request/reply
+//   * 'rpc'  : the per-service RPC account (NATS_RPC_USER/PASSWORD): request/reply
 //     (bagel.rpc.*) and the cache-invalidation subscription (bagel.cache.*).
-//   * 'bus'  — the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
+//   * 'bus'  : the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
 //     view (admin) and the outgress-system stream-feed publish (twitch.*).
 //
 // RPC connects to the strict same-node leaf. Requests use a node-qualified
@@ -136,7 +136,7 @@ export function enableLeafFailback(nc: NatsConnection): void {
 }
 
 function fallbackServer(override: string | undefined): string {
-  // `||` not `??`: a blank override/host must fall through to the default —
+  // `||` not `??`: a blank override/host must fall through to the default:
   // through `??` a blank NATS_HOST builds 'nats://:4222' and every dial fails.
   return override || `nats://${process.env.NATS_HOST || '127.0.0.1'}:${process.env.NATS_PORT || '4222'}`;
 }
@@ -156,7 +156,7 @@ function busServerList(override: string | undefined): string[] {
 // server) keeps the connection plaintext. mTLS: also present the fleet client
 // cert when the NATS_CLIENT_CERT_FILE/NATS_CLIENT_KEY_FILE pair is set
 // (cert-manager secret mount; file paths so renewals are re-read on
-// reconnect). Both or neither — a half-set pair fails loudly rather than
+// reconnect). Both or neither: a half-set pair fails loudly rather than
 // silently downgrading to server-auth only.
 function tlsOptions(): ConnectionOptions['tls'] | undefined {
   const caPem = process.env.NATS_CA_PEM;
@@ -360,7 +360,7 @@ export async function closeNats(): Promise<void> {
 
 /**
  * Subscribe to a core NATS subject and call onMsg for every message. No queue
- * group — every replica receives every message, which is what the cache
+ * group: every replica receives every message, which is what the cache
  * invalidation bus needs (each process owns its own in-process cache).
  *
  * The callback receives both the message subject and raw data. For wildcard
@@ -381,7 +381,7 @@ export function subscribe(subject: string, onMsg: (subject: string, data: Uint8A
         try {
           for await (const m of sub) onMsg(m.subject, m.data);
         } catch {
-          // Iterator closed (connection dropped / process shutting down) — ignore.
+          // Iterator closed (connection dropped / process shutting down), ignore.
         }
       })();
     })
@@ -407,18 +407,18 @@ function backoffMs(attempt: number): number {
  * this NEVER gives up:
  *
  *   * a failed dial (NATS down at boot) is retried forever with exponential
- *     backoff + jitter — previously a boot-time outage silently killed the
+ *     backoff + jitter (previously a boot-time outage silently killed the
  *     invalidation bus for the process lifetime, leaving replicas to decay by
- *     TTL alone;
+ *     TTL alone);
  *   * if the message iterator terminates (connection closed/errored), the loop
  *     re-dials and resubscribes;
  *   * `onGap` fires after every window in which messages may have been missed:
  *     each client-level reconnect, every resubscribe after an iterator death,
  *     and an initial subscribe that only succeeded after failed attempts.
- *     Callers use it to flush their cache — a missed invalidation must not
+ *     Callers use it to flush their cache: a missed invalidation must not
  *     leave poisoned long-TTL entries.
  *
- * No queue group — every replica receives every message (each owns its own
+ * No queue group: every replica receives every message (each owns its own
  * in-process cache). onMsg exceptions are swallowed per message.
  */
 export function subscribeDurable(
@@ -456,7 +456,7 @@ export function subscribeDurable(
       attempt = 0;
 
       // Client-level reconnects resubscribe automatically but drop whatever was
-      // published while disconnected — flush on every reconnect notification.
+      // published while disconnected: flush on every reconnect notification.
       // The watcher dies with the connection; the outer loop replaces it.
       void (async () => {
         try {
@@ -477,11 +477,11 @@ export function subscribeDurable(
           try {
             onMsg(m.subject, m.data);
           } catch {
-            /* per-message handler error — keep consuming */
+            /* per-message handler error, keep consuming */
           }
         }
       } catch {
-        /* subscription iterator died — fall through to re-dial */
+        /* subscription iterator died, fall through to re-dial */
       }
 
       // Iterator ended: connection closed (shutdown) or errored. Back off and
