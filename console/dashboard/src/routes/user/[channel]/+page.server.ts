@@ -4,7 +4,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { listCommands, listModules } from '$lib/server/commands-store';
-import { publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
+import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
 import { accountState, resolveLogin } from '$lib/server/services';
 import { requireHost } from '$lib/server/seo-hosts';
 import { dev } from '$app/environment';
@@ -59,7 +59,7 @@ async function channelFromLogin(segment: Segment): Promise<Channel | null> {
 
   const canonical = canonicalLogin(found) ?? login;
   if (canonical !== login) throw redirect(308, `/user/${canonical}`);
-  return { userId: found.userId, channelName: found.username || login };
+  return { userId: found.userId, channelName: channelLabel(found, login) };
 }
 
 // Id reading, kept so links shared before the URL changed still open. The name
@@ -120,7 +120,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
     return {
       userId,
-      channelName: account?.username || channelName,
+      channelName: channelLabel(account, channelName),
       creatorCode: account?.creatorCode ?? null,
       commands: publicCommands(commands),
       modules: publicModules(modules),

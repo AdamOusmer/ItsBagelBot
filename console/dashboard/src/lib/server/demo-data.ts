@@ -107,7 +107,8 @@ export const demoAccountState: AccountState = {
   status: 'vip',
   onboarded: true,
   creatorCode: null,
-  username: 'demo'
+  username: 'demo',
+  displayName: 'Demo'
 };
 
 // Sample grants covering the full lifecycle (pending + consumed) so the

@@ -67,3 +67,8 @@ export function dashHref(locale: Locale): string {
 export function dashLoginHref(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? DASH_LOGIN : `${DASH_LOGIN}?lang=${locale}`;
 }
+
+/** The mobile menu's "Get the app" link: the dashboard's install prompt, as web's MobileMenu has it. */
+export function dashInstallHref(locale: Locale): string {
+  return locale === DEFAULT_LOCALE ? `${DASH}/?install=1` : `${DASH}/?install=1&lang=${locale}`;
+}

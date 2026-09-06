@@ -43,6 +43,7 @@ const (
 type UserView struct {
 	ID                        uint64     `json:"id"`
 	Username                  string     `json:"username"`
+	DisplayName               string     `json:"display_name"`
 	IsActive                  bool       `json:"is_active"`
 	Status                    string     `json:"status"`
 	Banned                    bool       `json:"banned"`
@@ -94,10 +95,37 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	return r
 }
 
-// Register creates the user on first sight and refreshes the username on
-// conflict, so a re-login after a Twitch rename converges automatically.
-func (r *Users) Register(ctx context.Context, id uint64, username string, email string) error {
+// storableDisplayName is the display name as the row can hold it. Twitch
+// display names are the login in the owner's casing, at most 25 characters,
+// but localized names can run to three bytes a character; anything past the
+// column's 64 bytes drops to "" (readers fall back to the login) rather than
+// failing the login it arrived with.
+func storableDisplayName(displayName string) string {
+	if len(displayName) > 64 {
+		return ""
+	}
+	return displayName
+}
 
+// namesChanged reports whether a login should rewrite the row's names. An
+// empty display name never counts: a caller that has none must not blank a
+// stored one.
+func namesChanged(existing *ent.User, username, displayName string) bool {
+	return existing.Username != username || (displayName != "" && existing.DisplayName != displayName)
+}
+
+// withDisplayName sets the display name on an update only when there is one.
+func withDisplayName(upd *ent.UserUpdateOne, displayName string) *ent.UserUpdateOne {
+	if displayName == "" {
+		return upd
+	}
+	return upd.SetDisplayName(displayName)
+}
+
+// Register creates the user row on first login and refreshes the names it
+// carries on every later one. displayName is Twitch's cased form of the login
+// and may be empty.
+func (r *Users) Register(ctx context.Context, id uint64, username, displayName, email string) error {
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
@@ -107,6 +135,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username string, email 
 	if err := validate.Email(email); err != nil {
 		return err
 	}
+	displayName = storableDisplayName(displayName)
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		existing, err := r.client.User.Query().
@@ -118,17 +147,16 @@ func (r *Users) Register(ctx context.Context, id uint64, username string, email 
 			_, err = r.client.User.Create().
 				SetID(id).
 				SetUsername(username).
+				SetDisplayName(displayName).
 				SetEmail(email).
 				Save(ctx)
 			if ent.IsConstraintError(err) {
-				_, err = r.client.User.UpdateOneID(id).
-					SetUsername(username).
+				_, err = withDisplayName(r.client.User.UpdateOneID(id).SetUsername(username), displayName).
 					Save(ctx)
 			}
 
-		case err == nil && existing.Username != username:
-			_, err = existing.Update().
-				SetUsername(username).
+		case err == nil && namesChanged(existing, username, displayName):
+			_, err = withDisplayName(existing.Update().SetUsername(username), displayName).
 				Save(ctx)
 		}
 
@@ -157,6 +185,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			return UserView{
 				ID:                        u.ID,
 				Username:                  u.Username,
+				DisplayName:               u.DisplayName,
 				IsActive:                  u.IsActive,
 				Status:                    string(u.Status),
 				Banned:                    u.Banned,

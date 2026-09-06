@@ -37,7 +37,7 @@ func TestPreferenceWritesAreWriteBehind(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 	baseline := len(decodeChanged(t, pub)) // Register's own announcement
 
 	// Flip AWAY from the schema defaults (active=true, locale=en) so a
@@ -79,7 +79,7 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 	repo.Close(context.Background()) // settle Register's synchronous announcement
 	baseline := len(decodeChanged(t, pub))
 
@@ -112,7 +112,7 @@ func TestMoneyAndModerationWritesStayImmediate(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	require.NoError(t, repo.SetStatus(ctx, 1001, user.StatusPaid))
 	require.NoError(t, repo.SetBanned(ctx, 1001, true))

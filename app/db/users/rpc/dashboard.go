@@ -167,7 +167,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	// Ensure email is generated uniquely since we don't fetch it from Twitch by default
 	email := fmt.Sprintf("%d@twitch.tv", id)
 
-	if err := d.repo.Register(ctx, id, req.Username, email); err != nil {
+	if err := d.repo.Register(ctx, id, req.Username, req.DisplayName, email); err != nil {
 		log.Error("upsert_user register", zap.Error(err))
 		respondErr(msg, err.Error())
 		return
@@ -267,6 +267,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			// name from a query string, which let anyone rewrite the link to
 			// attribute one channel's commands to another handle.
 			"username":                    view.Username,
+			"display_name":                view.DisplayName,
 			"status":                      view.Status,
 			"onboarded":                   view.Onboarded,
 			"locale":                      view.Locale,
@@ -307,8 +308,9 @@ func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 	bus.Respond(msg, map[string]any{
-		"user_id":  strconv.FormatUint(view.ID, 10),
-		"username": view.Username,
+		"user_id":      strconv.FormatUint(view.ID, 10),
+		"username":     view.Username,
+		"display_name": view.DisplayName,
 	})
 }
 
