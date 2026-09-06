@@ -298,6 +298,20 @@ export function isHexColor(raw: string): boolean {
   return HEX6.test(raw.trim().toLowerCase());
 }
 
+/**
+ * Turns a stored `#rrggbb` into the integer Discord's embed `color` field
+ * wants, the same value Go's ddiscord.ParseHexColor produces.
+ *
+ * It exists because the two sides of the ticket-panel embed disagree on the
+ * type: the config blob and the colour input hold a hex string, while the
+ * `panel` object on `desk.repost` is the wire form of ddiscord.TicketPanelSpec,
+ * whose Color is an int. Sending the string instead round-trips through Go's
+ * JSON as a type error and the panel is posted with the default colour.
+ */
+export function hexToDiscordColor(raw: string, fallback = LIVE_COLOR_HEX): number {
+  return Number.parseInt(normalizeHex(raw, fallback).slice(1), 16);
+}
+
 // ── ticket panel ──────────────────────────────────────────────────────────
 
 export type TicketPanelSpec = { title: string; body: string; button: string; color: string };

@@ -23,6 +23,9 @@ export const DISCORD_CODE_KEYS: Record<
   | 'discord.errRateLimited'
   | 'discord.errInvalid'
   | 'discord.errConflict'
+  | 'discord.errTimeout'
+  | 'discord.errNotFound'
+  | 'discord.errUnknown'
   | 'discord.errLocked'
   | 'discord.errTicketsOff'
 > = {
@@ -33,6 +36,9 @@ export const DISCORD_CODE_KEYS: Record<
   rate_limited: 'discord.errRateLimited',
   invalid: 'discord.errInvalid',
   conflict: 'discord.errConflict',
+  timeout: 'discord.errTimeout',
+  not_found: 'discord.errNotFound',
+  unknown: 'discord.errUnknown',
   locked: 'discord.errLocked',
   tickets_off: 'discord.errTicketsOff'
 };

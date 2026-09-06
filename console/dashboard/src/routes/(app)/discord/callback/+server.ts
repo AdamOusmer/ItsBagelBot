@@ -109,7 +109,14 @@ async function connectGuild(
     twitchLogin: login
   };
   const result = await setupGuild(
-    { ...target, subscribers: alertOff(seeded.subscribersEnabled), pinnedRoles: pinnedRolesOf(seeded) },
+    {
+      ...target,
+      subscribers: alertOff(seeded.subscribersEnabled),
+      pinnedRoles: pinnedRolesOf(seeded),
+      // The actor, not the account: a staff member installing on a
+      // broadcaster's behalf is exactly what this field has to record.
+      installedBy: locals.session?.user_id ?? target.userId
+    },
     seeded
   );
   // The refusal is named by its code now, not by matching outgress's English.

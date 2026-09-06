@@ -396,6 +396,10 @@ export const actions: Actions = {
     const result = await setupGuild(
       {
         ...ctx.target,
+        // Who pressed the button, which is ctx.uid's own id unless a staff
+        // member is impersonating; the binding records the actor, not the
+        // account being acted on.
+        installedBy: ctx.session?.user_id ?? ctx.uid,
         // The saved toggle decides whether the fill creates the subscriber
         // tier, so setup reflects what the streamer chose rather than always
         // building a locked category they may never use.
@@ -418,7 +422,7 @@ export const actions: Actions = {
     if (!alertOn(row.config.ticketsEnabled)) {
       return { error: 'Turn the ticket desk on first.', code: 'tickets_off' };
     }
-    const result = await repostDesk(ctx.target);
+    const result = await repostDesk(ctx.target, row.config);
     if (result.error) return { error: result.error, code: result.code };
     auditDashboardImpersonation(ctx.session, 'discord:repost', ctx.guildId);
     return { messageId: result.messageId };

@@ -17,9 +17,11 @@ import { rpc } from '@bagel/shared/server/nats';
 import {
   MOD,
   encodePinnedRoles,
+  hexToDiscordColor,
   parseConfigVersion,
   parseDiscordConfig,
   parsePinnedRoles,
+  ticketPanelSpec,
   type DiscordConfig,
   type PinnedRoles
 } from '@bagel/shared';
@@ -65,6 +67,11 @@ const GUILDS_TIMEOUT_MS = 8000;
  * actually changes what the page renders. Drop messageCode once outgress has
  * shipped codes for one release.
  */
+// Integration fix (2026-09-05): timeout, not_found and unknown were missing.
+// An unrecognised code falls through to messageCode, which returns '' -- so a
+// guilds.list that timed out part-way, or outgress's explicit "I do not know
+// what this error was", both reached the page as code:'' and read as success.
+// CodeUnknown exists precisely to stop that, and dropping it here undid it.
 export const DISCORD_CODES = [
   'bound_elsewhere',
   'conflict',
@@ -72,7 +79,10 @@ export const DISCORD_CODES = [
   'discord_unavailable',
   'forbidden',
   'rate_limited',
-  'invalid'
+  'invalid',
+  'timeout',
+  'not_found',
+  'unknown'
 ] as const;
 
 export type DiscordCode = (typeof DISCORD_CODES)[number] | '';
@@ -102,10 +112,12 @@ export type DiscordView = {
   guilds: DiscordGuildSummary[];
 };
 
-// One row of the server list. needsReauth is not in the guilds.list contract
-// yet (outgress learns it per guild from Discord's own 403 on a rename); it is
-// read optimistically so the list can show the reauth pill the day outgress
-// starts sending it, and reads false until then.
+// One row of the server list. needsReauth is per guild, not per account:
+// outgress learns it from Discord's own 403 on a rename, and a broadcaster
+// with four servers can have three healthy and one whose install predates the
+// permission. Integration fix (2026-09-05): this used to be read
+// optimistically against a field guilds.list did not send, so the reauth pill
+// was unreachable; DiscordGuildEntry.NeedsReauth now carries it.
 export type DiscordGuildSummary = {
   guildId: string;
   name: string;
@@ -201,6 +213,10 @@ export type DiscordGuildTarget = {
   guildId: string;
   subscribers?: boolean;
   pinnedRoles?: PinnedRoles;
+  // installedBy is who actually pressed the button, which is not userId when
+  // a staff member is impersonating a broadcaster. It is recorded on the
+  // binding for support, and nothing branches on it.
+  installedBy?: string;
 };
 
 export type DiscordSave = { userId: string; enabled: boolean; twitchLogin: string };
@@ -255,7 +271,7 @@ type GuildsReply = CodedReply & {
     member_count?: number;
     bot_present?: boolean;
     needs_reauth?: boolean;
-    bound_at?: number;
+    bound_at_unix_ms?: number;
   }[];
 };
 
@@ -278,7 +294,7 @@ export async function listGuilds(user: DiscordUser): Promise<DiscordGuildSummary
       memberCount: Number(g.member_count ?? 0),
       botPresent: g.bot_present === true,
       needsReauth: g.needs_reauth === true,
-      boundAtMs: Number(g.bound_at ?? 0)
+      boundAtMs: Number(g.bound_at_unix_ms ?? 0)
     }));
 }
 
@@ -395,7 +411,8 @@ export async function setupGuild(
       user_id: target.userId,
       guild_id: target.guildId,
       subscribers: target.subscribers === true,
-      pinned_roles: target.pinnedRoles ?? {}
+      pinned_roles: target.pinnedRoles ?? {},
+      installed_by: target.installedBy ?? ''
     },
     SETUP_TIMEOUT_MS
   );
@@ -530,10 +547,32 @@ export type DiscordRepost = { messageId: string; error: string; code: DiscordCod
 // from the saved config. Called after the embed editor saves, because Discord
 // gives no way to edit a message the bot posted in a previous session's
 // interaction context.
-export async function repostDesk(target: DiscordGuildTarget): Promise<DiscordRepost> {
+export async function repostDesk(
+  target: DiscordGuildTarget,
+  config: DiscordConfig
+): Promise<DiscordRepost> {
+  // The panel and the channel travel with the request. Integration fix
+  // (2026-09-05): the call used to send neither, and outgress's RepostDesk
+  // fills a missing Panel from TicketPanelSpec.OrDefaults() rather than from
+  // the guild row -- so pressing "Repost panel" right after saving a custom
+  // title, body, colour and button posted the stock English panel instead,
+  // and on a desk that had never been posted the missing channel failed the
+  // call outright. Sending both makes the reposted panel exactly what the
+  // editor above it shows.
+  const panel = ticketPanelSpec(config);
   const r = await rpc<CodedReply & { message_id?: string }>(
     `${SUB.dingressRpc}.discord.desk.repost`,
-    { user_id: target.userId, guild_id: target.guildId },
+    {
+      user_id: target.userId,
+      guild_id: target.guildId,
+      channel_id: config.ticketChannelId ?? '',
+      panel: {
+        title: panel.title,
+        body: panel.body,
+        button: panel.button,
+        color: hexToDiscordColor(panel.color)
+      }
+    },
     REPOST_TIMEOUT_MS
   );
   return { messageId: r.message_id ?? '', error: r.error ?? '', code: replyCode(r) };
