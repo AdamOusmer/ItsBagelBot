@@ -29,6 +29,20 @@ func (_c *UserCreate) SetUsername(v string) *UserCreate {
 	return _c
 }
 
+// SetDisplayName sets the "display_name" field.
+func (_c *UserCreate) SetDisplayName(v string) *UserCreate {
+	_c.mutation.SetDisplayName(v)
+	return _c
+}
+
+// SetNillableDisplayName sets the "display_name" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDisplayName(v *string) *UserCreate {
+	if v != nil {
+		_c.SetDisplayName(*v)
+	}
+	return _c
+}
+
 // SetEmail sets the "email" field.
 func (_c *UserCreate) SetEmail(v string) *UserCreate {
 	_c.mutation.SetEmail(v)
@@ -321,6 +335,10 @@ func (_c *UserCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *UserCreate) defaults() {
+	if _, ok := _c.mutation.DisplayName(); !ok {
+		v := user.DefaultDisplayName
+		_c.mutation.SetDisplayName(v)
+	}
 	if _, ok := _c.mutation.IsActive(); !ok {
 		v := user.DefaultIsActive
 		_c.mutation.SetIsActive(v)
@@ -375,6 +393,14 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.Username(); ok {
 		if err := user.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DisplayName(); !ok {
+		return &ValidationError{Name: "display_name", err: errors.New(`ent: missing required field "User.display_name"`)}
+	}
+	if v, ok := _c.mutation.DisplayName(); ok {
+		if err := user.DisplayNameValidator(v); err != nil {
+			return &ValidationError{Name: "display_name", err: fmt.Errorf(`ent: validator failed for field "User.display_name": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Email(); !ok {
@@ -469,6 +495,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 		_node.Username = value
+	}
+	if value, ok := _c.mutation.DisplayName(); ok {
+		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
+		_node.DisplayName = value
 	}
 	if value, ok := _c.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
@@ -619,6 +649,18 @@ func (u *UserUpsert) SetUsername(v string) *UserUpsert {
 // UpdateUsername sets the "username" field to the value that was provided on create.
 func (u *UserUpsert) UpdateUsername() *UserUpsert {
 	u.SetExcluded(user.FieldUsername)
+	return u
+}
+
+// SetDisplayName sets the "display_name" field.
+func (u *UserUpsert) SetDisplayName(v string) *UserUpsert {
+	u.Set(user.FieldDisplayName, v)
+	return u
+}
+
+// UpdateDisplayName sets the "display_name" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDisplayName() *UserUpsert {
+	u.SetExcluded(user.FieldDisplayName)
 	return u
 }
 
@@ -939,6 +981,20 @@ func (u *UserUpsertOne) SetUsername(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateUsername() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateUsername()
+	})
+}
+
+// SetDisplayName sets the "display_name" field.
+func (u *UserUpsertOne) SetDisplayName(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisplayName(v)
+	})
+}
+
+// UpdateDisplayName sets the "display_name" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDisplayName() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisplayName()
 	})
 }
 
@@ -1468,6 +1524,20 @@ func (u *UserUpsertBulk) SetUsername(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateUsername() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateUsername()
+	})
+}
+
+// SetDisplayName sets the "display_name" field.
+func (u *UserUpsertBulk) SetDisplayName(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisplayName(v)
+	})
+}
+
+// UpdateDisplayName sets the "display_name" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDisplayName() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisplayName()
 	})
 }
 

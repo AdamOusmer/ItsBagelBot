@@ -1199,7 +1199,12 @@
       "contact": "Contact",
       "stats": "Statistiques",
       "status": "Statut",
-      "cta": "Ajouter à Twitch"
+      "cta": "Ajouter à Twitch",
+      "menu": "Menu principal",
+      "menuOpen": "Ouvrir le menu",
+      "menuClose": "Fermer le menu",
+      "menuMeta": "Fraîchement préparé pour le chat Twitch",
+      "getApp": "Installer l'app"
     },
     "footer": {
       "signoff": "Préparé tard. Servi frais.",

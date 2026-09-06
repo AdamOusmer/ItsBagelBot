@@ -1199,7 +1199,12 @@
       "contact": "Contact",
       "stats": "Stats",
       "status": "Status",
-      "cta": "Add to Twitch"
+      "cta": "Add to Twitch",
+      "menu": "Primary menu",
+      "menuOpen": "Open menu",
+      "menuClose": "Close menu",
+      "menuMeta": "Freshly baked for Twitch chat",
+      "getApp": "Get the app"
     },
     "footer": {
       "signoff": "Baked late. Served fresh.",

@@ -27,6 +27,12 @@ func (User) Fields() []ent.Field {
 
 		field.String("username").NotEmpty(),
 
+		// Twitch display name: the login with the owner's casing (and, for some
+		// accounts, localized characters). Public pages label a channel with
+		// this; the login stays the URL key. Empty until the user's next login
+		// refreshes it, so readers fall back to the login.
+		field.String("display_name").Default("").MaxLen(64),
+
 		field.String("email").NotEmpty().Unique().Sensitive(),
 
 		// Real contact email captured at Twitch login (user:read:email scope),

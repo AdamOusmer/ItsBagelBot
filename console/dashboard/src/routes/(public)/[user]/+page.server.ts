@@ -41,7 +41,7 @@ function requireLogin(segment: string): string {
 async function requireChannel(login: string): Promise<Channel> {
 	const found = await resolveLogin(login).catch(() => null);
 	if (!found?.userId) throw error(404, 'Channel not found');
-	return { userId: found.userId, login, channelName: found.username || login };
+	return { userId: found.userId, login, channelName: found.displayName || found.username || login };
 }
 
 /** The channel's top standings, degrading to an empty board over an outage. */

@@ -43,6 +43,20 @@ func (_u *UserUpdate) SetNillableUsername(v *string) *UserUpdate {
 	return _u
 }
 
+// SetDisplayName sets the "display_name" field.
+func (_u *UserUpdate) SetDisplayName(v string) *UserUpdate {
+	_u.mutation.SetDisplayName(v)
+	return _u
+}
+
+// SetNillableDisplayName sets the "display_name" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDisplayName(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetDisplayName(*v)
+	}
+	return _u
+}
+
 // SetEmail sets the "email" field.
 func (_u *UserUpdate) SetEmail(v string) *UserUpdate {
 	_u.mutation.SetEmail(v)
@@ -406,6 +420,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayName(); ok {
+		if err := user.DisplayNameValidator(v); err != nil {
+			return &ValidationError{Name: "display_name", err: fmt.Errorf(`ent: validator failed for field "User.display_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Email(); ok {
 		if err := user.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`ent: validator failed for field "User.email": %w`, err)}
@@ -443,6 +462,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayName(); ok {
+		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
@@ -594,6 +616,20 @@ func (_u *UserUpdateOne) SetUsername(v string) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableUsername(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetUsername(*v)
+	}
+	return _u
+}
+
+// SetDisplayName sets the "display_name" field.
+func (_u *UserUpdateOne) SetDisplayName(v string) *UserUpdateOne {
+	_u.mutation.SetDisplayName(v)
+	return _u
+}
+
+// SetNillableDisplayName sets the "display_name" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDisplayName(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetDisplayName(*v)
 	}
 	return _u
 }
@@ -974,6 +1010,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayName(); ok {
+		if err := user.DisplayNameValidator(v); err != nil {
+			return &ValidationError{Name: "display_name", err: fmt.Errorf(`ent: validator failed for field "User.display_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Email(); ok {
 		if err := user.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`ent: validator failed for field "User.email": %w`, err)}
@@ -1028,6 +1069,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayName(); ok {
+		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)

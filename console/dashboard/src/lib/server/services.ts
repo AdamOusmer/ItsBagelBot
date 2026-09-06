@@ -427,7 +427,7 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string };
+export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -446,6 +446,7 @@ export const accountState = defineRead({
     onboarded?: boolean;
     creator_code?: string | null;
     username?: string | null;
+    display_name?: string | null;
   }): AccountState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
@@ -453,7 +454,10 @@ export const accountState = defineRead({
     creatorCode: r.creator_code?.trim() ? r.creator_code : null,
     // Authoritative Twitch login from the users service. The public command
     // page labels the channel with this, never with a caller-supplied string.
-    username: (r.username ?? '').trim()
+    username: (r.username ?? '').trim(),
+    // Twitch display name (the login in the owner's casing); empty for a row
+    // that predates the field, until that user's next login refreshes it.
+    displayName: (r.display_name ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -462,7 +466,7 @@ export const accountState = defineRead({
     policy: POLICY.entity,
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '' } };
+      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '', displayName: '' } };
       // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
       // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
       // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
@@ -470,7 +474,7 @@ export const accountState = defineRead({
       // For now, let's just return false and let SWR correct it if it was true, but this might flash.
       // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
       // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '' } };
+      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '', displayName: '' } };
     }
   }
 });
@@ -547,7 +551,7 @@ export type BillingState = {
   cancelPending: boolean;
 };
 
-export type ResolvedChannel = { userId: string; username: string };
+export type ResolvedChannel = { userId: string; username: string; displayName: string };
 
 // Login -> broadcaster id for the public command page, whose URL is keyed by
 // the channel's login (/user/<login>) so a shared link names the channel it
@@ -564,9 +568,10 @@ export type ResolvedChannel = { userId: string; username: string };
 export const resolveLogin = defineRead({
   subject: `${SUB.dashboard}.login_resolve`,
   request: (login: string) => ({ login }),
-  map: (r: { user_id?: string; username?: string }): ResolvedChannel => ({
+  map: (r: { user_id?: string; username?: string; display_name?: string }): ResolvedChannel => ({
     userId: (r.user_id ?? '').trim(),
-    username: (r.username ?? '').trim()
+    username: (r.username ?? '').trim(),
+    displayName: (r.display_name ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {

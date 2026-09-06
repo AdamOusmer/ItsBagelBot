@@ -18,7 +18,7 @@ func TestContactEmailRoundTrip(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 42, "streamer", "42@twitch.tv"))
+	require.NoError(t, repo.Register(ctx, 42, "streamer", "streamer", "42@twitch.tv"))
 
 	require.NoError(t, repo.SetContactEmail(ctx, 42, "real@example.com"))
 
@@ -36,7 +36,7 @@ func TestContactEmailAbsent(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 43, "fresh", "43@twitch.tv"))
+	require.NoError(t, repo.Register(ctx, 43, "fresh", "fresh", "43@twitch.tv"))
 
 	_, err := repo.ContactEmail(ctx, 43)
 	assert.ErrorIs(t, err, repository.ErrNoContactEmail)
@@ -46,7 +46,7 @@ func TestContactEmailRejectsInvalid(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 44, "streamer2", "44@twitch.tv"))
+	require.NoError(t, repo.Register(ctx, 44, "streamer2", "streamer2", "44@twitch.tv"))
 
 	assert.Error(t, repo.SetContactEmail(ctx, 44, "Not An Email <spoof@example.com>"))
 	assert.Error(t, repo.SetContactEmail(ctx, 44, ""))
@@ -56,8 +56,8 @@ func TestContactEmailEnvelopeBoundToUser(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 45, "owner", "45@twitch.tv"))
-	require.NoError(t, repo.Register(ctx, 46, "other", "46@twitch.tv"))
+	require.NoError(t, repo.Register(ctx, 45, "owner", "owner", "45@twitch.tv"))
+	require.NoError(t, repo.Register(ctx, 46, "other", "other", "46@twitch.tv"))
 	require.NoError(t, repo.SetContactEmail(ctx, 45, "bound@example.com"))
 
 	// Copy user 45's envelope onto user 46: the AAD mismatch must fail the
