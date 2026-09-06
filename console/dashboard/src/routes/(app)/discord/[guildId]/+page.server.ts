@@ -37,13 +37,16 @@ import {
   DISCORD_CONFIG_VERSION_NEW,
   alertOff,
   alertOn,
+  clearPinnedSlots,
+  droppedPinNotice,
   legacyConfigFor,
-  mergeDiscordConfig
+  mergeDiscordConfig,
+  type PinnedSlot
 } from '@bagel/shared';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
-import { error, fail, isRedirect, redirect } from '@sveltejs/kit';
+import { error, fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 
 // process.env, not $env/dynamic/private: this route sits behind guard.ts on
 // the boot import graph (see module-gate.ts).
@@ -66,6 +69,7 @@ type DiscordGuildPage = {
   configured: boolean;
   justConnected: boolean;
   refused: boolean;
+  droppedPins: PinnedSlot[];
   degraded: boolean;
 };
 
@@ -83,6 +87,7 @@ function blankPage(guildId: string, locked: boolean): DiscordGuildPage {
     configured: discordConfigured(),
     justConnected: false,
     refused: false,
+    droppedPins: [],
     degraded: false
   };
 }
@@ -102,13 +107,50 @@ function ownedGuild(guilds: DiscordGuildSummary[], guildId: string): DiscordGuil
   return found;
 }
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
+/**
+ * The dropped-pin notice, carried from the POST that found it to the load that
+ * renders it.
+ *
+ * Setup finishes, the page calls invalidateAll(), and the action's payload is
+ * gone before the banner has a frame to appear in -- so the notice has to
+ * survive one round trip. A cookie rather than a query string because
+ * `?dropped=mods,vip` rides along in every link the streamer copies and would
+ * warn them again about a pin they fixed weeks ago; this one is scoped to the
+ * guild's own page and deleted by the first load that reads it.
+ */
+const DROPPED_COOKIE = 'bb_discord_dropped';
+
+function droppedPath(guildId: string): string {
+  return `/discord/${guildId}`;
+}
+
+function rememberDroppedPins(cookies: Cookies, guildId: string, slots: PinnedSlot[]): void {
+  if (slots.length === 0) return;
+  cookies.set(DROPPED_COOKIE, slots.join(','), {
+    path: droppedPath(guildId),
+    httpOnly: true,
+    sameSite: 'lax',
+    // Long enough for the reload setup triggers, short enough that a tab left
+    // open overnight does not greet the streamer with it tomorrow.
+    maxAge: 300
+  });
+}
+
+function takeDroppedPins(cookies: Cookies, guildId: string): PinnedSlot[] {
+  const raw = cookies.get(DROPPED_COOKIE);
+  if (!raw) return [];
+  cookies.delete(DROPPED_COOKIE, { path: droppedPath(guildId) });
+  return droppedPinNotice(raw.split(','));
+}
+
+export const load: PageServerLoad = async ({ cookies, locals, params, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const guildId = params.guildId;
   const locked = await moduleLocked(locals, DISCORD_DEF);
+  const droppedPins = takeDroppedPins(cookies, guildId);
 
-  if (DEMO) return demoPage(guildId, url);
+  if (DEMO) return { ...(await demoPage(guildId, url)), droppedPins };
 
   const view = await readDiscord({ userId: uid }).catch(() => null);
   if (!view) return { ...blankPage(guildId, locked), degraded: true };
@@ -123,6 +165,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   return {
     ...blankPage(guildId, locked),
     ...flags,
+    droppedPins,
     enabled: view.enabled,
     guilds: view.guilds,
     ...reads,
@@ -196,6 +239,41 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   };
 }
 
+/**
+ * What an action answers with no outgress behind it.
+ *
+ * `save` runs the REAL merge, so the demo refuses exactly what production
+ * refuses, plus one field standing in for a rule only the server can enforce:
+ * editing the ticket panel title comes back `invalid`, which is the one way to
+ * walk the fields[] path on a laptop. `setup` leaves the same one-shot cookie a
+ * real fill would, so the dropped-pin banner is reachable the same way.
+ */
+async function demoOutcome(label: string, ctx: ActionCtx) {
+  if (label === 'save') return demoSave(ctx);
+  if (label === 'setup') {
+    const { demoDiscordDroppedPins } = await import('$lib/server/demo-data');
+    rememberDroppedPins(ctx.cookies, ctx.guildId, droppedPinNotice(demoDiscordDroppedPins()));
+  }
+  return { ok: true };
+}
+
+async function demoSave(ctx: ActionCtx) {
+  const { demoDiscordConfig, demoDiscordRefusedField } = await import('$lib/server/demo-data');
+  const stored = demoDiscordConfig().config;
+  const draft = parseDraft(ctx.form.get('config'));
+  const { errors } = mergeDiscordConfig(stored, draft);
+  const refused = demoDiscordRefusedField();
+  const fields = errors.map((e) => String(e.field));
+  if (draft[refused] !== stored[refused]) fields.push(refused);
+  if (fields.length === 0) return { ok: true };
+  return fail(400, {
+    ok: false,
+    code: 'invalid',
+    error: `Some settings were not valid: ${fields.join(', ')}.`,
+    fields
+  });
+}
+
 // The config row is load-bearing (it is the draft the page edits), so a
 // failure there degrades the page. Layout and status are decorative: the
 // pickers fall back to a disabled control and the status card to an offline
@@ -258,15 +336,24 @@ type ActionCtx = {
   target: DiscordGuildTarget;
   session: Session | null | undefined;
   locals: App.Locals;
+  cookies: Cookies;
   form: FormData;
 };
 
-async function actionContext({ request, locals, params }: RequestEvent): Promise<ActionCtx | null> {
+async function actionContext({ cookies, request, locals, params }: RequestEvent): Promise<ActionCtx | null> {
   gate(locals.session);
   if (!DEMO && !locals.session) return null;
   const uid = effectiveId(locals.session);
   const guildId = params.guildId;
-  return { uid, guildId, target: { userId: uid, guildId }, session: locals.session, locals, form: await request.formData() };
+  return {
+    uid,
+    guildId,
+    target: { userId: uid, guildId },
+    session: locals.session,
+    locals,
+    cookies,
+    form: await request.formData()
+  };
 }
 
 type Outcome<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -318,7 +405,7 @@ function discordAction<T extends Record<string, unknown>>(
     if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
       return fail(403, { ok: false, code: 'locked', error: 'Discord is in beta and open to Premium channels only.' });
     }
-    if (DEMO) return { ok: true };
+    if (DEMO) return demoOutcome(work.label, ctx);
     const r = await attempt(work, async () => {
       await assertOwned(ctx);
       return run(ctx);
@@ -411,9 +498,15 @@ export const actions: Actions = {
       { ...row.config, twitchLogin: login }
     );
     if (result.error) return { error: result.error, code: result.code };
-    const saved = await persistSetup(ctx.target, { ...result.config, twitchLogin: login });
+    // A pin whose role is gone is cleared here rather than left for the
+    // streamer to notice: the fill already created a replacement, so keeping
+    // the dead id would point the NEXT setup at it again and keep the picker
+    // showing "Pinned" over a role Discord has forgotten.
+    const config = clearPinnedSlots({ ...result.config, twitchLogin: login }, result.droppedPins);
+    const saved = await persistSetup(ctx.target, config);
     if (saved.error || saved.code) return { error: saved.error, code: saved.code };
     auditDashboardImpersonation(ctx.session, 'discord:setup', ctx.guildId);
+    rememberDroppedPins(ctx.cookies, ctx.guildId, result.droppedPins);
     return { refused: result.refused };
   }),
 

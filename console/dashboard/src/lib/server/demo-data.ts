@@ -395,6 +395,29 @@ export function demoDiscordBlocked() {
 
 // One guild's config row. version is non-zero so the demo save exercises the
 // same expected_version round trip the live path does.
+/**
+ * The slot the demo's setup reports as dropped.
+ *
+ * `mods` is the one slot demoDiscordConfig pins, so the walk is honest end to
+ * end: the fixture shows the pinned chip, pressing Set up this server reports
+ * that pin as gone, and the banner names the same slot the chip was on.
+ */
+export function demoDiscordDroppedPins() {
+  return ['mods'];
+}
+
+/**
+ * The field the demo save refuses once it is edited.
+ *
+ * There is no outgress in demo, so nothing can refuse anything on its own and
+ * the whole `invalid` path -- banner, per-control FieldError, the section's
+ * SaveStatus going red -- would be unreachable locally. Refusing only an
+ * EDITED panel title keeps every other save in the demo working.
+ */
+export function demoDiscordRefusedField() {
+  return 'ticketPanelTitle' as const;
+}
+
 export function demoDiscordConfig() {
   return {
     version: 4,

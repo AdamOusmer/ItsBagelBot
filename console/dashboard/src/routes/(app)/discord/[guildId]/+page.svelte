@@ -11,6 +11,7 @@
     Card,
     Chip,
     ConfirmDialog,
+    FieldError,
     Icon,
     PageHead,
     PageToolbar,
@@ -21,7 +22,9 @@
     alertOn,
     encodeIdList,
     encodeNameList,
+    droppedPinNotice,
     encodePinnedRoles,
+    fieldErrorsByField,
     flagValue,
     getI18n,
     guildBotState,
@@ -98,12 +101,99 @@
   }
 
   // ── save plumbing ───────────────────────────────────────────────────────
-  let saveState = $state<SaveState>('idle');
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  function markSave(s: SaveState, resetAfter = 0) {
-    clearTimeout(saveTimer);
-    saveState = s;
-    if (resetAfter) saveTimer = setTimeout(() => (saveState = 'idle'), resetAfter);
+  // One SaveStatus per section rather than one for the page. Every form posts
+  // the WHOLE draft, so a refusal routinely names a field the streamer cannot
+  // see from the button they pressed; a single shared status would go red
+  // beside a section with nothing wrong in it and stay grey beside the one
+  // that has.
+  type SectionId = 'channels' | 'roles' | 'posts' | 'community' | 'tickets';
+
+  const SECTION_OF: Partial<Record<keyof DiscordConfig, SectionId>> = {
+    liveChannelId: 'channels',
+    clipsChannelId: 'channels',
+    welcomeChannelId: 'channels',
+    voiceHubId: 'channels',
+    logChannelId: 'channels',
+    subsChannelId: 'channels',
+    subsCategoryId: 'channels',
+    vipChannelId: 'channels',
+    vipCategoryId: 'channels',
+
+    ownerRoleId: 'roles',
+    leadModRoleId: 'roles',
+    modsRoleId: 'roles',
+    vipRoleId: 'roles',
+    subscriberRoleId: 'roles',
+    regularsRoleId: 'roles',
+    memberRoleId: 'roles',
+    pinnedRoles: 'roles',
+    autoRoleEnabled: 'roles',
+
+    liveEnabled: 'posts',
+    clipsEnabled: 'posts',
+    categoryAllow: 'posts',
+    categoryDeny: 'posts',
+
+    welcomeEnabled: 'community',
+    goodbyeEnabled: 'community',
+    voiceEnabled: 'community',
+    logsEnabled: 'community',
+    levelsEnabled: 'community',
+    linkGuardEnabled: 'community',
+    linkAllowList: 'community',
+    subscribersEnabled: 'community',
+
+    ticketsEnabled: 'tickets',
+    ticketChannelId: 'tickets',
+    ticketCategoryId: 'tickets',
+    ticketArchiveCategoryId: 'tickets',
+    ticketLogChannelId: 'tickets',
+    ticketStaffRoleIds: 'tickets',
+    ticketOpenLimit: 'tickets',
+    ticketTranscriptEnabled: 'tickets',
+    ticketPanelTitle: 'tickets',
+    ticketPanelBody: 'tickets',
+    ticketPanelColor: 'tickets',
+    ticketPanelButton: 'tickets'
+  };
+
+  let saveStates = $state<Record<SectionId, SaveState>>({
+    channels: 'idle',
+    roles: 'idle',
+    posts: 'idle',
+    community: 'idle',
+    tickets: 'idle'
+  });
+  let savingIn = $state<SectionId | ''>('');
+  const saveTimers: Partial<Record<SectionId, ReturnType<typeof setTimeout>>> = {};
+
+  function markSave(section: SectionId, s: SaveState, resetAfter = 0) {
+    clearTimeout(saveTimers[section]);
+    saveStates[section] = s;
+    if (resetAfter) saveTimers[section] = setTimeout(() => (saveStates[section] = 'idle'), resetAfter);
+  }
+
+  // ── refused fields ──────────────────────────────────────────────────────
+  // The names an `invalid` refusal carried, kept across the reseed that
+  // follows it: the reseed is what snaps the control back to the stored value,
+  // and without the marks nothing on screen would say which control moved.
+  let invalidFields = $state<string[]>([]);
+  const invalid = $derived(fieldErrorsByField(invalidFields));
+  const invalidBanner = $derived(bannerForRefusal(invalid));
+
+  function bannerForRefusal(map: { first: keyof DiscordConfig | ''; unknown: string[] }): string {
+    if (map.first !== '') return t('discord.invalidFieldBanner', { field: fieldLabel(map.first) });
+    // A field this console has no control for: there is nowhere to put a mark,
+    // so the banner is the whole notice.
+    if (map.unknown.length > 0) return t('discord.errInvalid');
+    return '';
+  }
+
+  function markRefusedSections(fields: string[]) {
+    for (const name of fields) {
+      const section = SECTION_OF[name as keyof DiscordConfig];
+      if (section) markSave(section, 'error', 4000);
+    }
   }
 
   type ActionResult = { ok?: boolean; error?: string; code?: string; refused?: string; fields?: string[] };
@@ -176,33 +266,64 @@
     return key ? t(key) : field;
   }
 
+  /**
+   * Pins the last setup could not honour.
+   *
+   * A slot pinned to a role that has since been deleted cannot be adopted, so
+   * the fill creates a fresh role and the streamer's pick changes underneath
+   * them. The server has already cleared the dead pin off the row; this is the
+   * only place that says it happened, and it says it once -- the notice rides
+   * a one-shot cookie the load deletes as it reads it.
+   */
+  const SLOT_LABEL_KEYS: Record<PinnedSlot, I18nKey> = {
+    owner: 'discord.slotOwner',
+    leadMod: 'discord.slotLeadMod',
+    mods: 'discord.slotMods',
+    vip: 'discord.slotVip',
+    subscriber: 'discord.slotSubscriber',
+    regulars: 'discord.slotRegulars',
+    member: 'discord.slotMember'
+  };
+
+  const droppedPins = $derived(droppedPinNotice(data.droppedPins ?? []));
+  const droppedBanner = $derived(
+    droppedPins.length === 0
+      ? ''
+      : t('discord.droppedPins', { slots: droppedPins.map((slot) => t(SLOT_LABEL_KEYS[slot])).join(', ') })
+  );
+
   function succeeded(result: { type: string }, p: ActionResult | undefined): boolean {
     return result.type === 'success' && p?.ok !== false;
   }
 
-  const saveSubmit: SubmitFunction = () => {
-    busy = true;
-    markSave('saving');
-    return async ({ result }) => {
-      busy = false;
-      const p = payloadOf(result);
-      if (succeeded(result, p)) {
-        markSave('saved', 4000);
-        conflicted = false;
-        toast('ok', t('discord.toastSaved'));
-        await invalidateAll();
-        return;
-      }
-      markSave('error', 4000);
-      conflicted = p?.code === 'conflict';
-      toast('err', refusalText(p, t('discord.toastSaveFailed')));
-      // An `invalid` refusal means the save DID land: every good field was
-      // written and only the named ones kept their stored value. Reseeding is
-      // what makes the refused control snap back to what is actually stored
-      // instead of showing a draft the server rejected.
-      if (p?.code === 'invalid') await invalidateAll();
+  function saveSubmit(section: SectionId): SubmitFunction {
+    return () => {
+      savingIn = section;
+      markSave(section, 'saving');
+      return async ({ result }) => {
+        savingIn = '';
+        const p = payloadOf(result);
+        if (succeeded(result, p)) {
+          markSave(section, 'saved', 4000);
+          invalidFields = [];
+          conflicted = false;
+          toast('ok', t('discord.toastSaved'));
+          await invalidateAll();
+          return;
+        }
+        markSave(section, 'error', 4000);
+        conflicted = p?.code === 'conflict';
+        invalidFields = p?.code === 'invalid' ? (p.fields ?? []) : [];
+        markRefusedSections(invalidFields);
+        toast('err', refusalText(p, t('discord.toastSaveFailed')));
+        // An `invalid` refusal means the save DID land: every good field was
+        // written and only the named ones kept their stored value. Reseeding is
+        // what makes the refused control snap back to what is actually stored
+        // instead of showing a draft the server rejected.
+        if (p?.code === 'invalid') await invalidateAll();
+      };
     };
-  };
+  }
 
   /**
    * The one navigation that must not be guarded.
@@ -501,10 +622,16 @@
   const ticketsOn = $derived(alertOn(config.ticketsEnabled));
 </script>
 
-{#snippet saveBar(label: string)}
+{#snippet fieldNote(field: keyof DiscordConfig)}
+  {#if invalid.byField[field]}
+    <span class="field-note"><FieldError message={t('discord.fieldInvalid')} /></span>
+  {/if}
+{/snippet}
+
+{#snippet saveBar(label: string, section: SectionId)}
   <div class="actions">
-    <SaveStatus state={saveState} />
-    <Button variant="primary" type="submit" icon="check" loading={busy}>{label}</Button>
+    <SaveStatus state={saveStates[section]} />
+    <Button variant="primary" type="submit" icon="check" loading={savingIn === section}>{label}</Button>
   </div>
 {/snippet}
 
@@ -527,6 +654,7 @@
         <option value={opt.id}>{prefix}{optionLabel(opt)}</option>
       {/each}
     </select>
+    {@render fieldNote(field)}
   </div>
 {/snippet}
 
@@ -543,6 +671,7 @@
         checked={switchOn(row)}
         onchange={(v) => setFlag(row.field, v)}
       />
+      {@render fieldNote(row.field)}
     </div>
   {/each}
 {/snippet}
@@ -605,6 +734,22 @@
 
     {#if data.justConnected && data.refused}
       <AlertBanner variant="warn" icon="server">{t('discord.connectedLivedIn')}</AlertBanner>
+    {/if}
+
+    <!-- Setup could not adopt a pinned role because it is gone from the guild,
+         so it created a replacement. Shown once: the notice arrives on a
+         one-shot cookie the load deletes as it reads it, and the dead pin is
+         already off the row, so the picker below shows the new role. -->
+    {#if droppedBanner}
+      <AlertBanner variant="warn" icon="server">{droppedBanner}</AlertBanner>
+    {/if}
+
+    <!-- A save that landed with one field refused. The banner names the first
+         one; each refused control carries its own note, and the section it
+         belongs to turns its SaveStatus red even when Save was pressed
+         somewhere else -- every form posts the whole draft. -->
+    {#if invalidBanner}
+      <AlertBanner variant="warn" icon="ban">{invalidBanner}</AlertBanner>
     {/if}
 
     <!-- One banner for the whole page rather than a raw-id input per picker:
@@ -708,7 +853,7 @@
     <section class="block reveal" style="--i:2" aria-labelledby="dc-channels-h">
       <h2 id="dc-channels-h" class="block-title">{t('discord.channelsTitle')}</h2>
       <Card>
-        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+        <form method="POST" action="?/save" use:enhance={saveSubmit('channels')} novalidate>
           <input type="hidden" name="config" value={payload} />
           <input type="hidden" name="version" value={version} />
           <p class="hint">{t('discord.channelsHelp')}</p>
@@ -730,7 +875,7 @@
           {@render picker('vipChannelId', t('discord.vipChannelLabel'), t('discord.vipChannelHelp'), textChannels, '#')}
           {@render picker('vipCategoryId', t('discord.vipCategoryLabel'), t('discord.vipCategoryHelp'), categories, '')}
 
-          {@render saveBar(t('discord.save'))}
+          {@render saveBar(t('discord.save'), 'channels')}
         </form>
       </Card>
     </section>
@@ -739,7 +884,7 @@
     <section class="block reveal" style="--i:3" aria-labelledby="dc-roles-h">
       <h2 id="dc-roles-h" class="block-title">{t('discord.rolesTitle')}</h2>
       <Card>
-        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+        <form method="POST" action="?/save" use:enhance={saveSubmit('roles')} novalidate>
           <input type="hidden" name="config" value={payload} />
           <input type="hidden" name="version" value={version} />
           <p class="hint">{t('discord.rolesHelp')}</p>
@@ -774,6 +919,7 @@
                   {/each}
                 </select>
               </span>
+              {@render fieldNote(row.field)}
             </div>
           {/each}
 
@@ -807,6 +953,7 @@
                   {/each}
                 </select>
               </span>
+              {@render fieldNote(row.field)}
             </div>
           {/each}
 
@@ -821,10 +968,11 @@
               checked={alertOn(config.autoRoleEnabled)}
               onchange={(v) => setFlag('autoRoleEnabled', v)}
             />
+            {@render fieldNote('autoRoleEnabled')}
           </div>
 
           <p class="hint">{t('discord.pinHelp')}</p>
-          {@render saveBar(t('discord.save'))}
+          {@render saveBar(t('discord.save'), 'roles')}
         </form>
       </Card>
     </section>
@@ -833,7 +981,7 @@
     <section class="block reveal" style="--i:4" aria-labelledby="dc-posts-h">
       <h2 id="dc-posts-h" class="block-title">{t('discord.postsTitle')}</h2>
       <Card>
-        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+        <form method="POST" action="?/save" use:enhance={saveSubmit('posts')} novalidate>
           <input type="hidden" name="config" value={payload} />
           <input type="hidden" name="version" value={version} />
           <p class="hint">{t('discord.postsHelp')}</p>
@@ -861,6 +1009,7 @@
               />
               <Button variant="secondary" icon="plus" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
             </span>
+            {@render fieldNote('categoryAllow')}
           </div>
 
           <div class="setting-row stacked">
@@ -885,9 +1034,10 @@
               />
               <Button variant="secondary" icon="plus" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
             </span>
+            {@render fieldNote('categoryDeny')}
           </div>
 
-          {@render saveBar(t('discord.save'))}
+          {@render saveBar(t('discord.save'), 'posts')}
         </form>
       </Card>
     </section>
@@ -896,13 +1046,13 @@
     <section class="block reveal" style="--i:5" aria-labelledby="dc-community-h">
       <h2 id="dc-community-h" class="block-title">{t('discord.communityTitle')}</h2>
       <Card>
-        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+        <form method="POST" action="?/save" use:enhance={saveSubmit('community')} novalidate>
           <input type="hidden" name="config" value={payload} />
           <input type="hidden" name="version" value={version} />
           <p class="hint">{t('discord.communityHelp')}</p>
           {@render switchRows(communitySwitches)}
           <p class="hint">{t('discord.tierRolesHelp')}</p>
-          {@render saveBar(t('discord.save'))}
+          {@render saveBar(t('discord.save'), 'community')}
         </form>
       </Card>
     </section>
@@ -911,7 +1061,7 @@
     <section class="block reveal" style="--i:6" aria-labelledby="dc-tickets-h">
       <h2 id="dc-tickets-h" class="block-title">{t('discord.ticketsTitle')}</h2>
       <Card>
-        <form method="POST" action="?/save" use:enhance={saveSubmit} novalidate>
+        <form method="POST" action="?/save" use:enhance={saveSubmit('tickets')} novalidate>
           <input type="hidden" name="config" value={payload} />
           <input type="hidden" name="version" value={version} />
           <p class="hint">{t('discord.ticketsSectionHelp')}</p>
@@ -927,6 +1077,7 @@
               checked={ticketsOn}
               onchange={(v) => setFlag('ticketsEnabled', v)}
             />
+            {@render fieldNote('ticketsEnabled')}
           </div>
 
           {@render picker('ticketChannelId', t('discord.ticketChannelLabel'), t('discord.ticketChannelHelp'), textChannels, '#')}
@@ -954,6 +1105,7 @@
                 {/each}
               </div>
             {/if}
+            {@render fieldNote('ticketStaffRoleIds')}
           </fieldset>
 
           <div class="setting-row">
@@ -968,6 +1120,7 @@
                 () => String(ticketOpenLimitN(config)), (v) => set('ticketOpenLimit', v)
               }
             />
+            {@render fieldNote('ticketOpenLimit')}
           </div>
 
           <div class="setting-row">
@@ -981,6 +1134,7 @@
               checked={alertOn(config.ticketTranscriptEnabled)}
               onchange={(v) => setFlag('ticketTranscriptEnabled', v)}
             />
+            {@render fieldNote('ticketTranscriptEnabled')}
           </div>
 
           <h3 class="group">{t('discord.panelTitle')}</h3>
@@ -999,6 +1153,7 @@
               value={config.ticketPanelTitle}
               oninput={(e) => set('ticketPanelTitle', e.currentTarget.value)}
             />
+            {@render fieldNote('ticketPanelTitle')}
           </div>
 
           <div class="setting-row stacked">
@@ -1014,6 +1169,7 @@
               value={config.ticketPanelBody}
               oninput={(e) => set('ticketPanelBody', e.currentTarget.value)}
             ></textarea>
+            {@render fieldNote('ticketPanelBody')}
           </div>
 
           <div class="setting-row">
@@ -1029,6 +1185,7 @@
               value={config.ticketPanelButton}
               oninput={(e) => set('ticketPanelButton', e.currentTarget.value)}
             />
+            {@render fieldNote('ticketPanelButton')}
           </div>
 
           <div class="setting-row">
@@ -1055,6 +1212,7 @@
                 oninput={(e) => set('ticketPanelColor', normalizeHex(e.currentTarget.value))}
               />
             </span>
+            {@render fieldNote('ticketPanelColor')}
           </div>
 
           <DiscordEmbedPreview
@@ -1065,7 +1223,7 @@
             color={panel.color}
           />
 
-          {@render saveBar(t('discord.save'))}
+          {@render saveBar(t('discord.save'), 'tickets')}
         </form>
 
         <div class="repost">
@@ -1254,6 +1412,11 @@
   .setting-textarea { min-height: 96px; line-height: 1.55; resize: vertical; }
 
   .role-controls { display: flex; align-items: center; gap: 8px; justify-self: end; flex-wrap: wrap; }
+
+  /* The note sits under the whole row, not beside the control: the second
+     column is sized to the control and a message wrapped inside it would be
+     one word wide. */
+  .field-note { grid-column: 1 / -1; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center; }
   .chip-x { margin-left: 6px; opacity: 0.7; }

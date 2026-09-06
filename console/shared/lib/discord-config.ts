@@ -246,6 +246,40 @@ export function pinnedRole(config: DiscordConfig, slot: PinnedSlot): string {
   return parsePinnedRoles(config.pinnedRoles)[slot] ?? '';
 }
 
+/**
+ * Drops slots from the pin list, keeping every other pin untouched.
+ *
+ * Setup reports the pins whose role no longer exists in the guild; leaving
+ * those in the blob would make the NEXT setup try to adopt the same dead id
+ * again, and the picker would go on showing "Pinned" over a role Discord has
+ * already forgotten. Clearing them is what makes the freshly created role the
+ * one the page displays.
+ */
+export function clearPinnedSlots(config: DiscordConfig, slots: readonly PinnedSlot[]): DiscordConfig {
+  if (slots.length === 0) return config;
+  const pins = parsePinnedRoles(config.pinnedRoles);
+  for (const slot of slots) delete pins[slot];
+  return { ...config, pinnedRoles: encodePinnedRoles(pins) };
+}
+
+/**
+ * Normalises the `dropped_pins` list a setup reply carries.
+ *
+ * The wire list is whatever outgress found stale, so it can repeat a slot, can
+ * name a slot this console version does not have yet, and arrives in the order
+ * the fill happened to walk the guild in. The banner reads better in a fixed
+ * order, and an unknown slot has no label to print, so both are handled here
+ * rather than in the page.
+ */
+export function droppedPinNotice(slots: readonly unknown[] | null | undefined): PinnedSlot[] {
+  const seen = new Set<string>();
+  for (const raw of slots ?? []) {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (SLOT_SET.has(name)) seen.add(name);
+  }
+  return PINNED_SLOTS.filter((slot) => seen.has(slot));
+}
+
 // ── snowflake lists ───────────────────────────────────────────────────────
 
 export function parseIdList(raw: string): string[] {
@@ -406,6 +440,50 @@ export function validateDiscordConfig(config: DiscordConfig): FieldError[] {
     out.push({ field: key, code: CODES[rule.kind] });
   }
   return out;
+}
+
+/** The refused fields a page can actually point at, split from the ones it
+ *  cannot. */
+export type RefusedFields = {
+  /** Refused fields this config knows, so the page can mark their controls. */
+  byField: Partial<Record<keyof DiscordConfig, true>>;
+  /** The field a banner should name, or '' when none of them is nameable. */
+  first: keyof DiscordConfig | '';
+  /** Names that are not fields of this config at all. */
+  unknown: string[];
+};
+
+/**
+ * Turns an `invalid` refusal's `fields[]` into something a form can render.
+ *
+ * The list crosses the wire from outgress, so it is not trusted to be strings,
+ * to be unique, or to name fields that still exist: a field removed from this
+ * console but still checked on the Go side would otherwise mark nothing and
+ * say nothing, which reads as a save that silently did not take. Anything
+ * unrecognised is kept in `unknown` so the page can still say SOMETHING went
+ * wrong even when it has no control to put a message under.
+ */
+export function fieldErrorsByField(fields: readonly unknown[] | null | undefined): RefusedFields {
+  const out: RefusedFields = { byField: {}, first: '', unknown: [] };
+  for (const raw of fields ?? []) {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (!FIELD_SET.has(name)) {
+      rememberUnknown(out, name);
+      continue;
+    }
+    const key = name as keyof DiscordConfig;
+    out.byField[key] = true;
+    if (out.first === '') out.first = key;
+  }
+  return out;
+}
+
+const FIELD_SET: ReadonlySet<string> = new Set<string>(DISCORD_CONFIG_KEYS);
+
+function rememberUnknown(out: RefusedFields, name: string): void {
+  if (name === '') return;
+  if (out.unknown.includes(name)) return;
+  out.unknown.push(name);
 }
 
 /** Reads a stored blob back. Non-string values and unknown keys are dropped:

@@ -14,6 +14,9 @@ import {
   TICKET_PANEL_DEFAULTS,
   blankDiscordConfig,
   canManageGuild,
+  clearPinnedSlots,
+  droppedPinNotice,
+  fieldErrorsByField,
   encodeIdList,
   encodeNameList,
   encodePinnedRoles,
@@ -471,5 +474,75 @@ describe('legacyConfigFor', () => {
 
   test('a guild id that is not a snowflake never migrates', () => {
     expect(legacyConfigFor({ ...legacy, guildId: 'abc' }, 'abc')).toBeNull();
+  });
+});
+
+describe('dropped pins', () => {
+  const ID_1 = '901234567890123456';
+  const ID_2 = '789012345678901234';
+
+  test('unknown slots, blanks and repeats are dropped and the order is fixed', () => {
+    expect(droppedPinNotice(['mods', 'owner', 'mods', 'nosuchslot', '', 7, null])).toEqual([
+      'owner',
+      'mods'
+    ]);
+  });
+
+  test('nothing dropped is an empty notice', () => {
+    expect(droppedPinNotice([])).toEqual([]);
+    expect(droppedPinNotice(undefined)).toEqual([]);
+    expect(droppedPinNotice(null)).toEqual([]);
+  });
+
+  test('clearing a slot leaves every other pin alone', () => {
+    const config = { ...blankDiscordConfig(), pinnedRoles: `owner=${ID_2},mods=${ID_1}` };
+    expect(clearPinnedSlots(config, ['mods']).pinnedRoles).toBe(`owner=${ID_2}`);
+  });
+
+  test('clearing nothing returns the config untouched', () => {
+    const config = { ...blankDiscordConfig(), pinnedRoles: `mods=${ID_1}` };
+    expect(clearPinnedSlots(config, [])).toBe(config);
+  });
+
+  test('clearing a slot that was never pinned is not a change', () => {
+    const config = { ...blankDiscordConfig(), pinnedRoles: `mods=${ID_1}` };
+    expect(clearPinnedSlots(config, ['vip']).pinnedRoles).toBe(`mods=${ID_1}`);
+  });
+});
+
+describe('refused fields', () => {
+  test('known fields are marked and the first one is the one to name', () => {
+    const out = fieldErrorsByField(['modsRoleId', 'ticketPanelTitle']);
+    expect(out.byField).toEqual({ modsRoleId: true, ticketPanelTitle: true });
+    expect(out.first).toBe('modsRoleId');
+    expect(out.unknown).toEqual([]);
+  });
+
+  test('a name this console has no field for falls back to the banner', () => {
+    const out = fieldErrorsByField(['gone_field', 'gone_field']);
+    expect(out.byField).toEqual({});
+    expect(out.first).toBe('');
+    expect(out.unknown).toEqual(['gone_field']);
+  });
+
+  test('a mixed list marks what it can and keeps the rest for the banner', () => {
+    const out = fieldErrorsByField(['gone_field', 'modsRoleId']);
+    expect(out.byField).toEqual({ modsRoleId: true });
+    expect(out.first).toBe('modsRoleId');
+    expect(out.unknown).toEqual(['gone_field']);
+  });
+
+  test('non-strings and blanks never reach either list', () => {
+    const out = fieldErrorsByField([7, null, undefined, '', '   ', { field: 'modsRoleId' }]);
+    expect(out.byField).toEqual({});
+    expect(out.unknown).toEqual([]);
+  });
+
+  test('a padded name still names its own field', () => {
+    expect(fieldErrorsByField([' modsRoleId ']).first).toBe('modsRoleId');
+  });
+
+  test('no refusal is an empty map', () => {
+    expect(fieldErrorsByField(undefined)).toEqual({ byField: {}, first: '', unknown: [] });
   });
 });

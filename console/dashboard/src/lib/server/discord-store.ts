@@ -16,6 +16,7 @@
 import { rpc } from '@bagel/shared/server/nats';
 import {
   MOD,
+  droppedPinNotice,
   encodePinnedRoles,
   hexToDiscordColor,
   parseConfigVersion,
@@ -23,7 +24,8 @@ import {
   parsePinnedRoles,
   ticketPanelSpec,
   type DiscordConfig,
-  type PinnedRoles
+  type PinnedRoles,
+  type PinnedSlot
 } from '@bagel/shared';
 import { SUB } from './services';
 import { listModules, upsertModule } from './commands-store';
@@ -364,11 +366,16 @@ type SetupReply = CodedReply & {
   regulars_role_id?: string;
   member_role_id?: string;
   refused?: string;
+  // The pins outgress could not honour because the role is gone from the
+  // guild. It created a replacement for each, so the streamer's pick has
+  // silently changed and the page has to say so.
+  dropped_pins?: string[];
 };
 
 export type DiscordSetup = {
   config: DiscordConfig;
   refused: string;
+  droppedPins: PinnedSlot[];
   error: string;
   code: DiscordCode;
 };
@@ -416,8 +423,16 @@ export async function setupGuild(
     },
     SETUP_TIMEOUT_MS
   );
-  if (r.error) return { config: current, refused: '', error: r.error, code: replyCode(r) };
-  return { config: applySetup(current, target.guildId, r), refused: r.refused ?? '', error: '', code: '' };
+  if (r.error) {
+    return { config: current, refused: '', droppedPins: [], error: r.error, code: replyCode(r) };
+  }
+  return {
+    config: applySetup(current, target.guildId, r),
+    refused: r.refused ?? '',
+    droppedPins: droppedPinNotice(r.dropped_pins),
+    error: '',
+    code: ''
+  };
 }
 
 function applySetup(current: DiscordConfig, guildId: string, r: SetupReply): DiscordConfig {
