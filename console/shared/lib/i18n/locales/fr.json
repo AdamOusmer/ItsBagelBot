@@ -622,7 +622,88 @@
     "welcomeChannelHelp": "Un embed par nouveau membre. Bagel n’envoie jamais de message privé.",
     "welcomeChannelLabel": "Salon de bienvenue",
     "welcomeHelp": "Un embed dans #welcome. Bagel n’envoie jamais de DM.",
-    "welcomeLabel": "Accueillir les nouveaux membres"
+    "welcomeLabel": "Accueillir les nouveaux membres",
+    "nav": {
+      "label": "Réglages du serveur",
+      "overview": "Aperçu",
+      "channels": "Salons",
+      "roles": "Rôles",
+      "announcements": "Annonces",
+      "community": "Communauté",
+      "tickets": "Tickets",
+      "settings": "Réglages"
+    },
+    "overview": {
+      "modulesTitle": "Modules",
+      "modulesHelp": "Tout ce que Bagel peut faire sur ce serveur. Activez un module ici, ou ouvrez-le pour choisir son salon.",
+      "needsSetup": "À configurer",
+      "needsSetupHint": "{n} de ces modules sont actifs mais attendent encore un salon ou un rôle. Ouvrez celui qui vous intéresse pour le choisir.",
+      "configure": "Configurer",
+      "notSetUp": "Ce serveur n’a jamais été configuré. Lancez la préparation et Bagel crée les salons et les rôles dont il a besoin.",
+      "botState": "Bot",
+      "modulesOn": "Modules actifs",
+      "tiles": {
+        "announcementsLive": {
+          "name": "Annonces de live",
+          "help": "Un message dans votre salon de live au démarrage du stream, modifié à la fin."
+        },
+        "announcementsClips": {
+          "name": "Clips",
+          "help": "Chaque clip de !clip et de Twitch arrive dans votre salon de clips."
+        },
+        "welcome": {
+          "name": "Bienvenue",
+          "help": "Un encart pour chaque nouveau membre. Bagel n’envoie jamais de message privé."
+        },
+        "goodbye": {
+          "name": "Au revoir",
+          "help": "Une courte ligne dans le même salon quand quelqu’un part."
+        },
+        "voiceHub": {
+          "name": "Vocal à la demande",
+          "help": "Rejoindre le salon pivot crée une pièce personnelle avec Verrouiller et Déverrouiller."
+        },
+        "logs": {
+          "name": "Journaux du staff",
+          "help": "Arrivées, départs, modifications, suppressions et modération, dans un seul salon."
+        },
+        "levels": {
+          "name": "Miettes et rangs",
+          "help": "XP de chat avec cartes de rang et récompense quotidienne. Rien à choisir."
+        },
+        "linkGuard": {
+          "name": "Filtre de liens",
+          "help": "Supprime les liens envoyés par les membres qui n’ont pas encore de rôle."
+        },
+        "subscribers": {
+          "name": "Espace abonnés",
+          "help": "Un rôle Abonné et son espace privé, créés pendant la préparation."
+        },
+        "autoRole": {
+          "name": "Rôles automatiques",
+          "help": "Chaque personne qui rejoint reçoit le rôle Membre."
+        },
+        "tickets": {
+          "name": "Tickets d’assistance",
+          "help": "Un panneau que les membres utilisent pour ouvrir un salon privé avec votre staff."
+        }
+      }
+    },
+    "hub": {
+      "eyebrow": "Bot Discord",
+      "titlePre": "Bagel pour",
+      "titleEm": "Discord",
+      "statsTitle": "Discord en un coup d’œil",
+      "statServers": "Serveurs liés",
+      "statServersNote": "Connectés à cette chaîne",
+      "statOnline": "Bots en ligne",
+      "statOnlineNote": "Passerelle connectée et autorisée",
+      "statMembers": "Membres touchés",
+      "statMembersNote": "Sur l’ensemble des serveurs liés",
+      "linkedFor": "Lié depuis {since}"
+    },
+    "setupFirstRun": "Ce serveur n’a pas encore de réglages enregistrés. La première préparation les écrit.",
+    "dangerTitle": "Zone sensible"
   },
   "fetches": {
     "builderNew": "+ Nouvelle source",

@@ -98,7 +98,12 @@ export const icons = {
   // megaphone (alerts): Stream Management is "this channel is live and editable",
   // and those two already sit on other catalog tiles.
   broadcast:
-    '<circle cx="12" cy="18" r="1.6"/><path d="M8.2 14.2a5.4 5.4 0 0 1 7.6 0"/><path d="M5.2 11.2a9.4 9.4 0 0 1 13.6 0"/><line x1="12" y1="18" x2="12" y2="9"/>'
+    '<circle cx="12" cy="18" r="1.6"/><path d="M8.2 14.2a5.4 5.4 0 0 1 7.6 0"/><path d="M5.2 11.2a9.4 9.4 0 0 1 13.6 0"/><line x1="12" y1="18" x2="12" y2="9"/>',
+  // A capsule mic on a stand, for the Discord join-to-create voice hub. Not
+  // 'broadcast' (that is the live channel) and not 'chat' (that is text): the
+  // Discord overview shows all three as tiles at once, so they cannot share a
+  // glyph.
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="8.5" y1="21" x2="15.5" y2="21"/>'
 } as const;
 
 export type IconName = keyof typeof icons;

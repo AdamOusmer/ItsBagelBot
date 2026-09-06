@@ -367,6 +367,20 @@ export function demoDiscordGuilds() {
       needsReauth: false,
       reauthUnknown: false,
       boundAtMs: Date.now() - 3 * 24 * 60 * 60 * 1000
+    },
+    {
+      // Third guild, and the only one with a dead grant: the hub's status pill
+      // has four states and the "bots online" stat deliberately does NOT count
+      // a guild needing re-authorization. Two fixtures could never show either
+      // of those, so a regression in them looked identical to a correct render.
+      guildId: '246813579024681357',
+      name: 'Sourdough Society',
+      iconUrl: '',
+      memberCount: 5417,
+      botPresent: true,
+      needsReauth: true,
+      reauthUnknown: false,
+      boundAtMs: Date.now() - 9 * 60 * 60 * 1000
     }
   ];
 }

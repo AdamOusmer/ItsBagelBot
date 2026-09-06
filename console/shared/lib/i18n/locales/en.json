@@ -622,7 +622,88 @@
     "welcomeChannelHelp": "One embed per new member. Bagel never DMs joiners.",
     "welcomeChannelLabel": "Welcome channel",
     "welcomeHelp": "One embed in #welcome. Bagel never DMs joiners.",
-    "welcomeLabel": "Welcome new members"
+    "welcomeLabel": "Welcome new members",
+    "nav": {
+      "label": "Server settings",
+      "overview": "Overview",
+      "channels": "Channels",
+      "roles": "Roles",
+      "announcements": "Announcements",
+      "community": "Community",
+      "tickets": "Tickets",
+      "settings": "Settings"
+    },
+    "overview": {
+      "modulesTitle": "Modules",
+      "modulesHelp": "Everything Bagel can do in this server. Flip one here, or open it to choose its channel.",
+      "needsSetup": "Needs setup",
+      "needsSetupHint": "{n} of these are on but still need a channel or a role. Open the one you want and pick it.",
+      "configure": "Configure",
+      "notSetUp": "This server has never been set up. Run the fill and Bagel creates the channels and roles it needs.",
+      "botState": "Bot",
+      "modulesOn": "Modules on",
+      "tiles": {
+        "announcementsLive": {
+          "name": "Go-live posts",
+          "help": "One post in your go-live channel when the stream starts, edited when it ends."
+        },
+        "announcementsClips": {
+          "name": "Clip posts",
+          "help": "Every clip from !clip and from Twitch lands in your clips channel."
+        },
+        "welcome": {
+          "name": "Welcome",
+          "help": "One embed for each new member. Bagel never DMs joiners."
+        },
+        "goodbye": {
+          "name": "Goodbye",
+          "help": "A short line in the same channel when somebody leaves."
+        },
+        "voiceHub": {
+          "name": "Join-to-create voice",
+          "help": "Joining the hub clones a personal room with Lock and Unlock buttons."
+        },
+        "logs": {
+          "name": "Staff logs",
+          "help": "Joins, leaves, edits, deletes and moderation, in one channel."
+        },
+        "levels": {
+          "name": "Crumbs and ranks",
+          "help": "Chat XP with rank and daily cards. Nothing to pick."
+        },
+        "linkGuard": {
+          "name": "Link guard",
+          "help": "Deletes links from members who have no role yet."
+        },
+        "subscribers": {
+          "name": "Subscriber tier",
+          "help": "A Subscriber role and its private area, created during setup."
+        },
+        "autoRole": {
+          "name": "Automatic roles",
+          "help": "Everyone who joins gets the Member role."
+        },
+        "tickets": {
+          "name": "Support tickets",
+          "help": "A panel members click to open a private channel with your staff."
+        }
+      }
+    },
+    "hub": {
+      "eyebrow": "Discord bot",
+      "titlePre": "Bagel for",
+      "titleEm": "Discord",
+      "statsTitle": "Discord at a glance",
+      "statServers": "Servers linked",
+      "statServersNote": "Connected to this channel",
+      "statOnline": "Bots online",
+      "statOnlineNote": "Gateway present and authorized",
+      "statMembers": "Members reached",
+      "statMembersNote": "Across every linked server",
+      "linkedFor": "Linked {since} ago"
+    },
+    "setupFirstRun": "This server has no saved settings yet. The first setup writes them.",
+    "dangerTitle": "Danger zone"
   },
   "fetches": {
     "builderNew": "+ New data source",

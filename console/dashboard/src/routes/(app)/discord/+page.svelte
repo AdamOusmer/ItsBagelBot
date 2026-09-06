@@ -1,6 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // The bot's home: everything true of the ACCOUNT (the master switch, the
+  // servers, the invite path). Everything true of one server lives under
+  // /discord/[guildId].
   import {
     AlertBanner,
     Button,
@@ -12,11 +15,13 @@
     PageHead,
     PageToolbar,
     MasterToggle,
+    StatTile,
     getI18n,
     guildBotState,
     guildMonogram
   } from '@bagel/shared';
   import { DISCORD_PILL_KEYS, DISCORD_SLUG_KEYS } from '$lib/discord-messages';
+  import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';
 
   let { data } = $props();
@@ -40,15 +45,40 @@
   // reauth flag.
   const PILL_ICONS = { online: 'check', offline: 'ban', reauth: 'power', unknown: 'dots' } as const;
 
+  // "Online" here means the gateway is present AND the grant is still good: a
+  // guild needing re-authorization is counted as not online, because that is
+  // what the streamer has to act on. Counting it as online is how a dead grant
+  // hides behind a healthy-looking number.
+  const online = $derived(guilds.filter((g) => g.botPresent && !g.needsReauth).length);
+  const reach = $derived(guilds.reduce((n, g) => n + Math.max(0, g.memberCount), 0));
+
   function memberLabel(g: DiscordGuildSummary): string {
     if (g.memberCount <= 0) return t('discord.statusNoMembers');
     return t('discord.statusMembers', { n: g.memberCount.toLocaleString() });
   }
+
+  const SINCE_KEYS = {
+    minutes: 'discord.sinceMinutes',
+    hours: 'discord.sinceHours',
+    days: 'discord.sinceDays'
+  } as const;
+
+  // now stays 0 until the browser sets it: a "linked 3 d ago" rendered during
+  // SSR is stale by the time it lands and hydration reports the mismatch.
+  let now = $state(0);
+  $effect(() => {
+    now = Date.now();
+  });
+
+  function boundLabel(g: DiscordGuildSummary): string {
+    const parts = sinceParts(now, g.boundAtMs);
+    return parts ? t('discord.hub.linkedFor', { since: t(SINCE_KEYS[parts.unit], { n: String(parts.n) }) }) : '';
+  }
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('discord.eyebrow')} description={t('discord.description')}>
-    {t('discord.titlePre')} <em>{t('discord.titleEm')}</em>
+  <PageHead eyebrow={t('discord.hub.eyebrow')} description={t('discord.description')}>
+    {t('discord.hub.titlePre')} <em>{t('discord.hub.titleEm')}</em>
   </PageHead>
 
   <!-- Discord is premium-only while in beta. The route guard lets this page
@@ -105,10 +135,45 @@
       {/snippet}
     </PageToolbar>
 
+    <!-- The strip answers "is my bot working" before the list answers "where".
+         It is hidden with no servers, where three zeros say nothing the empty
+         state does not say better. -->
+    {#if guilds.length > 0}
+      <section class="block reveal" style="--i:0" aria-labelledby="dc-stats-h">
+        <h2 id="dc-stats-h" class="sr-only">{t('discord.hub.statsTitle')}</h2>
+        <div class="stat-grid three">
+          <StatTile
+            icon="server"
+            tan
+            label={t('discord.hub.statServers')}
+            value={guilds.length.toLocaleString()}
+            delta={t('discord.hub.statServersNote')}
+            flat
+          />
+          <StatTile
+            icon="broadcast"
+            label={t('discord.hub.statOnline')}
+            value={online.toLocaleString()}
+            delta={t('discord.hub.statOnlineNote')}
+            flat
+          />
+          <StatTile
+            icon="users"
+            tan
+            label={t('discord.hub.statMembers')}
+            value={reach.toLocaleString()}
+            delta={t('discord.hub.statMembersNote')}
+            flat
+          />
+        </div>
+      </section>
+    {/if}
+
     <section class="block reveal" style="--i:1" aria-labelledby="dc-servers-h">
       <h2 id="dc-servers-h" class="block-title">{t('discord.serversTitle')}</h2>
-      <Card>
-        {#if guilds.length === 0}
+
+      {#if guilds.length === 0}
+        <Card>
           <EmptyState icon="discord" title={t('discord.emptyTitle')} body={t('discord.emptyBody')}>
             {#if data.configured}
               <ButtonLink variant="primary" icon="discord" href="/discord/connect" data-sveltekit-reload>
@@ -118,42 +183,44 @@
               <p class="hint">{t('discord.connectUnconfigured')}</p>
             {/if}
           </EmptyState>
-        {:else}
-          <p class="hint">{t('discord.serversHelp')}</p>
-          <!-- outgress caps how many bindings it describes. Without saying so,
-               a streamer over the cap sees a short list and no sign of it,
-               which reads as Bagel having lost a server. -->
-          {#if data.truncated}
-            <AlertBanner variant="warn" icon="list">
-              {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
-            </AlertBanner>
-          {/if}
-          <ul class="servers">
-            {#each guilds as g (g.guildId)}
-              {@const state = guildBotState(g)}
-              <li class="server">
-                <!-- Monogram, not the guild icon: the console CSP is
-                     img-src 'self' data:, so a CDN <img> renders as a broken
-                     box and leaks the visit to Discord besides. -->
-                <span class="crest" aria-hidden="true">{guildMonogram(g.name || t('discord.unknownServer'))}</span>
-                <span class="server-copy">
-                  <span class="server-name">{g.name || t('discord.unknownServer')}</span>
-                  <span class="tr-help">{memberLabel(g)}</span>
-                </span>
-                <span class="server-actions">
+        </Card>
+      {:else}
+        <p class="hint">{t('discord.serversHelp')}</p>
+        <!-- outgress caps how many bindings it describes. Without saying so, a
+             streamer over the cap sees a short list and no sign of it, which
+             reads as Bagel having lost a server. -->
+        {#if data.truncated}
+          <AlertBanner variant="warn" icon="list">
+            {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
+          </AlertBanner>
+        {/if}
+
+        <!-- The whole card is the link, not an Open button in its corner: the
+             card has one destination, and a 44px button inside a 260px target
+             makes the other 90% of it dead space under a thumb. -->
+        <ul class="servers">
+          {#each guilds as g (g.guildId)}
+            {@const state = guildBotState(g)}
+            <li>
+              <Card as="a" href="/discord/{g.guildId}" hover class="server-card">
+                <span class="head">
+                  <!-- Monogram, not the guild icon: the console CSP is
+                       img-src 'self' data:, so a CDN <img> renders as a broken
+                       box and leaks the visit to Discord besides. -->
+                  <span class="crest" aria-hidden="true">{guildMonogram(g.name || t('discord.unknownServer'))}</span>
                   <span class="pill {state}">
                     <Icon name={PILL_ICONS[state]} size={13} />
                     {t(DISCORD_PILL_KEYS[state])}
                   </span>
-                  <ButtonLink variant="secondary" href="/discord/{g.guildId}">
-                    {t('discord.openCta')}
-                  </ButtonLink>
                 </span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </Card>
+                <span class="server-name">{g.name || t('discord.unknownServer')}</span>
+                <span class="tr-help">{memberLabel(g)}</span>
+                {#if boundLabel(g)}<span class="tr-help">{boundLabel(g)}</span>{/if}
+              </Card>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
   {/if}
 </section>
@@ -179,15 +246,29 @@
   .lead { margin: 0 0 12px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-  .servers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .server {
-    display: flex;
-    align-items: center;
+  /* Three tiles, not the shared grid's four. auto-fit rather than a media
+     query because app.css's own 1100px rule for .stat-grid would otherwise be
+     out-specified by this selector and never apply. */
+  .stat-grid.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+
+  .servers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
     gap: 14px;
-    padding: 14px 0;
-    border-top: 1px solid var(--glass-border);
   }
-  .server:first-child { border-top: none; padding-top: 0; }
+  .servers :global(.server-card) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    box-sizing: border-box;
+  }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
   .crest {
     flex: none;
     width: 44px;
@@ -203,7 +284,6 @@
     font-size: 15px;
     letter-spacing: 0.02em;
   }
-  .server-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .server-name {
     font-family: var(--bb-font-display);
     font-weight: 700;
@@ -234,15 +314,4 @@
      never read, so a coloured pill would assert health or a fault that nobody
      checked. */
   .pill.unknown { color: var(--bb-muted); background: rgba(136, 128, 119, 0.14); }
-
-  .server-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-  @media (max-width: 600px) {
-    /* Crest and name stay on one line, pill and button drop to the next,
-       indented to the name rather than the card edge: wrapping the copy
-       instead put the crest on the second line next to the pill, which read
-       like two separate rows. 58px = the 44px crest plus its 14px gap. */
-    .server { flex-wrap: wrap; }
-    .server-actions { flex-basis: 100%; padding-left: 58px; }
-  }
 </style>
