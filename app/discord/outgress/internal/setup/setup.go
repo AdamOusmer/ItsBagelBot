@@ -101,9 +101,11 @@ type GuildSetupRequest struct {
 	GuildID        string
 	EveryoneRoleID string
 	BroadcasterID  string
-	// InstalledBy is the Discord user snowflake that ran the install, taken
-	// from the dashboard's OAuth exchange. Recorded on the binding so support
-	// can answer "who added this bot"; empty when the caller did not say.
+	// InstalledBy is the account that ran the install, as sent by the
+	// dashboard (its acting console user's Twitch id -- see the wire type's
+	// note for why it is not a Discord snowflake). Recorded on the binding so
+	// support can answer "who added this bot"; empty when the caller did not
+	// say.
 	InstalledBy string
 	// Subscribers mirrors the streamer's subscriber toggle. The fill skips
 	// the Subscriber role and its locked category when it is off, so a server

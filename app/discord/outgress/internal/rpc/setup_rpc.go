@@ -521,7 +521,7 @@ func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.Disco
 	// part-way leaves a usable partial list, and the code tells the dashboard
 	// it is short rather than wrong.
 	guilds, err := d.w.ListGuilds(ctx, req.UserID)
-	out := guildEntries(guilds)
+	out := d.guildEntries(ctx, guilds)
 	if err != nil {
 		message, code := discordFailure(err)
 		return outgressrpc.DiscordGuildsListReply{Guilds: out, Error: message, Code: code}
@@ -530,7 +530,12 @@ func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.Disco
 }
 
 // guildEntries renders the worker's summaries onto the wire type.
-func guildEntries(guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
+//
+// NeedsReauth is read per guild rather than once for the account: the grant
+// that dies is the bot's authorization in ONE server, so a broadcaster with
+// four guilds can have three healthy and one needing a re-invite, and a
+// single account-wide flag would either warn on all four or on none.
+func (d *discordRPC) guildEntries(ctx context.Context, guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
 	out := make([]outgressrpc.DiscordGuildEntry, 0, len(guilds))
 	for _, g := range guilds {
 		out = append(out, outgressrpc.DiscordGuildEntry{
@@ -539,6 +544,7 @@ func guildEntries(guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
 			MemberCount:   g.MemberCount,
 			BotPresent:    g.BotPresent,
 			BoundAtUnixMs: g.BoundAtUnixMs,
+			NeedsReauth:   d.needsReauth(ctx, kv.GuildID(g.GuildID)),
 		})
 	}
 	return out

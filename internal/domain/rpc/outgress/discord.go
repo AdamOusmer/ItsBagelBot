@@ -71,9 +71,16 @@ type DiscordSetupRequest struct {
 	// The fill adopts these instead of creating or name-matching, so a
 	// server whose staff role is already called something else keeps it.
 	PinnedRoles map[string]string `json:"pinned_roles,omitempty"`
-	// InstalledBy is the Discord user snowflake that ran the install, known to
-	// the dashboard from the OAuth exchange. Recorded on the binding so
-	// support can answer "who added this bot"; empty is accepted.
+	// InstalledBy is the account that ran the install, recorded on the
+	// binding so support can answer "who added this bot"; empty is accepted.
+	//
+	// Integration note (2026-09-05): this was specified as the Discord user
+	// snowflake, but the dashboard never learns one -- the picker leg's user
+	// token is spent inside listUserGuilds and discarded, and the install leg
+	// returns a guild, not a user. Rather than add a /users/@me call whose
+	// result would have to survive a redirect, the console sends the acting
+	// console user's Twitch id, which is the identity its audit log already
+	// records for the same action. Fits the column's MaxLen(20).
 	InstalledBy string `json:"installed_by,omitempty"`
 }
 
@@ -317,6 +324,13 @@ type DiscordGuildEntry struct {
 	// already oldest-binding-first, so the picker does not need it to sort;
 	// it is here for the card's "connected since".
 	BoundAtUnixMs int64 `json:"bound_at_unix_ms,omitempty"`
+	// NeedsReauth is this guild's stale-grant flag, the same one status and
+	// layout carry. Integration fix (2026-09-05): the server-list page has
+	// always rendered three pill states (online / offline / reauth) off this
+	// field, but the entry never carried it, so a guild whose grant died
+	// showed as a plain "offline" and sent the streamer to wait for a
+	// reconnect that cannot happen without a new authorization.
+	NeedsReauth bool `json:"needs_reauth,omitempty"`
 }
 
 // DiscordPanelSpec is the ticket-desk embed's copy, as the dashboard just saved
@@ -347,5 +361,10 @@ type DiscordDeskRepostRequest struct {
 type DiscordDeskRepostReply struct {
 	MessageID string `json:"message_id,omitempty"`
 	Error     string `json:"error,omitempty"`
-	Code      string `json:"code,omitempty"`
+	// Code carries no omitempty, matching every other reply in this file:
+	// see the const block's note. Integration fix (2026-09-05): this one
+	// shipped with omitempty, so a successful repost sent no "code" key at
+	// all and the console's replyCode fell through to matching the English
+	// error text -- the exact behaviour codes replaced.
+	Code string `json:"code"`
 }
